@@ -33,6 +33,11 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 | [EFFECT-CONTRACT.md](./EFFECT-CONTRACT.md) | Pure function spec, Effect Container, parameter schema, testing |
 | [DATA-SCHEMAS.md](./DATA-SCHEMAS.md) | TypeScript interfaces: Project, Timeline, Track, Effect, Preset, Undo |
 | [SIGNAL-ARCHITECTURE.md](./SIGNAL-ARCHITECTURE.md) | Modulation, sidechain, operators, signal order, DAG routing |
+| [BUG-PREVENTION.md](./BUG-PREVENTION.md) | Every v1 bug → Challenger architectural prevention |
+| [SECURITY.md](./SECURITY.md) | 17 security requirements, 10 attack vectors, per-phase checklist |
+| [EFFECTS-INVENTORY.md](./EFFECTS-INVENTORY.md) | Complete catalog: 126 existing + 45 new R&D effects (171 total) |
+| [RD-EFFECTS-RESEARCH.md](./RD-EFFECTS-RESEARCH.md) | Novel effect R&D: algorithms, categories, interaction matrices |
+| [ADVERSARIAL-FINDINGS.md](./ADVERSARIAL-FINDINGS.md) | Refactor vs Challenger comparison, cherry-pick decisions |
 
 ### Phase Blueprints
 
@@ -61,6 +66,9 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 | v2 Challenger Spec (17 files) | `~/Downloads/glitch-video-daw-extracted/documentation/` |
 | Architecture Deep Dive | `~/Development/entropic/docs/ARCHITECTURE-DEEP-DIVE.md` |
 | UAT Findings | `~/Development/entropic/docs/UAT-FINDINGS-2026-02-15.md` |
+| R&D Effects (full source, 85KB) | `~/Development/entropic/docs/RD-EFFECTS-RESEARCH-2026-02-18.md` |
+| Feature Set (126 effects) | `~/Development/entropic-2/docs/FEATURE-SET.md` |
+| v2 Spec Effects & Modulation | `~/Downloads/glitch-video-daw-extracted/documentation/SPECS_EFFECTS_MODULATION.md` |
 
 ---
 
