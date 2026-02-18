@@ -150,12 +150,15 @@ If it's not stable, it doesn't ship. If it's not intuitive, it gets redesigned. 
 - When stopped: always full resolution (user never sees degraded static frame)
 
 ### 3.3 Resource Envelope (Targets)
-| Resource | Target | Maximum |
-|----------|--------|---------|
-| CPU | Sustained 140-160% | 200% |
-| RAM | 8-12 GB | 16 GB cap |
-| Frame cache | 4-10 GB MJPEG | Configurable |
-| Undo history | 50 MB RAM | + disk overflow |
+| Resource | Design Target | Degrade Gracefully | Maximum |
+|----------|--------------|-------------------|---------|
+| CPU | 80-120% sustained | Frame drop above 140% | Pause render at 200% |
+| RAM | 4-8 GB working set | Toast at 12GB: "Consider freezing" | 16 GB cap, forced freeze |
+| Disk cache | 10-25 GB | Toast at 50GB | 75 GB cap, auto-prune |
+| Frame budget | 33ms (30fps) | Dynamic resolution during playback | — |
+| Undo history | 50 MB RAM | Overflow to disk + notification | Unlimited on disk |
+
+> Source: Gap Analysis Rev 5 §6.2. Design for the middle, allow the extreme, degrade gracefully at the edges.
 
 ---
 

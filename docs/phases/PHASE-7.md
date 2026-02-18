@@ -80,7 +80,7 @@ function resolveParam(base: number, modValue: number | null, autoValue: number |
 }
 ```
 
-**Note:** Automation REPLACES the current value at that time. Modulation OFFSETS from base. This matches DAW convention (Ableton, FL Studio).
+**Note:** Automation REPLACES the current value at that time (where automation data exists). Modulation OFFSETS from base. Where no automation data exists at the current time, the modulated value passes through. This follows the Gap Analysis §8.2 signal stack: `Base → +Modulation → Automation (replace) → Clamp`. The Ghost Handle shows all three layers so the user can see modulation running even when automation overrides it.
 
 ### Testing
 - Lane: add 3 nodes → playback interpolates correctly

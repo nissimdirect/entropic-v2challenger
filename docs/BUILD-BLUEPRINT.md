@@ -99,6 +99,7 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 ## Session Estimate
 
 **Total: 43-58 sessions** (14 phases)
+> Gap Analysis Rev 5 estimated 41-55. Revised upward after Phase 8 scoped to 45 R&D effects (5-7 sessions vs original 3-4).
 
 | Phase | Sessions | Running Total |
 |-------|----------|---------------|
