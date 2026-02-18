@@ -62,12 +62,23 @@
 ### 2.2 Pure Function Effects
 Every effect is a pure function:
 ```python
-def apply(frame: np.ndarray, params: dict, state_in: dict | None) -> tuple[np.ndarray, dict | None]:
+def apply(
+    frame: np.ndarray,
+    params: dict,
+    state_in: dict | None = None,
+    *,
+    frame_index: int,
+    seed: int,
+    resolution: tuple[int, int],
+) -> tuple[np.ndarray, dict | None]:
     """
     Args:
         frame: Input RGBA image as numpy array (H, W, 4), uint8
         params: Effect parameters (all values, already modulated)
         state_in: Previous frame state (for temporal effects), or None
+        frame_index: Current frame number (0-based, required keyword arg)
+        seed: Deterministic seed for this effect at this frame
+        resolution: (width, height) of the output
 
     Returns:
         (output_frame, state_out): Processed frame + state to pass to next frame

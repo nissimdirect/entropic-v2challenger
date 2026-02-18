@@ -38,6 +38,8 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 | [EFFECTS-INVENTORY.md](./EFFECTS-INVENTORY.md) | Complete catalog: 126 existing + 45 new R&D effects (171 total) |
 | [RD-EFFECTS-RESEARCH.md](./RD-EFFECTS-RESEARCH.md) | Novel effect R&D: algorithms, categories, interaction matrices |
 | [ADVERSARIAL-FINDINGS.md](./ADVERSARIAL-FINDINGS.md) | Refactor vs Challenger comparison, cherry-pick decisions |
+| [PRD.md](./PRD.md) | Product requirements: vision, modules, success metrics, build order |
+| [UX-SPEC.md](./UX-SPEC.md) | UX specification: panels, interactions, shortcuts, feedback patterns |
 
 ### Phase Blueprints
 
@@ -45,18 +47,18 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 |-------|-----|-----------|
 | 0A | [PHASE-0A.md](./phases/PHASE-0A.md) | Electron + React + Python + ZMQ heartbeat + Nuitka build |
 | 0B | [PHASE-0B.md](./phases/PHASE-0B.md) | Shared memory + frame transport + PyAV + Effect Container + validation tests |
-| 1 | (TBD) | Core pipeline: upload → effects → preview → export |
-| 2A | (TBD) | Parameter UX: Ghost Handle, sensitivity, scaling |
-| 2B | (TBD) | Audio sprint: PyAV decode → PortAudio → A/V sync |
-| 3 | (TBD) | Color Suite: Levels, Curves, HSL, Color Balance |
-| 4 | (TBD) | Timeline + Tracks: multi-track, undo, history panel |
-| 5 | (TBD) | Basic Performance: keyboard triggers, choke groups |
-| 6 | (TBD) | Operators + Modulation: LFO, sidechain, audio-reactive, DAG |
-| 7 | (TBD) | Automation: keyframes, recording modes, RDP |
-| 8 | (TBD) | Physics + remaining effects, GPU evaluation |
-| 9 | (TBD) | Full Perform + MIDI: Drum Rack, MIDI Learn, Retro-Capture |
-| 10 | (TBD) | Freeze/Flatten + Library: presets, taxonomy UI |
-| 11 | (TBD) | Export + Polish: codecs, design system, auto-update, accessibility |
+| 1 | [PHASE-1.md](./phases/PHASE-1.md) | Core pipeline: upload → effects → preview → export |
+| 2A | [PHASE-2A.md](./phases/PHASE-2A.md) | Parameter UX: Ghost Handle, sensitivity, scaling |
+| 2B | [PHASE-2B.md](./phases/PHASE-2B.md) | Audio sprint: PyAV decode → PortAudio → A/V sync |
+| 3 | [PHASE-3.md](./phases/PHASE-3.md) | Color Suite: Levels, Curves, HSL, Color Balance |
+| 4 | [PHASE-4.md](./phases/PHASE-4.md) | Timeline + Tracks: multi-track, undo, history panel |
+| 5 | [PHASE-5.md](./phases/PHASE-5.md) | Basic Performance: keyboard triggers, choke groups |
+| 6 | [PHASE-6.md](./phases/PHASE-6.md) | Operators + Modulation: LFO, sidechain, audio-reactive, DAG |
+| 7 | [PHASE-7.md](./phases/PHASE-7.md) | Automation: lanes, recording modes, RDP simplify |
+| 8 | [PHASE-8.md](./phases/PHASE-8.md) | Physics + R&D effects (45 new), codec archaeology |
+| 9 | [PHASE-9.md](./phases/PHASE-9.md) | Full Perform + MIDI: 8x8 Drum Rack, MIDI Learn, Retro-Capture |
+| 10 | [PHASE-10.md](./phases/PHASE-10.md) | Freeze/Flatten + Library: presets, macro knobs |
+| 11 | [PHASE-11.md](./phases/PHASE-11.md) | Export + Polish: codecs, render queue, auto-update, welcome |
 
 ### External References
 
@@ -96,7 +98,7 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 
 ## Session Estimate
 
-**Total: 41-55 sessions** (12 phases)
+**Total: 43-58 sessions** (14 phases)
 
 | Phase | Sessions | Running Total |
 |-------|----------|---------------|
@@ -110,7 +112,7 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 | 5 Basic Performance | 2-3 | 22-30 |
 | 6 Operators + Modulation | 4-5 | 26-35 |
 | 7 Automation | 3-4 | 29-39 |
-| 8 Physics + Effects | 3-4 | 32-43 |
-| 9 Full Perform + MIDI | 3-4 | 35-47 |
-| 10 Freeze + Library | 3-4 | 38-51 |
-| 11 Export + Polish | 3-4 | 41-55 |
+| 8 Physics + Effects | 5-7 | 34-46 |
+| 9 Full Perform + MIDI | 3-4 | 37-50 |
+| 10 Freeze + Library | 3-4 | 40-54 |
+| 11 Export + Polish | 3-4 | 43-58 |
