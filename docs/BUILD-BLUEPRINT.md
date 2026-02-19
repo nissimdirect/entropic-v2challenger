@@ -60,6 +60,15 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 | 10 | [PHASE-10.md](./phases/PHASE-10.md) | Freeze/Flatten + Library: presets, macro knobs |
 | 11 | [PHASE-11.md](./phases/PHASE-11.md) | Export + Polish: codecs, render queue, auto-update, welcome |
 
+### Addendums (Post-v1 Features + Strategy)
+
+| Document | What It Covers |
+|----------|---------------|
+| [COMPETITIVE-MOAT-ANALYSIS.md](./addendums/COMPETITIVE-MOAT-ANALYSIS.md) | Competitive landscape, moat layers, positioning, artist outreach list |
+| [MUSICIAN-NATIVE-FEATURES.md](./addendums/MUSICIAN-NATIVE-FEATURES.md) | Tempo, quantize, beat-sync, audio-reactive modulators, pre-input modulators |
+| [LAYER-TRANSITIONS.md](./addendums/LAYER-TRANSITIONS.md) | 53 transition types, performance modifiers, follow actions |
+| [COMMUNITY-ECOSYSTEM.md](./addendums/COMMUNITY-ECOSYSTEM.md) | .recipe spec, effect API, open project format, outreach strategy, demo plan |
+
 ### External References
 
 | Document | Location |
