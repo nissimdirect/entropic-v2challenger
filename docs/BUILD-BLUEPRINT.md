@@ -68,6 +68,7 @@ Electron shell runs a React/TypeScript frontend (single source of truth for all 
 | [MUSICIAN-NATIVE-FEATURES.md](./addendums/MUSICIAN-NATIVE-FEATURES.md) | Tempo, quantize, beat-sync, audio-reactive modulators, pre-input modulators |
 | [LAYER-TRANSITIONS.md](./addendums/LAYER-TRANSITIONS.md) | 53 transition types, performance modifiers, follow actions |
 | [COMMUNITY-ECOSYSTEM.md](./addendums/COMMUNITY-ECOSYSTEM.md) | .recipe spec, effect API, open project format, outreach strategy, demo plan |
+| [POST-V1-ROADMAP.md](./addendums/POST-V1-ROADMAP.md) | Phases 12-19+: tempo, transitions, audio-reactive, community, cannibalization |
 
 ### External References
 

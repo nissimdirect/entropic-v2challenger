@@ -78,6 +78,39 @@
 
 ---
 
+## Cannibalization & Integration Plans
+
+### Datamosher-Pro — CANNIBALIZE (MIT License, Python)
+- **What:** 30+ glitch effects as self-contained Python functions
+- **How:** Their one-effect-per-function architecture aligns directly with our pure-function `(frame, params, state_in) → (result, state_out)` contract. Port effects individually, adapting to our parameter schema and state passing convention.
+- **Priority:** Phase 1 or 8. Audit their effect list against our 126, identify gaps, port anything novel.
+- **Legal:** MIT — no restrictions. Attribute in file headers.
+- **Risk:** Low. Clean Python functions, no framework lock-in.
+
+### FFglitch — RESEARCH INTEGRATION (LGPL, FFmpeg Fork)
+- **What:** Bitstream-level codec manipulation — motion vectors, DCT coefficients, quantization parameters. The only tool that touches actual codec internals.
+- **How:** FFglitch's `ffedit` exposes codec internals programmatically. Since we already use PyAV (which wraps FFmpeg's libav), there may be a path to accessing codec-level data structures without forking FFglitch itself. Research task: can PyAV expose motion vector data? If not, can ffedit run as a subprocess or library?
+- **Priority:** Post-v1 (Phase 12+). Requires deep FFmpeg internals research.
+- **Legal:** LGPL — can link dynamically without tainting our codebase. If we fork/modify FFglitch code, modifications must be open-sourced (which we already are). Needs proper legal review.
+- **Risk:** Medium. Codec internals are fragile, version-sensitive, and poorly documented. Worth it because bitstream glitching is *the* thing nobody else does well in a GUI.
+
+### Mosh-Pro — STUDY CONCEPTS ONLY (Proprietary)
+- **What to learn:** Their frequency band → parameter mapping UX (how they present band splitting to non-technical users), their modulator concept (how modulators are chained to effects), and their general accessibility approach (low barrier to entry despite powerful features).
+- **Cannot integrate:** Proprietary. No code reuse possible.
+- **Priority:** Study during Phase 6 (Operators + Modulation) design phase.
+
+### Datamosh 2 (AE Plugin) — STUDY CONCEPTS ONLY (Proprietary)
+- **What to learn:** Mosh Maps (spatial region → effect intensity control), marker-based triggering workflow, their 60 algorithm variants as inspiration for our Phase 8 R&D effects.
+- **Cannot integrate:** Proprietary, requires After Effects.
+- **Priority:** Study during Phase 8 (Physics + R&D Effects) design phase.
+
+### Hydra — STUDY CONCEPTS, WAY LATER (Open Source)
+- **What to learn:** Networked collaboration (multiple performers sharing a canvas via WebRTC), the modular synth chaining API metaphor (`.osc().kaleid().out()`), the live-coding feedback loop.
+- **Could integrate (way later):** Their open-source JS codebase could inform a networked jam mode where multiple Entropic instances share a visual canvas. This is post-post-v1.
+- **Priority:** Phase 12++ at earliest. Study concepts during Phase 9 (Perform + MIDI).
+
+---
+
 ## The Gap Nobody Fills
 
 A tool where you **compose** video destruction over time, with musical thinking, using a timeline, with multiple tracks, with MIDI performance, with automation — and share the result as a reproducible project.

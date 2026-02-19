@@ -162,6 +162,18 @@ This means transitions are composable with the existing effect chain, shareable 
 
 ---
 
+## UX Accessibility (Keep It Simple)
+
+The transition system must NOT overwhelm users. Design principles:
+
+1. **Default = no transition.** Layers appear/disappear instantly unless the user opts in. Zero complexity by default.
+2. **Premiere analogy:** Think of transitions like drag-and-drop fade-in/fade-out on a clip in Premiere. The user sees their clip on the timeline, drags a transition onto the edge, done. Not a separate mode or panel.
+3. **Ableton MIDI effects analogy:** In Ableton, MIDI effects sit *before* an instrument in the chain. Similarly, transitions could be properties on the layer/clip itself — visible in the inspector panel when a layer is selected. One dropdown: "Enter: None / Column Cascade / Pixel Dissolve / ..." and "Exit: None / Reverse / Fade / ...".
+4. **Progressive disclosure:** Phase 5 ships with 5-10 simple geometric reveals. Advanced transitions (physics, audio-synced) come later. Users discover complexity gradually.
+5. **Don't add a "transitions panel."** Transitions are a property of the layer, not their own workflow. Keep the UI surface small.
+
+---
+
 ## Phase Placement
 
 **Phase 5 (Basic Performance):** Add enter/exit transition selection per layer. Ship 5-10 geometric reveals as proof of concept.
