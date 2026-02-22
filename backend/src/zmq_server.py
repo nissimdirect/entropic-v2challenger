@@ -3,8 +3,10 @@ import time
 import zmq
 
 from effects import registry
-from engine.container import EffectContainer
+from engine.export import ExportManager
+from engine.pipeline import apply_chain
 from memory.writer import SharedMemoryWriter
+from security import validate_chain_depth, validate_frame_count, validate_upload
 from video.ingest import probe
 from video.reader import VideoReader
 
@@ -19,6 +21,7 @@ class ZMQServer:
         self.shm_writer: SharedMemoryWriter | None = None
         self.readers: dict[str, VideoReader] = {}
         self.last_frame_ms = 0.0
+        self.export_manager = ExportManager()
 
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
@@ -45,8 +48,16 @@ class ZMQServer:
             return self._handle_seek(message, msg_id)
         elif cmd == "render_frame":
             return self._handle_render_frame(message, msg_id)
+        elif cmd == "apply_chain":
+            return self._handle_apply_chain(message, msg_id)
         elif cmd == "list_effects":
             return {"id": msg_id, "ok": True, "effects": registry.list_all()}
+        elif cmd == "export_start":
+            return self._handle_export_start(message, msg_id)
+        elif cmd == "export_status":
+            return self._handle_export_status(msg_id)
+        elif cmd == "export_cancel":
+            return self._handle_export_cancel(msg_id)
         elif cmd == "flush_state":
             return {"id": msg_id, "ok": True}
         else:
@@ -56,8 +67,25 @@ class ZMQServer:
         path = message.get("path")
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate upload
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
         result = probe(path)
         result["id"] = msg_id
+
+        # SEC-6: Validate frame count
+        if result.get("ok") and result.get("frame_count", 0) > 0:
+            fc_errors = validate_frame_count(result["frame_count"])
+            if fc_errors:
+                return {"id": msg_id, "ok": False, "error": "; ".join(fc_errors)}
+
+        # Store reader for reuse
+        if result.get("ok"):
+            self._get_reader(path)
+
         return result
 
     def _handle_seek(self, message: dict, msg_id: str | None) -> dict:
@@ -91,33 +119,75 @@ class ZMQServer:
             frame = reader.decode_frame(frame_index)
             resolution = (reader.width, reader.height)
 
-            # Run effect chain
-            for effect_instance in chain:
-                effect_id = effect_instance.get("effect_id")
-                params = effect_instance.get("params", {})
-                effect_info = registry.get(effect_id)
-                if effect_info is None:
-                    return {
-                        "id": msg_id,
-                        "ok": False,
-                        "error": f"unknown effect: {effect_id}",
-                    }
-                container = EffectContainer(effect_info["fn"], effect_id)
-                frame, _ = container.process(
-                    frame,
-                    params,
-                    None,
-                    frame_index=frame_index,
-                    project_seed=project_seed,
-                    resolution=resolution,
-                )
+            # Use pipeline engine
+            output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
 
             shm = self._ensure_shm()
-            shm.write_frame(frame)
+            shm.write_frame(output)
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
             return {"id": msg_id, "ok": True, "frame_index": frame_index}
         except Exception as e:
             return {"id": msg_id, "ok": False, "error": str(e)}
+
+    def _handle_apply_chain(self, message: dict, msg_id: str | None) -> dict:
+        path = message.get("path")
+        frame_index = message.get("frame_index", 0)
+        chain = message.get("chain", [])
+        project_seed = message.get("project_seed", 0)
+        if not path:
+            return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-7: Validate chain depth
+        errors = validate_chain_depth(chain)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        try:
+            reader = self._get_reader(path)
+            t0 = time.time()
+            frame = reader.decode_frame(frame_index)
+            resolution = (reader.width, reader.height)
+
+            output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
+
+            shm = self._ensure_shm()
+            shm.write_frame(output)
+            self.last_frame_ms = round((time.time() - t0) * 1000, 2)
+            return {"id": msg_id, "ok": True, "frame_index": frame_index}
+        except Exception as e:
+            return {"id": msg_id, "ok": False, "error": str(e)}
+
+    def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
+        input_path = message.get("input_path")
+        output_path = message.get("output_path")
+        chain = message.get("chain", [])
+        project_seed = message.get("project_seed", 0)
+
+        if not input_path:
+            return {"id": msg_id, "ok": False, "error": "missing input_path"}
+        if not output_path:
+            return {"id": msg_id, "ok": False, "error": "missing output_path"}
+
+        # SEC-7: Validate chain depth
+        errors = validate_chain_depth(chain)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        try:
+            self.export_manager.start(input_path, output_path, chain, project_seed)
+            return {"id": msg_id, "ok": True}
+        except RuntimeError as e:
+            return {"id": msg_id, "ok": False, "error": str(e)}
+
+    def _handle_export_status(self, msg_id: str | None) -> dict:
+        status = self.export_manager.get_status()
+        status["id"] = msg_id
+        status["ok"] = True
+        return status
+
+    def _handle_export_cancel(self, msg_id: str | None) -> dict:
+        cancelled = self.export_manager.cancel()
+        return {"id": msg_id, "ok": True, "cancelled": cancelled}
 
     def _get_reader(self, path: str) -> VideoReader:
         if path not in self.readers:
