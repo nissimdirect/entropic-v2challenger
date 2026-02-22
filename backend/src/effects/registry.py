@@ -2,14 +2,6 @@
 
 from typing import Any, Callable
 
-from effects.fx.invert import (
-    EFFECT_CATEGORY as invert_category,
-    EFFECT_ID as invert_id,
-    EFFECT_NAME as invert_name,
-    PARAMS as invert_params,
-    apply as invert_apply,
-)
-
 EffectFn = Callable[..., tuple[Any, dict | None]]
 
 _REGISTRY: dict[str, dict] = {}
@@ -43,5 +35,36 @@ def list_all() -> list[dict]:
     ]
 
 
-# Auto-register built-in effects
-register(invert_id, invert_apply, invert_params, invert_name, invert_category)
+def _auto_register():
+    """Import and register all built-in effects."""
+    from effects.fx import (
+        invert,
+        hue_shift,
+        noise,
+        blur,
+        posterize,
+        pixelsort,
+        edge_detect,
+        vhs,
+        wave_distort,
+        channelshift,
+    )
+
+    for mod in [
+        invert,
+        hue_shift,
+        noise,
+        blur,
+        posterize,
+        pixelsort,
+        edge_detect,
+        vhs,
+        wave_distort,
+        channelshift,
+    ]:
+        register(
+            mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
+        )
+
+
+_auto_register()
