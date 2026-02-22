@@ -1,0 +1,28 @@
+{
+  "name": "entropic-v2challenger",
+  "version": "0.1.0",
+  "description": "Entropic v2 Challenger — Desktop Glitch Video DAW",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "start": "electron-vite dev",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "typecheck": "tsc -b"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zustand": "^5.0.0",
+    "zeromq": "^6.4.0"
+  },
+  "devDependencies": {
+    "electron": "^40.0.0",
+    "electron-vite": "^5.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@types/node": "^22.0.0"
+  }
+}

@@ -1,0 +1,46 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #1a1a1a;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+}
+
+.status-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: #2a2a2a;
+  border-radius: 8px;
+  border: 1px solid #3a3a3a;
+}
+
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  transition: background-color 0.3s;
+}
+
+.status-text {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.uptime {
+  font-size: 12px;
+  color: #888;
+}
