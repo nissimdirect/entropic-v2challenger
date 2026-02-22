@@ -1,15 +1,235 @@
+import * as Sentry from '@sentry/electron/renderer'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useEngineStore } from './stores/engine'
+import { useProjectStore } from './stores/project'
+import { useEffectsStore } from './stores/effects'
+import DropZone from './components/upload/DropZone'
+import FileDialog from './components/upload/FileDialog'
+import IngestProgress from './components/upload/IngestProgress'
+import EffectBrowser from './components/effects/EffectBrowser'
+import EffectRack from './components/effects/EffectRack'
+import ParamPanel from './components/effects/ParamPanel'
+import PreviewCanvas from './components/preview/PreviewCanvas'
+import PreviewControls from './components/preview/PreviewControls'
+import ExportDialog from './components/export/ExportDialog'
+import type { ExportSettings } from './components/export/ExportDialog'
+import ExportProgress from './components/export/ExportProgress'
+import type { Asset, EffectInstance } from '../shared/types'
+import { randomUUID } from './utils'
 
 export default function App() {
   const { status, uptime } = useEngineStore()
+  const {
+    assets,
+    effectChain,
+    selectedEffectId,
+    currentFrame,
+    totalFrames,
+    isIngesting,
+    ingestError,
+    addAsset,
+    addEffect,
+    removeEffect,
+    reorderEffect,
+    updateParam,
+    setMix,
+    toggleEffect,
+    selectEffect,
+    setCurrentFrame,
+    setTotalFrames,
+    setIngesting,
+    setIngestError,
+  } = useProjectStore()
 
-  const color: Record<string, string> = {
+  const { registry, isLoading: effectsLoading, fetchRegistry } = useEffectsStore()
+
+  const [frameData, setFrameData] = useState<Uint8Array | null>(null)
+  const [frameWidth, setFrameWidth] = useState(0)
+  const [frameHeight, setFrameHeight] = useState(0)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [showExportDialog, setShowExportDialog] = useState(false)
+  const [isExporting, setIsExporting] = useState(false)
+  const [exportProgress, setExportProgress] = useState(0)
+  const [exportError, setExportError] = useState<string | null>(null)
+  const [exportJobId, setExportJobId] = useState<string | null>(null)
+
+  const renderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const activeAssetPath = useRef<string | null>(null)
+
+  // Fetch effect registry when engine connects
+  useEffect(() => {
+    if (status === 'connected') {
+      fetchRegistry()
+    }
+  }, [status, fetchRegistry])
+
+  // Listen for export progress
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.entropic) return
+    window.entropic.onExportProgress(({ jobId, progress, done, error }) => {
+      if (exportJobId && jobId !== exportJobId) return
+      setExportProgress(progress)
+      if (done) {
+        setIsExporting(false)
+        setExportJobId(null)
+      }
+      if (error) {
+        setExportError(error)
+        setIsExporting(false)
+        setExportJobId(null)
+      }
+    })
+  }, [exportJobId])
+
+  const requestRenderFrame = useCallback(
+    async (frame: number) => {
+      if (!window.entropic || !activeAssetPath.current) return
+
+      const res = await window.entropic.sendCommand({
+        cmd: 'render_frame',
+        path: activeAssetPath.current,
+        time: frame,
+        chain: effectChain,
+        project_seed: 42,
+      })
+
+      if (res.ok && res.frame_data) {
+        const data = res.frame_data as number[]
+        setFrameData(new Uint8Array(data))
+        if (res.width) setFrameWidth(res.width as number)
+        if (res.height) setFrameHeight(res.height as number)
+      }
+    },
+    [effectChain],
+  )
+
+  // Debounced re-render on param changes
+  useEffect(() => {
+    if (!activeAssetPath.current) return
+    if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current)
+    renderTimeoutRef.current = setTimeout(() => {
+      requestRenderFrame(currentFrame)
+    }, 100)
+    return () => {
+      if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current)
+    }
+  }, [effectChain, currentFrame, requestRenderFrame])
+
+  const handleFileIngest = useCallback(
+    async (path: string) => {
+      if (!window.entropic) return
+
+      setIngesting(true)
+      setIngestError(null)
+
+      const res = await window.entropic.sendCommand({
+        cmd: 'ingest',
+        path,
+      })
+
+      if (res.ok) {
+        const asset: Asset = {
+          id: randomUUID(),
+          path,
+          type: 'video',
+          meta: {
+            width: res.width as number,
+            height: res.height as number,
+            duration: res.duration_s as number,
+            fps: res.fps as number,
+            codec: res.codec as string,
+            hasAudio: res.has_audio as boolean,
+          },
+        }
+        addAsset(asset)
+        setTotalFrames(res.frame_count as number)
+        setFrameWidth(res.width as number)
+        setFrameHeight(res.height as number)
+        activeAssetPath.current = path
+        setCurrentFrame(0)
+        requestRenderFrame(0)
+      } else {
+        setIngestError(res.error as string)
+      }
+
+      setIngesting(false)
+    },
+    [addAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame],
+  )
+
+  const handleSeek = useCallback(
+    (frame: number) => {
+      setCurrentFrame(frame)
+    },
+    [setCurrentFrame],
+  )
+
+  const handlePlayPause = useCallback(() => {
+    setIsPlaying((prev) => !prev)
+  }, [])
+
+  // Playback loop
+  useEffect(() => {
+    if (!isPlaying || totalFrames === 0) return
+    const fps = 30
+    const interval = setInterval(() => {
+      setCurrentFrame(useProjectStore.getState().currentFrame + 1 >= totalFrames ? 0 : useProjectStore.getState().currentFrame + 1)
+    }, 1000 / fps)
+    return () => clearInterval(interval)
+  }, [isPlaying, totalFrames, setCurrentFrame])
+
+  const handleExport = useCallback(
+    async (settings: ExportSettings) => {
+      if (!window.entropic || !activeAssetPath.current) return
+
+      setShowExportDialog(false)
+      setIsExporting(true)
+      setExportProgress(0)
+      setExportError(null)
+
+      const res = await window.entropic.sendCommand({
+        cmd: 'export_start',
+        path: activeAssetPath.current,
+        codec: settings.codec,
+        resolution: settings.resolution,
+        chain: effectChain,
+        in_point: 0,
+        out_point: totalFrames,
+      })
+
+      if (res.ok) {
+        setExportJobId(res.job_id as string)
+      } else {
+        setExportError(res.error as string)
+        setIsExporting(false)
+      }
+    },
+    [effectChain, totalFrames],
+  )
+
+  const handleExportCancel = useCallback(async () => {
+    if (!window.entropic || !exportJobId) return
+    await window.entropic.sendCommand({
+      cmd: 'export_cancel',
+      job_id: exportJobId,
+    })
+    setIsExporting(false)
+    setExportJobId(null)
+  }, [exportJobId])
+
+  const hasAssets = Object.keys(assets).length > 0
+  const selectedEffect = effectChain.find((e) => e.id === selectedEffectId) ?? null
+  const selectedEffectInfo = selectedEffect
+    ? registry.find((r) => r.id === selectedEffect.effectId) ?? null
+    : null
+
+  const statusColor: Record<string, string> = {
     connected: '#4ade80',
     disconnected: '#ef4444',
     restarting: '#f59e0b',
   }
 
-  const label: Record<string, string> = {
+  const statusLabel: Record<string, string> = {
     connected: 'Engine: Connected',
     disconnected: 'Engine: Disconnected',
     restarting: 'Engine: Restarting...',
@@ -17,16 +237,100 @@ export default function App() {
 
   return (
     <div className="app">
-      <div className="status-bar">
-        <div
-          className="status-indicator"
-          style={{ backgroundColor: color[status] }}
-        />
-        <span className="status-text">{label[status]}</span>
-        {status === 'connected' && uptime !== undefined && (
-          <span className="uptime">Uptime: {uptime}s</span>
+      <div className="app__sidebar">
+        {!hasAssets && (
+          <div className="app__upload">
+            <DropZone onFileDrop={handleFileIngest} disabled={isIngesting} />
+            <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} />
+            <IngestProgress isIngesting={isIngesting} error={ingestError} />
+          </div>
         )}
+        {hasAssets && (
+          <div className="app__asset-info">
+            {Object.values(assets).map((asset) => (
+              <div key={asset.id} className="asset-badge">
+                <span className="asset-badge__name">{asset.path.split('/').pop()}</span>
+                <span className="asset-badge__meta">
+                  {asset.meta.width}x{asset.meta.height} | {asset.meta.fps}fps
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <EffectBrowser
+          registry={registry}
+          isLoading={effectsLoading}
+          onAddEffect={addEffect}
+          chainLength={effectChain.length}
+        />
+        <EffectRack
+          chain={effectChain}
+          registry={registry}
+          selectedEffectId={selectedEffectId}
+          onSelect={selectEffect}
+          onToggle={toggleEffect}
+          onRemove={removeEffect}
+          onReorder={reorderEffect}
+        />
       </div>
+
+      <div className="app__main">
+        <div className="app__preview">
+          <PreviewCanvas frameData={frameData} width={frameWidth} height={frameHeight} />
+          <PreviewControls
+            currentFrame={currentFrame}
+            totalFrames={totalFrames}
+            isPlaying={isPlaying}
+            onSeek={handleSeek}
+            onPlayPause={handlePlayPause}
+          />
+        </div>
+        <div className="app__params">
+          <ParamPanel
+            effect={selectedEffect}
+            effectInfo={selectedEffectInfo}
+            onUpdateParam={updateParam}
+            onSetMix={setMix}
+          />
+        </div>
+        <ExportProgress
+          isExporting={isExporting}
+          progress={exportProgress}
+          error={exportError}
+          onCancel={handleExportCancel}
+        />
+      </div>
+
+      <div className="status-bar">
+        <div className="status-bar__left">
+          <div
+            className="status-indicator"
+            style={{ backgroundColor: statusColor[status] }}
+          />
+          <span className="status-text">{statusLabel[status]}</span>
+          {status === 'connected' && uptime !== undefined && (
+            <span className="uptime">Uptime: {uptime}s</span>
+          )}
+        </div>
+        <div className="status-bar__right">
+          {hasAssets && (
+            <button
+              className="export-btn"
+              onClick={() => setShowExportDialog(true)}
+              disabled={isExporting}
+            >
+              Export
+            </button>
+          )}
+        </div>
+      </div>
+
+      <ExportDialog
+        isOpen={showExportDialog}
+        totalFrames={totalFrames}
+        onExport={handleExport}
+        onClose={() => setShowExportDialog(false)}
+      />
     </div>
   )
 }

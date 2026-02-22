@@ -1,7 +1,15 @@
+import * as Sentry from '@sentry/electron/main'
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { spawnPython, killPython } from './python'
 import { startWatchdog, stopWatchdog } from './watchdog'
+import { registerRelayHandlers, setRelayPort } from './zmq-relay'
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || '',
+  tracesSampleRate: 0.1,
+  environment: 'development',
+})
 
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -26,11 +34,13 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
+  registerRelayHandlers()
   createWindow()
 
   try {
     const port = await spawnPython()
     console.log(`[Main] Python sidecar started on port ${port}`)
+    setRelayPort(port)
     await startWatchdog(port)
   } catch (err) {
     console.error('[Main] Failed to start Python sidecar:', err)
