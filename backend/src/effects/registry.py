@@ -1,0 +1,47 @@
+"""Effect registry — central lookup for all registered effects."""
+
+from typing import Any, Callable
+
+from effects.fx.invert import (
+    EFFECT_CATEGORY as invert_category,
+    EFFECT_ID as invert_id,
+    EFFECT_NAME as invert_name,
+    PARAMS as invert_params,
+    apply as invert_apply,
+)
+
+EffectFn = Callable[..., tuple[Any, dict | None]]
+
+_REGISTRY: dict[str, dict] = {}
+
+
+def register(effect_id: str, fn: EffectFn, params: dict, name: str, category: str):
+    """Register an effect."""
+    _REGISTRY[effect_id] = {
+        "fn": fn,
+        "params": params,
+        "name": name,
+        "category": category,
+    }
+
+
+def get(effect_id: str) -> dict | None:
+    """Get effect info by ID."""
+    return _REGISTRY.get(effect_id)
+
+
+def list_all() -> list[dict]:
+    """List all registered effects with metadata."""
+    return [
+        {
+            "id": eid,
+            "name": info["name"],
+            "category": info["category"],
+            "params": info["params"],
+        }
+        for eid, info in _REGISTRY.items()
+    ]
+
+
+# Auto-register built-in effects
+register(invert_id, invert_apply, invert_params, invert_name, invert_category)
