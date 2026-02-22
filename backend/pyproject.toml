@@ -5,6 +5,8 @@ requires-python = ">=3.12"
 dependencies = [
     "pyzmq>=26.0",
     "numpy>=2.0",
+    "av>=14.0",
+    "Pillow>=11.0",
 ]
 
 [project.optional-dependencies]
@@ -14,3 +16,4 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
