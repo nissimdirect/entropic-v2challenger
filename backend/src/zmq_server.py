@@ -1,8 +1,11 @@
+import base64
 import time
 
+import sentry_sdk
 import zmq
 
 from effects import registry
+from engine.cache import encode_mjpeg
 from engine.export import ExportManager
 from engine.pipeline import apply_chain
 from memory.writer import SharedMemoryWriter
@@ -100,9 +103,21 @@ class ZMQServer:
             frame = reader.decode_frame(frame_index)
             shm = self._ensure_shm()
             shm.write_frame(frame)
+            # Interim: also return frame as base64 MJPEG for ZMQ transport
+            # (until C++ shared memory module is ready)
+            jpeg_bytes = encode_mjpeg(frame)
+            frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
-            return {"id": msg_id, "ok": True, "frame_index": frame_index}
+            return {
+                "id": msg_id,
+                "ok": True,
+                "frame_index": frame_index,
+                "frame_data": frame_b64,
+                "width": reader.width,
+                "height": reader.height,
+            }
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             return {"id": msg_id, "ok": False, "error": str(e)}
 
     def _handle_render_frame(self, message: dict, msg_id: str | None) -> dict:
@@ -124,9 +139,20 @@ class ZMQServer:
 
             shm = self._ensure_shm()
             shm.write_frame(output)
+            # Interim: also return frame as base64 MJPEG for ZMQ transport
+            jpeg_bytes = encode_mjpeg(output)
+            frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
-            return {"id": msg_id, "ok": True, "frame_index": frame_index}
+            return {
+                "id": msg_id,
+                "ok": True,
+                "frame_index": frame_index,
+                "frame_data": frame_b64,
+                "width": reader.width,
+                "height": reader.height,
+            }
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             return {"id": msg_id, "ok": False, "error": str(e)}
 
     def _handle_apply_chain(self, message: dict, msg_id: str | None) -> dict:
@@ -155,6 +181,7 @@ class ZMQServer:
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
             return {"id": msg_id, "ok": True, "frame_index": frame_index}
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             return {"id": msg_id, "ok": False, "error": str(e)}
 
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
@@ -177,6 +204,7 @@ class ZMQServer:
             self.export_manager.start(input_path, output_path, chain, project_seed)
             return {"id": msg_id, "ok": True}
         except RuntimeError as e:
+            sentry_sdk.capture_exception(e)
             return {"id": msg_id, "ok": False, "error": str(e)}
 
     def _handle_export_status(self, msg_id: str | None) -> dict:

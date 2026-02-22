@@ -17,7 +17,37 @@ import ExportProgress from './components/export/ExportProgress'
 import type { Asset, EffectInstance } from '../shared/types'
 import { randomUUID } from './utils'
 
-export default function App() {
+class SentryErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError(): { hasError: boolean } {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo): void {
+    Sentry.captureException(error, { extra: { componentStack: info.componentStack } })
+  }
+
+  render(): React.ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 40, color: '#ef4444', fontFamily: 'JetBrains Mono, monospace' }}>
+          <h2>Something went wrong.</h2>
+          <p>The error has been reported. Please restart the application.</p>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+function AppInner() {
   const { status, uptime } = useEngineStore()
   const {
     assets,
@@ -43,7 +73,7 @@ export default function App() {
 
   const { registry, isLoading: effectsLoading, fetchRegistry } = useEffectsStore()
 
-  const [frameData, setFrameData] = useState<Uint8Array | null>(null)
+  const [frameDataUrl, setFrameDataUrl] = useState<string | null>(null)
   const [frameWidth, setFrameWidth] = useState(0)
   const [frameHeight, setFrameHeight] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -332,5 +362,13 @@ export default function App() {
         onClose={() => setShowExportDialog(false)}
       />
     </div>
+  )
+}
+
+export default function App() {
+  return (
+    <SentryErrorBoundary>
+      <AppInner />
+    </SentryErrorBoundary>
   )
 }

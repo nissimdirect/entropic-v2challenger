@@ -1,7 +1,16 @@
+import os
 import platform
 import sys
 
+import sentry_sdk
+
 from zmq_server import ZMQServer
+
+sentry_sdk.init(
+    dsn=os.environ.get("SENTRY_DSN", ""),
+    traces_sample_rate=0.1,
+    environment="development",
+)
 
 # SEC-9: Resource limits (Linux/macOS only)
 MAX_MEMORY_BYTES = 4 * 1024 * 1024 * 1024  # 4 GB
