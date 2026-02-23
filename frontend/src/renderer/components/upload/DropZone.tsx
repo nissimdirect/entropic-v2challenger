@@ -49,7 +49,16 @@ export default function DropZone({ onFileDrop, disabled }: DropZoneProps) {
 
       const file = files[0]
       if (validateFile(file.name)) {
-        onFileDrop(file.path)
+        // webUtils.getPathForFile is reliable in all Electron modes.
+        // file.path can be empty when loaded via Vite dev server (HTTP).
+        const filePath = window.entropic?.getPathForFile
+          ? window.entropic.getPathForFile(file)
+          : file.path
+        if (filePath) {
+          onFileDrop(filePath)
+        } else {
+          setError('Could not resolve file path. Try using Browse instead.')
+        }
       }
     },
     [disabled, onFileDrop, validateFile],

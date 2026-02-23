@@ -7,8 +7,8 @@ from pathlib import Path
 MAX_UPLOAD_SIZE = 500 * 1024 * 1024  # 500 MB
 ALLOWED_EXTENSIONS = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
 
-# SEC-6: Frame count cap
-MAX_FRAME_COUNT = 3000
+# SEC-6: Frame count cap (300K = ~2.7 hours at 30fps)
+MAX_FRAME_COUNT = 300_000
 
 # SEC-7: Chain depth cap
 MAX_CHAIN_DEPTH = 10

@@ -1,14 +1,24 @@
 interface PreviewControlsProps {
   currentFrame: number
   totalFrames: number
+  fps: number
   isPlaying: boolean
   onSeek: (frame: number) => void
   onPlayPause: () => void
 }
 
+function formatTimecode(frame: number, fps: number): string {
+  if (fps <= 0) return '0:00'
+  const totalSeconds = frame / fps
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`
+}
+
 export default function PreviewControls({
   currentFrame,
   totalFrames,
+  fps,
   isPlaying,
   onSeek,
   onPlayPause,
@@ -32,7 +42,7 @@ export default function PreviewControls({
         disabled={totalFrames === 0}
       />
       <span className="preview-controls__counter">
-        {currentFrame} / {totalFrames}
+        {formatTimecode(currentFrame, fps)} / {formatTimecode(totalFrames, fps)}
       </span>
     </div>
   )

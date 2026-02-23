@@ -1,6 +1,10 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('entropic', {
+  getPathForFile: (file: File): string => {
+    return webUtils.getPathForFile(file)
+  },
+
   onEngineStatus: (
     callback: (data: { status: string; uptime?: number }) => void,
   ) => {

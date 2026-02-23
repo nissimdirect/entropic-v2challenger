@@ -76,15 +76,18 @@ function AppInner() {
   const [frameDataUrl, setFrameDataUrl] = useState<string | null>(null)
   const [frameWidth, setFrameWidth] = useState(0)
   const [frameHeight, setFrameHeight] = useState(0)
+  const [activeFps, setActiveFps] = useState(30)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportJobId, setExportJobId] = useState<string | null>(null)
+  const [isGlobalDragOver, setIsGlobalDragOver] = useState(false)
 
-  const renderTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const activeAssetPath = useRef<string | null>(null)
+  const isRenderingRef = useRef(false)
+  const pendingFrameRef = useRef<number | null>(null)
 
   // Fetch effect registry when engine connects
   useEffect(() => {
@@ -115,35 +118,53 @@ function AppInner() {
     async (frame: number) => {
       if (!window.entropic || !activeAssetPath.current) return
 
-      const res = await window.entropic.sendCommand({
-        cmd: 'render_frame',
-        path: activeAssetPath.current,
-        time: frame,
-        chain: effectChain,
-        project_seed: 42,
-      })
+      // If a render is in flight, queue this frame and return.
+      // When the in-flight render completes, it will pick up the pending frame.
+      if (isRenderingRef.current) {
+        pendingFrameRef.current = frame
+        return
+      }
 
-      if (res.ok && res.frame_data) {
-        const data = res.frame_data as number[]
-        setFrameData(new Uint8Array(data))
-        if (res.width) setFrameWidth(res.width as number)
-        if (res.height) setFrameHeight(res.height as number)
+      isRenderingRef.current = true
+      pendingFrameRef.current = null
+
+      try {
+        const res = await window.entropic.sendCommand({
+          cmd: 'render_frame',
+          path: activeAssetPath.current,
+          frame_index: frame,
+          chain: effectChain,
+          project_seed: 42,
+        })
+
+        if (res.ok && res.frame_data) {
+          setFrameDataUrl(`data:image/jpeg;base64,${res.frame_data as string}`)
+          if (res.width) setFrameWidth(res.width as number)
+          if (res.height) setFrameHeight(res.height as number)
+        } else if (!res.ok) {
+          console.error('[Render] frame', frame, 'error:', res.error)
+        }
+      } catch (err) {
+        console.error('[Render] frame', frame, 'exception:', err)
+      }
+
+      isRenderingRef.current = false
+
+      // Process the most recent pending frame
+      const pending = pendingFrameRef.current
+      if (pending !== null) {
+        pendingFrameRef.current = null
+        requestRenderFrame(pending)
       }
     },
     [effectChain],
   )
 
-  // Debounced re-render on param changes
+  // Render immediately on frame or chain change — no debounce
   useEffect(() => {
     if (!activeAssetPath.current) return
-    if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current)
-    renderTimeoutRef.current = setTimeout(() => {
-      requestRenderFrame(currentFrame)
-    }, 100)
-    return () => {
-      if (renderTimeoutRef.current) clearTimeout(renderTimeoutRef.current)
-    }
-  }, [effectChain, currentFrame, requestRenderFrame])
+    requestRenderFrame(currentFrame)
+  }, [currentFrame, effectChain, requestRenderFrame])
 
   const handleFileIngest = useCallback(
     async (path: string) => {
@@ -175,6 +196,7 @@ function AppInner() {
         setTotalFrames(res.frame_count as number)
         setFrameWidth(res.width as number)
         setFrameHeight(res.height as number)
+        setActiveFps(res.fps as number)
         activeAssetPath.current = path
         setCurrentFrame(0)
         requestRenderFrame(0)
@@ -201,12 +223,11 @@ function AppInner() {
   // Playback loop
   useEffect(() => {
     if (!isPlaying || totalFrames === 0) return
-    const fps = 30
     const interval = setInterval(() => {
       setCurrentFrame(useProjectStore.getState().currentFrame + 1 >= totalFrames ? 0 : useProjectStore.getState().currentFrame + 1)
-    }, 1000 / fps)
+    }, 1000 / activeFps)
     return () => clearInterval(interval)
-  }, [isPlaying, totalFrames, setCurrentFrame])
+  }, [isPlaying, totalFrames, activeFps, setCurrentFrame])
 
   const handleExport = useCallback(
     async (settings: ExportSettings) => {
@@ -219,12 +240,10 @@ function AppInner() {
 
       const res = await window.entropic.sendCommand({
         cmd: 'export_start',
-        path: activeAssetPath.current,
-        codec: settings.codec,
-        resolution: settings.resolution,
+        input_path: activeAssetPath.current,
+        output_path: settings.outputPath,
         chain: effectChain,
-        in_point: 0,
-        out_point: totalFrames,
+        project_seed: 42,
       })
 
       if (res.ok) {
@@ -247,6 +266,49 @@ function AppInner() {
     setExportJobId(null)
   }, [exportJobId])
 
+  // Global window drop handler — accepts video drops anywhere
+  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv']
+
+  const dragCountRef = useRef(0)
+
+  const handleGlobalDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCountRef.current++
+    if (!isIngesting) setIsGlobalDragOver(true)
+  }, [isIngesting])
+
+  const handleGlobalDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+  }, [])
+
+  const handleGlobalDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCountRef.current--
+    if (dragCountRef.current <= 0) {
+      dragCountRef.current = 0
+      setIsGlobalDragOver(false)
+    }
+  }, [])
+
+  const handleGlobalDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    dragCountRef.current = 0
+    setIsGlobalDragOver(false)
+    if (isIngesting) return
+
+    const files = e.dataTransfer.files
+    if (files.length === 0) return
+
+    const file = files[0]
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+    if (!ALLOWED_EXTENSIONS.includes(ext)) return
+
+    const filePath = window.entropic?.getPathForFile
+      ? window.entropic.getPathForFile(file)
+      : file.path
+    if (filePath) handleFileIngest(filePath)
+  }, [isIngesting, handleFileIngest])
+
   const hasAssets = Object.keys(assets).length > 0
   const selectedEffect = effectChain.find((e) => e.id === selectedEffectId) ?? null
   const selectedEffectInfo = selectedEffect
@@ -266,7 +328,18 @@ function AppInner() {
   }
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      onDragEnter={handleGlobalDragEnter}
+      onDragOver={handleGlobalDragOver}
+      onDragLeave={handleGlobalDragLeave}
+      onDrop={handleGlobalDrop}
+    >
+      {isGlobalDragOver && (
+        <div className="app__drop-overlay">
+          <span>Drop video file here</span>
+        </div>
+      )}
       <div className="app__sidebar">
         {!hasAssets && (
           <div className="app__upload">
@@ -306,10 +379,11 @@ function AppInner() {
 
       <div className="app__main">
         <div className="app__preview">
-          <PreviewCanvas frameData={frameData} width={frameWidth} height={frameHeight} />
+          <PreviewCanvas frameDataUrl={frameDataUrl} width={frameWidth} height={frameHeight} />
           <PreviewControls
             currentFrame={currentFrame}
             totalFrames={totalFrames}
+            fps={activeFps}
             isPlaying={isPlaying}
             onSeek={handleSeek}
             onPlayPause={handlePlayPause}

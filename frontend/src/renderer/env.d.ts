@@ -1,5 +1,6 @@
 interface Window {
   entropic: {
+    getPathForFile: (file: File) => string
     onEngineStatus: (
       callback: (data: { status: string; uptime?: number }) => void,
     ) => void

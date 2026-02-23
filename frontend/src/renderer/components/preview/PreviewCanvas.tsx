@@ -1,24 +1,21 @@
-import { useRef } from 'react'
-import { useFrameDisplay } from './useFrameDisplay'
-
 interface PreviewCanvasProps {
-  frameData: Uint8Array | null
+  frameDataUrl: string | null
   width: number
   height: number
 }
 
-export default function PreviewCanvas({ frameData, width, height }: PreviewCanvasProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  useFrameDisplay({ canvasRef, frameData, width, height })
-
+export default function PreviewCanvas({ frameDataUrl, width, height }: PreviewCanvasProps) {
   return (
     <div className="preview-canvas">
-      <canvas
-        ref={canvasRef}
-        className="preview-canvas__element"
-      />
-      {!frameData && (
+      {frameDataUrl ? (
+        <img
+          className="preview-canvas__element"
+          src={frameDataUrl}
+          width={width}
+          height={height}
+          alt="Preview"
+        />
+      ) : (
         <div className="preview-canvas__placeholder">
           No video loaded
         </div>

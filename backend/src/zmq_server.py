@@ -122,14 +122,18 @@ class ZMQServer:
 
     def _handle_render_frame(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
-        time_s = message.get("time", 0.0)
         chain = message.get("chain", [])
         project_seed = message.get("project_seed", 0)
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
         try:
             reader = self._get_reader(path)
-            frame_index = int(time_s * reader.fps)
+            # Accept frame_index directly, fall back to time_s * fps
+            if "frame_index" in message:
+                frame_index = int(message["frame_index"])
+            else:
+                time_s = message.get("time", 0.0)
+                frame_index = int(time_s * reader.fps)
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
             resolution = (reader.width, reader.height)

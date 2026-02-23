@@ -24,6 +24,11 @@ function createWindow(): BrowserWindow {
     },
   })
 
+  // Intercept file drops at the main process level to get reliable file paths.
+  // In dev mode (Vite HTTP), renderer file.path can be empty.
+  win.webContents.on('will-navigate', (e) => e.preventDefault())
+  win.webContents.session.on('will-download', (e) => e.preventDefault())
+
   if (process.env.ELECTRON_RENDERER_URL) {
     win.loadURL(process.env.ELECTRON_RENDERER_URL)
   } else {
