@@ -1,9 +1,10 @@
 interface FileDialogProps {
   onFileSelect: (path: string) => void
   disabled?: boolean
+  label?: string
 }
 
-export default function FileDialog({ onFileSelect, disabled }: FileDialogProps) {
+export default function FileDialog({ onFileSelect, disabled, label }: FileDialogProps) {
   const handleClick = async () => {
     if (disabled || !window.entropic) return
 
@@ -22,7 +23,7 @@ export default function FileDialog({ onFileSelect, disabled }: FileDialogProps) 
       onClick={handleClick}
       disabled={disabled}
     >
-      Browse...
+      {label ?? 'Browse...'}
     </button>
   )
 }

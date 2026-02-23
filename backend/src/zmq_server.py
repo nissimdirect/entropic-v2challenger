@@ -1,5 +1,6 @@
 import base64
 import time
+import uuid
 
 import sentry_sdk
 import zmq
@@ -9,7 +10,12 @@ from engine.cache import encode_mjpeg
 from engine.export import ExportManager
 from engine.pipeline import apply_chain
 from memory.writer import SharedMemoryWriter
-from security import validate_chain_depth, validate_frame_count, validate_upload
+from security import (
+    validate_chain_depth,
+    validate_frame_count,
+    validate_output_path,
+    validate_upload,
+)
 from video.ingest import probe
 from video.reader import VideoReader
 
@@ -19,6 +25,11 @@ class ZMQServer:
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
         self.port = self.socket.bind_to_random_port("tcp://127.0.0.1")
+        # Dedicated ping socket — never blocked by heavy renders (BUG-4)
+        self.ping_socket = self.context.socket(zmq.REP)
+        self.ping_port = self.ping_socket.bind_to_random_port("tcp://127.0.0.1")
+        # Auth token — prevents unauthorized ZMQ access from other local processes
+        self.token = str(uuid.uuid4())
         self.start_time = time.time()
         self.running = False
         self.shm_writer: SharedMemoryWriter | None = None
@@ -31,17 +42,32 @@ class ZMQServer:
             self.shm_writer = SharedMemoryWriter()
         return self.shm_writer
 
+    def _validate_token(self, message: dict) -> str | None:
+        """Validate auth token. Returns error message or None if valid."""
+        msg_token = message.get("_token")
+        if msg_token != self.token:
+            return "invalid or missing auth token"
+        return None
+
+    def _make_ping_response(self, msg_id: str | None) -> dict:
+        return {
+            "id": msg_id,
+            "status": "alive",
+            "uptime_s": round(time.time() - self.start_time, 1),
+            "last_frame_ms": self.last_frame_ms,
+        }
+
     def handle_message(self, message: dict) -> dict:
         cmd = message.get("cmd")
         msg_id = message.get("id")
 
+        # Auth token required on all commands
+        token_err = self._validate_token(message)
+        if token_err:
+            return {"id": msg_id, "ok": False, "error": token_err}
+
         if cmd == "ping":
-            return {
-                "id": msg_id,
-                "status": "alive",
-                "uptime_s": round(time.time() - self.start_time, 1),
-                "last_frame_ms": self.last_frame_ms,
-            }
+            return self._make_ping_response(msg_id)
         elif cmd == "shutdown":
             self.running = False
             return {"id": msg_id, "ok": True}
@@ -96,15 +122,18 @@ class ZMQServer:
         time_s = message.get("time", 0.0)
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate path (same gate as ingest — prevents path traversal)
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
         try:
             reader = self._get_reader(path)
             frame_index = int(time_s * reader.fps)
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
-            shm = self._ensure_shm()
-            shm.write_frame(frame)
-            # Interim: also return frame as base64 MJPEG for ZMQ transport
-            # (until C++ shared memory module is ready)
+            # Encode once for base64 transport (skip mmap — Electron uses base64)
             jpeg_bytes = encode_mjpeg(frame)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
@@ -126,6 +155,12 @@ class ZMQServer:
         project_seed = message.get("project_seed", 0)
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate path (prevents path traversal via render_frame)
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
         try:
             reader = self._get_reader(path)
             # Accept frame_index directly, fall back to time_s * fps
@@ -141,9 +176,7 @@ class ZMQServer:
             # Use pipeline engine
             output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
 
-            shm = self._ensure_shm()
-            shm.write_frame(output)
-            # Interim: also return frame as base64 MJPEG for ZMQ transport
+            # Encode once for base64 transport (skip mmap — Electron uses base64)
             jpeg_bytes = encode_mjpeg(output)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
@@ -199,6 +232,16 @@ class ZMQServer:
         if not output_path:
             return {"id": msg_id, "ok": False, "error": "missing output_path"}
 
+        # SEC-5: Validate input path (prevents path traversal via export)
+        errors = validate_upload(input_path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # Validate output path (prevents writing to system dirs)
+        out_errors = validate_output_path(output_path)
+        if out_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(out_errors)}
+
         # SEC-7: Validate chain depth
         errors = validate_chain_depth(chain)
         if errors:
@@ -230,8 +273,21 @@ class ZMQServer:
         self.running = True
         poller = zmq.Poller()
         poller.register(self.socket, zmq.POLLIN)
+        poller.register(self.ping_socket, zmq.POLLIN)
         while self.running:
             events = dict(poller.poll(timeout=500))
+            # Handle ping socket first (lightweight, never blocked)
+            if self.ping_socket in events:
+                message = self.ping_socket.recv_json()
+                msg_id = message.get("id")
+                token_err = self._validate_token(message)
+                if token_err:
+                    self.ping_socket.send_json(
+                        {"id": msg_id, "ok": False, "error": token_err}
+                    )
+                else:
+                    self.ping_socket.send_json(self._make_ping_response(msg_id))
+            # Handle main command socket
             if self.socket in events:
                 message = self.socket.recv_json()
                 response = self.handle_message(message)
@@ -243,5 +299,6 @@ class ZMQServer:
             reader.close()
         if self.shm_writer is not None:
             self.shm_writer.close()
+        self.ping_socket.close()
         self.socket.close()
         self.context.term()

@@ -9,10 +9,13 @@ export type EngineStatus = 'connected' | 'disconnected' | 'restarting'
 const PING_INTERVAL = 1000
 const PING_TIMEOUT = 2000
 const MAX_MISSES = 3
+/** When a render is in flight, allow more misses before killing Python (BUG-4). */
+const MAX_MISSES_RENDERING = 10
 
 let currentPort = 0
 let running = false
 let timeoutId: ReturnType<typeof setTimeout> | null = null
+let renderInFlight = false
 const missCounter = new MissCounter(MAX_MISSES)
 
 function broadcast(status: EngineStatus, uptime?: number): void {
@@ -37,9 +40,15 @@ async function ping(): Promise<void> {
       broadcast('connected', res.uptime_s)
     }
   } catch {
-    if (missCounter.miss()) {
+    // Use higher miss tolerance while a render_frame is in flight,
+    // because the single-threaded ZMQ server can't respond to pings
+    // while processing a heavy effect (BUG-4).
+    const threshold = renderInFlight ? MAX_MISSES_RENDERING : MAX_MISSES
+    if (missCounter.current + 1 >= threshold) {
+      missCounter.miss()
       await restart()
     } else {
+      missCounter.miss()
       broadcast('disconnected')
     }
   } finally {
@@ -55,6 +64,7 @@ async function restart(): Promise<void> {
   broadcast('restarting')
   killPython()
   missCounter.reset()
+  renderInFlight = false
 
   try {
     currentPort = await spawnPython()
@@ -87,4 +97,13 @@ export function stopWatchdog(): void {
     clearTimeout(timeoutId)
     timeoutId = null
   }
+}
+
+/**
+ * Notify the watchdog that a render is starting or finishing.
+ * While a render is in flight, the miss threshold is raised to
+ * MAX_MISSES_RENDERING to avoid killing Python during heavy effects.
+ */
+export function setRenderInFlight(inFlight: boolean): void {
+  renderInFlight = inFlight
 }

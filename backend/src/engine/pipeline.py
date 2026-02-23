@@ -1,12 +1,25 @@
-"""Effect pipeline — applies a chain of effects to a frame."""
+"""Effect pipeline — applies a chain of effects to a frame.
+
+Includes per-effect timeout guard to prevent slow effects from blocking
+the ZMQ server and triggering watchdog restarts (BUG-4).
+"""
+
+import logging
+import time
 
 import numpy as np
 
 from effects import registry
 from engine.container import EffectContainer
 
+logger = logging.getLogger(__name__)
+
 # SEC-7: Maximum effects in a single chain
 MAX_CHAIN_DEPTH = 10
+
+# Per-effect timing thresholds (milliseconds)
+EFFECT_WARN_MS = 100
+EFFECT_ABORT_MS = 500
 
 
 def apply_chain(
@@ -64,6 +77,8 @@ def apply_chain(
         container = EffectContainer(effect_info["fn"], effect_id)
         state_in = states.get(effect_id)
 
+        t0 = time.monotonic()
+
         output, state_out = container.process(
             output,
             params,
@@ -72,6 +87,28 @@ def apply_chain(
             project_seed=project_seed,
             resolution=resolution,
         )
+
+        elapsed_ms = (time.monotonic() - t0) * 1000
+
+        if elapsed_ms > EFFECT_ABORT_MS:
+            logger.error(
+                "Effect %s took %.0fms (>%dms abort threshold) on frame %d — "
+                "returning input frame unchanged",
+                effect_id,
+                elapsed_ms,
+                EFFECT_ABORT_MS,
+                frame_index,
+            )
+            # Discard the slow output and return the pre-effect frame.
+            return frame.copy(), states
+        elif elapsed_ms > EFFECT_WARN_MS:
+            logger.warning(
+                "Effect %s took %.0fms (>%dms warn threshold) on frame %d",
+                effect_id,
+                elapsed_ms,
+                EFFECT_WARN_MS,
+                frame_index,
+            )
 
         new_states[effect_id] = state_out
 

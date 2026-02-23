@@ -1,4 +1,6 @@
-"""Tests for fx.wave_distort — 4-test contract (basic, determinism, boundary, state)."""
+"""Tests for fx.wave_distort — contract + performance (BUG-4 vectorization)."""
+
+import time
 
 import numpy as np
 
@@ -29,9 +31,17 @@ def test_determinism():
     np.testing.assert_array_equal(r1, r2)
 
 
+def test_determinism_vertical():
+    frame = _frame()
+    params = {"amplitude": 10.0, "frequency": 5.0, "direction": "vertical"}
+    r1, _ = apply(frame, params, None, **KW)
+    r2, _ = apply(frame, params, None, **KW)
+    np.testing.assert_array_equal(r1, r2)
+
+
 def test_boundary():
     frame = _frame()
-    # Min params
+    # Min params — amplitude 0 returns copy of input
     r_min, _ = apply(
         frame,
         {"amplitude": 0.0, "frequency": 0.1, "direction": "horizontal"},
@@ -40,6 +50,7 @@ def test_boundary():
     )
     assert r_min.shape == frame.shape
     assert r_min.dtype == np.uint8
+    np.testing.assert_array_equal(r_min, frame)
     # Max params
     r_max, _ = apply(
         frame,
@@ -56,3 +67,58 @@ def test_state():
     params = {"amplitude": 10.0, "frequency": 5.0, "direction": "horizontal"}
     _, state = apply(frame, params, None, **KW)
     assert state is None
+
+
+def test_horizontal_modifies_frame():
+    """Verify that non-zero amplitude actually shifts pixels."""
+    frame = _frame()
+    params = {"amplitude": 10.0, "frequency": 2.0, "direction": "horizontal"}
+    result, _ = apply(frame, params, None, **KW)
+    assert not np.array_equal(result, frame)
+
+
+def test_vertical_modifies_frame():
+    """Verify that vertical direction shifts pixels."""
+    frame = _frame()
+    params = {"amplitude": 10.0, "frequency": 2.0, "direction": "vertical"}
+    result, _ = apply(frame, params, None, **KW)
+    assert not np.array_equal(result, frame)
+
+
+def test_performance_1080p():
+    """BUG-4: vectorized wave_distort must process 1080p in <100ms."""
+    frame = _frame(h=1080, w=1920)
+    params = {"amplitude": 20.0, "frequency": 5.0, "direction": "horizontal"}
+    kw = {"frame_index": 0, "seed": 42, "resolution": (1920, 1080)}
+
+    # Warm up (JIT / cache effects)
+    apply(frame, params, None, **kw)
+
+    t0 = time.monotonic()
+    result, _ = apply(frame, params, None, **kw)
+    elapsed_ms = (time.monotonic() - t0) * 1000
+
+    assert result.shape == frame.shape
+    assert result.dtype == np.uint8
+    assert elapsed_ms < 200, (
+        f"wave_distort took {elapsed_ms:.0f}ms at 1080p (must be <200ms)"
+    )
+
+
+def test_performance_1080p_vertical():
+    """BUG-4: vertical direction must also be fast at 1080p."""
+    frame = _frame(h=1080, w=1920)
+    params = {"amplitude": 20.0, "frequency": 5.0, "direction": "vertical"}
+    kw = {"frame_index": 0, "seed": 42, "resolution": (1920, 1080)}
+
+    # Warm up
+    apply(frame, params, None, **kw)
+
+    t0 = time.monotonic()
+    result, _ = apply(frame, params, None, **kw)
+    elapsed_ms = (time.monotonic() - t0) * 1000
+
+    assert result.shape == frame.shape
+    assert elapsed_ms < 200, (
+        f"wave_distort vertical took {elapsed_ms:.0f}ms at 1080p (must be <200ms)"
+    )

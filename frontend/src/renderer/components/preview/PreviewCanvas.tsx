@@ -1,10 +1,14 @@
 import { useRef, useEffect, useCallback } from 'react'
 
+export type PreviewState = 'empty' | 'loading' | 'ready' | 'error'
+
 interface PreviewCanvasProps {
   frameDataUrl: string | null
   width: number
   height: number
-  renderError?: string | null
+  previewState: PreviewState
+  renderError: string | null
+  onRetry?: () => void
 }
 
 /**
@@ -23,7 +27,14 @@ function drawBase64Frame(
   ctx.drawImage(img, 0, 0)
 }
 
-export default function PreviewCanvas({ frameDataUrl, width, height, renderError }: PreviewCanvasProps) {
+export default function PreviewCanvas({
+  frameDataUrl,
+  width,
+  height,
+  previewState,
+  renderError,
+  onRetry,
+}: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const fpsRef = useRef({ frames: 0, lastTime: performance.now(), display: 0 })
@@ -78,29 +89,27 @@ export default function PreviewCanvas({ frameDataUrl, width, height, renderError
         width={width || undefined}
         height={height || undefined}
       />
-      {!frameDataUrl && !renderError && (
+      {previewState === 'empty' && (
         <div className="preview-canvas__placeholder">
           No video loaded
         </div>
       )}
-      {renderError && (
-        <div
-          className="preview-canvas__error"
-          style={{
-            position: 'absolute',
-            bottom: 8,
-            left: 8,
-            right: 8,
-            padding: '8px 12px',
-            background: 'rgba(239, 68, 68, 0.9)',
-            color: '#fff',
-            fontFamily: 'JetBrains Mono, monospace',
-            fontSize: '12px',
-            borderRadius: 4,
-            pointerEvents: 'none',
-          }}
-        >
-          Effect error: {renderError}
+      {previewState === 'loading' && (
+        <div className="preview-canvas__loading">
+          <div className="preview-canvas__spinner" />
+          <span>Loading...</span>
+        </div>
+      )}
+      {previewState === 'error' && (
+        <div className="preview-canvas__error-overlay">
+          <span className="preview-canvas__error-msg">
+            {renderError ?? 'Render failed'}
+          </span>
+          {onRetry && (
+            <button className="preview-canvas__retry-btn" onClick={onRetry}>
+              Retry
+            </button>
+          )}
         </div>
       )}
     </div>

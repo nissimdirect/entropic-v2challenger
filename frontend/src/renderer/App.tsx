@@ -9,7 +9,7 @@ import IngestProgress from './components/upload/IngestProgress'
 import EffectBrowser from './components/effects/EffectBrowser'
 import EffectRack from './components/effects/EffectRack'
 import ParamPanel from './components/effects/ParamPanel'
-import PreviewCanvas from './components/preview/PreviewCanvas'
+import PreviewCanvas, { type PreviewState } from './components/preview/PreviewCanvas'
 import PreviewControls from './components/preview/PreviewControls'
 import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
@@ -77,7 +77,6 @@ function AppInner() {
   const [frameDataUrl, setFrameDataUrl] = useState<string | null>(null)
   const [frameWidth, setFrameWidth] = useState(0)
   const [frameHeight, setFrameHeight] = useState(0)
-  const [renderError, setRenderError] = useState<string | null>(null)
   const [activeFps, setActiveFps] = useState(30)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
@@ -86,10 +85,13 @@ function AppInner() {
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [isGlobalDragOver, setIsGlobalDragOver] = useState(false)
+  const [previewState, setPreviewState] = useState<PreviewState>('empty')
+  const [renderError, setRenderError] = useState<string | null>(null)
 
   const activeAssetPath = useRef<string | null>(null)
   const isRenderingRef = useRef(false)
   const pendingFrameRef = useRef<number | null>(null)
+  const playbackRafRef = useRef<number | null>(null)
 
   // Fetch effect registry when engine connects
   useEffect(() => {
@@ -117,7 +119,7 @@ function AppInner() {
   }, [exportJobId])
 
   const requestRenderFrame = useCallback(
-    async (frame: number) => {
+    async (frame: number, chainOverride?: EffectInstance[]) => {
       if (!window.entropic || !activeAssetPath.current) return
 
       // If a render is in flight, queue this frame and return.
@@ -129,13 +131,16 @@ function AppInner() {
 
       isRenderingRef.current = true
       pendingFrameRef.current = null
+      setRenderError(null)
+
+      const chain = chainOverride ?? effectChain
 
       try {
         const res = await window.entropic.sendCommand({
           cmd: 'render_frame',
           path: activeAssetPath.current,
           frame_index: frame,
-          chain: serializeEffectChain(effectChain),
+          chain: serializeEffectChain(chain),
           project_seed: 42,
         })
 
@@ -143,14 +148,27 @@ function AppInner() {
           setFrameDataUrl(`data:image/jpeg;base64,${res.frame_data as string}`)
           if (res.width) setFrameWidth(res.width as number)
           if (res.height) setFrameHeight(res.height as number)
+          setPreviewState('ready')
           setRenderError(null)
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
-          setRenderError(res.error as string ?? 'Render failed')
+
+          // Auto-retry once with empty chain to at least show raw frame
+          if (chain.length > 0) {
+            console.warn('[Render] retrying frame', frame, 'with empty chain')
+            isRenderingRef.current = false
+            requestRenderFrame(frame, [])
+            return
+          }
+
+          // Empty chain also failed — show error state
+          setRenderError((res.error as string) ?? 'Render failed')
+          setPreviewState('error')
         }
       } catch (err) {
         console.error('[Render] frame', frame, 'exception:', err)
-        setRenderError(err instanceof Error ? err.message : 'Render exception')
+        setRenderError(err instanceof Error ? err.message : 'Render failed')
+        setPreviewState('error')
       }
 
       isRenderingRef.current = false
@@ -177,6 +195,7 @@ function AppInner() {
 
       setIngesting(true)
       setIngestError(null)
+      setPreviewState('loading')
 
       const res = await window.entropic.sendCommand({
         cmd: 'ingest',
@@ -204,15 +223,26 @@ function AppInner() {
         setActiveFps(res.fps as number)
         activeAssetPath.current = path
         setCurrentFrame(0)
-        requestRenderFrame(0)
+
+        // BUG-3 fix: render frame 0 with empty chain first (guaranteed success).
+        // This ensures the user sees the video immediately regardless of effects.
+        // The useEffect hook will then trigger a re-render with the current effectChain.
+        await requestRenderFrame(0, [])
       } else {
         setIngestError(res.error as string)
+        setPreviewState('empty')
       }
 
       setIngesting(false)
     },
     [addAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame],
   )
+
+  const handleRenderRetry = useCallback(() => {
+    if (!activeAssetPath.current) return
+    setPreviewState('loading')
+    requestRenderFrame(currentFrame, [])
+  }, [currentFrame, requestRenderFrame])
 
   const handleSeek = useCallback(
     (frame: number) => {
@@ -225,13 +255,35 @@ function AppInner() {
     setIsPlaying((prev) => !prev)
   }, [])
 
-  // Playback loop
+  // Render-driven playback loop: advance frame only after previous frame displayed.
+  // Uses requestAnimationFrame with time tracking instead of setInterval,
+  // providing natural backpressure and drift compensation.
   useEffect(() => {
     if (!isPlaying || totalFrames === 0) return
-    const interval = setInterval(() => {
-      setCurrentFrame(useProjectStore.getState().currentFrame + 1 >= totalFrames ? 0 : useProjectStore.getState().currentFrame + 1)
-    }, 1000 / activeFps)
-    return () => clearInterval(interval)
+
+    const frameDuration = 1000 / activeFps
+    let lastFrameTime = performance.now()
+
+    const tick = (now: number) => {
+      const elapsed = now - lastFrameTime
+      if (elapsed >= frameDuration) {
+        // Advance by whole frames (handles cases where a frame took >1 interval)
+        const framesToAdvance = Math.max(1, Math.floor(elapsed / frameDuration))
+        lastFrameTime = now - (elapsed % frameDuration) // preserve fractional remainder for drift compensation
+        const current = useProjectStore.getState().currentFrame
+        const nextFrame = (current + framesToAdvance) % totalFrames
+        setCurrentFrame(nextFrame)
+      }
+      playbackRafRef.current = requestAnimationFrame(tick)
+    }
+
+    playbackRafRef.current = requestAnimationFrame(tick)
+    return () => {
+      if (playbackRafRef.current !== null) {
+        cancelAnimationFrame(playbackRafRef.current)
+        playbackRafRef.current = null
+      }
+    }
   }, [isPlaying, totalFrames, activeFps, setCurrentFrame])
 
   const handleExport = useCallback(
@@ -363,6 +415,7 @@ function AppInner() {
                 </span>
               </div>
             ))}
+            <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} label="Replace" />
           </div>
         )}
         <EffectBrowser
@@ -384,7 +437,14 @@ function AppInner() {
 
       <div className="app__main">
         <div className="app__preview">
-          <PreviewCanvas frameDataUrl={frameDataUrl} width={frameWidth} height={frameHeight} renderError={renderError} />
+          <PreviewCanvas
+            frameDataUrl={frameDataUrl}
+            width={frameWidth}
+            height={frameHeight}
+            previewState={previewState}
+            renderError={renderError}
+            onRetry={handleRenderRetry}
+          />
           <PreviewControls
             currentFrame={currentFrame}
             totalFrames={totalFrames}
