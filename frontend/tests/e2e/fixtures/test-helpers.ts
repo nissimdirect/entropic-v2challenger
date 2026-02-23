@@ -1,37 +1,39 @@
 import type { ElectronApplication, Page } from '@playwright/test'
 
 /**
- * Stub Electron's native file dialog to return a specific path.
- * Must be called on the ElectronApplication (main process evaluate).
+ * Stub the 'select-file' IPC handler to return a specific path.
+ *
+ * The real handler calls BrowserWindow.getFocusedWindow() which returns null
+ * in test environments (no OS focus), so we replace the entire IPC handler
+ * instead of just stubbing dialog.showOpenDialog.
  */
 export async function stubFileDialog(
   electronApp: ElectronApplication,
   filePath: string,
 ): Promise<void> {
   await electronApp.evaluate(
-    async ({ dialog }, stubPath) => {
-      dialog.showOpenDialog = async () => ({
-        canceled: false,
-        filePaths: [stubPath],
-      })
+    async ({ ipcMain }, stubPath) => {
+      ipcMain.removeHandler('select-file')
+      ipcMain.handle('select-file', async () => stubPath)
     },
     filePath,
   )
 }
 
 /**
- * Stub Electron's save dialog to return a specific path.
+ * Stub the 'select-save-path' IPC handler to return a specific path.
+ *
+ * Same issue as select-file: BrowserWindow.getFocusedWindow() returns null
+ * in test environments.
  */
 export async function stubSaveDialog(
   electronApp: ElectronApplication,
   savePath: string,
 ): Promise<void> {
   await electronApp.evaluate(
-    async ({ dialog }, stubPath) => {
-      dialog.showSaveDialog = async () => ({
-        canceled: false,
-        filePath: stubPath,
-      })
+    async ({ ipcMain }, stubPath) => {
+      ipcMain.removeHandler('select-save-path')
+      ipcMain.handle('select-save-path', async () => stubPath)
     },
     savePath,
   )

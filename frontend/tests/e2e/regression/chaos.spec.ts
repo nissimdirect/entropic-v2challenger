@@ -156,7 +156,14 @@ test.describe('Chaos — Invalid Sequences', () => {
     expect(result).toBeDefined()
   })
 
-  test('11. call selectFile with invalid filters', async ({ window }) => {
+  test('11. call selectFile with invalid filters', async ({ electronApp, window }) => {
+    // Stub the IPC handler to prevent a real native dialog opening in tests
+    // (BrowserWindow.getFocusedWindow() may return a window, blocking on the dialog)
+    await electronApp.evaluate(async ({ ipcMain }) => {
+      ipcMain.removeHandler('select-file')
+      ipcMain.handle('select-file', async () => null)
+    })
+
     const result = await window.evaluate(async () => {
       try {
         const res = await (window as any).entropic.selectFile([])

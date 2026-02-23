@@ -1,3 +1,14 @@
+// Augment ImportMeta for Vite env variables (electron-vite injects these)
+interface ImportMetaEnv {
+  readonly DEV: boolean
+  readonly PROD: boolean
+  readonly MODE: string
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv
+}
+
 interface Window {
   entropic: {
     getPathForFile: (file: File) => string

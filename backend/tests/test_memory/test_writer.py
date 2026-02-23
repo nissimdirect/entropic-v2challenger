@@ -77,6 +77,6 @@ def test_oversized_frame_raises(shm_path):
     # Use tiny slot size to trigger overflow
     w = SharedMemoryWriter(path=shm_path, ring_size=2, slot_size=1024)
     frame = _make_frame()  # 720p will compress to way more than 1KB
-    with pytest.raises(ValueError, match="exceeds slot size"):
+    with pytest.raises(ValueError, match="exceeds"):
         w.write_frame(frame)
     w.close()

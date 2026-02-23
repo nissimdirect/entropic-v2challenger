@@ -1,0 +1,110 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "entropic:ipc-command",
+  "title": "Entropic IPC Command",
+  "description": "ZMQ command from Electron to Python backend",
+  "type": "object",
+  "required": ["cmd", "id"],
+  "oneOf": [
+    {
+      "properties": {
+        "cmd": { "const": "ping" },
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "shutdown" },
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "flush_state" },
+        "id": { "type": "string" },
+        "project": { "type": "object" }
+      },
+      "required": ["cmd", "id"],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "ingest" },
+        "id": { "type": "string" },
+        "path": { "type": "string", "minLength": 1 }
+      },
+      "required": ["cmd", "id", "path"],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "seek" },
+        "id": { "type": "string" },
+        "path": { "type": "string", "minLength": 1 },
+        "time": { "type": "number", "minimum": 0 }
+      },
+      "required": ["cmd", "id", "path", "time"],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "render_frame" },
+        "id": { "type": "string" },
+        "path": { "type": "string", "minLength": 1 },
+        "frame_index": { "type": "integer", "minimum": 0 },
+        "time": { "type": "number", "minimum": 0 },
+        "chain": { "type": "array", "items": { "type": "object" } },
+        "project_seed": { "type": "integer" }
+      },
+      "required": ["cmd", "id", "path"],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "apply_chain" },
+        "id": { "type": "string" },
+        "path": { "type": "string", "minLength": 1 },
+        "frame_index": { "type": "integer", "minimum": 0 },
+        "chain": { "type": "array", "items": { "type": "object" } },
+        "project_seed": { "type": "integer" }
+      },
+      "required": ["cmd", "id", "path", "frame_index", "chain"],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "list_effects" },
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "export_start" },
+        "id": { "type": "string" },
+        "input_path": { "type": "string", "minLength": 1 },
+        "output_path": { "type": "string", "minLength": 1 },
+        "chain": { "type": "array", "items": { "type": "object" } },
+        "project_seed": { "type": "integer" }
+      },
+      "required": ["cmd", "id", "input_path", "output_path"],
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "export_status" },
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "properties": {
+        "cmd": { "const": "export_cancel" },
+        "id": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

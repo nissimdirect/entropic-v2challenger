@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from engine.cache import encode_mjpeg
+from engine.cache import encode_mjpeg_fit
 
 HEADER_SIZE = 64
 DEFAULT_RING_SIZE = 4
@@ -63,11 +63,9 @@ class SharedMemoryWriter:
         )
 
     def write_frame(self, frame_rgba: np.ndarray, quality: int = 95) -> int:
-        data = encode_mjpeg(frame_rgba, quality)
-        if len(data) + 4 > self.slot_size:
-            raise ValueError(
-                f"MJPEG frame ({len(data)} bytes) exceeds slot size ({self.slot_size})"
-            )
+        # 4 bytes reserved for the size prefix in the slot
+        max_payload = self.slot_size - 4
+        data, _quality_used = encode_mjpeg_fit(frame_rgba, max_bytes=max_payload)
         slot = self.write_index % self.ring_size
         offset = HEADER_SIZE + (slot * self.slot_size)
         struct.pack_into("<I", self.buf, offset, len(data))

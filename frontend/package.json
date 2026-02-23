@@ -8,16 +8,19 @@
     "build": "electron-vite build",
     "test": "vitest run",
     "test:e2e": "npx playwright test",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "build:native": "cd native && HOME=~/.electron-gyp node-gyp rebuild --target=40.6.0 --arch=arm64 --dist-url=https://electronjs.org/headers"
   },
   "dependencies": {
     "@sentry/electron": "^7.8.0",
+    "ajv": "^8.18.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zeromq": "^6.4.0",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.3",
     "@playwright/test": "^1.58.2",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
@@ -26,6 +29,7 @@
     "electron": "^40.0.0",
     "electron-playwright-helpers": "^2.1.0",
     "electron-vite": "^5.0.0",
+    "node-addon-api": "^8.5.0",
     "typescript": "^5.7.0",
     "vitest": "^3.0.0"
   }

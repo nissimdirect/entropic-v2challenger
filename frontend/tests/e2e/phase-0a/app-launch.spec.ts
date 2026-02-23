@@ -14,8 +14,11 @@ import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 
 test.describe('Phase 0A — App Launch', () => {
-  test('1. main window opens with correct dimensions', async ({ electronApp, window }) => {
-    const { width, height } = await window.viewportSize()!
+  test('1. main window opens with correct dimensions', async ({ window: page }) => {
+    const { width, height } = await page.evaluate(() => ({
+      width: globalThis.innerWidth,
+      height: globalThis.innerHeight,
+    }))
     // electron.vite defaults to 800x600 in createWindow
     expect(width).toBeGreaterThanOrEqual(700)
     expect(height).toBeGreaterThanOrEqual(500)

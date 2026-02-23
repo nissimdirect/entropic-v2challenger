@@ -157,19 +157,23 @@ test.describe('UX Contracts — Consistency', () => {
     }
   })
 
-  test('14. status bar is always at bottom of viewport', async ({ window }) => {
+  test('14. status bar is always at bottom of viewport', async ({ electronApp, window }) => {
     const statusBar = window.locator('.status-bar')
     await expect(statusBar).toBeVisible()
 
     const box = await statusBar.boundingBox()
-    const viewport = window.viewportSize()
     expect(box).not.toBeNull()
-    expect(viewport).not.toBeNull()
 
-    if (box && viewport) {
+    const { height: winHeight } = await electronApp.evaluate(async ({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0]
+      const [, h] = win.getContentSize()
+      return { height: h }
+    })
+
+    if (box) {
       // Status bar bottom edge should be near viewport bottom
       const barBottom = box.y + box.height
-      expect(barBottom).toBeGreaterThanOrEqual(viewport.height - 5)
+      expect(barBottom).toBeGreaterThanOrEqual(winHeight - 5)
     }
   })
 

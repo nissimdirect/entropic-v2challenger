@@ -10,6 +10,7 @@
     "outDir": "./out",
     "declaration": true,
     "declarationMap": true,
+    "resolveJsonModule": true,
     "types": ["node"]
   },
   "include": [
@@ -17,6 +18,7 @@
     "src/preload/**/*",
     "src/__tests__/**/*",
     "src/shared/**/*",
+    "src/shared/**/*.json",
     "electron.vite.config.ts"
   ]
 }
