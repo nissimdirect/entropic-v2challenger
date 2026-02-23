@@ -414,6 +414,20 @@ function AppInner() {
             <IngestProgress isIngesting={isIngesting} error={ingestError} />
           </div>
         )}
+        {(dropError || (hasAssets && ingestError)) && (
+          <div className="app__error-banner" style={{
+            padding: '8px 12px',
+            margin: '0 8px 8px',
+            background: 'rgba(239, 68, 68, 0.15)',
+            border: '1px solid rgba(239, 68, 68, 0.4)',
+            borderRadius: 6,
+            color: '#ef4444',
+            fontSize: 12,
+            fontFamily: 'JetBrains Mono, monospace',
+          }}>
+            {dropError || ingestError}
+          </div>
+        )}
         {hasAssets && (
           <div className="app__asset-info">
             {Object.values(assets).map((asset) => (
