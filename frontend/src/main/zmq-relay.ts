@@ -9,14 +9,30 @@ const ZMQ_TIMEOUT = 10_000
 const RENDER_COMMANDS = new Set(['render_frame', 'apply_chain', 'export_start'])
 
 let currentPort = 0
+let currentToken = ''
 let persistentSocket: InstanceType<typeof Request> | null = null
 
-export function setRelayPort(port: number): void {
+export function setRelayPort(port: number, token: string): void {
   // Close existing socket if port changes
   if (currentPort !== port) {
     closePersistentSocket()
   }
   currentPort = port
+  currentToken = token
+}
+
+/** Called by watchdog on restart to switch to new Python process. */
+export function reconnectRelay(port: number, token: string): void {
+  closePersistentSocket()
+  currentPort = port
+  currentToken = token
+}
+
+/** Called on app shutdown to clean up the persistent socket. */
+export function closeRelay(): void {
+  closePersistentSocket()
+  currentPort = 0
+  currentToken = ''
 }
 
 function closePersistentSocket(): void {
@@ -53,6 +69,7 @@ async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<
   const sock = getOrCreateSocket()
 
   try {
+    command._token = currentToken
     await sock.send(JSON.stringify(command))
     const [raw] = await sock.receive()
     return JSON.parse(raw.toString())

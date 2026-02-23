@@ -1,7 +1,8 @@
 import { Request } from 'zeromq'
 import { randomUUID } from 'crypto'
 import { BrowserWindow } from 'electron'
-import { spawnPython, killPython } from './python'
+import { spawnPython, killPython, type PythonPorts } from './python'
+import { reconnectRelay } from './zmq-relay'
 import { MissCounter } from './utils'
 
 export type EngineStatus = 'connected' | 'disconnected' | 'restarting'
@@ -12,7 +13,8 @@ const MAX_MISSES = 3
 /** When a render is in flight, allow more misses before killing Python (BUG-4). */
 const MAX_MISSES_RENDERING = 10
 
-let currentPort = 0
+let currentPingPort = 0
+let currentToken = ''
 let running = false
 let timeoutId: ReturnType<typeof setTimeout> | null = null
 let renderInFlight = false
@@ -28,11 +30,11 @@ async function ping(): Promise<void> {
   const sock = new Request()
   sock.receiveTimeout = PING_TIMEOUT
   sock.linger = 0
-  sock.connect(`tcp://127.0.0.1:${currentPort}`)
+  sock.connect(`tcp://127.0.0.1:${currentPingPort}`)
 
   try {
     const id = randomUUID()
-    await sock.send(JSON.stringify({ cmd: 'ping', id }))
+    await sock.send(JSON.stringify({ cmd: 'ping', id, _token: currentToken }))
     const [raw] = await sock.receive()
     const res = JSON.parse(raw.toString())
     if (res.status === 'alive') {
@@ -67,7 +69,10 @@ async function restart(): Promise<void> {
   renderInFlight = false
 
   try {
-    currentPort = await spawnPython()
+    const { port, pingPort, token } = await spawnPython()
+    currentPingPort = pingPort
+    currentToken = token
+    reconnectRelay(port, token)
     broadcast('connected')
   } catch (err) {
     console.error('[Watchdog] Restart failed:', err)
@@ -83,8 +88,9 @@ async function tick(): Promise<void> {
   }
 }
 
-export async function startWatchdog(port: number): Promise<void> {
-  currentPort = port
+export async function startWatchdog(pingPort: number, token: string): Promise<void> {
+  currentPingPort = pingPort
+  currentToken = token
   running = true
   missCounter.reset()
   broadcast('connected')
