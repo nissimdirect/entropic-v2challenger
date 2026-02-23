@@ -34,6 +34,8 @@ def main():
     _apply_resource_limits()
     server = ZMQServer()
     print(f"ZMQ_PORT={server.port}", flush=True)
+    print(f"ZMQ_PING_PORT={server.ping_port}", flush=True)
+    print(f"ZMQ_TOKEN={server.token}", flush=True)
     server.run()
 
 

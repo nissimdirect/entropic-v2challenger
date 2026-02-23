@@ -1,10 +1,16 @@
-"""Tests for graceful ZMQ server shutdown."""
+"""Tests for graceful ZMQ server shutdown + auth token validation."""
 
-import threading
 import time
 import uuid
 
 import zmq
+
+
+def _send(sock, msg: dict, token: str) -> dict:
+    """Send a message with the auth token injected."""
+    msg["_token"] = token
+    sock.send_json(msg)
+    return sock.recv_json()
 
 
 def test_shutdown_sets_running_false(zmq_server):
@@ -14,8 +20,7 @@ def test_shutdown_sets_running_false(zmq_server):
     sock = ctx.socket(zmq.REQ)
     sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
     msg_id = str(uuid.uuid4())
-    sock.send_json({"cmd": "shutdown", "id": msg_id})
-    resp = sock.recv_json()
+    resp = _send(sock, {"cmd": "shutdown", "id": msg_id}, zmq_server.token)
     assert resp["ok"] is True
     assert resp["id"] == msg_id
     assert zmq_server.running is False
@@ -29,8 +34,7 @@ def test_shutdown_returns_msg_id(zmq_server):
     sock = ctx.socket(zmq.REQ)
     sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
     msg_id = str(uuid.uuid4())
-    sock.send_json({"cmd": "shutdown", "id": msg_id})
-    resp = sock.recv_json()
+    resp = _send(sock, {"cmd": "shutdown", "id": msg_id}, zmq_server.token)
     assert resp["id"] == msg_id
     sock.close()
     ctx.term()
@@ -41,8 +45,7 @@ def test_shutdown_without_id(zmq_server):
     ctx = zmq.Context()
     sock = ctx.socket(zmq.REQ)
     sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
-    sock.send_json({"cmd": "shutdown"})
-    resp = sock.recv_json()
+    resp = _send(sock, {"cmd": "shutdown"}, zmq_server.token)
     assert resp["ok"] is True
     assert resp["id"] is None
     sock.close()
@@ -54,8 +57,7 @@ def test_server_run_loop_exits_after_shutdown(zmq_server):
     ctx = zmq.Context()
     sock = ctx.socket(zmq.REQ)
     sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
-    sock.send_json({"cmd": "shutdown", "id": "exit-test"})
-    resp = sock.recv_json()
+    resp = _send(sock, {"cmd": "shutdown", "id": "exit-test"}, zmq_server.token)
     assert resp["ok"] is True
     # Server should stop within ~500ms (the poller timeout) after running=False
     time.sleep(0.7)
@@ -71,14 +73,37 @@ def test_ping_before_shutdown(zmq_server):
     sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
 
     # Ping first
-    sock.send_json({"cmd": "ping", "id": "pre-ping"})
-    resp = sock.recv_json()
+    resp = _send(sock, {"cmd": "ping", "id": "pre-ping"}, zmq_server.token)
     assert resp["status"] == "alive"
 
     # Then shutdown
-    sock.send_json({"cmd": "shutdown", "id": "post-shutdown"})
-    resp = sock.recv_json()
+    resp = _send(sock, {"cmd": "shutdown", "id": "post-shutdown"}, zmq_server.token)
     assert resp["ok"] is True
 
+    sock.close()
+    ctx.term()
+
+
+def test_unauthenticated_message_rejected(zmq_server):
+    """Message without auth token is rejected."""
+    ctx = zmq.Context()
+    sock = ctx.socket(zmq.REQ)
+    sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
+    sock.send_json({"cmd": "ping", "id": "no-token"})
+    resp = sock.recv_json()
+    assert resp["ok"] is False
+    assert "token" in resp["error"]
+    sock.close()
+    ctx.term()
+
+
+def test_wrong_token_rejected(zmq_server):
+    """Message with wrong token is rejected."""
+    ctx = zmq.Context()
+    sock = ctx.socket(zmq.REQ)
+    sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
+    resp = _send(sock, {"cmd": "ping", "id": "bad-token"}, "wrong-token-value")
+    assert resp["ok"] is False
+    assert "token" in resp["error"]
     sock.close()
     ctx.term()

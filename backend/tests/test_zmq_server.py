@@ -26,7 +26,7 @@ def test_shutdown(zmq_server):
     sock = ctx.socket(zmq.REQ)
     sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
     msg_id = str(uuid.uuid4())
-    sock.send_json({"cmd": "shutdown", "id": msg_id})
+    sock.send_json({"cmd": "shutdown", "id": msg_id, "_token": zmq_server.token})
     resp = sock.recv_json()
     assert resp["id"] == msg_id
     assert resp["ok"] is True

@@ -68,6 +68,59 @@ def validate_frame_count(count: int) -> list[str]:
     return errors
 
 
+ALLOWED_OUTPUT_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
+BLOCKED_OUTPUT_PREFIXES = (
+    "/System",
+    "/Library",
+    "/usr",
+    "/bin",
+    "/sbin",
+    "/etc",
+    "/private/var",
+    "/private/etc",
+)
+
+
+def validate_output_path(path: str) -> list[str]:
+    """Validate an export output path. Returns list of errors (empty = valid).
+
+    Checks:
+    - Path is absolute
+    - Not a system directory
+    - Extension in whitelist
+    - Parent directory exists and is writable
+    - Filename is safe (no traversal)
+    """
+    errors: list[str] = []
+    p = Path(path)
+
+    if not p.is_absolute():
+        errors.append("Output path must be absolute")
+        return errors
+
+    resolved = str(p.resolve())
+    for prefix in BLOCKED_OUTPUT_PREFIXES:
+        if resolved.startswith(prefix):
+            errors.append(f"Cannot write to system directory: {prefix}")
+            return errors
+
+    ext = p.suffix.lower()
+    if ext not in ALLOWED_OUTPUT_EXTENSIONS:
+        errors.append(f"Output extension '{ext}' not allowed.")
+
+    parent = p.parent
+    if not parent.exists():
+        errors.append(f"Output directory does not exist: {parent}")
+    elif not os.access(str(parent), os.W_OK):
+        errors.append(f"Output directory is not writable: {parent}")
+
+    name = p.name
+    if ".." in name or "/" in name or "\\" in name or "\x00" in name:
+        errors.append(f"Unsafe output filename: {name}")
+
+    return errors
+
+
 def validate_chain_depth(chain: list) -> list[str]:
     """Validate effect chain depth against SEC-7 cap. Returns list of errors."""
     errors: list[str] = []

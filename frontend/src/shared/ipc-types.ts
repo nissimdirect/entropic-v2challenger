@@ -2,7 +2,8 @@
  * Entropic v2 — IPC message types for ZMQ command channel.
  * Matches IPC-PROTOCOL.md.
  */
-import type { EffectInstance, Project } from "./types";
+import type { Project } from "./types";
+import type { SerializedEffectInstance } from "./ipc-serialize";
 
 // --- Commands (Electron → Python) ---
 
@@ -17,7 +18,7 @@ export type Command =
       id: string;
       path: string;
       time: number;
-      chain: EffectInstance[];
+      chain: SerializedEffectInstance[];
       project_seed?: number;
     }
   | {
@@ -25,7 +26,7 @@ export type Command =
       id: string;
       start: number;
       end: number;
-      chain: EffectInstance[];
+      chain: SerializedEffectInstance[];
       fps: number;
     }
   | { cmd: "list_effects"; id: string }
@@ -33,7 +34,7 @@ export type Command =
       cmd: "apply_chain";
       id: string;
       frame_index: number;
-      chain: EffectInstance[];
+      chain: SerializedEffectInstance[];
     }
   | {
       cmd: "export_start";
@@ -42,7 +43,7 @@ export type Command =
       codec: string;
       bitrate?: number;
       resolution?: [number, number];
-      chain: EffectInstance[];
+      chain: SerializedEffectInstance[];
       in_point: number;
       out_point: number;
     }

@@ -1,7 +1,7 @@
 import { ChildProcess, spawn, execSync } from 'child_process'
 import path from 'path'
 import { app } from 'electron'
-import { parseZmqPort } from './utils'
+import { parseZmqPort, parseZmqPingPort, parseZmqToken } from './utils'
 
 let pythonProcess: ChildProcess | null = null
 
@@ -16,7 +16,13 @@ function findPython(_backendDir: string): string {
   return 'python3'
 }
 
-export function spawnPython(): Promise<number> {
+export interface PythonPorts {
+  port: number
+  pingPort: number
+  token: string
+}
+
+export function spawnPython(): Promise<PythonPorts> {
   return new Promise((resolve, reject) => {
     const isDev = !app.isPackaged
 
@@ -50,14 +56,23 @@ export function spawnPython(): Promise<number> {
     })
 
     const timeout = setTimeout(() => {
-      reject(new Error('Python failed to report ZMQ port within 10s'))
+      reject(new Error('Python failed to report ZMQ ports within 10s'))
     }, 10_000)
 
+    let foundPort: number | null = null
+    let foundPingPort: number | null = null
+    let foundToken: string | null = null
+    let stdoutBuffer = ''
+
     pythonProcess.stdout?.on('data', (data: Buffer) => {
-      const port = parseZmqPort(data.toString())
-      if (port !== null) {
+      stdoutBuffer += data.toString()
+      if (foundPort === null) foundPort = parseZmqPort(stdoutBuffer)
+      if (foundPingPort === null) foundPingPort = parseZmqPingPort(stdoutBuffer)
+      if (foundToken === null) foundToken = parseZmqToken(stdoutBuffer)
+
+      if (foundPort !== null && foundPingPort !== null && foundToken !== null) {
         clearTimeout(timeout)
-        resolve(port)
+        resolve({ port: foundPort, pingPort: foundPingPort, token: foundToken })
       }
     })
 

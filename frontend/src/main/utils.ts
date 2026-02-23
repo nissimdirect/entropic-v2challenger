@@ -7,6 +7,22 @@ export function parseZmqPort(output: string): number | null {
 }
 
 /**
+ * Parse ZMQ ping port from Python's stdout output.
+ */
+export function parseZmqPingPort(output: string): number | null {
+  const match = output.match(/ZMQ_PING_PORT=(\d+)/)
+  return match ? parseInt(match[1], 10) : null
+}
+
+/**
+ * Parse ZMQ auth token from Python's stdout output.
+ */
+export function parseZmqToken(output: string): string | null {
+  const match = output.match(/ZMQ_TOKEN=([0-9a-f-]+)/)
+  return match ? match[1] : null
+}
+
+/**
  * Counts consecutive misses and signals when threshold is reached.
  */
 export class MissCounter {
