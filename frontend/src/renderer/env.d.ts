@@ -20,7 +20,7 @@ interface Window {
     selectSavePath: (defaultName: string) => Promise<string | null>
     onExportProgress: (
       callback: (data: { jobId: string; progress: number; done: boolean; error?: string }) => void,
-    ) => void
+    ) => () => void
   }
 }
 

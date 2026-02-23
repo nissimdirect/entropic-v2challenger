@@ -118,7 +118,7 @@ class TestAllEffectsBoundary:
             elif pspec.get("type") == "bool":
                 params[pname] = False
             elif pspec.get("type") == "choice":
-                params[pname] = pspec["choices"][0]
+                params[pname] = (pspec.get("options") or pspec.get("choices", []))[0]
             else:
                 params[pname] = pspec.get("default")
 
@@ -137,7 +137,7 @@ class TestAllEffectsBoundary:
             elif pspec.get("type") == "bool":
                 params[pname] = True
             elif pspec.get("type") == "choice":
-                params[pname] = pspec["choices"][-1]
+                params[pname] = (pspec.get("options") or pspec.get("choices", []))[-1]
             else:
                 params[pname] = pspec.get("default")
 

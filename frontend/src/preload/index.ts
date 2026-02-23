@@ -25,7 +25,9 @@ contextBridge.exposeInMainWorld('entropic', {
 
   onExportProgress: (
     callback: (data: { jobId: string; progress: number; done: boolean; error?: string }) => void,
-  ) => {
-    ipcRenderer.on('export-progress', (_event, data) => callback(data))
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { jobId: string; progress: number; done: boolean; error?: string }) => callback(data)
+    ipcRenderer.on('export-progress', handler)
+    return () => ipcRenderer.removeListener('export-progress', handler)
   },
 })

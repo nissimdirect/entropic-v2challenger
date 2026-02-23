@@ -9,9 +9,10 @@ EFFECT_CATEGORY = "enhance"
 PARAMS: dict = {
     "method": {
         "type": "choice",
-        "choices": ["sobel", "canny", "laplacian"],
+        "options": ["sobel", "canny", "laplacian"],
         "default": "sobel",
         "label": "Detection Method",
+        "description": "Edge detection algorithm — Sobel (gradient), Canny (binary edges), Laplacian (second derivative)",
     }
 }
 

@@ -4,6 +4,7 @@ import { randomUUID } from 'crypto'
 import { setRenderInFlight } from './watchdog'
 
 const ZMQ_TIMEOUT = 10_000
+const EXPORT_POLL_INTERVAL = 500
 
 /** Commands that trigger heavy Python work and may block pings (BUG-4). */
 const RENDER_COMMANDS = new Set(['render_frame', 'apply_chain', 'export_start'])
@@ -11,6 +12,7 @@ const RENDER_COMMANDS = new Set(['render_frame', 'apply_chain', 'export_start'])
 let currentPort = 0
 let currentToken = ''
 let persistentSocket: InstanceType<typeof Request> | null = null
+let exportPollTimer: ReturnType<typeof setInterval> | null = null
 
 export function setRelayPort(port: number, token: string): void {
   // Close existing socket if port changes
@@ -30,6 +32,7 @@ export function reconnectRelay(port: number, token: string): void {
 
 /** Called on app shutdown to clean up the persistent socket. */
 export function closeRelay(): void {
+  stopExportPoll()
   closePersistentSocket()
   currentPort = 0
   currentToken = ''
@@ -57,7 +60,7 @@ function getOrCreateSocket(): InstanceType<typeof Request> {
 }
 
 async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<string, unknown>> {
-  if (currentPort === 0) {
+  if (currentPort === 0 || !currentToken) {
     return { id: command.id as string, ok: false, error: 'Engine not connected' }
   }
 
@@ -88,12 +91,58 @@ async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<
   }
 }
 
+function stopExportPoll(): void {
+  if (exportPollTimer) {
+    clearInterval(exportPollTimer)
+    exportPollTimer = null
+  }
+}
+
+function startExportPoll(): void {
+  stopExportPoll()
+  exportPollTimer = setInterval(async () => {
+    const res = await sendZmqCommand({ cmd: 'export_status', id: randomUUID() })
+    if (!res.ok) return
+
+    const progress = (res.progress as number) ?? 0
+    const exportState = res.status as string
+    const done = exportState === 'complete' || exportState === 'cancelled'
+    const failed = exportState === 'error'
+    const error = failed ? (res.error as string) ?? 'Export failed' : undefined
+
+    for (const win of BrowserWindow.getAllWindows()) {
+      win.webContents.send('export-progress', {
+        jobId: null,
+        progress,
+        done: done || failed,
+        error,
+      })
+    }
+
+    if (done || failed || exportState === 'idle') {
+      stopExportPoll()
+    }
+  }, EXPORT_POLL_INTERVAL)
+}
+
 export function registerRelayHandlers(): void {
   ipcMain.handle('send-command', async (_event, command: Record<string, unknown>) => {
     if (!command.id) {
       command.id = randomUUID()
     }
-    return sendZmqCommand(command)
+    const result = await sendZmqCommand(command)
+
+    // Start polling after successful export_start
+    if (command.cmd === 'export_start' && result.ok) {
+      startExportPoll()
+    }
+
+    // Stop polling on export_cancel
+    if (command.cmd === 'export_cancel') {
+      stopExportPoll()
+    }
+
+    return result
   })
 
   ipcMain.handle('select-file', async (_event, filters: { name: string; extensions: string[] }[]) => {

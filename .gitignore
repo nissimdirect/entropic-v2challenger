@@ -41,6 +41,9 @@ Thumbs.db
 .pytest_cache/
 coverage/
 .vitest/
+frontend/test-results/
+frontend/playwright-report/
+test-evidence/
 
 # Claude Code worktrees
 .claude/worktrees/

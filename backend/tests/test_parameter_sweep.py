@@ -28,7 +28,7 @@ def _sweep_cases():
             elif ptype == "bool":
                 cases.append((eid, pname, False, True))
             elif ptype == "choice":
-                choices = pspec["choices"]
+                choices = pspec.get("options") or pspec.get("choices", [])
                 if len(choices) >= 2:
                     cases.append((eid, pname, choices[0], choices[-1]))
         # Effects with no params (e.g. invert) — skip sweep

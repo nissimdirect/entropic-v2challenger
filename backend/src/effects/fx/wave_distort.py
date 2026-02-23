@@ -19,6 +19,9 @@ PARAMS: dict = {
         "max": 50.0,
         "default": 10.0,
         "label": "Amplitude",
+        "curve": "exponential",
+        "unit": "px",
+        "description": "Wave displacement size — small values give subtle ripple",
     },
     "frequency": {
         "type": "float",
@@ -26,12 +29,16 @@ PARAMS: dict = {
         "max": 10.0,
         "default": 2.0,
         "label": "Frequency",
+        "curve": "logarithmic",
+        "unit": "Hz",
+        "description": "Number of wave cycles across the frame",
     },
     "direction": {
         "type": "choice",
-        "choices": ["horizontal", "vertical"],
+        "options": ["horizontal", "vertical"],
         "default": "horizontal",
         "label": "Direction",
+        "description": "Wave displacement direction",
     },
 }
 

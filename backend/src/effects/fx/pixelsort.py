@@ -19,17 +19,22 @@ PARAMS: dict = {
         "max": 1.0,
         "default": 0.5,
         "label": "Threshold",
+        "curve": "s-curve",
+        "unit": "%",
+        "description": "Brightness threshold — pixels above this get sorted",
     },
     "direction": {
         "type": "choice",
-        "choices": ["horizontal", "vertical"],
+        "options": ["horizontal", "vertical"],
         "default": "horizontal",
         "label": "Direction",
+        "description": "Sort direction — horizontal sorts rows, vertical sorts columns",
     },
     "reverse": {
         "type": "bool",
         "default": False,
         "label": "Reverse Sort",
+        "description": "Reverse the sort order (dark to light instead of light to dark)",
     },
 }
 

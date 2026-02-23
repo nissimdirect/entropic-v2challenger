@@ -104,7 +104,7 @@ function AppInner() {
   // Listen for export progress
   useEffect(() => {
     if (typeof window === 'undefined' || !window.entropic) return
-    window.entropic.onExportProgress(({ jobId, progress, done, error }) => {
+    const cleanup = window.entropic.onExportProgress(({ jobId, progress, done, error }) => {
       if (exportJobId && jobId !== exportJobId) return
       setExportProgress(progress)
       if (done) {
@@ -117,6 +117,7 @@ function AppInner() {
         setExportJobId(null)
       }
     })
+    return cleanup
   }, [exportJobId])
 
   const requestRenderFrame = useCallback(

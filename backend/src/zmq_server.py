@@ -161,6 +161,11 @@ class ZMQServer:
         if errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
+        # SEC-7: Validate chain depth
+        errors = validate_chain_depth(chain)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
         try:
             reader = self._get_reader(path)
             # Accept frame_index directly, fall back to time_s * fps
@@ -199,6 +204,11 @@ class ZMQServer:
         project_seed = message.get("project_seed", 0)
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate path (prevents path traversal via apply_chain)
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
         # SEC-7: Validate chain depth
         errors = validate_chain_depth(chain)

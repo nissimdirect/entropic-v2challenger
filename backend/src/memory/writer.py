@@ -36,7 +36,7 @@ class SharedMemoryWriter:
         self.frame_count = 0
         # Create parent dirs, open/truncate file, mmap it
         Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_TRUNC)
+        self.fd = os.open(self.path, os.O_RDWR | os.O_CREAT | os.O_TRUNC, 0o600)
         os.ftruncate(self.fd, self.total_size)
         self.buf = mmap.mmap(self.fd, self.total_size)
         self._write_header(0, 0, 0, 0)  # Initialize header
