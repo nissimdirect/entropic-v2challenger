@@ -3,7 +3,7 @@ import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { spawnPython, killPython } from './python'
 import { startWatchdog, stopWatchdog } from './watchdog'
-import { registerRelayHandlers, setRelayPort } from './zmq-relay'
+import { registerRelayHandlers, setRelayPort, closeRelay } from './zmq-relay'
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN || '',
@@ -43,10 +43,10 @@ app.whenReady().then(async () => {
   createWindow()
 
   try {
-    const port = await spawnPython()
-    console.log(`[Main] Python sidecar started on port ${port}`)
-    setRelayPort(port)
-    await startWatchdog(port)
+    const { port, pingPort, token } = await spawnPython()
+    console.log(`[Main] Python sidecar started on port ${port}, ping ${pingPort}`)
+    setRelayPort(port, token)
+    await startWatchdog(pingPort, token)
   } catch (err) {
     console.error('[Main] Failed to start Python sidecar:', err)
   }
@@ -54,6 +54,7 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {
   stopWatchdog()
+  closeRelay()
   killPython()
   app.quit()
 })
