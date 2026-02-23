@@ -4,6 +4,7 @@ interface PreviewCanvasProps {
   frameDataUrl: string | null
   width: number
   height: number
+  renderError?: string | null
 }
 
 /**
@@ -22,7 +23,7 @@ function drawBase64Frame(
   ctx.drawImage(img, 0, 0)
 }
 
-export default function PreviewCanvas({ frameDataUrl, width, height }: PreviewCanvasProps) {
+export default function PreviewCanvas({ frameDataUrl, width, height, renderError }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const fpsRef = useRef({ frames: 0, lastTime: performance.now(), display: 0 })
@@ -77,9 +78,29 @@ export default function PreviewCanvas({ frameDataUrl, width, height }: PreviewCa
         width={width || undefined}
         height={height || undefined}
       />
-      {!frameDataUrl && (
+      {!frameDataUrl && !renderError && (
         <div className="preview-canvas__placeholder">
           No video loaded
+        </div>
+      )}
+      {renderError && (
+        <div
+          className="preview-canvas__error"
+          style={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            right: 8,
+            padding: '8px 12px',
+            background: 'rgba(239, 68, 68, 0.9)',
+            color: '#fff',
+            fontFamily: 'JetBrains Mono, monospace',
+            fontSize: '12px',
+            borderRadius: 4,
+            pointerEvents: 'none',
+          }}
+        >
+          Effect error: {renderError}
         </div>
       )}
     </div>

@@ -15,6 +15,7 @@ import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import type { Asset, EffectInstance } from '../shared/types'
+import { serializeEffectChain } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 
 class SentryErrorBoundary extends React.Component<
@@ -76,6 +77,7 @@ function AppInner() {
   const [frameDataUrl, setFrameDataUrl] = useState<string | null>(null)
   const [frameWidth, setFrameWidth] = useState(0)
   const [frameHeight, setFrameHeight] = useState(0)
+  const [renderError, setRenderError] = useState<string | null>(null)
   const [activeFps, setActiveFps] = useState(30)
   const [isPlaying, setIsPlaying] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
@@ -133,7 +135,7 @@ function AppInner() {
           cmd: 'render_frame',
           path: activeAssetPath.current,
           frame_index: frame,
-          chain: effectChain,
+          chain: serializeEffectChain(effectChain),
           project_seed: 42,
         })
 
@@ -141,11 +143,14 @@ function AppInner() {
           setFrameDataUrl(`data:image/jpeg;base64,${res.frame_data as string}`)
           if (res.width) setFrameWidth(res.width as number)
           if (res.height) setFrameHeight(res.height as number)
+          setRenderError(null)
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
+          setRenderError(res.error as string ?? 'Render failed')
         }
       } catch (err) {
         console.error('[Render] frame', frame, 'exception:', err)
+        setRenderError(err instanceof Error ? err.message : 'Render exception')
       }
 
       isRenderingRef.current = false
@@ -242,7 +247,7 @@ function AppInner() {
         cmd: 'export_start',
         input_path: activeAssetPath.current,
         output_path: settings.outputPath,
-        chain: effectChain,
+        chain: serializeEffectChain(effectChain),
         project_seed: 42,
       })
 
@@ -379,7 +384,7 @@ function AppInner() {
 
       <div className="app__main">
         <div className="app__preview">
-          <PreviewCanvas frameDataUrl={frameDataUrl} width={frameWidth} height={frameHeight} />
+          <PreviewCanvas frameDataUrl={frameDataUrl} width={frameWidth} height={frameHeight} renderError={renderError} />
           <PreviewControls
             currentFrame={currentFrame}
             totalFrames={totalFrames}
