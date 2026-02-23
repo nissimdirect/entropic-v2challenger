@@ -105,3 +105,44 @@ def test_unknown_effect_raises():
     chain = [{"effect_id": "fx.nonexistent", "params": {}}]
     with pytest.raises(ValueError, match="unknown effect"):
         apply_chain(frame, chain, project_seed=42, frame_index=0, resolution=(100, 100))
+
+
+def test_mix_from_top_level_applied():
+    """Top-level mix field is injected into params as _mix for EffectContainer."""
+    frame = _frame()
+    # mix=0.0 should produce original frame (fully dry)
+    chain = [{"effect_id": "fx.invert", "params": {}, "mix": 0.0}]
+    output, _ = apply_chain(
+        frame, chain, project_seed=42, frame_index=0, resolution=(100, 100)
+    )
+    np.testing.assert_array_equal(output, frame)
+
+
+def test_mix_half_blends():
+    """mix=0.5 should produce a blend between dry and wet."""
+    frame = _frame()
+    chain_full = [{"effect_id": "fx.invert", "params": {}, "mix": 1.0}]
+    chain_half = [{"effect_id": "fx.invert", "params": {}, "mix": 0.5}]
+    out_full, _ = apply_chain(
+        frame, chain_full, project_seed=42, frame_index=0, resolution=(100, 100)
+    )
+    out_half, _ = apply_chain(
+        frame, chain_half, project_seed=42, frame_index=0, resolution=(100, 100)
+    )
+    # Half-mix should differ from both original and fully inverted
+    assert not np.array_equal(out_half, frame)
+    assert not np.array_equal(out_half, out_full)
+
+
+def test_mix_default_is_fully_wet():
+    """Without mix field, effect applies at full strength (mix=1.0 default)."""
+    frame = _frame()
+    chain_no_mix = [{"effect_id": "fx.invert", "params": {}}]
+    chain_full = [{"effect_id": "fx.invert", "params": {}, "mix": 1.0}]
+    out_no_mix, _ = apply_chain(
+        frame, chain_no_mix, project_seed=42, frame_index=0, resolution=(100, 100)
+    )
+    out_full, _ = apply_chain(
+        frame, chain_full, project_seed=42, frame_index=0, resolution=(100, 100)
+    )
+    np.testing.assert_array_equal(out_no_mix, out_full)

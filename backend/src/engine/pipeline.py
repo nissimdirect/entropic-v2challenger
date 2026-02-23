@@ -51,7 +51,11 @@ def apply_chain(
             continue
 
         effect_id = effect_instance.get("effect_id")
-        params = effect_instance.get("params", {})
+        params = dict(effect_instance.get("params", {}))
+
+        # Inject top-level mix into params as _mix for EffectContainer
+        if "mix" in effect_instance:
+            params["_mix"] = effect_instance["mix"]
 
         effect_info = registry.get(effect_id)
         if effect_info is None:
