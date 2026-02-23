@@ -1,0 +1,115 @@
+"""Per-parameter impact sweep for all effects — verifies each param changes output."""
+
+import numpy as np
+import pytest
+
+from effects.registry import _REGISTRY
+
+
+def _frame(h=64, w=64):
+    """Generate a deterministic test frame with varied pixel values."""
+    rng = np.random.default_rng(42)
+    return rng.integers(0, 256, (h, w, 4), dtype=np.uint8)
+
+
+KW = {"frame_index": 0, "seed": 42, "resolution": (64, 64)}
+
+
+def _sweep_cases():
+    """Generate (effect_id, param_name, low_value, high_value) test cases."""
+    cases = []
+    for eid, info in _REGISTRY.items():
+        for pname, pspec in info["params"].items():
+            ptype = pspec.get("type")
+            if ptype in ("float", "int"):
+                low = pspec["min"]
+                high = pspec["max"]
+                cases.append((eid, pname, low, high))
+            elif ptype == "bool":
+                cases.append((eid, pname, False, True))
+            elif ptype == "choice":
+                choices = pspec["choices"]
+                if len(choices) >= 2:
+                    cases.append((eid, pname, choices[0], choices[-1]))
+        # Effects with no params (e.g. invert) — skip sweep
+    return cases
+
+
+def _default_params(info):
+    """Build a params dict with default values from effect PARAMS."""
+    params = {}
+    for pname, pspec in info["params"].items():
+        params[pname] = pspec.get("default")
+    return params
+
+
+def _case_id(case):
+    """Human-readable test ID."""
+    eid, pname, low, high = case
+    return f"{eid}::{pname}[{low}->{high}]"
+
+
+SWEEP_CASES = _sweep_cases()
+
+
+@pytest.mark.parametrize("case", SWEEP_CASES, ids=[_case_id(c) for c in SWEEP_CASES])
+class TestParameterSweep:
+    """For each parameter, verify that changing it from min to max produces different output."""
+
+    def test_param_has_impact(self, case):
+        """Changing a single parameter from low to high should change the output."""
+        eid, pname, low_val, high_val = case
+        info = _REGISTRY[eid]
+        frame = _frame()
+
+        # Build baseline with default params but target param at low
+        params_low = _default_params(info)
+        params_low[pname] = low_val
+
+        params_high = _default_params(info)
+        params_high[pname] = high_val
+
+        result_low, _ = info["fn"](frame, params_low, None, **KW)
+        result_high, _ = info["fn"](frame, params_high, None, **KW)
+
+        diff = np.mean(
+            np.abs(
+                result_low[:, :, :3].astype(float) - result_high[:, :, :3].astype(float)
+            )
+        )
+
+        # We expect SOME difference when sweeping min to max.
+        # Use a very low threshold — even 0.01 mean diff counts.
+        assert diff > 0.01, (
+            f"{eid}::{pname}: no visible impact when sweeping {low_val} -> {high_val} "
+            f"(mean abs diff = {diff:.6f})"
+        )
+
+    def test_sweep_deterministic(self, case):
+        """Sweeping the same param twice yields identical results."""
+        eid, pname, low_val, high_val = case
+        info = _REGISTRY[eid]
+        frame = _frame()
+
+        params = _default_params(info)
+        params[pname] = high_val
+
+        r1, _ = info["fn"](frame, params, None, **KW)
+        r2, _ = info["fn"](frame, params, None, **KW)
+
+        np.testing.assert_array_equal(
+            r1, r2, err_msg=f"{eid}::{pname}: non-deterministic at {high_val}"
+        )
+
+    def test_output_valid_at_extremes(self, case):
+        """Output at both extremes has valid shape and dtype."""
+        eid, pname, low_val, high_val = case
+        info = _REGISTRY[eid]
+        frame = _frame()
+
+        for val in (low_val, high_val):
+            params = _default_params(info)
+            params[pname] = val
+            result, _ = info["fn"](frame, params, None, **KW)
+            assert result.shape == frame.shape, f"{eid}::{pname}={val}: shape mismatch"
+            assert result.dtype == np.uint8, f"{eid}::{pname}={val}: dtype mismatch"
