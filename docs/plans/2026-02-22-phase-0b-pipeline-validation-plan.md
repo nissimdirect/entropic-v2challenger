@@ -24,50 +24,50 @@ estimated_sessions: 2-3
 ## Session 1: Backend Foundation (Python)
 
 ### 1-Pre. Fix Import Structure + Install Dependencies
-- [ ] Add `pythonpath = ["src"]` to `[tool.pytest.ini_options]` in `pyproject.toml` (replaces `sys.path.insert` hack)
-- [ ] Add `av>=14.0` and `Pillow>=11.0` to `pyproject.toml` dependencies
+- [x] Add `pythonpath = ["src"]` to `[tool.pytest.ini_options]` in `pyproject.toml` (replaces `sys.path.insert` hack)
+- [x] Add `av>=14.0` and `Pillow>=11.0` to `pyproject.toml` dependencies
 - [ ] Install deps in venv: `pip install av Pillow`
 - [ ] Verify: `python -c "import av; print(av.__version__)"`
 - [ ] **Early risk kill:** Test Nuitka + PyAV compilation now — `python -m nuitka --standalone src/main.py` (if fails, discover day 1 not day 3)
-- [ ] Remove `sys.path.insert` hack from `conftest.py`
+- [x] Remove `sys.path.insert` hack from `conftest.py`
 
 ### 1A. Determinism Module
-- [ ] Create `backend/src/engine/__init__.py`
-- [ ] Create `backend/src/engine/determinism.py` — seed derivation function: `Hash(project_id:effect_id:frame_index:user_seed)` → `np.random.default_rng(seed)`
-- [ ] Test (`tests/test_engine/test_determinism.py`): same inputs → identical seed → identical RNG sequence
-- [ ] Test: different frame_index → different seed
+- [x] Create `backend/src/engine/__init__.py`
+- [x] Create `backend/src/engine/determinism.py` — seed derivation function: `Hash(project_id:effect_id:frame_index:user_seed)` → `np.random.default_rng(seed)`
+- [x] Test (`tests/test_engine/test_determinism.py`): same inputs → identical seed → identical RNG sequence
+- [x] Test: different frame_index → different seed
 
 ### 1B. MJPEG Cache Module
-- [ ] Create `backend/src/engine/cache.py` — RGBA frame → MJPEG Q95 bytes (Pillow). **Note:** RGBA→RGB conversion at encoding — alpha not transported over shared memory (by design, canvas is RGB only)
-- [ ] Test (`tests/test_engine/test_cache.py`): encode 1080p frame, verify JPEG header bytes, verify size < 1MB
-- [ ] Test: decode back to RGB, verify dimensions match, verify PSNR > 40dB (Q95 quality gate)
+- [x] Create `backend/src/engine/cache.py` — RGBA frame → MJPEG Q95 bytes (Pillow). **Note:** RGBA→RGB conversion at encoding — alpha not transported over shared memory (by design, canvas is RGB only)
+- [x] Test (`tests/test_engine/test_cache.py`): encode 1080p frame, verify JPEG header bytes, verify size < 1MB
+- [x] Test: decode back to RGB, verify dimensions match, verify PSNR > 40dB (Q95 quality gate)
 
 ### 1C. Shared Memory Writer (Python)
-- [ ] Create `backend/src/memory/__init__.py`
-- [ ] Create `backend/src/memory/writer.py` — mmap ring buffer (file-backed at `~/.cache/entropic/frames`, NOT `/tmp`)
-- [ ] Mmap path passed via env var `ENTROPIC_SHM_PATH` or defaulting to `~/.cache/entropic/frames`
-- [ ] Header layout: 64 bytes (write_index u32, frame_count u32, slot_size u32, ring_size u32, width u32, height u32, reserved 40 bytes)
-- [ ] Ring: 4 slots × 4MB, each slot = [length u32][MJPEG data]
-- [ ] `write_frame(rgba_array)`: encode MJPEG Q95 → write to next slot → increment write_index (use `struct.pack_into` for atomic 4-byte aligned write)
-- [ ] Test (`tests/test_memory/test_writer.py`): write 10 frames, read back raw bytes from mmap, verify MJPEG headers present
-- [ ] Test: write_index wraps correctly after 4 writes (ring semantics)
+- [x] Create `backend/src/memory/__init__.py`
+- [x] Create `backend/src/memory/writer.py` — mmap ring buffer (file-backed at `~/.cache/entropic/frames`, NOT `/tmp`)
+- [x] Mmap path passed via env var `ENTROPIC_SHM_PATH` or defaulting to `~/.cache/entropic/frames`
+- [x] Header layout: 64 bytes (write_index u32, frame_count u32, slot_size u32, ring_size u32, width u32, height u32, reserved 40 bytes)
+- [x] Ring: 4 slots × 4MB, each slot = [length u32][MJPEG data]
+- [x] `write_frame(rgba_array)`: encode MJPEG Q95 → write to next slot → increment write_index (use `struct.pack_into` for atomic 4-byte aligned write)
+- [x] Test (`tests/test_memory/test_writer.py`): write 10 frames, read back raw bytes from mmap, verify MJPEG headers present
+- [x] Test: write_index wraps correctly after 4 writes (ring semantics)
 
 ### 1D. PyAV Video Reader
-- [ ] Create `backend/src/video/__init__.py`
-- [ ] Create `backend/src/video/reader.py` — open MP4, decode frame at time, seek to keyframe
-- [ ] API: `open(path) → handle`, `seek(handle, time_s) → frame_index`, `decode(handle, frame_index) → np.ndarray (RGBA)`
-- [ ] Test: open a test MP4 (generate synthetic 5s 720p clip with PyAV first), decode frame 0, verify shape
-- [ ] Test: seek to 3 random positions, verify frames are different
+- [x] Create `backend/src/video/__init__.py`
+- [x] Create `backend/src/video/reader.py` — open MP4, decode frame at time, seek to keyframe
+- [x] API: `open(path) → handle`, `seek(handle, time_s) → frame_index`, `decode(handle, frame_index) → np.ndarray (RGBA)`
+- [x] Test: open a test MP4 (generate synthetic 5s 720p clip with PyAV first), decode frame 0, verify shape
+- [x] Test: seek to 3 random positions, verify frames are different
 
 ### 1E. PyAV Video Writer
-- [ ] Create `backend/src/video/writer.py` — encode frames to H.264 MP4
-- [ ] API: `create(path, width, height, fps) → handle`, `write_frame(handle, rgba_array)`, `close(handle)`
-- [ ] Test: write 30 synthetic gradient frames → close → re-open with reader → verify 30 frames decodable
+- [x] Create `backend/src/video/writer.py` — encode frames to H.264 MP4
+- [x] API: `create(path, width, height, fps) → handle`, `write_frame(handle, rgba_array)`, `close(handle)`
+- [x] Test: write 30 synthetic gradient frames → close → re-open with reader → verify 30 frames decodable
 
 ### 1F. Ingest Module
-- [ ] Create `backend/src/video/ingest.py` — fast header probe (codec, resolution, fps, duration, has_audio)
-- [ ] API: `probe(path) → { width, height, fps, duration_s, codec, has_audio, frame_count }`
-- [ ] Test: probe the synthetic test clip, verify all fields match expected values
+- [x] Create `backend/src/video/ingest.py` — fast header probe (codec, resolution, fps, duration, has_audio)
+- [x] API: `probe(path) → { width, height, fps, duration_s, codec, has_audio, frame_count }`
+- [x] Test: probe the synthetic test clip, verify all fields match expected values
 
 **Session 1 commit checkpoint:** `feat: Phase 0B backend — determinism, cache, memory writer, PyAV I/O`
 
@@ -76,35 +76,35 @@ estimated_sessions: 2-3
 ## Session 2: Effect Container + Native Module
 
 ### 2A. Effect Container
-- [ ] Create `backend/src/engine/container.py` — EffectContainer class
-- [ ] Pipeline: mask → process → mix (as per ARCHITECTURE spec)
-- [ ] `process(frame, params, state_in, *, frame_index, project_seed, resolution) → (output, state_out)`
-- [ ] Handles `_mask` param (float32 H×W, 0.0-1.0) — multiplies before effect, blends after
-- [ ] Handles `_mix` param (0.0 dry, 1.0 wet) — linear blend
-- [ ] Handles deterministic seed derivation (delegates to `determinism.py`)
-- [ ] Test: fx.invert with no mask, mix=1.0 → fully inverted
-- [ ] Test: fx.invert with mix=0.5 → 50% blend (pixel-level comparison)
-- [ ] Test: fx.invert with checkerboard mask, mix=1.0 → inverted only in masked regions
+- [x] Create `backend/src/engine/container.py` — EffectContainer class
+- [x] Pipeline: mask → process → mix (as per ARCHITECTURE spec)
+- [x] `process(frame, params, state_in, *, frame_index, project_seed, resolution) → (output, state_out)`
+- [x] Handles `_mask` param (float32 H×W, 0.0-1.0) — multiplies before effect, blends after
+- [x] Handles `_mix` param (0.0 dry, 1.0 wet) — linear blend
+- [x] Handles deterministic seed derivation (delegates to `determinism.py`)
+- [x] Test: fx.invert with no mask, mix=1.0 → fully inverted
+- [x] Test: fx.invert with mix=0.5 → 50% blend (pixel-level comparison)
+- [x] Test: fx.invert with checkerboard mask, mix=1.0 → inverted only in masked regions
 
 ### 2B. Taxonomy Registry + fx.invert
-- [ ] Create `backend/src/effects/__init__.py`
-- [ ] Create `backend/src/effects/registry.py` — `{ "fx.invert": { fn, params, name, category } }`, `register()`, `get()`, `list_all()`
-- [ ] Create `backend/src/effects/fx/__init__.py`
-- [ ] Create `backend/src/effects/fx/invert.py` — pure function: `apply(frame, params, state_in, *, frame_index, seed, resolution) → (255 - frame, None)`
-- [ ] Test: registry lists fx.invert with correct metadata
-- [ ] Test: fx.invert produces `255 - input` for all channels (RGBA)
-- [ ] Test: determinism — same frame+params+seed → byte-identical output (V6)
+- [x] Create `backend/src/effects/__init__.py`
+- [x] Create `backend/src/effects/registry.py` — `{ "fx.invert": { fn, params, name, category } }`, `register()`, `get()`, `list_all()`
+- [x] Create `backend/src/effects/fx/__init__.py`
+- [x] Create `backend/src/effects/fx/invert.py` — pure function: `apply(frame, params, state_in, *, frame_index, seed, resolution) → (255 - frame, None)`
+- [x] Test: registry lists fx.invert with correct metadata
+- [x] Test: fx.invert produces `255 - input` for all channels (RGBA)
+- [x] Test: determinism — same frame+params+seed → byte-identical output (V6)
 
 ### 2C. Extended ZMQ Commands
-- [ ] Add `ingest` command to `zmq_server.py` — calls `video.ingest.probe()`, returns metadata
-- [ ] Add `seek` command — calls `video.reader.seek()`, writes frame to shared memory
-- [ ] Add `render_frame` command — decodes frame, runs effect chain through containers, writes to shared memory
-- [ ] Add `list_effects` command — calls `effects.registry.list_all()`
-- [ ] Add `flush_state` command (stub) — accepts `{ project: Project }`, logs receipt, returns `{ ok: true }`. Required for watchdog recovery flow.
-- [ ] Test: send `ingest` command via ZMQ, verify response has width/height/fps
-- [ ] Test: send `render_frame` with empty chain, verify frame in shared memory
-- [ ] Test: send `render_frame` with fx.invert, verify inverted frame in shared memory
-- [ ] Test: send `flush_state` with minimal project dict, verify ok response
+- [x] Add `ingest` command to `zmq_server.py` — calls `video.ingest.probe()`, returns metadata
+- [x] Add `seek` command — calls `video.reader.seek()`, writes frame to shared memory
+- [x] Add `render_frame` command — decodes frame, runs effect chain through containers, writes to shared memory
+- [x] Add `list_effects` command — calls `effects.registry.list_all()`
+- [x] Add `flush_state` command (stub) — accepts `{ project: Project }`, logs receipt, returns `{ ok: true }`. Required for watchdog recovery flow.
+- [x] Test: send `ingest` command via ZMQ, verify response has width/height/fps
+- [x] Test: send `render_frame` with empty chain, verify frame in shared memory
+- [x] Test: send `render_frame` with fx.invert, verify inverted frame in shared memory
+- [x] Test: send `flush_state` with minimal project dict, verify ok response
 
 ### 2D. C++ Native Module (Shared Memory Reader)
 - [ ] Create `frontend/native/binding.gyp` — node-gyp config targeting Electron 40, arm64, node-addon-api
@@ -146,37 +146,37 @@ estimated_sessions: 2-3
 ### 3D. Validation Tests (V1–V7 Gate)
 
 **V1: Shared Memory Throughput**
-- [ ] Python writes 300 random 1080p RGBA frames to mmap ring buffer
+- [x] Python writes 300 random 1080p RGBA frames to mmap ring buffer
 - [ ] C++ native module reads each frame
-- [ ] PASS: ≥30fps sustained, <16ms per frame round-trip
+- [x] PASS: ≥30fps sustained, <16ms per frame round-trip
 - [ ] FAIL action: profile mmap setup, check MJPEG encoding bottleneck
 
 **V2: PyAV Scrub Test**
-- [ ] Open a 4K H.264 MP4 (30 seconds — generate or use test asset)
-- [ ] Seek to 100 random frame positions
-- [ ] PASS: <50ms per random seek at 1080p, <100ms at 4K
+- [x] Open a 4K H.264 MP4 (30 seconds — generate or use test asset)
+- [x] Seek to 100 random frame positions
+- [x] PASS: <50ms per random seek at 1080p, <100ms at 4K
 - [ ] FAIL action: profile PyAV decode, check keyframe distance
 
 **V3: PyAV Write Test**
-- [ ] Generate 300 synthetic frames (1080p, random gradients)
-- [ ] Encode to H.264 MP4 via PyAV
-- [ ] PASS: file plays correctly (ffprobe validates, duration matches)
+- [x] Generate 300 synthetic frames (1080p, random gradients)
+- [x] Encode to H.264 MP4 via PyAV
+- [x] PASS: file plays correctly (ffprobe validates, duration matches)
 - [ ] FAIL action: debug PyAV codec config
 
 **V4: Effect Container Pipeline**
-- [ ] Load frame via PyAV → run through EffectContainer with fx.invert
-- [ ] Checkerboard mask + mix=0.5
-- [ ] PASS: pixel-level comparison matches expected output (tolerance ±1 for rounding)
+- [x] Load frame via PyAV → run through EffectContainer with fx.invert
+- [x] Checkerboard mask + mix=0.5
+- [x] PASS: pixel-level comparison matches expected output (tolerance ±1 for rounding)
 - [ ] FAIL action: debug mask/mix math
 
 **V5: ZMQ Command Latency Under Load**
-- [ ] Stream 30fps frames via shared memory while sending 60 ZMQ commands/sec
-- [ ] PASS: 95th percentile command round-trip <10ms
+- [x] Stream 30fps frames via shared memory while sending 60 ZMQ commands/sec
+- [x] PASS: 95th percentile command round-trip <10ms
 - [ ] FAIL action: check thread contention, may need separate ZMQ thread
 
 **V6: Determinism Test**
-- [ ] Run fx.invert on same frame with same seed twice
-- [ ] PASS: `np.array_equal(result1, result2) == True`
+- [x] Run fx.invert on same frame with same seed twice
+- [x] PASS: `np.array_equal(result1, result2) == True`
 - [ ] FAIL action: audit for global state leaks
 
 **V7: Nuitka Build Test**
@@ -186,10 +186,10 @@ estimated_sessions: 2-3
 - [ ] FAIL action: check Nuitka compatibility with pyzmq/numpy/pyav
 
 ### 3E. Project File Schema
-- [ ] Create `backend/src/project/__init__.py`
-- [ ] Create `backend/src/project/schema.py` — serialize/deserialize `.glitch` project files (JSON)
-- [ ] Test: create project → serialize → deserialize → verify all fields roundtrip
-- [ ] Test: corrupt project file → deserialize → get clear validation error
+- [x] Create `backend/src/project/__init__.py`
+- [x] Create `backend/src/project/schema.py` — serialize/deserialize `.glitch` project files (JSON)
+- [x] Test: create project → serialize → deserialize → verify all fields roundtrip
+- [x] Test: corrupt project file → deserialize → get clear validation error
 
 **Session 3 commit checkpoint:** `feat: Phase 0B complete — schemas, canvas, validation tests, Nuitka`
 
@@ -198,31 +198,31 @@ estimated_sessions: 2-3
 ## Test Plan
 
 ### What to test (unit level)
-- [ ] Determinism: same inputs → same outputs, always
-- [ ] MJPEG encoding: correct headers, reasonable size, high PSNR on decode
-- [ ] Ring buffer: wrap-around, concurrent read/write safety (single writer)
-- [ ] PyAV: open/seek/decode/encode for MP4 H.264
-- [ ] Effect Container: mask isolation, mix blending, pure function contract
-- [ ] Registry: registration, lookup, list
-- [ ] ZMQ commands: each new command returns correct response format
+- [x] Determinism: same inputs → same outputs, always
+- [x] MJPEG encoding: correct headers, reasonable size, high PSNR on decode
+- [x] Ring buffer: wrap-around, concurrent read/write safety (single writer)
+- [x] PyAV: open/seek/decode/encode for MP4 H.264
+- [x] Effect Container: mask isolation, mix blending, pure function contract
+- [x] Registry: registration, lookup, list
+- [x] ZMQ commands: each new command returns correct response format
 - [ ] JSON Schema: valid/invalid message validation
-- [ ] Project file: roundtrip serialization
+- [x] Project file: roundtrip serialization
 - [ ] C++ native module: loads, reads mmap, returns Buffer
 
 ### Edge cases to verify
 - [ ] Empty video file → ingest returns clear error, no crash
 - [ ] Zero-length frame → cache encoder handles gracefully
-- [ ] mmap file doesn't exist yet → writer creates it, reader waits or errors clearly
-- [ ] mmap file is stale from crashed session → writer truncates and recreates
+- [x] mmap file doesn't exist yet → writer creates it, reader waits or errors clearly
+- [x] mmap file is stale from crashed session → writer truncates and recreates
 - [ ] 4K frame (33MB raw) → fits in 4MB slot after MJPEG compression (verify Q95 is sufficient)
-- [ ] Frame with all-black or all-white pixels → fx.invert produces correct inverse
-- [ ] mix=0.0 → output is exactly the input (no floating point drift)
-- [ ] mix=1.0 → output is exactly the effect output
-- [ ] Mask with all-zeros → output is exactly the input (effect not applied)
-- [ ] Mask with all-ones → output is fully effected
-- [ ] Ring buffer full (4 writes without reads) → oldest slot overwritten, no crash
+- [x] Frame with all-black or all-white pixels → fx.invert produces correct inverse
+- [x] mix=0.0 → output is exactly the input (no floating point drift)
+- [x] mix=1.0 → output is exactly the effect output
+- [x] Mask with all-zeros → output is exactly the input (effect not applied)
+- [x] Mask with all-ones → output is fully effected
+- [x] Ring buffer full (4 writes without reads) → oldest slot overwritten, no crash
 - [ ] PyAV seek past end of video → returns last frame or clear error
-- [ ] Malformed ZMQ command (missing fields) → error response, no crash
+- [x] Malformed ZMQ command (missing fields) → error response, no crash
 - [ ] Unicode file paths → PyAV handles correctly
 
 ### How to verify (reproduction commands)
