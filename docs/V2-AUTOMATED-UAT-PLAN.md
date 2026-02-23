@@ -905,6 +905,45 @@ Get ONE other person to use Entropic for 15 minutes with zero instruction. Watch
 
 ---
 
+### Phase 1 — UX Combination Matrix (Added 2026-02-23)
+> Tests cross-feature interactions and state permutations. Addresses gap where BUG-1/BUG-3 class bugs live.
+> File: `frontend/tests/e2e/phase-1/ux-combinations.spec.ts`
+
+| # | Test | Combinations Covered | Category |
+|---|------|---------------------|----------|
+| 1 | Play + add effect live | Playback x Effect add | Cross-feature |
+| 2 | Play + toggle effect off | Playback x Effect toggle | Cross-feature |
+| 3 | Play + remove effect | Playback x Effect remove | Cross-feature |
+| 4 | Play + reorder effects | Playback x Effect reorder | Cross-feature |
+| 5 | Play to end + loop wrap | Playback x Frame boundary | Boundary |
+| 6 | Effects + replace video | Effect chain x Video replace | Cross-feature |
+| 7 | Scrub + replace video | Seek position x Video replace | Cross-feature |
+| 8 | Playing + replace video | Playback x Video replace | Cross-feature |
+| 9 | Multi-effect independent params | Effect A params x Effect B params | State isolation |
+| 10 | Select + remove -> empty panel | Selection x Remove | State transition |
+| 11 | Param adjust + toggle cycle | Param persistence x Enable toggle | State preservation |
+| 12 | All param types on one effect | Knob + choice + toggle + mix | Param completeness |
+| 13 | Select + reorder -> selection tracking | Selection x Reorder | State tracking |
+| 14 | Toggle off + remove | Disabled state x Remove | State cleanup |
+| 15 | Max chain + remove + re-add | Chain limit x Remove x Add | Boundary lifecycle |
+| 16 | Remove middle of chain | Chain integrity x Remove | Gap prevention |
+| 17 | Incremental chain building with params | Add x Adjust x Add x Adjust | Composition |
+| 18 | Export dialog open/close/reopen | Dialog lifecycle x Default state | State reset |
+| 19 | Export cancel + restart | Export cancel x Fresh progress | State reset |
+| 20 | Export with 0 vs 2 effects | Export x Effect chain variance | Cross-feature |
+| 21 | Export dialog during playback | Export x Playback | Cross-feature |
+| 22 | Render error + effect change -> recovery | Error state x Effect modification | Error recovery |
+| 23 | Invalid file + valid file sequence | Error state x Successful import | Error recovery |
+| 24 | Ingest error + retry with valid file | Error state x Retry | Error recovery |
+| 25 | Search + add effect from results | Search filter x Effect add | Cross-feature |
+| 26 | Category filter + add + switch to All | Category x Effect add x Category switch | Cross-feature |
+| 27 | No-match search + clear + rack unchanged | Search x Rack state preservation | State isolation |
+| 28 | Full lifecycle: empty -> import -> effects -> play -> pause -> export -> cancel -> remove -> empty | All states | State machine |
+| 29 | Play/pause toggle cycle (5x) | Playback state consistency | State toggle |
+| 30 | Incremental chain: add -> preview -> add -> preview -> remove -> preview | Chain x Preview per step | Composition |
+
+---
+
 *Generated: 2026-02-22 | Revised: 2026-02-23*
 *Reviews applied: CTO (architecture gaps, benchmarks), Don Norman (UX contracts, human UAT), Lenny (staged approach, tiered regression), Quality (7 blocking fixes, CI/CD, sequence errors)*
 *Sources: ELECTRON-TESTING-REFERENCE.md, /test-electron skill, /quality §11, PF-16/17 arsenal, UAT-FINDINGS-2026-02-15.md (116 items), UAT-PLAN.md (425 tests), TESTING-STRATEGY.md, v2 spec docs (17 files), Playwright Electron research*
