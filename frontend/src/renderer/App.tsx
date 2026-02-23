@@ -85,6 +85,7 @@ function AppInner() {
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportJobId, setExportJobId] = useState<string | null>(null)
   const [isGlobalDragOver, setIsGlobalDragOver] = useState(false)
+  const [dropError, setDropError] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
   const [renderError, setRenderError] = useState<string | null>(null)
 
@@ -358,12 +359,20 @@ function AppInner() {
 
     const file = files[0]
     const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
-    if (!ALLOWED_EXTENSIONS.includes(ext)) return
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      setDropError(`Unsupported format: ${ext}. Use ${ALLOWED_EXTENSIONS.join(', ')}`)
+      return
+    }
 
     const filePath = window.entropic?.getPathForFile
       ? window.entropic.getPathForFile(file)
       : file.path
-    if (filePath) handleFileIngest(filePath)
+    if (filePath) {
+      setDropError(null)
+      handleFileIngest(filePath)
+    } else {
+      setDropError('Could not resolve file path. Try using the file picker instead.')
+    }
   }, [isIngesting, handleFileIngest])
 
   const hasAssets = Object.keys(assets).length > 0
