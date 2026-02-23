@@ -1,0 +1,54 @@
+/* --- Parameter Tooltip --- */
+
+.param-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.param-tooltip {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 50;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+/* Arrow pointing down */
+.param-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #444;
+}
+
+.param-tooltip__label {
+  color: #fff;
+  font-weight: 600;
+}
+
+.param-tooltip__desc {
+  color: #aaa;
+}
+
+.param-tooltip__range {
+  color: #888;
+}
+
+.param-tooltip__default {
+  color: #888;
+}

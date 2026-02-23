@@ -157,6 +157,8 @@ export interface EffectInfo {
   params: Record<string, ParamDef>;
 }
 
+export type ParamCurve = "linear" | "logarithmic" | "exponential" | "s-curve";
+
 export interface ParamDef {
   type: "float" | "int" | "bool" | "choice";
   min?: number;
@@ -165,4 +167,6 @@ export interface ParamDef {
   label: string;
   description?: string;
   options?: string[];
+  curve?: ParamCurve;
+  unit?: string;
 }

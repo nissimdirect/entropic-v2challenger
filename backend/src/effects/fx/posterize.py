@@ -13,6 +13,9 @@ PARAMS: dict = {
         "max": 32,
         "default": 4,
         "label": "Color Levels",
+        "curve": "linear",
+        "unit": "",
+        "description": "Number of distinct color levels per channel",
     }
 }
 

@@ -14,6 +14,9 @@ PARAMS: dict = {
         "max": 50.0,
         "default": 5.0,
         "label": "Blur Radius",
+        "curve": "exponential",
+        "unit": "px",
+        "description": "Gaussian blur radius — small values give subtle softening",
     }
 }
 

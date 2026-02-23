@@ -13,6 +13,9 @@ PARAMS: dict = {
         "max": 50,
         "default": 10,
         "label": "Red Offset",
+        "curve": "linear",
+        "unit": "px",
+        "description": "Horizontal displacement of the red channel",
     },
     "g_offset": {
         "type": "int",
@@ -20,6 +23,9 @@ PARAMS: dict = {
         "max": 50,
         "default": 0,
         "label": "Green Offset",
+        "curve": "linear",
+        "unit": "px",
+        "description": "Horizontal displacement of the green channel",
     },
     "b_offset": {
         "type": "int",
@@ -27,6 +33,9 @@ PARAMS: dict = {
         "max": 50,
         "default": -10,
         "label": "Blue Offset",
+        "curve": "linear",
+        "unit": "px",
+        "description": "Horizontal displacement of the blue channel",
     },
 }
 

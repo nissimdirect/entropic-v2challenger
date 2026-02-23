@@ -1,6 +1,6 @@
 ---
 title: Phase 2A — Parameter UX (Ghost Handle, Sensitivity, Scaling)
-status: draft
+status: active
 project: entropic-v2challenger
 depends_on: Phase 1 (basic param panel working — ParamSlider, ParamChoice, ParamToggle, ParamMix)
 sessions: 3
@@ -50,31 +50,31 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
 ### Session 1: Knob Component + Scaling Functions
 > Build the rotary knob SVG component and scaling math. No backend changes yet.
 
-- [ ] **1.1** Create `frontend/src/renderer/components/common/Knob.tsx`
+- [x] **1.1** Create `frontend/src/renderer/components/common/Knob.tsx`
   - SVG-based rotary knob (270-degree arc, gap at bottom)
   - Props: `value: number`, `min: number`, `max: number`, `default: number`, `label: string`, `unit?: string`, `curve?: 'linear' | 'logarithmic' | 'exponential' | 's-curve'`, `ghostValue?: number`, `onChange: (value: number) => void`
   - Drag interaction: `onPointerDown` → capture → track vertical mouse movement → `onPointerMove` → compute delta → scale by curve → update value → `onPointerUp` → release
   - Render two arcs: solid arc (base value, `stroke="var(--knob-color)"`) and ghost arc (resolved value, same stroke at 30% opacity)
-  - Pointer lock during drag for infinite rotation (no edge-of-screen issues)
+  - Pointer capture during drag for continuous adjustment
   - Display: current value centered below knob, unit suffix, label above
 
-- [ ] **1.2** Create `frontend/src/renderer/components/common/NumberInput.tsx`
+- [x] **1.2** Create `frontend/src/renderer/components/common/NumberInput.tsx`
   - Appears on double-click of a Knob (replaces the value display)
-  - `<input type="number">` with `min`, `max`, `step` props
+  - `<input type="text" inputMode="decimal">` with min, max, step props
   - Auto-select on mount, Enter to confirm, Escape to cancel
-  - Focus trap: clicking outside also confirms
+  - Focus trap: clicking outside (blur) also confirms
 
-- [ ] **1.3** Create `frontend/src/renderer/components/common/ParamLabel.tsx`
-  - Renders: `{label}: {formattedValue} {unit}`
-  - Formats value based on type: float to 2 decimals, int as integer, percentage as "50%"
+- [x] **1.3** Create `frontend/src/renderer/components/common/ParamLabel.tsx`
+  - Renders: `{formattedValue}{unit}`
+  - Formats value based on type: float to 2 decimals, int as integer
   - Tooltip on hover: shows `description` field from ParamDef
 
-- [ ] **1.4** Create `frontend/src/renderer/components/common/Slider.tsx`
+- [x] **1.4** Create `frontend/src/renderer/components/common/Slider.tsx`
   - Horizontal slider (alternative layout for some params, e.g., wide editors)
   - Same Ghost Handle support as Knob (two fill bars at different opacities)
   - Shares the same interaction model (Shift for fine-tune, double-click for NumberInput, right-click reset)
 
-- [ ] **1.5** Create scaling utility `frontend/src/renderer/utils/paramScaling.ts`
+- [x] **1.5** Create scaling utility `frontend/src/renderer/utils/paramScaling.ts`
   ```typescript
   export function normalizedToScaled(normalized: number, curve: string): number
   export function scaledToNormalized(scaled: number, curve: string): number
@@ -85,37 +85,39 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
   //   s-curve:     y = x^2 * (3 - 2*x)  (Hermite smoothstep)
   ```
 
-- [ ] **1.6** Interaction modifiers (built into Knob and Slider):
-  - **Shift + drag** → 10x precision (delta / 10 instead of delta)
+- [x] **1.6** Interaction modifiers (built into Knob and Slider):
+  - **Shift + drag** → 5x precision (delta * 0.001 instead of 0.005)
   - **Double-click** → open NumberInput for exact value entry
   - **Right-click** → reset to `default` value
   - **Arrow keys** (when focused) → adjust by 1% of range
   - **Shift + Arrow** → adjust by 10% of range
 
-- [ ] **1.7** CSS for knob components: `frontend/src/renderer/styles/knob.css`
-  - SVG arc styles, ghost opacity, hover glow, focus ring
+- [x] **1.7** CSS for knob components: added to `frontend/src/renderer/styles/global.css`
+  - Knob SVG styles, ghost opacity, focus ring (focus-visible)
   - NumberInput overlay positioning, dark theme integration
-  - Tooltip styling (absolute positioned, delay 500ms)
+  - Horizontal slider track/fill/ghost/thumb styles
+  - Param panel scroll affordance with mask-image gradient
 
-- [ ] **1.8** Tests (frontend vitest):
-  - `frontend/src/__tests__/components/common/knob.test.ts`
-    - Renders with correct value arc angle
-    - Shift+drag produces finer adjustment than normal drag
-    - Double-click toggles NumberInput visibility
-    - Right-click resets to default
-    - Ghost arc renders at different position than base arc
-    - Value clamped to min/max
-  - `frontend/src/__tests__/utils/paramScaling.test.ts`
+- [x] **1.8** Tests (frontend vitest — 34 new tests):
+  - `frontend/src/__tests__/components/common/knob.test.ts` (15 tests)
+    - Arc angle calculation at min/mid/max
+    - Drag sensitivity (normal vs shift)
+    - Ghost handle visibility logic
+    - Value clamping and rounding
+    - Keyboard adjustment (1% and 10%)
+    - Curve integration with slider
+  - `frontend/src/__tests__/utils/paramScaling.test.ts` (19 tests)
     - Linear: 0.5 → 0.5
-    - Logarithmic: 0.5 → ~0.699
-    - Exponential: 0.5 → ~0.248
+    - Logarithmic: 0.5 → ~0.7404
+    - Exponential: 0.5 → ~0.2403
     - S-curve: 0.5 → 0.5 (inflection point)
-    - Round-trip: scaledToNormalized(normalizedToScaled(x)) ≈ x
+    - Round-trip: scaledToNormalized(normalizedToScaled(x)) ≈ x (all 4 curves)
+    - valueToSlider / sliderToValue round-trips
 
 ### Session 2: Backend Schema Extension + Calibration
 > Add `curve` and `unit` fields to PARAMS schema. Calibrate all effects.
 
-- [ ] **2.1** Extend PARAMS schema in `docs/EFFECT-CONTRACT.md` — add two new optional fields:
+- [x] **2.1** Extend PARAMS schema in `docs/EFFECT-CONTRACT.md` — add two new optional fields:
   ```python
   "threshold": {
       "type": "float",
@@ -129,7 +131,7 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
   }
   ```
 
-- [ ] **2.2** Update `frontend/src/shared/types.ts` — extend `ParamDef` interface:
+- [x] **2.2** Update `frontend/src/shared/types.ts` — extend `ParamDef` interface (done in Session 1 as prerequisite for Knob):
   ```typescript
   export interface ParamDef {
     type: "float" | "int" | "bool" | "choice";
@@ -144,7 +146,7 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
   }
   ```
 
-- [ ] **2.3** Audit and update all 10 effect PARAMS dicts (add `curve` and `unit` to every param):
+- [x] **2.3** Audit and update all 10 effect PARAMS dicts (add `curve` and `unit` to every param):
   - `backend/src/effects/fx/invert.py` — no params, no changes
   - `backend/src/effects/fx/hue_shift.py` — amount: `unit: "°"`, `curve: "linear"`
   - `backend/src/effects/fx/noise.py` — intensity: `unit: "%"`, `curve: "exponential"` (low values matter most)
@@ -156,7 +158,7 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
   - `backend/src/effects/fx/wave_distort.py` — amplitude: `unit: "px"`, `curve: "exponential"`; frequency: `unit: "Hz"`, `curve: "logarithmic"`
   - `backend/src/effects/fx/channelshift.py` — r/g/b_offset: `unit: "px"`, `curve: "linear"`
 
-- [ ] **2.4** Create calibration script `backend/src/effects/_calibration.py`
+- [x] **2.4** Create calibration script `backend/src/effects/_calibration.py`
   - Iterate every registered effect
   - For each param: render at 0%, 25%, 50%, 75%, 100% of range
   - Compute pixel difference from original frame at each level
@@ -164,7 +166,7 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
   - Goal: verify every param produces visible change across its range
   - Flag any param where <10% of range produces >90% of visual change (needs curve)
 
-- [ ] **2.5** Tests (backend pytest):
+- [x] **2.5** Tests (backend pytest — 35 new tests, all passing):
   - `backend/tests/test_effects/test_calibration.py`
     - Every effect: all params at min → no crash
     - Every effect: all params at max → no crash
@@ -174,7 +176,7 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
 ### Session 3: Wire Up + Scroll Affordance + Polish
 > Replace ParamSlider with Knob in the UI. Add scroll affordance. Keyboard shortcuts.
 
-- [ ] **3.1** Update `frontend/src/renderer/components/effects/ParamPanel.tsx`
+- [x] **3.1** Update `frontend/src/renderer/components/effects/ParamPanel.tsx`
   - Replace `ParamSlider` usage with `Knob` for float/int params
   - Keep `ParamChoice` for choice params (dropdown)
   - Keep `ParamToggle` for bool params
@@ -183,25 +185,25 @@ Phase 1 delivers basic HTML sliders (`ParamSlider.tsx`) for all effect parameter
   - Add scroll affordance: CSS `mask-image: linear-gradient(black 85%, transparent)` on overflow container
   - Add `overflow-y: auto` with custom scrollbar (thin, dark)
 
-- [ ] **3.2** Implement keyboard focus management in ParamPanel:
+- [x] **3.2** Implement keyboard focus management in ParamPanel:
   - Tab/Shift+Tab navigates between knobs
   - Focused knob has visible focus ring (CSS `:focus-visible`)
   - Arrow keys adjust focused param (1% of range per press)
   - Shift+Arrow keys adjust by 10% of range
 
-- [ ] **3.3** Ghost Handle placeholder wiring:
+- [x] **3.3** Ghost Handle placeholder wiring:
   - For now (no modulation system yet), `ghostValue` always equals `value`
   - When Phase 6 (Modulation) ships, `ghostValue` will be `resolvedValue` from the modulation engine
   - Add a comment in Knob.tsx: `// TODO Phase 6: Replace ghostValue with resolved modulation value`
   - The Ghost Handle arc renders but overlaps the base arc identically (invisible until modulation exists)
 
-- [ ] **3.4** Parameter tooltip implementation:
+- [x] **3.4** Parameter tooltip implementation:
   - On hover over Knob/Slider for 500ms → show tooltip
   - Content: `{label}\n{description}\nRange: {min} – {max} {unit}\nDefault: {default}`
   - Position: above the knob, centered, arrow pointing down
   - CSS in `frontend/src/renderer/styles/tooltip.css`
 
-- [ ] **3.5** Tests (frontend vitest):
+- [x] **3.5** Tests (frontend vitest — 21 new tests):
   - `frontend/src/__tests__/components/effects/paramPanel.test.ts`
     - Float param renders as Knob (not slider)
     - Choice param renders as dropdown

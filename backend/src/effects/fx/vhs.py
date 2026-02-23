@@ -15,6 +15,9 @@ PARAMS: dict = {
         "max": 1.0,
         "default": 0.5,
         "label": "Tracking Error",
+        "curve": "linear",
+        "unit": "%",
+        "description": "VHS tracking distortion — horizontal line displacement",
     },
     "noise": {
         "type": "float",
@@ -22,6 +25,9 @@ PARAMS: dict = {
         "max": 1.0,
         "default": 0.2,
         "label": "Noise",
+        "curve": "exponential",
+        "unit": "%",
+        "description": "VHS noise overlay — subtle grain at low values",
     },
     "chromatic": {
         "type": "float",
@@ -29,6 +35,9 @@ PARAMS: dict = {
         "max": 1.0,
         "default": 0.3,
         "label": "Chromatic Aberration",
+        "curve": "logarithmic",
+        "unit": "px",
+        "description": "RGB channel separation — a little goes a long way",
     },
 }
 

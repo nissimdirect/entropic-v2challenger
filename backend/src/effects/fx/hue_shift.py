@@ -12,7 +12,10 @@ PARAMS: dict = {
         "min": 0.0,
         "max": 360.0,
         "default": 180.0,
-        "label": "Hue Rotation (degrees)",
+        "label": "Hue Rotation",
+        "curve": "linear",
+        "unit": "\u00b0",
+        "description": "Hue rotation in degrees around the color wheel",
     }
 }
 

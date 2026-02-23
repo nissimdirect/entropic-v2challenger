@@ -163,25 +163,44 @@ PARAMS = {
         "default": 0.5,
         "label": "Threshold",
         "description": "Pixel sort brightness threshold",
+        "curve": "s-curve",       # Optional: linear | logarithmic | exponential | s-curve (default: linear)
+        "unit": "%",              # Optional: display unit string (default: "")
     },
     "direction": {
         "type": "choice",
         "options": ["horizontal", "vertical", "diagonal"],
         "default": "horizontal",
         "label": "Sort Direction",
+        "description": "Sort direction — horizontal sorts rows, vertical sorts columns",
     },
     "reverse": {
         "type": "bool",
         "default": False,
         "label": "Reverse",
+        "description": "Reverse the sort order",
     },
 }
 ```
+
+### Optional fields (Phase 2A additions)
+
+| Field | Type | Default | Applies to | Purpose |
+|-------|------|---------|------------|---------|
+| `curve` | `str` | `"linear"` | `float`, `int` | Controls knob scaling — how slider position maps to param value |
+| `unit` | `str` | `""` | `float`, `int` | Display unit suffix in the UI (e.g., `"°"`, `"px"`, `"%"`, `"Hz"`) |
+| `description` | `str` | `""` | all | Tooltip text shown on hover |
+
+**Curve types:**
+- `linear` — 1:1 mapping, uniform resolution across range
+- `logarithmic` — more resolution at low end (e.g., chromatic aberration where a little goes a long way)
+- `exponential` — more resolution at low end of slider, param grows fast at high end (e.g., blur radius, noise)
+- `s-curve` — more resolution at extremes, fast through the middle (e.g., threshold)
 
 This schema is:
 1. Sent to frontend via `list_effects` command (auto-generates UI)
 2. Used for validation (reject out-of-range values)
 3. Used for determinism (all params are explicit, no hidden defaults)
+4. Used by the Knob/Slider components to apply non-linear scaling (Phase 2A)
 
 ## 5. Effect Registration
 

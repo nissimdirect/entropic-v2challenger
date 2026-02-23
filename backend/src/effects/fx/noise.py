@@ -15,6 +15,9 @@ PARAMS: dict = {
         "max": 1.0,
         "default": 0.3,
         "label": "Intensity",
+        "curve": "exponential",
+        "unit": "%",
+        "description": "Noise intensity — low values give subtle grain, high values overwhelm",
     }
 }
 

@@ -1004,3 +1004,167 @@ body {
   font-size: 11px;
   color: #4ade80;
 }
+
+/* --- Knob --- */
+
+.knob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  user-select: none;
+}
+
+.knob__label {
+  font-size: 10px;
+  color: #888;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60px;
+}
+
+.knob__svg {
+  cursor: grab;
+  outline: none;
+  border-radius: 50%;
+}
+
+.knob__svg:active {
+  cursor: grabbing;
+}
+
+.knob__svg:focus-visible {
+  box-shadow: 0 0 0 2px #4ade80;
+}
+
+/* --- Number Input --- */
+
+.number-input {
+  width: 52px;
+  padding: 1px 4px;
+  background: #1a1a1a;
+  border: 1px solid #4ade80;
+  border-radius: 3px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  outline: none;
+}
+
+/* --- Param Label --- */
+
+.param-label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+
+.param-label__name {
+  font-size: 10px;
+  color: #888;
+}
+
+.param-label__value {
+  font-size: 11px;
+  color: #fff;
+  font-weight: 500;
+}
+
+/* --- Horizontal Slider --- */
+
+.hslider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  user-select: none;
+}
+
+.hslider__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hslider__label {
+  font-size: 11px;
+  color: #aaa;
+}
+
+.hslider__value {
+  font-size: 11px;
+  color: #fff;
+  font-weight: 500;
+  cursor: text;
+}
+
+.hslider__track {
+  position: relative;
+  height: 6px;
+  background: #444;
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+}
+
+.hslider__track:focus-visible {
+  box-shadow: 0 0 0 2px #4ade80;
+}
+
+.hslider__fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #4ade80;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.hslider__ghost {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: #4ade80;
+  opacity: 0.3;
+  border-radius: 3px;
+  pointer-events: none;
+}
+
+.hslider__thumb {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  background: #e0e0e0;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  transition: background 0.15s;
+}
+
+.hslider__track:hover .hslider__thumb {
+  background: #4ade80;
+}
+
+/* --- Param Panel scroll affordance --- */
+
+.param-panel__params--scrollable {
+  max-height: 200px;
+  overflow-y: auto;
+  mask-image: linear-gradient(black 85%, transparent);
+  -webkit-mask-image: linear-gradient(black 85%, transparent);
+}
+
+/* --- Knob grid layout for param panel --- */
+
+.param-panel__knobs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-start;
+}

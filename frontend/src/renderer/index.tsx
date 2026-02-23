@@ -2,6 +2,7 @@ import * as Sentry from '@sentry/electron/renderer'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles/global.css'
+import './styles/tooltip.css'
 
 Sentry.init()
 
