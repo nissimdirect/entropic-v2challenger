@@ -56,7 +56,16 @@ export type Command =
       start: number;
       duration: number;
     }
-  | { cmd: "audio_analyze"; id: string; asset_id: string; time: number };
+  | { cmd: "audio_analyze"; id: string; asset_id: string; time: number }
+  | { cmd: "audio_load"; id: string; path: string }
+  | { cmd: "audio_play"; id: string }
+  | { cmd: "audio_pause"; id: string }
+  | { cmd: "audio_seek"; id: string; time: number }
+  | { cmd: "audio_volume"; id: string; volume: number }
+  | { cmd: "audio_position"; id: string }
+  | { cmd: "audio_stop"; id: string }
+  | { cmd: "clock_sync"; id: string }
+  | { cmd: "clock_set_fps"; id: string; fps: number };
 
 // --- Responses (Python → Electron) ---
 
@@ -91,4 +100,35 @@ export interface IngestResponse {
   codec: string;
   has_audio: boolean;
   frame_count: number;
+}
+
+export interface AudioLoadResponse {
+  id: string;
+  ok: true;
+  sample_rate: number;
+  channels: number;
+  duration_s: number;
+  num_samples: number;
+}
+
+export interface AudioPositionResponse {
+  id: string;
+  ok: true;
+  position_s: number;
+  position_samples: number;
+  duration_s: number;
+  is_playing: boolean;
+  volume: number;
+}
+
+export interface ClockSyncResponse {
+  id: string;
+  ok: true;
+  audio_time_s: number;
+  target_frame: number;
+  total_frames: number;
+  is_playing: boolean;
+  duration_s: number;
+  fps: number;
+  volume: number;
 }
