@@ -2,6 +2,27 @@ name: Entropic v2 Tests
 on: [push, pull_request]
 
 jobs:
+  smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install backend deps
+        run: cd backend && pip install -e ".[dev]"
+      - name: Run backend smoke tests
+        run: cd backend && python -m pytest tests/ -m smoke --tb=short -q
+      - name: Install frontend deps
+        run: cd frontend && npm ci
+      - name: Run frontend unit tests
+        run: cd frontend && npx vitest run
+
   sidecar:
     runs-on: macos-latest
     steps:

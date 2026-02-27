@@ -1,8 +1,11 @@
 """Tests for fx.invert effect."""
 
 import numpy as np
+import pytest
 
 from effects.fx.invert import apply
+
+pytestmark = pytest.mark.smoke
 
 
 def test_invert_produces_255_minus_input():

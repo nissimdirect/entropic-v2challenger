@@ -1,4 +1,6 @@
 import base64
+import collections
+import logging
 import time
 import uuid
 
@@ -24,16 +26,21 @@ class ZMQServer:
     def __init__(self):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
+        self.socket.setsockopt(zmq.MAXMSGSIZE, 104857600)  # 100 MB limit
         self.port = self.socket.bind_to_random_port("tcp://127.0.0.1")
         # Dedicated ping socket — never blocked by heavy renders (BUG-4)
         self.ping_socket = self.context.socket(zmq.REP)
+        self.ping_socket.setsockopt(zmq.MAXMSGSIZE, 104857600)  # 100 MB limit
         self.ping_port = self.ping_socket.bind_to_random_port("tcp://127.0.0.1")
         # Auth token — prevents unauthorized ZMQ access from other local processes
         self.token = str(uuid.uuid4())
         self.start_time = time.time()
         self.running = False
         self.shm_writer: SharedMemoryWriter | None = None
-        self.readers: dict[str, VideoReader] = {}
+        self.readers: collections.OrderedDict[str, VideoReader] = (
+            collections.OrderedDict()
+        )
+        self._max_readers = 10
         self.last_frame_ms = 0.0
         self.export_manager = ExportManager()
 
@@ -147,7 +154,8 @@ class ZMQServer:
             }
         except Exception as e:
             sentry_sdk.capture_exception(e)
-            return {"id": msg_id, "ok": False, "error": str(e)}
+            logging.getLogger(__name__).error(f"Seek handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_render_frame(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
@@ -174,6 +182,25 @@ class ZMQServer:
             else:
                 time_s = message.get("time", 0.0)
                 frame_index = int(time_s * reader.fps)
+
+            # F-3: Bounds check on frame_index
+            if frame_index < 0:
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": "frame_index must be non-negative",
+                }
+            if (
+                hasattr(reader, "frame_count")
+                and reader.frame_count
+                and frame_index >= reader.frame_count
+            ):
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": f"frame_index {frame_index} exceeds frame count {reader.frame_count}",
+                }
+
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
             resolution = (reader.width, reader.height)
@@ -195,7 +222,8 @@ class ZMQServer:
             }
         except Exception as e:
             sentry_sdk.capture_exception(e)
-            return {"id": msg_id, "ok": False, "error": str(e)}
+            logging.getLogger(__name__).error(f"Render frame handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_apply_chain(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
@@ -215,8 +243,28 @@ class ZMQServer:
         if errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
+        # F-3: Bounds check on frame_index
+        if frame_index < 0:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "frame_index must be non-negative",
+            }
+
         try:
             reader = self._get_reader(path)
+
+            if (
+                hasattr(reader, "frame_count")
+                and reader.frame_count
+                and frame_index >= reader.frame_count
+            ):
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": f"frame_index {frame_index} exceeds frame count {reader.frame_count}",
+                }
+
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
             resolution = (reader.width, reader.height)
@@ -229,7 +277,8 @@ class ZMQServer:
             return {"id": msg_id, "ok": True, "frame_index": frame_index}
         except Exception as e:
             sentry_sdk.capture_exception(e)
-            return {"id": msg_id, "ok": False, "error": str(e)}
+            logging.getLogger(__name__).error(f"Apply chain handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
         input_path = message.get("input_path")
@@ -262,7 +311,8 @@ class ZMQServer:
             return {"id": msg_id, "ok": True}
         except RuntimeError as e:
             sentry_sdk.capture_exception(e)
-            return {"id": msg_id, "ok": False, "error": str(e)}
+            logging.getLogger(__name__).error(f"Export start handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_export_status(self, msg_id: str | None) -> dict:
         status = self.export_manager.get_status()
@@ -275,9 +325,16 @@ class ZMQServer:
         return {"id": msg_id, "ok": True, "cancelled": cancelled}
 
     def _get_reader(self, path: str) -> VideoReader:
-        if path not in self.readers:
-            self.readers[path] = VideoReader(path)
-        return self.readers[path]
+        if path in self.readers:
+            self.readers.move_to_end(path)
+            return self.readers[path]
+        # Evict oldest reader if cache is full
+        while len(self.readers) >= self._max_readers:
+            _, oldest = self.readers.popitem(last=False)
+            oldest.close()
+        reader = VideoReader(path)
+        self.readers[path] = reader
+        return reader
 
     def run(self):
         self.running = True

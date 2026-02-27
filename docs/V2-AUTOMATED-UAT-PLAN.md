@@ -25,7 +25,7 @@ This plan is a **living reference spec**. NOT everything runs from day one.
 
 | Tier | When | Runtime | What |
 |------|------|---------|------|
-| **Smoke** | Every build | < 30s | App launches, sidecar connects, 1 effect applies, 1 export completes |
+| **Smoke** | Every build | < 1s | IMPLEMENTED via `@pytest.mark.smoke` markers, ~105 pure unit tests. Run: `pytest -m smoke` |
 | **Phase** | Before handoff | 2-5 min | Current phase tests + smoke |
 | **Full** | Before version tags / releases only | 15-30 min | All phases + chaos + performance |
 

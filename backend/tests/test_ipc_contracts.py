@@ -17,6 +17,8 @@ import pytest
 
 from engine.pipeline import apply_chain
 
+pytestmark = pytest.mark.smoke
+
 
 # ---------------------------------------------------------------------------
 # Helpers

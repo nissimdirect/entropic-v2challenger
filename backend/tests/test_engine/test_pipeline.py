@@ -5,6 +5,8 @@ import time
 import numpy as np
 import pytest
 
+pytestmark = pytest.mark.smoke
+
 from engine.pipeline import (
     EFFECT_ABORT_MS,
     EFFECT_WARN_MS,

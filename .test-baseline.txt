@@ -1,0 +1,419 @@
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_alpha_preserved
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBasic::test_output_shape_and_dtype
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_empty_params_uses_defaults
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_max_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsBoundary::test_min_params
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsDeterminism::test_deterministic_output
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsFrameSize::test_various_sizes
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults
+tests/test_e2e/test_pipeline.py::TestE2EPipeline::test_decode_frame_shape PASSED
+tests/test_e2e/test_pipeline.py::TestE2EPipeline::test_full_pipeline_end_to_end PASSED
+tests/test_e2e/test_pipeline.py::TestE2EPipeline::test_invert_effect_processing PASSED
+tests/test_e2e/test_pipeline.py::TestE2EPipeline::test_probe_metadata PASSED
+tests/test_e2e/test_pipeline.py::TestE2EPipeline::test_shared_memory_write_and_read PASSED
+tests/test_edge_cases_memory.py::TestFourKFrameFitsInSlot::test_4k_write_through_shm PASSED
+tests/test_edge_cases_memory.py::TestFourKFrameFitsInSlot::test_encoded_size_under_4mb PASSED
+tests/test_edge_cases_memory.py::TestZeroDimensionFrame::test_zero_by_zero PASSED
+tests/test_edge_cases_memory.py::TestZeroDimensionFrame::test_zero_height PASSED
+tests/test_edge_cases_memory.py::TestZeroDimensionFrame::test_zero_width PASSED
+tests/test_edge_cases_video.py::test_ingest_empty_video_file PASSED
+tests/test_edge_cases_video.py::test_ingest_non_video_file PASSED
+tests/test_edge_cases_video.py::test_seek_negative_frame_index PASSED
+tests/test_edge_cases_video.py::test_seek_past_end_of_video PASSED
+tests/test_edge_cases_video.py::test_unicode_file_path PASSED
+tests/test_edge_cases_video.py::test_video_audio_only_no_video_stream PASSED
+tests/test_edge_cases.py::TestEmptyVideoFile::test_probe_empty_file_returns_error PASSED
+tests/test_edge_cases.py::TestEmptyVideoFile::test_reader_empty_file_raises PASSED
+tests/test_edge_cases.py::TestFourKCompression::test_4k_random_frame_fits_4mb_with_fallback PASSED
+tests/test_edge_cases.py::TestFourKCompression::test_4k_smooth_frame_fits_4mb_slot PASSED
+tests/test_edge_cases.py::TestSeekPastEnd::test_seek_past_end_raises_index_error PASSED
+tests/test_edge_cases.py::TestSeekPastEnd::test_seek_to_last_frame_succeeds PASSED
+tests/test_edge_cases.py::TestUnicodePaths::test_unicode_path_with_spaces_and_symbols PASSED
+tests/test_edge_cases.py::TestUnicodePaths::test_unicode_path_write_and_read PASSED
+tests/test_edge_cases.py::TestZeroLengthFrame::test_encode_zero_height_frame_raises PASSED
+tests/test_edge_cases.py::TestZeroLengthFrame::test_encode_zero_size_frame_raises PASSED
+tests/test_edge_cases.py::TestZeroLengthFrame::test_encode_zero_width_frame_raises PASSED
+tests/test_effects/test_calibration.py::test_all_curves_are_valid PASSED
+tests/test_effects/test_calibration.py::test_calibration_detects_change PASSED
+tests/test_effects/test_calibration.py::test_calibration_runs PASSED
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_defaults
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_max
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_effect_at_min
+tests/test_effects/test_calibration.py::test_numeric_params_have_curve PASSED
+tests/test_effects/test_calibration.py::test_numeric_params_have_unit PASSED
+tests/test_effects/test_fx/test_blur.py::test_basic PASSED
+tests/test_effects/test_fx/test_blur.py::test_boundary PASSED
+tests/test_effects/test_fx/test_blur.py::test_determinism PASSED
+tests/test_effects/test_fx/test_blur.py::test_state PASSED
+tests/test_effects/test_fx/test_channelshift.py::test_basic PASSED
+tests/test_effects/test_fx/test_channelshift.py::test_boundary PASSED
+tests/test_effects/test_fx/test_channelshift.py::test_determinism PASSED
+tests/test_effects/test_fx/test_channelshift.py::test_state PASSED
+tests/test_effects/test_fx/test_edge_detect.py::test_basic PASSED
+tests/test_effects/test_fx/test_edge_detect.py::test_boundary PASSED
+tests/test_effects/test_fx/test_edge_detect.py::test_determinism PASSED
+tests/test_effects/test_fx/test_edge_detect.py::test_state PASSED
+tests/test_effects/test_fx/test_hue_shift.py::test_basic PASSED
+tests/test_effects/test_fx/test_hue_shift.py::test_boundary PASSED
+tests/test_effects/test_fx/test_hue_shift.py::test_determinism PASSED
+tests/test_effects/test_fx/test_hue_shift.py::test_state PASSED
+tests/test_effects/test_fx/test_invert.py::test_basic PASSED
+tests/test_effects/test_fx/test_invert.py::test_boundary PASSED
+tests/test_effects/test_fx/test_invert.py::test_determinism PASSED
+tests/test_effects/test_fx/test_invert.py::test_state PASSED
+tests/test_effects/test_fx/test_noise.py::test_basic PASSED
+tests/test_effects/test_fx/test_noise.py::test_boundary PASSED
+tests/test_effects/test_fx/test_noise.py::test_determinism PASSED
+tests/test_effects/test_fx/test_noise.py::test_state PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_basic PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_boundary PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_determinism PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_determinism_vertical PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_modifies_frame PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_performance_1080p PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_reverse_differs PASSED
+tests/test_effects/test_fx/test_pixelsort.py::test_state PASSED
+tests/test_effects/test_fx/test_posterize.py::test_basic PASSED
+tests/test_effects/test_fx/test_posterize.py::test_boundary PASSED
+tests/test_effects/test_fx/test_posterize.py::test_determinism PASSED
+tests/test_effects/test_fx/test_posterize.py::test_state PASSED
+tests/test_effects/test_fx/test_vhs.py::test_basic PASSED
+tests/test_effects/test_fx/test_vhs.py::test_boundary PASSED
+tests/test_effects/test_fx/test_vhs.py::test_determinism PASSED
+tests/test_effects/test_fx/test_vhs.py::test_state PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_basic PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_boundary PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_determinism PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_determinism_vertical PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_horizontal_modifies_frame PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_performance_1080p PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_performance_1080p_vertical PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_state PASSED
+tests/test_effects/test_fx/test_wave_distort.py::test_vertical_modifies_frame PASSED
+tests/test_effects/test_invert.py::test_invert_determinism PASSED
+tests/test_effects/test_invert.py::test_invert_double_invert_is_identity PASSED
+tests/test_effects/test_invert.py::test_invert_produces_255_minus_input PASSED
+tests/test_effects/test_registry.py::test_get_nonexistent_returns_none PASSED
+tests/test_effects/test_registry.py::test_list_all_has_correct_shape PASSED
+tests/test_effects/test_registry.py::test_list_all_includes_invert PASSED
+tests/test_effects/test_registry.py::test_registry_contains_invert PASSED
+tests/test_engine/test_cache.py::test_encode_all_black PASSED
+tests/test_engine/test_cache.py::test_encode_all_white PASSED
+tests/test_engine/test_cache.py::test_encode_produces_jpeg_header PASSED
+tests/test_engine/test_cache.py::test_fit_custom_quality_chain PASSED
+tests/test_engine/test_cache.py::test_fit_raises_when_all_qualities_fail PASSED
+tests/test_engine/test_cache.py::test_fit_reduces_quality_when_oversized PASSED
+tests/test_engine/test_cache.py::test_fit_returns_valid_jpeg PASSED
+tests/test_engine/test_cache.py::test_fit_small_frame_stays_at_q95 PASSED
+tests/test_engine/test_cache.py::test_roundtrip_dimensions_match PASSED
+tests/test_engine/test_cache.py::test_roundtrip_psnr_above_40db PASSED
+tests/test_engine/test_container.py::test_container_checkerboard_mask PASSED
+tests/test_engine/test_container.py::test_container_mask_all_ones_is_wet PASSED
+tests/test_engine/test_container.py::test_container_mask_all_zeros_is_dry PASSED
+tests/test_engine/test_container.py::test_container_mix_half PASSED
+tests/test_engine/test_container.py::test_container_mix_zero_is_dry PASSED
+tests/test_engine/test_container.py::test_container_no_mask_full_mix PASSED
+tests/test_engine/test_determinism.py::test_different_frame_index_produces_different_seed PASSED
+tests/test_engine/test_determinism.py::test_different_user_seed PASSED
+tests/test_engine/test_determinism.py::test_make_rng_same_seed_identical_sequence PASSED
+tests/test_engine/test_determinism.py::test_same_inputs_produce_identical_seed PASSED
+tests/test_engine/test_export.py::test_export_10_frames_produces_valid_file PASSED
+tests/test_engine/test_export.py::test_export_cancel PASSED
+tests/test_engine/test_export.py::test_export_concurrent_raises PASSED
+tests/test_engine/test_export.py::test_export_get_status_idle PASSED
+tests/test_engine/test_export.py::test_export_progress_tracking PASSED
+tests/test_engine/test_export.py::test_export_with_effect_chain PASSED
+tests/test_engine/test_pipeline.py::test_disabled_effect_skipped PASSED
+tests/test_engine/test_pipeline.py::test_empty_chain_returns_original PASSED
+tests/test_engine/test_pipeline.py::test_fast_effect_applies_normally PASSED
+tests/test_engine/test_pipeline.py::test_mix_default_is_fully_wet PASSED
+tests/test_engine/test_pipeline.py::test_mix_from_top_level_applied PASSED
+tests/test_engine/test_pipeline.py::test_mix_half_blends PASSED
+tests/test_engine/test_pipeline.py::test_order_matters PASSED
+tests/test_engine/test_pipeline.py::test_sec7_at_limit_succeeds PASSED
+tests/test_engine/test_pipeline.py::test_sec7_cap_enforced PASSED
+tests/test_engine/test_pipeline.py::test_single_effect_chain PASSED
+tests/test_engine/test_pipeline.py::test_slow_effect_returns_input_frame PASSED
+tests/test_engine/test_pipeline.py::test_three_effect_chain PASSED
+tests/test_engine/test_pipeline.py::test_timeout_constants PASSED
+tests/test_engine/test_pipeline.py::test_unknown_effect_raises PASSED
+tests/test_integration.py::test_all_effects_process_without_crash PASSED
+tests/test_integration.py::test_effect_determinism PASSED
+tests/test_integration.py::test_full_pipeline_ingest_apply_export_verify PASSED
+tests/test_integration.py::test_registry_has_all_10_effects PASSED
+tests/test_ipc_contracts.py::test_render_frame_camelcase_chain_fails PASSED
+tests/test_ipc_contracts.py::test_render_frame_disabled_effect_skipped PASSED
+tests/test_ipc_contracts.py::test_render_frame_explicit_none_effect_id_fails PASSED
+tests/test_ipc_contracts.py::test_render_frame_extra_fields_ignored PASSED
+tests/test_ipc_contracts.py::test_render_frame_missing_effect_id_fails PASSED
+tests/test_ipc_contracts.py::test_render_frame_missing_enabled_defaults_true PASSED
+tests/test_ipc_contracts.py::test_render_frame_mixed_enabled_disabled PASSED
+tests/test_ipc_contracts.py::test_render_frame_multi_item_snakecase_chain PASSED
+tests/test_ipc_contracts.py::test_render_frame_params_forwarded PASSED
+tests/test_ipc_contracts.py::test_render_frame_snakecase_chain_succeeds PASSED
+tests/test_ipc_schema.py::test_apply_chain_missing_path PASSED
+tests/test_ipc_schema.py::test_empty_cmd_field PASSED
+tests/test_ipc_schema.py::test_export_start_missing_input_path PASSED
+tests/test_ipc_schema.py::test_export_start_missing_output_path PASSED
+tests/test_ipc_schema.py::test_extra_fields_ignored PASSED
+tests/test_ipc_schema.py::test_flush_state_returns_ok PASSED
+tests/test_ipc_schema.py::test_ingest_missing_path PASSED
+tests/test_ipc_schema.py::test_list_effects_no_extra_fields_needed PASSED
+tests/test_ipc_schema.py::test_missing_cmd_field PASSED
+tests/test_ipc_schema.py::test_missing_id_field PASSED
+tests/test_ipc_schema.py::test_null_cmd_field PASSED
+tests/test_ipc_schema.py::test_numeric_cmd_returns_unknown PASSED
+tests/test_ipc_schema.py::test_render_frame_missing_path PASSED
+tests/test_ipc_schema.py::test_seek_missing_path PASSED
+tests/test_ipc_schema.py::test_unknown_command_returns_error PASSED
+tests/test_memory/test_writer.py::test_oversized_frame_raises PASSED
+tests/test_memory/test_writer.py::test_stale_file_replaced PASSED
+tests/test_memory/test_writer.py::test_write_frames_have_jpeg_headers PASSED
+tests/test_memory/test_writer.py::test_write_index_wraps PASSED
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_output_valid_at_extremes
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_param_has_impact
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_parameter_sweep.py::TestParameterSweep::test_sweep_deterministic
+tests/test_project/test_schema.py::test_deserialize_invalid_json PASSED
+tests/test_project/test_schema.py::test_deserialize_missing_fields PASSED
+tests/test_project/test_schema.py::test_new_project_has_required_fields PASSED
+tests/test_project/test_schema.py::test_roundtrip_serialize_deserialize PASSED
+tests/test_project/test_schema.py::test_validate_bad_settings PASSED
+tests/test_project/test_schema.py::test_validate_missing_keys PASSED
+tests/test_project/test_schema.py::test_validate_valid_project PASSED
+tests/test_security.py::TestSEC5Upload::test_all_allowed_extensions PASSED
+tests/test_security.py::TestSEC5Upload::test_exe_rejected PASSED
+tests/test_security.py::TestSEC5Upload::test_nonexistent_file_rejected PASSED
+tests/test_security.py::TestSEC5Upload::test_oversized_file_rejected PASSED
+tests/test_security.py::TestSEC5Upload::test_symlink_rejected PASSED
+tests/test_security.py::TestSEC5Upload::test_txt_rejected PASSED
+tests/test_security.py::TestSEC5Upload::test_valid_mov_accepted PASSED
+tests/test_security.py::TestSEC5Upload::test_valid_mp4_accepted PASSED
+tests/test_security.py::TestSEC6FrameCount::test_at_limit PASSED
+tests/test_security.py::TestSEC6FrameCount::test_over_limit PASSED
+tests/test_security.py::TestSEC6FrameCount::test_valid_frame_count PASSED
+tests/test_security.py::TestSEC6FrameCount::test_zero_frames PASSED
+tests/test_security.py::TestSEC7ChainDepth::test_at_limit PASSED
+tests/test_security.py::TestSEC7ChainDepth::test_empty_chain PASSED
+tests/test_security.py::TestSEC7ChainDepth::test_over_limit PASSED
+tests/test_security.py::TestSEC7ChainDepth::test_valid_chain PASSED
+tests/test_validation/test_v1_throughput.py::test_v1_read_back_from_mmap PASSED
+tests/test_validation/test_v1_throughput.py::test_v1_write_300_frames_throughput PASSED
+tests/test_validation/test_v2_scrub.py::test_scrub_100_seeks PASSED
+tests/test_validation/test_v3_write.py::test_write_300_frames_valid_output PASSED
+tests/test_validation/test_v4_container_pipeline.py::test_v4_checkerboard_mask_half_mix PASSED
+tests/test_validation/test_v4_container_pipeline.py::test_v4_full_pipeline_with_video PASSED
+tests/test_validation/test_v5_zmq_load.py::test_v5_list_effects_latency PASSED
+tests/test_validation/test_v5_zmq_load.py::test_v5_zmq_ping_latency_under_load PASSED
+tests/test_validation/test_v6_determinism.py::test_v6_determinism_across_seeds PASSED
+tests/test_validation/test_v6_determinism.py::test_v6_determinism_byte_identical PASSED
+tests/test_validation/test_v7_nuitka.py::test_v7_binary_imports_core_modules SKIPPED
+tests/test_validation/test_v7_nuitka.py::test_v7_binary_runs_determinism SKIPPED
+tests/test_validation/test_v7_nuitka.py::test_v7_binary_size_under_200mb SKIPPED
+tests/test_validation/test_v7_nuitka.py::test_v7_nuitka_build_exists SKIPPED
+tests/test_video/test_ingest.py::test_probe_nonexistent_file PASSED
+tests/test_video/test_ingest.py::test_probe_synthetic_clip PASSED
+tests/test_video/test_reader.py::test_backward_seek_works PASSED
+tests/test_video/test_reader.py::test_metadata PASSED
+tests/test_video/test_reader.py::test_open_and_decode_frame_0 PASSED
+tests/test_video/test_reader.py::test_seek_returns_different_frames PASSED
+tests/test_video/test_reader.py::test_sequential_decode_faster_than_seeking PASSED
+tests/test_video/test_reader.py::test_sequential_decode_returns_valid_frames PASSED
+tests/test_video/test_reader.py::test_sequential_decode_uses_fast_path PASSED
+tests/test_video/test_reader.py::test_sequential_then_seek_then_sequential PASSED
+tests/test_video/test_reader.py::test_skip_frames_triggers_seek PASSED
+tests/test_video/test_writer.py::test_write_and_read_back_30_frames PASSED
+tests/test_zmq_commands.py::test_flush_state PASSED
+tests/test_zmq_commands.py::test_ingest_command PASSED
+tests/test_zmq_commands.py::test_ingest_missing_path PASSED
+tests/test_zmq_commands.py::test_list_effects PASSED
+tests/test_zmq_commands.py::test_render_frame_empty_chain PASSED
+tests/test_zmq_commands.py::test_render_frame_unknown_effect PASSED
+tests/test_zmq_commands.py::test_render_frame_with_invert PASSED
+tests/test_zmq_commands.py::test_seek_command PASSED
+tests/test_zmq_server.py::test_ping_pong PASSED
+tests/test_zmq_server.py::test_shutdown PASSED
+tests/test_zmq_server.py::test_unknown_command PASSED
+tests/test_zmq_shutdown.py::test_ping_before_shutdown PASSED
+tests/test_zmq_shutdown.py::test_server_run_loop_exits_after_shutdown PASSED
+tests/test_zmq_shutdown.py::test_shutdown_returns_msg_id PASSED
+tests/test_zmq_shutdown.py::test_shutdown_sets_running_false PASSED
+tests/test_zmq_shutdown.py::test_shutdown_without_id PASSED
+tests/test_zmq_shutdown.py::test_unauthenticated_message_rejected PASSED
+tests/test_zmq_shutdown.py::test_wrong_token_rejected PASSED

@@ -1,6 +1,9 @@
-import tempfile
+import os
+import shutil
 import threading
 import time
+import uuid
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -65,10 +68,17 @@ def zmq_ping_client(zmq_server):
 
 @pytest.fixture(scope="session")
 def synthetic_video_path():
-    """Create a synthetic 5s 720p test video."""
+    """Create a synthetic 5s 720p test video under ~/ (required by validate_upload)."""
     from video.writer import VideoWriter
 
-    path = tempfile.mktemp(suffix=".mp4")
+    fixture_dir = Path.home() / ".cache" / "entropic" / "test-fixtures"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+
+    # Clean stale fixtures from previous crashed runs
+    for old in fixture_dir.glob("test_*.mp4"):
+        old.unlink(missing_ok=True)
+
+    path = str(fixture_dir / f"test_{uuid.uuid4().hex[:8]}.mp4")
     w = VideoWriter(path, 1280, 720, fps=30)
     for i in range(150):  # 5 seconds at 30fps
         # Gradient that changes per frame (so seeks return different frames)
@@ -80,6 +90,15 @@ def synthetic_video_path():
         w.write_frame(frame)
     w.close()
     yield path
-    import os
-
     os.unlink(path)
+
+
+@pytest.fixture
+def home_tmp_path(tmp_path_factory):
+    """tmp_path equivalent under ~/ for tests that go through validate_upload."""
+    base = Path.home() / ".cache" / "entropic" / "test-tmp"
+    base.mkdir(parents=True, exist_ok=True)
+    d = base / f"test_{uuid.uuid4().hex[:8]}"
+    d.mkdir()
+    yield d
+    shutil.rmtree(d, ignore_errors=True)

@@ -1,7 +1,6 @@
 """Tests for security validation gates — SEC-5, SEC-6, SEC-7."""
 
-import os
-import tempfile
+from pathlib import Path
 
 import pytest
 
@@ -19,44 +18,44 @@ from security import (
 class TestSEC5Upload:
     """SEC-5: File upload validation."""
 
-    def test_valid_mp4_accepted(self, tmp_path):
-        f = tmp_path / "test.mp4"
+    def test_valid_mp4_accepted(self, home_tmp_path):
+        f = home_tmp_path / "test.mp4"
         f.write_bytes(b"\x00" * 1024)
         errors = validate_upload(str(f))
         assert errors == []
 
-    def test_valid_mov_accepted(self, tmp_path):
-        f = tmp_path / "test.mov"
+    def test_valid_mov_accepted(self, home_tmp_path):
+        f = home_tmp_path / "test.mov"
         f.write_bytes(b"\x00" * 1024)
         errors = validate_upload(str(f))
         assert errors == []
 
-    def test_exe_rejected(self, tmp_path):
-        f = tmp_path / "test.exe"
+    def test_exe_rejected(self, home_tmp_path):
+        f = home_tmp_path / "test.exe"
         f.write_bytes(b"\x00" * 1024)
         errors = validate_upload(str(f))
         assert any("not allowed" in e for e in errors)
 
-    def test_txt_rejected(self, tmp_path):
-        f = tmp_path / "test.txt"
+    def test_txt_rejected(self, home_tmp_path):
+        f = home_tmp_path / "test.txt"
         f.write_bytes(b"\x00" * 1024)
         errors = validate_upload(str(f))
         assert any("not allowed" in e for e in errors)
 
     def test_nonexistent_file_rejected(self):
-        errors = validate_upload("/nonexistent/path/video.mp4")
+        errors = validate_upload(str(Path.home() / "nonexistent" / "video.mp4"))
         assert any("not found" in e.lower() for e in errors)
 
-    def test_symlink_rejected(self, tmp_path):
-        real = tmp_path / "real.mp4"
+    def test_symlink_rejected(self, home_tmp_path):
+        real = home_tmp_path / "real.mp4"
         real.write_bytes(b"\x00" * 1024)
-        link = tmp_path / "link.mp4"
+        link = home_tmp_path / "link.mp4"
         link.symlink_to(real)
         errors = validate_upload(str(link))
         assert any("symlink" in e.lower() for e in errors)
 
-    def test_oversized_file_rejected(self, tmp_path):
-        f = tmp_path / "big.mp4"
+    def test_oversized_file_rejected(self, home_tmp_path):
+        f = home_tmp_path / "big.mp4"
         # Create sparse file to test size check without writing 500MB
         with open(f, "wb") as fh:
             fh.seek(MAX_UPLOAD_SIZE + 1)
@@ -64,14 +63,15 @@ class TestSEC5Upload:
         errors = validate_upload(str(f))
         assert any("too large" in e.lower() for e in errors)
 
-    def test_all_allowed_extensions(self, tmp_path):
+    def test_all_allowed_extensions(self, home_tmp_path):
         for ext in ALLOWED_EXTENSIONS:
-            f = tmp_path / f"test{ext}"
+            f = home_tmp_path / f"test{ext}"
             f.write_bytes(b"\x00" * 1024)
             errors = validate_upload(str(f))
             assert errors == [], f"Extension {ext} should be allowed"
 
 
+@pytest.mark.smoke
 class TestSEC6FrameCount:
     """SEC-6: Frame count cap."""
 
@@ -92,6 +92,7 @@ class TestSEC6FrameCount:
         assert errors == []
 
 
+@pytest.mark.smoke
 class TestSEC7ChainDepth:
     """SEC-7: Effect chain depth cap."""
 

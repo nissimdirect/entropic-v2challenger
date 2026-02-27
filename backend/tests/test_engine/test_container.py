@@ -1,9 +1,12 @@
 """Tests for effect container — mask + mix pipeline."""
 
 import numpy as np
+import pytest
 
 from effects.fx.invert import apply as invert_apply
 from engine.container import EffectContainer
+
+pytestmark = pytest.mark.smoke
 
 
 def _make_frame(r=128, g=64, b=32, a=255, h=100, w=100):

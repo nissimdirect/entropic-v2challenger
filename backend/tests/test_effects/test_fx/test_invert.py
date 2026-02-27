@@ -1,8 +1,11 @@
 """Tests for fx.invert — 4-test contract (basic, determinism, boundary, state)."""
 
 import numpy as np
+import pytest
 
 from effects.fx.invert import EFFECT_ID, PARAMS, apply
+
+pytestmark = pytest.mark.smoke
 
 
 def _frame(h=100, w=100):

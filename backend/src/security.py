@@ -27,6 +27,12 @@ def validate_upload(path: str) -> list[str]:
     errors: list[str] = []
     p = Path(path)
 
+    # Path traversal check — resolved path must be under user home
+    resolved = str(p.resolve())
+    if not resolved.startswith(str(Path.home())):
+        errors.append("Path must be within user home directory")
+        return errors
+
     # Existence
     if not p.exists():
         errors.append(f"File not found: {path}")

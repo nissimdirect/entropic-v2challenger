@@ -4,6 +4,8 @@ import pytest
 
 from project.schema import deserialize, new_project, serialize, validate
 
+pytestmark = pytest.mark.smoke
+
 
 def test_new_project_has_required_fields():
     p = new_project(author="test")

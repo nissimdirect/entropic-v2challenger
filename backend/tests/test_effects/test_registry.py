@@ -1,6 +1,10 @@
 """Tests for effect registry."""
 
+import pytest
+
 from effects.registry import get, list_all
+
+pytestmark = pytest.mark.smoke
 
 
 def test_registry_contains_invert():

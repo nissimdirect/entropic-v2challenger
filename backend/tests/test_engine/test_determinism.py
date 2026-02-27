@@ -1,6 +1,10 @@
 """Tests for seeded determinism."""
 
+import pytest
+
 from engine.determinism import derive_seed, make_rng
+
+pytestmark = pytest.mark.smoke
 
 
 def test_same_inputs_produce_identical_seed():

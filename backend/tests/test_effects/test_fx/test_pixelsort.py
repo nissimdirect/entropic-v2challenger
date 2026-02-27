@@ -3,8 +3,11 @@
 import time
 
 import numpy as np
+import pytest
 
 from effects.fx.pixelsort import EFFECT_ID, PARAMS, apply
+
+pytestmark = pytest.mark.smoke
 
 
 def _frame(h=100, w=100):

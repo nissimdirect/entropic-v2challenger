@@ -1,8 +1,11 @@
 """Tests for fx.hue_shift — 4-test contract (basic, determinism, boundary, state)."""
 
 import numpy as np
+import pytest
 
 from effects.fx.hue_shift import EFFECT_ID, PARAMS, apply
+
+pytestmark = pytest.mark.smoke
 
 
 def _frame(h=100, w=100):

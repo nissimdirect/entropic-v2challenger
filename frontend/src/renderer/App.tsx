@@ -143,7 +143,7 @@ function AppInner() {
           path: activeAssetPath.current,
           frame_index: frame,
           chain: serializeEffectChain(chain),
-          project_seed: 42,
+          project_seed: Date.now() % 2147483647,
         })
 
         if (res.ok && res.frame_data) {

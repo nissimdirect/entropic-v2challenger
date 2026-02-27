@@ -79,7 +79,8 @@ def test_render_frame_unknown_effect(zmq_client, synthetic_video_path):
     )
     resp = zmq_client.recv_json()
     assert resp["ok"] is False
-    assert "unknown effect" in resp["error"]
+    # Server wraps ValueError as generic error for security (SEC hardening)
+    assert "error" in resp
 
 
 def test_list_effects(zmq_client):

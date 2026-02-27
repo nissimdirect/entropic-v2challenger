@@ -6,7 +6,7 @@ interface ExportProgressProps {
 }
 
 export default function ExportProgress({ isExporting, progress, error, onCancel }: ExportProgressProps) {
-  if (!isExporting && !error) return null
+  if (!isExporting && !error && progress < 1) return null
 
   const percent = Math.round(progress * 100)
 
