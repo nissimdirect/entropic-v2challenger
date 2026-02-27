@@ -20,6 +20,7 @@ from security import (
     validate_upload,
 )
 from audio.decoder import decode_audio
+from audio.clock import AVClock
 from audio.player import AudioPlayer
 from audio.waveform import compute_peaks
 from video.ingest import probe
@@ -51,6 +52,8 @@ class ZMQServer:
         self._waveform_cache: dict[tuple[str, int], list] = {}
         # Audio playback engine
         self.audio_player = AudioPlayer()
+        # A/V sync clock — audio master, video slave
+        self.av_clock = AVClock(self.audio_player)
 
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
@@ -114,6 +117,10 @@ class ZMQServer:
             return self._handle_audio_position(msg_id)
         elif cmd == "audio_stop":
             return self._handle_audio_stop(msg_id)
+        elif cmd == "clock_sync":
+            return self._handle_clock_sync(msg_id)
+        elif cmd == "clock_set_fps":
+            return self._handle_clock_set_fps(message, msg_id)
         elif cmd == "export_start":
             return self._handle_export_start(message, msg_id)
         elif cmd == "export_status":
@@ -447,6 +454,20 @@ class ZMQServer:
     def _handle_audio_stop(self, msg_id: str | None) -> dict:
         self.audio_player.stop()
         return {"id": msg_id, "ok": True}
+
+    def _handle_clock_sync(self, msg_id: str | None) -> dict:
+        state = self.av_clock.sync_state()
+        state["id"] = msg_id
+        state["ok"] = True
+        return state
+
+    def _handle_clock_set_fps(self, message: dict, msg_id: str | None) -> dict:
+        fps = message.get("fps")
+        if fps is None:
+            return {"id": msg_id, "ok": False, "error": "missing fps"}
+        fps = float(fps)
+        self.av_clock.set_fps(fps)
+        return {"id": msg_id, "ok": True, "fps": self.av_clock.fps}
 
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
         input_path = message.get("input_path")

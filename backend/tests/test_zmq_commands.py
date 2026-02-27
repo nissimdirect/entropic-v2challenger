@@ -322,3 +322,64 @@ def test_audio_stop_command(zmq_client, synthetic_video_with_audio_path):
     zmq_client.send_json({"cmd": "audio_stop", "id": msg_id})
     resp = zmq_client.recv_json()
     assert resp["ok"] is True
+
+
+# --- A/V Clock command tests ---
+
+
+@pytest.mark.smoke
+def test_clock_sync_command(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "clock_sync", "id": msg_id})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert "audio_time_s" in resp
+    assert "target_frame" in resp
+    assert "is_playing" in resp
+    assert "duration_s" in resp
+    assert "fps" in resp
+    assert "total_frames" in resp
+
+
+def test_clock_set_fps_command(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "clock_set_fps", "id": msg_id, "fps": 24.0})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert resp["fps"] == 24.0
+
+
+def test_clock_sync_after_seek(zmq_client, synthetic_video_with_audio_path):
+    # Load audio first
+    zmq_client.send_json(
+        {
+            "cmd": "audio_load",
+            "id": str(uuid.uuid4()),
+            "path": synthetic_video_with_audio_path,
+        }
+    )
+    zmq_client.recv_json()
+
+    # Set fps to 30
+    zmq_client.send_json({"cmd": "clock_set_fps", "id": str(uuid.uuid4()), "fps": 30.0})
+    zmq_client.recv_json()
+
+    # Seek to 1.0s
+    zmq_client.send_json({"cmd": "audio_seek", "id": str(uuid.uuid4()), "time": 1.0})
+    zmq_client.recv_json()
+
+    # Check clock sync
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "clock_sync", "id": msg_id})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert resp["audio_time_s"] > 0.9
+    assert resp["target_frame"] >= 29  # floor(~1.0 * 30)
+
+
+def test_clock_set_fps_missing(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "clock_set_fps", "id": msg_id})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+    assert "missing fps" in resp["error"]
