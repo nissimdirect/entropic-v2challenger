@@ -20,6 +20,7 @@ from security import (
     validate_upload,
 )
 from audio.decoder import decode_audio
+from audio.waveform import compute_peaks
 from video.ingest import probe
 from video.reader import VideoReader
 
@@ -45,6 +46,8 @@ class ZMQServer:
         self._max_readers = 10
         self.last_frame_ms = 0.0
         self.export_manager = ExportManager()
+        # Waveform peak cache — keyed by (path, num_bins)
+        self._waveform_cache: dict[tuple[str, int], list] = {}
 
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
@@ -92,6 +95,8 @@ class ZMQServer:
             return {"id": msg_id, "ok": True, "effects": registry.list_all()}
         elif cmd == "audio_decode":
             return self._handle_audio_decode(message, msg_id)
+        elif cmd == "waveform":
+            return self._handle_waveform(message, msg_id)
         elif cmd == "export_start":
             return self._handle_export_start(message, msg_id)
         elif cmd == "export_status":
@@ -317,6 +322,54 @@ class ZMQServer:
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Audio decode handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_waveform(self, message: dict, msg_id: str | None) -> dict:
+        path = message.get("path")
+        num_bins = int(message.get("num_bins", 800))
+        if not path:
+            return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate path
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # Check cache
+        cache_key = (path, num_bins)
+        if cache_key in self._waveform_cache:
+            return {
+                "id": msg_id,
+                "ok": True,
+                "peaks": self._waveform_cache[cache_key],
+                "num_bins": num_bins,
+                "cached": True,
+            }
+
+        try:
+            result = decode_audio(path)
+            if not result["ok"]:
+                return {"id": msg_id, "ok": False, "error": result["error"]}
+
+            samples = result["samples"]
+            peaks = compute_peaks(samples, num_bins=num_bins)
+
+            # Serialize peaks to nested list for JSON transport
+            peaks_list = peaks.tolist()
+            self._waveform_cache[cache_key] = peaks_list
+
+            return {
+                "id": msg_id,
+                "ok": True,
+                "peaks": peaks_list,
+                "num_bins": num_bins,
+                "channels": result["channels"],
+                "duration_s": result["duration_s"],
+                "cached": False,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(f"Waveform handler error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
