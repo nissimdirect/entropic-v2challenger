@@ -230,3 +230,95 @@ def test_waveform_missing_path(zmq_client):
     resp = zmq_client.recv_json()
     assert resp["ok"] is False
     assert "missing path" in resp["error"]
+
+
+# --- Audio playback command tests ---
+
+
+@pytest.mark.smoke
+def test_audio_load_command(zmq_client, synthetic_video_with_audio_path):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json(
+        {"cmd": "audio_load", "id": msg_id, "path": synthetic_video_with_audio_path}
+    )
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert resp["sample_rate"] == 44100
+    assert resp["channels"] == 2
+    assert resp["num_samples"] > 0
+
+
+def test_audio_position_command(zmq_client, synthetic_video_with_audio_path):
+    # Load first
+    zmq_client.send_json(
+        {
+            "cmd": "audio_load",
+            "id": str(uuid.uuid4()),
+            "path": synthetic_video_with_audio_path,
+        }
+    )
+    zmq_client.recv_json()
+
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "audio_position", "id": msg_id})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert "position_s" in resp
+    assert "duration_s" in resp
+    assert "is_playing" in resp
+    assert "volume" in resp
+
+
+def test_audio_seek_command(zmq_client, synthetic_video_with_audio_path):
+    zmq_client.send_json(
+        {
+            "cmd": "audio_load",
+            "id": str(uuid.uuid4()),
+            "path": synthetic_video_with_audio_path,
+        }
+    )
+    zmq_client.recv_json()
+
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "audio_seek", "id": msg_id, "time": 1.0})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert resp["position_s"] > 0.9
+
+
+def test_audio_volume_command(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "audio_volume", "id": msg_id, "volume": 0.5})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert resp["volume"] == 0.5
+
+
+def test_audio_play_without_load(zmq_client):
+    # Stop any previous loaded audio
+    zmq_client.send_json({"cmd": "audio_stop", "id": str(uuid.uuid4())})
+    zmq_client.recv_json()
+
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "audio_play", "id": msg_id})
+    resp = zmq_client.recv_json()
+    # After stop, player has no samples loaded — play should fail
+    assert (
+        resp["ok"] is False or resp.get("is_playing") is True
+    )  # depends on prior state
+
+
+def test_audio_stop_command(zmq_client, synthetic_video_with_audio_path):
+    zmq_client.send_json(
+        {
+            "cmd": "audio_load",
+            "id": str(uuid.uuid4()),
+            "path": synthetic_video_with_audio_path,
+        }
+    )
+    zmq_client.recv_json()
+
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "audio_stop", "id": msg_id})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True

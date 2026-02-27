@@ -20,6 +20,7 @@ from security import (
     validate_upload,
 )
 from audio.decoder import decode_audio
+from audio.player import AudioPlayer
 from audio.waveform import compute_peaks
 from video.ingest import probe
 from video.reader import VideoReader
@@ -48,6 +49,8 @@ class ZMQServer:
         self.export_manager = ExportManager()
         # Waveform peak cache — keyed by (path, num_bins)
         self._waveform_cache: dict[tuple[str, int], list] = {}
+        # Audio playback engine
+        self.audio_player = AudioPlayer()
 
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
@@ -97,6 +100,20 @@ class ZMQServer:
             return self._handle_audio_decode(message, msg_id)
         elif cmd == "waveform":
             return self._handle_waveform(message, msg_id)
+        elif cmd == "audio_load":
+            return self._handle_audio_load(message, msg_id)
+        elif cmd == "audio_play":
+            return self._handle_audio_play(msg_id)
+        elif cmd == "audio_pause":
+            return self._handle_audio_pause(msg_id)
+        elif cmd == "audio_seek":
+            return self._handle_audio_seek(message, msg_id)
+        elif cmd == "audio_volume":
+            return self._handle_audio_volume(message, msg_id)
+        elif cmd == "audio_position":
+            return self._handle_audio_position(msg_id)
+        elif cmd == "audio_stop":
+            return self._handle_audio_stop(msg_id)
         elif cmd == "export_start":
             return self._handle_export_start(message, msg_id)
         elif cmd == "export_status":
@@ -372,6 +389,65 @@ class ZMQServer:
             logging.getLogger(__name__).error(f"Waveform handler error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
+    def _handle_audio_load(self, message: dict, msg_id: str | None) -> dict:
+        path = message.get("path")
+        if not path:
+            return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        try:
+            result = self.audio_player.load(path)
+            result["id"] = msg_id
+            return result
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(f"Audio load handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_audio_play(self, msg_id: str | None) -> dict:
+        ok = self.audio_player.play()
+        if not ok:
+            return {"id": msg_id, "ok": False, "error": "no audio loaded"}
+        return {"id": msg_id, "ok": True, "is_playing": True}
+
+    def _handle_audio_pause(self, msg_id: str | None) -> dict:
+        self.audio_player.pause()
+        return {"id": msg_id, "ok": True, "is_playing": False}
+
+    def _handle_audio_seek(self, message: dict, msg_id: str | None) -> dict:
+        time_s = float(message.get("time", 0.0))
+        ok = self.audio_player.seek(time_s)
+        if not ok:
+            return {"id": msg_id, "ok": False, "error": "no audio loaded"}
+        return {
+            "id": msg_id,
+            "ok": True,
+            "position_s": self.audio_player.position_seconds,
+        }
+
+    def _handle_audio_volume(self, message: dict, msg_id: str | None) -> dict:
+        volume = float(message.get("volume", 1.0))
+        self.audio_player.set_volume(volume)
+        return {"id": msg_id, "ok": True, "volume": self.audio_player.volume}
+
+    def _handle_audio_position(self, msg_id: str | None) -> dict:
+        return {
+            "id": msg_id,
+            "ok": True,
+            "position_s": self.audio_player.position_seconds,
+            "position_samples": self.audio_player.position,
+            "duration_s": self.audio_player.duration_seconds,
+            "is_playing": self.audio_player.is_playing,
+            "volume": self.audio_player.volume,
+        }
+
+    def _handle_audio_stop(self, msg_id: str | None) -> dict:
+        self.audio_player.stop()
+        return {"id": msg_id, "ok": True}
+
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
         input_path = message.get("input_path")
         output_path = message.get("output_path")
@@ -454,6 +530,7 @@ class ZMQServer:
         self.close()
 
     def close(self):
+        self.audio_player.close()
         for reader in self.readers.values():
             reader.close()
         if self.shm_writer is not None:
