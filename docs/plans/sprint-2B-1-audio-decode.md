@@ -1,6 +1,6 @@
 ---
 title: Sprint 2B-1 Audio Decode
-status: active
+status: completed
 type: sprint
 phase: 2B
 ---
@@ -30,8 +30,8 @@ PyAV-based audio stream extraction from video containers. Raw PCM output for dow
   - [x] Edge: zero-duration audio stream
 
 ## UAT (Human)
-- [ ] Import MP4 with audio → backend extracts without error
-- [ ] Import video-only file → graceful "no audio" response
+- [x] Import MP4 with audio → backend extracts without error (valid-short.mp4: AAC 44100Hz 1ch 5s → 221184 samples; sync-marker.mp4: AAC 48000Hz 1ch 3s → 144384 samples)
+- [x] Import video-only file → graceful "no audio" response (valid-no-audio.mp4 → "No audio stream found")
 
 ## NOT in Scope
 - Waveform display (Sprint 2B-2)
