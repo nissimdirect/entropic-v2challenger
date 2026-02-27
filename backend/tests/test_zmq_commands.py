@@ -2,6 +2,8 @@
 
 import uuid
 
+import pytest
+
 
 def test_ingest_command(zmq_client, synthetic_video_path):
     msg_id = str(uuid.uuid4())
@@ -152,3 +154,79 @@ def test_audio_decode_with_seek(zmq_client, synthetic_video_with_audio_path):
     resp = zmq_client.recv_json()
     assert resp["ok"] is True
     assert resp["num_samples"] > 0
+
+
+# --- Waveform command tests ---
+
+
+@pytest.mark.smoke
+def test_waveform_command(zmq_client, synthetic_video_with_audio_path):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json(
+        {"cmd": "waveform", "id": msg_id, "path": synthetic_video_with_audio_path}
+    )
+    resp = zmq_client.recv_json()
+    assert resp["id"] == msg_id
+    assert resp["ok"] is True
+    assert "peaks" in resp
+    assert resp["num_bins"] == 800  # default
+    assert resp["channels"] == 2
+    assert resp["duration_s"] > 0
+    assert resp["cached"] is False
+    # peaks is a nested list: (num_bins, channels, 2)
+    assert len(resp["peaks"]) == 800
+    assert len(resp["peaks"][0]) == 2  # stereo
+    assert len(resp["peaks"][0][0]) == 2  # min/max
+
+
+def test_waveform_custom_bins(zmq_client, synthetic_video_with_audio_path):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json(
+        {
+            "cmd": "waveform",
+            "id": msg_id,
+            "path": synthetic_video_with_audio_path,
+            "num_bins": 200,
+        }
+    )
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert resp["num_bins"] == 200
+    assert len(resp["peaks"]) == 200
+
+
+def test_waveform_cache_hit(zmq_client, synthetic_video_with_audio_path):
+    msg_id1 = str(uuid.uuid4())
+    zmq_client.send_json(
+        {"cmd": "waveform", "id": msg_id1, "path": synthetic_video_with_audio_path}
+    )
+    resp1 = zmq_client.recv_json()
+    assert resp1["ok"] is True
+    assert resp1["cached"] is False
+
+    msg_id2 = str(uuid.uuid4())
+    zmq_client.send_json(
+        {"cmd": "waveform", "id": msg_id2, "path": synthetic_video_with_audio_path}
+    )
+    resp2 = zmq_client.recv_json()
+    assert resp2["ok"] is True
+    assert resp2["cached"] is True
+    assert resp2["peaks"] == resp1["peaks"]
+
+
+def test_waveform_no_audio(zmq_client, synthetic_video_path):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json(
+        {"cmd": "waveform", "id": msg_id, "path": synthetic_video_path}
+    )
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+    assert "No audio stream" in resp["error"]
+
+
+def test_waveform_missing_path(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "waveform", "id": msg_id})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+    assert "missing path" in resp["error"]
