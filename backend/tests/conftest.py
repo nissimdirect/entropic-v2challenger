@@ -93,6 +93,57 @@ def synthetic_video_path():
     os.unlink(path)
 
 
+@pytest.fixture(scope="session")
+def synthetic_video_with_audio_path():
+    """Create a synthetic 2s 320p test video WITH audio under ~/."""
+    import av as _av
+
+    fixture_dir = Path.home() / ".cache" / "entropic" / "test-fixtures"
+    fixture_dir.mkdir(parents=True, exist_ok=True)
+    path = str(fixture_dir / f"test_av_{uuid.uuid4().hex[:8]}.mp4")
+
+    container = _av.open(path, mode="w")
+    v_stream = container.add_stream("libx264", rate=30)
+    v_stream.width = 320
+    v_stream.height = 240
+    v_stream.pix_fmt = "yuv420p"
+    a_stream = container.add_stream("aac", rate=44100)
+    a_stream.layout = "stereo"
+
+    # Video: 60 frames (2s)
+    for i in range(60):
+        frame = np.zeros((240, 320, 3), dtype=np.uint8)
+        frame[:, :, 0] = int(255 * i / 60)
+        vf = _av.VideoFrame.from_ndarray(frame, format="rgb24")
+        for pkt in v_stream.encode(vf):
+            container.mux(pkt)
+
+    # Audio: 2s 440Hz sine stereo
+    sample_rate = 44100
+    total = int(sample_rate * 2.0)
+    t = np.arange(total, dtype=np.float32) / sample_rate
+    sine = (np.sin(2 * np.pi * 440 * t) * 0.5).astype(np.float32)
+    stereo = np.stack([sine, sine])
+    frame_size = 1024
+    for i in range(0, total, frame_size):
+        chunk = stereo[:, i : i + frame_size]
+        if chunk.shape[1] < frame_size:
+            chunk = np.pad(chunk, ((0, 0), (0, frame_size - chunk.shape[1])))
+        af = _av.AudioFrame.from_ndarray(chunk, format="fltp", layout="stereo")
+        af.sample_rate = sample_rate
+        for pkt in a_stream.encode(af):
+            container.mux(pkt)
+
+    for pkt in v_stream.encode():
+        container.mux(pkt)
+    for pkt in a_stream.encode():
+        container.mux(pkt)
+    container.close()
+
+    yield path
+    os.unlink(path)
+
+
 @pytest.fixture
 def home_tmp_path(tmp_path_factory):
     """tmp_path equivalent under ~/ for tests that go through validate_upload."""

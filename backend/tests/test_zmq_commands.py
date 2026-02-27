@@ -101,3 +101,54 @@ def test_flush_state(zmq_client):
     resp = zmq_client.recv_json()
     assert resp["id"] == msg_id
     assert resp["ok"] is True
+
+
+# --- Audio decode command ---
+
+
+def test_audio_decode_command(zmq_client, synthetic_video_with_audio_path):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json(
+        {"cmd": "audio_decode", "id": msg_id, "path": synthetic_video_with_audio_path}
+    )
+    resp = zmq_client.recv_json()
+    assert resp["id"] == msg_id
+    assert resp["ok"] is True
+    assert resp["sample_rate"] == 44100
+    assert resp["channels"] == 2
+    assert resp["num_samples"] > 0
+    assert resp["duration_s"] > 0
+    assert 0.0 < resp["peak"] <= 1.0
+
+
+def test_audio_decode_no_audio(zmq_client, synthetic_video_path):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json(
+        {"cmd": "audio_decode", "id": msg_id, "path": synthetic_video_path}
+    )
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+    assert "No audio stream" in resp["error"]
+
+
+def test_audio_decode_missing_path(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "audio_decode", "id": msg_id})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+    assert "missing path" in resp["error"]
+
+
+def test_audio_decode_with_seek(zmq_client, synthetic_video_with_audio_path):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json(
+        {
+            "cmd": "audio_decode",
+            "id": msg_id,
+            "path": synthetic_video_with_audio_path,
+            "start_s": 1.0,
+        }
+    )
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is True
+    assert resp["num_samples"] > 0

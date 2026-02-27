@@ -15,6 +15,7 @@ def probe(path: str) -> dict:
         return {"ok": False, "error": "No video stream found"}
 
     stream = container.streams.video[0]
+    has_audio = len(container.streams.audio) > 0
     result = {
         "ok": True,
         "width": stream.width,
@@ -24,8 +25,20 @@ def probe(path: str) -> dict:
         if container.duration
         else 0.0,
         "codec": stream.codec_context.name,
-        "has_audio": len(container.streams.audio) > 0,
+        "has_audio": has_audio,
         "frame_count": stream.frames or 0,
     }
+
+    if has_audio:
+        audio_stream = container.streams.audio[0]
+        result["audio"] = {
+            "sample_rate": audio_stream.rate,
+            "channels": audio_stream.channels,
+            "codec": audio_stream.codec_context.name,
+            "duration_s": float(audio_stream.duration * audio_stream.time_base)
+            if audio_stream.duration
+            else result["duration_s"],
+        }
+
     container.close()
     return result
