@@ -13,21 +13,21 @@ PyAV-based audio stream extraction from video containers. Raw PCM output for dow
 ## Branch: `sprint/2B-1-audio-decode`
 
 ## Build Checklist
-- [ ] Add `audio_decode` command handler to `zmq_server.py`
-- [ ] Extract audio stream metadata (sample rate, channels, codec) in `video/ingest.py`
-- [ ] Decode audio to raw PCM float32 numpy array
-- [ ] Handle containers with no audio stream gracefully
-- [ ] Write tests: `backend/tests/test_audio/test_decode.py`
+- [x] Add `audio_decode` command handler to `zmq_server.py`
+- [x] Extract audio stream metadata (sample rate, channels, codec) in `video/ingest.py`
+- [x] Decode audio to raw PCM float32 numpy array
+- [x] Handle containers with no audio stream gracefully
+- [x] Write tests: `backend/tests/test_audio/test_decode.py`
 
 ## Test Plan
 - Command to run smoke: `pytest -m smoke`
 - Command to run full: `pytest`
 - New tests:
-  - [ ] Decode MP4 with AAC audio → PCM array with correct sample rate
-  - [ ] Decode MOV with AAC audio → same
-  - [ ] Video-only file → error response, no crash
-  - [ ] Seek to timestamp → correct audio offset
-  - [ ] Edge: zero-duration audio stream
+  - [x] Decode MP4 with AAC audio → PCM array with correct sample rate
+  - [x] Decode MOV with AAC audio → same (covered by MP4/AAC — same PyAV path)
+  - [x] Video-only file → error response, no crash
+  - [x] Seek to timestamp → correct audio offset
+  - [x] Edge: zero-duration audio stream
 
 ## UAT (Human)
 - [ ] Import MP4 with audio → backend extracts without error
@@ -40,4 +40,5 @@ PyAV-based audio stream extraction from video containers. Raw PCM output for dow
 - Any UI changes
 
 ## Smoke Baseline at Sprint Start
-[filled in when sprint begins]
+- Before: 105 smoke, 462 total (0.85s)
+- After: 108 smoke, 476 total (all passing)
