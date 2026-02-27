@@ -4,6 +4,7 @@ import logging
 import time
 import uuid
 
+import numpy as np
 import sentry_sdk
 import zmq
 
@@ -18,6 +19,7 @@ from security import (
     validate_output_path,
     validate_upload,
 )
+from audio.decoder import decode_audio
 from video.ingest import probe
 from video.reader import VideoReader
 
@@ -88,6 +90,8 @@ class ZMQServer:
             return self._handle_apply_chain(message, msg_id)
         elif cmd == "list_effects":
             return {"id": msg_id, "ok": True, "effects": registry.list_all()}
+        elif cmd == "audio_decode":
+            return self._handle_audio_decode(message, msg_id)
         elif cmd == "export_start":
             return self._handle_export_start(message, msg_id)
         elif cmd == "export_status":
@@ -278,6 +282,41 @@ class ZMQServer:
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Apply chain handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_audio_decode(self, message: dict, msg_id: str | None) -> dict:
+        path = message.get("path")
+        if not path:
+            return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate path
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        start_s = float(message.get("start_s", 0.0))
+        duration_s = message.get("duration_s")
+        if duration_s is not None:
+            duration_s = float(duration_s)
+
+        try:
+            result = decode_audio(path, start_s=start_s, duration_s=duration_s)
+            if not result["ok"]:
+                return {"id": msg_id, "ok": False, "error": result["error"]}
+
+            samples = result["samples"]
+            return {
+                "id": msg_id,
+                "ok": True,
+                "sample_rate": result["sample_rate"],
+                "channels": result["channels"],
+                "duration_s": result["duration_s"],
+                "num_samples": samples.shape[0],
+                "peak": float(np.abs(samples).max()) if samples.size > 0 else 0.0,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(f"Audio decode handler error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
