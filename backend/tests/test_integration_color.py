@@ -12,7 +12,6 @@ from effects.util.color_balance import apply as cb_apply
 from effects.util.auto_levels import apply as auto_apply
 from effects.util.histogram import compute_histogram
 
-pytestmark = pytest.mark.smoke
 
 KW = {"frame_index": 0, "seed": 42, "resolution": (1920, 1080)}
 
