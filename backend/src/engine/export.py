@@ -1,5 +1,6 @@
 """Export job manager — background rendering with progress and cancel."""
 
+import logging
 import threading
 from dataclasses import dataclass, field
 from enum import Enum
@@ -7,6 +8,8 @@ from enum import Enum
 from engine.pipeline import apply_chain
 from video.reader import VideoReader
 from video.writer import VideoWriter
+
+logger = logging.getLogger(__name__)
 
 
 class ExportStatus(Enum):
@@ -26,6 +29,7 @@ class ExportJob:
     total_frames: int = 0
     error: str | None = None
     output_path: str = ""
+    _lock: threading.Lock = field(default_factory=threading.Lock)
     _cancel_event: threading.Event = field(default_factory=threading.Event)
     _thread: threading.Thread | None = field(default=None, repr=False)
 
@@ -104,7 +108,8 @@ class ExportManager:
 
             for i in range(job.total_frames):
                 if job._cancel_event.is_set():
-                    job.status = ExportStatus.CANCELLED
+                    with job._lock:
+                        job.status = ExportStatus.CANCELLED
                     return
 
                 frame = reader.decode_frame(i)
@@ -114,13 +119,17 @@ class ExportManager:
                 )
 
                 writer.write_frame(output)
-                job.current_frame = i + 1
+                with job._lock:
+                    job.current_frame = i + 1
 
-            job.status = ExportStatus.COMPLETE
+            with job._lock:
+                job.status = ExportStatus.COMPLETE
 
         except Exception as e:
-            job.status = ExportStatus.ERROR
-            job.error = str(e)
+            logger.exception("Export failed")
+            with job._lock:
+                job.status = ExportStatus.ERROR
+                job.error = f"Export failed: {type(e).__name__}"
         finally:
             if writer is not None:
                 writer.close()
@@ -136,18 +145,22 @@ class ExportManager:
                 "current_frame": 0,
                 "total_frames": 0,
             }
-        return {
-            "status": self._job.status.value,
-            "progress": round(self._job.progress, 4),
-            "current_frame": self._job.current_frame,
-            "total_frames": self._job.total_frames,
-            "output_path": self._job.output_path,
-            "error": self._job.error,
-        }
+        with self._job._lock:
+            return {
+                "status": self._job.status.value,
+                "progress": round(self._job.progress, 4),
+                "current_frame": self._job.current_frame,
+                "total_frames": self._job.total_frames,
+                "output_path": self._job.output_path,
+                "error": self._job.error,
+            }
 
     def cancel(self) -> bool:
         """Cancel the running export. Returns True if a job was cancelled."""
-        if self._job is not None and self._job.status == ExportStatus.RUNNING:
-            self._job.cancel()
-            return True
+        if self._job is None:
+            return False
+        with self._job._lock:
+            if self._job.status == ExportStatus.RUNNING:
+                self._job.cancel()
+                return True
         return False

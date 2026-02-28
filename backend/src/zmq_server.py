@@ -31,11 +31,11 @@ class ZMQServer:
     def __init__(self):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
-        self.socket.setsockopt(zmq.MAXMSGSIZE, 104857600)  # 100 MB limit
+        self.socket.setsockopt(zmq.MAXMSGSIZE, 1_048_576)  # 1 MB limit
         self.port = self.socket.bind_to_random_port("tcp://127.0.0.1")
         # Dedicated ping socket — never blocked by heavy renders (BUG-4)
         self.ping_socket = self.context.socket(zmq.REP)
-        self.ping_socket.setsockopt(zmq.MAXMSGSIZE, 104857600)  # 100 MB limit
+        self.ping_socket.setsockopt(zmq.MAXMSGSIZE, 4096)  # 4 KB limit (pings only)
         self.ping_port = self.ping_socket.bind_to_random_port("tcp://127.0.0.1")
         # Auth token — prevents unauthorized ZMQ access from other local processes
         self.token = str(uuid.uuid4())
