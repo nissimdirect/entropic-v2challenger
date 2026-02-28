@@ -56,9 +56,25 @@ SWEEP_CASES = _sweep_cases()
 class TestParameterSweep:
     """For each parameter, verify that changing it from min to max produces different output."""
 
+    # Params that only have impact when OTHER params are non-default
+    # (e.g. channel selector on identity LUT, interpolation on identity curve)
+    DEPENDENT_PARAMS = {
+        ("util.levels", "channel"),
+        ("util.curves", "channel"),
+        ("util.curves", "interpolation"),
+        (
+            "util.curves",
+            "points",
+        ),  # Numeric sweep meaningless; real input is JSON array
+        ("util.hsl_adjust", "target_hue"),
+        ("util.color_balance", "preserve_luma"),
+    }
+
     def test_param_has_impact(self, case):
         """Changing a single parameter from low to high should change the output."""
         eid, pname, low_val, high_val = case
+        if (eid, pname) in self.DEPENDENT_PARAMS:
+            pytest.skip(f"{eid}::{pname} only has impact with non-default co-params")
         info = _REGISTRY[eid]
         frame = _frame()
 

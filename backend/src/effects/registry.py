@@ -49,6 +49,13 @@ def _auto_register():
         wave_distort,
         channelshift,
     )
+    from effects.util import (
+        levels,
+        curves,
+        hsl_adjust,
+        color_balance,
+        auto_levels,
+    )
 
     for mod in [
         invert,
@@ -61,6 +68,11 @@ def _auto_register():
         vhs,
         wave_distort,
         channelshift,
+        levels,
+        curves,
+        hsl_adjust,
+        color_balance,
+        auto_levels,
     ]:
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY

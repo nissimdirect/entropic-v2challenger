@@ -84,9 +84,19 @@ class TestAllEffectsDeterminism:
 class TestAllEffectsVisibleChange:
     """Effects with non-trivial default params should visibly change the frame."""
 
+    # Color correction tools (util.*) are identity-by-default by design
+    IDENTITY_BY_DEFAULT = {
+        "util.levels",
+        "util.curves",
+        "util.hsl_adjust",
+        "util.color_balance",
+    }
+
     def test_visible_change_with_defaults(self, effect_entry):
         """Effect with non-zero default params produces a different frame."""
         eid, info = effect_entry
+        if eid in self.IDENTITY_BY_DEFAULT:
+            pytest.skip(f"{eid} is identity-by-default (color correction tool)")
         frame = _frame()
         params = _default_params(info)
 

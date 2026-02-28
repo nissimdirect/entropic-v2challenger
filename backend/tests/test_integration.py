@@ -80,8 +80,8 @@ def test_full_pipeline_ingest_apply_export_verify(synthetic_video_path):
             os.unlink(export_path)
 
 
-def test_registry_has_all_10_effects():
-    """Verify the registry contains all 10 effects."""
+def test_registry_has_all_15_effects():
+    """Verify the registry contains all 15 effects (10 fx + 5 util)."""
     from effects.registry import list_all
 
     effects = list_all()
@@ -97,6 +97,11 @@ def test_registry_has_all_10_effects():
         "fx.vhs",
         "fx.wave_distort",
         "fx.channelshift",
+        "util.levels",
+        "util.curves",
+        "util.hsl_adjust",
+        "util.color_balance",
+        "util.auto_levels",
     }
     assert expected == effect_ids, f"Missing effects: {expected - effect_ids}"
 
