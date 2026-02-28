@@ -48,8 +48,11 @@ class ZMQServer:
         self._max_readers = 10
         self.last_frame_ms = 0.0
         self.export_manager = ExportManager()
-        # Waveform peak cache — keyed by (path, num_bins)
-        self._waveform_cache: dict[tuple[str, int], list] = {}
+        # Waveform peak cache — keyed by (path, num_bins), LRU eviction
+        self._waveform_cache: collections.OrderedDict[tuple[str, int], list] = (
+            collections.OrderedDict()
+        )
+        self._max_waveform_cache = 10
         # Audio playback engine
         self.audio_player = AudioPlayer()
         # A/V sync clock — audio master, video slave
@@ -350,7 +353,7 @@ class ZMQServer:
 
     def _handle_waveform(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
-        num_bins = int(message.get("num_bins", 800))
+        num_bins = max(1, min(int(message.get("num_bins", 800)), 4096))
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
 
@@ -381,6 +384,9 @@ class ZMQServer:
             # Serialize peaks to nested list for JSON transport
             peaks_list = peaks.tolist()
             self._waveform_cache[cache_key] = peaks_list
+            # LRU eviction
+            while len(self._waveform_cache) > self._max_waveform_cache:
+                self._waveform_cache.popitem(last=False)
 
             return {
                 "id": msg_id,

@@ -22,15 +22,6 @@
   overflow: hidden;
 }
 
-.waveform__playhead {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: #4ade80;
-  pointer-events: none;
-}
-
 /* --- Volume Control --- */
 
 .volume-control {
@@ -59,10 +50,6 @@
 .volume-control__mute-btn:hover {
   background: #2a2a3e;
   color: #fff;
-}
-
-.volume-control__mute-btn--muted {
-  color: #6b7280;
 }
 
 .volume-control__slider {
