@@ -157,16 +157,16 @@ These were in the audit backlog and remain unaddressed. Include them here for co
 | M-4 | MEDIUM | No sandbox on BrowserWindow | FIXED (`4ffba39`) | None |
 | M-5 | MEDIUM | Unbounded VideoReader cache | FIXED (`4ffba39`) | None |
 | L-1 | LOW | Undeclared deps (scipy, sentry-sdk, opencv) | FIXED (`4ffba39`) | None |
-| **M-1** | **MEDIUM** | **ZMQ MAXMSGSIZE too generous (100 MB)** | **PARTIAL** | **Reduce to 1 MB / 4 KB** |
-| **M-2** | **MEDIUM** | **Error path leaks in export.py, ingest.py** | **PARTIAL** | **Sanitize 2 remaining `str(e)` calls** |
-| **F-2** | **HIGH** | **Export thread race on shared fields** | **OPEN** | **Add threading.Lock to ExportJob** |
+| M-1 | MEDIUM | ZMQ MAXMSGSIZE too generous (100 MB) | FIXED (verified 2026-02-28) | None — `zmq_server.py:41` = 1 MB, `:45` = 4 KB |
+| M-2 | MEDIUM | Error path leaks in export.py, ingest.py | FIXED (verified 2026-02-28) | None — both use `type(e).__name__` |
+| F-2 | HIGH | Export thread race on shared fields | FIXED (verified 2026-02-28) | None — `threading.Lock` on all mutations + reads |
 | L-2 | LOW | Token printed to stdout | OPEN (backlog) | Pass via temp file |
 | L-3 | LOW | SHM path env var allows arbitrary path | OPEN (backlog) | Validate under home dir |
 | L-4 | LOW | Shallow project file validation | OPEN (backlog) | Add bounds checks |
 
-**Actionable items requiring code changes: 3 (M-1, M-2, F-2)**
+**Actionable items requiring code changes: 0**
 **Backlog items: 3 (L-2, L-3, L-4)**
-**Already fixed: 9 of 11 original findings + F-1 dependency fix**
+**Already fixed: 12 of 14 findings (all HIGH and MEDIUM resolved)**
 
 ---
 
