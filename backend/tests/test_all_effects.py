@@ -53,11 +53,16 @@ class TestAllEffectsBasic:
         Spatial effects (pixelsort, wave_distort) move entire pixels including
         alpha, so they are excluded from this check.
         """
-        # Spatial effects rearrange pixels — alpha moves with the pixel
-        SPATIAL_EFFECTS = {"fx.pixelsort", "fx.wave_distort"}
+        # Effects that intentionally modify alpha or rearrange pixels
+        ALPHA_EXEMPT = {
+            "fx.pixelsort",  # spatial: alpha moves with pixel
+            "fx.wave_distort",  # spatial: alpha moves with pixel
+            "fx.chroma_key",  # keying: modifies alpha by design
+            "fx.luma_key",  # keying: modifies alpha by design
+        }
         eid, info = effect_entry
-        if eid in SPATIAL_EFFECTS:
-            pytest.skip(f"{eid} is a spatial effect — alpha moves with pixels")
+        if eid in ALPHA_EXEMPT:
+            pytest.skip(f"{eid} intentionally modifies alpha channel")
         frame = _frame()
         params = _default_params(info)
         result, _ = info["fn"](frame, params, None, **KW)
@@ -85,11 +90,14 @@ class TestAllEffectsVisibleChange:
     """Effects with non-trivial default params should visibly change the frame."""
 
     # Color correction tools (util.*) are identity-by-default by design
+    # Keying effects modify alpha only — RGB diff is zero
     IDENTITY_BY_DEFAULT = {
         "util.levels",
         "util.curves",
         "util.hsl_adjust",
         "util.color_balance",
+        "fx.chroma_key",
+        "fx.luma_key",
     }
 
     def test_visible_change_with_defaults(self, effect_entry):

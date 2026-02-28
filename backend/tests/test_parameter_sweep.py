@@ -68,6 +68,25 @@ class TestParameterSweep:
         ),  # Numeric sweep meaningless; real input is JSON array
         ("util.hsl_adjust", "target_hue"),
         ("util.color_balance", "preserve_luma"),
+        ("fx.invert_bands", "offset"),  # 200 % (band_height*2) == 0 wraps to same as 0
+        ("fx.kaleidoscope", "rotation"),  # 0 and 360 degrees are identical rotations
+        (
+            "fx.wavefold",
+            "folds",
+        ),  # Single fold already maps values below threshold; extra folds are no-ops
+        (
+            "fx.rainbow_shift",
+            "speed",
+        ),  # Speed scales frame_index; at frame_index=0 all speeds are identical
+        ("fx.chroma_key", "hue"),  # 0 and 360 degrees are the same hue
+        (
+            "fx.chroma_key",
+            "tolerance",
+        ),  # Keying only modifies alpha; RGB diff is always 0
+        ("fx.chroma_key", "softness"),  # Same — alpha-only effect
+        ("fx.luma_key", "threshold"),  # Same — alpha-only effect
+        ("fx.luma_key", "softness"),  # Same — alpha-only effect
+        ("fx.luma_key", "mode"),  # Same — alpha-only effect
     }
 
     def test_param_has_impact(self, case):

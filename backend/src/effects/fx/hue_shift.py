@@ -52,7 +52,7 @@ def apply(
     hue[mask_b] = 60.0 * (((r[mask_b] - g[mask_b]) / delta[mask_b]) + 4)
 
     # Saturation
-    sat = np.where(cmax > 0, delta / cmax, 0.0)
+    sat = np.divide(delta, cmax, out=np.zeros_like(delta), where=cmax > 0)
     val = cmax
 
     # Rotate hue

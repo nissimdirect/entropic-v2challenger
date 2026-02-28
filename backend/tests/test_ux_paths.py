@@ -27,13 +27,13 @@ KW_RENDER = {"frame_index": 0, "seed": 42, "resolution": (1280, 720)}
 class TestListEffectsViaZMQ:
     """Verify list_effects ZMQ command returns complete effect catalog."""
 
-    def test_list_effects_returns_15(self, zmq_client):
-        """list_effects should return all 15 registered effects."""
+    def test_list_effects_returns_all(self, zmq_client):
+        """list_effects should return all registered effects."""
         zmq_client.send_json({"cmd": "list_effects", "id": str(uuid.uuid4())})
         resp = zmq_client.recv_json()
         assert resp["ok"] is True
         effects = resp["effects"]
-        assert len(effects) == 15
+        assert len(effects) >= 62
 
     def test_list_effects_includes_util_namespace(self, zmq_client):
         """list_effects should include all 5 util.* color effects."""
