@@ -46,8 +46,8 @@ export async function stubSaveDialog(
 export async function waitForFrame(page: Page, timeoutMs = 15_000): Promise<void> {
   await page.waitForFunction(
     () => {
-      const img = document.querySelector('.preview-canvas__element') as HTMLImageElement | null
-      return img !== null && img.src.startsWith('data:image/')
+      const canvas = document.querySelector('.preview-canvas__element') as HTMLCanvasElement | null
+      return canvas !== null && canvas.dataset.frameReady === 'true'
     },
     { timeout: timeoutMs },
   )

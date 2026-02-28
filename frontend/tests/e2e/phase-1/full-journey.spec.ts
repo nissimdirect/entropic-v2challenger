@@ -75,13 +75,13 @@ test.describe('Phase 1 — Full User Journey', () => {
     const previewImg = window.locator('.preview-canvas__element')
     await expect(previewImg).toBeVisible()
 
-    // Frame should be a base64 JPEG
-    const frameSrc = await previewImg.getAttribute('src')
-    expect(frameSrc).toMatch(/^data:image\/jpeg;base64,/)
+    // Canvas should have a frame drawn (data-frame-ready set by PreviewCanvas)
+    const frameReady = await previewImg.getAttribute('data-frame-ready')
+    expect(frameReady).toBe('true')
 
-    // Preview should have real dimensions (not 0x0)
-    const imgWidth = await previewImg.evaluate((el) => (el as HTMLImageElement).naturalWidth)
-    expect(imgWidth).toBeGreaterThan(0)
+    // Preview canvas should have real dimensions (not 0x0)
+    const canvasWidth = await previewImg.evaluate((el) => (el as HTMLCanvasElement).width)
+    expect(canvasWidth).toBeGreaterThan(0)
 
     await window.screenshot({ path: path.join(EVIDENCE_DIR, '03-frame-rendered.png') })
 
@@ -113,8 +113,8 @@ test.describe('Phase 1 — Full User Journey', () => {
       await window.waitForTimeout(3000)
 
       // Verify a frame is still displayed (scrubbing didn't break it)
-      const scrubbedSrc = await previewImg.getAttribute('src')
-      expect(scrubbedSrc).toMatch(/^data:image\/jpeg;base64,/)
+      const scrubbedReady = await previewImg.getAttribute('data-frame-ready')
+      expect(scrubbedReady).toBe('true')
 
       await window.screenshot({ path: path.join(EVIDENCE_DIR, '04-scrubbed-frame.png') })
     }
@@ -139,8 +139,8 @@ test.describe('Phase 1 — Full User Journey', () => {
     await window.waitForTimeout(5000)
 
     // Verify a frame is still rendering (effect didn't break the preview)
-    const postEffectSrc = await previewImg.getAttribute('src')
-    expect(postEffectSrc).toMatch(/^data:image\/jpeg;base64,/)
+    const postEffectReady = await previewImg.getAttribute('data-frame-ready')
+    expect(postEffectReady).toBe('true')
 
     await window.screenshot({ path: path.join(EVIDENCE_DIR, '05-effect-added.png') })
 

@@ -139,9 +139,9 @@ test.describe('Edge Cases — Effects', () => {
     expect(await rackItems.count()).toBe(1)
 
     // Preview should still show a frame
-    const previewImg = window.locator('.preview-canvas__element')
-    const src = await previewImg.getAttribute('src')
-    expect(src).toMatch(/^data:image\/jpeg;base64,/)
+    const previewCanvas = window.locator('.preview-canvas__element')
+    const frameReady = await previewCanvas.getAttribute('data-frame-ready')
+    expect(frameReady).toBe('true')
   })
 
   test('toggle effect off/on does not crash when multiple effects in chain', async ({
@@ -398,8 +398,8 @@ test.describe('Edge Cases — Parameters', () => {
     })
     await window.waitForTimeout(1000)
 
-    let src = await window.locator('.preview-canvas__element').getAttribute('src')
-    expect(src).toMatch(/^data:image\/jpeg;base64,/)
+    let frameReady = await window.locator('.preview-canvas__element').getAttribute('data-frame-ready')
+    expect(frameReady).toBe('true')
 
     // Set to last frame
     await scrub.evaluate((el: HTMLInputElement) => {
@@ -415,8 +415,8 @@ test.describe('Edge Cases — Parameters', () => {
     })
     await window.waitForTimeout(1000)
 
-    src = await window.locator('.preview-canvas__element').getAttribute('src')
-    expect(src).toMatch(/^data:image\/jpeg;base64,/)
+    frameReady = await window.locator('.preview-canvas__element').getAttribute('data-frame-ready')
+    expect(frameReady).toBe('true')
   })
 })
 
@@ -459,14 +459,14 @@ test.describe('Edge Cases — State Transitions', () => {
 
     // Drop zone gone (replaced by asset badge)
     // or still present depending on UI — check what's actually shown
-    const previewImg = window.locator('.preview-canvas__element')
-    await expect(previewImg).toBeVisible()
+    const previewCanvas = window.locator('.preview-canvas__element')
+    await expect(previewCanvas).toBeVisible()
 
     // Scrub enabled
     expect(await window.locator('.preview-controls__scrub').isDisabled()).toBe(false)
 
     // Frame renders
-    const src = await previewImg.getAttribute('src')
-    expect(src).toMatch(/^data:image\/jpeg;base64,/)
+    const frameReady = await previewCanvas.getAttribute('data-frame-ready')
+    expect(frameReady).toBe('true')
   })
 })
