@@ -1,6 +1,8 @@
 """Curves effect — Bezier curve LUT generation with per-channel mode."""
 
 import json
+import math
+
 import numpy as np
 
 EFFECT_ID = "util.curves"
@@ -61,11 +63,13 @@ def _parse_points(raw) -> list[list[float]]:
     if not pts or not isinstance(pts, list):
         return list(_IDENTITY_POINTS)
 
-    # Validate each point is [x, y]
+    # Validate each point is [x, y] with finite values
     valid = []
     for p in pts:
         if isinstance(p, (list, tuple)) and len(p) >= 2:
-            valid.append([float(p[0]), float(p[1])])
+            x, y = float(p[0]), float(p[1])
+            if math.isfinite(x) and math.isfinite(y):
+                valid.append([x, y])
     if len(valid) < 2:
         return list(_IDENTITY_POINTS)
 
