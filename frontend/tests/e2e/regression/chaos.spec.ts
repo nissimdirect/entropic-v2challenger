@@ -1,58 +1,22 @@
 /**
  * Chaos Tests — Deterministic stress sequences
  *
- * 17 tests simulating chaotic human behavior:
- * - Rapid keyboard input
- * - Multiple rapid clicks
- * - Invalid sequences
- * - State corruption attempts
- * - Boundary conditions
+ * 10 tests (pruned from 17) — kept tests requiring real Electron APIs:
+ * - Real Electron dialog debouncing (test 5)
+ * - Real IPC abuse (tests 8-11)
+ * - Preload bridge integrity (test 12)
+ * - DOM corruption recovery (test 13)
+ * - contextIsolation security (test 14)
+ * - BrowserWindow resize (tests 15-17)
+ *
+ * Tests 1-4 (keyboard stress), 6-7 (click stress) PRUNED — migrated to Vitest: chaos.test.tsx
  */
 // WHY E2E: Remaining tests need electronApp.evaluate, real IPC abuse, BrowserWindow resize, contextIsolation
 
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 
-test.describe('Chaos — Rapid Input', () => {
-  test.beforeEach(async ({ window }) => {
-    await waitForEngineConnected(window, 20_000)
-  })
-
-  test('1. rapid Tab key presses do not crash', async ({ window }) => {
-    // Press Tab 20 times rapidly — focus should cycle without errors
-    for (let i = 0; i < 20; i++) {
-      await window.keyboard.press('Tab')
-    }
-    // App should still be responsive
-    await expect(window.locator('.app')).toBeVisible()
-  })
-
-  test('2. rapid Escape presses do not crash', async ({ window }) => {
-    for (let i = 0; i < 15; i++) {
-      await window.keyboard.press('Escape')
-    }
-    await expect(window.locator('.app')).toBeVisible()
-  })
-
-  test('3. rapid Space presses do not trigger unintended actions', async ({ window }) => {
-    // Focus should not cause play/pause if no video loaded
-    for (let i = 0; i < 10; i++) {
-      await window.keyboard.press('Space')
-    }
-    await expect(window.locator('.app')).toBeVisible()
-    // No video loaded, so preview placeholder should still be visible
-    await expect(window.locator('.preview-canvas__placeholder')).toBeVisible()
-  })
-
-  test('4. keyboard shortcut sequence: Ctrl+A, Ctrl+C, Ctrl+V', async ({ window }) => {
-    const modifier = process.platform === 'darwin' ? 'Meta' : 'Control'
-    await window.keyboard.press(`${modifier}+a`)
-    await window.keyboard.press(`${modifier}+c`)
-    await window.keyboard.press(`${modifier}+v`)
-    // App should remain stable
-    await expect(window.locator('.app')).toBeVisible()
-  })
-})
+// Tests 1-4 (Rapid Input) PRUNED — DOM-only keyboard stress, migrated to Vitest
 
 test.describe('Chaos — Rapid Clicks', () => {
   test.beforeEach(async ({ window }) => {
@@ -76,34 +40,7 @@ test.describe('Chaos — Rapid Clicks', () => {
     await expect(window.locator('.drop-zone')).toBeVisible()
   })
 
-  test('6. rapid-click "All" category filter', async ({ window }) => {
-    const allBtn = window.locator('.effect-browser__cat-btn', { hasText: 'All' })
-    const count = await allBtn.count()
-    if (count > 0) {
-      for (let i = 0; i < 10; i++) {
-        await allBtn.click({ force: true })
-      }
-    }
-    await expect(window.locator('.app')).toBeVisible()
-  })
-
-  test('7. rapid-click effect items (if any)', async ({ window }) => {
-    await window.waitForTimeout(2000) // Wait for effects to load
-
-    const items = window.locator('.effect-browser__item')
-    const itemCount = await items.count()
-
-    if (itemCount > 0) {
-      // Click first effect 12 times rapidly (max chain is 10)
-      for (let i = 0; i < 12; i++) {
-        await items.first().click({ force: true })
-        await window.waitForTimeout(30)
-      }
-    }
-
-    // App should remain stable regardless
-    await expect(window.locator('.app')).toBeVisible()
-  })
+  // Tests 6-7 PRUNED — DOM-only click stress, migrated to Vitest
 })
 
 test.describe('Chaos — Invalid Sequences', () => {
@@ -160,7 +97,6 @@ test.describe('Chaos — Invalid Sequences', () => {
 
   test('11. call selectFile with invalid filters', async ({ electronApp, window }) => {
     // Stub the IPC handler to prevent a real native dialog opening in tests
-    // (BrowserWindow.getFocusedWindow() may return a window, blocking on the dialog)
     await electronApp.evaluate(async ({ ipcMain }) => {
       ipcMain.removeHandler('select-file')
       ipcMain.handle('select-file', async () => null)

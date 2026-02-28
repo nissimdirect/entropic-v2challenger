@@ -1,18 +1,17 @@
 /**
  * Phase 1 — Interaction Coverage Tests
  *
- * Happy-path tests for EVERY interactive element in the app.
- * Organized by component, top-to-bottom in the UI.
+ * 9 tests (pruned from 21) — kept tests requiring real video playback and IPC:
+ * - Play/pause toggle (real playback)
+ * - Timecode update on scrub (real video)
+ * - Export dialog interactions (real dialog with imported video)
+ * - Param panel with real effects (real IPC)
  *
- * Covers gaps identified in UAT audit:
- * - Play/Pause button
- * - Effect search input
- * - Individual category filter buttons
- * - Export dialog settings (resolution checkbox, custom dimensions)
- * - Export dialog overlay click-to-close
- * - Drag-and-drop file import (simulated)
- * - ParamToggle (boolean checkbox)
- * - ParamChoice (select dropdown)
+ * PRUNED sections:
+ * - Effect Browser Search & Categories → Vitest: interactions.test.tsx
+ * - Scrub disabled → Vitest: interactions.test.tsx
+ * - Param panel empty → Vitest: interactions.test.tsx
+ * - Drop Zone → Vitest: interactions.test.tsx + upload.test.ts
  */
 // WHY E2E: Remaining tests need real video playback and render pipeline through IPC
 

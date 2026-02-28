@@ -1,28 +1,21 @@
 /**
- * Phase 1 — Import Video Tests (UAT Plan tests 1-7, 15-17, 19-20)
+ * Phase 1 — Import Video Tests
  *
- * 1. Import via Browse button (dialog stub)
- * 2. Import via file drop (simulated)
- * 3. Asset badge appears after import
- * 4. Preview canvas shows first frame
- * 5. File metadata displayed correctly
- * 6. Reject unsupported file types
- * 7. Reject missing/invalid file path
- * 15. Double-click Browse doesn't trigger double import
- * 16. Import while ingest in progress is blocked
- * 17. Cancel/close dialog returns to idle state
- * 19. Import replaces previous asset (single-asset mode)
- * 20. Effect chain preserved after new import
+ * 4 tests (pruned from 8) — kept tests requiring real Electron dialog and sidecar:
+ * - Real file dialog + IPC ingest (test 1)
+ * - Dialog debouncing (test 15)
+ * - Dialog cancellation (test 17)
+ * - Browse button in real window (test 3)
+ *
+ * Tests 5, 6, 6b PRUNED — migrated to Vitest: interactions.test.tsx, upload.test.ts
+ * Tests 4 (drop zone hint) kept — verifies real window DOM structure
  */
 // WHY E2E: Remaining tests verify real file import through Electron dialog and sidecar probe
 
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,
-  stubFileDialog,
-  stubSaveDialog,
   importVideoViaDialog,
-  waitForIngestComplete,
   getTestVideoPath,
 } from '../fixtures/test-helpers'
 
@@ -56,12 +49,9 @@ test.describe('Phase 1 — Import Video', () => {
     electronApp,
     window,
   }) => {
-    let dialogCallCount = 0
-
     await electronApp.evaluate(async ({ dialog }) => {
-      const original = dialog.showOpenDialog
       ;(dialog as any).__callCount = 0
-      dialog.showOpenDialog = async (...args: any[]) => {
+      dialog.showOpenDialog = async () => {
         ;(dialog as any).__callCount++
         return { canceled: true, filePaths: [] }
       }
@@ -75,7 +65,7 @@ test.describe('Phase 1 — Import Video', () => {
     // Small delay for any async calls to settle
     await new Promise((r) => setTimeout(r, 1000))
 
-    dialogCallCount = await electronApp.evaluate(async ({ dialog }) => {
+    const dialogCallCount = await electronApp.evaluate(async ({ dialog }) => {
       return (dialog as any).__callCount as number
     })
 
@@ -108,6 +98,7 @@ test.describe('Phase 1 — Import Video', () => {
     await expect(browseBtn).toHaveText('Browse...')
   })
 
+  // Test 4 (drop zone hint) kept — verifies real window DOM structure
   test('4. drop zone is visible with correct hint text', async ({ window }) => {
     await expect(window.locator('.drop-zone__text')).toHaveText('Drop video file here')
     await expect(window.locator('.drop-zone__hint')).toHaveText('MP4, MOV, AVI, WebM, MKV')
