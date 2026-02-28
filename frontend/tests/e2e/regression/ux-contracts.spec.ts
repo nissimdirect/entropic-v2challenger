@@ -1,12 +1,12 @@
 /**
  * UX Contract Tests — Don Norman Principles
  *
- * 15 tests verifying:
- * - Visibility of system status
- * - Feedback on user actions
- * - Affordances (buttons look clickable, disabled states)
- * - Constraints (can't do invalid things)
- * - Consistency (same patterns everywhere)
+ * 8 tests (pruned from 15) verifying:
+ * - Visibility of system status (real engine connection)
+ * - Affordances (real DOM tag verification)
+ * - Consistency (real window layout, CSS, BrowserWindow API)
+ *
+ * Tests 4-6, 10-13 PRUNED — migrated to Vitest: ux-contracts.test.tsx
  */
 // WHY E2E: Remaining tests need real engine connection, BrowserWindow API, and Electron CSS rendering
 
@@ -45,39 +45,7 @@ test.describe('UX Contracts — Visibility of System Status', () => {
   })
 })
 
-test.describe('UX Contracts — Feedback', () => {
-  test('4. drop zone shows visual feedback on hover state class', async ({ window }) => {
-    // Verify drop zone has the CSS class structure for active state
-    const dropZone = window.locator('.drop-zone')
-    await expect(dropZone).toBeVisible()
-
-    // Check that the class name follows BEM convention for state
-    const className = await dropZone.getAttribute('class')
-    expect(className).toContain('drop-zone')
-    // Active state class is 'drop-zone--active' (applied on dragOver)
-  })
-
-  test('5. effect rack shows empty state message', async ({ window }) => {
-    // When no effects in chain, show placeholder
-    const emptyRack = window.locator('.effect-rack--empty')
-    const emptyCount = await emptyRack.count()
-
-    if (emptyCount > 0) {
-      const placeholder = window.locator('.effect-rack__placeholder')
-      await expect(placeholder).toBeVisible()
-      const text = await placeholder.textContent()
-      expect(text).toContain('No effects')
-    }
-    // If effects are loaded, the rack is populated — also valid
-  })
-
-  test('6. loading state shown while effects registry loads', async ({ window }) => {
-    // On initial load, effect browser may show loading state briefly
-    // Just verify the component exists and eventually resolves
-    const browser = window.locator('.effect-browser')
-    await expect(browser).toBeVisible({ timeout: 15_000 })
-  })
-})
+// Tests 4-6 (Feedback) PRUNED — migrated to Vitest: ux-contracts.test.tsx
 
 test.describe('UX Contracts — Affordances', () => {
   test('7. Browse button looks like a button', async ({ window }) => {
@@ -110,55 +78,10 @@ test.describe('UX Contracts — Affordances', () => {
   })
 })
 
-test.describe('UX Contracts — Constraints', () => {
-  test('10. export button hidden when no assets', async ({ window }) => {
-    // Empty state: no export button
-    const count = await window.locator('.export-btn').count()
-    expect(count).toBe(0)
-  })
-
-  test('11. effect chain has max length constraint', async ({ window }) => {
-    // MAX_CHAIN_LENGTH = 10; buttons should show disabled title at max
-    await waitForEngineConnected(window, 20_000)
-    await window.waitForTimeout(2000)
-
-    const items = window.locator('.effect-browser__item')
-    const count = await items.count()
-
-    if (count > 0) {
-      // Before reaching max, title should say "Add <name>"
-      const title = await items.first().getAttribute('title')
-      expect(title).toMatch(/^Add /)
-    }
-  })
-
-  test('12. disabled drop zone prevents drops', async ({ window }) => {
-    // The drop zone has a --disabled modifier when ingesting
-    const dropZone = window.locator('.drop-zone')
-    const className = await dropZone.getAttribute('class')
-    // In idle state, should NOT have disabled class
-    expect(className).not.toContain('drop-zone--disabled')
-  })
-})
+// Tests 10-12 (Constraints) PRUNED — migrated to Vitest: ux-contracts.test.tsx
+// Test 13 (BEM naming) PRUNED — migrated to Vitest: ux-contracts.test.tsx
 
 test.describe('UX Contracts — Consistency', () => {
-  test('13. all control buttons use consistent BEM naming', async ({ window }) => {
-    // Check that key UI elements follow BEM convention
-    const selectors = [
-      '.drop-zone',
-      '.drop-zone__content',
-      '.file-dialog-btn',
-      '.preview-canvas',
-      '.status-bar',
-      '.effect-browser',
-    ]
-
-    for (const selector of selectors) {
-      const count = await window.locator(selector).count()
-      expect(count).toBeGreaterThanOrEqual(1)
-    }
-  })
-
   test('14. status bar is always at bottom of viewport', async ({ electronApp, window }) => {
     const statusBar = window.locator('.status-bar')
     await expect(statusBar).toBeVisible()
