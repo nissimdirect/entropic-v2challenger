@@ -73,7 +73,7 @@ describe('IPC Contract', () => {
   it('backend ZMQ server registers all expected commands', () => {
     const commands = getBackendCommands()
 
-    // All 24 commands from handle_message()
+    // All 25 commands from handle_message()
     const expected = [
       'apply_chain',
       'audio_decode',
@@ -95,6 +95,7 @@ describe('IPC Contract', () => {
       'ingest',
       'list_effects',
       'ping',
+      'render_composite',
       'render_frame',
       'seek',
       'shutdown',
