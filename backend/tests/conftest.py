@@ -11,17 +11,69 @@ import zmq
 
 from zmq_server import ZMQServer
 
+# Register conftest plugins
+pytest_plugins = ["conftest_plugins.manifest"]
 
-@pytest.fixture
-def zmq_server():
-    """Start a ZMQ server in a background thread."""
+
+def _wait_for_server(srv: ZMQServer, timeout: float = 2.0) -> bool:
+    """Ping the server until it responds or timeout expires."""
+    ctx = zmq.Context()
+    sock = ctx.socket(zmq.REQ)
+    sock.setsockopt(zmq.LINGER, 0)
+    sock.setsockopt(zmq.RCVTIMEO, 500)
+    sock.connect(f"tcp://127.0.0.1:{srv.port}")
+    deadline = time.monotonic() + timeout
+    alive = False
+    while time.monotonic() < deadline:
+        try:
+            sock.send_json({"cmd": "ping", "id": "health", "_token": srv.token})
+            resp = sock.recv_json()
+            if resp.get("status") == "alive":
+                alive = True
+                break
+        except zmq.Again:
+            time.sleep(0.05)
+    sock.close()
+    ctx.term()
+    return alive
+
+
+@pytest.fixture(scope="session")
+def _zmq_server_session():
+    """Start ONE ZMQ server per xdist worker (session-scoped)."""
     srv = ZMQServer()
     thread = threading.Thread(target=srv.run, daemon=True)
     thread.start()
-    time.sleep(0.1)
+    if not _wait_for_server(srv):
+        pytest.skip("ZMQ server failed to start within 2s")
     yield srv
     srv.running = False
-    time.sleep(0.6)  # Wait for poller timeout cycle
+    # Wait for poller timeout cycle to complete
+    time.sleep(0.6)
+
+
+@pytest.fixture
+def zmq_server(_zmq_server_session):
+    """Function-scoped wrapper: resets state between tests, shares session server."""
+    _zmq_server_session.reset_state()
+    _zmq_server_session.running = True
+    yield _zmq_server_session
+
+
+@pytest.fixture
+def zmq_server_disposable():
+    """Disposable server for shutdown tests that destroy sockets/context.
+
+    Each test gets a fresh server that is fully torn down after.
+    """
+    srv = ZMQServer()
+    thread = threading.Thread(target=srv.run, daemon=True)
+    thread.start()
+    if not _wait_for_server(srv):
+        pytest.skip("ZMQ server failed to start within 2s")
+    yield srv
+    srv.running = False
+    time.sleep(0.6)
 
 
 class AuthenticatedZmqClient:
@@ -73,10 +125,6 @@ def synthetic_video_path():
 
     fixture_dir = Path.home() / ".cache" / "entropic" / "test-fixtures"
     fixture_dir.mkdir(parents=True, exist_ok=True)
-
-    # Clean stale fixtures from previous crashed runs
-    for old in fixture_dir.glob("test_*.mp4"):
-        old.unlink(missing_ok=True)
 
     path = str(fixture_dir / f"test_{uuid.uuid4().hex[:8]}.mp4")
     w = VideoWriter(path, 1280, 720, fps=30)

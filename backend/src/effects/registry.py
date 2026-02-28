@@ -1,5 +1,6 @@
 """Effect registry — central lookup for all registered effects."""
 
+import os
 from typing import Any, Callable
 
 EffectFn = Callable[..., tuple[Any, dict | None]]
@@ -57,7 +58,7 @@ def _auto_register():
         auto_levels,
     )
 
-    for mod in [
+    mods = [
         invert,
         hue_shift,
         noise,
@@ -73,7 +74,15 @@ def _auto_register():
         hsl_adjust,
         color_balance,
         auto_levels,
-    ]:
+    ]
+
+    # Dev-only effects (UAT crash testing)
+    if os.environ.get("APP_ENV") == "development":
+        from effects.fx import debug_crash
+
+        mods.append(debug_crash)
+
+    for mod in mods:
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
         )

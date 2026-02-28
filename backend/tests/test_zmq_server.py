@@ -21,12 +21,14 @@ def test_unknown_command(zmq_client):
     assert "unknown" in resp["error"]
 
 
-def test_shutdown(zmq_server):
+def test_shutdown(zmq_server_disposable):
     ctx = zmq.Context()
     sock = ctx.socket(zmq.REQ)
-    sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
+    sock.connect(f"tcp://127.0.0.1:{zmq_server_disposable.port}")
     msg_id = str(uuid.uuid4())
-    sock.send_json({"cmd": "shutdown", "id": msg_id, "_token": zmq_server.token})
+    sock.send_json(
+        {"cmd": "shutdown", "id": msg_id, "_token": zmq_server_disposable.token}
+    )
     resp = sock.recv_json()
     assert resp["id"] == msg_id
     assert resp["ok"] is True

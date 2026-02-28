@@ -1,5 +1,7 @@
-"""Tests for engine.pipeline — chain execution, ordering, SEC-7 cap, mix, timeout guard."""
+"""Tests for engine.pipeline — chain execution, ordering, SEC-7 cap, mix, timeout guard, auto-disable."""
 
+import os
+import threading
 import time
 
 import numpy as np
@@ -8,10 +10,13 @@ import pytest
 pytestmark = pytest.mark.smoke
 
 from engine.pipeline import (
+    DISABLE_THRESHOLD,
     EFFECT_ABORT_MS,
     EFFECT_WARN_MS,
     MAX_CHAIN_DEPTH,
     apply_chain,
+    get_effect_health,
+    reset_effect_health,
 )
 
 
@@ -212,3 +217,159 @@ def test_fast_effect_applies_normally(monkeypatch):
         frame, chain, project_seed=42, frame_index=0, resolution=(100, 100)
     )
     np.testing.assert_array_equal(output[:, :, 0], 255 - frame[:, :, 0])
+
+
+# --- Auto-disable tests (Item 2) ---
+
+
+@pytest.fixture(autouse=True)
+def _reset_health():
+    """Reset health tracking between tests."""
+    reset_effect_health()
+    yield
+    reset_effect_health()
+
+
+def _ensure_debug_crash():
+    """Register debug.crash effect if not already registered."""
+    os.environ["APP_ENV"] = "development"
+    from effects.fx import debug_crash
+    from effects import registry
+
+    if registry.get("debug.crash") is None:
+        registry.register(
+            debug_crash.EFFECT_ID,
+            debug_crash.apply,
+            debug_crash.PARAMS,
+            debug_crash.EFFECT_NAME,
+            debug_crash.EFFECT_CATEGORY,
+        )
+
+
+def test_effect_disabled_after_consecutive_failures():
+    """Effect is disabled after DISABLE_THRESHOLD consecutive failures."""
+    _ensure_debug_crash()
+    frame = _frame()
+    chain = [{"effect_id": "debug.crash", "params": {}}]
+
+    for i in range(DISABLE_THRESHOLD):
+        apply_chain(frame, chain, project_seed=42, frame_index=i, resolution=(100, 100))
+
+    health = get_effect_health()
+    assert "debug.crash" in health["disabled_effects"]
+
+
+def test_success_resets_consecutive_counter():
+    """Successful calls keep counter at 0 — invert never disabled."""
+    frame = _frame()
+    invert_chain = [{"effect_id": "fx.invert", "params": {}}]
+    for i in range(5):
+        apply_chain(
+            frame, invert_chain, project_seed=42, frame_index=i, resolution=(100, 100)
+        )
+
+    health = get_effect_health()
+    assert "fx.invert" not in health["disabled_effects"]
+    assert health["failure_counts"].get("fx.invert", 0) == 0
+
+
+def test_disabled_effect_is_skipped():
+    """Auto-disabled effect is not called, remaining effects still run."""
+    _ensure_debug_crash()
+    frame = _frame()
+    chain = [
+        {"effect_id": "debug.crash", "params": {}},
+        {"effect_id": "fx.invert", "params": {}},
+    ]
+
+    # Trigger disable
+    for i in range(DISABLE_THRESHOLD):
+        apply_chain(frame, chain, project_seed=42, frame_index=i, resolution=(100, 100))
+
+    # Now debug.crash is disabled — should be skipped, only invert runs
+    output, _ = apply_chain(
+        frame, chain, project_seed=42, frame_index=99, resolution=(100, 100)
+    )
+    np.testing.assert_array_equal(output[:, :, 0], 255 - frame[:, :, 0])
+
+
+def test_reset_effect_health_clears_state():
+    """reset_effect_health() clears all tracking."""
+    _ensure_debug_crash()
+    frame = _frame()
+    chain = [{"effect_id": "debug.crash", "params": {}}]
+    for i in range(DISABLE_THRESHOLD):
+        apply_chain(frame, chain, project_seed=42, frame_index=i, resolution=(100, 100))
+
+    assert "debug.crash" in get_effect_health()["disabled_effects"]
+
+    reset_effect_health()
+    health = get_effect_health()
+    assert health["disabled_effects"] == []
+    assert health["failure_counts"] == {}
+
+
+def test_non_failing_effects_unaffected():
+    """Non-failing effects are not affected by neighbor's failures."""
+    _ensure_debug_crash()
+    frame = _frame()
+    chain = [
+        {"effect_id": "debug.crash", "params": {}},
+        {"effect_id": "fx.invert", "params": {}},
+    ]
+
+    for i in range(DISABLE_THRESHOLD + 1):
+        apply_chain(frame, chain, project_seed=42, frame_index=i, resolution=(100, 100))
+
+    health = get_effect_health()
+    assert "debug.crash" in health["disabled_effects"]
+    assert "fx.invert" not in health["disabled_effects"]
+    assert health["failure_counts"].get("fx.invert", 0) == 0
+
+
+def test_all_effects_disabled_returns_raw_frame():
+    """If all effects in chain are disabled, returns the raw input frame."""
+    _ensure_debug_crash()
+    frame = _frame()
+    chain = [{"effect_id": "debug.crash", "params": {}}]
+
+    for i in range(DISABLE_THRESHOLD):
+        apply_chain(frame, chain, project_seed=42, frame_index=i, resolution=(100, 100))
+
+    output, _ = apply_chain(
+        frame, chain, project_seed=42, frame_index=99, resolution=(100, 100)
+    )
+    np.testing.assert_array_equal(output, frame)
+
+
+def test_concurrent_apply_chain_thread_safety():
+    """Concurrent apply_chain from 2 threads doesn't crash or corrupt state."""
+    _ensure_debug_crash()
+    frame = _frame()
+    chain = [{"effect_id": "debug.crash", "params": {}}]
+    errors = []
+
+    def worker(thread_id):
+        try:
+            for i in range(DISABLE_THRESHOLD + 2):
+                apply_chain(
+                    frame,
+                    chain,
+                    project_seed=42,
+                    frame_index=thread_id * 100 + i,
+                    resolution=(100, 100),
+                )
+        except Exception as e:
+            errors.append(e)
+
+    t1 = threading.Thread(target=worker, args=(1,))
+    t2 = threading.Thread(target=worker, args=(2,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    assert errors == [], f"Unexpected errors in threads: {errors}"
+    health = get_effect_health()
+    assert "debug.crash" in health["disabled_effects"]
+    assert health["failure_counts"]["debug.crash"] >= DISABLE_THRESHOLD

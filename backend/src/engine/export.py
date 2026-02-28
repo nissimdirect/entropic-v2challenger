@@ -5,6 +5,8 @@ import threading
 from dataclasses import dataclass, field
 from enum import Enum
 
+import sentry_sdk
+
 from engine.pipeline import apply_chain
 from video.reader import VideoReader
 from video.writer import VideoWriter
@@ -126,6 +128,7 @@ class ExportManager:
                 job.status = ExportStatus.COMPLETE
 
         except Exception as e:
+            sentry_sdk.capture_exception(e)
             logger.exception("Export failed")
             with job._lock:
                 job.status = ExportStatus.ERROR

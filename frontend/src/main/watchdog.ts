@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/electron/main'
 import { Request } from 'zeromq'
 import { randomUUID } from 'crypto'
 import { BrowserWindow } from 'electron'
@@ -75,6 +76,7 @@ async function restart(): Promise<void> {
     reconnectRelay(port, token)
     broadcast('connected')
   } catch (err) {
+    Sentry.captureException(err, { tags: { source: 'watchdog-restart' } })
     console.error('[Watchdog] Restart failed:', err)
     broadcast('disconnected')
   }

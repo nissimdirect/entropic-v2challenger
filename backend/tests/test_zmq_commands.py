@@ -383,3 +383,226 @@ def test_clock_set_fps_missing(zmq_client):
     resp = zmq_client.recv_json()
     assert resp["ok"] is False
     assert "missing fps" in resp["error"]
+
+
+# --- ZMQ handler guard tests (Item 3) ---
+
+
+def test_malformed_json_returns_error(zmq_server):
+    """Non-JSON bytes over ZMQ → error reply, socket stays functional."""
+    import zmq as _zmq
+
+    ctx = _zmq.Context()
+    sock = ctx.socket(_zmq.REQ)
+    sock.setsockopt(_zmq.RCVTIMEO, 3000)
+    sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
+    try:
+        # Send raw invalid bytes (not valid JSON)
+        sock.send(b"this is not json{{{")
+        resp_bytes = sock.recv()
+        import json
+
+        resp = json.loads(resp_bytes)
+        assert resp["ok"] is False
+        assert "Invalid message format" in resp["error"]
+
+        # Socket still functional — send a valid message next
+        msg = {"cmd": "ping", "id": "after-malformed", "_token": zmq_server.token}
+        sock.send(json.dumps(msg).encode())
+        resp_bytes = sock.recv()
+        resp = json.loads(resp_bytes)
+        assert resp.get("status") == "alive" or resp.get("ok") is not None
+    finally:
+        sock.close()
+        ctx.term()
+
+
+def test_double_malformed_no_deadlock(zmq_server):
+    """Two malformed messages in a row don't deadlock the server."""
+    import zmq as _zmq
+
+    ctx = _zmq.Context()
+    sock = ctx.socket(_zmq.REQ)
+    sock.setsockopt(_zmq.RCVTIMEO, 3000)
+    sock.connect(f"tcp://127.0.0.1:{zmq_server.port}")
+    try:
+        import json
+
+        # First malformed
+        sock.send(b"bad1")
+        resp = json.loads(sock.recv())
+        assert resp["ok"] is False
+
+        # Second malformed
+        sock.send(b"bad2")
+        resp = json.loads(sock.recv())
+        assert resp["ok"] is False
+
+        # Third: valid — proves no deadlock
+        msg = {"cmd": "ping", "id": "recovery", "_token": zmq_server.token}
+        sock.send(json.dumps(msg).encode())
+        resp = json.loads(sock.recv())
+        assert resp.get("status") == "alive"
+    finally:
+        sock.close()
+        ctx.term()
+
+
+def test_audio_handler_returns_error_on_exception(zmq_client, monkeypatch):
+    """Audio handlers (play/pause/seek/volume/position/stop) return error on exception."""
+    # Monkeypatch audio_player to raise on all methods
+    from zmq_server import ZMQServer
+
+    class BrokenPlayer:
+        def play(self):
+            raise RuntimeError("broken")
+
+        def pause(self):
+            raise RuntimeError("broken")
+
+        def seek(self, t):
+            raise RuntimeError("broken")
+
+        def set_volume(self, v):
+            raise RuntimeError("broken")
+
+        @property
+        def position_seconds(self):
+            raise RuntimeError("broken")
+
+        @property
+        def position(self):
+            raise RuntimeError("broken")
+
+        @property
+        def duration_seconds(self):
+            raise RuntimeError("broken")
+
+        @property
+        def is_playing(self):
+            raise RuntimeError("broken")
+
+        @property
+        def volume(self):
+            raise RuntimeError("broken")
+
+        def stop(self):
+            raise RuntimeError("broken")
+
+        def close(self):
+            pass
+
+    # Swap audio player for test
+    from zmq_server import ZMQServer as _ZS
+
+    # Get the server instance from the fixture chain
+    # zmq_client fixture depends on zmq_server which yields the server
+    # We can access it through the handle_message path
+    import types
+
+    # Use handle_message directly to test handler guards
+    server = ZMQServer.__new__(ZMQServer)
+    server.audio_player = BrokenPlayer()
+    server.token = "test-token"
+
+    for cmd in ["audio_play", "audio_pause", "audio_stop", "audio_position"]:
+        msg = {"cmd": cmd, "id": "test", "_token": "test-token"}
+        resp = server.handle_message(msg)
+        assert resp["ok"] is False, f"{cmd} should return error"
+        assert "error" in resp, f"{cmd} should have error field"
+
+
+def test_clock_handler_returns_error_on_exception(zmq_client, monkeypatch):
+    """Clock handlers (sync/set_fps) return error dict on exception."""
+    from zmq_server import ZMQServer
+
+    class BrokenClock:
+        def sync_state(self):
+            raise RuntimeError("broken")
+
+        def set_fps(self, fps):
+            raise RuntimeError("broken")
+
+        @property
+        def fps(self):
+            raise RuntimeError("broken")
+
+    server = ZMQServer.__new__(ZMQServer)
+    server.av_clock = BrokenClock()
+    server.token = "test-token"
+
+    resp = server.handle_message(
+        {"cmd": "clock_sync", "id": "test", "_token": "test-token"}
+    )
+    assert resp["ok"] is False
+
+    resp = server.handle_message(
+        {"cmd": "clock_set_fps", "id": "test", "fps": 30.0, "_token": "test-token"}
+    )
+    assert resp["ok"] is False
+
+
+def test_export_status_cancel_returns_error_on_exception(zmq_client, monkeypatch):
+    """Export status/cancel handlers return error dict on exception."""
+    from zmq_server import ZMQServer
+
+    class BrokenExportManager:
+        def get_status(self):
+            raise RuntimeError("broken")
+
+        def cancel(self):
+            raise RuntimeError("broken")
+
+    server = ZMQServer.__new__(ZMQServer)
+    server.export_manager = BrokenExportManager()
+    server.token = "test-token"
+
+    resp = server.handle_message(
+        {"cmd": "export_status", "id": "test", "_token": "test-token"}
+    )
+    assert resp["ok"] is False
+
+    resp = server.handle_message(
+        {"cmd": "export_cancel", "id": "test", "_token": "test-token"}
+    )
+    assert resp["ok"] is False
+
+
+def test_export_start_catches_non_runtime_errors(zmq_client, monkeypatch):
+    """Export start catches TypeError/ValueError, not just RuntimeError."""
+    from zmq_server import ZMQServer
+    from pathlib import Path
+
+    class TypeErrorExportManager:
+        def start(self, *args):
+            raise TypeError("unexpected type")
+
+    server = ZMQServer.__new__(ZMQServer)
+    server.export_manager = TypeErrorExportManager()
+    server.token = "test-token"
+
+    # We need a valid input/output path to get past validation
+    # Use handle_message with a message that passes all validation checks
+    # by monkeypatching the validation functions
+    import security
+
+    original_upload = security.validate_upload
+    original_output = security.validate_output_path
+    original_chain = security.validate_chain_depth
+
+    monkeypatch.setattr(security, "validate_upload", lambda p: [])
+    monkeypatch.setattr(security, "validate_output_path", lambda p: [])
+    monkeypatch.setattr(security, "validate_chain_depth", lambda c: [])
+
+    resp = server.handle_message(
+        {
+            "cmd": "export_start",
+            "id": "test",
+            "_token": "test-token",
+            "input_path": "/fake/input.mp4",
+            "output_path": "/fake/output.mp4",
+            "chain": [],
+        }
+    )
+    assert resp["ok"] is False
+    assert "error" in resp
