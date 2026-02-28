@@ -16,10 +16,9 @@ import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropi
 
 import ExportDialog from '../../renderer/components/export/ExportDialog'
 import PreviewControls from '../../renderer/components/preview/PreviewControls'
-import ParamPanel from '../../renderer/components/effects/ParamPanel'
 import DropZone from '../../renderer/components/upload/DropZone'
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
-import type { EffectInfo, EffectInstance, ParamDef } from '../../shared/types'
+import type { EffectInfo, ParamDef } from '../../shared/types'
 
 // --- Shared test data ---
 
