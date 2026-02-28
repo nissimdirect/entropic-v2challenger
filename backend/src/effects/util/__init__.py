@@ -1,16 +1,5 @@
-"""Color Suite utility effects (util.* namespace)."""
+"""Color Suite utility effects (util.* namespace).
 
-# Optional fast paths
-try:
-    import cv2
-
-    HAS_CV2 = True
-except ImportError:
-    HAS_CV2 = False
-
-try:
-    from scipy.interpolate import PchipInterpolator  # noqa: F401
-
-    HAS_SCIPY = True
-except ImportError:
-    HAS_SCIPY = False
+Optional dependencies (cv2, scipy) are imported lazily by the modules
+that use them: hsl_adjust.py imports cv2, curves.py imports scipy.
+"""

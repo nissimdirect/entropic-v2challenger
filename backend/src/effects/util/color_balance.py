@@ -1,5 +1,7 @@
 """Color Balance effect — Shadow/Midtone/Highlight color wheels."""
 
+import math
+
 import numpy as np
 
 EFFECT_ID = "util.color_balance"
@@ -119,15 +121,29 @@ def apply(
     if frame.size == 0:
         return frame.copy(), None
 
-    shadows_r = float(params.get("shadows_r", 0))
-    shadows_g = float(params.get("shadows_g", 0))
-    shadows_b = float(params.get("shadows_b", 0))
-    midtones_r = float(params.get("midtones_r", 0))
-    midtones_g = float(params.get("midtones_g", 0))
-    midtones_b = float(params.get("midtones_b", 0))
-    highlights_r = float(params.get("highlights_r", 0))
-    highlights_g = float(params.get("highlights_g", 0))
-    highlights_b = float(params.get("highlights_b", 0))
+    _float_params = {}
+    for _name, _default in [
+        ("shadows_r", 0),
+        ("shadows_g", 0),
+        ("shadows_b", 0),
+        ("midtones_r", 0),
+        ("midtones_g", 0),
+        ("midtones_b", 0),
+        ("highlights_r", 0),
+        ("highlights_g", 0),
+        ("highlights_b", 0),
+    ]:
+        _v = float(params.get(_name, _default))
+        _float_params[_name] = _v if math.isfinite(_v) else 0.0
+    shadows_r = _float_params["shadows_r"]
+    shadows_g = _float_params["shadows_g"]
+    shadows_b = _float_params["shadows_b"]
+    midtones_r = _float_params["midtones_r"]
+    midtones_g = _float_params["midtones_g"]
+    midtones_b = _float_params["midtones_b"]
+    highlights_r = _float_params["highlights_r"]
+    highlights_g = _float_params["highlights_g"]
+    highlights_b = _float_params["highlights_b"]
     preserve_luma = bool(params.get("preserve_luma", True))
 
     # Identity check
@@ -153,7 +169,10 @@ def apply(
     # Compute luminance for tonal masks
     luma = 0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]
 
-    # Build smooth tonal masks
+    # Build smooth tonal masks.
+    # 85 and 170 are the standard 1/3 and 2/3 split points of [0,255],
+    # dividing the tonal range into shadow (<85), midtone (85-170), and
+    # highlight (>170) zones. The 1.5 exponent softens the transition.
     shadow_mask = np.clip((170.0 - luma) / 170.0, 0, 1) ** 1.5
     highlight_mask = np.clip((luma - 85.0) / 170.0, 0, 1) ** 1.5
     midtone_mask = np.clip(1.0 - shadow_mask - highlight_mask, 0, 1)

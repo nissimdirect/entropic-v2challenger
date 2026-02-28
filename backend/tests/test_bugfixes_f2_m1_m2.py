@@ -107,8 +107,13 @@ class TestF2ExportThreadLock:
 
         assert len(errors) == 0, f"Concurrent get_status errors: {errors}"
 
-        # Wait for export to finish
-        time.sleep(2)
+        # Poll for export to finish (replaces hardcoded sleep)
+        for _ in range(100):
+            s = manager.get_status()
+            if s["status"] != "running":
+                break
+            time.sleep(0.1)
+
         import os
 
         if os.path.exists(output_path):
@@ -183,3 +188,50 @@ class TestM2ErrorPathLeaks:
         assert result["ok"] is False
         assert str(home_tmp_path) not in result["error"]
         assert "Failed to open video:" in result["error"]
+
+
+# ---------------------------------------------------------------------------
+# B3: Export with color effects in the chain
+# ---------------------------------------------------------------------------
+
+
+class TestExportWithColorChain:
+    """Verify export pipeline handles color effects in the chain."""
+
+    def test_export_with_color_chain(self, synthetic_video_path):
+        """Export with a color effect chain completes without error."""
+        import os
+        import tempfile
+
+        output_path = tempfile.mktemp(suffix=".mp4")
+        manager = ExportManager()
+
+        chain = [
+            {
+                "effect_id": "util.levels",
+                "params": {"gamma": 1.5},
+                "enabled": True,
+            }
+        ]
+
+        job = manager.start(
+            input_path=synthetic_video_path,
+            output_path=output_path,
+            chain=chain,
+            project_seed=42,
+        )
+
+        # Poll for completion (max 10s)
+        for _ in range(100):
+            s = manager.get_status()
+            if s["status"] != "running":
+                break
+            time.sleep(0.1)
+
+        final = manager.get_status()
+        assert final["status"] in ("complete", "cancelled"), (
+            f"Export failed with status={final['status']}, error={final.get('error')}"
+        )
+
+        if os.path.exists(output_path):
+            os.unlink(output_path)

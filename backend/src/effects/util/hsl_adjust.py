@@ -1,6 +1,15 @@
 """HSL Adjust effect — per-hue saturation/lightness adjustment."""
 
+import math
+
 import numpy as np
+
+try:
+    import cv2
+
+    _HAS_CV2 = True
+except ImportError:
+    _HAS_CV2 = False
 
 EFFECT_ID = "util.hsl_adjust"
 EFFECT_NAME = "HSL Adjust"
@@ -155,8 +164,14 @@ def apply(
 
     target_hue = str(params.get("target_hue", "all"))
     hue_shift = float(params.get("hue_shift", 0.0))
+    if not math.isfinite(hue_shift):
+        hue_shift = 0.0
     saturation = float(params.get("saturation", 0.0))
+    if not math.isfinite(saturation):
+        saturation = 0.0
     lightness = float(params.get("lightness", 0.0))
+    if not math.isfinite(lightness):
+        lightness = 0.0
 
     # Identity check
     if hue_shift == 0.0 and saturation == 0.0 and lightness == 0.0:
@@ -164,9 +179,16 @@ def apply(
 
     output = frame.copy()
 
-    # Convert RGB to HSV
-    rgb = frame[:, :, :3].astype(np.float32) / 255.0
-    hue, sat, val = _rgb_to_hsv(rgb)
+    # Convert RGB to HSV — use cv2 (optimized C++) when available
+    rgb = frame[:, :, :3]
+    if _HAS_CV2:
+        # cv2 float32 HSV: H in [0,360), S in [0,1], V in [0,1]
+        rgb_f = rgb.astype(np.float32) / 255.0
+        hsv = cv2.cvtColor(rgb_f, cv2.COLOR_RGB2HSV)
+        hue, sat, val = hsv[:, :, 0], hsv[:, :, 1], hsv[:, :, 2]
+    else:
+        rgb_f = rgb.astype(np.float32) / 255.0
+        hue, sat, val = _rgb_to_hsv(rgb_f)
 
     # Build hue mask
     if target_hue == "all":
@@ -193,7 +215,12 @@ def apply(
     val = np.clip(val, 0, 1)
 
     # Convert back to RGB
-    new_rgb = _hsv_to_rgb(hue, sat, val)
-    output[:, :, :3] = (new_rgb * 255).astype(np.uint8)
+    if _HAS_CV2:
+        hsv_out = np.stack([hue, sat, val], axis=-1).astype(np.float32)
+        new_rgb = cv2.cvtColor(hsv_out, cv2.COLOR_HSV2RGB)
+        output[:, :, :3] = (np.clip(new_rgb, 0, 1) * 255).astype(np.uint8)
+    else:
+        new_rgb = _hsv_to_rgb(hue, sat, val)
+        output[:, :, :3] = (new_rgb * 255).astype(np.uint8)
 
     return output, None

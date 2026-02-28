@@ -1,5 +1,7 @@
 """Auto Levels effect — one-click percentile-based level stretching."""
 
+import math
+
 import numpy as np
 
 EFFECT_ID = "util.auto_levels"
@@ -34,6 +36,8 @@ def apply(
         return frame.copy(), None
 
     clip_percent = float(params.get("clip_percent", 1.0))
+    if not math.isfinite(clip_percent):
+        clip_percent = 1.0
     clip_percent = max(0.0, min(25.0, clip_percent))
 
     output = frame.copy()

@@ -1,5 +1,7 @@
 """Levels effect — 5-point tonal control with per-channel mode."""
 
+import math
+
 import numpy as np
 
 EFFECT_ID = "util.levels"
@@ -102,11 +104,17 @@ def apply(
     if frame.size == 0:
         return frame.copy(), None
 
-    input_black = int(params.get("input_black", 0))
-    input_white = int(params.get("input_white", 255))
+    _ib = float(params.get("input_black", 0))
+    input_black = int(_ib if math.isfinite(_ib) else 0)
+    _iw = float(params.get("input_white", 255))
+    input_white = int(_iw if math.isfinite(_iw) else 255)
     gamma = float(params.get("gamma", 1.0))
-    output_black = int(params.get("output_black", 0))
-    output_white = int(params.get("output_white", 255))
+    if not math.isfinite(gamma):
+        gamma = 1.0
+    _ob = float(params.get("output_black", 0))
+    output_black = int(_ob if math.isfinite(_ob) else 0)
+    _ow = float(params.get("output_white", 255))
+    output_white = int(_ow if math.isfinite(_ow) else 255)
     channel = str(params.get("channel", "master"))
 
     # Identity check — skip processing
