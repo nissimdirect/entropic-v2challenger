@@ -48,7 +48,7 @@ def apply(
 ) -> tuple[np.ndarray, dict | None]:
     """Invert alternating bands — CRT/VHS damage simulation."""
     band_height = max(2, min(100, int(params.get("band_height", 10))))
-    offset = int(params.get("offset", 0))
+    offset = max(0, min(200, int(params.get("offset", 0))))
     direction = str(params.get("direction", "horizontal"))
 
     result = frame.copy()

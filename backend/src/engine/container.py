@@ -1,6 +1,7 @@
 """Effect container — wraps pure effect functions with mask + mix pipeline."""
 
 import logging
+import math
 
 import numpy as np
 import sentry_sdk
@@ -48,7 +49,12 @@ class EffectContainer:
         seed = derive_seed(project_seed, self.effect_id, frame_index, user_seed)
 
         # 2. Extract container params (pop so effect doesn't see them)
-        effect_params = dict(params)  # Copy to avoid mutating caller's dict
+        # Sanitize NaN/Inf values — drop them so effect uses its default
+        effect_params = {
+            k: v
+            for k, v in params.items()
+            if not (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))
+        }
         mask = effect_params.pop("_mask", None)
         mix = effect_params.pop("_mix", 1.0)
 

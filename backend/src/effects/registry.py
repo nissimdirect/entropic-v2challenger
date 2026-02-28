@@ -96,6 +96,11 @@ def _auto_register():
         chroma_key,
         luma_key,
         ascii_art,
+        color_invert,
+        color_filter,
+        cumulative_smear,
+        braille_art,
+        film_grain_warm,
     )
     from effects.util import (
         levels,
@@ -168,6 +173,11 @@ def _auto_register():
         chroma_key,
         luma_key,
         ascii_art,
+        color_invert,
+        color_filter,
+        cumulative_smear,
+        braille_art,
+        film_grain_warm,
     ]
 
     # Dev-only effects (UAT crash testing)

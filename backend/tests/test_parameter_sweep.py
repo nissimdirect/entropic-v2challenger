@@ -87,6 +87,18 @@ class TestParameterSweep:
         ("fx.luma_key", "threshold"),  # Same — alpha-only effect
         ("fx.luma_key", "softness"),  # Same — alpha-only effect
         ("fx.luma_key", "mode"),  # Same — alpha-only effect
+        (
+            "fx.braille_art",
+            "threshold",
+        ),  # Text rendering: 0 and 255 both fill frame, minimal RGB diff at 64px
+        (
+            "fx.braille_art",
+            "invert",
+        ),  # Same — inverted dots nearly identical RGB at small frame
+        (
+            "fx.cumulative_smear",
+            "animate",
+        ),  # At frame_index=0, animate cycles to same first direction
     }
 
     def test_param_has_impact(self, case):

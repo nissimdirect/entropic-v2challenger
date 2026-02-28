@@ -75,16 +75,9 @@ def apply(
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
     """Map grayscale to two-color gradient — classic risograph aesthetic."""
-    shadow = (
-        int(params.get("shadow_r", 0)),
-        int(params.get("shadow_g", 0)),
-        int(params.get("shadow_b", 80)),
-    )
-    highlight = (
-        int(params.get("highlight_r", 255)),
-        int(params.get("highlight_g", 200)),
-        int(params.get("highlight_b", 100)),
-    )
+    _c = lambda v, d: max(0, min(255, int(params.get(v, d))))
+    shadow = (_c("shadow_r", 0), _c("shadow_g", 0), _c("shadow_b", 80))
+    highlight = (_c("highlight_r", 255), _c("highlight_g", 200), _c("highlight_b", 100))
 
     rgb = frame[:, :, :3]
     alpha = frame[:, :, 3:4]

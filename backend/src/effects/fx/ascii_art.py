@@ -58,14 +58,23 @@ _MONO_FONTS = [
 ]
 
 
+_font_cache: dict[int, ImageFont.FreeTypeFont] = {}
+
+
 def _get_font(size: int):
-    """Try to load a monospace font, fall back to default."""
+    """Try to load a monospace font, fall back to default. Results are cached."""
+    if size in _font_cache:
+        return _font_cache[size]
     for fp in _MONO_FONTS:
         try:
-            return ImageFont.truetype(fp, size)
+            font = ImageFont.truetype(fp, size)
+            _font_cache[size] = font
+            return font
         except (OSError, IOError):
             continue
-    return ImageFont.load_default()
+    font = ImageFont.load_default()
+    _font_cache[size] = font
+    return font
 
 
 def apply(
