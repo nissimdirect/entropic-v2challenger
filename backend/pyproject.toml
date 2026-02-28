@@ -10,6 +10,7 @@ dependencies = [
     "opencv-python-headless>=4.10",
     "scipy",
     "sentry-sdk",
+    "sounddevice>=0.5",
 ]
 
 [project.optional-dependencies]
