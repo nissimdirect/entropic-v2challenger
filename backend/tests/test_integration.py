@@ -80,13 +80,13 @@ def test_full_pipeline_ingest_apply_export_verify(synthetic_video_path):
             os.unlink(export_path)
 
 
-def test_registry_has_all_10_effects():
-    """Verify the registry contains all 10 effects."""
+def test_registry_has_core_effects():
+    """Verify the registry contains the original core effects plus all ported effects."""
     from effects.registry import list_all
 
     effects = list_all()
     effect_ids = {e["id"] for e in effects}
-    expected = {
+    core = {
         "fx.invert",
         "fx.hue_shift",
         "fx.noise",
@@ -97,8 +97,14 @@ def test_registry_has_all_10_effects():
         "fx.vhs",
         "fx.wave_distort",
         "fx.channelshift",
+        "util.levels",
+        "util.curves",
+        "util.hsl_adjust",
+        "util.color_balance",
+        "util.auto_levels",
     }
-    assert expected == effect_ids, f"Missing effects: {expected - effect_ids}"
+    assert core.issubset(effect_ids), f"Missing core effects: {core - effect_ids}"
+    assert len(effects) >= 62, f"Expected >= 62 effects, got {len(effects)}"
 
 
 def test_all_effects_process_without_crash():

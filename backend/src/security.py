@@ -1,6 +1,8 @@
 """Security validation gates for Entropic v2."""
 
+import json
 import os
+import re
 from pathlib import Path
 
 # SEC-5: Upload validation
@@ -135,3 +137,38 @@ def validate_chain_depth(chain: list) -> list[str]:
             f"Chain depth {len(chain)} exceeds maximum {MAX_CHAIN_DEPTH} (SEC-7)"
         )
     return errors
+
+
+# --- PII stripping for Sentry and crash dumps ---
+
+_HOME = os.path.expanduser("~")
+_USERNAME = os.path.basename(_HOME)
+_PATH_PATTERN = re.compile(r"/Users/[^/\s]+|/home/[^/\s]+|C:\\Users\\[^\\\s]+")
+_SENSITIVE_KEYS = {"_token", "token", "auth", "key", "secret", "password", "dsn"}
+
+
+def _scrub_dict(d: dict):
+    """Redact values for keys that look sensitive."""
+    for key in list(d.keys()):
+        if any(s in key.lower() for s in _SENSITIVE_KEYS):
+            d[key] = "<REDACTED>"
+
+
+def strip_pii(event: dict, hint: dict) -> dict:
+    """Sentry before_send hook. Strips file paths and auth tokens.
+
+    Also usable for crash dump sanitization.
+    """
+    event_str = json.dumps(event)
+    # Replace OS username and home path
+    event_str = event_str.replace(_HOME, "<HOME>")
+    event_str = event_str.replace(_USERNAME, "<USER>")
+    event_str = _PATH_PATTERN.sub("<REDACTED_PATH>", event_str)
+    event = json.loads(event_str)
+
+    # Strip sensitive keys from extra/context/tags
+    _scrub_dict(event.get("extra", {}))
+    for ctx in event.get("contexts", {}).values():
+        if isinstance(ctx, dict):
+            _scrub_dict(ctx)
+    return event

@@ -48,6 +48,7 @@ export default function PreviewCanvas({
     if (!ctx) return
 
     drawBase64Frame(ctx, canvas, img)
+    canvas.dataset.frameReady = 'true'
 
     // FPS counter (dev mode only)
     if (import.meta.env.DEV) {

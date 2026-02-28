@@ -1,5 +1,6 @@
-"""Tests for security validation gates — SEC-5, SEC-6, SEC-7."""
+"""Tests for security validation gates — SEC-5, SEC-6, SEC-7, PII stripping."""
 
+import os
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,7 @@ from security import (
     MAX_CHAIN_DEPTH,
     MAX_FRAME_COUNT,
     MAX_UPLOAD_SIZE,
+    strip_pii,
     validate_chain_depth,
     validate_frame_count,
     validate_upload,
@@ -114,3 +116,55 @@ class TestSEC7ChainDepth:
     def test_empty_chain(self):
         errors = validate_chain_depth([])
         assert errors == []
+
+
+# --- PII stripping tests (Item 4) ---
+
+
+@pytest.mark.smoke
+class TestStripPII:
+    """PII stripping for Sentry events and crash dumps."""
+
+    def test_removes_home_dir_from_exception(self):
+        """strip_pii removes home dir path from exception message."""
+        home = os.path.expanduser("~")
+        event = {
+            "exception": {
+                "values": [{"value": f"File not found: {home}/secret/video.mp4"}]
+            }
+        }
+        result = strip_pii(event, {})
+        result_str = str(result)
+        assert home not in result_str
+        assert "<HOME>" in result_str or "<REDACTED_PATH>" in result_str
+
+    def test_removes_token_from_extra(self):
+        """strip_pii removes _token key from extra context."""
+        event = {"extra": {"_token": "abc-secret-123", "effect_id": "fx.invert"}}
+        result = strip_pii(event, {})
+        assert result["extra"]["_token"] == "<REDACTED>"
+        assert result["extra"]["effect_id"] == "fx.invert"
+
+    def test_replaces_users_path(self):
+        """strip_pii replaces /Users/username with <REDACTED_PATH>."""
+        event = {
+            "message": "Error at /Users/johndoe/project/main.py:42",
+        }
+        result = strip_pii(event, {})
+        assert "/Users/johndoe" not in result["message"]
+        assert "<REDACTED_PATH>" in result["message"]
+
+    def test_preserves_non_sensitive_data(self):
+        """strip_pii preserves non-sensitive data unchanged."""
+        event = {
+            "extra": {
+                "effect_id": "fx.invert",
+                "frame_index": 42,
+                "resolution": [1920, 1080],
+            },
+            "tags": {"environment": "development"},
+        }
+        result = strip_pii(event, {})
+        assert result["extra"]["effect_id"] == "fx.invert"
+        assert result["extra"]["frame_index"] == 42
+        assert result["extra"]["resolution"] == [1920, 1080]

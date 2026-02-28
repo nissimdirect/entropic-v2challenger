@@ -1,14 +1,27 @@
 import * as Sentry from '@sentry/electron/main'
-import { app, BrowserWindow, session } from 'electron'
+import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
+import { homedir } from 'os'
+import { app, BrowserWindow, session } from 'electron'
 import { spawnPython, killPython } from './python'
 import { startWatchdog, stopWatchdog } from './watchdog'
 import { registerRelayHandlers, setRelayPort, closeRelay } from './zmq-relay'
 
+// Consent-gated Sentry init (VULN-11)
+const consentPath = join(homedir(), '.entropic', 'telemetry_consent')
+let sentryDsn = ''
+try {
+  if (existsSync(consentPath) && readFileSync(consentPath, 'utf8').trim() === 'yes') {
+    sentryDsn = process.env.SENTRY_DSN || ''
+  }
+} catch {
+  // Consent file unreadable — leave DSN empty
+}
+
 Sentry.init({
-  dsn: process.env.SENTRY_DSN || '',
+  dsn: sentryDsn,
   tracesSampleRate: 0.1,
-  environment: 'development',
+  environment: process.env.SENTRY_ENV || 'development',
 })
 
 function createWindow(): BrowserWindow {
@@ -59,6 +72,7 @@ app.whenReady().then(async () => {
     setRelayPort(port, token)
     await startWatchdog(pingPort, token)
   } catch (err) {
+    Sentry.captureException(err, { tags: { source: 'python-spawn' } })
     console.error('[Main] Failed to start Python sidecar:', err)
   }
 })

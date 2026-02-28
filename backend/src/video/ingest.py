@@ -1,6 +1,11 @@
 """Fast video header probing."""
 
+import logging
+from pathlib import Path
+
 import av
+
+logger = logging.getLogger(__name__)
 
 
 def probe(path: str) -> dict:
@@ -8,7 +13,8 @@ def probe(path: str) -> dict:
     try:
         container = av.open(path)
     except (av.error.FileNotFoundError, av.error.InvalidDataError) as e:
-        return {"ok": False, "error": str(e)}
+        logger.exception(f"Probe failed for {Path(path).name}")
+        return {"ok": False, "error": f"Failed to open video: {type(e).__name__}"}
 
     if not container.streams.video:
         container.close()

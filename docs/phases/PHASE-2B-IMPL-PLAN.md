@@ -1,6 +1,6 @@
 ---
 title: Phase 2B — Audio Sprint (PyAV Decode → Audio Playback → Decoupled A/V Clock)
-status: draft
+status: completed
 project: entropic-v2challenger
 depends_on: Phase 1 (video playback working — preview canvas, scrub bar, play/pause)
 sessions: 3
@@ -317,7 +317,7 @@ Based on Ross Bencina's PortAudio synchronization paper and standard media playe
 ### Session 3: Frontend UI + Integration
 > Waveform display, volume controls, wire up A/V sync loop.
 
-- [ ] **3.1** Create Zustand audio store `frontend/src/renderer/stores/audio.ts`
+- [x] **3.1** Create Zustand audio store `frontend/src/renderer/stores/audio.ts` (done in Sprint 2B-5)
   ```typescript
   interface AudioState {
     isLoaded: boolean;
@@ -342,7 +342,7 @@ Based on Ross Bencina's PortAudio synchronization paper and standard media playe
   }
   ```
 
-- [ ] **3.2** Create `frontend/src/renderer/components/transport/Waveform.tsx`
+- [x] **3.2** Create `frontend/src/renderer/components/transport/Waveform.tsx`
   - Canvas-based waveform overview (peaks as filled bars, RMS as inner bars)
   - Receives `peaks: number[]` and `rms: number[]` from audio store
   - Playhead position indicator (vertical line, synced to `currentTime`)
@@ -350,45 +350,42 @@ Based on Ross Bencina's PortAudio synchronization paper and standard media playe
   - Drag on waveform → scrub audio position
   - Color: peaks in `#4a5568` (gray), RMS in `#667eea` (blue-ish), playhead in `#4ade80` (green)
 
-- [ ] **3.3** Create `frontend/src/renderer/components/transport/useWaveform.ts`
+- [x] **3.3** Create `frontend/src/renderer/components/transport/useWaveform.ts`
   - Hook that downsamples waveform data to canvas width
   - Handles canvas resize (recalculate bins)
   - Memoized to avoid re-renders
 
-- [ ] **3.4** Create `frontend/src/renderer/components/transport/VolumeControl.tsx`
+- [x] **3.4** Create `frontend/src/renderer/components/transport/VolumeControl.tsx`
   - Horizontal slider (0-100%)
   - Mute button (speaker icon, toggles)
   - Visual: speaker icon changes based on volume level (muted/low/med/high)
 
-- [ ] **3.5** Create `frontend/src/renderer/components/transport/DeviceSelector.tsx`
-  - Dropdown showing available audio output devices
-  - Default device pre-selected
-  - Change triggers `audioSetDevice()`
+- [ ] **3.5** Create `frontend/src/renderer/components/transport/DeviceSelector.tsx` (DEFERRED — uses system default device)
 
-- [ ] **3.6** Update `PreviewControls.tsx` — integrate A/V clock:
+- [x] **3.6** Update `PreviewControls.tsx` — integrate A/V clock:
   - Play/pause button now controls both audio and video
   - Scrub bar position driven by audio clock (not video frame counter)
   - Frame counter shows `audioTime * fps` rounded
   - Add Waveform below the scrub bar
   - Add VolumeControl to the right of transport controls
 
-- [ ] **3.7** Wire the A/V sync loop in `frontend/src/renderer/components/preview/useFrameDisplay.ts`:
+- [x] **3.7** Wire the A/V sync loop in App.tsx (clock sync rAF loop drives setCurrentFrame from audio position):
   - Current: `requestAnimationFrame` polls mmap for latest frame
   - New: `requestAnimationFrame` → query `AVClock.getTargetFrameIndex()` → if different from last rendered frame → `sendCommand({cmd: "render_frame", time: audioTime, ...})` → Python renders → mmap → canvas
   - If video can't keep up: hold previous frame (audio never stutters)
   - If paused: render only on seek (not continuously)
 
-- [ ] **3.8** Handle edge cases:
+- [x] **3.8** Handle edge cases:
   - Video with no audio → disable audio controls, use internal timer as clock fallback
   - Audio shorter than video → silence after audio ends, video continues with timer fallback
   - Audio longer than video → stop at video end
 
-- [ ] **3.9** CSS: `frontend/src/renderer/styles/transport.css`
+- [x] **3.9** CSS: `frontend/src/renderer/styles/transport.css`
   - Waveform canvas sizing and colors
   - Volume slider styling
   - Device selector dropdown
 
-- [ ] **3.10** Tests (frontend vitest):
+- [x] **3.10** Tests (frontend vitest): 202 tests passing (29 new)
   - `frontend/src/__tests__/stores/audio.test.ts`
     - loadAudio sets isLoaded, duration, sampleRate
     - play/pause toggles isPlaying

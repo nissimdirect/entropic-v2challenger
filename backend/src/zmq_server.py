@@ -1,5 +1,6 @@
 import base64
 import collections
+import json
 import logging
 import time
 import uuid
@@ -11,7 +12,12 @@ import zmq
 from effects import registry
 from engine.cache import encode_mjpeg
 from engine.export import ExportManager
-from engine.pipeline import apply_chain
+from engine.pipeline import (
+    apply_chain,
+    flush_timing,
+    get_effect_health,
+    get_effect_stats,
+)
 from memory.writer import SharedMemoryWriter
 from security import (
     validate_chain_depth,
@@ -31,11 +37,11 @@ class ZMQServer:
     def __init__(self):
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.REP)
-        self.socket.setsockopt(zmq.MAXMSGSIZE, 104857600)  # 100 MB limit
+        self.socket.setsockopt(zmq.MAXMSGSIZE, 1_048_576)  # 1 MB limit
         self.port = self.socket.bind_to_random_port("tcp://127.0.0.1")
         # Dedicated ping socket — never blocked by heavy renders (BUG-4)
         self.ping_socket = self.context.socket(zmq.REP)
-        self.ping_socket.setsockopt(zmq.MAXMSGSIZE, 104857600)  # 100 MB limit
+        self.ping_socket.setsockopt(zmq.MAXMSGSIZE, 4096)  # 4 KB limit (pings only)
         self.ping_port = self.ping_socket.bind_to_random_port("tcp://127.0.0.1")
         # Auth token — prevents unauthorized ZMQ access from other local processes
         self.token = str(uuid.uuid4())
@@ -48,12 +54,47 @@ class ZMQServer:
         self._max_readers = 10
         self.last_frame_ms = 0.0
         self.export_manager = ExportManager()
-        # Waveform peak cache — keyed by (path, num_bins)
-        self._waveform_cache: dict[tuple[str, int], list] = {}
+        # Waveform peak cache — keyed by (path, num_bins), LRU eviction
+        self._waveform_cache: collections.OrderedDict[tuple[str, int], list] = (
+            collections.OrderedDict()
+        )
+        self._max_waveform_cache = 10
         # Audio playback engine
         self.audio_player = AudioPlayer()
         # A/V sync clock — audio master, video slave
         self.av_clock = AVClock(self.audio_player)
+
+    def reset_state(self):
+        """Clear accumulated state without closing sockets/context.
+
+        Used by session-scoped test fixtures to reset between tests
+        while keeping the server running.
+        """
+        # Close and clear video readers
+        for reader in self.readers.values():
+            reader.close()
+        self.readers.clear()
+
+        # Clear waveform cache
+        self._waveform_cache.clear()
+
+        # Reset audio player (stop playback, unload)
+        self.audio_player.stop()
+
+        # Reset A/V clock
+        self.av_clock = AVClock(self.audio_player)
+
+        # Cancel any in-flight export
+        self.export_manager.cancel()
+        self.export_manager = ExportManager()
+
+        # Close shared memory writer (will be re-created on demand)
+        if self.shm_writer is not None:
+            self.shm_writer.close()
+            self.shm_writer = None
+
+        # Reset frame timing
+        self.last_frame_ms = 0.0
 
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
@@ -127,7 +168,12 @@ class ZMQServer:
             return self._handle_export_status(msg_id)
         elif cmd == "export_cancel":
             return self._handle_export_cancel(msg_id)
+        elif cmd == "effect_health":
+            return {"id": msg_id, "ok": True, **get_effect_health()}
+        elif cmd == "effect_stats":
+            return {"id": msg_id, "ok": True, "stats": get_effect_stats()}
         elif cmd == "flush_state":
+            flush_timing()
             return {"id": msg_id, "ok": True}
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
@@ -245,7 +291,7 @@ class ZMQServer:
             jpeg_bytes = encode_mjpeg(output)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
-            return {
+            response = {
                 "id": msg_id,
                 "ok": True,
                 "frame_index": frame_index,
@@ -253,6 +299,11 @@ class ZMQServer:
                 "width": reader.width,
                 "height": reader.height,
             }
+            # Piggyback disabled effects on render response
+            health = get_effect_health()
+            if health["disabled_effects"]:
+                response["disabled_effects"] = health["disabled_effects"]
+            return response
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Render frame handler error: {e}")
@@ -307,7 +358,11 @@ class ZMQServer:
             shm = self._ensure_shm()
             shm.write_frame(output)
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
-            return {"id": msg_id, "ok": True, "frame_index": frame_index}
+            response = {"id": msg_id, "ok": True, "frame_index": frame_index}
+            health = get_effect_health()
+            if health["disabled_effects"]:
+                response["disabled_effects"] = health["disabled_effects"]
+            return response
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Apply chain handler error: {e}")
@@ -350,7 +405,7 @@ class ZMQServer:
 
     def _handle_waveform(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
-        num_bins = int(message.get("num_bins", 800))
+        num_bins = max(1, min(int(message.get("num_bins", 800)), 4096))
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
 
@@ -381,6 +436,9 @@ class ZMQServer:
             # Serialize peaks to nested list for JSON transport
             peaks_list = peaks.tolist()
             self._waveform_cache[cache_key] = peaks_list
+            # LRU eviction
+            while len(self._waveform_cache) > self._max_waveform_cache:
+                self._waveform_cache.popitem(last=False)
 
             return {
                 "id": msg_id,
@@ -415,59 +473,105 @@ class ZMQServer:
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_audio_play(self, msg_id: str | None) -> dict:
-        ok = self.audio_player.play()
-        if not ok:
-            return {"id": msg_id, "ok": False, "error": "no audio loaded"}
-        return {"id": msg_id, "ok": True, "is_playing": True}
+        try:
+            ok = self.audio_player.play()
+            if not ok:
+                return {"id": msg_id, "ok": False, "error": "no audio loaded"}
+            return {"id": msg_id, "ok": True, "is_playing": True}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error("Audio play error: %s", type(e).__name__)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_audio_pause(self, msg_id: str | None) -> dict:
-        self.audio_player.pause()
-        return {"id": msg_id, "ok": True, "is_playing": False}
+        try:
+            self.audio_player.pause()
+            return {"id": msg_id, "ok": True, "is_playing": False}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error("Audio pause error: %s", type(e).__name__)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_audio_seek(self, message: dict, msg_id: str | None) -> dict:
-        time_s = float(message.get("time", 0.0))
-        ok = self.audio_player.seek(time_s)
-        if not ok:
-            return {"id": msg_id, "ok": False, "error": "no audio loaded"}
-        return {
-            "id": msg_id,
-            "ok": True,
-            "position_s": self.audio_player.position_seconds,
-        }
+        try:
+            time_s = float(message.get("time", 0.0))
+            ok = self.audio_player.seek(time_s)
+            if not ok:
+                return {"id": msg_id, "ok": False, "error": "no audio loaded"}
+            return {
+                "id": msg_id,
+                "ok": True,
+                "position_s": self.audio_player.position_seconds,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error("Audio seek error: %s", type(e).__name__)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_audio_volume(self, message: dict, msg_id: str | None) -> dict:
-        volume = float(message.get("volume", 1.0))
-        self.audio_player.set_volume(volume)
-        return {"id": msg_id, "ok": True, "volume": self.audio_player.volume}
+        try:
+            volume = float(message.get("volume", 1.0))
+            self.audio_player.set_volume(volume)
+            return {"id": msg_id, "ok": True, "volume": self.audio_player.volume}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Audio volume error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_audio_position(self, msg_id: str | None) -> dict:
-        return {
-            "id": msg_id,
-            "ok": True,
-            "position_s": self.audio_player.position_seconds,
-            "position_samples": self.audio_player.position,
-            "duration_s": self.audio_player.duration_seconds,
-            "is_playing": self.audio_player.is_playing,
-            "volume": self.audio_player.volume,
-        }
+        try:
+            return {
+                "id": msg_id,
+                "ok": True,
+                "position_s": self.audio_player.position_seconds,
+                "position_samples": self.audio_player.position,
+                "duration_s": self.audio_player.duration_seconds,
+                "is_playing": self.audio_player.is_playing,
+                "volume": self.audio_player.volume,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Audio position error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_audio_stop(self, msg_id: str | None) -> dict:
-        self.audio_player.stop()
-        return {"id": msg_id, "ok": True}
+        try:
+            self.audio_player.stop()
+            return {"id": msg_id, "ok": True}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error("Audio stop error: %s", type(e).__name__)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_clock_sync(self, msg_id: str | None) -> dict:
-        state = self.av_clock.sync_state()
-        state["id"] = msg_id
-        state["ok"] = True
-        return state
+        try:
+            state = self.av_clock.sync_state()
+            state["id"] = msg_id
+            state["ok"] = True
+            return state
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error("Clock sync error: %s", type(e).__name__)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_clock_set_fps(self, message: dict, msg_id: str | None) -> dict:
-        fps = message.get("fps")
-        if fps is None:
-            return {"id": msg_id, "ok": False, "error": "missing fps"}
-        fps = float(fps)
-        self.av_clock.set_fps(fps)
-        return {"id": msg_id, "ok": True, "fps": self.av_clock.fps}
+        try:
+            fps = message.get("fps")
+            if fps is None:
+                return {"id": msg_id, "ok": False, "error": "missing fps"}
+            fps = float(fps)
+            self.av_clock.set_fps(fps)
+            return {"id": msg_id, "ok": True, "fps": self.av_clock.fps}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Clock set fps error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
         input_path = message.get("input_path")
@@ -498,20 +602,36 @@ class ZMQServer:
         try:
             self.export_manager.start(input_path, output_path, chain, project_seed)
             return {"id": msg_id, "ok": True}
-        except RuntimeError as e:
+        except Exception as e:
             sentry_sdk.capture_exception(e)
-            logging.getLogger(__name__).error(f"Export start handler error: {e}")
+            logging.getLogger(__name__).error(
+                "Export start error: %s", type(e).__name__
+            )
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_export_status(self, msg_id: str | None) -> dict:
-        status = self.export_manager.get_status()
-        status["id"] = msg_id
-        status["ok"] = True
-        return status
+        try:
+            status = self.export_manager.get_status()
+            status["id"] = msg_id
+            status["ok"] = True
+            return status
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Export status error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_export_cancel(self, msg_id: str | None) -> dict:
-        cancelled = self.export_manager.cancel()
-        return {"id": msg_id, "ok": True, "cancelled": cancelled}
+        try:
+            cancelled = self.export_manager.cancel()
+            return {"id": msg_id, "ok": True, "cancelled": cancelled}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Export cancel error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _get_reader(self, path: str) -> VideoReader:
         if path in self.readers:
@@ -532,21 +652,52 @@ class ZMQServer:
         poller.register(self.ping_socket, zmq.POLLIN)
         while self.running:
             events = dict(poller.poll(timeout=500))
+
             # Handle ping socket first (lightweight, never blocked)
             if self.ping_socket in events:
-                message = self.ping_socket.recv_json()
-                msg_id = message.get("id")
-                token_err = self._validate_token(message)
-                if token_err:
+                try:
+                    raw = self.ping_socket.recv()
+                    message = json.loads(raw)
+                    msg_id = message.get("id")
+                    token_err = self._validate_token(message)
+                    if token_err:
+                        self.ping_socket.send_json(
+                            {"id": msg_id, "ok": False, "error": token_err}
+                        )
+                    else:
+                        self.ping_socket.send_json(self._make_ping_response(msg_id))
+                except json.JSONDecodeError:
                     self.ping_socket.send_json(
-                        {"id": msg_id, "ok": False, "error": token_err}
+                        {"ok": False, "error": "Invalid message format"}
                     )
-                else:
-                    self.ping_socket.send_json(self._make_ping_response(msg_id))
+                except zmq.ZMQError:
+                    logging.getLogger(__name__).error("ZMQ error on ping socket")
+                    break  # socket state is unrecoverable
+
             # Handle main command socket
             if self.socket in events:
-                message = self.socket.recv_json()
-                response = self.handle_message(message)
+                try:
+                    raw = self.socket.recv()
+                    message = json.loads(raw)
+                except json.JSONDecodeError:
+                    # MUST send reply before next recv (REP protocol)
+                    self.socket.send_json(
+                        {"ok": False, "error": "Invalid message format"}
+                    )
+                    continue
+                except zmq.ZMQError:
+                    logging.getLogger(__name__).error("ZMQ error on main socket")
+                    break
+
+                try:
+                    response = self.handle_message(message)
+                except Exception as e:
+                    sentry_sdk.capture_exception(e)
+                    logging.getLogger(__name__).error(
+                        "Unhandled handler error: %s", type(e).__name__
+                    )
+                    response = {"ok": False, "error": "Internal processing error"}
+
                 self.socket.send_json(response)
         self.close()
 

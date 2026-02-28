@@ -30,7 +30,7 @@ def apply(
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
     """Rotate hue by N degrees. Stateless."""
-    amount = float(params.get("amount", 180.0))
+    amount = max(0.0, min(360.0, float(params.get("amount", 180.0))))
     output = frame.copy()
 
     # Extract RGB, convert to HSV manually (no cv2 dependency required)
@@ -52,7 +52,7 @@ def apply(
     hue[mask_b] = 60.0 * (((r[mask_b] - g[mask_b]) / delta[mask_b]) + 4)
 
     # Saturation
-    sat = np.where(cmax > 0, delta / cmax, 0.0)
+    sat = np.divide(delta, cmax, out=np.zeros_like(delta), where=cmax > 0)
     val = cmax
 
     # Rotate hue

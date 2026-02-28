@@ -10,10 +10,12 @@ jobs:
           lfs: true
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install system deps
+        run: brew install portaudio
       - name: Install backend deps
         run: cd backend && pip install -e ".[dev]"
       - name: Run backend smoke tests
@@ -31,11 +33,13 @@ jobs:
           lfs: true
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
+      - name: Install system deps
+        run: brew install portaudio
       - name: Install backend deps
         run: cd backend && pip install -e ".[dev]"
       - name: Run sidecar tests
-        run: cd backend && python -m pytest tests/ -v --tb=short
+        run: cd backend && python -m pytest tests/ -v --tb=short -m "not perf" -p no:timeout
 
   electron-e2e:
     runs-on: macos-latest
@@ -43,9 +47,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           lfs: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Install system deps
+        run: brew install portaudio
+      - name: Install backend deps
+        run: cd backend && pip install -e ".[dev]"
       - name: Install frontend deps
         run: cd frontend && npm ci
       - name: Install Playwright

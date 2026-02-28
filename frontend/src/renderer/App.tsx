@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useEngineStore } from './stores/engine'
 import { useProjectStore } from './stores/project'
 import { useEffectsStore } from './stores/effects'
+import { useAudioStore } from './stores/audio'
 import DropZone from './components/upload/DropZone'
 import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
@@ -15,8 +16,10 @@ import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import type { Asset, EffectInstance } from '../shared/types'
+import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
+import './styles/transport.css'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -74,11 +77,12 @@ function AppInner() {
 
   const { registry, isLoading: effectsLoading, fetchRegistry } = useEffectsStore()
 
+  const audioStore = useAudioStore()
+
   const [frameDataUrl, setFrameDataUrl] = useState<string | null>(null)
   const [frameWidth, setFrameWidth] = useState(0)
   const [frameHeight, setFrameHeight] = useState(0)
   const [activeFps, setActiveFps] = useState(30)
-  const [isPlaying, setIsPlaying] = useState(false)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
@@ -88,11 +92,17 @@ function AppInner() {
   const [dropError, setDropError] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
   const [renderError, setRenderError] = useState<string | null>(null)
+  const [isTimerPlaying, setIsTimerPlaying] = useState(false)
+
+  // Audio-specific state
+  const [hasAudio, setHasAudio] = useState(false)
+  const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
 
   const activeAssetPath = useRef<string | null>(null)
   const isRenderingRef = useRef(false)
   const pendingFrameRef = useRef<number | null>(null)
   const playbackRafRef = useRef<number | null>(null)
+  const clockSyncRafRef = useRef<number | null>(null)
 
   // Fetch effect registry when engine connects
   useEffect(() => {
@@ -191,6 +201,23 @@ function AppInner() {
     requestRenderFrame(currentFrame)
   }, [currentFrame, effectChain, requestRenderFrame])
 
+  // Load waveform data after audio is loaded
+  const loadWaveform = useCallback(async (path: string) => {
+    if (!window.entropic) return
+    try {
+      const res = await window.entropic.sendCommand({
+        cmd: 'waveform',
+        path,
+        num_bins: 800,
+      })
+      if (res.ok && res.peaks) {
+        setWaveformPeaks(res.peaks as WaveformPeaks)
+      }
+    } catch (err) {
+      console.warn('[Audio] waveform load failed:', err)
+    }
+  }, [])
+
   const handleFileIngest = useCallback(
     async (path: string) => {
       if (!window.entropic) return
@@ -205,6 +232,7 @@ function AppInner() {
       })
 
       if (res.ok) {
+        const assetHasAudio = res.has_audio as boolean
         const asset: Asset = {
           id: randomUUID(),
           path,
@@ -215,7 +243,7 @@ function AppInner() {
             duration: res.duration_s as number,
             fps: res.fps as number,
             codec: res.codec as string,
-            hasAudio: res.has_audio as boolean,
+            hasAudio: assetHasAudio,
           },
         }
         addAsset(asset)
@@ -225,6 +253,23 @@ function AppInner() {
         setActiveFps(res.fps as number)
         activeAssetPath.current = path
         setCurrentFrame(0)
+        setHasAudio(assetHasAudio)
+
+        // Load audio if present
+        if (assetHasAudio) {
+          const audioLoaded = await audioStore.loadAudio(path)
+          if (audioLoaded) {
+            await audioStore.setFps(res.fps as number)
+            loadWaveform(path)
+          } else {
+            console.warn('[Audio] failed to load audio, falling back to silent playback')
+            setHasAudio(false)
+          }
+        } else {
+          // Reset audio state for silent video
+          audioStore.reset()
+          setWaveformPeaks(null)
+        }
 
         // BUG-3 fix: render frame 0 with empty chain first (guaranteed success).
         // This ensures the user sees the video immediately regardless of effects.
@@ -237,7 +282,7 @@ function AppInner() {
 
       setIngesting(false)
     },
-    [addAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame],
+    [addAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame, audioStore, loadWaveform],
   )
 
   const handleRenderRetry = useCallback(() => {
@@ -249,19 +294,72 @@ function AppInner() {
   const handleSeek = useCallback(
     (frame: number) => {
       setCurrentFrame(frame)
+      // Sync audio seek when audio is active
+      if (hasAudio && audioStore.isLoaded && activeFps > 0) {
+        audioStore.seek(frame / activeFps)
+      }
     },
-    [setCurrentFrame],
+    [setCurrentFrame, hasAudio, audioStore, activeFps],
+  )
+
+  const handleAudioSeek = useCallback(
+    (time: number) => {
+      if (activeFps > 0) {
+        const frame = Math.floor(time * activeFps)
+        setCurrentFrame(frame)
+      }
+      audioStore.seek(time)
+    },
+    [setCurrentFrame, activeFps, audioStore],
   )
 
   const handlePlayPause = useCallback(() => {
-    setIsPlaying((prev) => !prev)
-  }, [])
+    if (hasAudio && audioStore.isLoaded) {
+      // Audio-driven playback: toggle audio, video follows via clock sync
+      audioStore.togglePlayback()
+    } else {
+      // Silent video: use timer-based playback (existing behavior)
+      setIsTimerPlaying((prev) => !prev)
+    }
+  }, [hasAudio, audioStore])
 
-  // Render-driven playback loop: advance frame only after previous frame displayed.
-  // Uses requestAnimationFrame with time tracking instead of setInterval,
-  // providing natural backpressure and drift compensation.
+  // Clock sync loop: when audio is playing, poll audio position at ~60Hz
+  // and drive video frame from audio clock (audio is master, video is slave)
   useEffect(() => {
-    if (!isPlaying || totalFrames === 0) return
+    if (!hasAudio || !audioStore.isPlaying) {
+      if (clockSyncRafRef.current !== null) {
+        cancelAnimationFrame(clockSyncRafRef.current)
+        clockSyncRafRef.current = null
+      }
+      return
+    }
+
+    let lastFrame = -1
+
+    const tick = async () => {
+      await audioStore.syncClock()
+      const { targetFrame } = useAudioStore.getState()
+      if (targetFrame !== lastFrame) {
+        lastFrame = targetFrame
+        setCurrentFrame(targetFrame)
+      }
+      clockSyncRafRef.current = requestAnimationFrame(tick)
+    }
+
+    clockSyncRafRef.current = requestAnimationFrame(tick)
+
+    return () => {
+      if (clockSyncRafRef.current !== null) {
+        cancelAnimationFrame(clockSyncRafRef.current)
+        clockSyncRafRef.current = null
+      }
+    }
+  }, [hasAudio, audioStore.isPlaying, setCurrentFrame, audioStore])
+
+  // Timer-based playback loop for silent videos (no audio)
+  // Only runs when there's no audio to drive the clock
+  useEffect(() => {
+    if (!isTimerPlaying || totalFrames === 0) return
 
     const frameDuration = 1000 / activeFps
     let lastFrameTime = performance.now()
@@ -269,9 +367,8 @@ function AppInner() {
     const tick = (now: number) => {
       const elapsed = now - lastFrameTime
       if (elapsed >= frameDuration) {
-        // Advance by whole frames (handles cases where a frame took >1 interval)
         const framesToAdvance = Math.max(1, Math.floor(elapsed / frameDuration))
-        lastFrameTime = now - (elapsed % frameDuration) // preserve fractional remainder for drift compensation
+        lastFrameTime = now - (elapsed % frameDuration)
         const current = useProjectStore.getState().currentFrame
         const nextFrame = (current + framesToAdvance) % totalFrames
         setCurrentFrame(nextFrame)
@@ -286,7 +383,7 @@ function AppInner() {
         playbackRafRef.current = null
       }
     }
-  }, [isPlaying, totalFrames, activeFps, setCurrentFrame])
+  }, [isTimerPlaying, totalFrames, activeFps, setCurrentFrame])
 
   const handleExport = useCallback(
     async (settings: ExportSettings) => {
@@ -382,6 +479,9 @@ function AppInner() {
     ? registry.find((r) => r.id === selectedEffect.effectId) ?? null
     : null
 
+  // Determine playback state: audio-driven or timer-driven
+  const isPlaying = hasAudio ? audioStore.isPlaying : isTimerPlaying
+
   const statusColor: Record<string, string> = {
     connected: '#4ade80',
     disconnected: '#ef4444',
@@ -476,6 +576,15 @@ function AppInner() {
             isPlaying={isPlaying}
             onSeek={handleSeek}
             onPlayPause={handlePlayPause}
+            hasAudio={hasAudio}
+            volume={audioStore.volume}
+            isMuted={audioStore.isMuted}
+            onVolumeChange={(v) => audioStore.setVolume(v)}
+            onToggleMute={() => audioStore.toggleMute()}
+            waveformPeaks={waveformPeaks}
+            audioDuration={audioStore.duration}
+            audioCurrentTime={audioStore.currentTime}
+            onAudioSeek={handleAudioSeek}
           />
         </div>
         <div className="app__params">
