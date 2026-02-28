@@ -11,7 +11,7 @@ EFFECT_CATEGORY = "distortion"
 PARAMS: dict = {
     "block_size": {
         "type": "int",
-        "min": 4,
+        "min": 8,
         "max": 128,
         "default": 16,
         "label": "Block Size",
@@ -42,7 +42,7 @@ def apply(
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
     """Randomly displace blocks — glitch block effect."""
-    block_size = max(4, min(128, int(params.get("block_size", 16))))
+    block_size = max(8, min(128, int(params.get("block_size", 16))))
     intensity = max(0.0, min(100.0, float(params.get("intensity", 10.0))))
 
     h, w = frame.shape[:2]

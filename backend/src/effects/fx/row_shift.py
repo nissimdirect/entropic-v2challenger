@@ -59,15 +59,18 @@ def apply(
     alpha = frame[:, :, 3:4]
 
     if direction in ("horizontal", "both"):
-        for y in range(h):
-            if rng.random() < density:
-                shift = int(rng.integers(-max_shift, max_shift + 1))
-                rgb[y] = np.roll(rgb[y], shift, axis=0)
+        # Vectorized: generate all random values at once, then apply shifts
+        row_rand = rng.random(h)
+        row_shifts = rng.integers(-max_shift, max_shift + 1, size=h)
+        affected = row_rand < density
+        for y in np.nonzero(affected)[0]:
+            rgb[y] = np.roll(rgb[y], int(row_shifts[y]), axis=0)
 
     if direction in ("vertical", "both"):
-        for x in range(w):
-            if rng.random() < density:
-                shift = int(rng.integers(-max_shift, max_shift + 1))
-                rgb[:, x] = np.roll(rgb[:, x], shift, axis=0)
+        col_rand = rng.random(w)
+        col_shifts = rng.integers(-max_shift, max_shift + 1, size=w)
+        affected = col_rand < density
+        for x in np.nonzero(affected)[0]:
+            rgb[:, x] = np.roll(rgb[:, x], int(col_shifts[x]), axis=0)
 
     return np.concatenate([rgb, alpha], axis=2), None

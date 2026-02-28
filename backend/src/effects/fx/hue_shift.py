@@ -30,7 +30,7 @@ def apply(
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
     """Rotate hue by N degrees. Stateless."""
-    amount = float(params.get("amount", 180.0))
+    amount = max(0.0, min(360.0, float(params.get("amount", 180.0))))
     output = frame.copy()
 
     # Extract RGB, convert to HSV manually (no cv2 dependency required)

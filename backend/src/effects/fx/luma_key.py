@@ -65,5 +65,8 @@ def apply(
         mask = cv2.GaussianBlur(mask, (ksize, ksize), 0)
 
     new_alpha = ((1.0 - mask) * 255).astype(np.uint8)
-    output = np.concatenate([rgb, new_alpha[:, :, np.newaxis]], axis=2)
+    # Multiply with incoming alpha so upstream transparency is preserved
+    incoming_alpha = frame[:, :, 3]
+    combined_alpha = np.minimum(new_alpha, incoming_alpha)
+    output = np.concatenate([rgb, combined_alpha[:, :, np.newaxis]], axis=2)
     return output, None
