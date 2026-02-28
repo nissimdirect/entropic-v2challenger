@@ -6,6 +6,8 @@
  * 7. Rapid kill/respawn stability
  * 8. Port conflict recovery
  */
+// WHY E2E: Tests sidecar crash detection and restart — requires real child process management
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected, waitForEngineStatus } from '../fixtures/test-helpers'
 import { execSync } from 'child_process'

@@ -1,13 +1,11 @@
 /**
  * Phase 1 — Effect Chain Tests (UAT Gap: AC-9, AC-12)
  *
- * // WHY E2E: AC-12 queries real engine via IPC (list_effects command)
- * // WHY E2E: AC-9 reorder needs real video import + effect pipeline
- * // WHY E2E: Move-up disabled test needs real import + effect add via IPC
- *
  * AC-9: Drag to reorder effects in chain (uses move-up/move-down buttons)
  * AC-12: At least 10 effects registered and working
  */
+// WHY E2E: Remaining tests need real engine IPC to verify effect registration from Python sidecar
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,
