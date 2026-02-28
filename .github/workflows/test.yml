@@ -31,6 +31,8 @@ jobs:
         run: cd frontend && npm ci
       - name: Run frontend unit tests
         run: cd frontend && npx vitest run
+      - name: Audit test layer (P97)
+        run: python3 scripts/audit_test_layer.py --ci
 
   sidecar:
     runs-on: macos-latest
