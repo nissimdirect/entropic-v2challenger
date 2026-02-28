@@ -1,10 +1,6 @@
 /**
  * Phase 1 — Export Tests (UAT Plan tests 10-14, 18)
  *
- * MIGRATION STATUS: All 6 tests migrated to Vitest component tests:
- *   frontend/src/__tests__/components/export.test.tsx
- * These E2E versions kept until component tests prove stable (2-week window).
- *
  * 10. Export button visible only when assets loaded
  * 11. Export dialog opens with correct fields
  * 12. Export dialog close button works
@@ -12,6 +8,8 @@
  * 14. Export cancel button present during export
  * 18. First-time user flow: no export without import
  */
+// WHY E2E: Remaining tests verify real file dialog and export pipeline through actual IPC
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 

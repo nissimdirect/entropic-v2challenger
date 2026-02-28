@@ -1,17 +1,17 @@
 /**
  * Edge Case & Boundary Tests
  *
- * MIGRATION STATUS: Empty-state transition test migrated:
- *   frontend/src/__tests__/components/interactions.test.tsx
- *
- * Remaining E2E tests:
- * // WHY E2E: All effect/export/param tests need real video import + IPC pipeline
- * // WHY E2E: Ingest error test needs real IPC handler stubbing via electronApp.evaluate
- * // WHY E2E: Loaded-state test needs real asset badge + frame rendering
- *
  * Tests for every edge case, boundary condition, and error recovery path.
  * Organized by feature area: import, effects, export, parameters.
+ *
+ * Covers:
+ * - Boundary values on all numeric inputs
+ * - Error recovery from failed operations
+ * - State transitions (empty → loaded → effects → export)
+ * - Concurrent/rapid interactions not covered by chaos tests
  */
+// WHY E2E: Remaining tests need real IPC responses, sidecar command failures, and process error states
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,

@@ -10,6 +10,8 @@
  * 11. Effect browser loads (registry fetched)
  * 12. All main UI sections present
  */
+// WHY E2E: Tests real Electron BrowserWindow creation, preload bridge availability, and process lifecycle
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 
@@ -24,9 +26,11 @@ test.describe('Phase 0A — App Launch', () => {
     expect(height).toBeGreaterThanOrEqual(500)
   })
 
-  test('2. window title is "Entropic v2 Challenger"', async ({ window }) => {
+  test('2. window title contains "Entropic"', async ({ window }) => {
     const title = await window.title()
-    expect(title).toBe('Entropic v2 Challenger')
+    // Phase 4: title format is now "{projectName} — Entropic"
+    expect(title).toContain('Entropic')
+    expect(title).toContain('Untitled')
   })
 
   test('3. renderer loads React app (not blank)', async ({ window }) => {
@@ -51,6 +55,13 @@ test.describe('Phase 0A — App Launch', () => {
         onEngineStatus: typeof e.onEngineStatus === 'function',
         onExportProgress: typeof e.onExportProgress === 'function',
         getPathForFile: typeof e.getPathForFile === 'function',
+        // Phase 4: project I/O methods
+        showSaveDialog: typeof e.showSaveDialog === 'function',
+        showOpenDialog: typeof e.showOpenDialog === 'function',
+        readFile: typeof e.readFile === 'function',
+        writeFile: typeof e.writeFile === 'function',
+        deleteFile: typeof e.deleteFile === 'function',
+        getAppPath: typeof e.getAppPath === 'function',
       }
     })
     expect(methods.sendCommand).toBe(true)
@@ -59,6 +70,12 @@ test.describe('Phase 0A — App Launch', () => {
     expect(methods.onEngineStatus).toBe(true)
     expect(methods.onExportProgress).toBe(true)
     expect(methods.getPathForFile).toBe(true)
+    expect(methods.showSaveDialog).toBe(true)
+    expect(methods.showOpenDialog).toBe(true)
+    expect(methods.readFile).toBe(true)
+    expect(methods.writeFile).toBe(true)
+    expect(methods.deleteFile).toBe(true)
+    expect(methods.getAppPath).toBe(true)
   })
 
   test('9. status bar shows engine status text', async ({ window }) => {

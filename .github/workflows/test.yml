@@ -104,19 +104,21 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
       - name: Post test health comment
         uses: actions/github-script@v7
         with:
           script: |
-            const body = `### Test Health
-            - Smoke: Backend + Vitest passed
-            - E2E: Smoke test passed
-            - Full E2E: Runs on merge to main only
-
-            *Pyramid target: 80% unit / 15% component / 5% E2E*`;
+            const body = [
+              '### Test Health',
+              '| Layer | Status | Notes |',
+              '|-------|--------|-------|',
+              '| Backend smoke | Passed | pytest -m smoke |',
+              '| Vitest (unit + component + contract) | Passed | ~415 tests, ~2s |',
+              '| E2E smoke | Passed | Playwright + real Electron |',
+              '| Full E2E | Merge to main only | ~15 tests |',
+              '',
+              '*Pyramid: 80% unit / 15% component / 5% E2E*',
+            ].join('\n');
 
             const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,

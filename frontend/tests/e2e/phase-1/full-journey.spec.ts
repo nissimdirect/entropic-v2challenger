@@ -16,6 +16,8 @@
  *
  * Screenshots taken at each major step as evidence.
  */
+// WHY E2E: Golden path end-to-end test — import, add effect, export through real Electron + sidecar
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,
