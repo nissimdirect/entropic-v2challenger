@@ -14,6 +14,8 @@
  * 19. Import replaces previous asset (single-asset mode)
  * 20. Effect chain preserved after new import
  */
+// WHY E2E: Remaining tests verify real file import through Electron dialog and sidecar probe
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,

@@ -7,6 +7,8 @@
  * SEC-9: Resource limits respected
  * SEC-15: Context isolation (covered in chaos.spec.ts #14)
  */
+// WHY E2E: Tests contextIsolation, nodeIntegration:false, CSP — MUST verify in real Electron process
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 

@@ -14,6 +14,8 @@
  * - ParamToggle (boolean checkbox)
  * - ParamChoice (select dropdown)
  */
+// WHY E2E: Remaining tests need real video playback and render pipeline through IPC
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,

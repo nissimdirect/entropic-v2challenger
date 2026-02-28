@@ -16,10 +16,20 @@ PR #1 CI takes 50-70+ min on E2E tests. Root cause: 132 Playwright tests each la
 Classic "if all you have is a hammer" problem. The E2E fixture made it easy to write Playwright tests, so every test became E2E. No one asked "does this test NEED Electron?"
 
 ## Solution: Hybrid Test Pyramid
-1. **Mock boundary:** The 6-method preload bridge (`sendCommand`, `selectFile`, `selectSavePath`, `onEngineStatus`, `onExportProgress`, `getPathForFile`)
-2. **Component tests:** ~85-95 tests migrated from Playwright to Vitest + `createMockEntropic()`. Same assertions, 100x faster.
-3. **IPC contract tests:** Auto-validate TypeScript IPC types match Python ZMQ command schema
-4. **Real E2E:** 12-15 tests that MUST use real Electron (launch, sidecar lifecycle, security gates, golden path)
+1. **Mock boundary:** The 12-method preload bridge (`sendCommand`, `selectFile`, `selectSavePath`, `onEngineStatus`, `onExportProgress`, `getPathForFile`, plus 6 more)
+2. **Component tests:** 147 tests migrated across 6 batches from Playwright to Vitest + `createMockEntropic()`. Same assertions, 100x faster.
+3. **IPC contract tests:** Auto-validate TypeScript IPC types match Python ZMQ command schema (3 tests)
+4. **Real E2E:** ~15 tests that MUST use real Electron (launch, sidecar lifecycle, security gates, golden path)
+
+## Migration Batches
+| Batch | Tests | What |
+|-------|-------|------|
+| 1 | 50 | Preview, effects, upload, transport, edge-cases, effect-chain, import-video |
+| 2 | 35 | Edge-cases, effect-chain, import-video (component-level) |
+| 3 | 18 | UX-combinations (search, category, lifecycle, export controls) |
+| 4 | 20 | Chaos (keyboard, rapid clicks, DOM) + Interactions (export dialog, preview, drop zone) |
+| 5 | 14 | Export states + UX contracts (Don Norman affordances, constraints, consistency) |
+| 6 | 10 | Timeline UI (tracks, zoom, history panel) |
 
 ## Pattern
 **The preload bridge IS the mock boundary.** Any test that can inject `createMockEntropic()` should. Only tests that verify the bridge itself need real Electron.
@@ -29,7 +39,9 @@ Classic "if all you have is a hammer" problem. The E2E fixture made it easy to w
 |--------|--------|-------|
 | PR gate | 50-70 min | < 3 min |
 | Merge CI | 50-70 min | < 8 min |
+| Vitest total | 268 | 415 |
 | Pyramid | 0/0/100% E2E | 83/13/2% |
+| Vitest runtime | N/A | ~2s |
 
 ## Prevention Rules (Codified)
 - P97: Test at the Right Layer — new principle in behavioral-principles.md

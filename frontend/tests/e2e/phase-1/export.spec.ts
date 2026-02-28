@@ -8,6 +8,8 @@
  * 14. Export cancel button present during export
  * 18. First-time user flow: no export without import
  */
+// WHY E2E: Remaining tests verify real file dialog and export pipeline through actual IPC
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 

@@ -8,6 +8,8 @@
  * - State corruption attempts
  * - Boundary conditions
  */
+// WHY E2E: Remaining tests need electronApp.evaluate, real IPC abuse, BrowserWindow resize, contextIsolation
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 

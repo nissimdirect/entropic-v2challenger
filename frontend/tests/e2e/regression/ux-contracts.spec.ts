@@ -8,6 +8,8 @@
  * - Constraints (can't do invalid things)
  * - Consistency (same patterns everywhere)
  */
+// WHY E2E: Remaining tests need real engine connection, BrowserWindow API, and Electron CSS rendering
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 

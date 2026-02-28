@@ -15,6 +15,8 @@
  * 7. Search + Category + Effect Add (3 tests)
  * 8. State Machine Transitions (3 tests)
  */
+// WHY E2E: Remaining tests need real playback, video replace, error recovery through live IPC
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,

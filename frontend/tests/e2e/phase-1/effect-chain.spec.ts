@@ -4,6 +4,8 @@
  * AC-9: Drag to reorder effects in chain (uses move-up/move-down buttons)
  * AC-12: At least 10 effects registered and working
  */
+// WHY E2E: Remaining tests need real engine IPC to verify effect registration from Python sidecar
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,

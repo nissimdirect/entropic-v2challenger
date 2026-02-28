@@ -10,6 +10,8 @@
  * - State transitions (empty → loaded → effects → export)
  * - Concurrent/rapid interactions not covered by chaos tests
  */
+// WHY E2E: Remaining tests need real IPC responses, sidecar command failures, and process error states
+
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
   waitForEngineConnected,
