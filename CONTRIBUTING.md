@@ -44,3 +44,44 @@ Add to `.gitignore`:
 .test-manifest.json
 .test-results/
 ```
+
+## Test Pyramid (Frontend)
+
+```
+                    /\
+                   /  \        12 E2E Smoke (Playwright + real Electron)
+                  /    \       Launch, connect, import, effect, export,
+                 /      \      security gates, sidecar lifecycle
+                /________\
+               /          \
+              / IPC Contract \ Auto-generated from shared schema
+             / Tests (Vitest  \ Catches TS ↔ Python schema drift
+            /  + pytest)       \
+           /____________________\
+          /                      \
+         / Component Tests with   \ Vitest + @testing-library/react
+        / mocked window.entropic   \ UI rendering, interactions, state
+       /____________________________\
+      /                              \
+     / Backend Tests (pytest)         \ Already fast (5.3s)
+    /__________________________________\
+```
+
+### Which tier does my test belong to?
+
+| If you're testing... | Use | Speed |
+|---------------------|-----|-------|
+| Backend logic, effects, ZMQ commands | pytest unit test | ~50ms |
+| UI component rendering, interactions | Vitest + `createMockEntropic()` | ~200ms |
+| TypeScript ↔ Python schema agreement | Vitest IPC contract test | ~100ms |
+| App launch, sidecar lifecycle, security | Playwright E2E | ~5s |
+
+### "WHY E2E" Rule
+
+New E2E tests (`.spec.ts` files in `tests/e2e/`) **require a justification comment**:
+
+```typescript
+// WHY E2E: Tests contextIsolation security gate — must verify in real Electron process
+```
+
+If the test doesn't need real Electron (process lifecycle, OS integration, security gates), it should be a Vitest component test with mocked IPC instead.

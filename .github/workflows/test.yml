@@ -1,5 +1,8 @@
 name: Entropic v2 Tests
-on: [push, pull_request]
+on:
+  push:
+    branches: [main]
+  pull_request:
 
 jobs:
   smoke:
@@ -11,9 +14,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/pyproject.toml
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
       - name: Install system deps
         run: brew install portaudio
       - name: Install backend deps
@@ -27,6 +34,7 @@ jobs:
 
   sidecar:
     runs-on: macos-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -34,6 +42,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/pyproject.toml
       - name: Install system deps
         run: brew install portaudio
       - name: Install backend deps
@@ -43,6 +53,7 @@ jobs:
 
   electron-e2e:
     runs-on: macos-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -50,9 +61,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/pyproject.toml
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
       - name: Install system deps
         run: brew install portaudio
       - name: Install backend deps
@@ -67,12 +82,64 @@ jobs:
         run: cd frontend && npx electron-vite build
       - name: Run smoke test
         run: cd frontend && npx playwright test tests/e2e/smoke.spec.ts
-      - name: Run E2E tests
+      - name: Run full E2E tests
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: cd frontend && npx playwright test tests/e2e/
         env:
           CI: '1'
+      - name: Cleanup orphan processes
+        if: always()
+        run: pkill -f "backend/src/main.py" || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test-results
           path: frontend/test-results/
+
+  test-health-comment:
+    runs-on: macos-latest
+    needs: [smoke, electron-e2e]
+    if: github.event_name == 'pull_request'
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Post test health comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = `### Test Health
+            - Smoke: Backend + Vitest passed
+            - E2E: Smoke test passed
+            - Full E2E: Runs on merge to main only
+
+            *Pyramid target: 80% unit / 15% component / 5% E2E*`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const existing = comments.find(c =>
+              c.body.includes('### Test Health') && c.user.type === 'Bot'
+            );
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
