@@ -21,7 +21,7 @@ function getPreloadMethods(): string[] {
   const content = readFileSync(preloadPath, 'utf-8')
 
   // Match top-level method names inside contextBridge.exposeInMainWorld('entropic', { ... })
-  // The 6 bridge methods are indented with exactly 2 spaces (direct object properties).
+  // The 12 bridge methods are indented with exactly 2 spaces (direct object properties).
   // Deeper-indented identifiers (like `callback` params) must be excluded.
   const methodPattern =
     /^  (\w+)\s*:\s*(?:\(|async\s*\()/gm
@@ -58,7 +58,7 @@ function getBackendCommands(): string[] {
 }
 
 describe('IPC Contract', () => {
-  it('preload bridge exposes the expected 6 methods', () => {
+  it('preload bridge exposes the expected 12 methods', () => {
     const methods = getPreloadMethods()
 
     expect(methods).toContain('sendCommand')
@@ -67,13 +67,20 @@ describe('IPC Contract', () => {
     expect(methods).toContain('onEngineStatus')
     expect(methods).toContain('onExportProgress')
     expect(methods).toContain('getPathForFile')
-    expect(methods).toHaveLength(6)
+    expect(methods).toContain('showSaveDialog')
+    expect(methods).toContain('showOpenDialog')
+    expect(methods).toContain('readFile')
+    expect(methods).toContain('writeFile')
+    expect(methods).toContain('deleteFile')
+    expect(methods).toContain('getAppPath')
+    expect(methods).toHaveLength(12)
   })
 
   it('backend ZMQ server registers all expected commands', () => {
     const commands = getBackendCommands()
 
     // All 24 commands from handle_message()
+    // NOTE: render_composite will be added when backend compositor handler lands
     const expected = [
       'apply_chain',
       'audio_decode',

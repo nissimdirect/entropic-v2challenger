@@ -1,7 +1,7 @@
 /**
  * Mock for the Entropic preload bridge (window.entropic).
  *
- * The 6-method preload bridge is the mock boundary for component tests.
+ * The 12-method preload bridge is the mock boundary for component tests.
  * Any test that can use createMockEntropic() should — only tests verifying
  * the bridge itself or process lifecycle need real Electron.
  *
@@ -29,6 +29,12 @@ export interface EntropicBridge {
       error?: string
     }) => void,
   ) => () => void
+  showSaveDialog: (options: Record<string, unknown>) => Promise<string | null>
+  showOpenDialog: (options: Record<string, unknown>) => Promise<string | null>
+  readFile: (filePath: string) => Promise<string>
+  writeFile: (filePath: string, data: string) => Promise<void>
+  deleteFile: (filePath: string) => Promise<void>
+  getAppPath: (name: string) => Promise<string>
 }
 
 /**
@@ -38,15 +44,21 @@ export interface EntropicBridge {
 export function createMockEntropic(
   overrides?: Partial<EntropicBridge>,
 ): EntropicBridge {
-  return {
+  const defaults: EntropicBridge = {
     sendCommand: vi.fn().mockResolvedValue({ ok: true }),
     selectFile: vi.fn().mockResolvedValue('/test/video.mp4'),
     selectSavePath: vi.fn().mockResolvedValue('/test/output.mp4'),
     onEngineStatus: vi.fn(),
     onExportProgress: vi.fn().mockReturnValue(vi.fn()),
     getPathForFile: vi.fn().mockReturnValue('/test/video.mp4'),
-    ...overrides,
+    showSaveDialog: vi.fn().mockResolvedValue('/test/project.glitch'),
+    showOpenDialog: vi.fn().mockResolvedValue('/test/project.glitch'),
+    readFile: vi.fn().mockResolvedValue('{}'),
+    writeFile: vi.fn().mockResolvedValue(undefined),
+    deleteFile: vi.fn().mockResolvedValue(undefined),
+    getAppPath: vi.fn().mockResolvedValue('/test/userData'),
   }
+  return { ...defaults, ...overrides }
 }
 
 /**

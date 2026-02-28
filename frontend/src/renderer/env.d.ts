@@ -21,6 +21,12 @@ interface Window {
     onExportProgress: (
       callback: (data: { jobId: string; progress: number; done: boolean; error?: string }) => void,
     ) => () => void
+    showSaveDialog: (options: Record<string, unknown>) => Promise<string | null>
+    showOpenDialog: (options: Record<string, unknown>) => Promise<string | null>
+    readFile: (filePath: string) => Promise<string>
+    writeFile: (filePath: string, data: string) => Promise<void>
+    deleteFile: (filePath: string) => Promise<void>
+    getAppPath: (name: string) => Promise<string>
   }
 }
 

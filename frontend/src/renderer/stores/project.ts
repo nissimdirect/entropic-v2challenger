@@ -9,6 +9,8 @@ interface ProjectState {
   totalFrames: number
   isIngesting: boolean
   ingestError: string | null
+  projectPath: string | null
+  projectName: string
 
   addAsset: (asset: Asset) => void
   removeAsset: (id: string) => void
@@ -23,18 +25,27 @@ interface ProjectState {
   setTotalFrames: (total: number) => void
   setIngesting: (ingesting: boolean) => void
   setIngestError: (error: string | null) => void
+  setProjectPath: (path: string | null) => void
+  setProjectName: (name: string) => void
+  resetProject: () => void
 }
 
 const MAX_CHAIN_LENGTH = 10
 
-export const useProjectStore = create<ProjectState>((set) => ({
-  assets: {},
-  effectChain: [],
-  selectedEffectId: null,
+const PROJECT_DEFAULTS = {
+  assets: {} as Record<string, Asset>,
+  effectChain: [] as EffectInstance[],
+  selectedEffectId: null as string | null,
   currentFrame: 0,
   totalFrames: 0,
   isIngesting: false,
-  ingestError: null,
+  ingestError: null as string | null,
+  projectPath: null as string | null,
+  projectName: 'Untitled',
+}
+
+export const useProjectStore = create<ProjectState>((set) => ({
+  ...PROJECT_DEFAULTS,
 
   addAsset: (asset) =>
     set((state) => ({
@@ -97,4 +108,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
   setTotalFrames: (total) => set({ totalFrames: total }),
   setIngesting: (ingesting) => set({ isIngesting: ingesting }),
   setIngestError: (error) => set({ ingestError: error }),
+  setProjectPath: (path) => set({ projectPath: path }),
+  setProjectName: (name) => set({ projectName: name }),
+  resetProject: () => set(PROJECT_DEFAULTS),
 }))

@@ -170,3 +170,12 @@ export interface ParamDef {
   curve?: ParamCurve;
   unit?: string;
 }
+
+// --- Undo ---
+
+export interface UndoEntry {
+  forward: () => void;
+  inverse: () => void;
+  description: string;
+  timestamp: number;
+}

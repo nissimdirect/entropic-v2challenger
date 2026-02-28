@@ -1,0 +1,442 @@
+/* --- Timeline Panel --- */
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  background: #1a1a1a;
+  height: 200px;
+  min-height: 120px;
+  max-height: 50vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.timeline__resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: ns-resize;
+  z-index: 10;
+}
+
+.timeline__resize-handle:hover {
+  background: #4ade80;
+}
+
+.timeline__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.timeline__headers {
+  width: 180px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid #333;
+  background: #222;
+}
+
+.timeline__headers-spacer {
+  height: 24px;
+  border-bottom: 1px solid #333;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.timeline__add-track-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 2px;
+}
+
+.timeline__add-track-btn:hover {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+}
+
+.timeline__track-headers {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.timeline__lanes {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.timeline__ruler-scroll {
+  overflow: hidden;
+}
+
+.timeline__tracks-scroll {
+  flex: 1;
+  overflow-x: auto;
+  overflow-y: auto;
+  position: relative;
+}
+
+.timeline__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 12px;
+  color: #555;
+}
+
+/* --- Zoom / Scroll Bar --- */
+
+.timeline__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #222;
+  border-top: 1px solid #333;
+  height: 28px;
+}
+
+.zoom-scroll__label {
+  font-size: 10px;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.zoom-scroll__slider {
+  -webkit-appearance: none;
+  width: 100px;
+  height: 4px;
+  background: #444;
+  border-radius: 2px;
+  outline: none;
+}
+
+.zoom-scroll__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: #e0e0e0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.zoom-scroll__slider::-webkit-slider-thumb:hover {
+  background: #4ade80;
+}
+
+.zoom-scroll__value {
+  font-size: 10px;
+  color: #aaa;
+  min-width: 40px;
+}
+
+/* --- Time Ruler --- */
+
+.time-ruler {
+  height: 24px;
+  background: #222;
+  border-bottom: 1px solid #333;
+  position: relative;
+  cursor: pointer;
+  overflow: hidden;
+  user-select: none;
+}
+
+.time-ruler__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* --- Playhead --- */
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: #4ade80;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.playhead__head {
+  position: absolute;
+  top: 0;
+  left: -5px;
+  width: 11px;
+  height: 8px;
+  background: #4ade80;
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+  pointer-events: auto;
+  cursor: ew-resize;
+}
+
+/* --- Track Header --- */
+
+.track-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  height: 48px;
+  border-bottom: 1px solid #333;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.track-header:hover {
+  background: #2a2a2a;
+}
+
+.track-header--selected {
+  background: rgba(74, 222, 128, 0.08);
+}
+
+.track-header__color {
+  width: 4px;
+  height: 32px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.track-header__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.track-header__name {
+  font-size: 11px;
+  font-weight: 600;
+  color: #e0e0e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.track-header__controls {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.track-header__btn {
+  width: 20px;
+  height: 20px;
+  background: #333;
+  border: none;
+  border-radius: 2px;
+  color: #888;
+  font-family: inherit;
+  font-size: 9px;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.track-header__btn:hover {
+  background: #444;
+  color: #fff;
+}
+
+.track-header__btn--active {
+  background: #4ade80;
+  color: #1a1a1a;
+}
+
+/* --- Track Lane --- */
+
+.track-lane {
+  height: 48px;
+  border-bottom: 1px solid #333;
+  position: relative;
+  background: #1e1e1e;
+}
+
+.track-lane--selected {
+  background: rgba(74, 222, 128, 0.04);
+}
+
+/* --- Clip --- */
+
+.clip {
+  position: absolute;
+  top: 4px;
+  height: 40px;
+  background: #2a3a2e;
+  border: 1px solid #3a5a40;
+  border-radius: 3px;
+  cursor: grab;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  overflow: hidden;
+  user-select: none;
+  transition: border-color 0.15s;
+}
+
+.clip:hover {
+  border-color: #4ade80;
+}
+
+.clip:active {
+  cursor: grabbing;
+}
+
+.clip--selected {
+  border-color: #4ade80;
+  box-shadow: 0 0 0 1px #4ade80;
+}
+
+.clip__name {
+  font-size: 10px;
+  color: #aaa;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clip__trim-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+
+.clip__trim-handle--left {
+  left: 0;
+  border-right: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.clip__trim-handle--right {
+  right: 0;
+  border-left: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.clip__trim-handle:hover {
+  background: rgba(74, 222, 128, 0.15);
+}
+
+/* --- Loop Region --- */
+
+.loop-region {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(59, 130, 246, 0.12);
+  border-left: 1px solid rgba(59, 130, 246, 0.5);
+  border-right: 1px solid rgba(59, 130, 246, 0.5);
+  pointer-events: none;
+  z-index: 3;
+}
+
+/* --- Marker Flag --- */
+
+.marker-flag {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 4;
+  cursor: pointer;
+  width: 1px;
+}
+
+.marker-flag__head {
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-bottom: 6px solid #f59e0b;
+  position: absolute;
+  top: 0;
+  left: -4px;
+}
+
+.marker-flag__line {
+  position: absolute;
+  top: 6px;
+  bottom: 0;
+  width: 1px;
+  background: #f59e0b;
+  left: 0;
+  opacity: 0.5;
+}
+
+.marker-flag:hover .marker-flag__line {
+  opacity: 1;
+}
+
+/* --- History Panel --- */
+
+.history-panel {
+  border-top: 1px solid #333;
+  padding: 8px 0;
+}
+
+.history-panel__header {
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 12px 6px;
+}
+
+.history-panel__empty {
+  font-size: 11px;
+  color: #555;
+  padding: 8px 12px;
+}
+
+.history-panel__list {
+  display: flex;
+  flex-direction: column;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.history-panel__entry {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: transparent;
+  border: none;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.history-panel__entry:hover {
+  background: #2a2a2a;
+}
+
+.history-panel__entry--current {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.history-panel__entry--future {
+  color: #555;
+}

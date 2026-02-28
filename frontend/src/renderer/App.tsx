@@ -4,6 +4,8 @@ import { useEngineStore } from './stores/engine'
 import { useProjectStore } from './stores/project'
 import { useEffectsStore } from './stores/effects'
 import { useAudioStore } from './stores/audio'
+import { useUndoStore } from './stores/undo'
+import { useTimelineStore } from './stores/timeline'
 import DropZone from './components/upload/DropZone'
 import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
@@ -15,11 +17,15 @@ import PreviewControls from './components/preview/PreviewControls'
 import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
+import Timeline from './components/timeline/Timeline'
+import HistoryPanel from './components/layout/HistoryPanel'
 import type { Asset, EffectInstance } from '../shared/types'
 import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
+import { saveProject, loadProject, newProject, startAutosave, stopAutosave } from './project-persistence'
 import './styles/transport.css'
+import './styles/timeline.css'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -61,6 +67,7 @@ function AppInner() {
     totalFrames,
     isIngesting,
     ingestError,
+    projectName,
     addAsset,
     addEffect,
     removeEffect,
@@ -74,6 +81,8 @@ function AppInner() {
     setIngesting,
     setIngestError,
   } = useProjectStore()
+
+  const isDirty = useUndoStore((s) => s.isDirty)
 
   const { registry, isLoading: effectsLoading, fetchRegistry } = useEffectsStore()
 
@@ -103,6 +112,93 @@ function AppInner() {
   const pendingFrameRef = useRef<number | null>(null)
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
+
+  // Window title — show project name + dirty indicator
+  useEffect(() => {
+    const title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
+    document.title = title
+  }, [projectName, isDirty])
+
+  // Start autosave on mount, stop on unmount
+  useEffect(() => {
+    startAutosave()
+    return () => stopAutosave()
+  }, [])
+
+  // Keyboard shortcuts: undo/redo, zoom, save/load/new, split, marker, loop I/O
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't intercept shortcuts when typing in input fields
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
+
+      const mod = e.metaKey || e.ctrlKey
+
+      // Undo/Redo
+      if (mod && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault()
+        useUndoStore.getState().undo()
+      } else if (mod && e.key === 'z' && e.shiftKey) {
+        e.preventDefault()
+        useUndoStore.getState().redo()
+      }
+      // Zoom
+      else if (mod && (e.key === '=' || e.key === '+')) {
+        e.preventDefault()
+        const z = useTimelineStore.getState().zoom
+        useTimelineStore.getState().setZoom(z + 10)
+      } else if (mod && e.key === '-') {
+        e.preventDefault()
+        const z = useTimelineStore.getState().zoom
+        useTimelineStore.getState().setZoom(z - 10)
+      } else if (mod && e.key === '0') {
+        e.preventDefault()
+        useTimelineStore.getState().setZoom(50)
+      }
+      // Save/Load/New
+      else if (mod && e.key === 's' && !e.shiftKey) {
+        e.preventDefault()
+        saveProject()
+      } else if (mod && e.key === 'o' && !e.shiftKey) {
+        e.preventDefault()
+        loadProject()
+      } else if (mod && e.key === 'n' && !e.shiftKey) {
+        e.preventDefault()
+        newProject()
+      }
+      // Split clip at playhead (Cmd+Shift+K)
+      else if (mod && e.key === 'k' && e.shiftKey) {
+        e.preventDefault()
+        const timeline = useTimelineStore.getState()
+        const selectedClip = timeline.selectedClipId
+        if (selectedClip) {
+          timeline.splitClip(selectedClip, timeline.playheadTime)
+        }
+      }
+      // Add marker (Cmd+M)
+      else if (mod && e.key === 'm') {
+        e.preventDefault()
+        const timeline = useTimelineStore.getState()
+        timeline.addMarker(timeline.playheadTime, `Marker`, '#f59e0b')
+      }
+      // Loop in/out (I / O keys)
+      else if (e.key === 'i' && !mod) {
+        const timeline = useTimelineStore.getState()
+        const currentOut = timeline.loopRegion?.out ?? timeline.duration
+        if (timeline.playheadTime < currentOut) {
+          timeline.setLoopRegion(timeline.playheadTime, currentOut)
+        }
+      } else if (e.key === 'o' && !mod) {
+        const timeline = useTimelineStore.getState()
+        const currentIn = timeline.loopRegion?.in ?? 0
+        if (timeline.playheadTime > currentIn) {
+          timeline.setLoopRegion(currentIn, timeline.playheadTime)
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
 
   // Fetch effect registry when engine connects
   useEffect(() => {
@@ -313,6 +409,21 @@ function AppInner() {
     [setCurrentFrame, activeFps, audioStore],
   )
 
+  // Timeline playhead seek — syncs audio position and video frame
+  const handleTimelineSeek = useCallback(
+    (time: number) => {
+      if (activeFps > 0) {
+        const frame = Math.floor(time * activeFps)
+        setCurrentFrame(frame)
+      }
+      useTimelineStore.getState().setPlayheadTime(time)
+      if (hasAudio && audioStore.isLoaded) {
+        audioStore.seek(time)
+      }
+    },
+    [setCurrentFrame, activeFps, hasAudio, audioStore],
+  )
+
   const handlePlayPause = useCallback(() => {
     if (hasAudio && audioStore.isLoaded) {
       // Audio-driven playback: toggle audio, video follows via clock sync
@@ -338,11 +449,20 @@ function AppInner() {
 
     const tick = async () => {
       await audioStore.syncClock()
-      const { targetFrame } = useAudioStore.getState()
+      const { targetFrame, currentTime } = useAudioStore.getState()
       if (targetFrame !== lastFrame) {
         lastFrame = targetFrame
         setCurrentFrame(targetFrame)
+        useTimelineStore.getState().setPlayheadTime(currentTime)
       }
+
+      // Loop region: when playhead reaches loop out, jump back to loop in
+      const loopRegion = useTimelineStore.getState().loopRegion
+      if (loopRegion && currentTime >= loopRegion.out) {
+        audioStore.seek(loopRegion.in)
+        useTimelineStore.getState().setPlayheadTime(loopRegion.in)
+      }
+
       clockSyncRafRef.current = requestAnimationFrame(tick)
     }
 
@@ -557,6 +677,7 @@ function AppInner() {
           onRemove={removeEffect}
           onReorder={reorderEffect}
         />
+        <HistoryPanel />
       </div>
 
       <div className="app__main">
@@ -601,6 +722,10 @@ function AppInner() {
           error={exportError}
           onCancel={handleExportCancel}
         />
+      </div>
+
+      <div className="app__timeline">
+        <Timeline onSeek={handleTimelineSeek} />
       </div>
 
       <div className="status-bar">

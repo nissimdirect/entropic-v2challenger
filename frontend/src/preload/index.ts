@@ -30,4 +30,28 @@ contextBridge.exposeInMainWorld('entropic', {
     ipcRenderer.on('export-progress', handler)
     return () => ipcRenderer.removeListener('export-progress', handler)
   },
+
+  showSaveDialog: (options: Record<string, unknown>): Promise<string | null> => {
+    return ipcRenderer.invoke('dialog:save', options)
+  },
+
+  showOpenDialog: (options: Record<string, unknown>): Promise<string | null> => {
+    return ipcRenderer.invoke('dialog:open', options)
+  },
+
+  readFile: (filePath: string): Promise<string> => {
+    return ipcRenderer.invoke('file:read', filePath)
+  },
+
+  writeFile: (filePath: string, data: string): Promise<void> => {
+    return ipcRenderer.invoke('file:write', filePath, data)
+  },
+
+  deleteFile: (filePath: string): Promise<void> => {
+    return ipcRenderer.invoke('file:delete', filePath)
+  },
+
+  getAppPath: (name: string): Promise<string> => {
+    return ipcRenderer.invoke('app:getPath', name)
+  },
 })
