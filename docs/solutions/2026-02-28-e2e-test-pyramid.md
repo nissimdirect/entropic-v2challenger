@@ -39,8 +39,9 @@ Classic "if all you have is a hammer" problem. The E2E fixture made it easy to w
 |--------|--------|-------|
 | PR gate | 50-70 min | < 3 min |
 | Merge CI | 50-70 min | < 8 min |
-| Vitest total | 268 | 415 |
-| Pyramid | 0/0/100% E2E | 83/13/2% |
+| Vitest total | 268 | 437 |
+| E2E total | 132 | 101 |
+| Pyramid | 0/0/100% E2E | 81/15/4% |
 | Vitest runtime | N/A | ~2s |
 
 ## Prevention Rules (Codified)
