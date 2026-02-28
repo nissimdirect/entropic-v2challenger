@@ -1,6 +1,14 @@
 /**
  * Phase 1 — Import Video Tests (UAT Plan tests 1-7, 15-17, 19-20)
  *
+ * MIGRATION STATUS: Tests 3, 4, 5, 6, 6b migrated to Vitest component tests:
+ *   frontend/src/__tests__/components/interactions.test.tsx
+ *
+ * Remaining E2E tests:
+ * // WHY E2E: Test 1 imports via real dialog stub (electronApp.evaluate + IPC)
+ * // WHY E2E: Test 15 double-click uses electronApp.evaluate to count dialog calls
+ * // WHY E2E: Test 17 stubs dialog to test cancel recovery (electronApp.evaluate)
+ *
  * 1. Import via Browse button (dialog stub)
  * 2. Import via file drop (simulated)
  * 3. Asset badge appears after import

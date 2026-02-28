@@ -1,6 +1,12 @@
 /**
  * UX Contract Tests — Don Norman Principles
  *
+ * MIGRATION STATUS: Tests 1-13 and 15 migrated to Vitest component tests:
+ *   frontend/src/__tests__/components/ux-contracts.test.tsx
+ *
+ * Remaining E2E test (14):
+ * // WHY E2E: Tests viewport-relative positioning via BrowserWindow.getContentSize()
+ *
  * 15 tests verifying:
  * - Visibility of system status
  * - Feedback on user actions

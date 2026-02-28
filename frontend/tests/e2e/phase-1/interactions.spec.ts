@@ -1,18 +1,17 @@
 /**
  * Phase 1 — Interaction Coverage Tests
  *
+ * MIGRATION STATUS: Search, categories, empty states, file validation migrated:
+ *   frontend/src/__tests__/components/interactions.test.tsx
+ *
+ * Remaining E2E tests:
+ * // WHY E2E: play/pause toggle needs real video import + frame advancement
+ * // WHY E2E: scrub with timecode needs real frame rendering pipeline
+ * // WHY E2E: export dialog tests need real asset import to show export button
+ * // WHY E2E: param panel with controls needs real effect + import pipeline
+ *
  * Happy-path tests for EVERY interactive element in the app.
  * Organized by component, top-to-bottom in the UI.
- *
- * Covers gaps identified in UAT audit:
- * - Play/Pause button
- * - Effect search input
- * - Individual category filter buttons
- * - Export dialog settings (resolution checkbox, custom dimensions)
- * - Export dialog overlay click-to-close
- * - Drag-and-drop file import (simulated)
- * - ParamToggle (boolean checkbox)
- * - ParamChoice (select dropdown)
  */
 import { test, expect } from '../fixtures/electron-app.fixture'
 import {
