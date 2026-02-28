@@ -50,23 +50,7 @@ test.describe('Phase 1 — Import Video', () => {
     expect(['success', 'error']).toContain(result)
   })
 
-  test('6. reject unsupported file types', async ({ window }) => {
-    // Simulate dropping a .txt file — the DropZone validates extensions
-    const hasError = await window.evaluate(() => {
-      const ALLOWED = ['.mp4', '.mov', '.avi', '.webm', '.mkv']
-      const ext = '.txt'
-      return !ALLOWED.includes(ext)
-    })
-    expect(hasError).toBe(true)
-  })
-
-  test('6b. allowed extensions are accepted by validator', async ({ window }) => {
-    const accepted = await window.evaluate(() => {
-      const ALLOWED = ['.mp4', '.mov', '.avi', '.webm', '.mkv']
-      return ALLOWED.every((ext) => ALLOWED.includes(ext))
-    })
-    expect(accepted).toBe(true)
-  })
+  // Tests 6, 6b PRUNED — migrated to Vitest: upload.test.ts + interactions.test.tsx
 
   test('15. double-click Browse does not trigger double import', async ({
     electronApp,
@@ -129,8 +113,5 @@ test.describe('Phase 1 — Import Video', () => {
     await expect(window.locator('.drop-zone__hint')).toHaveText('MP4, MOV, AVI, WebM, MKV')
   })
 
-  test('5. preview shows "No video loaded" before import', async ({ window }) => {
-    await expect(window.locator('.preview-canvas__placeholder')).toBeVisible()
-    await expect(window.locator('.preview-canvas__placeholder')).toHaveText('No video loaded')
-  })
+  // Test 5 PRUNED — migrated to Vitest: interactions.test.tsx (Preview Canvas empty state)
 })
