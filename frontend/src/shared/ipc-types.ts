@@ -121,6 +121,16 @@ export interface AudioPositionResponse {
   volume: number;
 }
 
+export interface WaveformResponse {
+  id: string;
+  ok: true;
+  peaks: number[][][];
+  num_bins: number;
+  channels: number;
+  duration_s: number;
+  cached: boolean;
+}
+
 export interface ClockSyncResponse {
   id: string;
   ok: true;
