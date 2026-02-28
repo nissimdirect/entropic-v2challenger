@@ -1,6 +1,16 @@
 /**
  * Chaos Tests — Deterministic stress sequences
  *
+ * MIGRATION STATUS: Rapid clicks (categories, effects, browse, toggle, play,
+ * search, drag) migrated to Vitest component tests:
+ *   frontend/src/__tests__/components/chaos.test.tsx
+ *
+ * Remaining E2E tests:
+ * // WHY E2E: Tests 8-11 send real IPC commands (invalid, empty, huge payload, bad filters)
+ * // WHY E2E: Test 14 verifies contextIsolation blocks XSS (SEC-15)
+ * // WHY E2E: Tests 15-17 resize real BrowserWindow (min, max, rapid)
+ * // WHY E2E: Test 13 removes DOM nodes and verifies React doesn't recover (needs full app)
+ *
  * 17 tests simulating chaotic human behavior:
  * - Rapid keyboard input
  * - Multiple rapid clicks

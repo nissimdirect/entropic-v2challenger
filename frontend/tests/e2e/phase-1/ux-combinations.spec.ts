@@ -1,6 +1,11 @@
 /**
  * Phase 1 — UX Combination & Permutation Tests
  *
+ * // WHY E2E: ALL tests require real video import + multi-step IPC interactions
+ * // (playback, effect chains, export round-trips, error recovery).
+ * // Cross-feature interaction bugs (BUG-1, BUG-3) can only be caught with
+ * // real Electron + sidecar pipeline.
+ *
  * Tests cross-feature interactions and state permutations.
  * These cover the gaps where BUG-1 and BUG-3 class bugs live:
  * features interacting in different orders, not features in isolation.
