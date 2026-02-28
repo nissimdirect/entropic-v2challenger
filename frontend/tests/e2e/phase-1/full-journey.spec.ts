@@ -1,6 +1,8 @@
 /**
  * Phase 1 — Full User Journey (Functional UAT)
  *
+ * // WHY E2E: Golden path end-to-end — tests entire import→effect→export pipeline
+ *
  * This test does what a human would do:
  * 1. Launch app, wait for engine
  * 2. Import a real video via Browse button

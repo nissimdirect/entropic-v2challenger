@@ -1,4 +1,5 @@
 /**
+ * // WHY E2E: Tests requiring real video import, frame rendering, and dialog stubs
  * Phase 1 — Interaction Coverage Tests
  *
  * Happy-path tests for EVERY interactive element in the app.

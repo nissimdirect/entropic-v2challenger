@@ -1,4 +1,5 @@
 /**
+ * // WHY E2E: Tests real engine IPC (list_effects) and effect pipeline with imported video
  * Phase 1 — Effect Chain Tests (UAT Gap: AC-9, AC-12)
  *
  * AC-9: Drag to reorder effects in chain (uses move-up/move-down buttons)

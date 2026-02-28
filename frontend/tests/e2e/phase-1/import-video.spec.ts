@@ -1,4 +1,5 @@
 /**
+ * // WHY E2E: Tests real dialog stubs, IPC handlers, and asset import pipeline
  * Phase 1 — Import Video Tests (UAT Plan tests 1-7, 15-17, 19-20)
  *
  * 1. Import via Browse button (dialog stub)

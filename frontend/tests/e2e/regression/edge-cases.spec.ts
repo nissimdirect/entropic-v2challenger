@@ -1,4 +1,5 @@
 /**
+ * // WHY E2E: Tests requiring real video import, IPC pipeline, and frame rendering
  * Edge Case & Boundary Tests
  *
  * Tests for every edge case, boundary condition, and error recovery path.

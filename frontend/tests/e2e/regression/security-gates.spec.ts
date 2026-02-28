@@ -1,6 +1,9 @@
 /**
  * Security Gate Tests — Phase 1 AC-13
  *
+ * // WHY E2E: Security gates MUST be tested against real Electron (contextIsolation,
+ * // nodeIntegration: false, preload sandboxing). Mock tests can't verify these.
+ *
  * SEC-5: Upload validation (file size, extension, symlink, path traversal)
  * SEC-6: Frame count cap (300,000)
  * SEC-7: Chain depth cap (10 effects)

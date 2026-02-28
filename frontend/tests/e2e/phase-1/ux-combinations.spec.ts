@@ -1,4 +1,5 @@
 /**
+ * // WHY E2E: ALL tests require real video import + multi-step IPC interactions
  * Phase 1 — UX Combination & Permutation Tests
  *
  * Tests cross-feature interactions and state permutations.

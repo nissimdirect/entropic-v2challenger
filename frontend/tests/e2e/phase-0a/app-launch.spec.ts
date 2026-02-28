@@ -1,6 +1,8 @@
 /**
  * Phase 0A — App Launch Tests (UAT Plan tests 1-4, 9-12)
  *
+ * // WHY E2E: Tests BrowserWindow creation, preload bridge injection, process lifecycle
+ *
  * 1. Main window opens with correct dimensions
  * 2. Window title matches expected
  * 3. Renderer loads React app (no blank screen)

@@ -1,6 +1,8 @@
 /**
  * Smoke test — 30-second check that the app launches and the sidecar connects.
  *
+ * // WHY E2E: THE integration check — verifies Electron launch + Python sidecar lifecycle
+ *
  * Verifies:
  * 1. Electron window opens
  * 2. Window has correct title

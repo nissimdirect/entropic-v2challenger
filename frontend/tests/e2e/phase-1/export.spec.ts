@@ -1,4 +1,5 @@
 /**
+ * // WHY E2E: Tests export button visibility after real video import + dialog flow
  * Phase 1 — Export Tests (UAT Plan tests 10-14, 18)
  *
  * 10. Export button visible only when assets loaded

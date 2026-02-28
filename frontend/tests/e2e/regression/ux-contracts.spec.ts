@@ -1,6 +1,8 @@
 /**
  * UX Contract Tests — Don Norman Principles
  *
+ * // WHY E2E: Test 14 tests viewport-relative positioning via BrowserWindow.getContentSize()
+ *
  * 15 tests verifying:
  * - Visibility of system status
  * - Feedback on user actions

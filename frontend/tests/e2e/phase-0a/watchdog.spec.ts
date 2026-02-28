@@ -1,6 +1,8 @@
 /**
  * Phase 0A — Watchdog Tests (UAT Plan tests 5-8)
  *
+ * // WHY E2E: Tests real sidecar process crash/restart — can't mock process lifecycle
+ *
  * 5. Watchdog detects sidecar connection
  * 6. Kill sidecar -> watchdog restarts it
  * 7. Rapid kill/respawn stability

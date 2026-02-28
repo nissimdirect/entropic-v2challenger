@@ -1,4 +1,5 @@
 /**
+ * // WHY E2E: Tests real IPC abuse, contextIsolation (SEC-15), BrowserWindow resize
  * Chaos Tests — Deterministic stress sequences
  *
  * 17 tests simulating chaotic human behavior:
