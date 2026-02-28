@@ -12,6 +12,7 @@ import zmq
 from effects import registry
 from engine.cache import encode_mjpeg
 from engine.export import ExportManager
+from engine.compositor import render_composite
 from engine.pipeline import (
     apply_chain,
     flush_timing,
@@ -136,6 +137,8 @@ class ZMQServer:
             return self._handle_seek(message, msg_id)
         elif cmd == "render_frame":
             return self._handle_render_frame(message, msg_id)
+        elif cmd == "render_composite":
+            return self._handle_render_composite(message, msg_id)
         elif cmd == "apply_chain":
             return self._handle_apply_chain(message, msg_id)
         elif cmd == "list_effects":
@@ -366,6 +369,68 @@ class ZMQServer:
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Apply chain handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_render_composite(self, message: dict, msg_id: str | None) -> dict:
+        raw_layers = message.get("layers", [])
+        resolution = message.get("resolution", [1920, 1080])
+        project_seed = message.get("project_seed", 0)
+
+        if not isinstance(raw_layers, list):
+            return {"id": msg_id, "ok": False, "error": "layers must be a list"}
+
+        try:
+            layers = []
+            for layer_info in raw_layers:
+                asset_path = layer_info.get("asset_path")
+                if not asset_path:
+                    continue
+
+                # SEC-5: Validate each asset path
+                errors = validate_upload(asset_path)
+                if errors:
+                    return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+                chain = layer_info.get("chain", [])
+                # SEC-7: Validate chain depth per layer
+                errors = validate_chain_depth(chain)
+                if errors:
+                    return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+                frame_index = int(layer_info.get("frame_index", 0))
+                opacity = float(layer_info.get("opacity", 1.0))
+                blend_mode = layer_info.get("blend_mode", "normal")
+
+                reader = self._get_reader(asset_path)
+                frame = reader.decode_frame(frame_index)
+
+                layers.append(
+                    {
+                        "frame": frame,
+                        "chain": chain,
+                        "opacity": opacity,
+                        "blend_mode": blend_mode,
+                        "frame_index": frame_index,
+                    }
+                )
+
+            t0 = time.time()
+            output = render_composite(layers, tuple(resolution), project_seed)
+
+            jpeg_bytes = encode_mjpeg(output)
+            frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
+            self.last_frame_ms = round((time.time() - t0) * 1000, 2)
+
+            return {
+                "id": msg_id,
+                "ok": True,
+                "frame_data": frame_b64,
+                "width": resolution[0],
+                "height": resolution[1],
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(f"Render composite handler error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_audio_decode(self, message: dict, msg_id: str | None) -> dict:
