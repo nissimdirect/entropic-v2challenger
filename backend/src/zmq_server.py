@@ -32,6 +32,7 @@ from audio.player import AudioPlayer
 from audio.waveform import compute_peaks
 from video.ingest import probe
 from video.reader import VideoReader
+import diagnostics as _diagnostics_mod
 
 
 class ZMQServer:
@@ -64,6 +65,8 @@ class ZMQServer:
         self.audio_player = AudioPlayer()
         # A/V sync clock — audio master, video slave
         self.av_clock = AVClock(self.audio_player)
+        # Sentry breadcrumb rate-limiter for render_frame (every 30th frame)
+        self._breadcrumb_frame_counter = 0
 
     def reset_state(self):
         """Clear accumulated state without closing sockets/context.
@@ -97,6 +100,9 @@ class ZMQServer:
         # Reset frame timing
         self.last_frame_ms = 0.0
 
+        # Reset breadcrumb frame counter
+        self._breadcrumb_frame_counter = 0
+
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
             self.shm_writer = SharedMemoryWriter()
@@ -126,16 +132,61 @@ class ZMQServer:
         if token_err:
             return {"id": msg_id, "ok": False, "error": token_err}
 
+        # Set Sentry tag and crash dump context for crash context
+        if cmd and cmd != "ping":
+            sentry_sdk.set_tag("last_command", cmd)
+            _diagnostics_mod._last_command = cmd
+
         if cmd == "ping":
             return self._make_ping_response(msg_id)
         elif cmd == "shutdown":
             self.running = False
             return {"id": msg_id, "ok": True}
         elif cmd == "ingest":
-            return self._handle_ingest(message, msg_id)
+            result = self._handle_ingest(message, msg_id)
+            if result.get("ok"):
+                self._breadcrumb_frame_counter = 0
+                video_ctx = {
+                    "width": result.get("width"),
+                    "height": result.get("height"),
+                    "fps": result.get("fps"),
+                    "frame_count": result.get("frame_count"),
+                }
+                sentry_sdk.add_breadcrumb(
+                    category="io",
+                    message="ingest",
+                    data=video_ctx,
+                    level="info",
+                )
+                sentry_sdk.set_context("video", video_ctx)
+            return result
         elif cmd == "seek":
             return self._handle_seek(message, msg_id)
         elif cmd == "render_frame":
+            self._breadcrumb_frame_counter += 1
+            if self._breadcrumb_frame_counter % 30 == 0:
+                sentry_sdk.add_breadcrumb(
+                    category="render",
+                    message="render_frame",
+                    data={
+                        "frame_index": message.get("frame_index", 0),
+                        "chain_length": len(message.get("chain", [])),
+                    },
+                    level="info",
+                )
+            chain = message.get("chain", [])
+            effect_ids = [
+                e.get("effectId", e.get("effect_id", ""))
+                for e in chain
+                if isinstance(e, dict)
+            ]
+            sentry_sdk.set_context(
+                "effect_chain",
+                {
+                    "chain_length": len(chain),
+                    "effect_ids": effect_ids[:20],  # Cap to avoid huge context
+                },
+            )
             return self._handle_render_frame(message, msg_id)
         elif cmd == "render_composite":
             return self._handle_render_composite(message, msg_id)
@@ -148,11 +199,32 @@ class ZMQServer:
         elif cmd == "waveform":
             return self._handle_waveform(message, msg_id)
         elif cmd == "audio_load":
-            return self._handle_audio_load(message, msg_id)
+            result = self._handle_audio_load(message, msg_id)
+            sentry_sdk.add_breadcrumb(
+                category="audio",
+                message="audio_load",
+                data={"has_audio": True},
+                level="info",
+            )
+            return result
         elif cmd == "audio_play":
-            return self._handle_audio_play(msg_id)
+            result = self._handle_audio_play(msg_id)
+            sentry_sdk.add_breadcrumb(
+                category="audio",
+                message="audio_play",
+                data={},
+                level="info",
+            )
+            return result
         elif cmd == "audio_pause":
-            return self._handle_audio_pause(msg_id)
+            result = self._handle_audio_pause(msg_id)
+            sentry_sdk.add_breadcrumb(
+                category="audio",
+                message="audio_pause",
+                data={},
+                level="info",
+            )
+            return result
         elif cmd == "audio_seek":
             return self._handle_audio_seek(message, msg_id)
         elif cmd == "audio_volume":
@@ -166,10 +238,22 @@ class ZMQServer:
         elif cmd == "clock_set_fps":
             return self._handle_clock_set_fps(message, msg_id)
         elif cmd == "export_start":
+            sentry_sdk.add_breadcrumb(
+                category="export",
+                message="export_start",
+                data={"chain_length": len(message.get("chain", []))},
+                level="info",
+            )
             return self._handle_export_start(message, msg_id)
         elif cmd == "export_status":
             return self._handle_export_status(msg_id)
         elif cmd == "export_cancel":
+            sentry_sdk.add_breadcrumb(
+                category="export",
+                message="export_cancel",
+                data={},
+                level="info",
+            )
             return self._handle_export_cancel(msg_id)
         elif cmd == "effect_health":
             return {"id": msg_id, "ok": True, **get_effect_health()}

@@ -1,11 +1,35 @@
 import * as Sentry from '@sentry/electron/main'
 import { existsSync, readFileSync } from 'fs'
 import { join } from 'path'
-import { homedir } from 'os'
-import { app, BrowserWindow, session } from 'electron'
+import { homedir, userInfo } from 'os'
+import { app, BrowserWindow, screen } from 'electron'
 import { spawnPython, killPython } from './python'
 import { startWatchdog, stopWatchdog } from './watchdog'
 import { registerRelayHandlers, setRelayPort, closeRelay } from './zmq-relay'
+import { registerDiagnosticsHandlers } from './diagnostics-handlers'
+import { registerSupportBundleHandler } from './support-bundle'
+import { logger } from './logger'
+
+// PII stripping for Sentry events — matches Python's strip_pii pattern
+const _homeDir = homedir()
+let _username = ''
+try { _username = userInfo().username } catch { /* best-effort */ }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function stripPiiFromEvent<T extends Record<string, any>>(event: T): T {
+  const json = JSON.stringify(event)
+  let stripped = json
+  if (_homeDir) {
+    stripped = stripped.replaceAll(_homeDir, '<HOME>')
+  }
+  if (_username && _username.length > 1) {
+    stripped = stripped.replaceAll(_username, '<USER>')
+  }
+  stripped = stripped.replace(/\/Users\/[^/\\"\s]+/g, '/Users/<USER>')
+  stripped = stripped.replace(/\/home\/[^/\\"\s]+/g, '/home/<USER>')
+  stripped = stripped.replace(/C:\\\\Users\\\\[^\\\\"\s]+/g, 'C:\\\\Users\\\\<USER>')
+  return JSON.parse(stripped)
+}
 
 // Consent-gated Sentry init (VULN-11)
 const consentPath = join(homedir(), '.entropic', 'telemetry_consent')
@@ -22,6 +46,9 @@ Sentry.init({
   dsn: sentryDsn,
   tracesSampleRate: 0.1,
   environment: process.env.SENTRY_ENV || 'development',
+  beforeSend(event) {
+    return stripPiiFromEvent(event)
+  },
 })
 
 function createWindow(): BrowserWindow {
@@ -63,17 +90,30 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
+  registerDiagnosticsHandlers()
+  registerSupportBundleHandler()
   registerRelayHandlers()
   createWindow()
 
+  // Enrich Sentry context with GPU and display info
+  const display = screen.getPrimaryDisplay()
+  Sentry.setContext('display', {
+    width: display.size.width,
+    height: display.size.height,
+    scaleFactor: display.scaleFactor,
+  })
+  app.getGPUInfo('basic').then((info) => {
+    Sentry.setContext('gpu', info as Record<string, unknown>)
+  }).catch(() => { /* non-critical */ })
+
   try {
     const { port, pingPort, token } = await spawnPython()
-    console.log(`[Main] Python sidecar started on port ${port}, ping ${pingPort}`)
+    logger.info('[Main] Python sidecar started', { port, pingPort })
     setRelayPort(port, token)
     await startWatchdog(pingPort, token)
   } catch (err) {
     Sentry.captureException(err, { tags: { source: 'python-spawn' } })
-    console.error('[Main] Failed to start Python sidecar:', err)
+    logger.error('[Main] Failed to start Python sidecar', { error: String(err) })
   }
 })
 

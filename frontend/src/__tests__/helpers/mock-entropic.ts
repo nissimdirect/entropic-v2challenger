@@ -1,7 +1,7 @@
 /**
  * Mock for the Entropic preload bridge (window.entropic).
  *
- * The 12-method preload bridge is the mock boundary for component tests.
+ * The 20-method preload bridge is the mock boundary for component tests.
  * Any test that can use createMockEntropic() should — only tests verifying
  * the bridge itself or process lifecycle need real Electron.
  *
@@ -35,6 +35,14 @@ export interface EntropicBridge {
   writeFile: (filePath: string, data: string) => Promise<void>
   deleteFile: (filePath: string) => Promise<void>
   getAppPath: (name: string) => Promise<string>
+  checkTelemetryConsent: () => Promise<boolean | null>
+  setTelemetryConsent: (consent: boolean) => Promise<void>
+  readCrashReports: () => Promise<Record<string, unknown>[]>
+  clearCrashReports: () => Promise<void>
+  findAutosave: () => Promise<string | null>
+  getSystemInfo: () => Promise<Record<string, unknown>>
+  generateSupportBundle: () => Promise<string>
+  submitFeedback: (text: string) => Promise<void>
 }
 
 /**
@@ -57,6 +65,14 @@ export function createMockEntropic(
     writeFile: vi.fn().mockResolvedValue(undefined),
     deleteFile: vi.fn().mockResolvedValue(undefined),
     getAppPath: vi.fn().mockResolvedValue('/test/userData'),
+    checkTelemetryConsent: vi.fn().mockResolvedValue(null),
+    setTelemetryConsent: vi.fn().mockResolvedValue(undefined),
+    readCrashReports: vi.fn().mockResolvedValue([]),
+    clearCrashReports: vi.fn().mockResolvedValue(undefined),
+    findAutosave: vi.fn().mockResolvedValue(null),
+    getSystemInfo: vi.fn().mockResolvedValue({ os: 'darwin', arch: 'arm64' }),
+    generateSupportBundle: vi.fn().mockResolvedValue('/test/Desktop/entropic-support.tar.gz'),
+    submitFeedback: vi.fn().mockResolvedValue(undefined),
   }
   return { ...defaults, ...overrides }
 }

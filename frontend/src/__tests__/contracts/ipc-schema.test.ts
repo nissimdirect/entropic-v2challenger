@@ -58,7 +58,7 @@ function getBackendCommands(): string[] {
 }
 
 describe('IPC Contract', () => {
-  it('preload bridge exposes the expected 12 methods', () => {
+  it('preload bridge exposes the expected 20 methods', () => {
     const methods = getPreloadMethods()
 
     expect(methods).toContain('sendCommand')
@@ -73,7 +73,16 @@ describe('IPC Contract', () => {
     expect(methods).toContain('writeFile')
     expect(methods).toContain('deleteFile')
     expect(methods).toContain('getAppPath')
-    expect(methods).toHaveLength(12)
+    // Diagnostics bridge methods (Sprint 1A)
+    expect(methods).toContain('checkTelemetryConsent')
+    expect(methods).toContain('setTelemetryConsent')
+    expect(methods).toContain('readCrashReports')
+    expect(methods).toContain('clearCrashReports')
+    expect(methods).toContain('findAutosave')
+    expect(methods).toContain('getSystemInfo')
+    expect(methods).toContain('generateSupportBundle')
+    expect(methods).toContain('submitFeedback')
+    expect(methods).toHaveLength(20)
   })
 
   it('backend ZMQ server registers all expected commands', () => {

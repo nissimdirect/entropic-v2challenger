@@ -54,4 +54,38 @@ contextBridge.exposeInMainWorld('entropic', {
   getAppPath: (name: string): Promise<string> => {
     return ipcRenderer.invoke('app:getPath', name)
   },
+
+  // --- Diagnostics ---
+
+  checkTelemetryConsent: (): Promise<boolean | null> => {
+    return ipcRenderer.invoke('telemetry:check')
+  },
+
+  setTelemetryConsent: (consent: boolean): Promise<void> => {
+    return ipcRenderer.invoke('telemetry:set', consent)
+  },
+
+  readCrashReports: (): Promise<Record<string, unknown>[]> => {
+    return ipcRenderer.invoke('crash:list')
+  },
+
+  clearCrashReports: (): Promise<void> => {
+    return ipcRenderer.invoke('crash:clear')
+  },
+
+  findAutosave: (): Promise<string | null> => {
+    return ipcRenderer.invoke('autosave:find')
+  },
+
+  getSystemInfo: (): Promise<Record<string, unknown>> => {
+    return ipcRenderer.invoke('system:info')
+  },
+
+  generateSupportBundle: (): Promise<string> => {
+    return ipcRenderer.invoke('support:bundle')
+  },
+
+  submitFeedback: (text: string): Promise<void> => {
+    return ipcRenderer.invoke('feedback:submit', text)
+  },
 })

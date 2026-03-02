@@ -264,5 +264,33 @@ async function deleteAutosave(): Promise<void> {
   }
 }
 
+export async function restoreAutosave(path: string): Promise<boolean> {
+  if (!window.entropic) return false
+
+  try {
+    const json = await window.entropic.readFile(path)
+    const data = JSON.parse(json)
+
+    if (!validateProject(data)) {
+      console.error('[Autosave] Invalid autosave file — validation failed')
+      return false
+    }
+
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[] })
+
+    // Delete autosave after successful restore
+    try {
+      await window.entropic.deleteFile(path)
+    } catch {
+      // Best-effort cleanup
+    }
+
+    return true
+  } catch (err) {
+    console.error('[Autosave] Failed to restore:', err)
+    return false
+  }
+}
+
 // Export for testing
 export { serializeProject, validateProject, hydrateStores }

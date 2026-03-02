@@ -2,9 +2,10 @@ import * as Sentry from '@sentry/electron/main'
 import { Request } from 'zeromq'
 import { randomUUID } from 'crypto'
 import { BrowserWindow } from 'electron'
-import { spawnPython, killPython, type PythonPorts } from './python'
+import { spawnPython, killPython } from './python'
 import { reconnectRelay } from './zmq-relay'
 import { MissCounter } from './utils'
+import { logger } from './logger'
 
 export type EngineStatus = 'connected' | 'disconnected' | 'restarting'
 
@@ -77,7 +78,7 @@ async function restart(): Promise<void> {
     broadcast('connected')
   } catch (err) {
     Sentry.captureException(err, { tags: { source: 'watchdog-restart' } })
-    console.error('[Watchdog] Restart failed:', err)
+    logger.error('[Watchdog] Restart failed', { error: String(err) })
     broadcast('disconnected')
   }
 }

@@ -2,6 +2,7 @@ import { ChildProcess, spawn, execSync } from 'child_process'
 import path from 'path'
 import { app } from 'electron'
 import { parseZmqPort, parseZmqPingPort, parseZmqToken } from './utils'
+import { logger } from './logger'
 
 let pythonProcess: ChildProcess | null = null
 
@@ -41,9 +42,7 @@ export function spawnPython(): Promise<PythonPorts> {
 
     const args = isDev ? [path.join(backendDir, 'src', 'main.py')] : []
 
-    console.log(`[Python] isDev=${isDev} backendDir=${backendDir}`)
-    console.log(`[Python] pythonPath=${pythonPath}`)
-    console.log(`[Python] args=${args}`)
+    logger.info('[Python] spawn config', { isDev, backendDir, pythonPath, args })
 
     const srcDir = path.join(backendDir, 'src')
     pythonProcess = spawn(pythonPath, args, {
@@ -52,7 +51,7 @@ export function spawnPython(): Promise<PythonPorts> {
     })
 
     pythonProcess.stderr?.on('data', (data: Buffer) => {
-      console.error(`[Python] ${data}`)
+      logger.error('[Python] stderr', { output: data.toString().trim() })
     })
 
     const timeout = setTimeout(() => {

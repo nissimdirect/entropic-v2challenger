@@ -27,6 +27,14 @@ interface Window {
     writeFile: (filePath: string, data: string) => Promise<void>
     deleteFile: (filePath: string) => Promise<void>
     getAppPath: (name: string) => Promise<string>
+    checkTelemetryConsent: () => Promise<boolean | null>
+    setTelemetryConsent: (consent: boolean) => Promise<void>
+    readCrashReports: () => Promise<Record<string, unknown>[]>
+    clearCrashReports: () => Promise<void>
+    findAutosave: () => Promise<string | null>
+    getSystemInfo: () => Promise<Record<string, unknown>>
+    generateSupportBundle: () => Promise<string>
+    submitFeedback: (text: string) => Promise<void>
   }
 }
 

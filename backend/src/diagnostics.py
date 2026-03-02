@@ -12,12 +12,16 @@ import json
 import logging
 import logging.handlers
 import os
+import resource
 import sys
 import traceback
 from pathlib import Path
 
 
 logger = logging.getLogger(__name__)
+
+# Module-level variable set by zmq_server.py to track last command
+_last_command: str = ""
 
 # Maximum crash reports to keep
 MAX_CRASH_REPORTS = 5
@@ -144,6 +148,19 @@ def setup_excepthook():
 
             # Build crash data (PII-safe)
             tb_lines = traceback.format_exception(exc_type, exc_value, exc_tb)
+
+            # Memory usage (macOS returns bytes, Linux returns KB)
+            try:
+                rusage = resource.getrusage(resource.RUSAGE_SELF)
+                # macOS: ru_maxrss is in bytes; Linux: in KB
+                memory_usage_mb = (
+                    rusage.ru_maxrss / (1024 * 1024)
+                    if sys.platform == "darwin"
+                    else rusage.ru_maxrss / 1024
+                )
+            except Exception:
+                memory_usage_mb = None
+
             crash_data = {
                 "timestamp": timestamp,
                 "exception_type": exc_type.__name__ if exc_type else "Unknown",
@@ -151,6 +168,10 @@ def setup_excepthook():
                 "traceback": tb_lines,
                 "python_version": sys.version,
                 "platform": sys.platform,
+                "memory_usage_mb": round(memory_usage_mb, 1)
+                if memory_usage_mb
+                else None,
+                "last_command": _last_command or None,
             }
 
             # PII stripping on crash data

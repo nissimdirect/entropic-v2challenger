@@ -23,7 +23,11 @@ import type { Asset, EffectInstance } from '../shared/types'
 import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
-import { saveProject, loadProject, newProject, startAutosave, stopAutosave } from './project-persistence'
+import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
+import { useSettingsStore } from './stores/settings'
+import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
+import CrashRecoveryDialog from './components/dialogs/CrashRecoveryDialog'
+import FeedbackDialog from './components/dialogs/FeedbackDialog'
 import './styles/transport.css'
 import './styles/timeline.css'
 
@@ -107,11 +111,71 @@ function AppInner() {
   const [hasAudio, setHasAudio] = useState(false)
   const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
 
+  // Startup diagnostics state
+  const { telemetryConsent, consentChecked, checkConsent, setConsent } = useSettingsStore()
+  const [crashReports, setCrashReports] = useState<Record<string, unknown>[]>([])
+  const [autosavePath, setAutosavePath] = useState<string | null>(null)
+  const [startupChecked, setStartupChecked] = useState(false)
+  const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
+
   const activeAssetPath = useRef<string | null>(null)
   const isRenderingRef = useRef(false)
   const pendingFrameRef = useRef<number | null>(null)
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
+
+  // Startup: check telemetry consent, then crash reports + autosave
+  useEffect(() => {
+    checkConsent().then(async () => {
+      if (!window.entropic) {
+        setStartupChecked(true)
+        return
+      }
+      try {
+        const [reports, autosave] = await Promise.all([
+          window.entropic.readCrashReports(),
+          window.entropic.findAutosave(),
+        ])
+        if (reports.length > 0 || autosave) {
+          setCrashReports(reports)
+          setAutosavePath(autosave)
+        }
+      } catch {
+        // Non-critical — proceed normally
+      }
+      setStartupChecked(true)
+    })
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConsentDecision = useCallback((consent: boolean) => {
+    setConsent(consent)
+  }, [setConsent])
+
+  const handleCrashRestore = useCallback(async (_sendReport: boolean) => {
+    if (autosavePath) {
+      await restoreAutosave(autosavePath)
+    }
+    if (window.entropic) {
+      await window.entropic.clearCrashReports()
+    }
+    setCrashReports([])
+    setAutosavePath(null)
+  }, [autosavePath])
+
+  const handleCrashDiscard = useCallback(async (_sendReport: boolean) => {
+    if (autosavePath && window.entropic) {
+      try {
+        await window.entropic.deleteFile(autosavePath)
+      } catch {
+        // Best-effort
+      }
+    }
+    if (window.entropic) {
+      await window.entropic.clearCrashReports()
+    }
+    setCrashReports([])
+    setAutosavePath(null)
+  }, [autosavePath])
 
   // Window title — show project name + dirty indicator
   useEffect(() => {
@@ -180,6 +244,20 @@ function AppInner() {
         e.preventDefault()
         const timeline = useTimelineStore.getState()
         timeline.addMarker(timeline.playheadTime, `Marker`, '#f59e0b')
+      }
+      // Feedback dialog (Cmd+Shift+F)
+      else if (mod && e.key === 'f' && e.shiftKey) {
+        e.preventDefault()
+        setShowFeedbackDialog(true)
+      }
+      // Support bundle (Cmd+Shift+D)
+      else if (mod && e.key === 'd' && e.shiftKey) {
+        e.preventDefault()
+        if (window.entropic) {
+          window.entropic.generateSupportBundle().then((path) => {
+            console.log('[Support] Bundle saved to:', path)
+          })
+        }
       }
       // Loop in/out (I / O keys)
       else if (e.key === 'i' && !mod) {
@@ -757,6 +835,27 @@ function AppInner() {
         totalFrames={totalFrames}
         onExport={handleExport}
         onClose={() => setShowExportDialog(false)}
+      />
+
+      <TelemetryConsentDialog
+        isOpen={consentChecked && telemetryConsent === null}
+        onDecision={handleConsentDecision}
+      />
+
+      {startupChecked && (crashReports.length > 0 || autosavePath !== null) && (
+        <CrashRecoveryDialog
+          isOpen={true}
+          crashCount={crashReports.length}
+          hasAutosave={autosavePath !== null}
+          telemetryConsent={telemetryConsent}
+          onRestore={handleCrashRestore}
+          onDiscard={handleCrashDiscard}
+        />
+      )}
+
+      <FeedbackDialog
+        isOpen={showFeedbackDialog}
+        onClose={() => setShowFeedbackDialog(false)}
       />
     </div>
   )
