@@ -1,0 +1,147 @@
+/**
+ * Secure file I/O and dialog IPC handlers.
+ * Uses dialog-gated access: paths must be explicitly granted via native dialog,
+ * or fall within ~/.entropic/ / userData before file operations are allowed.
+ */
+import { ipcMain, app, dialog, BrowserWindow, SaveDialogOptions, OpenDialogOptions } from 'electron'
+import { readFile, writeFile, unlink } from 'fs/promises'
+import { resolve, dirname, basename, join } from 'path'
+import { homedir } from 'os'
+
+const ENTROPIC_DIR = resolve(join(homedir(), '.entropic'))
+
+/** Paths granted by user via native file dialogs during this session. */
+const grantedPaths = new Set<string>()
+
+const ALLOWED_APP_PATHS = new Set(['userData', 'documents', 'desktop'])
+
+/**
+ * Check whether a resolved path is allowed for file operations.
+ *
+ * A path is allowed if it:
+ * 1. Falls under ~/.entropic/
+ * 2. Falls under app.getPath('userData')
+ * 3. Was explicitly granted via a native dialog this session
+ * 4. Is an .autosave.glitch sibling of a granted path
+ */
+export function isPathAllowed(targetPath: string): boolean {
+  if (!targetPath || typeof targetPath !== 'string') return false
+
+  const resolved = resolve(targetPath)
+  if (!resolved) return false
+
+  // 1. Under ~/.entropic/
+  if (resolved === ENTROPIC_DIR || resolved.startsWith(ENTROPIC_DIR + '/')) {
+    return true
+  }
+
+  // 2. Under userData
+  const userData = resolve(app.getPath('userData'))
+  if (resolved === userData || resolved.startsWith(userData + '/')) {
+    return true
+  }
+
+  // 3. Explicitly granted
+  if (grantedPaths.has(resolved)) {
+    return true
+  }
+
+  // 4. Autosave sibling: .autosave.glitch in the same directory as a granted path
+  if (basename(resolved) === '.autosave.glitch') {
+    const dir = dirname(resolved)
+    for (const granted of grantedPaths) {
+      if (dirname(granted) === dir) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
+/** Grant a path (for testing purposes and internal use). */
+export function grantPath(filePath: string): void {
+  grantedPaths.add(resolve(filePath))
+}
+
+/** Clear all granted paths (for testing). */
+export function clearGrantedPaths(): void {
+  grantedPaths.clear()
+}
+
+export function registerFileHandlers(): void {
+  // --- Dialog handlers (grant access on selection) ---
+
+  ipcMain.handle('dialog:save', async (_event, options: unknown) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return null
+
+    const result = await dialog.showSaveDialog(win, (options ?? {}) as SaveDialogOptions)
+    if (result.canceled || !result.filePath) return null
+
+    grantedPaths.add(resolve(result.filePath))
+    return result.filePath
+  })
+
+  ipcMain.handle('dialog:open', async (_event, options: unknown) => {
+    const win = BrowserWindow.getFocusedWindow()
+    if (!win) return null
+
+    const result = await dialog.showOpenDialog(win, (options ?? {}) as OpenDialogOptions)
+    if (result.canceled || result.filePaths.length === 0) return null
+
+    const filePath = result.filePaths[0]
+    grantedPaths.add(resolve(filePath))
+    return filePath
+  })
+
+  // --- File operations (require path validation) ---
+
+  ipcMain.handle('file:read', async (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string') {
+      throw new TypeError('file:read expects a string path')
+    }
+    const resolved = resolve(filePath)
+    if (!isPathAllowed(resolved)) {
+      throw new Error(`Access denied: ${filePath}`)
+    }
+    return readFile(resolved, 'utf8')
+  })
+
+  ipcMain.handle('file:write', async (_event, filePath: unknown, data: unknown) => {
+    if (typeof filePath !== 'string') {
+      throw new TypeError('file:write expects a string path')
+    }
+    if (typeof data !== 'string') {
+      throw new TypeError('file:write expects string data')
+    }
+    const resolved = resolve(filePath)
+    if (!isPathAllowed(resolved)) {
+      throw new Error(`Access denied: ${filePath}`)
+    }
+    await writeFile(resolved, data, 'utf8')
+  })
+
+  ipcMain.handle('file:delete', async (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string') {
+      throw new TypeError('file:delete expects a string path')
+    }
+    const resolved = resolve(filePath)
+    if (!isPathAllowed(resolved)) {
+      throw new Error(`Access denied: ${filePath}`)
+    }
+    await unlink(resolved)
+  })
+
+  // --- App path (allowlisted names only) ---
+
+  ipcMain.handle('app:getPath', async (_event, name: unknown) => {
+    if (typeof name !== 'string') {
+      throw new TypeError('app:getPath expects a string name')
+    }
+    if (!ALLOWED_APP_PATHS.has(name)) {
+      throw new Error(`app:getPath denied for '${name}' — allowed: ${[...ALLOWED_APP_PATHS].join(', ')}`)
+    }
+    return app.getPath(name as Parameters<typeof app.getPath>[0])
+  })
+}

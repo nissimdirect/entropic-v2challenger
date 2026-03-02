@@ -8,6 +8,7 @@ import { startWatchdog, stopWatchdog } from './watchdog'
 import { registerRelayHandlers, setRelayPort, closeRelay } from './zmq-relay'
 import { registerDiagnosticsHandlers } from './diagnostics-handlers'
 import { registerSupportBundleHandler } from './support-bundle'
+import { registerFileHandlers } from './file-handlers'
 import { logger } from './logger'
 
 // PII stripping for Sentry events — matches Python's strip_pii pattern
@@ -93,6 +94,7 @@ app.whenReady().then(async () => {
   registerDiagnosticsHandlers()
   registerSupportBundleHandler()
   registerRelayHandlers()
+  registerFileHandlers()
   createWindow()
 
   // Enrich Sentry context with GPU and display info
