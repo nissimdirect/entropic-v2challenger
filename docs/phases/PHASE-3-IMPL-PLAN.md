@@ -1,6 +1,6 @@
 ---
 title: Phase 3 — Color Suite (Levels, Curves, HSL, Color Balance, Histogram)
-status: draft
+status: completed
 project: entropic-v2challenger
 depends_on: Phase 2A (parameter UX — Knob component, curve scaling, fine-tune mode)
 sessions: 4

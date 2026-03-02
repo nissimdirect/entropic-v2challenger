@@ -1,6 +1,6 @@
 ---
 title: Phase 2A — Parameter UX (Ghost Handle, Sensitivity, Scaling)
-status: active
+status: completed
 project: entropic-v2challenger
 depends_on: Phase 1 (basic param panel working — ParamSlider, ParamChoice, ParamToggle, ParamMix)
 sessions: 3
