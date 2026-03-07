@@ -2,7 +2,12 @@
 
 import numpy as np
 
-from effects.shared.dct_utils import apply_per_block, block_dct, block_idct
+from effects.shared.dct_utils import (
+    apply_per_block,
+    block_dct,
+    block_idct,
+    halfres_wrap,
+)
 from engine.determinism import make_rng
 
 EFFECT_ID = "fx.dct_transform"
@@ -124,9 +129,6 @@ def apply(
     mode = str(params.get("mode", "dct_sculpt"))
     rng = make_rng(seed + frame_index)
 
-    rgb = frame[:, :, :3].astype(np.float32)
-    alpha = frame[:, :, 3:4]
-
     if mode == "dct_sculpt":
         low = max(0, min(7, int(params.get("freq_band_low", 0))))
         high = max(0, min(7, int(params.get("freq_band_high", 3))))
@@ -141,12 +143,15 @@ def apply(
         affect_dc = str(params.get("affect_dc", "false")) == "true"
         transform_fn = _make_destroy_fn(rng, prob, affect_dc)
 
-    # Process each channel independently
-    channels = []
-    for c in range(3):
-        ch = apply_per_block(rgb[:, :, c], _BLOCK_SIZE, transform_fn)
-        channels.append(ch)
+    def _process(f: np.ndarray) -> np.ndarray:
+        rgb = f[:, :, :3].astype(np.float32)
+        alpha = f[:, :, 3:4]
+        channels = []
+        for c in range(3):
+            ch = apply_per_block(rgb[:, :, c], _BLOCK_SIZE, transform_fn)
+            channels.append(ch)
+        result = np.stack(channels, axis=2)
+        result_rgb = np.clip(result, 0, 255).astype(np.uint8)
+        return np.concatenate([result_rgb, alpha], axis=2)
 
-    result = np.stack(channels, axis=2)
-    result_rgb = np.clip(result, 0, 255).astype(np.uint8)
-    return np.concatenate([result_rgb, alpha], axis=2), None
+    return halfres_wrap(frame, _process), None

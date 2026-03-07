@@ -1,7 +1,35 @@
 """DCT/IDCT utilities for codec archaeology effects."""
 
+import cv2
 import numpy as np
 from scipy.fft import dctn, idctn
+
+# Threshold: frames larger than this get half-res processing
+_HALFRES_PIXEL_THRESHOLD = 1024 * 768
+
+
+def halfres_wrap(frame: np.ndarray, process_fn):
+    """Run process_fn at half resolution if frame is large, then upscale.
+
+    Args:
+        frame: RGBA uint8 (H, W, 4).
+        process_fn: Callable(frame_rgba) -> frame_rgba, processes at given resolution.
+
+    Returns:
+        Processed frame at original resolution.
+    """
+    h, w = frame.shape[:2]
+    if h * w <= _HALFRES_PIXEL_THRESHOLD:
+        return process_fn(frame)
+
+    # Downscale
+    half_h, half_w = h // 2, w // 2
+    small = cv2.resize(frame, (half_w, half_h), interpolation=cv2.INTER_AREA)
+    # Process
+    result_small = process_fn(small)
+    # Upscale back
+    result = cv2.resize(result_small, (w, h), interpolation=cv2.INTER_LINEAR)
+    return np.clip(result, 0, 255).astype(np.uint8)
 
 
 # Standard JPEG luminance quantization table (8x8)

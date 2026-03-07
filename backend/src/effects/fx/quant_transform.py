@@ -8,6 +8,7 @@ from effects.shared.dct_utils import (
     apply_per_block,
     block_dct,
     block_idct,
+    halfres_wrap,
 )
 from engine.determinism import make_rng
 
@@ -109,9 +110,6 @@ def apply(
     """Apply quantization table manipulation per 8x8 block."""
     mode = str(params.get("mode", "quant_amplify"))
 
-    rgb = frame[:, :, :3].astype(np.float32)
-    alpha = frame[:, :, 3:4]
-
     if mode == "quant_amplify":
         amp = max(0.1, min(50.0, float(params.get("amplification", 5.0))))
         transform_fn = _make_quant_amplify_fn(JPEG_LUMA_QT, amp)
@@ -122,11 +120,15 @@ def apply(
         flatness = max(0.0, min(1.0, float(params.get("flatness", 0.5))))
         transform_fn = _make_quant_lerp_fn(flatness)
 
-    channels = []
-    for c in range(3):
-        ch = apply_per_block(rgb[:, :, c], _BLOCK_SIZE, transform_fn)
-        channels.append(ch)
+    def _process(f: np.ndarray) -> np.ndarray:
+        rgb = f[:, :, :3].astype(np.float32)
+        alpha = f[:, :, 3:4]
+        channels = []
+        for c in range(3):
+            ch = apply_per_block(rgb[:, :, c], _BLOCK_SIZE, transform_fn)
+            channels.append(ch)
+        result = np.stack(channels, axis=2)
+        result_rgb = np.clip(result, 0, 255).astype(np.uint8)
+        return np.concatenate([result_rgb, alpha], axis=2)
 
-    result = np.stack(channels, axis=2)
-    result_rgb = np.clip(result, 0, 255).astype(np.uint8)
-    return np.concatenate([result_rgb, alpha], axis=2), None
+    return halfres_wrap(frame, _process), None

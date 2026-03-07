@@ -2,6 +2,8 @@
 
 import numpy as np
 
+from effects.shared.dct_utils import halfres_wrap
+
 EFFECT_ID = "fx.entropy_map"
 EFFECT_NAME = "Entropy Map"
 EFFECT_CATEGORY = "info_theory"
@@ -92,34 +94,32 @@ def apply(
     colormap = str(params.get("colormap", "heat"))
     overlay = max(0.0, min(1.0, float(params.get("overlay", 0.5))))
 
-    rgb = frame[:, :, :3]
-    alpha = frame[:, :, 3:4]
-    h, w = rgb.shape[:2]
+    def _process(f: np.ndarray) -> np.ndarray:
+        rgb = f[:, :, :3]
+        alpha = f[:, :, 3:4]
+        h, w = rgb.shape[:2]
 
-    # Compute luminance for entropy calculation
-    luma = (
-        0.299 * rgb[:, :, 0].astype(np.float32)
-        + 0.587 * rgb[:, :, 1].astype(np.float32)
-        + 0.114 * rgb[:, :, 2].astype(np.float32)
-    ).astype(np.uint8)
+        luma = (
+            0.299 * rgb[:, :, 0].astype(np.float32)
+            + 0.587 * rgb[:, :, 1].astype(np.float32)
+            + 0.114 * rgb[:, :, 2].astype(np.float32)
+        ).astype(np.uint8)
 
-    # Compute entropy per block (max Shannon entropy for 8-bit = 8.0)
-    entropy_blocks = np.zeros((h, w), dtype=np.float32)
-    for y in range(0, h, block_size):
-        for x in range(0, w, block_size):
-            by = min(y + block_size, h)
-            bx = min(x + block_size, w)
-            block = luma[y:by, x:bx]
-            e = _shannon_entropy(block) / 8.0  # Normalize to [0, 1]
-            entropy_blocks[y:by, x:bx] = e
+        entropy_blocks = np.zeros((h, w), dtype=np.float32)
+        for y in range(0, h, block_size):
+            for x in range(0, w, block_size):
+                by = min(y + block_size, h)
+                bx = min(x + block_size, w)
+                block = luma[y:by, x:bx]
+                e = _shannon_entropy(block) / 8.0
+                entropy_blocks[y:by, x:bx] = e
 
-    # Apply colormap
-    entropy_rgb = _apply_colormap(entropy_blocks, colormap)
+        entropy_rgb = _apply_colormap(entropy_blocks, colormap)
 
-    # Blend with original
-    original_f = rgb.astype(np.float32)
-    entropy_f = entropy_rgb.astype(np.float32)
-    result = entropy_f * overlay + original_f * (1.0 - overlay)
-    result_rgb = np.clip(result, 0, 255).astype(np.uint8)
+        original_f = rgb.astype(np.float32)
+        entropy_f = entropy_rgb.astype(np.float32)
+        result = entropy_f * overlay + original_f * (1.0 - overlay)
+        result_rgb = np.clip(result, 0, 255).astype(np.uint8)
+        return np.concatenate([result_rgb, alpha], axis=2)
 
-    return np.concatenate([result_rgb, alpha], axis=2), None
+    return halfres_wrap(frame, _process), None
