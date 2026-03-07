@@ -63,7 +63,7 @@ def apply(
     # Iterative JPEG encode/decode
     current = rgb
     for _ in range(generations):
-        img = Image.fromarray(current, "RGB")
+        img = Image.fromarray(current)
         buf = io.BytesIO()
         img.save(buf, format="JPEG", quality=quality)
         buf.seek(0)

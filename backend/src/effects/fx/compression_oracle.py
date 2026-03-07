@@ -61,7 +61,7 @@ def apply(
     alpha = frame[:, :, 3:4]
 
     # JPEG compress in memory
-    img = Image.fromarray(rgb, "RGB")
+    img = Image.fromarray(rgb)
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=quality)
     buf.seek(0)
