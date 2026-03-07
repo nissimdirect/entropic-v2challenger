@@ -10,9 +10,11 @@ interface ParamPanelProps {
   effectInfo: EffectInfo | null
   onUpdateParam: (effectId: string, paramName: string, value: number | string | boolean) => void
   onSetMix: (effectId: string, mix: number) => void
+  /** Resolved modulation values per param key (ghost handles) */
+  modulatedValues?: Record<string, number>
 }
 
-export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix }: ParamPanelProps) {
+export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix, modulatedValues }: ParamPanelProps) {
   const paramsRef = useRef<HTMLDivElement>(null)
 
   const handleParamKeyDown = useCallback((e: React.KeyboardEvent) => {
@@ -35,8 +37,7 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
 
   const renderKnob = (key: string, def: ParamDef) => {
     const value = effect.parameters[key] ?? def.default
-    // TODO Phase 6: Replace ghostValue with resolved modulation value
-    const ghostValue = value as number
+    const ghostValue = modulatedValues?.[key] ?? (value as number)
     return (
       <Knob
         key={key}

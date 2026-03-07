@@ -17,8 +17,8 @@ function createDefaultOperator(type: OperatorType, id: string): Operator {
     envelope: { trigger: false, attack: 10, decay: 5, sustain: 0.7, release: 20 },
     step_sequencer: { steps: '0,0.25,0.5,0.75,1,0.75,0.5,0.25', rate_hz: 1.0 },
     audio_follower: { method: 'rms', sensitivity: 1.4, window: 1024 },
-    video_analyzer: {},
-    fusion: {},
+    video_analyzer: { method: 'luminance' },
+    fusion: { blend_mode: 'weighted_average', sources: '' },
   }
 
   const labels: Record<OperatorType, string> = {

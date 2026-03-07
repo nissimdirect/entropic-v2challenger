@@ -246,6 +246,15 @@ export interface OperatorMapping {
   blendMode?: SignalBlendMode;
 }
 
+export type VideoAnalyzerMethod = 'luminance' | 'motion' | 'color' | 'edges' | 'histogram_peak';
+
+export type FusionBlendMode = 'weighted_average' | 'max' | 'min' | 'multiply' | 'add';
+
+export interface FusionSource {
+  operatorId: string;
+  weight: number;
+}
+
 export interface Operator {
   id: string;
   type: OperatorType;

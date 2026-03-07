@@ -7,6 +7,8 @@ from modulation.lfo import evaluate_lfo
 from modulation.envelope import evaluate_envelope
 from modulation.step_sequencer import evaluate_step_seq
 from modulation.audio_follower import evaluate_audio
+from modulation.video_analyzer import downscale_proxy, evaluate_video_analyzer
+from modulation.fusion import evaluate_fusion
 from modulation.processor import process_signal
 from modulation.routing import resolve_routings
 
@@ -25,6 +27,7 @@ class SignalEngine:
         fps: float,
         audio_pcm=None,
         audio_sample_rate: int = 44100,
+        video_frame=None,
         state: dict | None = None,
     ) -> tuple[dict[str, float], dict]:
         """Evaluate all operators and return their signal values.
@@ -35,6 +38,7 @@ class SignalEngine:
             fps: Frames per second.
             audio_pcm: Optional audio samples for audio follower.
             audio_sample_rate: Audio sample rate.
+            video_frame: Optional numpy array (HxWx3 uint8) for video analyzer.
             state: Persistent state dict keyed by operator id.
 
         Returns:
@@ -99,9 +103,27 @@ class SignalEngine:
                         sample_rate=audio_sample_rate,
                         state_in=op_state,
                     )
-                elif op_type in ("video_analyzer", "fusion"):
-                    # Deferred to 6B
-                    value = 0.0
+                elif op_type == "video_analyzer":
+                    method = str(params.get("method", "luminance"))
+                    if video_frame is not None:
+                        proxy = downscale_proxy(video_frame)
+                    else:
+                        proxy = None
+                    value, op_state = evaluate_video_analyzer(
+                        method=method,
+                        proxy=proxy,
+                        state_in=op_state,
+                    )
+                elif op_type == "fusion":
+                    fusion_sources = params.get("sources", [])
+                    if not isinstance(fusion_sources, list):
+                        fusion_sources = []
+                    blend = str(params.get("blend_mode", "weighted_average"))
+                    value = evaluate_fusion(
+                        sources=fusion_sources,
+                        operator_values=values,
+                        blend_mode=blend,
+                    )
                 else:
                     value = 0.0
 

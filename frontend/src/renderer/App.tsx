@@ -33,7 +33,10 @@ import PadEditor from './components/performance/PadEditor'
 import { usePerformanceStore } from './stores/performance'
 import { applyPadModulations } from './components/performance/applyPadModulations'
 import OperatorRack from './components/operators/OperatorRack'
+import ModulationMatrix from './components/operators/ModulationMatrix'
+import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
+import { resolveGhostValues } from './utils/resolveGhostValues'
 import './styles/transport.css'
 import './styles/timeline.css'
 import './styles/performance.css'
@@ -900,6 +903,17 @@ function AppInner() {
             effectInfo={selectedEffectInfo}
             onUpdateParam={updateParam}
             onSetMix={setMix}
+            modulatedValues={
+              selectedEffect && selectedEffectInfo
+                ? resolveGhostValues(
+                    selectedEffect.id,
+                    selectedEffectInfo.params,
+                    selectedEffect.parameters,
+                    useOperatorStore.getState().operators,
+                    operatorValues,
+                  )
+                : undefined
+            }
           />
         </div>
         <ExportProgress
@@ -921,11 +935,20 @@ function AppInner() {
         }} />
       </div>
 
-      <OperatorRack
+      <div style={{ position: 'relative' }}>
+        <RoutingLines operatorValues={operatorValues} />
+        <OperatorRack
+          effectChain={effectChain}
+          registry={registry}
+          operatorValues={operatorValues}
+          hasAudio={hasAudio}
+        />
+      </div>
+
+      <ModulationMatrix
         effectChain={effectChain}
         registry={registry}
         operatorValues={operatorValues}
-        hasAudio={hasAudio}
       />
 
       <div className="status-bar">

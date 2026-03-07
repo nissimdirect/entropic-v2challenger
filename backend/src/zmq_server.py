@@ -397,6 +397,7 @@ class ZMQServer:
                     reader.fps,
                     audio_pcm=audio_pcm,
                     audio_sample_rate=audio_sr,
+                    video_frame=frame,
                     state=self._signal_state,
                 )
                 chain = engine.apply_modulation(

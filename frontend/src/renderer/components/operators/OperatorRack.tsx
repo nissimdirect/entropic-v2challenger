@@ -5,6 +5,8 @@ import LFOEditor from './LFOEditor'
 import EnvelopeEditor from './EnvelopeEditor'
 import StepSequencerEditor from './StepSequencerEditor'
 import AudioFollowerEditor from './AudioFollowerEditor'
+import VideoAnalyzerEditor from './VideoAnalyzerEditor'
+import FusionEditor from './FusionEditor'
 
 interface OperatorRackProps {
   effectChain: { id: string; effectId: string }[]
@@ -18,8 +20,8 @@ const TYPE_OPTIONS: { type: OperatorType; label: string; available: boolean }[] 
   { type: 'envelope', label: 'Envelope', available: true },
   { type: 'step_sequencer', label: 'Step Seq', available: true },
   { type: 'audio_follower', label: 'Audio', available: true },
-  { type: 'video_analyzer', label: 'Video (6B)', available: false },
-  { type: 'fusion', label: 'Fusion (6B)', available: false },
+  { type: 'video_analyzer', label: 'Video', available: true },
+  { type: 'fusion', label: 'Fusion', available: true },
 ]
 
 const TYPE_BADGE: Record<string, string> = {
@@ -27,6 +29,8 @@ const TYPE_BADGE: Record<string, string> = {
   envelope: 'E',
   step_sequencer: 'S',
   audio_follower: 'A',
+  video_analyzer: 'V',
+  fusion: 'F',
 }
 
 const TYPE_CSS: Record<string, string> = {
@@ -34,6 +38,8 @@ const TYPE_CSS: Record<string, string> = {
   envelope: 'envelope',
   step_sequencer: 'step-seq',
   audio_follower: 'audio',
+  video_analyzer: 'video',
+  fusion: 'fusion',
 }
 
 export default function OperatorRack({ effectChain, registry, operatorValues, hasAudio }: OperatorRackProps) {
@@ -127,6 +133,17 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
                 )}
                 {op.type === 'audio_follower' && (
                   <AudioFollowerEditor operator={op} hasAudio={hasAudio} />
+                )}
+                {op.type === 'video_analyzer' && (
+                  <VideoAnalyzerEditor operator={op} />
+                )}
+                {op.type === 'fusion' && (
+                  <FusionEditor
+                    operator={op}
+                    availableOperators={operators
+                      .filter((o) => o.id !== op.id)
+                      .map((o) => ({ id: o.id, label: o.label }))}
+                  />
                 )}
               </div>
             )
