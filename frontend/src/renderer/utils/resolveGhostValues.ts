@@ -1,6 +1,8 @@
 /**
- * Resolve operator modulation into ghost values for a specific effect's parameters.
+ * Resolve operator modulation + automation into ghost values for a specific effect's parameters.
  * Used to drive ghost handles on knobs in the ParamPanel.
+ *
+ * Signal order: Base → +ModDelta → AutoReplace → Clamp
  */
 import type { Operator, ParamDef } from '../../shared/types'
 
@@ -10,6 +12,7 @@ export function resolveGhostValues(
   baseParams: Record<string, number | string | boolean>,
   operators: Operator[],
   operatorValues: Record<string, number>,
+  automationOverrides?: Record<string, number>,
 ): Record<string, number> {
   const result: Record<string, number> = {}
 
@@ -38,8 +41,17 @@ export function resolveGhostValues(
       }
     }
 
-    if (modDelta !== 0) {
-      result[key] = Math.max(pMin, Math.min(pMax, baseValue + modDelta))
+    // Signal order: Base → +ModDelta → AutoReplace → Clamp
+    let value = baseValue + modDelta
+    const overrideKey = `${effectId}.${key}`
+    if (automationOverrides && overrideKey in automationOverrides) {
+      value = automationOverrides[overrideKey]
+    }
+    const clamped = Math.max(pMin, Math.min(pMax, value))
+
+    // Only include if different from base
+    if (clamped !== baseValue || modDelta !== 0 || (automationOverrides && overrideKey in automationOverrides)) {
+      result[key] = clamped
     }
   }
 

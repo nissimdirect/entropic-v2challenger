@@ -148,9 +148,37 @@ class SignalEngine:
         operator_values: dict[str, float],
         chain: list[dict],
         effect_registry_fn=None,
+        automation_overrides: dict[str, float] | None = None,
     ) -> list[dict]:
         """Apply operator modulation values to an effect chain.
 
-        Delegates to routing.resolve_routings.
+        Signal order: Base → +OpMod → AutoReplace → Clamp.
+        Delegates operator modulation to routing.resolve_routings,
+        then applies automation overrides (replace, not add).
         """
-        return resolve_routings(operator_values, operators, chain, effect_registry_fn)
+        modulated = resolve_routings(
+            operator_values, operators, chain, effect_registry_fn
+        )
+
+        # Phase 7: Apply automation overrides AFTER operator modulation
+        if automation_overrides:
+            from modulation.routing import _get_param_bounds
+
+            for effect in modulated:
+                eid = effect.get("effect_id", "")
+                if not eid:
+                    continue
+                params = effect.get("params", {})
+                for param_key in list(params.keys()):
+                    override_key = f"{eid}.{param_key}"
+                    if override_key in automation_overrides:
+                        value = automation_overrides[override_key]
+                        if not isinstance(value, (int, float)):
+                            continue
+                        # Clamp to param bounds
+                        p_min, p_max = _get_param_bounds(
+                            eid, param_key, effect_registry_fn
+                        )
+                        params[param_key] = max(p_min, min(p_max, float(value)))
+
+        return modulated

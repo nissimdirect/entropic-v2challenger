@@ -400,11 +400,17 @@ class ZMQServer:
                     video_frame=frame,
                     state=self._signal_state,
                 )
+                # Phase 7: Extract automation overrides from frontend
+                auto_overrides = message.get("automation_overrides")
+                if auto_overrides and not isinstance(auto_overrides, dict):
+                    auto_overrides = None
+
                 chain = engine.apply_modulation(
                     operators,
                     operator_values,
                     chain,
                     registry.get,
+                    automation_overrides=auto_overrides,
                 )
 
             # Use pipeline engine

@@ -3,12 +3,13 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
 import { useUndoStore } from './stores/undo'
 import { usePerformanceStore } from './stores/performance'
 import { useOperatorStore } from './stores/operators'
+import { useAutomationStore } from './stores/automation'
 import { randomUUID } from './utils'
 
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
@@ -40,8 +41,9 @@ function serializeProject(): string {
   }
 
   const operatorStore = useOperatorStore.getState()
+  const automationStore = useAutomationStore.getState()
 
-  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[] } = {
+  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -53,6 +55,7 @@ function serializeProject(): string {
     masterEffectChain: projectStore.effectChain,
     drumRack: performanceStore.drumRack,
     operators: operatorStore.operators,
+    automationLanes: automationStore.lanes,
   }
 
   return JSON.stringify(project, null, 2)
@@ -103,7 +106,7 @@ function validateProject(data: unknown): data is Project {
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[] }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -114,6 +117,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   undoStore.clear()
   usePerformanceStore.getState().resetDrumRack()
   useOperatorStore.getState().resetOperators()
+  useAutomationStore.getState().resetAutomation()
 
   // Hydrate assets
   for (const asset of Object.values(project.assets)) {
@@ -169,6 +173,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   if (Array.isArray(project.operators)) {
     useOperatorStore.getState().loadOperators(project.operators as Operator[])
   }
+
+  // Hydrate automation lanes (backward compat: missing = empty)
+  if (project.automationLanes && typeof project.automationLanes === 'object') {
+    useAutomationStore.getState().loadAutomation(project.automationLanes)
+  }
 }
 
 export async function saveProject(): Promise<boolean> {
@@ -223,7 +232,7 @@ export async function loadProject(): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[] })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> })
 
     const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
     useProjectStore.getState().setProjectPath(filePath)
@@ -242,6 +251,7 @@ export function newProject(): void {
   useUndoStore.getState().clear()
   usePerformanceStore.getState().resetDrumRack()
   useOperatorStore.getState().resetOperators()
+  useAutomationStore.getState().resetAutomation()
 }
 
 export function startAutosave(): void {
@@ -309,7 +319,7 @@ export async function restoreAutosave(path: string): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[] })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> })
 
     // Delete autosave after successful restore
     try {
