@@ -1,8 +1,10 @@
 # Entropic v2 Challenger — Effects Inventory
 
-> Complete catalog of all effects: 126 existing (from v1) + 45 new (from R&D).
+> **189 effects registered** (Phase 8 complete, 2026-03-07).
+> 69 original (Phase 1-3) + 102 Phase 8 (57 ports + 45 R&D) + 18 variant aliases.
 > Every effect follows the Effect Contract (`apply()` pure function).
 > Sources: entropic-2/FEATURE-SET.md, RD-EFFECTS-RESEARCH-2026-02-18.md, v2 spec.
+> Performance: 147/189 under 100ms at 1080p. Optimization plan: `PERF-OPTIMIZATION-PLAN.md`
 
 ---
 

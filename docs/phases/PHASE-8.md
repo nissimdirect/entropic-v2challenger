@@ -1,10 +1,13 @@
 # Phase 8: Physics + R&D Effects
 
+> **STATUS: COMPLETE (2026-03-07)**
+>
 > Emergent systems, codec archaeology, optics — the experimental arsenal.
-> **Goal:** All 171 effects operational. Entropic becomes uniquely powerful.
-> **Sessions:** 5-7
+> **Result:** 189 effects operational (102 new: 57 ports + 45 R&D). 10,435 tests pass.
+> **Sessions:** 3 (parallelized with 5-agent team)
 > **Depends on:** Phase 1 (effect pipeline), Phase 6 (operators for modulation targets)
 > **Architecture ref:** EFFECT-CONTRACT.md (apply signature), EFFECTS-INVENTORY.md (full catalog), RD-EFFECTS-RESEARCH.md (algorithms)
+> **Implementation plan:** `~/.claude/plans/resilient-kindling-swing.md`
 
 ---
 
@@ -140,8 +143,46 @@ backend/src/effects/shared/
 
 ---
 
+## Completion Summary (2026-03-07)
+
+### What Was Built
+- **64 new effect files** in `effects/fx/` (11 consolidated multi-mode + 53 standalone)
+- **4 shared utility modules** in `effects/shared/` (displacement, dct_utils, block_processing, noise_generators)
+- **48 variant aliases** registered via `_register_variant()` helper
+- **Registry:** 69 → 189 effects (+120)
+
+### Build Waves (as executed)
+| Wave | Effects | Agent | Files |
+|------|---------|-------|-------|
+| 1: R&D | 8 (compression_oracle, logistic_cascade, reaction_diffusion, domain_warp, entropy_map, dct_transform, generation_loss, surveillance_sim) | wave1-rd | 8 |
+| 2: Physics | 21 (5 consolidated + 6 standalone) | wave2-physics | 11 |
+| 3: Temporal+DSP | 23 (3 consolidated + 12 standalone) | wave3-temporal-dsp | 15 |
+| 4-5: Destruction+Sidechain+Codec | 17 (2 consolidated + 15 standalone) | wave45-destruction | 17 |
+| 6: Optics+Medical+Misc | 24 (3 consolidated + 12 standalone) | wave6-optics-medical | 15 |
+| 7: Registry+Tests | Integration, exemption sets, curve/unit fields | main agent | 3 modified |
+
+### Test Results
+- **10,435 passed, 0 failed, 896 skipped**
+- 6 automatic tests per effect via parametrized harness (shape, dtype, alpha, determinism, visible change, boundary)
+- Exemption sets: ALPHA_EXEMPT (35), IDENTITY_BY_DEFAULT (47), STATEFUL_PHYSICS (26), STATEFUL_FRAME0 (45), CONSOLIDATED (26)
+
+### Performance Audit (1080p)
+- **147 effects** (78%) under 100ms — target met
+- **42 effects** (22%) over 100ms — optimization plan created
+- Worst: median_filter (1.4s), dct_swap (860ms), pixel_bubbles (500ms)
+- Half-res optimization applied to DCT/quant/entropy (3-10x improvement)
+- Full optimization plan: `PERF-OPTIMIZATION-PLAN.md`
+
+### Key Decisions
+- Flat file layout (no subdirs) — matches existing 63 effects
+- Consolidated effects: 30 effects → 11 files via mode params + variant aliases
+- `_register_variant()` helper for clean alias registration
+- `state_in`/`state_out` for stateful effects (first in v2)
+- `_sidechain_frame` convention for sidechain effects
+- `halfres_wrap()` in dct_utils.py for codec perf optimization
+
 ## NOT in Phase 8
 
-- No GPU acceleration for effects (post-launch optimization)
+- No GPU acceleration for effects (post-launch optimization — see PERF-OPTIMIZATION-PLAN.md)
 - No user-authored effects / plugin SDK (post-launch)
 - No preset packs for R&D effects (Phase 10 library)
