@@ -32,9 +32,12 @@ import PerformancePanel from './components/performance/PerformancePanel'
 import PadEditor from './components/performance/PadEditor'
 import { usePerformanceStore } from './stores/performance'
 import { applyPadModulations } from './components/performance/applyPadModulations'
+import OperatorRack from './components/operators/OperatorRack'
+import { useOperatorStore } from './stores/operators'
 import './styles/transport.css'
 import './styles/timeline.css'
 import './styles/performance.css'
+import './styles/operators.css'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -112,6 +115,7 @@ function AppInner() {
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
   const [renderError, setRenderError] = useState<string | null>(null)
   const [isTimerPlaying, setIsTimerPlaying] = useState(false)
+  const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
 
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
@@ -419,12 +423,15 @@ function AppInner() {
       }
 
       try {
+        // Include operators in render request for backend modulation
+        const serializedOps = useOperatorStore.getState().getSerializedOperators()
         const res = await window.entropic.sendCommand({
           cmd: 'render_frame',
           path: activeAssetPath.current,
           frame_index: frame,
           chain: serializeEffectChain(chain),
           project_seed: Date.now() % 2147483647,
+          ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
         })
 
         if (res.ok && res.frame_data) {
@@ -433,6 +440,10 @@ function AppInner() {
           if (res.height) setFrameHeight(res.height as number)
           setPreviewState('ready')
           setRenderError(null)
+          // Store operator values for UI indicators
+          if (res.operator_values) {
+            setOperatorValues(res.operator_values as Record<string, number>)
+          }
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
 
@@ -909,6 +920,13 @@ function AppInner() {
           usePerformanceStore.getState().setPadEditorOpen(true)
         }} />
       </div>
+
+      <OperatorRack
+        effectChain={effectChain}
+        registry={registry}
+        operatorValues={operatorValues}
+        hasAudio={hasAudio}
+      />
 
       <div className="status-bar">
         <div className="status-bar__left">

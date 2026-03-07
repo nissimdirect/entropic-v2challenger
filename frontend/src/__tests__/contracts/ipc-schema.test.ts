@@ -99,6 +99,7 @@ describe('IPC Contract', () => {
       'audio_seek',
       'audio_stop',
       'audio_volume',
+      'check_dag',
       'clock_set_fps',
       'clock_sync',
       'effect_health',
