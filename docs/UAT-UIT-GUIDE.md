@@ -1,10 +1,10 @@
 # Entropic v2 Challenger — UAT & UIT Testing Guide
 
-> **Version:** 2.0
-> **Date:** 2026-03-01
-> **Covers:** Phases 0A, 0B, 1, 2A, 2B, 3, 4 (everything built so far)
+> **Version:** 3.0
+> **Date:** 2026-03-07
+> **Covers:** Phases 0A, 0B, 1, 2A, 2B, 3, 4, 5, 6A, 6B, 7 (everything built so far)
 > **Tester:** You (manual walkthrough)
-> **Time estimate:** 3-5 hours for full pass
+> **Time estimate:** 5-7 hours for full pass (419 test cases)
 
 ---
 
@@ -583,14 +583,309 @@ If `npm run start` fails:
 | 214 | Cmd+- | Zoom canvas out | Canvas zooms out | [ ] |
 | 215 | Cmd+0 | Fit canvas | Canvas fits to window | [ ] |
 | 216 | `\` (hold) | Before/after | Shows original while held | [ ] |
+| 284 | A | Toggle automation | Toggles automation lane visibility on selected track | [ ] |
 
 ---
 
-## SECTION 13: Stress Testing & Edge Cases
+## SECTION 13: Performance Mode & Pads (Phase 5)
+
+> Verify the performance mode drum rack, pad triggers, and ADSR modulation.
+
+### 13.1 Performance Mode Toggle
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 285 | Enter perform mode | Click the Performance Mode button (or shortcut) | UI switches to pad grid layout, effect rack stays visible | [ ] |
+| 286 | Exit perform mode | Click the Performance Mode button again | UI returns to standard timeline layout | [ ] |
+| 287 | Mode persists across playback | Enter perform mode, press Space to play | Playback works normally in perform mode | [ ] |
+
+### 13.2 Pad Grid & Triggers
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 288 | Pad grid visible | Enter perform mode | 4x4 pad grid appears with color-coded pads | [ ] |
+| 289 | Click pad triggers | Click a pad | Pad lights up, associated effect/clip triggers | [ ] |
+| 290 | Keyboard trigger | Press mapped key (e.g., Q/W/E/R row) | Corresponding pad triggers | [ ] |
+| 291 | Velocity sensitivity | Click pad near edge vs center (if implemented) | Velocity varies with click position | [ ] |
+| 292 | Pad release | Press and release a pad | Pad deactivates on release (momentary behavior) | [ ] |
+
+### 13.3 ADSR Envelope on Pads
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 293 | ADSR controls visible | Select a pad | Attack, Decay, Sustain, Release knobs appear | [ ] |
+| 294 | Attack ramp | Set Attack to max, trigger pad | Effect fades in slowly over attack time | [ ] |
+| 295 | Release tail | Set Release to max, release pad | Effect fades out slowly after release | [ ] |
+| 296 | Zero attack | Set Attack to 0, trigger pad | Effect applies instantly (no ramp) | [ ] |
+| 297 | ADSR persists | Adjust ADSR values, save project, reload | ADSR values restored correctly | [ ] |
+
+### 13.4 Pad Modulation
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 298 | Pad modulates param | Map a pad to an effect parameter | Triggering pad modulates the mapped parameter via ADSR | [ ] |
+| 299 | Multiple pad mappings | Map 2 pads to different params on same effect | Both modulate independently when triggered | [ ] |
+| 300 | Pad mod + knob | Trigger a pad while manually moving its mapped knob | Both inputs combine — pad modulation offsets the knob value | [ ] |
+
+---
+
+## SECTION 14: Operators & Modulation Sources (Phase 6A)
+
+> Verify all operator types generate signals and can be mapped to effect parameters.
+
+### 14.1 LFO Operator
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 301 | Add LFO | Click "Add Operator" → LFO | LFO card appears with pink left border | [ ] |
+| 302 | LFO waveforms | Cycle through waveforms: sine, triangle, square, saw, random | Signal bar changes shape for each waveform | [ ] |
+| 303 | LFO rate control | Adjust rate knob | Signal speed changes (faster/slower oscillation) | [ ] |
+| 304 | LFO phase offset | Adjust phase knob | Signal shifts start position | [ ] |
+| 305 | LFO signal bar | Observe signal bar during playback | Bar animates showing real-time signal value | [ ] |
+
+### 14.2 Envelope Follower
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 306 | Add Envelope | Click "Add Operator" → Envelope | Envelope card appears | [ ] |
+| 307 | Attack/Release | Adjust attack/release knobs | Envelope shape changes (fast attack = snappy, slow = smooth) | [ ] |
+| 308 | Trigger behavior | Trigger envelope (via playback or pad) | Signal ramps up then decays per ADSR settings | [ ] |
+
+### 14.3 Step Sequencer
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 309 | Add Step Seq | Click "Add Operator" → Step Sequencer | Step sequencer card appears with step grid | [ ] |
+| 310 | Edit steps | Click individual steps to set values | Steps visually update, signal bar reflects pattern | [ ] |
+| 311 | Step count | Adjust step count (e.g., 8, 16, 32) | Grid resizes, pattern plays with new length | [ ] |
+| 312 | Step rate sync | Adjust rate/speed | Steps advance faster or slower | [ ] |
+
+### 14.4 Audio Follower
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 313 | Add Audio Follower | Click "Add Operator" → Audio Follower | Audio follower card appears | [ ] |
+| 314 | Follows audio | Play a clip with audio, observe signal bar | Signal tracks audio amplitude in real-time | [ ] |
+| 315 | Sensitivity control | Adjust sensitivity/smoothing knobs | Signal response changes (more/less reactive) | [ ] |
+
+### 14.5 Video Analyzer
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 316 | Add Video Analyzer | Click "Add Operator" → Video Analyzer | Card appears with pink left border | [ ] |
+| 317 | Method dropdown | Click method dropdown | 5 options: luminance, motion, color, edges, histogram_peak | [ ] |
+| 318 | Luminance analysis | Select Luminance, play video | Signal bar tracks frame brightness | [ ] |
+| 319 | Motion analysis | Select Motion, play video with movement | Signal spikes on motion frames | [ ] |
+| 320 | Hint text | Check card UI | "Analyzes 64×64 proxy of current frame" hint visible | [ ] |
+
+### 14.6 Fusion Operator
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 321 | Add Fusion | Click "Add Operator" → Fusion | Card appears with cyan left border | [ ] |
+| 322 | Add sources | Use "Add source..." dropdown | Dropdown shows other operators (NOT self) | [ ] |
+| 323 | Two LFO sources | Add 2 LFOs as sources to Fusion | Weight sliders appear for each (default 1.0) | [ ] |
+| 324 | Blend modes | Change blend mode | Output signal changes character | [ ] |
+| 325 | Weight adjustment | Adjust a weight slider | Weight value updates in real-time | [ ] |
+| 326 | Remove source | Click remove on a source | Row disappears from source list | [ ] |
+| 327 | No self-reference | Check "Add source..." dropdown | Fusion itself is NOT listed as a source option | [ ] |
+| 328 | No duplicate sources | Add LFO-1, check dropdown again | LFO-1 is no longer available as an option | [ ] |
+| 329 | Empty state | Remove all sources | Empty-state hint appears | [ ] |
+
+### 14.7 Operator Lifecycle
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 330 | Disable operator | Click disable/bypass on an operator | Operator card dims, signal stops, mappings inactive | [ ] |
+| 331 | Re-enable operator | Click enable | Operator resumes, mappings active again | [ ] |
+| 332 | Delete operator | Click delete on an operator | Card removed, all mappings for that operator removed | [ ] |
+| 333 | Undo delete | Cmd+Z after deleting operator | Operator and its mappings restored | [ ] |
+
+---
+
+## SECTION 15: Modulation Matrix & Ghost Handles (Phase 6B)
+
+> Verify the modulation routing system, ghost handles, and visual feedback.
+
+### 15.1 Modulation Matrix
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 334 | Matrix empty state | Open matrix with no operators or effects | Shows "Add operators and effects..." hint message | [ ] |
+| 335 | Matrix grid appears | Add 1 operator + 1 effect | Grid appears with operator rows × param columns | [ ] |
+| 336 | Create routing | Click a cell in the matrix grid | Depth slider appears (default 0%) | [ ] |
+| 337 | Adjust depth | Drag depth slider to 75% | Depth value updates, modulation strength changes | [ ] |
+| 338 | Remove routing | Click × button on an active routing | Routing removed, cell returns to empty | [ ] |
+| 339 | Signal bars animate | Play with active operators | Per-operator signal bars animate in matrix rows | [ ] |
+| 340 | Sticky headers | Scroll a large matrix (many operators + params) | Row/column headers remain visible | [ ] |
+
+### 15.2 Ghost Handles
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 341 | Ghost arc visible | Map LFO to hue_shift.amount, play | Ghost arc appears on the knob at 30% opacity | [ ] |
+| 342 | Ghost color | Inspect ghost arc | Green color (#4ade80 or similar) | [ ] |
+| 343 | Ghost tracks modulation | Observe ghost during playback | Ghost arc moves with LFO signal | [ ] |
+| 344 | Increase depth | Increase depth to 100% | Ghost arc extends further from base position | [ ] |
+| 345 | Zero depth | Set depth to 0% | Ghost arc disappears | [ ] |
+| 346 | Drag knob with ghost | Manually drag the modulated knob | Base moves, ghost position reflects base + modulation | [ ] |
+| 347 | Switch effects | Click a different effect in the rack | Ghost handles update to show new effect's modulations | [ ] |
+| 348 | Multiple operators | Map 2 operators to same param | Ghost reflects combined (additive) modulation | [ ] |
+
+### 15.3 Routing Lines
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 349 | Lines visible | Create a routing (operator → param) | SVG line visible between operator card and param area | [ ] |
+| 350 | Line color | Inspect routing line | Color matches operator type color | [ ] |
+| 351 | Line opacity pulses | Play with active modulation | Line opacity pulses with signal strength | [ ] |
+| 352 | Line thickness | Compare low-depth vs high-depth routing | Higher depth = thicker line | [ ] |
+| 353 | Disable operator | Disable a routed operator | Lines disappear | [ ] |
+| 354 | Re-enable operator | Enable it again | Lines reappear | [ ] |
+
+### 15.4 Modulation Persistence
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 355 | Save complex setup | Create 3 operators, 5 routings, Cmd+S | Project saves without error | [ ] |
+| 356 | Load complex setup | Close app, reopen, load the project | All operators, routings, depths restored | [ ] |
+| 357 | Undo routing | Create a routing, Cmd+Z | Routing removed | [ ] |
+| 358 | Undo operator delete | Delete operator (removes routings), Cmd+Z | Operator AND routings restored | [ ] |
+| 359 | New project clears | Cmd+N | All operators and routings cleared | [ ] |
+
+---
+
+## SECTION 16: Automation (Phase 7)
+
+> Verify automation lanes, nodes, recording modes, signal stack, and persistence.
+
+### 16.1 Automation Lane Basics
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 360 | Add automation lane | Select a track with effects → add automation lane for a param | Lane overlay appears on the track in timeline | [ ] |
+| 361 | Lane color | Inspect the automation lane | Lane has a visible color (user-assigned or default) | [ ] |
+| 362 | Lane visibility toggle | Toggle lane visibility off | Lane overlay disappears from track | [ ] |
+| 363 | Lane visibility on | Toggle lane visibility back on | Lane overlay reappears | [ ] |
+| 364 | Multiple lanes | Add 2 automation lanes on same track (different params) | Both lanes visible as overlays, distinguishable by color | [ ] |
+| 365 | Remove lane | Delete an automation lane | Lane removed from track, no orphan data | [ ] |
+
+### 16.2 Automation Nodes (Points)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 366 | Click to add node | Click on the automation lane line | Node (circle) appears at click position | [ ] |
+| 367 | Add 3 nodes | Click at 3 different positions | 3 nodes appear, connected by line segments | [ ] |
+| 368 | Drag node | Click and drag a node | Node moves — X = time, Y = value | [ ] |
+| 369 | Shift+drag precision | Hold Shift while dragging a node | Node moves 10x slower (fine-tuning) | [ ] |
+| 370 | Alt+click cycle curve | Alt+click a node | Curve type cycles: linear → ease-in → ease-out → S-curve | [ ] |
+| 371 | Delete node | Select node, press Delete (or right-click → delete) | Node removed, adjacent segments reconnect | [ ] |
+| 372 | Node tooltip | Hover over a node | Tooltip shows value@time (e.g., "0.75 @ 2.5s") | [ ] |
+| 373 | Node at boundaries | Drag node to time=0 and to end of track | Node clamps to valid time range | [ ] |
+
+### 16.3 Curve Segments
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 374 | Linear segment | Two nodes with linear curve | Straight line between them | [ ] |
+| 375 | Ease-in segment | Alt+click to set ease-in | Curve bows inward (slow start, fast end) | [ ] |
+| 376 | Ease-out segment | Alt+click to set ease-out | Curve bows outward (fast start, slow end) | [ ] |
+| 377 | Zoom affects curves | Zoom in on timeline | Curves rescale correctly with zoom | [ ] |
+| 378 | Scroll affects curves | Scroll timeline horizontally | Curves reposition correctly | [ ] |
+
+### 16.4 Automation Toolbar
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 379 | Toolbar visible | Look in the timeline area | Automation toolbar with mode buttons (R/L/T/D) visible | [ ] |
+| 380 | Read mode (default) | Check initial state | Read mode (R) is active by default | [ ] |
+| 381 | Switch to Latch | Click L button | Latch mode activates, R deactivates | [ ] |
+| 382 | Switch to Touch | Click T button | Touch mode activates | [ ] |
+| 383 | Switch to Draw | Click D button | Draw mode activates, cursor changes to crosshair | [ ] |
+| 384 | Simplify button | Add many nodes, click Simplify | Point count reduces, shape approximately preserved | [ ] |
+| 385 | Clear button | Click Clear on a lane with nodes | All nodes removed, lane still exists (empty) | [ ] |
+| 386 | Armed track display | Arm a track, check toolbar | Armed track name shown in toolbar | [ ] |
+
+### 16.5 Arm / Disarm Track
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 387 | Arm button on track | Click "A" button on track header | Button highlights, track is armed for automation recording | [ ] |
+| 388 | Disarm track | Click "A" again | Button de-highlights, track disarmed | [ ] |
+| 389 | Only one armed | Arm Track 1, then arm Track 2 | Track 1 disarms, only Track 2 armed | [ ] |
+
+### 16.6 Latch Mode Recording
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 390 | Latch records knob | Set Latch mode, arm track, play, move a mapped knob | Automation points written at playhead positions | [ ] |
+| 391 | Points appear on lane | After recording, stop playback | Recorded nodes visible on the automation lane | [ ] |
+| 392 | Auto-simplify on stop | Record many points, stop | RDP simplification runs — point count reduced from raw recording | [ ] |
+| 393 | Latch overwrites | Play again in latch, move knob in same region | New values overwrite old automation in that region | [ ] |
+
+### 16.7 Touch Mode Recording
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 394 | Touch records while held | Set Touch mode, arm track, play, hold knob and move | Points recorded only while knob is being held | [ ] |
+| 395 | Release snaps back | Release the knob | Value returns to existing automation curve | [ ] |
+| 396 | Touch auto-simplify | Record, release | Recorded segment simplified via RDP | [ ] |
+
+### 16.8 Draw Mode
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 397 | Draw cursor | Switch to Draw mode | Cursor changes to crosshair/pencil over automation lanes | [ ] |
+| 398 | Freehand draw | Click and drag across a lane | Points painted along mouse path | [ ] |
+| 399 | Draw auto-simplify | Release after drawing | Stroke auto-simplified (fewer points, shape preserved) | [ ] |
+| 400 | Draw overwrites | Draw over existing automation | New points replace old in the drawn region | [ ] |
+
+### 16.9 Playback — Automation Applies
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 401 | Param changes during playback | Add 3 nodes at different values, play | Parameter visibly changes at node positions during playback | [ ] |
+| 402 | Knob reflects automation | Watch the knob during playback | Knob position updates to match automated value | [ ] |
+| 403 | Before first node | Position playhead before first automation node | Param uses first node's value (clamp to first) | [ ] |
+| 404 | After last node | Position playhead after last automation node | Param uses last node's value (clamp to last) | [ ] |
+| 405 | No automation data | Lane exists but empty | Original param value passes through (no override) | [ ] |
+
+### 16.10 Signal Stack (Automation + Modulation)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 406 | Automation replaces | Add LFO mod + automation on same param, play | Automation VALUE replaces (not adds to) the modulated value | [ ] |
+| 407 | Ghost shows final value | Inspect ghost handle during playback | Ghost reflects automation override (not just modulation) | [ ] |
+| 408 | Signal order correct | Base=50, LFO mod=+20, automation=80 at time T | At time T: param = 80 (automation replaces base+mod) | [ ] |
+| 409 | No auto data = mod passes | At a time with no automation nodes | Param = base + modulation (mod passes through) | [ ] |
+| 410 | Clamp after automation | Automation value exceeds param max | Value clamped to param max (not exceeding bounds) | [ ] |
+
+### 16.11 Automation Persistence
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 411 | Save with automation | Create lanes + nodes, Cmd+S | Project saves without error | [ ] |
+| 412 | Load with automation | Close, reopen, load project | All automation lanes, nodes, curves restored exactly | [ ] |
+| 413 | Backward compat | Load a project saved BEFORE Phase 7 (no automation data) | Project loads, automation is empty (no crash) | [ ] |
+| 414 | Undo automation edit | Add a node, Cmd+Z | Node removed | [ ] |
+| 415 | Redo automation edit | Cmd+Shift+Z after undo | Node reappears | [ ] |
+| 416 | New project clears | Cmd+N | All automation lanes and nodes cleared | [ ] |
+
+### 16.12 Copy/Paste Automation
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 417 | Copy region | Select time region on automation lane, Cmd+C | Points in region copied to automation clipboard | [ ] |
+| 418 | Paste at playhead | Position playhead at new time, Cmd+V | Copied points pasted at playhead position (time-shifted) | [ ] |
+| 419 | Paste preserves shape | Paste, compare to original | Shape/values match, only time offset differs | [ ] |
+
+---
+
+## SECTION 17: Stress Testing & Edge Cases (Cross-Phase)
 
 > The chaos section — try to break things.
 
-### 13.1 Rapid Input
+### 17.1 Rapid Input
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -599,7 +894,7 @@ If `npm run start` fails:
 | 219 | Rapid scrubbing | Click rapidly across timeline | Preview updates, no hang | [ ] |
 | 220 | Rapid undo/redo | Mash Cmd+Z and Cmd+Shift+Z rapidly | History navigates without crash | [ ] |
 
-### 13.2 State Integrity
+### 17.2 State Integrity
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -608,7 +903,7 @@ If `npm run start` fails:
 | 223 | Full chain + export | 10 effects applied, export the video | Export succeeds with all 10 effects | [ ] |
 | 224 | Import during playback | While playing, try to import another video | Handles gracefully (pauses or queues) | [ ] |
 
-### 13.3 Boundary Tests
+### 17.3 Boundary Tests
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -618,7 +913,7 @@ If `npm run start` fails:
 | 228 | Param at max | Set a parameter to its maximum value | Preview renders without crash | [ ] |
 | 229 | Empty project export | Try to export with no video loaded | Error message (not crash) | [ ] |
 
-### 13.4 Recovery
+### 17.4 Recovery
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -627,41 +922,41 @@ If `npm run start` fails:
 
 ---
 
-## SECTION 14: Integration Tests (Cross-Feature Flows)
+## SECTION 18: Integration Tests (Cross-Feature Flows)
 
 > These test that features work TOGETHER, not just individually.
 
-### 14.1 Full Journey: Import → Effects → Export
+### 18.1 Full Journey: Import → Effects → Export
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 232 | End-to-end flow | 1. Import video 2. Add 3 effects 3. Adjust params 4. Scrub preview 5. Export | Exported video has all 3 effects baked in correctly | [ ] |
 
-### 14.2 Save/Load Round-Trip
+### 18.2 Save/Load Round-Trip
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 233 | Full round-trip | 1. Import video 2. Add effects + adjust params 3. Add markers 4. Adjust track opacity 5. Save 6. Close app 7. Reopen 8. Load project | Everything is exactly as you left it | [ ] |
 
-### 14.3 Multi-Track Composition
+### 18.3 Multi-Track Composition
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 234 | Two-track composite | 1. Import video to Track 1 2. Add Track 2, drag same video 3. Add hue_shift to Track 1 4. Add vhs to Track 2 5. Set Track 2 opacity to 50% 6. Set Track 2 blend to "screen" 7. Play | Preview shows blended composite of both tracks with different effects | [ ] |
 
-### 14.4 Color Suite + Effects Combo
+### 18.4 Color Suite + Effects Combo
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 235 | Color + glitch | 1. Add "curves" (util tool) 2. Make an S-curve 3. Add "datamosh" (destructive effect) 4. Add "vhs" 5. Preview | All three stack correctly — color graded + glitched + VHS | [ ] |
 
-### 14.5 Undo Across Features
+### 18.5 Undo Across Features
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 236 | Cross-feature undo | 1. Add effect 2. Move a clip 3. Add a marker 4. Change track opacity 5. Undo all 4 steps | Each undo reverses the correct action in reverse order | [ ] |
 
-### 14.6 Audio + Video + Effects
+### 18.6 Audio + Video + Effects
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -670,11 +965,11 @@ If `npm run start` fails:
 
 ---
 
-## SECTION 15: Missing Interactions (Power User Pass)
+## SECTION 19: Missing Interactions (Power User Pass)
 
 > Tests for interactions found in the actual code but missing from the original guide.
 
-### 15.1 Knob & Slider Advanced Interactions
+### 19.1 Knob & Slider Advanced Interactions
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -687,7 +982,7 @@ If `npm run start` fails:
 | 245 | Knob at min boundary | Hold Down arrow until param hits its minimum | Value clamps at minimum, doesn't go below or wrap | [ ] |
 | 246 | Knob at max boundary | Hold Up arrow until param hits its maximum | Value clamps at maximum, doesn't go above or wrap | [ ] |
 
-### 15.2 Missing Keyboard Shortcuts
+### 19.2 Missing Keyboard Shortcuts
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -699,7 +994,7 @@ If `npm run start` fails:
 | 252 | Cmd+M add marker | Press Cmd+M at current playhead position | Marker appears on ruler at that position | [ ] |
 | 253 | Shortcuts in text input | Click into a number input field, then press Space | Space types into the field (does NOT trigger play/pause) | [ ] |
 
-### 15.3 Waveform & Timeline Interactions
+### 19.3 Waveform & Timeline Interactions
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -708,7 +1003,7 @@ If `npm run start` fails:
 | 256 | Timeline resize handle | Drag the top edge of the timeline panel up/down | Timeline gets taller/shorter (min 120px, max ~50% window) | [ ] |
 | 257 | Marker right-click delete | Right-click a marker flag on the time ruler | Context menu appears or marker is deleted directly | [ ] |
 
-### 15.4 File Path & Format Edge Cases
+### 19.4 File Path & Format Edge Cases
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -718,14 +1013,14 @@ If `npm run start` fails:
 | 261 | WebM format | Import a .webm file | Accepted and ingested (backend supports .webm) | [ ] |
 | 262 | MKV format | Import an .mkv file | Accepted and ingested (backend supports .mkv) | [ ] |
 
-### 15.5 Import & Ingest Guards
+### 19.5 Import & Ingest Guards
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 263 | Drop during ingest | Start importing a video, then immediately drag-drop another | Second drop is rejected or queued — drop zone should be disabled during ingest | [ ] |
 | 264 | 500MB file limit | Try to import a video file larger than 500MB | Backend rejects with a file-too-large error (SEC-5) | [ ] |
 
-### 15.6 Effect Browser States
+### 19.6 Effect Browser States
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -733,14 +1028,14 @@ If `npm run start` fails:
 | 266 | Category filter + search | Select a category, then type in search | Results filter by BOTH category AND search text | [ ] |
 | 267 | Effect disabled state | With 10 effects in chain, look at browser | Effect list items are disabled/unclickable (max chain reached) | [ ] |
 
-### 15.7 Preview Error States
+### 19.7 Preview Error States
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 268 | Preview retry button | If preview shows error state, click the Retry button | Preview re-renders the current frame | [ ] |
 | 269 | Preview empty state | Open app with no video loaded | Preview shows "No video loaded" message (not blank/broken) | [ ] |
 
-### 15.8 Export Edge Cases
+### 19.8 Export Edge Cases
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -749,14 +1044,14 @@ If `npm run start` fails:
 | 272 | Custom resolution bounds | In export dialog, try typing 0 or 99999 in width/height | Values are clamped (min 1, max 7680) — no crash | [ ] |
 | 273 | Cancel save path | Click Export, then cancel the save dialog | Returns to export dialog or main app without error | [ ] |
 
-### 15.9 Save/Load Persistence
+### 19.9 Save/Load Persistence
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 274 | Re-save after edits | Save → add another effect → Cmd+S again (same file) → close → reopen → load | The NEW changes are present (not the old state) | [ ] |
 | 275 | Load missing asset | Save a project. COPY your video elsewhere. Delete the copy. Load the .glitch file | Graceful error about missing asset — app doesn't crash | [ ] |
 
-### 15.10 Engine Resilience
+### 19.10 Engine Resilience
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -765,11 +1060,11 @@ If `npm run start` fails:
 
 ---
 
-## SECTION 16: Red Team / Security (QA-RedTeam Pass)
+## SECTION 20: Red Team / Security (QA-RedTeam Pass)
 
 > Try to break the app intentionally. These test security gates and abuse paths.
 
-### 16.1 Backend Security Gates
+### 20.1 Backend Security Gates
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -778,7 +1073,7 @@ If `npm run start` fails:
 | 280 | Effect timeout | Add an effect that's computationally expensive (e.g., multiple physics effects stacked), scrub | If an effect takes >500ms, it should be skipped (returns input unchanged) — no hang | [ ] |
 | 281 | Effect auto-disable | If you can trigger 3 consecutive failures on the same effect (e.g., edge case params) | Effect auto-disables after 3 failures. Check via observing it no longer applies | [ ] |
 
-### 16.2 Context Isolation
+### 20.2 Context Isolation
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
@@ -787,7 +1082,7 @@ If `npm run start` fails:
 
 ---
 
-## SECTION 17: Known Gaps & Expected Failures
+## SECTION 21: Known Gaps & Expected Failures
 
 > These are features that are designed but NOT fully wired. If you hit these, mark [N/A] and note them — they're not bugs, they're TODOs.
 
@@ -804,7 +1099,7 @@ If `npm run start` fails:
 
 ---
 
-## SECTION 18: Bug Report Template
+## SECTION 22: Bug Report Template
 
 When you find something broken, record it with this format:
 
@@ -831,7 +1126,7 @@ When you find something broken, record it with this format:
 | 1. App Launch | 9 | | | | |
 | 2. Video Import | 10 | | | | |
 | 3. Preview Canvas | 10 | | | | |
-| 4. Effect System | 27 | | | | |
+| 4. Effect System | 57 | | | | Phase 1 + Phase 3 Color Suite |
 | 5. Parameter UX | 12 | | | | |
 | 6. Audio System | 13 | | | | |
 | 7. Timeline & Tracks | 42 | | | | |
@@ -839,13 +1134,17 @@ When you find something broken, record it with this format:
 | 9. Project Save/Load | 13 | | | | |
 | 10. Export | 13 | | | | |
 | 11. Panel Layout | 9 | | | | |
-| 12. Keyboard Shortcuts | 10 | | | | |
-| 13. Stress Testing | 15 | | | | |
-| 14. Integration Tests | 7 | | | | |
-| 15. Missing Interactions | 39 | | | | Knobs, sliders, waveform, timeline, edge cases |
-| 16. Red Team / Security | 6 | | | | Security gates, context isolation |
-| 17. Known Gaps | — | | | | Informational only (no pass/fail) |
-| **TOTAL** | **253** | | | | |
+| 12. Keyboard Shortcuts | 11 | | | | +A key (automation) |
+| 13. Performance Mode & Pads | 16 | | | | Phase 5 |
+| 14. Operators & Modulation | 33 | | | | Phase 6A — LFO, Envelope, StepSeq, AudioFollower, VideoAnalyzer, Fusion |
+| 15. Mod Matrix & Ghost Handles | 26 | | | | Phase 6B — matrix, ghosts, routing lines, persistence |
+| 16. Automation | 60 | | | | Phase 7 — lanes, nodes, modes, recording, signal stack, persistence |
+| 17. Stress Testing | 15 | | | | |
+| 18. Integration Tests | 7 | | | | |
+| 19. Missing Interactions | 39 | | | | Knobs, sliders, waveform, timeline, edge cases |
+| 20. Red Team / Security | 6 | | | | Security gates, context isolation |
+| 21. Known Gaps | — | | | | Informational only (no pass/fail) |
+| **TOTAL** | **419** | | | | |
 
 ### Verdict Criteria
 
@@ -860,12 +1159,11 @@ When you find something broken, record it with this format:
 These features are **not yet built** — do NOT test them:
 
 - MIDI input / hardware controllers (Phase 9)
-- Perform mode pad grid / keyboard triggers (Phase 5)
-- Full automation recording (Phase 7)
-- Signal/modulation routing matrix (Phase 6)
 - Preset library / preset save & load (Phase 10)
-- Audio sidechain modulation (Phase 6)
 - Freeze/flatten effects (Phase 10)
-- Step sequencer operator (Phase 6+)
 - ProRes / H.265 export codecs (Phase 11)
+- Automation grouping across params (Phase 11)
+- Per-node velocity/tension (post-launch)
+- Automation on operator params (post-launch)
+- MIDI CC recording to automation (Phase 9)
 - Auto-save (Phase 4 — designed but may not be wired yet)

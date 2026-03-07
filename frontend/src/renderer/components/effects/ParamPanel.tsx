@@ -4,22 +4,52 @@ import Knob from '../common/Knob'
 import ParamChoice from './ParamChoice'
 import ParamToggle from './ParamToggle'
 import ParamMix from './ParamMix'
+import { useAutomationStore } from '../../stores/automation'
+import { useTimelineStore } from '../../stores/timeline'
+import { recordPoint } from '../../utils/automation-record'
 
 interface ParamPanelProps {
   effect: EffectInstance | null
   effectInfo: EffectInfo | null
   onUpdateParam: (effectId: string, paramName: string, value: number | string | boolean) => void
   onSetMix: (effectId: string, mix: number) => void
+  /** Resolved modulation values per param key (ghost handles) */
+  modulatedValues?: Record<string, number>
 }
 
-export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix }: ParamPanelProps) {
+export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix, modulatedValues }: ParamPanelProps) {
   const paramsRef = useRef<HTMLDivElement>(null)
 
   const handleParamKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key !== 'Tab') return
-    // Let native Tab/Shift+Tab cycle through focusable knobs and controls
-    // Focus ring is handled by CSS :focus-visible on .knob__svg and .hslider__track
   }, [])
+
+  // Phase 7: Latch/touch automation recording on knob change.
+  // Must be declared before early return to maintain hook ordering.
+  const handleKnobChange = useCallback(
+    (effectId: string, key: string, def: ParamDef, value: number) => {
+      onUpdateParam(effectId, key, value)
+
+      // Write automation points in latch/touch mode
+      const autoStore = useAutomationStore.getState()
+      const mode = autoStore.mode
+      if (mode !== 'latch' && mode !== 'touch') return
+      if (!autoStore.armedTrackId) return
+
+      const paramPath = `${effectId}.${key}`
+      const lanes = autoStore.getLanesForTrack(autoStore.armedTrackId)
+      const lane = lanes.find((l) => l.paramPath === paramPath)
+      if (!lane) return
+
+      const time = useTimelineStore.getState().playheadTime
+      const pMin = def.min ?? 0
+      const pMax = def.max ?? 1
+      const normalized = pMax > pMin ? (value - pMin) / (pMax - pMin) : 0
+      const newPoints = recordPoint(lane.points, time, Math.max(0, Math.min(1, normalized)))
+      autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
+    },
+    [onUpdateParam],
+  )
 
   if (!effect || !effectInfo) {
     return (
@@ -35,8 +65,7 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
 
   const renderKnob = (key: string, def: ParamDef) => {
     const value = effect.parameters[key] ?? def.default
-    // TODO Phase 6: Replace ghostValue with resolved modulation value
-    const ghostValue = value as number
+    const ghostValue = modulatedValues?.[key] ?? (value as number)
     return (
       <Knob
         key={key}
@@ -50,7 +79,7 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
         curve={def.curve}
         description={def.description}
         ghostValue={ghostValue}
-        onChange={(v) => onUpdateParam(effect.id, key, v)}
+        onChange={(v) => handleKnobChange(effect.id, key, def, v)}
       />
     )
   }

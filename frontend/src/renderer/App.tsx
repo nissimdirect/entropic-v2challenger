@@ -32,9 +32,19 @@ import PerformancePanel from './components/performance/PerformancePanel'
 import PadEditor from './components/performance/PadEditor'
 import { usePerformanceStore } from './stores/performance'
 import { applyPadModulations } from './components/performance/applyPadModulations'
+import OperatorRack from './components/operators/OperatorRack'
+import ModulationMatrix from './components/operators/ModulationMatrix'
+import RoutingLines from './components/operators/RoutingLines'
+import { useOperatorStore } from './stores/operators'
+import { useAutomationStore } from './stores/automation'
+import { resolveGhostValues } from './utils/resolveGhostValues'
+import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
+import AutomationToolbar from './components/automation/AutomationToolbar'
 import './styles/transport.css'
 import './styles/timeline.css'
 import './styles/performance.css'
+import './styles/operators.css'
+import './styles/automation.css'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -112,6 +122,7 @@ function AppInner() {
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
   const [renderError, setRenderError] = useState<string | null>(null)
   const [isTimerPlaying, setIsTimerPlaying] = useState(false)
+  const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
 
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
@@ -317,6 +328,17 @@ function AppInner() {
           })
         }
       }
+      // A key: toggle automation lane visibility on selected track
+      else if (e.key === 'a' && !mod) {
+        const timeline = useTimelineStore.getState()
+        if (timeline.selectedTrackId) {
+          const autoStore = useAutomationStore.getState()
+          const lanes = autoStore.getLanesForTrack(timeline.selectedTrackId)
+          for (const lane of lanes) {
+            autoStore.setLaneVisible(timeline.selectedTrackId, lane.id, !lane.isVisible)
+          }
+        }
+      }
       // Loop in/out (I / O keys)
       else if (e.key === 'i' && !mod) {
         const timeline = useTimelineStore.getState()
@@ -419,12 +441,24 @@ function AppInner() {
       }
 
       try {
+        // Include operators in render request for backend modulation
+        const serializedOps = useOperatorStore.getState().getSerializedOperators()
+
+        // Phase 7: Evaluate automation overrides at current playhead time
+        const currentTime = useTimelineStore.getState().playheadTime
+        const allLanes = useAutomationStore.getState().getAllLanes()
+        const autoOverrides = allLanes.length > 0
+          ? evaluateAutomationOverrides(allLanes, currentTime, registry)
+          : undefined
+
         const res = await window.entropic.sendCommand({
           cmd: 'render_frame',
           path: activeAssetPath.current,
           frame_index: frame,
           chain: serializeEffectChain(chain),
           project_seed: Date.now() % 2147483647,
+          ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
+          ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
         })
 
         if (res.ok && res.frame_data) {
@@ -433,6 +467,10 @@ function AppInner() {
           if (res.height) setFrameHeight(res.height as number)
           setPreviewState('ready')
           setRenderError(null)
+          // Store operator values for UI indicators
+          if (res.operator_values) {
+            setOperatorValues(res.operator_values as Record<string, number>)
+          }
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
 
@@ -889,6 +927,25 @@ function AppInner() {
             effectInfo={selectedEffectInfo}
             onUpdateParam={updateParam}
             onSetMix={setMix}
+            modulatedValues={
+              selectedEffect && selectedEffectInfo
+                ? resolveGhostValues(
+                    selectedEffect.id,
+                    selectedEffectInfo.params,
+                    selectedEffect.parameters,
+                    useOperatorStore.getState().operators,
+                    operatorValues,
+                    // Phase 7: Include automation overrides in ghost value calculation
+                    useAutomationStore.getState().getAllLanes().length > 0
+                      ? evaluateAutomationOverrides(
+                          useAutomationStore.getState().getAllLanes(),
+                          useTimelineStore.getState().playheadTime,
+                          registry,
+                        )
+                      : undefined,
+                  )
+                : undefined
+            }
           />
         </div>
         <ExportProgress
@@ -901,6 +958,7 @@ function AppInner() {
 
       <div className="app__timeline">
         <Timeline onSeek={handleTimelineSeek} />
+        <AutomationToolbar />
       </div>
 
       <div className="app__performance">
@@ -909,6 +967,22 @@ function AppInner() {
           usePerformanceStore.getState().setPadEditorOpen(true)
         }} />
       </div>
+
+      <div style={{ position: 'relative' }}>
+        <RoutingLines operatorValues={operatorValues} />
+        <OperatorRack
+          effectChain={effectChain}
+          registry={registry}
+          operatorValues={operatorValues}
+          hasAudio={hasAudio}
+        />
+      </div>
+
+      <ModulationMatrix
+        effectChain={effectChain}
+        registry={registry}
+        operatorValues={operatorValues}
+      />
 
       <div className="status-bar">
         <div className="status-bar__left">

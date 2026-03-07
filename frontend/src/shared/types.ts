@@ -15,6 +15,7 @@ export interface Project {
   assets: Record<string, Asset>;
   timeline: Timeline;
   drumRack?: DrumRack;
+  operators?: Operator[];
 }
 
 export interface ProjectSettings {
@@ -218,4 +219,48 @@ export interface PadRuntimeState {
   releaseFrame: number;
   currentValue: number;
   releaseStartValue: number;
+}
+
+// --- Operators (Phase 6A) ---
+
+export type OperatorType = 'lfo' | 'envelope' | 'video_analyzer' | 'audio_follower' | 'step_sequencer' | 'fusion';
+
+export type LFOWaveform = 'sine' | 'saw' | 'square' | 'triangle' | 'random' | 'noise' | 'sample_hold';
+
+export type SignalBlendMode = 'add' | 'multiply' | 'max' | 'min' | 'average';
+
+export type CurveType = 'linear' | 'exponential' | 'logarithmic' | 's-curve';
+
+export interface SignalProcessingStep {
+  type: 'threshold' | 'smooth' | 'quantize' | 'invert' | 'scale';
+  params: Record<string, number>;
+}
+
+export interface OperatorMapping {
+  targetEffectId: string;
+  targetParamKey: string;
+  depth: number;
+  min: number;
+  max: number;
+  curve: CurveType;
+  blendMode?: SignalBlendMode;
+}
+
+export type VideoAnalyzerMethod = 'luminance' | 'motion' | 'color' | 'edges' | 'histogram_peak';
+
+export type FusionBlendMode = 'weighted_average' | 'max' | 'min' | 'multiply' | 'add';
+
+export interface FusionSource {
+  operatorId: string;
+  weight: number;
+}
+
+export interface Operator {
+  id: string;
+  type: OperatorType;
+  label: string;
+  isEnabled: boolean;
+  parameters: Record<string, number | string | boolean>;
+  processing: SignalProcessingStep[];
+  mappings: OperatorMapping[];
 }

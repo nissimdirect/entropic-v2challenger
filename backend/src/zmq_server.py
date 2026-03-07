@@ -67,6 +67,9 @@ class ZMQServer:
         self.av_clock = AVClock(self.audio_player)
         # Sentry breadcrumb rate-limiter for render_frame (every 30th frame)
         self._breadcrumb_frame_counter = 0
+        # Signal engine for operator modulation (Phase 6A)
+        self._signal_engine = None
+        self._signal_state: dict = {}
 
     def reset_state(self):
         """Clear accumulated state without closing sockets/context.
@@ -102,6 +105,9 @@ class ZMQServer:
 
         # Reset breadcrumb frame counter
         self._breadcrumb_frame_counter = 0
+
+        # Reset signal engine state
+        self._signal_state = {}
 
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
@@ -259,6 +265,8 @@ class ZMQServer:
             return {"id": msg_id, "ok": True, **get_effect_health()}
         elif cmd == "effect_stats":
             return {"id": msg_id, "ok": True, "stats": get_effect_stats()}
+        elif cmd == "check_dag":
+            return self._handle_check_dag(message, msg_id)
         elif cmd == "flush_state":
             flush_timing()
             return {"id": msg_id, "ok": True}
@@ -371,6 +379,40 @@ class ZMQServer:
             frame = reader.decode_frame(frame_index)
             resolution = (reader.width, reader.height)
 
+            # Phase 6A: Apply operator modulation if operators present
+            operators = message.get("operators")
+            operator_values = None
+            if operators and isinstance(operators, list):
+                engine = self._get_signal_engine()
+                # Get audio PCM window for audio follower
+                audio_pcm = self._get_audio_pcm_for_frame(frame_index, reader.fps)
+                audio_sr = (
+                    self.audio_player._sample_rate
+                    if self.audio_player.loaded
+                    else 44100
+                )
+                operator_values, self._signal_state = engine.evaluate_all(
+                    operators,
+                    frame_index,
+                    reader.fps,
+                    audio_pcm=audio_pcm,
+                    audio_sample_rate=audio_sr,
+                    video_frame=frame,
+                    state=self._signal_state,
+                )
+                # Phase 7: Extract automation overrides from frontend
+                auto_overrides = message.get("automation_overrides")
+                if auto_overrides and not isinstance(auto_overrides, dict):
+                    auto_overrides = None
+
+                chain = engine.apply_modulation(
+                    operators,
+                    operator_values,
+                    chain,
+                    registry.get,
+                    automation_overrides=auto_overrides,
+                )
+
             # Use pipeline engine
             output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
 
@@ -386,6 +428,9 @@ class ZMQServer:
                 "width": reader.width,
                 "height": reader.height,
             }
+            # Piggyback operator values on render response
+            if operator_values is not None:
+                response["operator_values"] = operator_values
             # Piggyback disabled effects on render response
             health = get_effect_health()
             if health["disabled_effects"]:
@@ -781,6 +826,62 @@ class ZMQServer:
                 "Export cancel error: %s", type(e).__name__
             )
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _get_signal_engine(self):
+        """Lazy-init signal engine."""
+        if self._signal_engine is None:
+            from modulation.engine import SignalEngine
+
+            self._signal_engine = SignalEngine()
+        return self._signal_engine
+
+    def _get_audio_pcm_for_frame(self, frame_index: int, fps: float):
+        """Extract a window of PCM audio for the current frame.
+
+        Returns mono float32 ndarray or None if no audio loaded.
+        """
+        if not self.audio_player.loaded or self.audio_player._samples is None:
+            return None
+        samples = self.audio_player._samples
+        sample_rate = self.audio_player._sample_rate
+
+        # Window: one frame's worth of audio centered on the frame time
+        frame_duration_s = 1.0 / fps if fps > 0 else 1.0 / 30.0
+        center_sample = int((frame_index / fps) * sample_rate)
+        window_samples = max(1, int(frame_duration_s * sample_rate))
+
+        start = max(0, center_sample - window_samples // 2)
+        end = min(samples.shape[0], start + window_samples)
+
+        if end <= start:
+            return None
+
+        chunk = samples[start:end]
+        # Convert to mono if stereo
+        if chunk.ndim > 1 and chunk.shape[1] > 1:
+            chunk = chunk.mean(axis=1)
+        return chunk.astype(np.float32)
+
+    def _handle_check_dag(self, message: dict, msg_id: str | None) -> dict:
+        """Check if adding a routing edge would create a DAG cycle."""
+        from modulation.routing import check_cycle
+
+        routings = message.get("routings", [])
+        new_edge = message.get("new_edge", [])
+        if not isinstance(new_edge, (list, tuple)) or len(new_edge) != 2:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "new_edge must be [source, target]",
+            }
+        # Convert routings to list of tuples
+        edges = [
+            (r[0], r[1])
+            for r in routings
+            if isinstance(r, (list, tuple)) and len(r) == 2
+        ]
+        is_valid = not check_cycle(edges, (new_edge[0], new_edge[1]))
+        return {"id": msg_id, "ok": True, "is_valid": is_valid}
 
     def _get_reader(self, path: str) -> VideoReader:
         if path in self.readers:
