@@ -28,8 +28,13 @@ import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
 import CrashRecoveryDialog from './components/dialogs/CrashRecoveryDialog'
 import FeedbackDialog from './components/dialogs/FeedbackDialog'
+import PerformancePanel from './components/performance/PerformancePanel'
+import PadEditor from './components/performance/PadEditor'
+import { usePerformanceStore } from './stores/performance'
+import { applyPadModulations } from './components/performance/applyPadModulations'
 import './styles/transport.css'
 import './styles/timeline.css'
+import './styles/performance.css'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -87,6 +92,7 @@ function AppInner() {
   } = useProjectStore()
 
   const isDirty = useUndoStore((s) => s.isDirty)
+  const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
 
   const { registry, isLoading: effectsLoading, fetchRegistry } = useEffectsStore()
 
@@ -117,6 +123,7 @@ function AppInner() {
   const [autosavePath, setAutosavePath] = useState<string | null>(null)
   const [startupChecked, setStartupChecked] = useState(false)
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
+  const [editingPadId, setEditingPadId] = useState<string | null>(null)
 
   const activeAssetPath = useRef<string | null>(null)
   const isRenderingRef = useRef(false)
@@ -189,14 +196,65 @@ function AppInner() {
     return () => stopAutosave()
   }, [])
 
-  // Keyboard shortcuts: undo/redo, zoom, save/load/new, split, marker, loop I/O
+  // Keyboard shortcuts: undo/redo, zoom, save/load/new, split, marker, loop I/O, perform mode
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Don't intercept shortcuts when typing in input fields
       const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT'
+      if (isInput) return
 
       const mod = e.metaKey || e.ctrlKey
+      const perfStore = usePerformanceStore.getState()
+
+      // P key (KeyP, no mods): toggle perform mode — ALWAYS handled regardless of mode
+      if (e.code === 'KeyP' && !mod && !e.shiftKey) {
+        e.preventDefault()
+        perfStore.setPerformMode(!perfStore.isPerformMode)
+        return
+      }
+
+      // When perform mode ON: consume ALL non-modifier keys for pads (Ableton pattern)
+      if (perfStore.isPerformMode && !mod) {
+        if (e.code === 'Escape') {
+          e.preventDefault()
+          perfStore.panicAll()
+          return
+        }
+
+        // M4: PadEditor open → keys don't trigger pads
+        if (perfStore.isPadEditorOpen) return
+
+        // Ignore repeat events (held key)
+        if (e.repeat) return
+
+        // Lookup pad by e.code
+        const pad = perfStore.drumRack.pads.find((p) => p.keyBinding === e.code)
+        if (pad) {
+          e.preventDefault()
+          e.stopPropagation()
+
+          if (pad.mode === 'toggle') {
+            // Toggle: trigger if idle, release if active
+            const state = perfStore.padStates[pad.id]
+            if (state && state.phase !== 'idle' && state.phase !== 'release') {
+              perfStore.releasePad(pad.id, currentFrame)
+            } else {
+              perfStore.triggerPad(pad.id, currentFrame)
+            }
+          } else {
+            // Gate + one-shot: trigger on keydown
+            perfStore.triggerPad(pad.id, currentFrame)
+          }
+          return
+        }
+
+        // Consume bare keys in perform mode (block i/o shortcuts etc.)
+        e.preventDefault()
+        return
+      }
+
+      // --- Normal shortcuts (perform mode OFF or modifier key used) ---
 
       // Undo/Redo
       if (mod && e.key === 'z' && !e.shiftKey) {
@@ -274,9 +332,39 @@ function AppInner() {
         }
       }
     }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
+
+      const perfStore = usePerformanceStore.getState()
+      if (!perfStore.isPerformMode) return
+      if (perfStore.isPadEditorOpen) return
+
+      const pad = perfStore.drumRack.pads.find((p) => p.keyBinding === e.code)
+      if (!pad) return
+
+      // Gate: release on keyup. One-shot: start release on keyup.
+      if (pad.mode === 'gate' || pad.mode === 'one-shot') {
+        perfStore.releasePad(pad.id, currentFrame)
+      }
+      // Toggle: no action on keyup
+    }
+
+    // H2: Window blur → panic all gate-mode pads (stuck key recovery)
+    const handleBlur = () => {
+      usePerformanceStore.getState().panicAll()
+    }
+
     window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [])
+    window.addEventListener('keyup', handleKeyUp)
+    window.addEventListener('blur', handleBlur)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('blur', handleBlur)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fetch effect registry when engine connects
   useEffect(() => {
@@ -319,7 +407,16 @@ function AppInner() {
       pendingFrameRef.current = null
       setRenderError(null)
 
-      const chain = chainOverride ?? effectChain
+      let chain = chainOverride ?? effectChain
+
+      // Apply pad modulations to the chain before sending to backend
+      if (!chainOverride) {
+        const perfStore = usePerformanceStore.getState()
+        const envelopeValues = perfStore.getEnvelopeValues(frame)
+        if (Object.keys(envelopeValues).length > 0) {
+          chain = applyPadModulations(chain, perfStore.drumRack.pads, envelopeValues)
+        }
+      }
 
       try {
         const res = await window.entropic.sendCommand({
@@ -806,6 +903,13 @@ function AppInner() {
         <Timeline onSeek={handleTimelineSeek} />
       </div>
 
+      <div className="app__performance">
+        <PerformancePanel onEditPad={(id) => {
+          setEditingPadId(id)
+          usePerformanceStore.getState().setPadEditorOpen(true)
+        }} />
+      </div>
+
       <div className="status-bar">
         <div className="status-bar__left">
           <div
@@ -818,6 +922,9 @@ function AppInner() {
           )}
         </div>
         <div className="status-bar__right">
+          {isPerformMode && (
+            <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
+          )}
           {hasAssets && (
             <button
               className="export-btn"
@@ -857,6 +964,18 @@ function AppInner() {
         isOpen={showFeedbackDialog}
         onClose={() => setShowFeedbackDialog(false)}
       />
+
+      {editingPadId && (
+        <PadEditor
+          padId={editingPadId}
+          effectChain={effectChain}
+          registry={registry}
+          onClose={() => {
+            setEditingPadId(null)
+            usePerformanceStore.getState().setPadEditorOpen(false)
+          }}
+        />
+      )}
     </div>
   )
 }

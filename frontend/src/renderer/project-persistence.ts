@@ -3,10 +3,11 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
 import { useUndoStore } from './stores/undo'
+import { usePerformanceStore } from './stores/performance'
 import { randomUUID } from './utils'
 
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
@@ -28,6 +29,7 @@ function defaultSettings(): ProjectSettings {
 function serializeProject(): string {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
+  const performanceStore = usePerformanceStore.getState()
 
   const timeline: Timeline = {
     duration: timelineStore.duration,
@@ -36,7 +38,7 @@ function serializeProject(): string {
     loopRegion: timelineStore.loopRegion,
   }
 
-  const project: Project & { masterEffectChain?: EffectInstance[] } = {
+  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -46,6 +48,7 @@ function serializeProject(): string {
     assets: projectStore.assets,
     timeline,
     masterEffectChain: projectStore.effectChain,
+    drumRack: performanceStore.drumRack,
   }
 
   return JSON.stringify(project, null, 2)
@@ -81,10 +84,17 @@ function validateProject(data: unknown): data is Project {
   // Assets validation
   if (typeof obj.assets !== 'object' || obj.assets === null) return false
 
+  // P1-5: Optional drumRack validation
+  if ('drumRack' in obj && obj.drumRack !== undefined) {
+    const rack = obj.drumRack as Record<string, unknown>
+    if (typeof rack !== 'object' || rack === null) return false
+    if (!Array.isArray(rack.pads)) return false
+  }
+
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[] }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -93,6 +103,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   projectStore.resetProject()
   timelineStore.reset()
   undoStore.clear()
+  usePerformanceStore.getState().resetDrumRack()
 
   // Hydrate assets
   for (const asset of Object.values(project.assets)) {
@@ -137,6 +148,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate duration
   if (project.timeline.duration > 0) {
     timelineStore.setDuration(project.timeline.duration)
+  }
+
+  // Hydrate drum rack (backward compat: missing = use defaults)
+  if (project.drumRack && Array.isArray(project.drumRack.pads)) {
+    usePerformanceStore.getState().loadDrumRack(project.drumRack as DrumRack)
   }
 }
 
@@ -192,7 +208,7 @@ export async function loadProject(): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[] })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack })
 
     const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
     useProjectStore.getState().setProjectPath(filePath)
@@ -209,6 +225,7 @@ export function newProject(): void {
   useProjectStore.getState().resetProject()
   useTimelineStore.getState().reset()
   useUndoStore.getState().clear()
+  usePerformanceStore.getState().resetDrumRack()
 }
 
 export function startAutosave(): void {
@@ -276,7 +293,7 @@ export async function restoreAutosave(path: string): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[] })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack })
 
     // Delete autosave after successful restore
     try {

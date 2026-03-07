@@ -14,6 +14,7 @@ export interface Project {
   settings: ProjectSettings;
   assets: Record<string, Asset>;
   timeline: Timeline;
+  drumRack?: DrumRack;
 }
 
 export interface ProjectSettings {
@@ -109,6 +110,8 @@ export interface ModulationRoute {
   min: number;
   max: number;
   curve: "linear" | "exponential" | "logarithmic" | "s-curve";
+  effectId?: string;   // target effect instance id (for pad mappings)
+  paramKey?: string;   // target param key (for pad mappings)
 }
 
 export interface MaskConfig {
@@ -178,4 +181,41 @@ export interface UndoEntry {
   inverse: () => void;
   description: string;
   timestamp: number;
+}
+
+// --- Performance ---
+
+export type PadMode = 'gate' | 'toggle' | 'one-shot';
+
+export type ADSRPhase = 'idle' | 'attack' | 'decay' | 'sustain' | 'release';
+
+export interface ADSREnvelope {
+  attack: number;  // frames, >= 0
+  decay: number;   // frames, >= 0
+  sustain: number; // level, 0-1
+  release: number; // frames, >= 0
+}
+
+export interface Pad {
+  id: string;
+  label: string;
+  keyBinding: string | null; // KeyboardEvent.code
+  mode: PadMode;
+  chokeGroup: number | null;
+  envelope: ADSREnvelope;
+  mappings: ModulationRoute[];
+  color: string;
+}
+
+export interface DrumRack {
+  grid: '4x4';
+  pads: Pad[];
+}
+
+export interface PadRuntimeState {
+  phase: ADSRPhase;
+  triggerFrame: number;
+  releaseFrame: number;
+  currentValue: number;
+  releaseStartValue: number;
 }
