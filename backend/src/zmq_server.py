@@ -776,6 +776,8 @@ class ZMQServer:
             fps = guard_positive(float(fps), "fps")
             self.av_clock.set_fps(fps)
             return {"id": msg_id, "ok": True, "fps": self.av_clock.fps}
+        except ValueError as e:
+            return {"id": msg_id, "ok": False, "error": str(e)}
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(
