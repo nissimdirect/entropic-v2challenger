@@ -243,7 +243,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
 
               return (
                 <div
-                  key={idx}
+                  key={`${mapping.effectId}-${mapping.paramKey}-${idx}`}
                   style={{
                     display: 'flex',
                     alignItems: 'center',

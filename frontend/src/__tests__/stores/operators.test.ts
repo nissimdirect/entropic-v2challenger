@@ -196,6 +196,40 @@ describe('Operator Store', () => {
     expect(useOperatorStore.getState().operators[0].label).toBe('Loaded LFO')
   })
 
+  // --- Undo with ID-based closures ---
+
+  it('undo updateOperator after reorder targets correct operator', () => {
+    // Add 3 operators
+    useOperatorStore.getState().addOperator('lfo')
+    useOperatorStore.getState().addOperator('envelope')
+    useOperatorStore.getState().addOperator('step_sequencer')
+
+    const ops = useOperatorStore.getState().operators
+    const lfoId = ops[0].id
+    const envId = ops[1].id
+    const seqId = ops[2].id
+
+    // Clear undo stack from adds
+    useUndoStore.getState().clear()
+
+    // Update LFO rate
+    useOperatorStore.getState().updateOperator(lfoId, { parameters: { waveform: 'saw', rate_hz: 5.0, phase_offset: 0.0 } })
+
+    // Reorder: move LFO to position 2 (it's now at the end)
+    useOperatorStore.getState().reorderOperators(0, 2)
+
+    // Undo the reorder
+    useUndoStore.getState().undo()
+
+    // Undo the updateOperator — should target LFO by ID, not whatever is at index 0
+    useUndoStore.getState().undo()
+
+    // LFO should be back to original rate
+    const lfo = useOperatorStore.getState().operators.find((o) => o.id === lfoId)!
+    expect(lfo.parameters.waveform).toBe('sine')
+    expect(lfo.parameters.rate_hz).toBe(1.0)
+  })
+
   // --- Serialization ---
 
   it('getSerializedOperators converts to snake_case', () => {

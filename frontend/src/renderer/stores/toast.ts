@@ -33,6 +33,9 @@ const AUTO_DISMISS_MS: Record<ToastLevel, number> = {
 
 let nextId = 0
 
+/** Track active auto-dismiss timers so we can cancel them on dismiss/clearAll */
+const activeTimers = new Map<string, ReturnType<typeof setTimeout>>()
+
 export const useToastStore = create<ToastState>((set, get) => ({
   toasts: [],
 
@@ -64,25 +67,45 @@ export const useToastStore = create<ToastState>((set, get) => ({
     while (updated.length > MAX_VISIBLE) {
       const evictIdx = updated.findIndex((t) => !t.persistent)
       if (evictIdx === -1) break
+      const evictedId = updated[evictIdx].id
+      // Cancel evicted toast's timer
+      const evictedTimer = activeTimers.get(evictedId)
+      if (evictedTimer) {
+        clearTimeout(evictedTimer)
+        activeTimers.delete(evictedId)
+      }
       updated.splice(evictIdx, 1)
     }
 
     set({ toasts: updated })
 
-    // Auto-dismiss
+    // Auto-dismiss with tracked timer
     const dismissMs = toast.persistent ? 0 : AUTO_DISMISS_MS[toast.level]
     if (dismissMs > 0) {
-      setTimeout(() => {
+      const timerId = setTimeout(() => {
+        activeTimers.delete(id)
         get().dismissToast(id)
       }, dismissMs)
+      activeTimers.set(id, timerId)
     }
   },
 
   dismissToast: (id) => {
+    // Cancel any pending auto-dismiss timer
+    const timerId = activeTimers.get(id)
+    if (timerId) {
+      clearTimeout(timerId)
+      activeTimers.delete(id)
+    }
     set({ toasts: get().toasts.filter((t) => t.id !== id) })
   },
 
   clearAll: () => {
+    // Cancel ALL pending timers
+    for (const timerId of activeTimers.values()) {
+      clearTimeout(timerId)
+    }
+    activeTimers.clear()
     set({ toasts: [] })
   },
 }))

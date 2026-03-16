@@ -92,8 +92,31 @@ function validateProject(data: unknown): data is Project {
   if (!Array.isArray(timeline.tracks)) return false
   if (!Array.isArray(timeline.markers)) return false
 
-  // Assets validation
+  // Assets validation — each must have id, path, and meta object
   if (typeof obj.assets !== 'object' || obj.assets === null) return false
+  for (const asset of Object.values(obj.assets as Record<string, unknown>)) {
+    if (typeof asset !== 'object' || asset === null) return false
+    const a = asset as Record<string, unknown>
+    if (typeof a.id !== 'string') return false
+    if (typeof a.path !== 'string') return false
+    if (typeof a.meta !== 'object' || a.meta === null) return false
+  }
+
+  // Track/clip field validation
+  for (const track of timeline.tracks as unknown[]) {
+    if (typeof track !== 'object' || track === null) return false
+    const t = track as Record<string, unknown>
+    if (typeof t.id !== 'string') return false
+    if (typeof t.name !== 'string') return false
+    if (!Array.isArray(t.clips)) return false
+    for (const clip of t.clips as unknown[]) {
+      if (typeof clip !== 'object' || clip === null) return false
+      const c = clip as Record<string, unknown>
+      if (typeof c.id !== 'string') return false
+      if (typeof c.position !== 'number' || !Number.isFinite(c.position as number)) return false
+      if (typeof c.duration !== 'number' || !Number.isFinite(c.duration as number)) return false
+    }
+  }
 
   // P1-5: Optional drumRack validation
   if ('drumRack' in obj && obj.drumRack !== undefined) {

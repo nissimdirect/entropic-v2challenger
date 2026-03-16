@@ -3,27 +3,37 @@
 import math
 
 
-def process_signal(value: float, chain: list[dict]) -> float:
+def process_signal(
+    value: float, chain: list[dict], state: dict | None = None
+) -> tuple[float, dict]:
     """Apply a chain of processing steps to a signal value.
 
     Args:
         value: Input signal (0.0-1.0).
         chain: List of processing steps, each with 'type' and 'params'.
+        state: Optional dict carrying state between frames (e.g., smooth _prev).
+               Pass None on first call; pass returned state on subsequent calls.
 
     Returns:
-        Processed value clamped to 0.0-1.0.
+        Tuple of (processed value clamped to 0.0-1.0, updated state dict).
     """
+    if state is None:
+        state = {}
+
     if not math.isfinite(value):
         value = 0.0
 
-    for step in chain:
+    for i, step in enumerate(chain):
         step_type = step.get("type", "")
         params = step.get("params", {})
 
         if step_type == "threshold":
             value = _threshold(value, params)
         elif step_type == "smooth":
-            value = _smooth(value, params)
+            state_key = f"smooth_{i}"
+            prev = state.get(state_key, value)
+            value = _smooth(value, params, prev)
+            state[state_key] = value
         elif step_type == "quantize":
             value = _quantize(value, params)
         elif step_type == "invert":
@@ -36,7 +46,7 @@ def process_signal(value: float, chain: list[dict]) -> float:
             value = 0.0
         value = max(0.0, min(1.0, value))
 
-    return value
+    return value, state
 
 
 def _threshold(value: float, params: dict) -> float:
@@ -49,13 +59,10 @@ def _threshold(value: float, params: dict) -> float:
     return (value - level) / (1.0 - level)
 
 
-def _smooth(value: float, params: dict) -> float:
+def _smooth(value: float, params: dict, prev: float) -> float:
     """Slew rate limiting — blends with previous value."""
-    # Note: smooth needs state to work properly across frames.
-    # For single-call use, factor controls how much of input passes through.
     factor = float(params.get("factor", 0.5))
     factor = max(0.0, min(1.0, factor))
-    prev = float(params.get("_prev", value))
     return prev + (value - prev) * factor
 
 

@@ -14,6 +14,7 @@ from engine.cache import encode_mjpeg
 from engine.export import ExportManager
 from engine.freeze import FreezeManager
 from engine.compositor import render_composite
+from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
     apply_chain,
     flush_timing,
@@ -542,7 +543,9 @@ class ZMQServer:
                     return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
                 frame_index = int(layer_info.get("frame_index", 0))
-                opacity = float(layer_info.get("opacity", 1.0))
+                opacity = clamp_finite(
+                    float(layer_info.get("opacity", 1.0)), 0.0, 1.0, 1.0
+                )
                 blend_mode = layer_info.get("blend_mode", "normal")
 
                 reader = self._get_reader(asset_path)
@@ -587,10 +590,10 @@ class ZMQServer:
         if errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
-        start_s = float(message.get("start_s", 0.0))
+        start_s = clamp_finite(float(message.get("start_s", 0.0)), 0.0, 86400.0, 0.0)
         duration_s = message.get("duration_s")
         if duration_s is not None:
-            duration_s = float(duration_s)
+            duration_s = clamp_finite(float(duration_s), 0.0, 86400.0, 1.0)
 
         try:
             result = decode_audio(path, start_s=start_s, duration_s=duration_s)
@@ -703,7 +706,7 @@ class ZMQServer:
 
     def _handle_audio_seek(self, message: dict, msg_id: str | None) -> dict:
         try:
-            time_s = float(message.get("time", 0.0))
+            time_s = clamp_finite(float(message.get("time", 0.0)), 0.0, 86400.0, 0.0)
             ok = self.audio_player.seek(time_s)
             if not ok:
                 return {"id": msg_id, "ok": False, "error": "no audio loaded"}
@@ -719,7 +722,7 @@ class ZMQServer:
 
     def _handle_audio_volume(self, message: dict, msg_id: str | None) -> dict:
         try:
-            volume = float(message.get("volume", 1.0))
+            volume = clamp_finite(float(message.get("volume", 1.0)), 0.0, 1.0, 1.0)
             self.audio_player.set_volume(volume)
             return {"id": msg_id, "ok": True, "volume": self.audio_player.volume}
         except Exception as e:
@@ -772,9 +775,11 @@ class ZMQServer:
             fps = message.get("fps")
             if fps is None:
                 return {"id": msg_id, "ok": False, "error": "missing fps"}
-            fps = float(fps)
+            fps = guard_positive(float(fps), "fps")
             self.av_clock.set_fps(fps)
             return {"id": msg_id, "ok": True, "fps": self.av_clock.fps}
+        except ValueError as e:
+            return {"id": msg_id, "ok": False, "error": str(e)}
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(
@@ -861,8 +866,9 @@ class ZMQServer:
         sample_rate = self.audio_player._sample_rate
 
         # Window: one frame's worth of audio centered on the frame time
-        frame_duration_s = 1.0 / fps if fps > 0 else 1.0 / 30.0
-        center_sample = int((frame_index / fps) * sample_rate)
+        safe_fps = clamp_finite(fps, 1.0, 240.0, 30.0)
+        frame_duration_s = 1.0 / safe_fps
+        center_sample = int((frame_index / safe_fps) * sample_rate)
         window_samples = max(1, int(frame_duration_s * sample_rate))
 
         start = max(0, center_sample - window_samples // 2)
@@ -934,6 +940,12 @@ class ZMQServer:
 
         if not asset_path or not isinstance(asset_path, str):
             return {"id": msg_id, "ok": False, "error": "asset_path required"}
+
+        # SEC-5: validate asset path (prevents path traversal)
+        upload_errors = validate_upload(asset_path)
+        if upload_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(upload_errors)}
+
         if frame_count <= 0:
             return {"id": msg_id, "ok": False, "error": "frame_count must be > 0"}
 

@@ -446,5 +446,31 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       clipboard: null,
     }),
 
-  loadAutomation: (lanes) => set({ lanes: { ...lanes } }),
+  loadAutomation: (lanes) => {
+    const validated: Record<string, AutomationLane[]> = {}
+    for (const [trackId, trackLanes] of Object.entries(lanes)) {
+      if (!Array.isArray(trackLanes)) continue
+      const validLanes = trackLanes.filter((lane): lane is AutomationLane => {
+        if (typeof lane !== 'object' || lane === null) return false
+        if (typeof lane.id !== 'string' || !lane.id) return false
+        if (typeof lane.paramPath !== 'string') return false
+        if (!Array.isArray(lane.points)) return false
+        return true
+      }).map((lane) => ({
+        ...lane,
+        // Filter out invalid points and sort by time for binary search
+        points: lane.points
+          .filter((p) =>
+            typeof p === 'object' && p !== null &&
+            typeof p.time === 'number' && Number.isFinite(p.time) &&
+            typeof p.value === 'number' && Number.isFinite(p.value),
+          )
+          .sort((a, b) => a.time - b.time),
+      }))
+      if (validLanes.length > 0) {
+        validated[trackId] = validLanes
+      }
+    }
+    set({ lanes: validated })
+  },
 }))

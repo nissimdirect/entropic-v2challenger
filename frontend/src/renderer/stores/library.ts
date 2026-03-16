@@ -27,13 +27,31 @@ async function getPresetDir(): Promise<string> {
 }
 
 function validatePresetFields(parsed: Record<string, unknown>): boolean {
-  return (
-    typeof parsed.id === 'string' &&
-    typeof parsed.name === 'string' &&
-    (parsed.type === 'single_effect' || parsed.type === 'effect_chain') &&
-    typeof parsed.created === 'number' &&
-    Array.isArray(parsed.tags)
-  )
+  if (typeof parsed.id !== 'string') return false
+  if (typeof parsed.name !== 'string') return false
+  if (parsed.type !== 'single_effect' && parsed.type !== 'effect_chain') return false
+  if (typeof parsed.created !== 'number') return false
+  if (!Array.isArray(parsed.tags)) return false
+  // Validate tag elements are strings
+  if (!parsed.tags.every((t: unknown) => typeof t === 'string')) return false
+
+  // Validate effectData if present (single_effect)
+  if (parsed.type === 'single_effect' && parsed.effectData !== undefined) {
+    const ed = parsed.effectData as Record<string, unknown>
+    if (typeof ed !== 'object' || ed === null) return false
+    if (typeof ed.effectId !== 'string') return false
+    if (typeof ed.parameters !== 'object' || ed.parameters === null) return false
+  }
+
+  // Validate chainData if present (effect_chain)
+  if (parsed.type === 'effect_chain' && parsed.chainData !== undefined) {
+    const cd = parsed.chainData as Record<string, unknown>
+    if (typeof cd !== 'object' || cd === null) return false
+    if (!Array.isArray(cd.effects)) return false
+    if (cd.macros !== undefined && !Array.isArray(cd.macros)) return false
+  }
+
+  return true
 }
 
 export const useLibraryStore = create<LibraryState>((set, get) => ({

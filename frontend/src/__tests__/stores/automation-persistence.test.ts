@@ -51,6 +51,57 @@ describe('Automation Persistence', () => {
     expect(useAutomationStore.getState().getLanesForTrack('track-2')).toHaveLength(1)
   })
 
+  // --- Deserialization hardening ---
+
+  it('loadAutomation skips lanes with missing id', () => {
+    useAutomationStore.getState().loadAutomation({
+      'track-1': [
+        { id: 'good', paramPath: 'fx.amt', color: '#fff', isVisible: true, points: [] },
+        { paramPath: 'fx.bad', color: '#000', isVisible: true, points: [] } as unknown as AutomationLane,
+      ],
+    })
+    expect(useAutomationStore.getState().getLanesForTrack('track-1')).toHaveLength(1)
+  })
+
+  it('loadAutomation sorts points by time', () => {
+    useAutomationStore.getState().loadAutomation({
+      'track-1': [{
+        id: 'lane-1',
+        paramPath: 'fx.amt',
+        color: '#fff',
+        isVisible: true,
+        points: [
+          { time: 3.0, value: 0.5, curve: 0 },
+          { time: 1.0, value: 0.2, curve: 0 },
+          { time: 2.0, value: 0.8, curve: 0 },
+        ],
+      }],
+    })
+    const pts = useAutomationStore.getState().getLanesForTrack('track-1')[0].points
+    expect(pts[0].time).toBe(1.0)
+    expect(pts[1].time).toBe(2.0)
+    expect(pts[2].time).toBe(3.0)
+  })
+
+  it('loadAutomation filters out NaN point values', () => {
+    useAutomationStore.getState().loadAutomation({
+      'track-1': [{
+        id: 'lane-1',
+        paramPath: 'fx.amt',
+        color: '#fff',
+        isVisible: true,
+        points: [
+          { time: 1.0, value: 0.5, curve: 0 },
+          { time: NaN, value: 0.5, curve: 0 },
+          { time: 2.0, value: NaN, curve: 0 },
+        ],
+      }],
+    })
+    const pts = useAutomationStore.getState().getLanesForTrack('track-1')[0].points
+    expect(pts).toHaveLength(1)
+    expect(pts[0].time).toBe(1.0)
+  })
+
   it('loadAutomation replaces existing state', () => {
     useAutomationStore.getState().addLane('track-1', 'fx-old', 'param', '#000')
     const newData: Record<string, AutomationLane[]> = {

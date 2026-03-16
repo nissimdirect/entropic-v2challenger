@@ -14,6 +14,7 @@ import { render, fireEvent, cleanup } from '@testing-library/react'
 import { describe, test, expect, beforeEach, afterEach } from 'vitest'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 import { useTimelineStore } from '../../renderer/stores/timeline'
+import { useUndoStore } from '../../renderer/stores/undo'
 
 import Timeline from '../../renderer/components/timeline/Timeline'
 import HistoryPanel from '../../renderer/components/layout/HistoryPanel'
@@ -114,6 +115,7 @@ describe('Timeline UI — With Tracks', () => {
 describe('Timeline UI — History Panel', () => {
   beforeEach(() => {
     setupMockEntropic()
+    useUndoStore.getState().clear()
   })
 
   afterEach(() => {

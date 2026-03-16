@@ -81,7 +81,7 @@ export default function FusionEditor({ operator, availableOperators }: FusionEdi
           const opLabel =
             availableOperators.find((o) => o.id === src.operatorId)?.label ?? src.operatorId
           return (
-            <div key={i} className="operator-editor__source-row">
+            <div key={src.operatorId} className="operator-editor__source-row">
               <span className="operator-editor__source-label">{opLabel}</span>
               <input
                 type="range"

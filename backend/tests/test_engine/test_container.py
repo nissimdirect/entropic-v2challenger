@@ -128,6 +128,42 @@ def test_container_mask_all_ones_is_wet():
     np.testing.assert_array_equal(output[:, :, 2], 205)
 
 
+def test_container_mix_negative_clamped_to_zero():
+    """Negative _mix is clamped to 0.0 (pure dry)."""
+    container = EffectContainer(invert_apply, "fx.invert")
+    frame = _make_frame(r=200, g=100, b=50)
+    output, _ = container.process(
+        frame,
+        {"_mix": -5.0},
+        None,
+        frame_index=0,
+        project_seed=42,
+        resolution=(100, 100),
+    )
+    # mix=0.0 → dry frame unchanged
+    np.testing.assert_array_equal(output[:, :, 0], 200)
+    np.testing.assert_array_equal(output[:, :, 1], 100)
+    np.testing.assert_array_equal(output[:, :, 2], 50)
+
+
+def test_container_mix_above_one_clamped():
+    """_mix > 1.0 is clamped to 1.0 (pure wet)."""
+    container = EffectContainer(invert_apply, "fx.invert")
+    frame = _make_frame(r=200, g=100, b=50)
+    output, _ = container.process(
+        frame,
+        {"_mix": 999.0},
+        None,
+        frame_index=0,
+        project_seed=42,
+        resolution=(100, 100),
+    )
+    # mix=1.0 → fully inverted
+    np.testing.assert_array_equal(output[:, :, 0], 55)
+    np.testing.assert_array_equal(output[:, :, 1], 155)
+    np.testing.assert_array_equal(output[:, :, 2], 205)
+
+
 # --- Exception isolation tests (Item 1) ---
 
 

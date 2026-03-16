@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clampFinite } from '../../shared/numeric'
 
 interface LayoutState {
   sidebarCollapsed: boolean
@@ -64,8 +65,9 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   },
 
   setTimelineHeight: (h: number) => {
-    set({ timelineHeight: h })
-    persistLayout({ ...get(), timelineHeight: h })
+    const clamped = clampFinite(h, 100, 800, 250)
+    set({ timelineHeight: clamped })
+    persistLayout({ ...get(), timelineHeight: clamped })
   },
 
   toggleFocusMode: () => {

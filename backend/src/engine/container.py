@@ -1,12 +1,12 @@
 """Effect container — wraps pure effect functions with mask + mix pipeline."""
 
 import logging
-import math
 
 import numpy as np
 import sentry_sdk
 
 from engine.determinism import derive_seed
+from engine.guards import clamp_finite, sanitize_params
 
 logger = logging.getLogger(__name__)
 
@@ -44,19 +44,19 @@ class EffectContainer:
     ) -> tuple[np.ndarray, dict | None]:
         self.last_error = None
 
+        # 0. Empty frame guard — nothing to process
+        if frame.size == 0:
+            return frame, state_in
+
         # 1. Compute deterministic seed
         user_seed = params.get("seed", 0)
         seed = derive_seed(project_seed, self.effect_id, frame_index, user_seed)
 
         # 2. Extract container params (pop so effect doesn't see them)
-        # Sanitize NaN/Inf values — drop them so effect uses its default
-        effect_params = {
-            k: v
-            for k, v in params.items()
-            if not (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))
-        }
+        # Sanitize NaN/Inf values — drop them so effect uses its default.
+        effect_params = sanitize_params(params)
         mask = effect_params.pop("_mask", None)
-        mix = effect_params.pop("_mix", 1.0)
+        mix = clamp_finite(effect_params.pop("_mix", 1.0), 0.0, 1.0, 1.0)
 
         # Context for Sentry (PII-safe: keys only, no values)
         sentry_ctx = {

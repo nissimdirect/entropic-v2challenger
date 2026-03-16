@@ -11,7 +11,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
   },
 }
 
-import { useUndoStore } from '../../renderer/stores/undo'
+import { useUndoStore, undoable } from '../../renderer/stores/undo'
 import type { UndoEntry } from '../../shared/types'
 
 function makeEntry(overrides: Partial<UndoEntry> = {}): UndoEntry {
@@ -63,6 +63,18 @@ describe('UndoStore', () => {
     it('sets isDirty', () => {
       useUndoStore.getState().execute(makeEntry())
       expect(useUndoStore.getState().isDirty).toBe(true)
+    })
+
+    it('pushes to stack even when forward() throws', () => {
+      const entry = makeEntry({
+        forward: () => { throw new Error('boom') },
+        description: 'failing execute',
+      })
+      useUndoStore.getState().execute(entry)
+
+      // Entry should still be on the stack so user can undo partial damage
+      expect(useUndoStore.getState().past).toHaveLength(1)
+      expect(useUndoStore.getState().past[0].description).toBe('failing execute')
     })
   })
 
@@ -157,6 +169,75 @@ describe('UndoStore', () => {
       useUndoStore.getState().execute(makeEntry())
       useUndoStore.getState().clearDirty()
       expect(useUndoStore.getState().isDirty).toBe(false)
+    })
+  })
+
+  describe('undoable() helper', () => {
+    it('calls forward once and pushes to past', () => {
+      const forward = vi.fn()
+      const inverse = vi.fn()
+      undoable('test action', forward, inverse)
+
+      expect(forward).toHaveBeenCalledOnce()
+      expect(useUndoStore.getState().past).toHaveLength(1)
+      expect(useUndoStore.getState().past[0].description).toBe('test action')
+    })
+
+    it('clears future on execute', () => {
+      // Build future via execute + undo
+      useUndoStore.getState().execute(makeEntry({ description: 'a1' }))
+      useUndoStore.getState().undo()
+      expect(useUndoStore.getState().future).toHaveLength(1)
+
+      undoable('a2', () => {}, () => {})
+      expect(useUndoStore.getState().future).toHaveLength(0)
+    })
+
+    it('supports undo/redo cycle', () => {
+      let value = 0
+      undoable('set to 1', () => { value = 1 }, () => { value = 0 })
+      expect(value).toBe(1)
+
+      useUndoStore.getState().undo()
+      expect(value).toBe(0)
+
+      useUndoStore.getState().redo()
+      expect(value).toBe(1)
+    })
+
+    it('pre-generated ID pattern: create -> undo -> redo preserves ID', () => {
+      const fixedId = 'fixed-123'
+      let items: string[] = []
+
+      undoable(
+        'add item',
+        () => { items.push(fixedId) },
+        () => { items = items.filter(id => id !== fixedId) },
+      )
+      expect(items).toEqual([fixedId])
+
+      useUndoStore.getState().undo()
+      expect(items).toEqual([])
+
+      useUndoStore.getState().redo()
+      expect(items).toEqual([fixedId])
+    })
+
+    it('pushes entry to stack even when forward() throws', () => {
+      const error = new Error('boom')
+      undoable('failing action', () => { throw error }, () => {})
+
+      // Entry should still be on the stack so user can undo partial damage
+      expect(useUndoStore.getState().past).toHaveLength(1)
+      expect(useUndoStore.getState().past[0].description).toBe('failing action')
+    })
+
+    it('respects MAX_UNDO_ENTRIES cap', () => {
+      for (let i = 0; i < 505; i++) {
+        undoable(`action-${i}`, () => {}, () => {})
+      }
+      expect(useUndoStore.getState().past).toHaveLength(500)
+      expect(useUndoStore.getState().past[0].description).toBe('action-5')
     })
   })
 

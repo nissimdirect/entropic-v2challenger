@@ -14,6 +14,7 @@ import type {
 import { DEFAULT_PAD_BINDINGS, DEFAULT_ADSR, RESERVED_KEYS } from '../../shared/constants';
 import { computeADSR } from '../components/performance/computeADSR';
 import { useUndoStore } from './undo';
+import { useMIDIStore } from './midi';
 
 function clampADSR(env: ADSREnvelope): ADSREnvelope {
   return {
@@ -157,28 +158,24 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
 
   updatePad: (padId, updates) => {
     const { drumRack } = get();
-    const padIndex = drumRack.pads.findIndex((p) => p.id === padId);
-    if (padIndex === -1) return;
+    const oldPad = drumRack.pads.find((p) => p.id === padId);
+    if (!oldPad) return;
 
-    const oldPad = drumRack.pads[padIndex];
     const newEnvelope = updates.envelope
       ? clampADSR(updates.envelope)
       : oldPad.envelope;
 
-    const newPad = { ...oldPad, ...updates, envelope: newEnvelope };
+    const { id: _ignoreId, ...safeUpdates } = updates as Record<string, unknown>;
+    const newPad = { ...oldPad, ...safeUpdates, id: oldPad.id, envelope: newEnvelope };
 
     const forward = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = newPad;
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) => (p.id === padId ? newPad : p)) } });
     };
 
     const inverse = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = oldPad;
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) => (p.id === padId ? oldPad : p)) } });
     };
 
     useUndoStore.getState().execute({
@@ -190,62 +187,60 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
   },
 
   addPadMapping: (padId, mapping) => {
-    const { drumRack } = get();
-    const padIndex = drumRack.pads.findIndex((p) => p.id === padId);
-    if (padIndex === -1) return;
+    const pad = get().drumRack.pads.find((p) => p.id === padId);
+    if (!pad) return;
 
-    const oldMappings = [...drumRack.pads[padIndex].mappings];
+    const oldMappings = [...pad.mappings];
     const newMappings = [...oldMappings, mapping];
 
     const forward = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = { ...pads[padIndex], mappings: newMappings };
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) =>
+        p.id === padId ? { ...p, mappings: newMappings } : p,
+      ) } });
     };
 
     const inverse = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = { ...pads[padIndex], mappings: oldMappings };
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) =>
+        p.id === padId ? { ...p, mappings: oldMappings } : p,
+      ) } });
     };
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `Add mapping to ${drumRack.pads[padIndex].label}`,
+      description: `Add mapping to ${pad.label}`,
       timestamp: Date.now(),
     });
   },
 
   removePadMapping: (padId, index) => {
-    const { drumRack } = get();
-    const padIndex = drumRack.pads.findIndex((p) => p.id === padId);
-    if (padIndex === -1) return;
+    const pad = get().drumRack.pads.find((p) => p.id === padId);
+    if (!pad) return;
 
-    const oldMappings = [...drumRack.pads[padIndex].mappings];
+    const oldMappings = [...pad.mappings];
     if (index < 0 || index >= oldMappings.length) return;
     const newMappings = oldMappings.filter((_, i) => i !== index);
 
     const forward = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = { ...pads[padIndex], mappings: newMappings };
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) =>
+        p.id === padId ? { ...p, mappings: newMappings } : p,
+      ) } });
     };
 
     const inverse = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = { ...pads[padIndex], mappings: oldMappings };
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) =>
+        p.id === padId ? { ...p, mappings: oldMappings } : p,
+      ) } });
     };
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `Remove mapping from ${drumRack.pads[padIndex].label}`,
+      description: `Remove mapping from ${pad.label}`,
       timestamp: Date.now(),
     });
   },
@@ -254,79 +249,74 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     if (key !== null && RESERVED_KEYS.has(key)) return;
 
     const { drumRack } = get();
-    const padIndex = drumRack.pads.findIndex((p) => p.id === padId);
-    if (padIndex === -1) return;
+    const pad = drumRack.pads.find((p) => p.id === padId);
+    if (!pad) return;
 
-    const oldKey = drumRack.pads[padIndex].keyBinding;
+    const oldKey = pad.keyBinding;
 
-    // H4: Steal binding from old pad if duplicate
-    let stolenFromIndex = -1;
+    // H4: Steal binding from old pad if duplicate — capture by ID
+    let stolenFromId: string | null = null;
     let stolenOldKey: string | null = null;
     if (key !== null) {
-      stolenFromIndex = drumRack.pads.findIndex(
+      const stolenPad = drumRack.pads.find(
         (p) => p.id !== padId && p.keyBinding === key,
       );
-      if (stolenFromIndex !== -1) {
-        stolenOldKey = drumRack.pads[stolenFromIndex].keyBinding;
+      if (stolenPad) {
+        stolenFromId = stolenPad.id;
+        stolenOldKey = stolenPad.keyBinding;
       }
     }
 
     const forward = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      if (stolenFromIndex !== -1) {
-        pads[stolenFromIndex] = { ...pads[stolenFromIndex], keyBinding: null };
-      }
-      pads[padIndex] = { ...pads[padIndex], keyBinding: key };
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) => {
+        if (p.id === padId) return { ...p, keyBinding: key };
+        if (stolenFromId && p.id === stolenFromId) return { ...p, keyBinding: null };
+        return p;
+      }) } });
     };
 
     const inverse = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = { ...pads[padIndex], keyBinding: oldKey };
-      if (stolenFromIndex !== -1) {
-        pads[stolenFromIndex] = {
-          ...pads[stolenFromIndex],
-          keyBinding: stolenOldKey,
-        };
-      }
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) => {
+        if (p.id === padId) return { ...p, keyBinding: oldKey };
+        if (stolenFromId && p.id === stolenFromId) return { ...p, keyBinding: stolenOldKey };
+        return p;
+      }) } });
     };
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `Set key binding for ${drumRack.pads[padIndex].label}`,
+      description: `Set key binding for ${pad.label}`,
       timestamp: Date.now(),
     });
   },
 
   setChokeGroup: (padId, group) => {
-    const { drumRack } = get();
-    const padIndex = drumRack.pads.findIndex((p) => p.id === padId);
-    if (padIndex === -1) return;
+    const pad = get().drumRack.pads.find((p) => p.id === padId);
+    if (!pad) return;
 
-    const oldGroup = drumRack.pads[padIndex].chokeGroup;
+    const oldGroup = pad.chokeGroup;
 
     const forward = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = { ...pads[padIndex], chokeGroup: group };
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) =>
+        p.id === padId ? { ...p, chokeGroup: group } : p,
+      ) } });
     };
 
     const inverse = () => {
       const { drumRack: current } = get();
-      const pads = [...current.pads];
-      pads[padIndex] = { ...pads[padIndex], chokeGroup: oldGroup };
-      set({ drumRack: { ...current, pads } });
+      set({ drumRack: { ...current, pads: current.pads.map((p) =>
+        p.id === padId ? { ...p, chokeGroup: oldGroup } : p,
+      ) } });
     };
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `Set choke group for ${drumRack.pads[padIndex].label}`,
+      description: `Set choke group for ${pad.label}`,
       timestamp: Date.now(),
     });
   },
@@ -360,11 +350,27 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       drumRack: { ...rack, pads },
       padStates: {},
     });
+    // Clear undo — pad IDs changed, old closures reference stale state
+    useUndoStore.getState().clear();
+    // Reconcile MIDI: clear padMidiNotes for pads that no longer exist
+    const newPadIds = new Set(pads.map((p) => p.id));
+    const midi = useMIDIStore.getState();
+    const currentNotes = midi.getMIDIPersistData().padMidiNotes;
+    let needsClean = false;
+    for (const padId of Object.keys(currentNotes)) {
+      if (!newPadIds.has(padId)) { needsClean = true; break; }
+    }
+    if (needsClean) {
+      // Reset MIDI state — new rack may have different pad IDs
+      useMIDIStore.getState().resetMIDI();
+    }
   },
 
   getEnvelopeValues: (frameIndex) => {
     const { drumRack, padStates } = get();
     const values: Record<string, number> = {};
+    // Collect phase transitions, apply in single set() after loop
+    const phaseUpdates: Record<string, { phase: typeof padStates[string]['phase']; currentValue: number }> = {};
 
     for (const pad of drumRack.pads) {
       const state = padStates[pad.id];
@@ -375,16 +381,18 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
         values[pad.id] = result.value;
       }
 
-      // Update phase in store if it changed (e.g., release → idle)
       if (result.phase !== state.phase) {
-        const newStates = { ...get().padStates };
-        newStates[pad.id] = {
-          ...state,
-          phase: result.phase,
-          currentValue: result.value,
-        };
-        set({ padStates: newStates });
+        phaseUpdates[pad.id] = { phase: result.phase, currentValue: result.value };
       }
+    }
+
+    // Single batched set() for all phase transitions
+    if (Object.keys(phaseUpdates).length > 0) {
+      const newStates = { ...get().padStates };
+      for (const [padId, update] of Object.entries(phaseUpdates)) {
+        newStates[padId] = { ...newStates[padId], ...update };
+      }
+      set({ padStates: newStates });
     }
 
     return values;

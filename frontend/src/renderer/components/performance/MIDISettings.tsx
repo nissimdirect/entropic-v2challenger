@@ -71,7 +71,7 @@ export default function MIDISettings() {
         ) : (
           <div className="midi-settings__mapping-list">
             {ccMappings.map((m, idx) => (
-              <div key={idx} className="midi-settings__mapping-row">
+              <div key={`cc-${m.cc}`} className="midi-settings__mapping-row">
                 <span className="midi-settings__mapping-cc">CC {m.cc}</span>
                 <span className="midi-settings__mapping-target">→ {m.paramKey}</span>
                 <button
