@@ -19,7 +19,7 @@ export default function Timeline({ onSeek }: TimelineProps) {
   const zoom = useTimelineStore((s) => s.zoom)
   const scrollX = useTimelineStore((s) => s.scrollX)
   const selectedTrackId = useTimelineStore((s) => s.selectedTrackId)
-  const selectedClipId = useTimelineStore((s) => s.selectedClipId)
+  const selectedClipIds = useTimelineStore((s) => s.selectedClipIds)
   const markers = useTimelineStore((s) => s.markers)
   const loopRegion = useTimelineStore((s) => s.loopRegion)
 
@@ -153,7 +153,7 @@ export default function Timeline({ onSeek }: TimelineProps) {
                   zoom={zoom}
                   scrollX={scrollX}
                   isSelected={track.id === selectedTrackId}
-                  selectedClipId={selectedClipId}
+                  selectedClipIds={selectedClipIds}
                 />
               ))}
               <Playhead time={playheadTime} zoom={zoom} scrollX={scrollX} onSeek={onSeek} />

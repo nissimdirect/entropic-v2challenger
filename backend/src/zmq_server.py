@@ -11,6 +11,7 @@ import zmq
 
 from effects import registry
 from engine.cache import encode_mjpeg
+from engine.codecs import CODEC_REGISTRY
 from engine.export import ExportManager
 from engine.freeze import FreezeManager
 from engine.compositor import render_composite
@@ -25,6 +26,7 @@ from memory.writer import SharedMemoryWriter
 from security import (
     validate_chain_depth,
     validate_frame_count,
+    validate_output_directory,
     validate_output_path,
     validate_upload,
 )
@@ -789,11 +791,94 @@ class ZMQServer:
             )
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
+    @staticmethod
+    def _validate_export_settings(settings: dict) -> list[str]:
+        """Validate multi-codec export settings. Returns list of error strings (empty = valid)."""
+        errors: list[str] = []
+
+        export_type = settings.get("export_type", "video")
+        if export_type not in ("video", "gif", "image_sequence"):
+            errors.append(
+                f"invalid export_type {export_type!r}; must be video, gif, or image_sequence"
+            )
+
+        codec = settings.get("codec", "h264")
+        if codec not in CODEC_REGISTRY:
+            errors.append(
+                f"unknown codec {codec!r}; available: {', '.join(sorted(CODEC_REGISTRY))}"
+            )
+
+        resolution = settings.get("resolution", "source")
+        valid_resolutions = ("source", "720p", "1080p", "4k", "custom")
+        if resolution not in valid_resolutions:
+            errors.append(
+                f"invalid resolution {resolution!r}; must be one of {valid_resolutions}"
+            )
+
+        if resolution == "custom":
+            cw = settings.get("custom_width")
+            ch = settings.get("custom_height")
+            if not isinstance(cw, int) or cw <= 0:
+                errors.append(
+                    "custom_width must be a positive integer when resolution is 'custom'"
+                )
+            if isinstance(cw, int) and cw > 7680:
+                errors.append("custom_width must not exceed 7680")
+            if not isinstance(ch, int) or ch <= 0:
+                errors.append(
+                    "custom_height must be a positive integer when resolution is 'custom'"
+                )
+            if isinstance(ch, int) and ch > 4320:
+                errors.append("custom_height must not exceed 4320")
+
+        fps = settings.get("fps", "source")
+        valid_fps = ("source", "24", "25", "30", "60")
+        if fps not in valid_fps:
+            errors.append(f"invalid fps {fps!r}; must be one of {valid_fps}")
+
+        quality_preset = settings.get("quality_preset", "medium")
+        if quality_preset not in ("fast", "medium", "slow"):
+            errors.append(
+                f"invalid quality_preset {quality_preset!r}; must be fast, medium, or slow"
+            )
+
+        if "crf" in settings:
+            crf = settings["crf"]
+            if not isinstance(crf, int) or crf < 0 or crf > 51:
+                errors.append("crf must be an integer between 0 and 51")
+
+        if "bitrate" in settings:
+            bitrate = settings["bitrate"]
+            if not isinstance(bitrate, int) or bitrate <= 0:
+                errors.append("bitrate must be a positive integer")
+
+        if "gif_max_width" in settings:
+            gmw = settings["gif_max_width"]
+            if not isinstance(gmw, int) or gmw <= 0:
+                errors.append("gif_max_width must be a positive integer")
+            elif gmw > 1920:
+                errors.append("gif_max_width must not exceed 1920")
+
+        if "image_format" in settings:
+            ifmt = settings["image_format"]
+            if ifmt not in ("png", "jpeg", "tiff"):
+                errors.append(
+                    f"invalid image_format {ifmt!r}; must be png, jpeg, or tiff"
+                )
+
+        if "jpeg_quality" in settings:
+            jq = settings["jpeg_quality"]
+            if not isinstance(jq, int) or jq < 1 or jq > 100:
+                errors.append("jpeg_quality must be an integer between 1 and 100")
+
+        return errors
+
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
         input_path = message.get("input_path")
         output_path = message.get("output_path")
         chain = message.get("chain", [])
         project_seed = message.get("project_seed", 0)
+        settings = message.get("settings", {})
 
         if not input_path:
             return {"id": msg_id, "ok": False, "error": "missing input_path"}
@@ -806,7 +891,10 @@ class ZMQServer:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
         # Validate output path (prevents writing to system dirs)
-        out_errors = validate_output_path(output_path)
+        if settings.get("export_type") == "image_sequence":
+            out_errors = validate_output_directory(output_path)
+        else:
+            out_errors = validate_output_path(output_path)
         if out_errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(out_errors)}
 
@@ -815,8 +903,15 @@ class ZMQServer:
         if errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
+        # Validate multi-codec export settings
+        settings_errors = self._validate_export_settings(settings)
+        if settings_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(settings_errors)}
+
         try:
-            self.export_manager.start(input_path, output_path, chain, project_seed)
+            self.export_manager.start(
+                input_path, output_path, chain, project_seed, settings=settings
+            )
             return {"id": msg_id, "ok": True}
         except Exception as e:
             sentry_sdk.capture_exception(e)

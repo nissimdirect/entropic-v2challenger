@@ -19,7 +19,16 @@ interface Window {
     selectFile: (filters: { name: string; extensions: string[] }[]) => Promise<string | null>
     selectSavePath: (defaultName: string) => Promise<string | null>
     onExportProgress: (
-      callback: (data: { jobId: string; progress: number; done: boolean; error?: string }) => void,
+      callback: (data: {
+        jobId: string
+        progress: number
+        done: boolean
+        error?: string
+        currentFrame?: number
+        totalFrames?: number
+        etaSeconds?: number | null
+        outputPath?: string
+      }) => void,
     ) => () => void
     showSaveDialog: (options: Record<string, unknown>) => Promise<string | null>
     showOpenDialog: (options: Record<string, unknown>) => Promise<string | null>
@@ -37,6 +46,14 @@ interface Window {
     getSystemInfo: () => Promise<Record<string, unknown>>
     generateSupportBundle: () => Promise<string>
     submitFeedback: (text: string) => Promise<void>
+    readPreferences: () => Promise<Record<string, unknown>>
+    writePreferences: (data: Record<string, unknown>) => Promise<void>
+    readRecentProjects: () => Promise<{ path: string; name: string; lastModified: number }[]>
+    writeRecentProjects: (data: { path: string; name: string; lastModified: number }[]) => Promise<void>
+    onUpdateAvailable?: (callback: (data: { version: string; releaseDate?: string }) => void) => (() => void)
+    onUpdateDownloaded?: (callback: (data: { version: string }) => void) => (() => void)
+    downloadUpdate?: () => Promise<void>
+    installUpdate?: () => Promise<void>
   }
 }
 

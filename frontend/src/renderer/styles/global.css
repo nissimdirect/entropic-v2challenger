@@ -1634,3 +1634,304 @@ body {
   background: #333;
   color: #4ade80;
 }
+
+/* ── ShortcutEditor ── */
+
+.shortcut-editor {
+  padding: 4px 0;
+}
+
+.shortcut-editor__conflict {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid #ef4444;
+  color: #ef4444;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.shortcut-editor__category {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 12px 0 4px;
+  padding: 0;
+}
+
+.shortcut-editor__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.shortcut-editor__table th {
+  text-align: left;
+  font-size: 11px;
+  color: #666;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-bottom: 1px solid #333;
+}
+
+.shortcut-editor__row td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #2a2a2a;
+}
+
+.shortcut-editor__action {
+  color: #ccc;
+}
+
+.shortcut-editor__default {
+  color: #555;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+.shortcut-editor__current {
+  color: #4ade80;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  transition: border-color 0.15s;
+}
+
+.shortcut-editor__current:hover {
+  border-color: #444;
+}
+
+.shortcut-editor__current--capturing {
+  color: #facc15;
+  border-color: #facc15;
+  animation: capturing-pulse 1s ease-in-out infinite;
+}
+
+@keyframes capturing-pulse {
+  0%, 100% { border-color: #facc15; }
+  50% { border-color: transparent; }
+}
+
+.shortcut-editor__reset button {
+  background: transparent;
+  border: 1px solid #444;
+  color: #888;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.shortcut-editor__reset button:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.shortcut-editor__reset-all {
+  margin-top: 12px;
+  background: transparent;
+  border: 1px solid #444;
+  color: #888;
+  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.shortcut-editor__reset-all:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+/* ── Preferences ── */
+
+.preferences__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.preferences {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  width: 520px;
+  max-width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.preferences__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid #333;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.preferences__close {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.preferences__close:hover {
+  color: #fff;
+}
+
+.preferences__tabs {
+  display: flex;
+  border-bottom: 1px solid #333;
+  padding: 0 8px;
+}
+
+.preferences__tab {
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #888;
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.preferences__tab:hover {
+  color: #ccc;
+}
+
+.preferences__tab--active {
+  color: #4ade80;
+  border-bottom-color: #4ade80;
+}
+
+.preferences__body {
+  padding: 12px 16px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.preferences__section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.preferences__field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.preferences__field label {
+  font-size: 12px;
+  color: #888;
+}
+
+.preferences__field-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.preferences__value {
+  font-size: 13px;
+  color: #ccc;
+}
+
+.preferences__hint {
+  font-size: 11px;
+  color: #555;
+  font-style: italic;
+}
+
+.preferences__input {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+.preferences__input:focus {
+  outline: none;
+  border-color: #4ade80;
+}
+
+.preferences__input--number {
+  width: 80px;
+}
+
+.preferences__input--path {
+  flex: 1;
+}
+
+.preferences__select {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #ccc;
+  font-size: 13px;
+  padding: 5px 8px;
+  width: 140px;
+}
+
+.preferences__select:focus {
+  outline: none;
+  border-color: #4ade80;
+}
+
+.preferences__browse-btn {
+  background: #333;
+  border: 1px solid #444;
+  color: #ccc;
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.preferences__browse-btn:hover {
+  background: #3a3a3a;
+  border-color: #4ade80;
+}
+
+.preferences__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 16px;
+  border-top: 1px solid #333;
+}
+
+.preferences__close-btn {
+  background: #333;
+  border: 1px solid #444;
+  color: #ccc;
+  font-size: 13px;
+  padding: 6px 20px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.preferences__close-btn:hover {
+  background: #3a3a3a;
+  border-color: #4ade80;
+  color: #fff;
+}

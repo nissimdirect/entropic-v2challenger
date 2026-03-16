@@ -86,19 +86,19 @@ interface TrackLaneProps {
   zoom: number
   scrollX: number
   isSelected: boolean
-  selectedClipId: string | null
+  selectedClipIds: string[]
 }
 
 const EMPTY_LANES: never[] = []
 
-export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipId }: TrackLaneProps) {
+export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds }: TrackLaneProps) {
   const assets = useProjectStore((s) => s.assets)
   const automationLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
   const automationMode = useAutomationStore((s) => s.mode)
 
   const handleLaneClick = useCallback(() => {
     useTimelineStore.getState().selectTrack(track.id)
-    useTimelineStore.getState().selectClip(null)
+    useTimelineStore.getState().clearSelection()
   }, [track.id])
 
   const TRACK_HEIGHT = 60
@@ -118,7 +118,7 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipId }: 
             clip={clip}
             zoom={zoom}
             scrollX={scrollX}
-            isSelected={clip.id === selectedClipId}
+            isSelected={selectedClipIds.includes(clip.id)}
             assetName={assetName}
           />
         )

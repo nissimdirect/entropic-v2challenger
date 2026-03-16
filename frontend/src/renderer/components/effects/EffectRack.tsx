@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import type { EffectInstance, EffectInfo } from '../../../shared/types'
 import EffectCard from './EffectCard'
 import FreezeOverlay from './FreezeOverlay'
+import Tooltip from '../common/Tooltip'
 import { useFreezeStore } from '../../stores/freeze'
 import { useStableListener } from '../../hooks/useStableListener'
 
@@ -93,13 +94,15 @@ export default function EffectRack({
       <div className="effect-rack__header">
         <span>Effect Chain</span>
         {onSavePreset && (
-          <button
-            className="effect-rack__save-preset"
-            onClick={onSavePreset}
-            title="Save chain as preset"
-          >
-            Save Preset
-          </button>
+          <Tooltip text="Save chain as preset" position="bottom">
+            <button
+              className="effect-rack__save-preset"
+              onClick={onSavePreset}
+              title="Save chain as preset"
+            >
+              Save Preset
+            </button>
+          </Tooltip>
         )}
       </div>
       <div className="effect-rack__list">
@@ -110,22 +113,26 @@ export default function EffectRack({
             onContextMenu={(e) => handleContextMenu(e, index)}
           >
             <div className="effect-rack__arrows">
-              <button
-                className="effect-rack__arrow"
-                onClick={() => handleMoveUp(index)}
-                disabled={index === 0}
-                title="Move up"
-              >
-                ^
-              </button>
-              <button
-                className="effect-rack__arrow"
-                onClick={() => handleMoveDown(index)}
-                disabled={index === chain.length - 1}
-                title="Move down"
-              >
-                v
-              </button>
+              <Tooltip text="Move up" position="right">
+                <button
+                  className="effect-rack__arrow"
+                  onClick={() => handleMoveUp(index)}
+                  disabled={index === 0}
+                  title="Move up"
+                >
+                  ^
+                </button>
+              </Tooltip>
+              <Tooltip text="Move down" position="right">
+                <button
+                  className="effect-rack__arrow"
+                  onClick={() => handleMoveDown(index)}
+                  disabled={index === chain.length - 1}
+                  title="Move down"
+                >
+                  v
+                </button>
+              </Tooltip>
             </div>
             <div style={{ position: 'relative', flex: 1 }}>
               <EffectCard

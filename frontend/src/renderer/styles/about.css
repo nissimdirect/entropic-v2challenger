@@ -1,0 +1,18 @@
+/* --- About Dialog --- */
+
+.about-dialog__overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+}
+.about-dialog {
+  background: #252525; border-radius: 8px; padding: 32px; text-align: center;
+  min-width: 300px; border: 1px solid #333;
+}
+.about-dialog__logo { font-size: 32px; font-weight: 700; color: #4ade80; letter-spacing: 3px; }
+.about-dialog__version { font-size: 13px; color: #888; margin-top: 4px; }
+.about-dialog__credits { font-size: 13px; color: #e0e0e0; margin-top: 16px; }
+.about-dialog__close {
+  margin-top: 20px; padding: 6px 20px; background: #333; border: 1px solid #555;
+  border-radius: 4px; color: #e0e0e0; cursor: pointer; font-family: inherit;
+}
+.about-dialog__close:hover { background: #444; }

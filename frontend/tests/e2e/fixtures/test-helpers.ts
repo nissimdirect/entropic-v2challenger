@@ -85,13 +85,31 @@ export async function waitForEngineStatus(
 }
 
 /**
+ * Dismiss the welcome screen by clicking "New Project".
+ * No-op if welcome screen is not visible.
+ */
+export async function dismissWelcomeScreen(page: Page): Promise<void> {
+  const welcomeScreen = page.locator('.welcome-screen')
+  if (await welcomeScreen.count() > 0 && await welcomeScreen.isVisible()) {
+    const newProjectBtn = page.locator('.welcome-screen__btn--primary')
+    if (await newProjectBtn.count() > 0) {
+      await newProjectBtn.click()
+      // Wait for welcome screen to disappear
+      await welcomeScreen.waitFor({ state: 'hidden', timeout: 5_000 })
+    }
+  }
+}
+
+/**
  * Import a video file by clicking the Browse button (uses stubbed dialog).
+ * Automatically dismisses the welcome screen if it's showing.
  */
 export async function importVideoViaDialog(
   electronApp: ElectronApplication,
   page: Page,
   videoPath: string,
 ): Promise<void> {
+  await dismissWelcomeScreen(page)
   await stubFileDialog(electronApp, videoPath)
   const browseBtn = page.locator('.file-dialog-btn')
   await browseBtn.click()

@@ -1,5 +1,7 @@
 import Waveform from '../transport/Waveform'
 import VolumeControl from '../transport/VolumeControl'
+import Tooltip from '../common/Tooltip'
+import { shortcutRegistry } from '../../utils/shortcuts'
 import type { WaveformPeaks } from '../transport/useWaveform'
 
 interface PreviewControlsProps {
@@ -53,9 +55,11 @@ export default function PreviewControls({
   return (
     <div className="preview-controls">
       <div className="preview-controls__transport">
-        <button className="preview-controls__play-btn" onClick={onPlayPause}>
-          {isPlaying ? '||' : '>'}
-        </button>
+        <Tooltip text={isPlaying ? 'Pause' : 'Play'} shortcut={shortcutRegistry.getEffectiveKey('play_pause')} position="bottom">
+          <button className="preview-controls__play-btn" onClick={onPlayPause}>
+            {isPlaying ? '||' : '>'}
+          </button>
+        </Tooltip>
         <input
           type="range"
           className="preview-controls__scrub"

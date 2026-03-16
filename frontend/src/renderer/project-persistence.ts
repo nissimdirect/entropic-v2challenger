@@ -16,6 +16,13 @@ import { randomUUID } from './utils'
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
 const PROJECT_VERSION = '2.0.0'
+const MAX_RECENT_PROJECTS = 20
+
+export interface RecentProject {
+  path: string
+  name: string
+  lastModified: number
+}
 
 let autosaveTimer: ReturnType<typeof setInterval> | null = null
 
@@ -246,10 +253,13 @@ export async function saveProject(): Promise<boolean> {
   // Delete autosave after successful save
   deleteAutosave()
 
+  // Track as recent project
+  addRecentProject({ path: filePath, name, lastModified: Date.now() })
+
   return true
 }
 
-export async function loadProject(): Promise<boolean> {
+export async function loadProject(filePath?: string): Promise<boolean> {
   if (!window.entropic) return false
 
   // Check if dirty and prompt
@@ -259,13 +269,17 @@ export async function loadProject(): Promise<boolean> {
     // that requires a custom dialog component (deferred).
   }
 
-  const filePath = await window.entropic.showOpenDialog({
-    filters: GLITCH_FILTERS,
-  })
-  if (!filePath) return false // user cancelled
+  let path: string | undefined = filePath
+  if (!path) {
+    const selected = await window.entropic.showOpenDialog({
+      filters: GLITCH_FILTERS,
+    })
+    if (!selected) return false // user cancelled
+    path = selected
+  }
 
   try {
-    const json = await window.entropic.readFile(filePath)
+    const json = await window.entropic.readFile(path)
     const data = JSON.parse(json)
 
     if (!validateProject(data)) {
@@ -275,9 +289,12 @@ export async function loadProject(): Promise<boolean> {
 
     hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData })
 
-    const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
-    useProjectStore.getState().setProjectPath(filePath)
+    const name = path.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
+    useProjectStore.getState().setProjectPath(path)
     useProjectStore.getState().setProjectName(name)
+
+    // Track as recent project
+    addRecentProject({ path: path, name, lastModified: Date.now() })
 
     return true
   } catch (err) {
@@ -374,6 +391,45 @@ export async function restoreAutosave(path: string): Promise<boolean> {
   } catch (err) {
     console.error('[Autosave] Failed to restore:', err)
     return false
+  }
+}
+
+// --- Recent projects ---
+
+export async function loadRecentProjects(): Promise<RecentProject[]> {
+  if (!window.entropic) return []
+  try {
+    const data = await window.entropic.readRecentProjects()
+    if (!Array.isArray(data)) return []
+    // Validate each entry has the required shape
+    return data.filter(
+      (entry): entry is RecentProject =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof entry.path === 'string' &&
+        typeof entry.name === 'string' &&
+        typeof entry.lastModified === 'number',
+    )
+  } catch {
+    return []
+  }
+}
+
+export async function addRecentProject(project: RecentProject): Promise<void> {
+  if (!window.entropic) return
+  try {
+    const existing = await loadRecentProjects()
+    // Remove any existing entry with the same path
+    const filtered = existing.filter((p) => p.path !== project.path)
+    // Add new entry at front
+    filtered.unshift(project)
+    // Sort by lastModified descending
+    filtered.sort((a, b) => b.lastModified - a.lastModified)
+    // Cap at MAX_RECENT_PROJECTS
+    const capped = filtered.slice(0, MAX_RECENT_PROJECTS)
+    await window.entropic.writeRecentProjects(capped)
+  } catch {
+    // Best-effort — don't break save flow
   }
 }
 

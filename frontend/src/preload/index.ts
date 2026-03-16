@@ -96,4 +96,46 @@ contextBridge.exposeInMainWorld('entropic', {
   submitFeedback: (text: string): Promise<void> => {
     return ipcRenderer.invoke('feedback:submit', text)
   },
+
+  readPreferences: (): Promise<Record<string, unknown>> => {
+    return ipcRenderer.invoke('preferences:read')
+  },
+
+  writePreferences: (data: Record<string, unknown>): Promise<void> => {
+    return ipcRenderer.invoke('preferences:write', data)
+  },
+
+  readRecentProjects: (): Promise<{ path: string; name: string; lastModified: number }[]> => {
+    return ipcRenderer.invoke('recentProjects:read')
+  },
+
+  writeRecentProjects: (data: { path: string; name: string; lastModified: number }[]): Promise<void> => {
+    return ipcRenderer.invoke('recentProjects:write', data)
+  },
+
+  // --- Auto-update ---
+
+  onUpdateAvailable: (
+    callback: (data: { version: string; releaseDate?: string }) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { version: string; releaseDate?: string }) => callback(data)
+    ipcRenderer.on('update-available', handler)
+    return () => ipcRenderer.removeListener('update-available', handler)
+  },
+
+  onUpdateDownloaded: (
+    callback: (data: { version: string }) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { version: string }) => callback(data)
+    ipcRenderer.on('update-downloaded', handler)
+    return () => ipcRenderer.removeListener('update-downloaded', handler)
+  },
+
+  downloadUpdate: (): Promise<void> => {
+    return ipcRenderer.invoke('updater:download')
+  },
+
+  installUpdate: (): Promise<void> => {
+    return ipcRenderer.invoke('updater:install')
+  },
 })
