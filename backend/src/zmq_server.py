@@ -543,7 +543,9 @@ class ZMQServer:
                     return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
                 frame_index = int(layer_info.get("frame_index", 0))
-                opacity = float(layer_info.get("opacity", 1.0))
+                opacity = clamp_finite(
+                    float(layer_info.get("opacity", 1.0)), 0.0, 1.0, 1.0
+                )
                 blend_mode = layer_info.get("blend_mode", "normal")
 
                 reader = self._get_reader(asset_path)
@@ -588,10 +590,10 @@ class ZMQServer:
         if errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
-        start_s = float(message.get("start_s", 0.0))
+        start_s = clamp_finite(float(message.get("start_s", 0.0)), 0.0, 86400.0, 0.0)
         duration_s = message.get("duration_s")
         if duration_s is not None:
-            duration_s = float(duration_s)
+            duration_s = clamp_finite(float(duration_s), 0.0, 86400.0, 1.0)
 
         try:
             result = decode_audio(path, start_s=start_s, duration_s=duration_s)
@@ -704,7 +706,7 @@ class ZMQServer:
 
     def _handle_audio_seek(self, message: dict, msg_id: str | None) -> dict:
         try:
-            time_s = float(message.get("time", 0.0))
+            time_s = clamp_finite(float(message.get("time", 0.0)), 0.0, 86400.0, 0.0)
             ok = self.audio_player.seek(time_s)
             if not ok:
                 return {"id": msg_id, "ok": False, "error": "no audio loaded"}
@@ -720,7 +722,7 @@ class ZMQServer:
 
     def _handle_audio_volume(self, message: dict, msg_id: str | None) -> dict:
         try:
-            volume = float(message.get("volume", 1.0))
+            volume = clamp_finite(float(message.get("volume", 1.0)), 0.0, 1.0, 1.0)
             self.audio_player.set_volume(volume)
             return {"id": msg_id, "ok": True, "volume": self.audio_player.volume}
         except Exception as e:
@@ -938,6 +940,12 @@ class ZMQServer:
 
         if not asset_path or not isinstance(asset_path, str):
             return {"id": msg_id, "ok": False, "error": "asset_path required"}
+
+        # SEC-5: validate asset path (prevents path traversal)
+        upload_errors = validate_upload(asset_path)
+        if upload_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(upload_errors)}
+
         if frame_count <= 0:
             return {"id": msg_id, "ok": False, "error": "frame_count must be > 0"}
 
