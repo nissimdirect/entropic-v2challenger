@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/tilt_shift.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.05, 0.15, 0.5, 1.0, 255, 'Blur Amount', 'Focus Width', 'Focus Y', 'Tilt Shift', 'blur_amount', 'curve', 'default', 'description', 'float', 'focus_width', 'focus_y', 'fx.tilt_shift', 'int', 'label', 'linear', 'max', 'min', 'optics', 'px', 'type', 'unit']

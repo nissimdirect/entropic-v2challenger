@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/engine/codecs.py
+# hypothesis_version: 6.151.9
+
+[720, 1080, 1280, 1920, 2160, 3840, 1000000, 50000000, '1080p', '24', '25', '30', '4k', '60', '720p', 'bitrate_range', 'fast', 'h264', 'h265', 'libx264', 'libx265', 'medium', 'pix_fmt', 'profile', 'prores_422', 'prores_4444', 'prores_ks', 'pyav_codec', 'quality_presets', 'slow', 'source', 'ultrafast', 'w', 'yuv420p', 'yuv422p10le', 'yuva444p10le']

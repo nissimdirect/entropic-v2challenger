@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/vhs.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.02, 0.1, 0.2, 0.3, 0.5, 1.0, 255, '%', 'Chromatic Aberration', 'Noise', 'Tracking Error', 'VHS', 'chromatic', 'curve', 'default', 'description', 'exponential', 'float', 'fx.vhs', 'label', 'linear', 'logarithmic', 'max', 'min', 'noise', 'px', 'texture', 'tracking', 'type', 'unit']

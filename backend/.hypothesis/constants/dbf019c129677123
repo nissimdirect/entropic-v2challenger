@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/byte_corrupt.py
+# hypothesis_version: 6.151.9
+
+[b'\xff\xda', 100, 255, 256, 2000, '%', 'Amount', 'Byte Corrupt', 'JPEG', 'JPEG Quality', 'RGB', 'amount', 'count', 'curve', 'default', 'description', 'destruction', 'fx.byte_corrupt', 'int', 'jpeg_quality', 'label', 'linear', 'max', 'min', 'type', 'unit']

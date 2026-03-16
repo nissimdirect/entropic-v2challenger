@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/pixel_dimension_warp.py
+# hypothesis_version: 6.151.9
+
+[-2.0, 0.0, 0.01, 0.03, 0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.45, 0.5, 0.6, 0.8, 0.88, 0.9, 0.99, 1.0, 1.5, 2.0, 8.0, 10.0, 20.0, 30.0, 255, 'Boundary', 'Damping', 'Fold Width', 'Folds', 'Intensity', 'Mode', 'Pixel Dimension Warp', 'Portal Radius', 'Rotation Speed', 'Spin', 'Wander', 'black', 'boundary', 'choice', 'clamp', 'curve', 'damping', 'default', 'description', 'dimensionfold', 'dx', 'dy', 'float', 'fold_width', 'int', 'intensity', 'label', 'linear', 'max', 'min', 'mirror', 'mode', 'num_folds', 'options', 'physics', 'portal_radius', 'rotation_speed', 'spin', 'type', 'unit', 'vx', 'vy', 'wander', 'wormhole', 'wrap']

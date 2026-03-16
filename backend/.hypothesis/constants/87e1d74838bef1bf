@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/temporal_blend.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 0.7, 1.0, 255, 'Buffer Depth', 'Decay', 'Delay Frames', 'Mix', 'Mode', 'Taps', 'Temporal Blend', 'buffer', 'buffer_depth', 'choice', 'curve', 'decay', 'default', 'delay', 'delay_frames', 'description', 'feedback', 'float', 'fx.temporal_blend', 'int', 'label', 'linear', 'max', 'min', 'mix', 'mode', 'options', 'prev_frame', 'taps', 'temporal', 'type', 'unit', 'visual_reverb']

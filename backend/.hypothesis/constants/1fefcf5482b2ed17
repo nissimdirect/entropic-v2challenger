@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/datamosh_real.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.3, 1.0, 5.0, 256, 600, '%', 'Corruption', 'Datamosh Real', 'Intensity', 'JPEG', 'RGB', 'corruption', 'curve', 'default', 'description', 'destruction', 'exponential', 'float', 'fx.datamosh_real', 'intensity', 'label', 'linear', 'max', 'min', 'type', 'unit', 'x']

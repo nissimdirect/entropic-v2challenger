@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/granulator.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.2, 0.3, 0.5, 1.0, 'Buffer Depth', 'Grain Size', 'Granulator', 'Reverse Prob', 'Spray', 'buffer_depth', 'curve', 'default', 'description', 'float', 'fx.granulator', 'grain_buffer', 'grain_size', 'int', 'label', 'linear', 'max', 'min', 'position', 'reverse_prob', 'spray', 'temporal', 'type', 'unit']

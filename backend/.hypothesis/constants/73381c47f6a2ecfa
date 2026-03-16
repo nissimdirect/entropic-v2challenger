@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/video/image_reader.py
+# hypothesis_version: 6.151.9
+
+[5.0, 30.0, 8192, '.bmp', '.jpeg', '.jpg', '.png', '.tif', '.tiff', '.webp', 'RGBA']

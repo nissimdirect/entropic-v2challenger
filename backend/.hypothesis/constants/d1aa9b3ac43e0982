@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/modulation/routing.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 'add', 'average', 'blendMode', 'blend_mode', 'depth', 'effect_id', 'id', 'isEnabled', 'is_enabled', 'mappings', 'max', 'min', 'multiply', 'params', 'targetEffectId', 'targetParamKey', 'target_effect_id', 'target_param_key']

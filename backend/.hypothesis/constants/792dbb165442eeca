@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/mirror.py
+# hypothesis_version: 6.151.9
+
+[0.1, 0.5, 0.9, '%', 'Axis', 'Mirror', 'Position', 'axis', 'choice', 'curve', 'default', 'description', 'distortion', 'float', 'fx.mirror', 'horizontal', 'label', 'linear', 'max', 'min', 'options', 'position', 'type', 'unit', 'vertical']

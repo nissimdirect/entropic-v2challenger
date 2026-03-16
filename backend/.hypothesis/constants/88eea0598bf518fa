@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/modulation/lfo.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 2.0, 4294967295, 'last_random_cycle', 'last_random_value', 'last_sh_cycle', 'last_sh_value', 'noise', 'random', 'sample_hold', 'saw', 'sine', 'square', 'triangle']

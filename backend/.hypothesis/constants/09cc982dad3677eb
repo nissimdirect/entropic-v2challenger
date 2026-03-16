@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/pixel_haunt.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.01, 0.03, 0.1, 0.2, 0.3, 0.35, 0.4, 0.5, 0.8, 0.9, 0.95, 0.99, 1.0, 1.2, 1.5, 1.8, 2.0, 4.0, 15.0, 30.0, 35.0, 100, 255, 'Boundary', 'Crackle', 'Damping', 'Force Strength', 'Force Type', 'Ghost Opacity', 'Ghost Persistence', 'Pixel Haunt', 'black', 'boundary', 'choice', 'clamp', 'crackle', 'curve', 'damping', 'default', 'description', 'drift', 'dx', 'dy', 'float', 'force_strength', 'force_type', 'fx.pixel_haunt', 'ghost', 'ghost_opacity', 'ghost_persistence', 'label', 'linear', 'max', 'min', 'mirror', 'options', 'physics', 'radial', 'turbulence', 'type', 'unit', 'vx', 'vy', 'wrap']

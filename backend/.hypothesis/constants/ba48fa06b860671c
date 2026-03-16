@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/util/auto_levels.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 25.0, 100.0, 255.0, 255, 256, '%', 'Auto Levels', 'Clip %', 'clip_percent', 'curve', 'default', 'description', 'exponential', 'float', 'label', 'max', 'min', 'type', 'unit', 'util', 'util.auto_levels']

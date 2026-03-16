@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/scanlines.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 0.5, 1.0, 255, '%', 'Flicker', 'Line Width', 'Opacity', 'Scanlines', 'choice', 'curve', 'default', 'description', 'distortion', 'false', 'flicker', 'float', 'fx.scanlines', 'int', 'label', 'line_width', 'linear', 'max', 'min', 'opacity', 'options', 'px', 'true', 'type', 'unit']

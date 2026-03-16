@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/strobe.py
+# hypothesis_version: 6.151.9
+
+[255, 'Color', 'Flash color', 'Flash every N frames', 'Interval', 'Strobe', 'black', 'choice', 'color', 'curve', 'default', 'description', 'fx.strobe', 'int', 'interval', 'label', 'linear', 'max', 'min', 'options', 'temporal', 'type', 'unit', 'white']

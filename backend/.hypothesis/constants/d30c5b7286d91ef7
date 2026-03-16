@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/watercolor.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 0.5, 1.0, 255.0, 200, 255, 256, '%', 'Blur Radius', 'Edge Strength', 'Paper Texture', 'Softening amount', 'Watercolor', 'blur_radius', 'curve', 'default', 'description', 'edge_strength', 'exponential', 'float', 'fx.watercolor', 'int', 'label', 'linear', 'max', 'min', 'paper_texture', 'px', 'type', 'unit', 'whimsy']

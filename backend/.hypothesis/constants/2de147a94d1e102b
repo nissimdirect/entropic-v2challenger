@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/engine/export.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 255.0, 480, '.', 'Audio muxed into %s', 'Export failed', 'bitrate', 'cancelled', 'codec', 'complete', 'crf', 'current_frame', 'custom', 'custom_height', 'custom_width', 'duration_s', 'end_frame', 'error', 'eta_seconds', 'export_type', 'fps', 'full', 'gif', 'gif_dithering', 'gif_max_width', 'h264', 'idle', 'image_format', 'image_sequence', 'include_audio', 'jpeg_quality', 'medium', 'opacity', 'output_path', 'pix_fmt', 'png', 'position_s', 'profile', 'progress', 'pyav_codec', 'quality_preset', 'quality_presets', 'r', 'region', 'resolution', 'running', 'source', 'start_frame', 'status', 'text_config', 'total_frames', 'video', 'w']

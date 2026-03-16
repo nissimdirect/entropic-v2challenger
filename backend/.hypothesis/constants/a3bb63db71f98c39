@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/cross_codec.py
+# hypothesis_version: 6.151.9
+
+['%', 'Cross Codec', 'Iterations', 'JPEG', 'Quality A', 'Quality B', 'RGB', 'codec_archaeology', 'curve', 'default', 'description', 'fx.cross_codec', 'int', 'iterations', 'label', 'linear', 'max', 'min', 'quality_a', 'quality_b', 'type', 'unit']

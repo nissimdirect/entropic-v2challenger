@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/pixel_explode.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.5, 0.8, 0.96, 0.99, 1.0, 5.0, 10.0, 30.0, 50.0, 'Boundary', 'Damping', 'Force', 'Gravity', 'Initial blast force', 'Origin', 'Pixel Explode', 'Scatter', 'black', 'bottom', 'boundary', 'center', 'choice', 'clamp', 'curve', 'damping', 'default', 'description', 'dx', 'dy', 'float', 'force', 'fx.pixel_explode', 'gravity', 'label', 'linear', 'max', 'min', 'mirror', 'options', 'origin', 'physics', 'random', 'scatter', 'top', 'type', 'unit', 'vx', 'vy', 'wrap']

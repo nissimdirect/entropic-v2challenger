@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/shared/noise_generators.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 64.0, 1000]

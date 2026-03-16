@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/braille_art.py
+# hypothesis_version: 6.151.9
+
+[0.85, 1.15, 1.8, 128, 191, 200, 255, 10240, 'Braille Art', 'Color', 'Invert', 'Invert dot pattern', 'RGB', 'Text color mode', 'Threshold', 'Width', 'X', 'amber', 'chars', 'choice', 'color_mode', 'curve', 'default', 'description', 'false', 'fx.braille_art', 'green', 'int', 'invert', 'label', 'linear', 'max', 'min', 'mono', 'options', 'stylize', 'threshold', 'true', 'type', 'unit', 'width']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/color_filter.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.15, 0.3, 0.7, 0.9, 1.0, 1.1, 255, '%', 'Color Filter', 'Color grade preset', 'Filter strength', 'Intensity', 'Preset', 'choice', 'color', 'cool', 'curve', 'default', 'description', 'float', 'fx.color_filter', 'intensity', 'label', 'linear', 'max', 'min', 'options', 'preset', 'sepia', 'type', 'unit', 'warm']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/temporal_freeze.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.01, 0.02, 0.1, 0.5, 1.0, 255, 'Fade to Black', 'Interval', 'Mode', 'Repeat', 'Stop Speed', 'Temporal Freeze', 'choice', 'curve', 'default', 'description', 'fade_to_black', 'false', 'float', 'freeze_start', 'frozen_frame', 'fx.temporal_freeze', 'held_frame', 'hold_until', 'int', 'interval', 'label', 'linear', 'max', 'min', 'mode', 'options', 'repeat', 'speed', 'stop_speed', 'stutter', 'tape_stop', 'temporal', 'true', 'type', 'unit']

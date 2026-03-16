@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/logistic_cascade.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.001, 0.999, 1.0, 2.5, 3.7, 4.0, 255.0, 255, 'Iterations', 'Logistic Cascade', 'R', 'curve', 'default', 'description', 'float', 'fx.logistic_cascade', 'info_theory', 'int', 'iterations', 'label', 'linear', 'max', 'min', 'r', 'type', 'unit']

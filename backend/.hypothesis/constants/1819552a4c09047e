@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/modulation/processor.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 'factor', 'in_max', 'in_min', 'invert', 'level', 'levels', 'out_max', 'out_min', 'params', 'quantize', 'scale', 'smooth', 'threshold', 'type']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/security.py
+# hypothesis_version: 6.151.9
+
+[500, 1024, 300000, '\x00', '..', '.avi', '.bmp', '.gif', '.jpeg', '.jpg', '.mkv', '.mov', '.mp4', '.png', '.tif', '.tiff', '.webm', '.webp', '/', '/Library', '/System', '/bin', '/etc', '/private/etc', '/private/var', '/sbin', '/usr', '<HOME>', '<REDACTED>', '<REDACTED_PATH>', '<USER>', '\\', '_token', 'auth', 'contexts', 'dsn', 'extra', 'key', 'password', 'secret', 'token', '~']

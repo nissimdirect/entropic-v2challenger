@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/modulation/fusion.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 'add', 'max', 'min', 'multiply', 'operator_id', 'weight', 'weighted_average']

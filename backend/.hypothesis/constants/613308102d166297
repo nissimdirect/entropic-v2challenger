@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/audio/clock.py
+# hypothesis_version: 6.151.9
+
+[1.0, 30.0, 240.0, 'audio_time_s', 'duration_s', 'fps', 'is_playing', 'target_frame', 'total_frames', 'volume']

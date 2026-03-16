@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/duotone.py
+# hypothesis_version: 6.151.9
+
+[100, 200, 255, 'Duotone', 'Highlight B', 'Highlight G', 'Highlight R', 'Shadow B', 'Shadow G', 'Shadow R', 'curve', 'default', 'enhance', 'fx.duotone', 'highlight_b', 'highlight_g', 'highlight_r', 'int', 'label', 'linear', 'max', 'min', 'shadow_b', 'shadow_g', 'shadow_r', 'type', 'unit']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/film_grain.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.2, 0.4, 0.5, 1.0, 2.0, 4.0, 120.0, 255.0, 255, '%', 'Film Grain', 'Grain Size', 'Intensity', 'curve', 'default', 'description', 'destruction', 'exponential', 'float', 'fx.film_grain', 'grain_size', 'int', 'intensity', 'label', 'linear', 'max', 'min', 'px', 'type', 'unit']

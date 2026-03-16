@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/mosquito_amplify.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 1.0, 5.0, 20.0, 255.0, 100, 255, 'Amplify', 'Edge Threshold', 'Mosquito Amplify', 'amplify', 'codec_archaeology', 'curve', 'default', 'description', 'edge_threshold', 'exponential', 'float', 'fx.mosquito_amplify', 'label', 'linear', 'max', 'min', 'type', 'unit', 'x']

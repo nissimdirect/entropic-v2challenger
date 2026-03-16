@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/sparkle.py
+# hypothesis_version: 6.151.9
+
+[0.0005, 0.002, 0.01, 0.1, 1.0, 2.0, 255, 10000, '%', 'Brightness', 'Density', 'Size', 'Sparkle', 'Sparkle brightness', 'Sparkle point size', 'brightness', 'curve', 'default', 'density', 'description', 'exponential', 'float', 'fx.sparkle', 'int', 'label', 'linear', 'max', 'min', 'px', 'size', 'type', 'unit', 'whimsy']

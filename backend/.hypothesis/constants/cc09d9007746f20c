@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/jpeg_artifacts.py
+# hypothesis_version: 6.151.9
+
+[200, 255, '%', 'Block Damage', 'JPEG', 'JPEG Artifacts', 'Quality', 'RGB', 'block_damage', 'count', 'curve', 'default', 'description', 'destruction', 'fx.jpeg_artifacts', 'int', 'label', 'linear', 'max', 'min', 'quality', 'type', 'unit']

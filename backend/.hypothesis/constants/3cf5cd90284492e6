@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/video/ingest.py
+# hypothesis_version: 6.151.9
+
+[0.0, 5.0, 'audio', 'channels', 'codec', 'duration_s', 'error', 'fps', 'frame_count', 'has_audio', 'height', 'ok', 'sample_rate', 'unknown', 'width']

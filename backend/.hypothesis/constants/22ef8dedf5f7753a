@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/pixel_inkdrop.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.01, 0.04, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.6, 0.88, 1.0, 2.0, 3.0, 5.0, 8.0, 30.0, 60.0, 255, 'Boundary', 'Color Shift', 'Diffusion Rate', 'Drop Interval', 'Drops', 'How fast ink spreads', 'Marangoni', 'Number of ink drops', 'Pixel Ink Drop', 'Surface Tension', 'Tendrils', 'black', 'boundary', 'choice', 'clamp', 'color_shift', 'curve', 'default', 'description', 'diffusion_rate', 'drop_interval', 'dx', 'dy', 'float', 'fx.pixel_inkdrop', 'int', 'label', 'linear', 'marangoni', 'max', 'min', 'mirror', 'num_drops', 'options', 'physics', 'surface_tension', 'tendrils', 'type', 'unit', 'vx', 'vy', 'wrap']

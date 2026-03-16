@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/datamosh.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.5, 0.95, 0.999, 1.0, 1.2, 10.0, 255, 'Accumulate', 'Datamosh', 'Decay', 'Intensity', 'Mode', 'accumulate', 'bloom', 'choice', 'clamp', 'curve', 'decay', 'default', 'description', 'destruction', 'displacement_field', 'exponential', 'false', 'float', 'freeze', 'fx.datamosh', 'intensity', 'label', 'linear', 'max', 'melt', 'min', 'mode', 'options', 'prev_frame', 'reference_frame', 'true', 'type', 'unit', 'wrap', 'x']

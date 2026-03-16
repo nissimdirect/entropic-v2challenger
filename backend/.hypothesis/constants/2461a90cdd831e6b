@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/hue_shift.py
+# hypothesis_version: 6.151.9
+
+[0.0, 60.0, 180.0, 255.0, 360.0, 255, 'Hue Rotation', 'Hue Shift', 'amount', 'color', 'curve', 'default', 'description', 'float', 'fx.hue_shift', 'label', 'linear', 'max', 'min', 'type', 'unit', '°']
