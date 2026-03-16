@@ -3,9 +3,7 @@
 import numpy as np
 
 from effects.shared.dct_utils import (
-    apply_per_block,
-    block_dct,
-    block_idct,
+    apply_per_block_vectorized,
     halfres_wrap,
 )
 from engine.determinism import make_rng
@@ -74,46 +72,42 @@ PARAMS: dict = {
 _BLOCK_SIZE = 8
 
 
-def _make_sculpt_fn(low: int, high: int):
-    """Return transform that zeroes coefficients outside freq band."""
-
-    def fn(block: np.ndarray) -> np.ndarray:
-        coeffs = block_dct(block)
-        mask = np.zeros_like(coeffs)
-        mask[low : high + 1, low : high + 1] = 1.0
-        return block_idct(coeffs * mask)
-
-    return fn
+def _sculpt_batch(coeffs: np.ndarray, low: int, high: int) -> np.ndarray:
+    """Zero coefficients outside freq band — vectorized over all blocks."""
+    mask = np.zeros((_BLOCK_SIZE, _BLOCK_SIZE), dtype=np.float32)
+    mask[low : high + 1, low : high + 1] = 1.0
+    return coeffs * mask[np.newaxis, np.newaxis, :, :]
 
 
-def _make_swap_fn(rng: np.random.Generator, prob: float):
-    """Return transform that randomly swaps coefficient positions."""
+def _swap_batch(
+    coeffs: np.ndarray, rng: np.random.Generator, prob: float
+) -> np.ndarray:
+    """Randomly swap coefficient positions — vectorized."""
+    nby, nbx, bs, bs2 = coeffs.shape
+    flat = coeffs.reshape(nby, nbx, bs * bs2)
+    n = bs * bs2
+    swap_mask = rng.random((nby, nbx, n)) < prob
+    swap_targets = rng.integers(0, n, size=(nby, nbx, n))
+    for i in range(n):
+        should_swap = swap_mask[:, :, i]
+        targets = swap_targets[:, :, i]
+        target_vals = np.take_along_axis(
+            flat, targets[:, :, np.newaxis], axis=2
+        ).squeeze(2)
+        orig_vals = flat[:, :, i].copy()
+        flat[:, :, i] = np.where(should_swap, target_vals, orig_vals)
+    return flat.reshape(nby, nbx, bs, bs2)
 
-    def fn(block: np.ndarray) -> np.ndarray:
-        coeffs = block_dct(block)
-        flat = coeffs.flatten()
-        n = len(flat)
-        for i in range(n):
-            if rng.random() < prob:
-                j = rng.integers(0, n)
-                flat[i], flat[j] = flat[j], flat[i]
-        return block_idct(flat.reshape(coeffs.shape))
 
-    return fn
-
-
-def _make_destroy_fn(rng: np.random.Generator, prob: float, affect_dc: bool):
-    """Return transform that randomizes coefficient signs."""
-
-    def fn(block: np.ndarray) -> np.ndarray:
-        coeffs = block_dct(block)
-        mask = rng.random(coeffs.shape) < prob
-        if not affect_dc:
-            mask[0, 0] = False
-        signs = np.where(mask, -1.0, 1.0)
-        return block_idct(coeffs * signs)
-
-    return fn
+def _destroy_batch(
+    coeffs: np.ndarray, rng: np.random.Generator, prob: float, affect_dc: bool
+) -> np.ndarray:
+    """Randomize coefficient signs — fully vectorized."""
+    mask = rng.random(coeffs.shape) < prob
+    if not affect_dc:
+        mask[:, :, 0, 0] = False
+    signs = np.where(mask, -1.0, 1.0).astype(np.float32)
+    return coeffs * signs
 
 
 def apply(
@@ -125,7 +119,7 @@ def apply(
     seed: int,
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
-    """Apply DCT-domain manipulation per 8x8 block."""
+    """Apply DCT-domain manipulation per 8x8 block (vectorized batch DCT)."""
     mode = str(params.get("mode", "dct_sculpt"))
     rng = make_rng(seed + frame_index)
 
@@ -134,22 +128,22 @@ def apply(
         high = max(0, min(7, int(params.get("freq_band_high", 3))))
         if low > high:
             low, high = high, low
-        transform_fn = _make_sculpt_fn(low, high)
+        batch_fn = lambda c: _sculpt_batch(c, low, high)
     elif mode == "dct_swap":
         prob = max(0.0, min(1.0, float(params.get("swap_probability", 0.3))))
-        transform_fn = _make_swap_fn(rng, prob)
+        batch_fn = lambda c: _swap_batch(c, rng, prob)
     else:  # dct_phase_destroy
         prob = max(0.0, min(1.0, float(params.get("destroy_probability", 0.5))))
         affect_dc = str(params.get("affect_dc", "false")) == "true"
-        transform_fn = _make_destroy_fn(rng, prob, affect_dc)
+        batch_fn = lambda c: _destroy_batch(c, rng, prob, affect_dc)
 
     def _process(f: np.ndarray) -> np.ndarray:
         rgb = f[:, :, :3].astype(np.float32)
         alpha = f[:, :, 3:4]
         channels = []
-        for c in range(3):
-            ch = apply_per_block(rgb[:, :, c], _BLOCK_SIZE, transform_fn)
-            channels.append(ch)
+        for ch in range(3):
+            result_ch = apply_per_block_vectorized(rgb[:, :, ch], _BLOCK_SIZE, batch_fn)
+            channels.append(result_ch)
         result = np.stack(channels, axis=2)
         result_rgb = np.clip(result, 0, 255).astype(np.uint8)
         return np.concatenate([result_rgb, alpha], axis=2)
