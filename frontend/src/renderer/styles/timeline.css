@@ -19,10 +19,26 @@
   height: var(--resize-handle-height);
   cursor: ns-resize;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
 }
 
 .timeline__resize-handle:hover {
-  background: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.timeline__resize-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.timeline__resize-handle:hover .timeline__resize-dot {
+  background: #888;
 }
 
 .timeline__body {

@@ -237,8 +237,8 @@ describe('Interactions — Preview Controls', () => {
       />,
     )
 
-    const counter = document.querySelector('.preview-controls__counter')
-    expect(counter!.textContent).toContain('0:00.0')
+    const counter = document.querySelector('.preview-controls__timecode')
+    expect(counter!.textContent).toContain('00:00:00.00')
   })
 })
 

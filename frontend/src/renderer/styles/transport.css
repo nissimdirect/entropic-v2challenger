@@ -1,3 +1,89 @@
+/* --- Record & Overdub Controls (Phase 12) --- */
+
+.preview-controls__connection-dot {
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+.preview-controls__record-btn {
+  width: 26px;
+  height: 24px;
+  background: #2a2a34;
+  border: 1px solid #333;
+  border-radius: 3px;
+  color: #888;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+
+.preview-controls__record-btn:hover {
+  background: #333;
+  color: #FF2D2D;
+}
+
+.preview-controls__record-btn--active {
+  background: #FF2D2D;
+  border-color: #FF2D2D;
+  color: #fff;
+  animation: record-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes record-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 45, 45, 0.4); }
+  50% { box-shadow: 0 0 8px 2px rgba(255, 45, 45, 0.3); }
+}
+
+.preview-controls__ovr-btn {
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 3px;
+  color: #555;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.preview-controls__ovr-btn:hover {
+  color: #aaa;
+  border-color: #444;
+}
+
+.preview-controls__ovr-btn--active {
+  background: rgba(181, 74, 90, 0.3);
+  border-color: #B54A5A;
+  color: #fff;
+}
+
+.preview-controls__timecode {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e0e0e4;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+  min-width: 90px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.preview-controls__speed-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.1);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+  border-radius: 3px;
+  padding: 1px 5px;
+  flex-shrink: 0;
+}
+
 /* --- Transport Bar --- */
 
 .transport-bar {

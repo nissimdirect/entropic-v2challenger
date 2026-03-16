@@ -26,6 +26,7 @@ import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-seriali
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
+import { transportForward, transportReverse, transportStop } from './utils/transport-speed'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
@@ -300,6 +301,50 @@ function AppInner() {
           console.log('[Support] Bundle saved to:', path)
         })
       }
+    })
+
+    // --- Phase 12: J/K/L Transport ---
+    shortcutRegistry.register('transport_forward', () => {
+      const speed = transportForward()
+      if (speed === 1) {
+        // Start playback at 1x
+        handlePlayPause()
+      }
+      // TODO: speed > 1x requires frame-skipping in the playback loop
+      // For now, L starts playback; multiple presses are registered but
+      // actual speed multiplication will be wired when the playback loop
+      // supports variable speed.
+    })
+    shortcutRegistry.register('transport_reverse', () => {
+      transportReverse()
+      // Reverse playback requires decrementing currentFrame in the playback loop.
+      // For now, J registers the reverse state; actual reverse playback will be
+      // wired when the playback loop supports negative speed.
+    })
+    shortcutRegistry.register('transport_stop', () => {
+      transportStop()
+      // Stop playback
+      if (hasAudio && audioStore.isLoaded && audioStore.isPlaying) {
+        audioStore.togglePlayback()
+      } else if (isTimerPlaying) {
+        setIsTimerPlaying(false)
+      }
+    })
+
+    // --- Phase 12: Cmd+D Duplicate Effect ---
+    shortcutRegistry.register('duplicate_effect', () => {
+      const { selectedEffectId, effectChain, addEffect } = useProjectStore.getState()
+      if (!selectedEffectId) return
+      const source = effectChain.find((e) => e.id === selectedEffectId)
+      if (!source) return
+      const duplicate: EffectInstance = {
+        ...source,
+        id: randomUUID(),
+        parameters: { ...source.parameters },
+        modulations: { ...source.modulations },
+      }
+      addEffect(duplicate)
+      useProjectStore.getState().selectEffect(duplicate.id)
     })
 
     // Main keyboard listener — delegates to registry for normal shortcuts
@@ -979,6 +1024,35 @@ function AppInner() {
           <span>Drop video file here</span>
         </div>
       )}
+      {/* Sidebar collapse toggle — always visible */}
+      <button
+        className="app__sidebar-toggle"
+        data-testid="sidebar-toggle"
+        onClick={() => useLayoutStore.getState().toggleSidebar()}
+        title={sidebarCollapsed ? 'Show Sidebar (⌘B)' : 'Hide Sidebar (⌘B)'}
+        style={{
+          position: 'absolute',
+          left: sidebarCollapsed ? 0 : 'var(--sidebar-width)',
+          top: '50%',
+          transform: 'translateY(-50%) translateX(-50%)',
+          zIndex: 20,
+          width: 16,
+          height: 40,
+          background: '#2a2a34',
+          border: '1px solid #333',
+          borderRadius: '0 4px 4px 0',
+          color: '#888',
+          fontSize: 10,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'left 200ms ease',
+        }}
+      >
+        {sidebarCollapsed ? '▶' : '◀'}
+      </button>
+
       <div className="app__sidebar" style={sidebarCollapsed ? { display: 'none' } : undefined}>
         {!hasAssets && (
           <div className="app__upload">

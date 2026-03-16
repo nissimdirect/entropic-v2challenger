@@ -5,6 +5,7 @@ import FreezeOverlay from './FreezeOverlay'
 import Tooltip from '../common/Tooltip'
 import { useFreezeStore } from '../../stores/freeze'
 import { useStableListener } from '../../hooks/useStableListener'
+import { LIMITS } from '../../../shared/limits'
 
 interface EffectRackProps {
   chain: EffectInstance[]
@@ -92,7 +93,7 @@ export default function EffectRack({
   return (
     <div className="effect-rack">
       <div className="effect-rack__header">
-        <span>Effect Chain</span>
+        <span>Effect Chain <span style={{ color: chain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN ? '#ef4444' : '#666', fontSize: 10, fontWeight: 400 }}>{chain.length} / {LIMITS.MAX_EFFECTS_PER_CHAIN}</span></span>
         {onSavePreset && (
           <Tooltip text="Save chain as preset" position="bottom">
             <button

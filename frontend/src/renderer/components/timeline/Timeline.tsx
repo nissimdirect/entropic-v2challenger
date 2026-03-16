@@ -83,7 +83,11 @@ export default function Timeline({ onSeek }: TimelineProps) {
           onPointerDown={handleResizeDown}
           onPointerMove={handleResizeMove}
           onPointerUp={handleResizeUp}
-        />
+        >
+          <span className="timeline__resize-dot" />
+          <span className="timeline__resize-dot" />
+          <span className="timeline__resize-dot" />
+        </div>
         <div className="timeline__empty">
           <button className="timeline__add-track-btn" onClick={handleAddTrack}>
             + Add Track
@@ -106,7 +110,11 @@ export default function Timeline({ onSeek }: TimelineProps) {
         onPointerDown={handleResizeDown}
         onPointerMove={handleResizeMove}
         onPointerUp={handleResizeUp}
-      />
+      >
+        <span className="timeline__resize-dot" />
+        <span className="timeline__resize-dot" />
+        <span className="timeline__resize-dot" />
+      </div>
       <div className="timeline__body">
         {/* Left: track headers */}
         <div className="timeline__headers">
