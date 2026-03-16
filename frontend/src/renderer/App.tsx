@@ -21,6 +21,7 @@ import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
 import HistoryPanel from './components/layout/HistoryPanel'
 import DeviceChain from './components/device-chain/DeviceChain'
+import HelpPanel from './components/effects/HelpPanel'
 import type { Asset, EffectInstance } from '../shared/types'
 import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
@@ -1114,6 +1115,7 @@ function AppInner() {
           }}
         />
         <HistoryPanel />
+        <HelpPanel />
       </div>
 
       <div className="app__main">
