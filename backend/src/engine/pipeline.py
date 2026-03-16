@@ -107,6 +107,8 @@ def apply_chain(
     frame_index: int,
     resolution: tuple[int, int],
     states: dict[str, dict | None] | None = None,
+    freeze_cut: int | None = None,
+    freeze_frame: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, dict | None]]:
     """Apply an ordered chain of effects to a frame.
 
@@ -118,6 +120,8 @@ def apply_chain(
         frame_index:  Current frame number (0-based).
         resolution:   (width, height) of the output.
         states:       Per-effect state from previous frame, keyed by effect_id.
+        freeze_cut:   If set, skip effects 0..freeze_cut and use freeze_frame instead.
+        freeze_frame: Cached RGBA frame to use when freeze_cut is active.
 
     Returns:
         Tuple of (output_frame, new_states).
@@ -135,6 +139,16 @@ def apply_chain(
 
     output = frame
     new_states: dict[str, dict | None] = {}
+
+    # Freeze short-circuit: skip effects 0..freeze_cut, use cached frame instead
+    if freeze_cut is not None and freeze_frame is not None:
+        output = freeze_frame
+        # Preserve state for frozen effects so subsequent frames maintain continuity
+        for effect_instance in chain[: freeze_cut + 1]:
+            eid = effect_instance.get("effect_id")
+            if eid and eid in states:
+                new_states[eid] = states[eid]
+        chain = chain[freeze_cut + 1 :]
 
     for i, effect_instance in enumerate(chain):
         # Skip disabled effects

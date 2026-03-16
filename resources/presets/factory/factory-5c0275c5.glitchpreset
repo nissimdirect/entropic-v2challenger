@@ -1,0 +1,17 @@
+{
+  "id": "factory-5c0275c5",
+  "name": "Cool Wash",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.hue_shift",
+    "parameters": {
+      "shift": 200
+    },
+    "modulations": {}
+  }
+}

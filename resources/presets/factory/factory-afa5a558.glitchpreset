@@ -1,0 +1,17 @@
+{
+  "id": "factory-afa5a558",
+  "name": "Tile 2x2",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.pixelate",
+    "parameters": {
+      "block_size": 4
+    },
+    "modulations": {}
+  }
+}

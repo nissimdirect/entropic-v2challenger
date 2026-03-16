@@ -4,7 +4,7 @@
  * or fall within ~/.entropic/ / userData before file operations are allowed.
  */
 import { ipcMain, app, dialog, BrowserWindow, SaveDialogOptions, OpenDialogOptions } from 'electron'
-import { readFile, writeFile, unlink } from 'fs/promises'
+import { readFile, writeFile, unlink, readdir, mkdir } from 'fs/promises'
 import { resolve, dirname, basename, join } from 'path'
 import { homedir } from 'os'
 
@@ -38,6 +38,12 @@ export function isPathAllowed(targetPath: string): boolean {
   // 2. Under userData
   const userData = resolve(app.getPath('userData'))
   if (resolved === userData || resolved.startsWith(userData + '/')) {
+    return true
+  }
+
+  // 2b. Under ~/Documents/Entropic/ (preset storage)
+  const docsDir = resolve(join(homedir(), 'Documents', 'Entropic'))
+  if (resolved === docsDir || resolved.startsWith(docsDir + '/')) {
     return true
   }
 
@@ -131,6 +137,32 @@ export function registerFileHandlers(): void {
       throw new Error(`Access denied: ${filePath}`)
     }
     await unlink(resolved)
+  })
+
+  ipcMain.handle('file:list', async (_event, dirPath: unknown, pattern?: unknown) => {
+    if (typeof dirPath !== 'string') {
+      throw new TypeError('file:list expects a string path')
+    }
+    const resolved = resolve(dirPath)
+    if (!isPathAllowed(resolved)) {
+      throw new Error(`Access denied: ${dirPath}`)
+    }
+    const files = await readdir(resolved)
+    if (typeof pattern === 'string') {
+      return files.filter(f => f.endsWith(pattern))
+    }
+    return files
+  })
+
+  ipcMain.handle('file:mkdir', async (_event, dirPath: unknown) => {
+    if (typeof dirPath !== 'string') {
+      throw new TypeError('file:mkdir expects a string path')
+    }
+    const resolved = resolve(dirPath)
+    if (!isPathAllowed(resolved)) {
+      throw new Error(`Access denied: ${dirPath}`)
+    }
+    await mkdir(resolved, { recursive: true })
   })
 
   // --- App path (allowlisted names only) ---

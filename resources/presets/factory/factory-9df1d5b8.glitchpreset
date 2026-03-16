@@ -1,0 +1,18 @@
+{
+  "id": "factory-9df1d5b8",
+  "name": "Ocean Wave",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.wave",
+    "parameters": {
+      "amplitude": 20,
+      "frequency": 3
+    },
+    "modulations": {}
+  }
+}

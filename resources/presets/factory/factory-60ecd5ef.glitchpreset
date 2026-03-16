@@ -1,0 +1,17 @@
+{
+  "id": "factory-60ecd5ef",
+  "name": "Heavy Noise",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.noise",
+    "parameters": {
+      "amount": 0.7
+    },
+    "modulations": {}
+  }
+}

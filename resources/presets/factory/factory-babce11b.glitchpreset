@@ -1,0 +1,18 @@
+{
+  "id": "factory-babce11b",
+  "name": "Scan Lines",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.scanlines",
+    "parameters": {
+      "spacing": 4,
+      "intensity": 0.6
+    },
+    "modulations": {}
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "factory-29e66ead",
+  "name": "Desaturate",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.saturation",
+    "parameters": {
+      "amount": 0.0
+    },
+    "modulations": {}
+  }
+}

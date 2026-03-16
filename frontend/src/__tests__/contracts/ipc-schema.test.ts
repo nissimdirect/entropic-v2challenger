@@ -58,7 +58,7 @@ function getBackendCommands(): string[] {
 }
 
 describe('IPC Contract', () => {
-  it('preload bridge exposes the expected 20 methods', () => {
+  it('preload bridge exposes the expected 22 methods', () => {
     const methods = getPreloadMethods()
 
     expect(methods).toContain('sendCommand')
@@ -82,7 +82,10 @@ describe('IPC Contract', () => {
     expect(methods).toContain('getSystemInfo')
     expect(methods).toContain('generateSupportBundle')
     expect(methods).toContain('submitFeedback')
-    expect(methods).toHaveLength(20)
+    // Phase 10: file listing + directory creation
+    expect(methods).toContain('listFiles')
+    expect(methods).toContain('mkdirp')
+    expect(methods).toHaveLength(22)
   })
 
   it('backend ZMQ server registers all expected commands', () => {
@@ -107,10 +110,15 @@ describe('IPC Contract', () => {
       'export_cancel',
       'export_start',
       'export_status',
+      'flatten',
       'flush_state',
+      'freeze_prefix',
       'ingest',
+      'invalidate_cache',
       'list_effects',
+      'memory_status',
       'ping',
+      'read_freeze',
       'render_composite',
       'render_frame',
       'seek',

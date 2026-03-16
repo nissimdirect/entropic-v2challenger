@@ -1,0 +1,53 @@
+{
+  "id": "factory-09082e5d",
+  "name": "Cyberpunk Neon",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "color",
+    "glitch"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-4569e6cc",
+        "effectId": "fx.posterize",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "levels": 5
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-273df3a2",
+        "effectId": "fx.hue_shift",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "shift": 280
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-afe84617",
+        "effectId": "fx.sharpen",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 2.0
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

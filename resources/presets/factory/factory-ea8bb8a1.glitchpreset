@@ -1,0 +1,41 @@
+{
+  "id": "factory-ea8bb8a1",
+  "name": "Datamosh Lite",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "glitch",
+    "destruction"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-d9565a20",
+        "effectId": "fx.pixelate",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "block_size": 6
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-4022abbf",
+        "effectId": "fx.chromatic_aberration",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "offset": 8
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

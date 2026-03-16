@@ -6,7 +6,7 @@ contextBridge.exposeInMainWorld('entropic', {
   },
 
   onEngineStatus: (
-    callback: (data: { status: string; uptime?: number }) => void,
+    callback: (data: { status: string; uptime?: number; lastFrameMs?: number }) => void,
   ) => {
     ipcRenderer.on('engine-status', (_event, data) => callback(data))
   },
@@ -49,6 +49,14 @@ contextBridge.exposeInMainWorld('entropic', {
 
   deleteFile: (filePath: string): Promise<void> => {
     return ipcRenderer.invoke('file:delete', filePath)
+  },
+
+  listFiles: (dirPath: string, pattern?: string): Promise<string[]> => {
+    return ipcRenderer.invoke('file:list', dirPath, pattern)
+  },
+
+  mkdirp: (dirPath: string): Promise<void> => {
+    return ipcRenderer.invoke('file:mkdir', dirPath)
   },
 
   getAppPath: (name: string): Promise<string> => {

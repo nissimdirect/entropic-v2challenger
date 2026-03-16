@@ -1,0 +1,18 @@
+{
+  "id": "factory-39f87e8c",
+  "name": "Ripple",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.wave",
+    "parameters": {
+      "amplitude": 5,
+      "frequency": 10
+    },
+    "modulations": {}
+  }
+}

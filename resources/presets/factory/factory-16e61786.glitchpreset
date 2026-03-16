@@ -1,0 +1,18 @@
+{
+  "id": "factory-16e61786",
+  "name": "Blown Out",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.levels",
+    "parameters": {
+      "white": 0.3,
+      "gamma": 3.0
+    },
+    "modulations": {}
+  }
+}

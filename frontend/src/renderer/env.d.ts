@@ -13,7 +13,7 @@ interface Window {
   entropic: {
     getPathForFile: (file: File) => string
     onEngineStatus: (
-      callback: (data: { status: string; uptime?: number }) => void,
+      callback: (data: { status: string; uptime?: number; lastFrameMs?: number }) => void,
     ) => void
     sendCommand: (command: Record<string, unknown>) => Promise<Record<string, unknown>>
     selectFile: (filters: { name: string; extensions: string[] }[]) => Promise<string | null>
@@ -26,6 +26,8 @@ interface Window {
     readFile: (filePath: string) => Promise<string>
     writeFile: (filePath: string, data: string) => Promise<void>
     deleteFile: (filePath: string) => Promise<void>
+    listFiles: (dirPath: string, pattern?: string) => Promise<string[]>
+    mkdirp: (dirPath: string) => Promise<void>
     getAppPath: (name: string) => Promise<string>
     checkTelemetryConsent: () => Promise<boolean | null>
     setTelemetryConsent: (consent: boolean) => Promise<void>

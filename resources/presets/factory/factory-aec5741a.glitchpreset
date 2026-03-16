@@ -1,0 +1,19 @@
+{
+  "id": "factory-aec5741a",
+  "name": "Sepia Dream",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.color_balance",
+    "parameters": {
+      "red": 0.2,
+      "green": 0.1,
+      "blue": -0.1
+    },
+    "modulations": {}
+  }
+}

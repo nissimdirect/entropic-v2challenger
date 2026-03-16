@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Entropic Preset",
+  "description": "Schema for .glitchpreset files",
+  "type": "object",
+  "required": ["id", "name", "type", "created", "tags", "isFavorite"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "type": { "type": "string", "enum": ["single_effect", "effect_chain"] },
+    "created": { "type": "number" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 20
+    },
+    "isFavorite": { "type": "boolean" },
+    "effectData": {
+      "type": "object",
+      "properties": {
+        "effectId": { "type": "string" },
+        "parameters": { "type": "object" },
+        "modulations": { "type": "object" }
+      },
+      "required": ["effectId", "parameters"]
+    },
+    "chainData": {
+      "type": "object",
+      "properties": {
+        "effects": {
+          "type": "array",
+          "items": { "type": "object" },
+          "maxItems": 10
+        },
+        "macros": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["label", "effectIndex", "paramKey", "min", "max"],
+            "properties": {
+              "label": { "type": "string" },
+              "effectIndex": { "type": "integer", "minimum": 0 },
+              "paramKey": { "type": "string" },
+              "min": { "type": "number" },
+              "max": { "type": "number" }
+            }
+          }
+        }
+      },
+      "required": ["effects"]
+    }
+  },
+  "if": { "properties": { "type": { "const": "single_effect" } } },
+  "then": { "required": ["effectData"] },
+  "else": {
+    "if": { "properties": { "type": { "const": "effect_chain" } } },
+    "then": { "required": ["chainData"] }
+  }
+}

@@ -1,0 +1,55 @@
+{
+  "id": "factory-d21ae2d9",
+  "name": "VHS Nostalgia",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "glitch",
+    "color",
+    "temporal"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-ef9388a5",
+        "effectId": "fx.chromatic_aberration",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "offset": 3
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-206a7d95",
+        "effectId": "fx.scanlines",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "spacing": 3,
+          "intensity": 0.4
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-8841f219",
+        "effectId": "fx.noise",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 0.15
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

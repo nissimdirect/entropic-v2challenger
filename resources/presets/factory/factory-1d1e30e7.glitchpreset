@@ -1,0 +1,17 @@
+{
+  "id": "factory-1d1e30e7",
+  "name": "Mirror V",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.mirror",
+    "parameters": {
+      "axis": "vertical"
+    },
+    "modulations": {}
+  }
+}

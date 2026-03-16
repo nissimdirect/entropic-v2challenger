@@ -1,0 +1,17 @@
+{
+  "id": "factory-5e4f1d26",
+  "name": "Soft Blur",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "temporal"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.blur",
+    "parameters": {
+      "radius": 3
+    },
+    "modulations": {}
+  }
+}

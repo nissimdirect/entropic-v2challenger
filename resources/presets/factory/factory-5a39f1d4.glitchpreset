@@ -1,0 +1,18 @@
+{
+  "id": "factory-5a39f1d4",
+  "name": "Overexpose",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.levels",
+    "parameters": {
+      "white": 0.5,
+      "gamma": 2.0
+    },
+    "modulations": {}
+  }
+}

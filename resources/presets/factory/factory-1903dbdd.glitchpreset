@@ -1,0 +1,17 @@
+{
+  "id": "factory-1903dbdd",
+  "name": "Bit Crush 4",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.posterize",
+    "parameters": {
+      "levels": 4
+    },
+    "modulations": {}
+  }
+}
