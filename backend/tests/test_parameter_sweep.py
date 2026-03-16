@@ -204,6 +204,11 @@ class TestParameterSweep:
         # Consolidated effects share PARAMS across all modes — variant-specific
         # params have no impact when a different mode is active.
         CONSOLIDATED_EFFECTS = {
+            # subliminal variants — mode/source-dependent params, probabilistic trigger
+            "fx.subliminal",
+            "fx.subliminal_flash",
+            "fx.subliminal_embed",
+            "fx.subliminal_spray",
             # lens_distortion variants
             "fx.lens_distortion",
             "fx.fisheye",

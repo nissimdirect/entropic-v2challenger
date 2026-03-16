@@ -22,6 +22,8 @@ from engine.codecs import (
 from engine.gif_export import export_gif_from_generator
 from engine.image_sequence import export_image_sequence_from_generator
 from engine.pipeline import apply_chain
+from engine.text_renderer import render_text_frame
+from video.image_reader import ImageReader, is_image_file
 from video.reader import VideoReader
 from video.writer import VideoWriter
 
@@ -101,6 +103,7 @@ class ExportManager:
         chain: list[dict],
         project_seed: int,
         settings: dict | None = None,
+        text_layers: list[dict] | None = None,
     ) -> ExportJob:
         """Start a background export. Returns the job for status tracking.
 
@@ -132,7 +135,15 @@ class ExportManager:
 
         thread = threading.Thread(
             target=self._run_export,
-            args=(job, input_path, output_path, chain, project_seed, merged),
+            args=(
+                job,
+                input_path,
+                output_path,
+                chain,
+                project_seed,
+                merged,
+                text_layers or [],
+            ),
             daemon=True,
         )
         job._thread = thread
@@ -235,11 +246,15 @@ class ExportManager:
         chain: list[dict],
         project_seed: int,
         settings: dict,
+        text_layers: list[dict] | None = None,
     ):
         reader = None
         writer = None
         try:
-            reader = VideoReader(input_path)
+            if is_image_file(input_path):
+                reader = ImageReader(input_path)
+            else:
+                reader = VideoReader(input_path)
             source_w, source_h = reader.width, reader.height
             source_fps = reader.fps
 
@@ -332,6 +347,12 @@ class ExportManager:
                     frame, chain, project_seed, src_idx, resolution, states
                 )
 
+                # Composite text layers on top of the processed frame
+                if text_layers:
+                    output = self._composite_text_layers(
+                        output, text_layers, resolution, src_idx, source_fps
+                    )
+
                 if needs_resize:
                     output = cv2.resize(
                         output,
@@ -377,6 +398,49 @@ class ExportManager:
                         os.unlink(output_path)
                 except OSError:
                     pass  # best-effort cleanup
+
+    # ------------------------------------------------------------------
+    # Text layer compositing for export
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _composite_text_layers(
+        frame: np.ndarray,
+        text_layers: list[dict],
+        resolution: tuple[int, int],
+        frame_index: int,
+        fps: float,
+    ) -> np.ndarray:
+        """Render and alpha-composite text layers onto a video frame.
+
+        Each text layer can optionally include position_s and duration_s
+        for time-gated rendering (only render when frame is within range).
+        """
+        output = frame.copy()
+        current_time = frame_index / fps if fps > 0 else 0.0
+        for tl in text_layers:
+            text_config = tl.get("text_config")
+            if not text_config:
+                continue
+            # Time-gate: skip if frame is outside this text layer's range
+            pos_s = tl.get("position_s")
+            dur_s = tl.get("duration_s")
+            if pos_s is not None and dur_s is not None:
+                if current_time < float(pos_s) or current_time >= float(pos_s) + float(
+                    dur_s
+                ):
+                    continue
+            opacity = float(tl.get("opacity", 1.0))
+            if opacity <= 0:
+                continue
+            text_frame = render_text_frame(text_config, resolution, frame_index, fps)
+            # Alpha composite: use text_frame alpha channel
+            alpha = text_frame[:, :, 3:4].astype(np.float32) / 255.0 * opacity
+            output[:, :, :3] = (
+                output[:, :, :3].astype(np.float32) * (1.0 - alpha)
+                + text_frame[:, :, :3].astype(np.float32) * alpha
+            ).astype(np.uint8)
+        return output
 
     # ------------------------------------------------------------------
     # GIF export

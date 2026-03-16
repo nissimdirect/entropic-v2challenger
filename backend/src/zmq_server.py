@@ -34,7 +34,9 @@ from audio.decoder import decode_audio
 from audio.clock import AVClock
 from audio.player import AudioPlayer
 from audio.waveform import compute_peaks
-from video.ingest import probe
+from engine.text_renderer import list_system_fonts, render_text_frame
+from video.image_reader import ImageReader, is_image_file
+from video.ingest import probe, probe_image
 from video.reader import VideoReader
 import diagnostics as _diagnostics_mod
 
@@ -54,7 +56,7 @@ class ZMQServer:
         self.start_time = time.time()
         self.running = False
         self.shm_writer: SharedMemoryWriter | None = None
-        self.readers: collections.OrderedDict[str, VideoReader] = (
+        self.readers: collections.OrderedDict[str, VideoReader | ImageReader] = (
             collections.OrderedDict()
         )
         self._max_readers = 10
@@ -208,6 +210,10 @@ class ZMQServer:
             return self._handle_apply_chain(message, msg_id)
         elif cmd == "list_effects":
             return {"id": msg_id, "ok": True, "effects": registry.list_all()}
+        elif cmd == "list_fonts":
+            return self._handle_list_fonts(msg_id)
+        elif cmd == "render_text_frame":
+            return self._handle_render_text_frame(message, msg_id)
         elif cmd == "audio_decode":
             return self._handle_audio_decode(message, msg_id)
         elif cmd == "waveform":
@@ -301,16 +307,20 @@ class ZMQServer:
         if errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
-        result = probe(path)
+        # Route to image or video probe based on extension
+        if is_image_file(path):
+            result = probe_image(path)
+        else:
+            result = probe(path)
         result["id"] = msg_id
 
-        # SEC-6: Validate frame count
+        # SEC-6: Validate frame count (videos only — images have frame_count=0)
         if result.get("ok") and result.get("frame_count", 0) > 0:
             fc_errors = validate_frame_count(result["frame_count"])
             if fc_errors:
                 return {"id": msg_id, "ok": False, "error": "; ".join(fc_errors)}
 
-        # Store reader for reuse
+        # Store reader for reuse (images use ImageReader)
         if result.get("ok"):
             self._get_reader(path)
 
@@ -531,15 +541,7 @@ class ZMQServer:
         try:
             layers = []
             for layer_info in raw_layers:
-                asset_path = layer_info.get("asset_path")
-                if not asset_path:
-                    continue
-
-                # SEC-5: Validate each asset path
-                errors = validate_upload(asset_path)
-                if errors:
-                    return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
-
+                layer_type = layer_info.get("layer_type", "video")
                 chain = layer_info.get("chain", [])
                 # SEC-7: Validate chain depth per layer
                 errors = validate_chain_depth(chain)
@@ -552,8 +554,26 @@ class ZMQServer:
                 )
                 blend_mode = layer_info.get("blend_mode", "normal")
 
-                reader = self._get_reader(asset_path)
-                frame = reader.decode_frame(frame_index)
+                if layer_type == "text":
+                    # Text layer — render text config to RGBA frame
+                    text_config = layer_info.get("text_config")
+                    if not text_config:
+                        continue
+                    fps = float(layer_info.get("fps", 30.0))
+                    frame = render_text_frame(
+                        text_config, tuple(resolution), frame_index, fps
+                    )
+                else:
+                    # Video/image layer — decode from asset
+                    asset_path = layer_info.get("asset_path")
+                    if not asset_path:
+                        continue
+                    # SEC-5: Validate each asset path
+                    errors = validate_upload(asset_path)
+                    if errors:
+                        return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+                    reader = self._get_reader(asset_path)
+                    frame = reader.decode_frame(frame_index)
 
                 layers.append(
                     {
@@ -879,6 +899,7 @@ class ZMQServer:
         chain = message.get("chain", [])
         project_seed = message.get("project_seed", 0)
         settings = message.get("settings", {})
+        text_layers = message.get("text_layers", [])
 
         if not input_path:
             return {"id": msg_id, "ok": False, "error": "missing input_path"}
@@ -910,7 +931,12 @@ class ZMQServer:
 
         try:
             self.export_manager.start(
-                input_path, output_path, chain, project_seed, settings=settings
+                input_path,
+                output_path,
+                chain,
+                project_seed,
+                settings=settings,
+                text_layers=text_layers or None,
             )
             return {"id": msg_id, "ok": True}
         except Exception as e:
@@ -1001,7 +1027,50 @@ class ZMQServer:
         is_valid = not check_cycle(edges, (new_edge[0], new_edge[1]))
         return {"id": msg_id, "ok": True, "is_valid": is_valid}
 
-    def _get_reader(self, path: str) -> VideoReader:
+    # --- Text rendering handlers ---
+
+    def _handle_list_fonts(self, msg_id: str | None) -> dict:
+        """Return enumerated system fonts (cached)."""
+        try:
+            fonts = list_system_fonts()
+            return {"id": msg_id, "ok": True, "fonts": fonts}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            return {"id": msg_id, "ok": False, "error": "Failed to enumerate fonts"}
+
+    def _handle_render_text_frame(self, message: dict, msg_id: str | None) -> dict:
+        """Render a text config to RGBA and return as base64 JPEG."""
+        text_config = message.get("text_config")
+        if not text_config or not isinstance(text_config, dict):
+            return {"id": msg_id, "ok": False, "error": "text_config required"}
+
+        raw_res = message.get("resolution", [1920, 1080])
+        resolution = [
+            max(1, min(8192, int(raw_res[0]))),
+            max(1, min(8192, int(raw_res[1]))),
+        ]
+        frame_index = max(0, int(message.get("frame_index", 0)))
+        fps = max(1.0, min(120.0, float(message.get("fps", 30.0))))
+
+        try:
+            t0 = time.time()
+            frame = render_text_frame(text_config, tuple(resolution), frame_index, fps)
+            jpeg_bytes = encode_mjpeg(frame)
+            frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
+            self.last_frame_ms = round((time.time() - t0) * 1000, 2)
+            return {
+                "id": msg_id,
+                "ok": True,
+                "frame_data": frame_b64,
+                "width": resolution[0],
+                "height": resolution[1],
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(f"Render text frame error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _get_reader(self, path: str) -> VideoReader | ImageReader:
         if path in self.readers:
             self.readers.move_to_end(path)
             return self.readers[path]
@@ -1009,7 +1078,10 @@ class ZMQServer:
         while len(self.readers) >= self._max_readers:
             _, oldest = self.readers.popitem(last=False)
             oldest.close()
-        reader = VideoReader(path)
+        if is_image_file(path):
+            reader: VideoReader | ImageReader = ImageReader(path)
+        else:
+            reader = VideoReader(path)
         self.readers[path] = reader
         return reader
 

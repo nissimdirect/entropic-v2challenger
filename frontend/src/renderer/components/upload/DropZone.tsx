@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv']
+const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
 
 interface DropZoneProps {
   onFileDrop: (path: string) => void
@@ -73,8 +73,8 @@ export default function DropZone({ onFileDrop, disabled }: DropZoneProps) {
     >
       <div className="drop-zone__content">
         <span className="drop-zone__icon">+</span>
-        <span className="drop-zone__text">Drop video file here</span>
-        <span className="drop-zone__hint">MP4, MOV, AVI, WebM, MKV</span>
+        <span className="drop-zone__text">Drop video or image file here</span>
+        <span className="drop-zone__hint">MP4, MOV, AVI, WebM, MKV, PNG, JPG, TIFF, WebP, BMP</span>
       </div>
       {error && <div className="drop-zone__error">{error}</div>}
     </div>

@@ -116,12 +116,22 @@ function validateProject(data: unknown): data is Project {
     if (typeof t.id !== 'string') return false
     if (typeof t.name !== 'string') return false
     if (!Array.isArray(t.clips)) return false
+    // Track type validation — accept video, performance, text
+    if (t.type !== undefined && typeof t.type === 'string') {
+      if (!['video', 'performance', 'text'].includes(t.type)) return false
+    }
     for (const clip of t.clips as unknown[]) {
       if (typeof clip !== 'object' || clip === null) return false
       const c = clip as Record<string, unknown>
       if (typeof c.id !== 'string') return false
       if (typeof c.position !== 'number' || !Number.isFinite(c.position as number)) return false
       if (typeof c.duration !== 'number' || !Number.isFinite(c.duration as number)) return false
+      // Text clip config validation
+      if (c.textConfig !== undefined) {
+        if (typeof c.textConfig !== 'object' || c.textConfig === null) return false
+        const tc = c.textConfig as Record<string, unknown>
+        if (typeof tc.text !== 'string') return false
+      }
     }
   }
 
@@ -177,7 +187,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate timeline tracks
   for (const track of project.timeline.tracks) {
     const tls = useTimelineStore.getState()
-    tls.addTrack(track.name, track.color)
+    tls.addTrack(track.name, track.color, track.type === 'text' ? 'text' : undefined)
     // Re-read state after addTrack to get the new track
     const freshTracks = useTimelineStore.getState().tracks
     const addedTrack = freshTracks[freshTracks.length - 1]

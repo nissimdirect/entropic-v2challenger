@@ -22,7 +22,7 @@ import Timeline from './components/timeline/Timeline'
 import HistoryPanel from './components/layout/HistoryPanel'
 import type { Asset, EffectInstance } from '../shared/types'
 import type { WaveformPeaks } from './components/transport/useWaveform'
-import { serializeEffectChain } from '../shared/ipc-serialize'
+import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
@@ -455,15 +455,53 @@ function AppInner() {
           ? evaluateAutomationOverrides(allLanes, currentTime, registry)
           : undefined
 
-        const res = await window.entropic.sendCommand({
-          cmd: 'render_frame',
-          path: activeAssetPath.current,
-          frame_index: frame,
-          chain: serializeEffectChain(chain),
-          project_seed: Date.now() % 2147483647,
-          ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
-          ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
-        })
+        // Check for active text clips at current time
+        const timelineState = useTimelineStore.getState()
+        const activeTextClips = timelineState.tracks
+          .filter((t) => t.type === 'text' && !t.isMuted)
+          .flatMap((t) => t.clips.filter((c) =>
+            c.textConfig && currentTime >= c.position && currentTime < c.position + c.duration,
+          ))
+
+        let res
+        if (activeTextClips.length > 0) {
+          // Use render_composite to layer video + text
+          const layers: Record<string, unknown>[] = [
+            {
+              layer_type: 'video',
+              asset_path: activeAssetPath.current,
+              frame_index: frame,
+              chain: serializeEffectChain(chain),
+              opacity: 1.0,
+              blend_mode: 'normal',
+            },
+            ...activeTextClips.map((clip) => ({
+              layer_type: 'text',
+              text_config: serializeTextConfig(clip.textConfig!),
+              frame_index: Math.max(0, Math.round((currentTime - clip.position) * (timelineState.tracks[0]?.clips[0]?.speed ?? 30))),
+              fps: 30,
+              chain: [],
+              opacity: clip.textConfig!.opacity,
+              blend_mode: 'normal',
+            })),
+          ]
+          res = await window.entropic.sendCommand({
+            cmd: 'render_composite',
+            layers,
+            resolution: [frameWidth || 1920, frameHeight || 1080],
+            project_seed: Date.now() % 2147483647,
+          })
+        } else {
+          res = await window.entropic.sendCommand({
+            cmd: 'render_frame',
+            path: activeAssetPath.current,
+            frame_index: frame,
+            chain: serializeEffectChain(chain),
+            project_seed: Date.now() % 2147483647,
+            ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
+            ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
+          })
+        }
 
         if (res.ok && res.frame_data) {
           setFrameDataUrl(`data:image/jpeg;base64,${res.frame_data as string}`)
@@ -774,12 +812,26 @@ function AppInner() {
       setExportEta(null)
       setExportOutputPath(settings.outputPath)
 
+      // Collect text layers for export compositing
+      const exportTextLayers = useTimelineStore.getState().tracks
+        .filter((t) => t.type === 'text' && !t.isMuted)
+        .flatMap((t) => t.clips
+          .filter((c) => c.textConfig)
+          .map((c) => ({
+            text_config: serializeTextConfig(c.textConfig!),
+            opacity: c.textConfig!.opacity,
+            position_s: c.position,
+            duration_s: c.duration,
+          })),
+        )
+
       const res = await window.entropic.sendCommand({
         cmd: 'export_start',
         input_path: activeAssetPath.current,
         output_path: settings.outputPath,
         chain: serializeEffectChain(effectChain),
         project_seed: 42,
+        ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
         settings: {
           codec: settings.codec,
           resolution: settings.resolution,
@@ -884,18 +936,16 @@ function AppInner() {
     ? registry.find((r) => r.id === selectedEffect.effectId) ?? null
     : null
 
-  // Derive selected text clip (if any)
-  const selectedTextClip = (() => {
-    const timeline = useTimelineStore.getState()
-    const clipIds = timeline.selectedClipIds
-    if (clipIds.length !== 1) return null
-    for (const track of timeline.tracks) {
+  // Derive selected text clip via Zustand selector (reactive — re-renders on change)
+  const selectedTextClip = useTimelineStore((s) => {
+    if (s.selectedClipIds.length !== 1) return null
+    for (const track of s.tracks) {
       if (track.type !== 'text') continue
-      const clip = track.clips.find((c) => c.id === clipIds[0])
+      const clip = track.clips.find((c) => c.id === s.selectedClipIds[0])
       if (clip?.textConfig) return clip
     }
     return null
-  })()
+  })
 
   // Determine playback state: audio-driven or timer-driven
   const isPlaying = hasAudio ? audioStore.isPlaying : isTimerPlaying
@@ -1063,7 +1113,21 @@ function AppInner() {
 
       <div className="app__main">
         <div className="app__preview">
-          <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          <div
+            style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}
+            onClick={(e) => {
+              // Click-to-place text: if a text track is selected but no text clip exists at playhead, create one
+              const tl = useTimelineStore.getState()
+              const selTrack = tl.tracks.find((t) => t.id === tl.selectedTrackId)
+              if (!selTrack || selTrack.type !== 'text') return
+              if (!selectedTextClip) {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                const relX = Math.round(((e.clientX - rect.left) / rect.width) * (frameWidth || 1920))
+                const relY = Math.round(((e.clientY - rect.top) / rect.height) * (frameHeight || 1080))
+                tl.addTextClip(selTrack.id, { text: 'Text', fontFamily: 'Helvetica', fontSize: 48, color: '#ffffff', position: [relX, relY], alignment: 'left', opacity: 1.0, strokeWidth: 0, strokeColor: '#000000', shadowOffset: [0, 0], shadowColor: '#00000080', animation: 'none', animationDuration: 1.0 }, tl.playheadTime, 5)
+              }
+            }}
+          >
             <PreviewCanvas
               frameDataUrl={frameDataUrl}
               width={frameWidth}

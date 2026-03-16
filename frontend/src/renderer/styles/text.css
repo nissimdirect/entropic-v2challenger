@@ -1,0 +1,260 @@
+/* Text panel — sidebar for text clip properties */
+
+.text-panel {
+  padding: 12px;
+  border-top: 1px solid #333;
+}
+
+.text-panel__header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #888;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.text-panel__section {
+  margin-bottom: 10px;
+}
+
+.text-panel__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.text-panel__value {
+  color: #4ade80;
+  float: right;
+}
+
+.text-panel__textarea {
+  width: 100%;
+  padding: 6px 8px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+  outline: none;
+  min-height: 48px;
+}
+
+.text-panel__textarea:focus {
+  border-color: #4ade80;
+}
+
+.text-panel__select {
+  width: 100%;
+  padding: 5px 8px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.text-panel__select:focus {
+  border-color: #4ade80;
+}
+
+.text-panel__row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.text-panel__field {
+  flex: 1;
+}
+
+.text-panel__number {
+  width: 100%;
+  padding: 4px 6px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  outline: none;
+}
+
+.text-panel__number:focus {
+  border-color: #4ade80;
+}
+
+.text-panel__color {
+  width: 100%;
+  height: 26px;
+  padding: 0;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.text-panel__color::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.text-panel__color::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.text-panel__alignment {
+  display: flex;
+  gap: 2px;
+}
+
+.text-panel__align-btn {
+  flex: 1;
+  padding: 4px;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.text-panel__align-btn:hover {
+  background: #444;
+  color: #e0e0e0;
+}
+
+.text-panel__align-btn--active {
+  background: #4ade80;
+  color: #1a1a1a;
+  border-color: #4ade80;
+}
+
+.text-panel__slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #333;
+  border-radius: 2px;
+  outline: none;
+}
+
+.text-panel__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: #4ade80;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.text-panel__divider {
+  height: 1px;
+  background: #333;
+  margin: 12px 0;
+}
+
+/* Text overlay — draggable bounding box on preview canvas */
+
+.text-overlay {
+  position: absolute;
+  cursor: move;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.text-overlay--dragging {
+  cursor: grabbing;
+}
+
+.text-overlay--editing {
+  cursor: text;
+}
+
+.text-overlay__box {
+  border: 1px dashed rgba(74, 222, 128, 0.5);
+  border-radius: 2px;
+  padding: 4px 8px;
+  min-width: 40px;
+  min-height: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  transition: border-color 0.15s;
+}
+
+.text-overlay:hover .text-overlay__box {
+  border-color: #4ade80;
+}
+
+.text-overlay--editing .text-overlay__box {
+  border-style: solid;
+  border-color: #4ade80;
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.text-overlay__preview {
+  font-family: sans-serif;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+.text-overlay__edit {
+  font-family: sans-serif;
+  outline: none;
+  min-width: 60px;
+  white-space: pre-wrap;
+}
+
+/* Timeline text track icon */
+
+.timeline-track__icon--text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: #6366f1;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Add Text Track button variant */
+
+.timeline__add-track-btn--text {
+  background: #6366f1;
+  border-color: #818cf8;
+  color: #fff;
+}
+
+.timeline__add-track-btn--text:hover {
+  background: #818cf8;
+}
+
+/* Timeline text clip appearance */
+
+.clip--text {
+  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+  border: 1px solid #818cf8;
+}
+
+.clip__name--text {
+  font-style: italic;
+}

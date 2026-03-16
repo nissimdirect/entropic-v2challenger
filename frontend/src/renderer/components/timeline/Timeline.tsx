@@ -56,6 +56,10 @@ export default function Timeline({ onSeek }: TimelineProps) {
     useTimelineStore.getState().addTrack(`Track ${tracks.length + 1}`, color)
   }, [tracks.length])
 
+  const handleAddTextTrack = useCallback(() => {
+    useTimelineStore.getState().addTextTrack(`Text ${tracks.filter((t) => t.type === 'text').length + 1}`, '#6366f1')
+  }, [tracks])
+
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     useTimelineStore.getState().setScrollX(e.currentTarget.scrollLeft)
   }, [])
@@ -84,6 +88,9 @@ export default function Timeline({ onSeek }: TimelineProps) {
           <button className="timeline__add-track-btn" onClick={handleAddTrack}>
             + Add Track
           </button>
+          <button className="timeline__add-track-btn timeline__add-track-btn--text" onClick={handleAddTextTrack}>
+            T Add Text Track
+          </button>
         </div>
         <div className="timeline__footer">
           <ZoomScroll zoom={zoom} onZoomChange={handleZoomChange} />
@@ -104,8 +111,11 @@ export default function Timeline({ onSeek }: TimelineProps) {
         {/* Left: track headers */}
         <div className="timeline__headers">
           <div className="timeline__headers-spacer">
-            <button className="timeline__add-track-btn" onClick={handleAddTrack}>
-              + Add
+            <button className="timeline__add-track-btn" onClick={handleAddTrack} title="Add video track">
+              +
+            </button>
+            <button className="timeline__add-track-btn timeline__add-track-btn--text" onClick={handleAddTextTrack} title="Add text track">
+              T
             </button>
           </div>
           <div className="timeline__track-headers">
