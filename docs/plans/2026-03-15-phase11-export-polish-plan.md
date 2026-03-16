@@ -210,7 +210,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Welcome Screen
 
-- [ ] **11-4-1** Create `WelcomeScreen.tsx`
+- [x] **11-4-1** Create `WelcomeScreen.tsx`
   - Shows on launch when no project is open
   - Recent projects list (from `~/.entropic/recent-projects.json`)
   - Buttons: "New Project", "Open Project", "Open Recent"
@@ -226,7 +226,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Tooltips
 
-- [ ] **11-4-3** Create `Tooltip.tsx` — unified tooltip component
+- [x] **11-4-3** Create `Tooltip.tsx` — unified tooltip component
   - Props: `text`, `shortcut?`, `description?`, `position` (auto, top, bottom, left, right)
   - Shows on hover after 500ms delay
   - Displays: name + keyboard shortcut (if any from registry) + description
@@ -241,13 +241,13 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Loading + Error States
 
-- [ ] **11-4-5** Create `Spinner.tsx` and `Skeleton.tsx`
+- [x] **11-4-5** Create `Spinner.tsx` and `Skeleton.tsx`
   - Spinner: CSS-only rotating circle, 3 sizes (sm/md/lg)
   - Skeleton: pulsing placeholder rectangles for content loading
   - Used in: effect browser (loading registry), preset browser (loading presets), export (encoding)
   - **Files:** `frontend/src/renderer/components/common/Spinner.tsx` (new, ~20 lines), `frontend/src/renderer/components/common/Skeleton.tsx` (new, ~25 lines)
 
-- [ ] **11-4-6** Create `ErrorBoundary.tsx` — global error catch
+- [x] **11-4-6** Create `ErrorBoundary.tsx` — global error catch
   - React error boundary wrapping entire app
   - On error: friendly message with "Reload App" button
   - Log error to `~/.entropic/logs/renderer-error.log`
@@ -255,7 +255,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Recovery: reload window via `window.location.reload()`
   - **Files:** `frontend/src/renderer/components/layout/ErrorBoundary.tsx` (new, ~50 lines)
 
-- [ ] **11-4-7** Create `ErrorMessage.tsx` — inline error display
+- [x] **11-4-7** Create `ErrorMessage.tsx` — inline error display
   - For non-fatal errors: toast-like inline message with recovery suggestion
   - Examples: "Export failed — disk full. Free space and try again."
   - Pattern: `{ message, recoveryAction?, severity: 'warning' | 'error' }`
@@ -279,7 +279,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### About Dialog
 
-- [ ] **11-4-10** Create `AboutDialog.tsx`
+- [x] **11-4-10** Create `AboutDialog.tsx`
   - App name, version (from package.json), logo
   - Credits: "Built by PopChaos Labs"
   - Links: GitHub repo, documentation
@@ -297,7 +297,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Polish CSS
 
-- [ ] **11-4-12** Polish pass CSS
+- [x] **11-4-12** Polish pass CSS
   - Welcome screen styling (dark, centered, modern)
   - Tooltip styling (dark bg, light text, subtle shadow)
   - Spinner/skeleton animations (CSS keyframes)
@@ -307,7 +307,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Tests
 
-- [ ] **11-4-13** Component tests
+- [x] **11-4-13** Component tests
   - `welcome-screen.test.ts`: renders recent projects, click opens project
   - `tooltip.test.ts`: shows on hover, displays shortcut from registry
   - `error-boundary.test.ts`: catches error → shows recovery message
