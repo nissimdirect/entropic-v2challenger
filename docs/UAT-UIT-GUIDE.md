@@ -511,7 +511,7 @@ If `npm run start` fails:
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
-| 185 | Open export | Click the Export button in the status bar (there is NO Cmd+E shortcut) | Export dialog appears | [ ] |
+| 185 | Open export | Click the Export button in the status bar OR press Cmd+E | Export dialog appears | [ ] |
 | 186 | Codec selector | Look at dialog | Can choose codec (H.264 at minimum) | [ ] |
 | 187 | Resolution options | Look at dialog | Can choose resolution (original or custom) | [ ] |
 | 188 | Output path | Look at dialog | Can choose where to save the exported file | [ ] |
@@ -524,7 +524,7 @@ If `npm run start` fails:
 | 190 | Progress updates | Watch during export | Progress percentage increases (not stuck) | [ ] |
 | 191 | Export completes | Wait for 100% | Success message appears | [ ] |
 | 192 | Output file exists | Check the output location | Exported video file is there | [ ] |
-| 193 | Play exported video | Open exported file in QuickTime/VLC | Video plays with effects baked in. NOTE: export is VIDEO-ONLY (no audio re-encoding) — silence is expected | [ ] |
+| 193 | Play exported video | Open exported file in QuickTime/VLC | Video plays with effects baked in. If "Include Audio" was checked, audio should be present | [ ] |
 
 ### 10.3 Export with Effects
 
@@ -1089,10 +1089,10 @@ If `npm run start` fails:
 | Feature | Status | What You'll See |
 |---------|--------|-----------------|
 | Menu bar (File/Edit/View) | NOT BUILT | No menu bar — all interactions via buttons + keyboard shortcuts |
-| Dirty state prompt on close | NOT BUILT | Closing app loses unsaved work without warning |
-| Auto-save | PARTIALLY WIRED | May not work — depends on `file:write` IPC handler which may be missing |
-| Audio in export | NOT BUILT | Exports are video-only (H.264), no audio re-encoding |
-| Cmd+E (export shortcut) | NOT BUILT | No keyboard shortcut for export — use the button |
+| Dirty state prompt on close | PARTIAL | `*` dirty indicator in title bar exists, but no modal prompt on close |
+| Auto-save | WIRED | Autosave fires on mount, cleans on manual save, crash recovery dialog on reload |
+| Audio in export | BUILT (Phase 11) | `includeAudio` option in Export dialog — audio muxing via ffmpeg |
+| Cmd+E (export shortcut) | BUILT (Phase 11) | `meta+e` registered in `default-shortcuts.ts` |
 | Track rename | MAY NOT BE WIRED | TrackHeader may not have inline rename UI |
 | Track delete | MAY NOT BE WIRED | May require a specific interaction (not just a button) |
 | Track reorder | MAY NOT BE WIRED | Drag-to-reorder tracks may not have UI yet |
@@ -1158,8 +1158,8 @@ When you find something broken, record it with this format:
 
 These features are **not yet built** — do NOT test them:
 
-- ProRes / H.265 export codecs (Phase 11)
-- Automation grouping across params (Phase 11)
+- ~~ProRes / H.265 export codecs~~ **NOW BUILT** — H.265, ProRes 422, ProRes 4444 in ExportDialog
+- Automation grouping across params (post-launch)
 - Per-node velocity/tension (post-launch)
 - Automation on operator params (post-launch)
 
