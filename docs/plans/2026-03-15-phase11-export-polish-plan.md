@@ -144,7 +144,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Keyboard Shortcut System
 
-- [ ] **11-3-1** Create `frontend/src/renderer/utils/shortcuts.ts` — shortcut registry
+- [x] **11-3-1** Create `frontend/src/renderer/utils/shortcuts.ts` — shortcut registry
   - `ShortcutRegistry` class: maps action names to key combos
   - Default shortcuts loaded from `default-shortcuts.ts`
   - User overrides stored in `~/.entropic/shortcuts.json` (via preload fs access)
@@ -154,7 +154,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Respects context: "normal" mode vs "perform" mode vs "text-input" mode
   - **Files:** `frontend/src/renderer/utils/shortcuts.ts` (new, ~120 lines)
 
-- [ ] **11-3-2** Create `frontend/src/renderer/utils/default-shortcuts.ts`
+- [x] **11-3-2** Create `frontend/src/renderer/utils/default-shortcuts.ts`
   - NLE-convention defaults (from PHASE-11.md spec):
   - Transport: Space (play/pause), J/K/L (scrub), Escape (stop)
   - Timeline: Cmd+Shift+K (split), Delete (delete clip), Cmd+T (new track)
@@ -171,7 +171,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Perform mode context handled by registry (pads only fire in perform context)
   - **Files:** `frontend/src/renderer/App.tsx` (remove ~160 lines, add ~10 lines)
 
-- [ ] **11-3-4** Create `ShortcutEditor.tsx` — customization UI
+- [x] **11-3-4** Create `ShortcutEditor.tsx` — customization UI
   - Table: Action | Default Key | Current Key | Reset
   - Click on "Current Key" cell → enters capture mode → press new key → saves
   - Conflict warning if key already bound
@@ -181,7 +181,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Preferences Panel
 
-- [ ] **11-3-5** Create `Preferences.tsx` — settings panel (modal or sidebar)
+- [x] **11-3-5** Create `Preferences.tsx` — settings panel (modal or sidebar)
   - Tabs: General, Shortcuts, Performance, Paths
   - General: theme (dark only v1, grayed light option), language (English only v1)
   - Shortcuts: embed ShortcutEditor component
@@ -196,7 +196,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Add to preload: `readPreferences()`, `writePreferences(data)`
   - **Files:** `frontend/src/preload/index.ts` (add 2 methods), `frontend/src/renderer/stores/settings.ts` (expand)
 
-- [ ] **11-3-7** Shortcut + preferences tests
+- [x] **11-3-7** Shortcut + preferences tests
   - `shortcuts.test.ts`: register/unregister, conflict detection, context filtering
   - `shortcuts.test.ts`: user override persists, reset restores defaults
   - `shortcut-editor.test.ts`: capture mode, conflict warning display
