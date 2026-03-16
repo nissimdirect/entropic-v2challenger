@@ -32,6 +32,15 @@ export default async function globalSetup(): Promise<void> {
     // Nothing to clean
   }
 
+  // Suppress macOS "reopen windows" dialog caused by SIGKILL teardown
+  try {
+    execSync('defaults write com.apple.CrashReporter DialogType none 2>/dev/null || true', {
+      stdio: 'ignore',
+    })
+  } catch {
+    // Non-macOS or permission issue — fine
+  }
+
   // Small delay to let OS reclaim ports
   await new Promise((resolve) => setTimeout(resolve, 500))
 }

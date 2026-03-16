@@ -11,6 +11,7 @@ interface ImportMeta {
 
 interface Window {
   entropic: {
+    isTestMode: boolean
     getPathForFile: (file: File) => string
     onEngineStatus: (
       callback: (data: { status: string; uptime?: number; lastFrameMs?: number }) => void,

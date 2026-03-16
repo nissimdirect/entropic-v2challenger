@@ -12,6 +12,8 @@ import EffectBrowser from './components/effects/EffectBrowser'
 import EffectRack from './components/effects/EffectRack'
 import ParamPanel from './components/effects/ParamPanel'
 import PreviewCanvas, { type PreviewState } from './components/preview/PreviewCanvas'
+import TextPanel from './components/text/TextPanel'
+import TextOverlay from './components/text/TextOverlay'
 import PreviewControls from './components/preview/PreviewControls'
 import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
@@ -63,6 +65,7 @@ import './styles/automation.css'
 import './styles/library.css'
 import './styles/toast.css'
 import './styles/export.css'
+import './styles/text.css'
 import WelcomeScreen from './components/layout/WelcomeScreen'
 import Preferences from './components/layout/Preferences'
 import AboutDialog from './components/layout/AboutDialog'
@@ -572,10 +575,13 @@ function AppInner() {
 
       if (res.ok) {
         const assetHasAudio = res.has_audio as boolean
+        const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
+        const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
+        const isImage = IMAGE_EXTS.includes(ext)
         const asset: Asset = {
           id: randomUUID(),
           path,
-          type: 'video',
+          type: isImage ? 'image' : 'video',
           meta: {
             width: res.width as number,
             height: res.height as number,
@@ -586,10 +592,10 @@ function AppInner() {
           },
         }
         addAsset(asset)
-        setTotalFrames(res.frame_count as number)
+        setTotalFrames(isImage ? 1 : (res.frame_count as number))
         setFrameWidth(res.width as number)
         setFrameHeight(res.height as number)
-        setActiveFps(res.fps as number)
+        setActiveFps(isImage ? 30 : (res.fps as number))
         activeAssetPath.current = path
         setCurrentFrame(0)
         setHasAudio(assetHasAudio)
@@ -619,7 +625,7 @@ function AppInner() {
         setPreviewState('empty')
         useToastStore.getState().addToast({
           level: 'error',
-          message: 'Video ingest failed',
+          message: 'Media ingest failed',
           source: 'ingest',
           details: res.error as string,
         })
@@ -822,7 +828,7 @@ function AppInner() {
   }, [exportJobId])
 
   // Global window drop handler — accepts video drops anywhere
-  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv']
+  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
 
   const dragCountRef = useRef(0)
 
@@ -877,6 +883,19 @@ function AppInner() {
   const selectedEffectInfo = selectedEffect
     ? registry.find((r) => r.id === selectedEffect.effectId) ?? null
     : null
+
+  // Derive selected text clip (if any)
+  const selectedTextClip = (() => {
+    const timeline = useTimelineStore.getState()
+    const clipIds = timeline.selectedClipIds
+    if (clipIds.length !== 1) return null
+    for (const track of timeline.tracks) {
+      if (track.type !== 'text') continue
+      const clip = track.clips.find((c) => c.id === clipIds[0])
+      if (clip?.textConfig) return clip
+    }
+    return null
+  })()
 
   // Determine playback state: audio-driven or timer-driven
   const isPlaying = hasAudio ? audioStore.isPlaying : isTimerPlaying
@@ -1044,14 +1063,25 @@ function AppInner() {
 
       <div className="app__main">
         <div className="app__preview">
-          <PreviewCanvas
-            frameDataUrl={frameDataUrl}
-            width={frameWidth}
-            height={frameHeight}
-            previewState={previewState}
-            renderError={renderError}
-            onRetry={handleRenderRetry}
-          />
+          <div style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <PreviewCanvas
+              frameDataUrl={frameDataUrl}
+              width={frameWidth}
+              height={frameHeight}
+              previewState={previewState}
+              renderError={renderError}
+              onRetry={handleRenderRetry}
+            />
+            {selectedTextClip?.textConfig && (
+              <TextOverlay
+                config={selectedTextClip.textConfig}
+                canvasWidth={frameWidth}
+                canvasHeight={frameHeight}
+                onUpdatePosition={(pos) => useTimelineStore.getState().updateTextConfig(selectedTextClip.id, { position: pos })}
+                onUpdateText={(text) => useTimelineStore.getState().updateTextConfig(selectedTextClip.id, { text })}
+              />
+            )}
+          </div>
           <PreviewControls
             currentFrame={currentFrame}
             totalFrames={totalFrames}
@@ -1113,6 +1143,12 @@ function AppInner() {
                 : undefined
             }
           />
+          {selectedTextClip?.textConfig && (
+            <TextPanel
+              config={selectedTextClip.textConfig}
+              onUpdate={(changes) => useTimelineStore.getState().updateTextConfig(selectedTextClip.id, changes)}
+            />
+          )}
         </div>
         <ExportProgress
           isExporting={isExporting}
@@ -1235,11 +1271,11 @@ function AppInner() {
       />
 
       <TelemetryConsentDialog
-        isOpen={consentChecked && telemetryConsent === null}
+        isOpen={consentChecked && telemetryConsent === null && !window.entropic?.isTestMode}
         onDecision={handleConsentDecision}
       />
 
-      {startupChecked && (crashReports.length > 0 || autosavePath !== null) && (
+      {startupChecked && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
         <CrashRecoveryDialog
           isOpen={true}
           crashCount={crashReports.length}
@@ -1286,7 +1322,7 @@ function AppInner() {
       )}
 
       <WelcomeScreen
-        isVisible={!hasAssets}
+        isVisible={!hasAssets && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
         onNewProject={newProject}
         onOpenProject={loadProject}

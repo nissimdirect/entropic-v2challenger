@@ -427,6 +427,34 @@ All 7 integration tests require a running app with video loaded. Cannot verify f
 | 2 | No Before/After toggle (backslash hold to show original) | 3, 12 | #29, #216 | P2 | NEW |
 | 3 | No fuzzy search in effect browser (substring only) | 4 | #34 | P3 | NEW |
 
+### Bugs Found (E2E Testing)
+
+| # | Bug | Section | Test # | Severity | Status |
+|---|-----|---------|--------|----------|--------|
+| 4 | CSP blocked `data:` image URIs — `default-src 'self'` missing `img-src 'self' data:`. Canvas stayed black after import. `Image.onload` never fired. | 3 | #20-21 | **P0** | **FIXED** — added `img-src 'self' data:` to CSP in `main/index.ts:178` |
+| 5 | Video playback doesn't advance frames — audio plays (beep heard) but video stays on frame 0. Clock sync loop (`audioStore.syncClock` → `targetFrame`) may not be advancing. `requestRenderFrame` may be stuck with `isRenderingRef.current = true`. | 3 | #22-23 | **P1** | NEW — needs investigation. Not caused by today's changes (playback pipeline untouched). |
+| 6 | Transport controls (play button, scrub bar) hidden — TextOverlay wrapper div (`<div style="position: relative">`) lacked `flex: 1; minHeight: 0; overflow: hidden`, causing preview canvas to push controls offscreen. | 3, 11 | #22, #198 | **P1** | **FIXED** — added flex/overflow constraints to wrapper div in `App.tsx:1066` |
+
+### E2E Test Infrastructure Fixes
+
+| Fix | File | What |
+|-----|------|------|
+| Dialog suppression in test mode | `preload/index.ts`, `App.tsx` | `isTestMode` flag skips welcome screen, telemetry consent, crash recovery dialogs when `NODE_ENV=test` |
+| Multi-signal `waitForFrame` | `tests/e2e/fixtures/test-helpers.ts` | Checks `dataset.frameReady`, canvas pixel data, and canvas dimensions (3 signals) |
+| macOS crash dialog suppression | `tests/e2e/global-setup.ts` | `defaults write com.apple.CrashReporter DialogType none` |
+| CSP `img-src data:` | `main/index.ts` | Allows base64 JPEG frames in preview canvas |
+
+### E2E Suite Status (Post-Fixes)
+
+| Category | Before Fixes | After Fixes |
+|----------|-------------|-------------|
+| App launch tests | 9/9 pass | 9/9 pass |
+| Watchdog tests | 3/4 pass | 3/4 pass (1 flaky) |
+| Import tests | 0/5 pass | 5/5 pass |
+| Frame-dependent tests | 0/17 pass | TBD (CSP fixed, needs re-run) |
+| Security tests | all pass | all pass |
+| **Total** | **17/34 pass** | **TBD** |
+
 ### Doc Inaccuracies in UAT Guide (Need Fixing)
 
 | # | Location | Says | Should Say |
