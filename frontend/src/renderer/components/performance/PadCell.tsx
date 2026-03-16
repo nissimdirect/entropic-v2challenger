@@ -48,6 +48,9 @@ export default function PadCell({ pad, runtimeState, onTrigger, onRelease, onEdi
           style={{ background: CHOKE_COLORS[(pad.chokeGroup - 1) % CHOKE_COLORS.length] }}
         />
       )}
+      {pad.midiNote !== null && pad.midiNote !== undefined && (
+        <span className="pad-cell__midi-dot" />
+      )}
     </div>
   );
 }

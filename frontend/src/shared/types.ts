@@ -16,6 +16,7 @@ export interface Project {
   timeline: Timeline;
   drumRack?: DrumRack;
   operators?: Operator[];
+  midiMappings?: MIDIPersistData;
 }
 
 export interface ProjectSettings {
@@ -201,6 +202,7 @@ export interface Pad {
   id: string;
   label: string;
   keyBinding: string | null; // KeyboardEvent.code
+  midiNote: number | null;   // MIDI note number (0-127)
   mode: PadMode;
   chokeGroup: number | null;
   envelope: ADSREnvelope;
@@ -219,6 +221,31 @@ export interface PadRuntimeState {
   releaseFrame: number;
   currentValue: number;
   releaseStartValue: number;
+}
+
+// --- MIDI (Phase 9) ---
+
+export interface CCMapping {
+  cc: number;         // MIDI CC number (0-127)
+  effectId: string;   // target effect instance id
+  paramKey: string;   // target param key
+}
+
+export interface MIDIDevice {
+  id: string;
+  name: string;
+  manufacturer: string;
+  state: string;
+}
+
+export type LearnTarget =
+  | { type: 'pad'; padId: string }
+  | { type: 'cc'; effectId: string; paramKey: string };
+
+export interface MIDIPersistData {
+  padMidiNotes: Record<string, number | null>; // padId → midiNote
+  ccMappings: CCMapping[];
+  channelFilter: number | null; // 0-15 or null (all)
 }
 
 // --- Operators (Phase 6A) ---

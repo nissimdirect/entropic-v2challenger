@@ -6,6 +6,7 @@ import ParamToggle from './ParamToggle'
 import ParamMix from './ParamMix'
 import { useAutomationStore } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
+import { useMIDIStore } from '../../stores/midi'
 import { recordPoint } from '../../utils/automation-record'
 
 interface ParamPanelProps {
@@ -66,21 +67,43 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
   const renderKnob = (key: string, def: ParamDef) => {
     const value = effect.parameters[key] ?? def.default
     const ghostValue = modulatedValues?.[key] ?? (value as number)
+
+    // Check if this param has a CC mapping
+    const midiStore = useMIDIStore.getState()
+    const hasCCMapping = midiStore.ccMappings.some(
+      (m) => m.effectId === effect.id && m.paramKey === key
+    )
+
     return (
-      <Knob
+      <div
         key={key}
-        value={value as number}
-        min={def.min ?? 0}
-        max={def.max ?? 1}
-        default={def.default as number}
-        label={def.label}
-        type={def.type as 'float' | 'int'}
-        unit={def.unit}
-        curve={def.curve}
-        description={def.description}
-        ghostValue={ghostValue}
-        onChange={(v) => handleKnobChange(effect.id, key, def, v)}
-      />
+        style={{ position: 'relative' }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          useMIDIStore.getState().setLearnTarget({
+            type: 'cc',
+            effectId: effect.id,
+            paramKey: key,
+          })
+        }}
+      >
+        <Knob
+          value={value as number}
+          min={def.min ?? 0}
+          max={def.max ?? 1}
+          default={def.default as number}
+          label={def.label}
+          type={def.type as 'float' | 'int'}
+          unit={def.unit}
+          curve={def.curve}
+          description={def.description}
+          ghostValue={ghostValue}
+          onChange={(v) => handleKnobChange(effect.id, key, def, v)}
+        />
+        {hasCCMapping && (
+          <span className="param-panel__cc-badge">CC</span>
+        )}
+      </div>
     )
   }
 

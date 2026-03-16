@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePerformanceStore } from '../../stores/performance';
+import { useMIDIStore } from '../../stores/midi';
 import { ADSR_PRESETS, RESERVED_KEYS, codeToLabel } from '../../../shared/constants';
+import { midiNoteToName } from '../../../shared/midi-utils';
 import type { EffectInstance, EffectInfo, ModulationRoute, PadMode } from '../../../shared/types';
 
 interface PadEditorProps {
@@ -115,6 +117,29 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
           {keyError && (
             <div style={{ fontSize: 11, color: '#ef4444', marginTop: -4 }}>{keyError}</div>
           )}
+
+          {/* MIDI Note */}
+          <div className="export-dialog__field">
+            <label style={{ color: '#aaa', fontSize: 12, minWidth: 70 }}>MIDI:</label>
+            <button
+              className="file-dialog-btn"
+              onClick={() => {
+                useMIDIStore.getState().setLearnTarget({ type: 'pad', padId });
+              }}
+              style={{ flex: 1, textAlign: 'center' }}
+            >
+              {pad.midiNote !== null && pad.midiNote !== undefined
+                ? midiNoteToName(pad.midiNote)
+                : 'Learn...'}
+            </button>
+            {pad.midiNote !== null && pad.midiNote !== undefined && (
+              <button
+                className="effect-card__remove"
+                onClick={() => updatePad(padId, { midiNote: null })}
+                title="Clear MIDI note"
+              >×</button>
+            )}
+          </div>
 
           {/* Mode */}
           <div className="export-dialog__field">

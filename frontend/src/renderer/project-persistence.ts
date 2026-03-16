@@ -3,13 +3,14 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
 import { useUndoStore } from './stores/undo'
 import { usePerformanceStore } from './stores/performance'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
+import { useMIDIStore } from './stores/midi'
 import { randomUUID } from './utils'
 
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
@@ -43,7 +44,9 @@ function serializeProject(): string {
   const operatorStore = useOperatorStore.getState()
   const automationStore = useAutomationStore.getState()
 
-  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> } = {
+  const midiStore = useMIDIStore.getState()
+
+  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -56,6 +59,7 @@ function serializeProject(): string {
     drumRack: performanceStore.drumRack,
     operators: operatorStore.operators,
     automationLanes: automationStore.lanes,
+    midiMappings: midiStore.getMIDIPersistData(),
   }
 
   return JSON.stringify(project, null, 2)
@@ -103,10 +107,18 @@ function validateProject(data: unknown): data is Project {
     if (!Array.isArray(obj.operators)) return false
   }
 
+  // P9: Optional midiMappings validation
+  if ('midiMappings' in obj && obj.midiMappings !== undefined) {
+    const midi = obj.midiMappings as Record<string, unknown>
+    if (typeof midi !== 'object' || midi === null) return false
+    if (midi.ccMappings !== undefined && !Array.isArray(midi.ccMappings)) return false
+    if (midi.padMidiNotes !== undefined && (typeof midi.padMidiNotes !== 'object' || midi.padMidiNotes === null)) return false
+  }
+
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -118,6 +130,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   usePerformanceStore.getState().resetDrumRack()
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
+  useMIDIStore.getState().resetMIDI()
 
   // Hydrate assets
   for (const asset of Object.values(project.assets)) {
@@ -178,6 +191,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   if (project.automationLanes && typeof project.automationLanes === 'object') {
     useAutomationStore.getState().loadAutomation(project.automationLanes)
   }
+
+  // Hydrate MIDI mappings (backward compat: missing = empty)
+  if (project.midiMappings && typeof project.midiMappings === 'object') {
+    useMIDIStore.getState().loadMIDIMappings(project.midiMappings)
+  }
 }
 
 export async function saveProject(): Promise<boolean> {
@@ -232,7 +250,7 @@ export async function loadProject(): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData })
 
     const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
     useProjectStore.getState().setProjectPath(filePath)
@@ -252,6 +270,7 @@ export function newProject(): void {
   usePerformanceStore.getState().resetDrumRack()
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
+  useMIDIStore.getState().resetMIDI()
 }
 
 export function startAutosave(): void {
@@ -319,7 +338,7 @@ export async function restoreAutosave(path: string): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]> })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData })
 
     // Delete autosave after successful restore
     try {
