@@ -35,15 +35,21 @@ def apply(
     block_size = max(4, min(64, int(params.get("block_size", 8))))
 
     h, w = frame.shape[:2]
-    rgb = frame[:, :, :3].copy()
+    rgb = frame[:, :, :3].astype(np.float32)
     alpha = frame[:, :, 3:4]
 
-    for y in range(0, h, block_size):
-        for x in range(0, w, block_size):
-            by = min(y + block_size, h)
-            bx = min(x + block_size, w)
-            block = rgb[y:by, x:bx]
-            avg = block.mean(axis=(0, 1)).astype(np.uint8)
-            rgb[y:by, x:bx] = avg
+    # Vectorized: pad to multiple of block_size, reshape to blocks, mean, tile back
+    pad_h = (block_size - h % block_size) % block_size
+    pad_w = (block_size - w % block_size) % block_size
+    if pad_h or pad_w:
+        rgb = np.pad(rgb, ((0, pad_h), (0, pad_w), (0, 0)), mode="edge")
+    ph, pw = rgb.shape[:2]
+    nby, nbx = ph // block_size, pw // block_size
+    # Reshape to (nby, bs, nbx, bs, 3) -> (nby, nbx, bs, bs, 3) -> mean over (bs, bs)
+    blocks = rgb.reshape(nby, block_size, nbx, block_size, 3).transpose(0, 2, 1, 3, 4)
+    avgs = blocks.mean(axis=(2, 3), keepdims=True)  # (nby, nbx, 1, 1, 3)
+    filled = np.broadcast_to(avgs, blocks.shape)
+    result = filled.transpose(0, 2, 1, 3, 4).reshape(ph, pw, 3)
+    result_rgb = np.clip(result[:h, :w], 0, 255).astype(np.uint8)
 
-    return np.concatenate([rgb, alpha], axis=2), None
+    return np.concatenate([result_rgb, alpha], axis=2), None

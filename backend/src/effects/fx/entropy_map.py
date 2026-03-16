@@ -105,14 +105,30 @@ def apply(
             + 0.114 * rgb[:, :, 2].astype(np.float32)
         ).astype(np.uint8)
 
-        entropy_blocks = np.zeros((h, w), dtype=np.float32)
-        for y in range(0, h, block_size):
-            for x in range(0, w, block_size):
-                by = min(y + block_size, h)
-                bx = min(x + block_size, w)
-                block = luma[y:by, x:bx]
-                e = _shannon_entropy(block) / 8.0
-                entropy_blocks[y:by, x:bx] = e
+        # Vectorized entropy computation via reshape
+        pad_h = (block_size - h % block_size) % block_size
+        pad_w = (block_size - w % block_size) % block_size
+        luma_padded = (
+            np.pad(luma, ((0, pad_h), (0, pad_w)), mode="edge")
+            if (pad_h or pad_w)
+            else luma
+        )
+        ph, pw = luma_padded.shape
+        nby, nbx = ph // block_size, pw // block_size
+        blocks = luma_padded.reshape(nby, block_size, nbx, block_size).transpose(
+            0, 2, 1, 3
+        )
+        # Compute entropy per block (flatten blocks, histogram per block)
+        flat_blocks = blocks.reshape(nby, nbx, -1)  # (nby, nbx, bs*bs)
+        entropy_vals = np.zeros((nby, nbx), dtype=np.float32)
+        for i in range(nby):
+            for j in range(nbx):
+                entropy_vals[i, j] = _shannon_entropy(flat_blocks[i, j]) / 8.0
+        # Tile entropy values back to full resolution
+        entropy_tiled = np.repeat(
+            np.repeat(entropy_vals, block_size, axis=0), block_size, axis=1
+        )
+        entropy_blocks = entropy_tiled[:h, :w]
 
         entropy_rgb = _apply_colormap(entropy_blocks, colormap)
 
