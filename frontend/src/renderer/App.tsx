@@ -20,6 +20,7 @@ import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
 import HistoryPanel from './components/layout/HistoryPanel'
+import DeviceChain from './components/device-chain/DeviceChain'
 import type { Asset, EffectInstance } from '../shared/types'
 import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
@@ -66,6 +67,7 @@ import './styles/library.css'
 import './styles/toast.css'
 import './styles/export.css'
 import './styles/text.css'
+import './styles/device-chain.css'
 import WelcomeScreen from './components/layout/WelcomeScreen'
 import Preferences from './components/layout/Preferences'
 import AboutDialog from './components/layout/AboutDialog'
@@ -1268,6 +1270,11 @@ function AppInner() {
         registry={registry}
         operatorValues={operatorValues}
       />
+
+      {/* Phase 13: Ableton-style Device Chain */}
+      <div className="app__device-chain">
+        <DeviceChain />
+      </div>
 
       <div className="status-bar">
         <div className="status-bar__left">
