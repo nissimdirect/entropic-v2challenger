@@ -88,7 +88,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Export Dialog Expansion
 
-- [ ] **11-2-1** Redesign `ExportDialog.tsx`
+- [x] **11-2-1** Redesign `ExportDialog.tsx`
   - Codec dropdown: H.264, H.265, ProRes 422, ProRes 4444 (grayed if unavailable)
   - Resolution dropdown: Source, 720p, 1080p, 4K, Custom (width/height inputs)
   - FPS dropdown: Source, 24, 25, 30, 60
@@ -101,7 +101,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Image Sequence tab: format dropdown (PNG, JPEG, TIFF)
   - **Files:** `frontend/src/renderer/components/export/ExportDialog.tsx` (rewrite, ~200 lines)
 
-- [ ] **11-2-2** Redesign `ExportProgress.tsx`
+- [x] **11-2-2** Redesign `ExportProgress.tsx`
   - Progress bar with percentage
   - Current frame / total frames counter
   - ETA display (from backend status)
@@ -110,7 +110,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Output file path display
   - **Files:** `frontend/src/renderer/components/export/ExportProgress.tsx` (rewrite, ~80 lines)
 
-- [ ] **11-2-3** Create `RenderQueue.tsx` — batch export queue
+- [x] **11-2-3** Create `RenderQueue.tsx` — batch export queue
   - List of queued export jobs with status badges (Queued, Rendering, Complete, Failed, Cancelled)
   - Add to queue: "Export" button in ExportDialog adds job instead of starting immediately
   - "Start Queue" button processes jobs sequentially
@@ -118,18 +118,18 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Persistent across app session (stored in project store)
   - **Files:** `frontend/src/renderer/components/export/RenderQueue.tsx` (new, ~120 lines)
 
-- [ ] **11-2-4** Export store (if needed)
+- [x] **11-2-4** Export store (if needed)
   - Queue state: `jobs: ExportJob[]`, `currentJobIndex: number | null`, `isProcessing: boolean`
   - Actions: `addJob(settings)`, `removeJob(id)`, `startQueue()`, `cancelCurrent()`
   - Alternatively: manage in project store (decide during implementation)
   - **Files:** `frontend/src/renderer/stores/export.ts` (new, ~60 lines) OR extend project.ts
 
-- [ ] **11-2-5** Export CSS
+- [x] **11-2-5** Export CSS
   - Dialog: tabs at top, form fields stacked, preview of output settings summary
   - Queue: vertical list, job cards with status colors (#4ade80 complete, #3b82f6 rendering, #ef4444 failed)
   - **Files:** `frontend/src/renderer/styles/export.css` (new or expand, ~100 lines)
 
-- [ ] **11-2-6** Export UI tests
+- [x] **11-2-6** Export UI tests
   - `export-dialog.test.ts`: codec dropdown shows available codecs, resolution/fps selectors work
   - `export-dialog.test.ts`: GIF tab limits resolution, shows dithering toggle
   - `export-progress.test.ts`: progress bar updates, ETA displays, cancel works

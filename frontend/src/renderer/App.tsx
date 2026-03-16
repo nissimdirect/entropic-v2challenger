@@ -59,6 +59,7 @@ import './styles/operators.css'
 import './styles/automation.css'
 import './styles/library.css'
 import './styles/toast.css'
+import './styles/export.css'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -1131,6 +1132,10 @@ function AppInner() {
         <ExportProgress
           isExporting={isExporting}
           progress={exportProgress}
+          currentFrame={0}
+          totalFrames={totalFrames}
+          etaSeconds={null}
+          outputPath={null}
           error={exportError}
           onCancel={handleExportCancel}
         />
@@ -1218,6 +1223,11 @@ function AppInner() {
       <ExportDialog
         isOpen={showExportDialog}
         totalFrames={totalFrames}
+        sourceWidth={frameWidth}
+        sourceHeight={frameHeight}
+        sourceFps={activeFps}
+        loopIn={null}
+        loopOut={null}
         onExport={handleExport}
         onClose={() => setShowExportDialog(false)}
       />

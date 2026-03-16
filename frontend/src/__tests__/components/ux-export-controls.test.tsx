@@ -21,6 +21,29 @@ import type { EffectInfo, EffectInstance } from '../../shared/types'
 
 // --- Shared test data ---
 
+const DIALOG_DEFAULTS = {
+  isOpen: true,
+  totalFrames: 300,
+  sourceWidth: 1920,
+  sourceHeight: 1080,
+  sourceFps: 30,
+  loopIn: null as number | null,
+  loopOut: null as number | null,
+  onExport: vi.fn(),
+  onClose: vi.fn(),
+}
+
+const PROGRESS_DEFAULTS = {
+  isExporting: false,
+  progress: 0,
+  currentFrame: 0,
+  totalFrames: 300,
+  etaSeconds: null as number | null,
+  outputPath: null as string | null,
+  error: null as string | null,
+  onCancel: vi.fn(),
+}
+
 const smallRegistry: EffectInfo[] = [
   { id: 'fx.invert', name: 'Invert', category: 'color', params: {} },
   { id: 'fx.blur', name: 'Blur', category: 'distortion', params: {} },
@@ -52,27 +75,21 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
   })
 
   test('18. Open export → Close → Reopen → Settings are fresh defaults', () => {
-    const onExport = vi.fn()
     const onClose = vi.fn()
 
     const { rerender } = render(
-      <ExportDialog
-        isOpen={true}
-        totalFrames={300}
-        onExport={onExport}
-        onClose={onClose}
-      />,
+      <ExportDialog {...DIALOG_DEFAULTS} onClose={onClose} />,
     )
 
     // Dialog visible
     expect(document.querySelector('.export-dialog')).toBeTruthy()
 
-    // Default codec label
-    expect(document.querySelector('.export-dialog__codec-label')?.textContent).toContain('H.264')
+    // Default codec select = h264
+    const codecSelect = document.querySelector('.export-dialog__select') as HTMLSelectElement
+    expect(codecSelect.value).toBe('h264')
 
-    // "Use original resolution" checkbox should be checked
-    const checkbox = document.querySelector('input[type="checkbox"]') as HTMLInputElement
-    expect(checkbox?.checked).toBe(true)
+    // Video tab active by default
+    expect(document.querySelector('.export-dialog__tab--active')?.textContent).toBe('Video')
 
     // Close dialog
     fireEvent.click(document.querySelector('.export-dialog__close')!)
@@ -80,12 +97,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
 
     // Simulate closing
     rerender(
-      <ExportDialog
-        isOpen={false}
-        totalFrames={300}
-        onExport={onExport}
-        onClose={onClose}
-      />,
+      <ExportDialog {...DIALOG_DEFAULTS} isOpen={false} onClose={onClose} />,
     )
 
     // Dialog should be gone
@@ -93,18 +105,13 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
 
     // Reopen — fresh mount = fresh defaults
     rerender(
-      <ExportDialog
-        isOpen={true}
-        totalFrames={300}
-        onExport={onExport}
-        onClose={onClose}
-      />,
+      <ExportDialog {...DIALOG_DEFAULTS} onClose={onClose} />,
     )
 
     // Settings should be fresh defaults
-    expect(document.querySelector('.export-dialog__codec-label')?.textContent).toContain('H.264')
-    const checkboxReopen = document.querySelector('input[type="checkbox"]') as HTMLInputElement
-    expect(checkboxReopen?.checked).toBe(true)
+    const codecSelectReopen = document.querySelector('.export-dialog__select') as HTMLSelectElement
+    expect(codecSelectReopen.value).toBe('h264')
+    expect(document.querySelector('.export-dialog__tab--active')?.textContent).toBe('Video')
   })
 
   test('19. Export progress → Cancel → Dialog fresh on reopen', () => {
@@ -112,9 +119,10 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
 
     const { rerender } = render(
       <ExportProgress
+        {...PROGRESS_DEFAULTS}
         isExporting={true}
         progress={0.35}
-        error={null}
+        currentFrame={52}
         onCancel={onCancel}
       />,
     )
@@ -123,18 +131,13 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
     expect(document.querySelector('.export-progress__bar')).toBeTruthy()
     expect(document.querySelector('.export-progress__cancel')).toBeTruthy()
 
-    // Cancel
+    // Cancel (progress < 0.5 so no confirmation needed)
     fireEvent.click(document.querySelector('.export-progress__cancel')!)
     expect(onCancel).toHaveBeenCalled()
 
     // Simulate cancelled state (not exporting, progress reset)
     rerender(
-      <ExportProgress
-        isExporting={false}
-        progress={0}
-        error={null}
-        onCancel={onCancel}
-      />,
+      <ExportProgress {...PROGRESS_DEFAULTS} onCancel={onCancel} />,
     )
 
     // Progress UI should be gone
@@ -143,9 +146,6 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
   })
 
   test('20. Export with 0 effects and 2 effects both render dialog correctly', () => {
-    const onExport = vi.fn()
-    const onClose = vi.fn()
-
     // Export with 0 effects
     const { rerender } = render(
       <>
@@ -158,12 +158,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
           onRemove={vi.fn()}
           onReorder={vi.fn()}
         />
-        <ExportDialog
-          isOpen={true}
-          totalFrames={300}
-          onExport={onExport}
-          onClose={onClose}
-        />
+        <ExportDialog {...DIALOG_DEFAULTS} />
       </>,
     )
 
@@ -188,12 +183,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
           onRemove={vi.fn()}
           onReorder={vi.fn()}
         />
-        <ExportDialog
-          isOpen={true}
-          totalFrames={300}
-          onExport={onExport}
-          onClose={onClose}
-        />
+        <ExportDialog {...DIALOG_DEFAULTS} />
       </>,
     )
 
@@ -217,12 +207,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
           onSeek={vi.fn()}
           onPlayPause={onPlayPause}
         />
-        <ExportDialog
-          isOpen={true}
-          totalFrames={300}
-          onExport={vi.fn()}
-          onClose={onClose}
-        />
+        <ExportDialog {...DIALOG_DEFAULTS} onClose={onClose} />
       </>,
     )
 

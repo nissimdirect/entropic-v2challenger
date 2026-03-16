@@ -13,6 +13,29 @@ import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropi
 import ExportDialog from '../../renderer/components/export/ExportDialog'
 import ExportProgress from '../../renderer/components/export/ExportProgress'
 
+const DIALOG_DEFAULTS = {
+  isOpen: true,
+  totalFrames: 300,
+  sourceWidth: 1920,
+  sourceHeight: 1080,
+  sourceFps: 30,
+  loopIn: null as number | null,
+  loopOut: null as number | null,
+  onExport: vi.fn(),
+  onClose: vi.fn(),
+}
+
+const PROGRESS_DEFAULTS = {
+  isExporting: false,
+  progress: 0,
+  currentFrame: 0,
+  totalFrames: 300,
+  etaSeconds: null as number | null,
+  outputPath: null as string | null,
+  error: null as string | null,
+  onCancel: vi.fn(),
+}
+
 describe('Export — Idle States', () => {
   beforeEach(() => {
     setupMockEntropic()
@@ -24,27 +47,12 @@ describe('Export — Idle States', () => {
   })
 
   test('10. export dialog not rendered when isOpen=false', () => {
-    render(
-      <ExportDialog
-        isOpen={false}
-        totalFrames={300}
-        onExport={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    )
-
+    render(<ExportDialog {...DIALOG_DEFAULTS} isOpen={false} />)
     expect(document.querySelector('.export-dialog')).toBeNull()
   })
 
   test('12. export progress returns null when idle (not exporting, no error, progress < 1)', () => {
-    render(
-      <ExportProgress
-        isExporting={false}
-        progress={0}
-        error={null}
-        onCancel={vi.fn()}
-      />,
-    )
+    render(<ExportProgress {...PROGRESS_DEFAULTS} />)
 
     expect(document.querySelector('.export-progress')).toBeNull()
     expect(document.querySelector('.export-progress__bar-container')).toBeNull()
@@ -54,10 +62,10 @@ describe('Export — Idle States', () => {
   test('13. export progress bar visible during export', () => {
     render(
       <ExportProgress
+        {...PROGRESS_DEFAULTS}
         isExporting={true}
         progress={0.5}
-        error={null}
-        onCancel={vi.fn()}
+        currentFrame={150}
       />,
     )
 
@@ -71,12 +79,7 @@ describe('Export — Idle States', () => {
 
   test('14. export error shown when error present', () => {
     render(
-      <ExportProgress
-        isExporting={false}
-        progress={0}
-        error="Encoding failed"
-        onCancel={vi.fn()}
-      />,
+      <ExportProgress {...PROGRESS_DEFAULTS} error="Encoding failed" />,
     )
 
     const errorEl = document.querySelector('.export-progress__error')
@@ -87,10 +90,10 @@ describe('Export — Idle States', () => {
   test('export complete message shown when done', () => {
     render(
       <ExportProgress
-        isExporting={false}
+        {...PROGRESS_DEFAULTS}
         progress={1}
-        error={null}
-        onCancel={vi.fn()}
+        currentFrame={300}
+        outputPath="/Users/test/output.mp4"
       />,
     )
 
@@ -99,17 +102,10 @@ describe('Export — Idle States', () => {
     expect(doneEl?.textContent).toContain('Export complete')
   })
 
-  test('export dialog shows total frames count', () => {
-    render(
-      <ExportDialog
-        isOpen={true}
-        totalFrames={750}
-        onExport={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    )
+  test('export dialog shows total frames count in region selector', () => {
+    render(<ExportDialog {...DIALOG_DEFAULTS} totalFrames={750} />)
 
-    // The dialog body should display the frame count
+    // The dialog body should display the frame count in the region selector
     const body = document.querySelector('.export-dialog__body')
     expect(body?.textContent).toContain('750')
   })
