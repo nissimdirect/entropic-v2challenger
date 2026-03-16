@@ -132,7 +132,7 @@ export default function PresetSaveDialog({
                 </button>
               </div>
               {macros.map((macro, i) => (
-                <div key={i} className="preset-save__macro-row">
+                <div key={`macro-${macro.effectIndex}-${macro.paramKey}`} className="preset-save__macro-row">
                   <input
                     className="preset-save__macro-label"
                     value={macro.label}

@@ -67,7 +67,7 @@ export default function RoutingLines({ operatorValues }: RoutingLinesProps) {
 
         return (
           <path
-            key={i}
+            key={`${line.opId}-${line.targetEffectId}-${line.targetParamKey}`}
             d={`M ${x1} ${y1} C ${x1 + 40} ${y1}, ${x2 - 40} ${y2}, ${x2} ${y2}`}
             fill="none"
             stroke={color}

@@ -90,7 +90,7 @@ export default function LFOEditor({ operator, effectChain, registry }: LFOEditor
           </button>
         </div>
         {operator.mappings.map((m, i) => (
-          <div key={i} className="operator-card__param-row">
+          <div key={`${m.targetEffectId}-${m.targetParamKey}`} className="operator-card__param-row">
             <span className="operator-card__param-label" style={{ fontSize: 9 }}>
               {m.targetParamKey}
             </span>

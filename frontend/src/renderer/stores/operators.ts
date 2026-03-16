@@ -84,17 +84,39 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
 
   removeOperator: (id) => {
     const oldOps = get().operators
-    const index = oldOps.findIndex((o) => o.id === id)
-    if (index === -1) return
-    const removed = oldOps[index]
+    const removedIdx = oldOps.findIndex((o) => o.id === id)
+    if (removedIdx === -1) return
+    const removed = oldOps[removedIdx]
+    // Capture neighboring ID for reinsertion position (survives reorder)
+    const prevId = removedIdx > 0 ? oldOps[removedIdx - 1].id : null
+
+    // Snapshot operators for undo (includes fusion source references)
+    const savedOps = oldOps.map((op) => ({ ...op, mappings: [...op.mappings] }))
 
     const forward = () => {
-      set({ operators: get().operators.filter((o) => o.id !== id) })
+      try {
+        // Remove the operator and clean fusion source references
+        const cleaned = get().operators
+          .filter((o) => o.id !== id)
+          .map((o) => {
+            if (o.type !== 'fusion') return o
+            const sources = String(o.parameters.sources ?? '')
+            const cleaned = sources
+              .split(',')
+              .map((s) => s.trim())
+              .filter((s) => s && s !== id)
+              .join(',')
+            return { ...o, parameters: { ...o.parameters, sources: cleaned } }
+          })
+        set({ operators: cleaned })
+      } catch {
+        // Fallback: just remove, don't crash
+        set({ operators: get().operators.filter((o) => o.id !== id) })
+      }
     }
     const inverse = () => {
-      const ops = [...get().operators]
-      ops.splice(index, 0, removed)
-      set({ operators: ops })
+      // Restore full snapshot (includes fusion sources)
+      set({ operators: savedOps })
     }
 
     useUndoStore.getState().execute({
@@ -107,20 +129,21 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
 
   updateOperator: (id, updates) => {
     const ops = get().operators
-    const index = ops.findIndex((o) => o.id === id)
-    if (index === -1) return
-    const oldOp = ops[index]
-    const newOp = { ...oldOp, ...updates }
+    const idx = ops.findIndex((o) => o.id === id)
+    if (idx === -1) return
+    const oldOp = ops[idx]
+    const { id: _ignoreId, ...safeUpdates } = updates as Record<string, unknown>
+    const newOp = { ...oldOp, ...safeUpdates, id: oldOp.id }
 
     const forward = () => {
-      const current = [...get().operators]
-      current[index] = newOp
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) => (o.id === id ? newOp : o)),
+      })
     }
     const inverse = () => {
-      const current = [...get().operators]
-      current[index] = oldOp
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) => (o.id === id ? oldOp : o)),
+      })
     }
 
     useUndoStore.getState().execute({
@@ -133,130 +156,144 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
 
   setOperatorEnabled: (id, enabled) => {
     const ops = get().operators
-    const index = ops.findIndex((o) => o.id === id)
-    if (index === -1) return
-    const oldEnabled = ops[index].isEnabled
+    const op = ops.find((o) => o.id === id)
+    if (!op) return
+    const oldEnabled = op.isEnabled
 
     const forward = () => {
-      const current = [...get().operators]
-      current[index] = { ...current[index], isEnabled: enabled }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) => (o.id === id ? { ...o, isEnabled: enabled } : o)),
+      })
     }
     const inverse = () => {
-      const current = [...get().operators]
-      current[index] = { ...current[index], isEnabled: oldEnabled }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) => (o.id === id ? { ...o, isEnabled: oldEnabled } : o)),
+      })
     }
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `${enabled ? 'Enable' : 'Disable'} ${ops[index].label}`,
+      description: `${enabled ? 'Enable' : 'Disable'} ${op.label}`,
       timestamp: Date.now(),
     })
   },
 
   addMapping: (operatorId, mapping) => {
-    const ops = get().operators
-    const index = ops.findIndex((o) => o.id === operatorId)
-    if (index === -1) return
-    const oldMappings = [...ops[index].mappings]
+    const op = get().operators.find((o) => o.id === operatorId)
+    if (!op) return
+    const oldMappings = [...op.mappings]
 
     const forward = () => {
-      const current = [...get().operators]
-      current[index] = {
-        ...current[index],
-        mappings: [...current[index].mappings, mapping],
-      }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) =>
+          o.id === operatorId ? { ...o, mappings: [...o.mappings, mapping] } : o,
+        ),
+      })
     }
     const inverse = () => {
-      const current = [...get().operators]
-      current[index] = { ...current[index], mappings: oldMappings }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) =>
+          o.id === operatorId ? { ...o, mappings: oldMappings } : o,
+        ),
+      })
     }
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `Add mapping to ${ops[index].label}`,
+      description: `Add mapping to ${op.label}`,
       timestamp: Date.now(),
     })
   },
 
   removeMapping: (operatorId, mappingIndex) => {
-    const ops = get().operators
-    const opIndex = ops.findIndex((o) => o.id === operatorId)
-    if (opIndex === -1) return
-    const oldMappings = [...ops[opIndex].mappings]
+    const op = get().operators.find((o) => o.id === operatorId)
+    if (!op) return
+    const oldMappings = [...op.mappings]
     if (mappingIndex < 0 || mappingIndex >= oldMappings.length) return
 
     const forward = () => {
-      const current = [...get().operators]
-      const newMappings = current[opIndex].mappings.filter((_, i) => i !== mappingIndex)
-      current[opIndex] = { ...current[opIndex], mappings: newMappings }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) =>
+          o.id === operatorId
+            ? { ...o, mappings: o.mappings.filter((_, i) => i !== mappingIndex) }
+            : o,
+        ),
+      })
     }
     const inverse = () => {
-      const current = [...get().operators]
-      current[opIndex] = { ...current[opIndex], mappings: oldMappings }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) =>
+          o.id === operatorId ? { ...o, mappings: oldMappings } : o,
+        ),
+      })
     }
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `Remove mapping from ${ops[opIndex].label}`,
+      description: `Remove mapping from ${op.label}`,
       timestamp: Date.now(),
     })
   },
 
   updateMapping: (operatorId, mappingIndex, updates) => {
-    const ops = get().operators
-    const opIndex = ops.findIndex((o) => o.id === operatorId)
-    if (opIndex === -1) return
-    const oldMappings = [...ops[opIndex].mappings]
+    const op = get().operators.find((o) => o.id === operatorId)
+    if (!op) return
+    const oldMappings = [...op.mappings]
     if (mappingIndex < 0 || mappingIndex >= oldMappings.length) return
     const newMapping = { ...oldMappings[mappingIndex], ...updates }
     const newMappings = [...oldMappings]
     newMappings[mappingIndex] = newMapping
 
     const forward = () => {
-      const current = [...get().operators]
-      current[opIndex] = { ...current[opIndex], mappings: newMappings }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) =>
+          o.id === operatorId ? { ...o, mappings: newMappings } : o,
+        ),
+      })
     }
     const inverse = () => {
-      const current = [...get().operators]
-      current[opIndex] = { ...current[opIndex], mappings: oldMappings }
-      set({ operators: current })
+      set({
+        operators: get().operators.map((o) =>
+          o.id === operatorId ? { ...o, mappings: oldMappings } : o,
+        ),
+      })
     }
 
     useUndoStore.getState().execute({
       forward,
       inverse,
-      description: `Update mapping on ${ops[opIndex].label}`,
+      description: `Update mapping on ${op.label}`,
       timestamp: Date.now(),
     })
   },
 
   reorderOperators: (fromIndex, toIndex) => {
-    const ops = [...get().operators]
+    const ops = get().operators
     if (fromIndex < 0 || fromIndex >= ops.length) return
     if (toIndex < 0 || toIndex >= ops.length) return
     if (fromIndex === toIndex) return
+    // Capture the full order by ID for undo (immune to subsequent reorders)
+    const oldOrder = ops.map((o) => o.id)
 
     const forward = () => {
       const current = [...get().operators]
-      const [moved] = current.splice(fromIndex, 1)
-      current.splice(toIndex, 0, moved)
+      const movedId = oldOrder[fromIndex]
+      const movedIdx = current.findIndex((o) => o.id === movedId)
+      if (movedIdx === -1) return
+      const [moved] = current.splice(movedIdx, 1)
+      current.splice(Math.min(toIndex, current.length), 0, moved)
       set({ operators: current })
     }
     const inverse = () => {
-      const current = [...get().operators]
-      const [moved] = current.splice(toIndex, 1)
-      current.splice(fromIndex, 0, moved)
-      set({ operators: current })
+      // Restore exact original order
+      const current = get().operators
+      const restored = oldOrder
+        .map((id) => current.find((o) => o.id === id))
+        .filter((o): o is Operator => o !== undefined)
+      set({ operators: restored })
     }
 
     useUndoStore.getState().execute({
@@ -272,7 +309,17 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
   },
 
   loadOperators: (operators) => {
-    set({ operators: [...operators] })
+    const valid = operators.filter((op): op is Operator => {
+      if (typeof op !== 'object' || op === null) return false
+      if (typeof op.id !== 'string' || !op.id) return false
+      if (typeof op.type !== 'string') return false
+      if (typeof op.isEnabled !== 'boolean') return false
+      if (typeof op.parameters !== 'object' || op.parameters === null) return false
+      if (!Array.isArray(op.processing)) return false
+      if (!Array.isArray(op.mappings)) return false
+      return true
+    })
+    set({ operators: valid })
   },
 
   getSerializedOperators: () => {

@@ -1,6 +1,9 @@
 import { create } from 'zustand'
 import type { Track, Clip, Marker, BlendMode } from '../../shared/types'
+import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
+import { undoable } from './undo'
+import { useToastStore } from './toast'
 
 interface TimelineState {
   // State
@@ -62,9 +65,9 @@ interface TimelineState {
   reset: () => void
 }
 
-function makeEmptyTrack(name: string, color: string): Track {
+function makeEmptyTrack(name: string, color: string, id?: string): Track {
   return {
-    id: randomUUID(),
+    id: id ?? randomUUID(),
     type: 'video',
     name,
     color,
@@ -106,218 +109,476 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   // --- Track actions ---
 
-  addTrack: (name, color) =>
-    set((state) => {
-      const track = makeEmptyTrack(name, color)
-      return { tracks: [...state.tracks, track] }
-    }),
+  addTrack: (name, color) => {
+    if (get().tracks.length >= LIMITS.MAX_TRACKS) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Track limit (${LIMITS.MAX_TRACKS}) reached`, source: 'timeline' })
+      return
+    }
+    const trackId = randomUUID()
+    const oldTracks = get().tracks
 
-  removeTrack: (id) =>
-    set((state) => {
-      const tracks = state.tracks.filter((t) => t.id !== id)
-      const selectedTrackId = state.selectedTrackId === id ? null : state.selectedTrackId
-      const selectedClipId =
-        state.selectedClipId &&
-        state.tracks.find((t) => t.id === id)?.clips.some((c) => c.id === state.selectedClipId)
-          ? null
-          : state.selectedClipId
-      return { tracks, selectedTrackId, selectedClipId, duration: recalcDuration(tracks) }
-    }),
+    undoable(
+      'Add track',
+      () => {
+        const track = makeEmptyTrack(name, color, trackId)
+        set({ tracks: [...get().tracks, track] })
+      },
+      () => {
+        const tracks = get().tracks.filter((t) => t.id !== trackId)
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
 
-  reorderTrack: (fromIdx, toIdx) =>
-    set((state) => {
-      if (fromIdx < 0 || fromIdx >= state.tracks.length) return state
-      if (toIdx < 0 || toIdx >= state.tracks.length) return state
-      const tracks = [...state.tracks]
-      const [moved] = tracks.splice(fromIdx, 1)
-      tracks.splice(toIdx, 0, moved)
-      return { tracks }
-    }),
+  removeTrack: (id) => {
+    const track = get().tracks.find((t) => t.id === id)
+    if (!track) return
+    // Capture full track for restoration
+    const removedTrack = { ...track, clips: [...track.clips], effectChain: [...track.effectChain], automationLanes: [...track.automationLanes] }
+    const prevId = (() => {
+      const idx = get().tracks.findIndex((t) => t.id === id)
+      return idx > 0 ? get().tracks[idx - 1].id : null
+    })()
 
-  setTrackOpacity: (id, opacity) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) =>
-        t.id === id ? { ...t, opacity: Math.max(0, Math.min(1, opacity)) } : t,
-      ),
-    })),
+    undoable(
+      `Remove track "${track.name}"`,
+      () => {
+        const state = get()
+        const tracks = state.tracks.filter((t) => t.id !== id)
+        const selectedTrackId = state.selectedTrackId === id ? null : state.selectedTrackId
+        const selectedClipId =
+          state.selectedClipId && track.clips.some((c) => c.id === state.selectedClipId)
+            ? null
+            : state.selectedClipId
+        set({ tracks, selectedTrackId, selectedClipId, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = [...get().tracks]
+        const insertIdx = prevId !== null ? tracks.findIndex((t) => t.id === prevId) + 1 : 0
+        tracks.splice(insertIdx, 0, removedTrack)
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
 
-  setTrackBlendMode: (id, mode) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) => (t.id === id ? { ...t, blendMode: mode } : t)),
-    })),
+  reorderTrack: (fromIdx, toIdx) => {
+    const tracks = get().tracks
+    if (fromIdx < 0 || fromIdx >= tracks.length) return
+    if (toIdx < 0 || toIdx >= tracks.length) return
+    if (fromIdx === toIdx) return
+    const oldOrder = tracks.map((t) => t.id)
 
-  toggleMute: (id) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) => (t.id === id ? { ...t, isMuted: !t.isMuted } : t)),
-    })),
+    undoable(
+      'Reorder tracks',
+      () => {
+        const current = [...get().tracks]
+        const [moved] = current.splice(fromIdx, 1)
+        current.splice(toIdx, 0, moved)
+        set({ tracks: current })
+      },
+      () => {
+        const current = get().tracks
+        const restored = oldOrder
+          .map((id) => current.find((t) => t.id === id))
+          .filter((t): t is Track => t !== undefined)
+        set({ tracks: restored })
+      },
+    )
+  },
 
-  toggleSolo: (id) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) => (t.id === id ? { ...t, isSoloed: !t.isSoloed } : t)),
-    })),
+  setTrackOpacity: (id, opacity) => {
+    const track = get().tracks.find((t) => t.id === id)
+    if (!track) return
+    const oldOpacity = track.opacity
+    const clamped = Math.max(0, Math.min(1, opacity))
 
-  renameTrack: (id, name) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) => (t.id === id ? { ...t, name } : t)),
-    })),
+    undoable(
+      `Set track opacity`,
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, opacity: clamped } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, opacity: oldOpacity } : t)) }),
+    )
+  },
+
+  setTrackBlendMode: (id, mode) => {
+    const track = get().tracks.find((t) => t.id === id)
+    if (!track) return
+    const oldMode = track.blendMode
+
+    undoable(
+      `Set blend mode`,
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, blendMode: mode } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, blendMode: oldMode } : t)) }),
+    )
+  },
+
+  toggleMute: (id) => {
+    const track = get().tracks.find((t) => t.id === id)
+    if (!track) return
+    const wasMuted = track.isMuted
+
+    undoable(
+      `${wasMuted ? 'Unmute' : 'Mute'} track`,
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, isMuted: !wasMuted } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, isMuted: wasMuted } : t)) }),
+    )
+  },
+
+  toggleSolo: (id) => {
+    const track = get().tracks.find((t) => t.id === id)
+    if (!track) return
+    const wasSoloed = track.isSoloed
+
+    undoable(
+      `${wasSoloed ? 'Unsolo' : 'Solo'} track`,
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, isSoloed: !wasSoloed } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, isSoloed: wasSoloed } : t)) }),
+    )
+  },
+
+  renameTrack: (id, name) => {
+    const track = get().tracks.find((t) => t.id === id)
+    if (!track) return
+    const oldName = track.name
+
+    undoable(
+      `Rename track`,
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, name } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, name: oldName } : t)) }),
+    )
+  },
 
   // --- Clip actions ---
 
-  addClip: (trackId, clip) =>
-    set((state) => {
-      const tracks = state.tracks.map((t) =>
-        t.id === trackId ? { ...t, clips: [...t.clips, { ...clip, trackId }] } : t,
-      )
-      return { tracks, duration: recalcDuration(tracks) }
-    }),
+  addClip: (trackId, clip) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (track && track.clips.length >= LIMITS.MAX_CLIPS_PER_TRACK) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Clip limit (${LIMITS.MAX_CLIPS_PER_TRACK}) reached`, source: 'timeline' })
+      return
+    }
+    const newClip = { ...clip, trackId }
 
-  removeClip: (clipId) =>
-    set((state) => {
-      const tracks = state.tracks.map((t) => ({
-        ...t,
-        clips: t.clips.filter((c) => c.id !== clipId),
-      }))
-      const selectedClipId = state.selectedClipId === clipId ? null : state.selectedClipId
-      return { tracks, selectedClipId, duration: recalcDuration(tracks) }
-    }),
+    undoable(
+      'Add clip',
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? { ...t, clips: [...t.clips, newClip] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? { ...t, clips: t.clips.filter((c) => c.id !== clip.id) } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
 
-  moveClip: (clipId, newTrackId, newPosition) =>
-    set((state) => {
-      let movedClip: Clip | null = null
-      // Remove from old track
-      let tracks = state.tracks.map((t) => {
-        const clip = t.clips.find((c) => c.id === clipId)
-        if (clip) {
-          movedClip = { ...clip, trackId: newTrackId, position: newPosition }
-          return { ...t, clips: t.clips.filter((c) => c.id !== clipId) }
-        }
-        return t
-      })
-      if (!movedClip) return state
-      // Add to new track
-      tracks = tracks.map((t) =>
-        t.id === newTrackId ? { ...t, clips: [...t.clips, movedClip!] } : t,
-      )
-      return { tracks, duration: recalcDuration(tracks) }
-    }),
+  removeClip: (clipId) => {
+    // Find the clip and its track for restoration
+    let removedClip: Clip | null = null
+    let removedFromTrackId: string | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) {
+        removedClip = { ...clip }
+        removedFromTrackId = track.id
+        break
+      }
+    }
+    if (!removedClip || !removedFromTrackId) return
 
-  trimClipIn: (clipId, newInPoint) =>
-    set((state) => {
-      const tracks = state.tracks.map((t) => ({
-        ...t,
-        clips: t.clips.map((c) => {
-          if (c.id !== clipId) return c
-          if (newInPoint < 0 || newInPoint >= c.outPoint) return c
-          const delta = newInPoint - c.inPoint
-          return {
-            ...c,
-            inPoint: newInPoint,
-            position: c.position + delta,
-            duration: c.duration - delta,
+    undoable(
+      'Remove clip',
+      () => {
+        const state = get()
+        const tracks = state.tracks.map((t) => ({
+          ...t,
+          clips: t.clips.filter((c) => c.id !== clipId),
+        }))
+        const selectedClipId = state.selectedClipId === clipId ? null : state.selectedClipId
+        set({ tracks, selectedClipId, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === removedFromTrackId ? { ...t, clips: [...t.clips, removedClip!] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  moveClip: (clipId, newTrackId, newPosition) => {
+    // Capture old state for undo
+    let oldClip: Clip | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) {
+        oldClip = { ...clip }
+        break
+      }
+    }
+    if (!oldClip) return
+    const oldTrackId = oldClip.trackId
+    const oldPosition = oldClip.position
+
+    undoable(
+      'Move clip',
+      () => {
+        let movedClip: Clip | null = null
+        let tracks = get().tracks.map((t) => {
+          const clip = t.clips.find((c) => c.id === clipId)
+          if (clip) {
+            movedClip = { ...clip, trackId: newTrackId, position: newPosition }
+            return { ...t, clips: t.clips.filter((c) => c.id !== clipId) }
           }
-        }),
-      }))
-      return { tracks, duration: recalcDuration(tracks) }
-    }),
-
-  trimClipOut: (clipId, newOutPoint) =>
-    set((state) => {
-      const tracks = state.tracks.map((t) => ({
-        ...t,
-        clips: t.clips.map((c) => {
-          if (c.id !== clipId) return c
-          if (newOutPoint <= c.inPoint) return c
-          return {
-            ...c,
-            outPoint: newOutPoint,
-            duration: newOutPoint - c.inPoint,
+          return t
+        })
+        if (!movedClip) return
+        tracks = tracks.map((t) =>
+          t.id === newTrackId ? { ...t, clips: [...t.clips, movedClip!] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        let movedBack: Clip | null = null
+        let tracks = get().tracks.map((t) => {
+          const clip = t.clips.find((c) => c.id === clipId)
+          if (clip) {
+            movedBack = { ...clip, trackId: oldTrackId, position: oldPosition }
+            return { ...t, clips: t.clips.filter((c) => c.id !== clipId) }
           }
-        }),
-      }))
-      return { tracks, duration: recalcDuration(tracks) }
-    }),
+          return t
+        })
+        if (!movedBack) return
+        tracks = tracks.map((t) =>
+          t.id === oldTrackId ? { ...t, clips: [...t.clips, movedBack!] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
 
-  splitClip: (clipId, time) =>
-    set((state) => {
-      const tracks = state.tracks.map((t) => {
-        const clipIdx = t.clips.findIndex((c) => c.id === clipId)
-        if (clipIdx === -1) return t
+  trimClipIn: (clipId, newInPoint) => {
+    // Find old clip state
+    let oldClip: Clip | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldClip = { ...clip }; break }
+    }
+    if (!oldClip || newInPoint < 0 || newInPoint >= oldClip.outPoint) return
 
-        const clip = t.clips[clipIdx]
-        const clipStart = clip.position
-        const clipEnd = clip.position + clip.duration
+    undoable(
+      'Trim clip in',
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => {
+            if (c.id !== clipId) return c
+            if (newInPoint < 0 || newInPoint >= c.outPoint) return c
+            const delta = newInPoint - c.inPoint
+            return { ...c, inPoint: newInPoint, position: c.position + delta, duration: c.duration - delta }
+          }),
+        }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, inPoint: oldClip!.inPoint, position: oldClip!.position, duration: oldClip!.duration } : c,
+          ),
+        }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
 
-        // Can't split at or outside clip boundaries
-        if (time <= clipStart || time >= clipEnd) return t
+  trimClipOut: (clipId, newOutPoint) => {
+    let oldClip: Clip | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldClip = { ...clip }; break }
+    }
+    if (!oldClip || newOutPoint <= oldClip.inPoint) return
 
-        const splitOffset = time - clipStart
-        const splitInSource = clip.inPoint + splitOffset * clip.speed
+    undoable(
+      'Trim clip out',
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => {
+            if (c.id !== clipId) return c
+            if (newOutPoint <= c.inPoint) return c
+            return { ...c, outPoint: newOutPoint, duration: (newOutPoint - c.inPoint) / c.speed }
+          }),
+        }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, outPoint: oldClip!.outPoint, duration: oldClip!.duration } : c,
+          ),
+        }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
 
-        const clipA: Clip = {
-          ...clip,
-          duration: splitOffset,
-          outPoint: splitInSource,
-        }
+  splitClip: (clipId, time) => {
+    // Find the clip and validate split is possible
+    let originalClip: Clip | null = null
+    let trackId: string | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) {
+        originalClip = { ...clip }
+        trackId = track.id
+        break
+      }
+    }
+    if (!originalClip || !trackId) return
+    const clipStart = originalClip.position
+    const clipEnd = originalClip.position + originalClip.duration
+    if (time <= clipStart || time >= clipEnd) return
 
-        const clipB: Clip = {
-          id: randomUUID(),
-          assetId: clip.assetId,
-          trackId: clip.trackId,
-          position: time,
-          duration: clip.duration - splitOffset,
-          inPoint: splitInSource,
-          outPoint: clip.outPoint,
-          speed: clip.speed,
-        }
+    // Pre-generate clipB ID outside closure
+    const clipBId = randomUUID()
+    const splitOffset = time - clipStart
+    const splitInSource = originalClip.inPoint + splitOffset * originalClip.speed
 
-        const clips = [...t.clips]
-        clips.splice(clipIdx, 1, clipA, clipB)
-        return { ...t, clips }
-      })
-      return { tracks }
-    }),
+    undoable(
+      'Split clip',
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clipIdx = t.clips.findIndex((c) => c.id === clipId)
+          if (clipIdx === -1) return t
+          const clip = t.clips[clipIdx]
 
-  setClipSpeed: (clipId, speed) =>
-    set((state) => ({
-      tracks: state.tracks.map((t) => ({
-        ...t,
-        clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed: Math.max(0.1, speed) } : c)),
-      })),
-    })),
+          const clipA: Clip = { ...clip, duration: splitOffset, outPoint: splitInSource }
+          const clipB: Clip = { ...clip, id: clipBId, position: time, duration: clip.duration - splitOffset, inPoint: splitInSource }
 
-  // --- Playhead ---
+          const clips = [...t.clips]
+          clips.splice(clipIdx, 1, clipA, clipB)
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        // Merge clipA and clipB back into original
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.filter((c) => c.id !== clipBId)
+            .map((c) => (c.id === clipId ? originalClip! : c))
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  setClipSpeed: (clipId, speed) => {
+    let oldSpeed = 1
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldSpeed = clip.speed; break }
+    }
+    const clamped = Math.max(0.1, speed)
+
+    undoable(
+      'Set clip speed',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed: clamped } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed: oldSpeed } : c)),
+        })),
+      }),
+    )
+  },
+
+  // --- Playhead (NOT undoable — continuous) ---
 
   setPlayheadTime: (t) => set({ playheadTime: t }),
   setDuration: (d) => set({ duration: d }),
 
   // --- Markers ---
 
-  addMarker: (time, label, color) =>
-    set((state) => ({
-      markers: [...state.markers, { id: randomUUID(), time, label, color }],
-    })),
+  addMarker: (time, label, color) => {
+    if (get().markers.length >= LIMITS.MAX_MARKERS) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Marker limit (${LIMITS.MAX_MARKERS}) reached`, source: 'timeline' })
+      return
+    }
+    const markerId = randomUUID()
 
-  removeMarker: (id) =>
-    set((state) => ({
-      markers: state.markers.filter((m) => m.id !== id),
-    })),
+    undoable(
+      'Add marker',
+      () => set({ markers: [...get().markers, { id: markerId, time, label, color }] }),
+      () => set({ markers: get().markers.filter((m) => m.id !== markerId) }),
+    )
+  },
 
-  moveMarker: (id, newTime) =>
-    set((state) => ({
-      markers: state.markers.map((m) => (m.id === id ? { ...m, time: newTime } : m)),
-    })),
+  removeMarker: (id) => {
+    const marker = get().markers.find((m) => m.id === id)
+    if (!marker) return
+    const removed = { ...marker }
+
+    undoable(
+      'Remove marker',
+      () => set({ markers: get().markers.filter((m) => m.id !== id) }),
+      () => set({ markers: [...get().markers, removed] }),
+    )
+  },
+
+  moveMarker: (id, newTime) => {
+    const marker = get().markers.find((m) => m.id === id)
+    if (!marker) return
+    const oldTime = marker.time
+
+    undoable(
+      'Move marker',
+      () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, time: newTime } : m)) }),
+      () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, time: oldTime } : m)) }),
+    )
+  },
 
   // --- Loop ---
 
-  setLoopRegion: (inTime, outTime) => set({ loopRegion: { in: inTime, out: outTime } }),
-  clearLoopRegion: () => set({ loopRegion: null }),
+  setLoopRegion: (inTime, outTime) => {
+    const oldRegion = get().loopRegion
 
-  // --- View ---
+    undoable(
+      'Set loop region',
+      () => set({ loopRegion: { in: inTime, out: outTime } }),
+      () => set({ loopRegion: oldRegion }),
+    )
+  },
+
+  clearLoopRegion: () => {
+    const oldRegion = get().loopRegion
+    if (!oldRegion) return
+
+    undoable(
+      'Clear loop region',
+      () => set({ loopRegion: null }),
+      () => set({ loopRegion: oldRegion }),
+    )
+  },
+
+  // --- View (NOT undoable — UI state) ---
 
   setZoom: (pxPerSec) => set({ zoom: Math.max(10, Math.min(200, pxPerSec)) }),
   setScrollX: (px) => set({ scrollX: Math.max(0, px) }),
 
-  // --- Selection ---
+  // --- Selection (NOT undoable — UI state) ---
 
   selectTrack: (id) => set({ selectedTrackId: id }),
   selectClip: (id) => set({ selectedClipId: id }),
