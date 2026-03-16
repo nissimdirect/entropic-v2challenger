@@ -7,6 +7,7 @@ import { useAutomationStore } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
 import { recordPoint } from '../../utils/automation-record'
+import ABSwitch from './ABSwitch'
 
 interface DeviceCardProps {
   effect: EffectInstance
@@ -96,6 +97,11 @@ export default function DeviceCard({
         <span className="device-card__name" data-testid="device-card-name">
           {effectInfo.name}
         </span>
+        <ABSwitch
+          effectId={effect.id}
+          isActive={!!effect.abState}
+          activeSlot={effect.abState?.active ?? 'a'}
+        />
         <button
           className="device-card__remove"
           data-testid="device-remove"

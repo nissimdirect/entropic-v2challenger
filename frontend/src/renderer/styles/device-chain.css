@@ -71,6 +71,44 @@
   flex-shrink: 0;
 }
 
+/* --- A/B Switch (Phase 14A) --- */
+
+.ab-switch {
+  width: 28px;
+  height: 14px;
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 2px;
+  color: #555;
+  font-size: 8px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.ab-switch:hover {
+  border-color: #9B7BB5;
+  color: #888;
+}
+
+.ab-switch--active {
+  border-color: #9B7BB5;
+}
+
+.ab-switch__slot--active {
+  color: #e0e0e4;
+  font-weight: 700;
+}
+
+.ab-switch__slot--dim {
+  color: #444;
+}
+
 .device-chain__arrow {
   display: flex;
   align-items: center;

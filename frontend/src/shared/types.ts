@@ -124,6 +124,12 @@ export interface Marker {
 
 // --- Effects ---
 
+export interface ABState {
+  a: Record<string, number | string | boolean>;
+  b: Record<string, number | string | boolean>;
+  active: 'a' | 'b';
+}
+
 export interface EffectInstance {
   id: string;
   effectId: string;
@@ -133,6 +139,7 @@ export interface EffectInstance {
   modulations: Record<string, ModulationRoute[]>;
   mix: number;
   mask: MaskConfig | null;
+  abState?: ABState | null;
 }
 
 export interface ModulationRoute {

@@ -34,6 +34,12 @@ interface ProjectState {
   setProjectPath: (path: string | null) => void
   setProjectName: (name: string) => void
   resetProject: () => void
+
+  // Phase 14A: A/B switching (NOT undoable — comparison tool)
+  activateAB: (effectId: string) => void
+  toggleAB: (effectId: string) => void
+  copyToInactiveAB: (effectId: string) => void
+  deactivateAB: (effectId: string) => void
 }
 
 const PROJECT_DEFAULTS = {
@@ -224,4 +230,70 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setProjectPath: (path) => set({ projectPath: path }),
   setProjectName: (name) => set({ projectName: name }),
   resetProject: () => set(PROJECT_DEFAULTS),
+
+  // Phase 14A: A/B switching — NOT undoable (comparison tool)
+  activateAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId) return e
+        if (e.abState) return e // already active
+        return {
+          ...e,
+          abState: {
+            a: { ...e.parameters },
+            b: { ...e.parameters },
+            active: 'a' as const,
+          },
+        }
+      }),
+    }))
+  },
+
+  toggleAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId || !e.abState) return e
+        const { a, b, active } = e.abState
+        const nextActive = active === 'a' ? 'b' : 'a'
+        // Save current params to the active slot, load from the other slot
+        const saved = { ...e.parameters }
+        const loaded = nextActive === 'a' ? { ...a } : { ...b }
+        return {
+          ...e,
+          parameters: loaded,
+          abState: {
+            a: active === 'a' ? saved : a,
+            b: active === 'b' ? saved : b,
+            active: nextActive,
+          },
+        }
+      }),
+    }))
+  },
+
+  copyToInactiveAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId || !e.abState) return e
+        const current = { ...e.parameters }
+        return {
+          ...e,
+          abState: {
+            ...e.abState,
+            a: e.abState.active === 'b' ? current : e.abState.a,
+            b: e.abState.active === 'a' ? current : e.abState.b,
+          },
+        }
+      }),
+    }))
+  },
+
+  deactivateAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId) return e
+        return { ...e, abState: null }
+      }),
+    }))
+  },
 }))
