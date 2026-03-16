@@ -223,6 +223,73 @@ describe('validateProject', () => {
   it('rejects null settings', () => {
     expect(validateProject(makeValidProject({ settings: null }))).toBe(false)
   })
+
+  // --- Deeper validation (Phase 4 hardening) ---
+
+  it('rejects asset with missing meta object', () => {
+    const data = makeValidProject({
+      assets: { 'a1': { id: 'a1', path: '/test.mp4', type: 'video' } },
+    })
+    expect(validateProject(data)).toBe(false)
+  })
+
+  it('accepts asset with valid meta object', () => {
+    const data = makeValidProject({
+      assets: {
+        'a1': {
+          id: 'a1', path: '/test.mp4', type: 'video',
+          meta: { width: 1920, height: 1080, duration: 30, fps: 30, codec: 'h264', hasAudio: true },
+        },
+      },
+    })
+    expect(validateProject(data)).toBe(true)
+  })
+
+  it('rejects track with missing id', () => {
+    const data = makeValidProject({
+      timeline: {
+        duration: 0,
+        tracks: [{ name: 'Bad Track', color: '#fff', clips: [], effectChain: [], automationLanes: [] }],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(validateProject(data)).toBe(false)
+  })
+
+  it('rejects clip with NaN position', () => {
+    const data = makeValidProject({
+      timeline: {
+        duration: 10,
+        tracks: [{
+          id: 't1', type: 'video', name: 'T1', color: '#fff',
+          isMuted: false, isSoloed: false, opacity: 1, blendMode: 'normal',
+          clips: [{ id: 'c1', assetId: 'a1', trackId: 't1', position: NaN, duration: 5, inPoint: 0, outPoint: 5, speed: 1 }],
+          effectChain: [], automationLanes: [],
+        }],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(validateProject(data)).toBe(false)
+  })
+
+  it('rejects clip with Infinity duration', () => {
+    const data = makeValidProject({
+      timeline: {
+        duration: 10,
+        tracks: [{
+          id: 't1', type: 'video', name: 'T1', color: '#fff',
+          isMuted: false, isSoloed: false, opacity: 1, blendMode: 'normal',
+          clips: [{ id: 'c1', assetId: 'a1', trackId: 't1', position: 0, duration: Infinity, inPoint: 0, outPoint: 5, speed: 1 }],
+          effectChain: [], automationLanes: [],
+        }],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(validateProject(data)).toBe(false)
+  })
 })
 
 describe('hydrateStores', () => {

@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 }
 
 import { useTimelineStore } from '../../renderer/stores/timeline'
+import { useUndoStore } from '../../renderer/stores/undo'
 import type { Clip } from '../../shared/types'
 
 function makeClip(overrides: Partial<Clip> = {}): Clip {
@@ -30,6 +31,7 @@ function makeClip(overrides: Partial<Clip> = {}): Clip {
 describe('TimelineStore', () => {
   beforeEach(() => {
     useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
   })
 
   // --- Track tests ---
@@ -224,6 +226,29 @@ describe('TimelineStore', () => {
       expect(c.outPoint).toBe(6)
       expect(c.duration).toBe(6)
     })
+
+    it('trimClipOut with speed=2 produces correct wall-time duration', () => {
+      // speed=2 means 10 source frames play in 5 wall-time seconds
+      const clip = makeClip({ id: 'c1', position: 0, duration: 5, inPoint: 0, outPoint: 10, speed: 2 })
+      useTimelineStore.getState().addClip(trackId, clip)
+
+      // Trim out to source frame 6: wall-time = (6 - 0) / 2 = 3
+      useTimelineStore.getState().trimClipOut('c1', 6)
+
+      const c = useTimelineStore.getState().tracks[0].clips[0]
+      expect(c.outPoint).toBe(6)
+      expect(c.duration).toBe(3)
+    })
+
+    it('splitClip recalculates timeline duration', () => {
+      const clip = makeClip({ id: 'c1', position: 0, duration: 10, inPoint: 0, outPoint: 10 })
+      useTimelineStore.getState().addClip(trackId, clip)
+      expect(useTimelineStore.getState().duration).toBe(10)
+
+      // Split at t=5 — total duration should still be 10
+      useTimelineStore.getState().splitClip('c1', 5)
+      expect(useTimelineStore.getState().duration).toBe(10)
+    })
   })
 
   // --- getActiveClipsAtTime ---
@@ -308,6 +333,165 @@ describe('TimelineStore', () => {
     it('setScrollX clamps to >= 0', () => {
       useTimelineStore.getState().setScrollX(-10)
       expect(useTimelineStore.getState().scrollX).toBe(0)
+    })
+  })
+
+  // --- Undo integration ---
+
+  describe('undo/redo', () => {
+    let trackId: string
+
+    beforeEach(() => {
+      useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+      trackId = useTimelineStore.getState().tracks[0].id
+      // Clear the addTrack undo entry so tests start clean
+      useUndoStore.getState().clear()
+    })
+
+    it('removeTrack → undo restores track with clips', () => {
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 5 }))
+      useUndoStore.getState().clear()
+
+      useTimelineStore.getState().removeTrack(trackId)
+      expect(useTimelineStore.getState().tracks).toHaveLength(0)
+
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks).toHaveLength(1)
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+      expect(useTimelineStore.getState().tracks[0].clips[0].id).toBe('c1')
+    })
+
+    it('removeClip → undo restores clip', () => {
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 3, duration: 7 }))
+      useUndoStore.getState().clear()
+
+      useTimelineStore.getState().removeClip('c1')
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
+
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+      expect(useTimelineStore.getState().tracks[0].clips[0].position).toBe(3)
+    })
+
+    it('splitClip → undo merges back to original', () => {
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 10, inPoint: 0, outPoint: 10 }))
+      useUndoStore.getState().clear()
+
+      useTimelineStore.getState().splitClip('c1', 5)
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(2)
+
+      useUndoStore.getState().undo()
+      const clips = useTimelineStore.getState().tracks[0].clips
+      expect(clips).toHaveLength(1)
+      expect(clips[0].id).toBe('c1')
+      expect(clips[0].duration).toBe(10)
+    })
+
+    it('moveClip → undo restores original position', () => {
+      useTimelineStore.getState().addTrack('Track 2', '#00ff00')
+      const track2Id = useTimelineStore.getState().tracks[1].id
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 5 }))
+      useUndoStore.getState().clear()
+
+      useTimelineStore.getState().moveClip('c1', track2Id, 10)
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
+      expect(useTimelineStore.getState().tracks[1].clips).toHaveLength(1)
+
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+      expect(useTimelineStore.getState().tracks[0].clips[0].position).toBe(0)
+      expect(useTimelineStore.getState().tracks[1].clips).toHaveLength(0)
+    })
+
+    it('trimClipIn → undo restores original in/position/duration', () => {
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 10, inPoint: 0, outPoint: 10 }))
+      useUndoStore.getState().clear()
+
+      useTimelineStore.getState().trimClipIn('c1', 3)
+      useUndoStore.getState().undo()
+
+      const c = useTimelineStore.getState().tracks[0].clips[0]
+      expect(c.inPoint).toBe(0)
+      expect(c.position).toBe(0)
+      expect(c.duration).toBe(10)
+    })
+
+    it('trimClipOut → undo restores original out/duration', () => {
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 10, inPoint: 0, outPoint: 10 }))
+      useUndoStore.getState().clear()
+
+      useTimelineStore.getState().trimClipOut('c1', 5)
+      useUndoStore.getState().undo()
+
+      const c = useTimelineStore.getState().tracks[0].clips[0]
+      expect(c.outPoint).toBe(10)
+      expect(c.duration).toBe(10)
+    })
+
+    // --- Full history buffer tests ---
+
+    it('history buffer: 5-action sequence → undo all → redo all', () => {
+      // Action 1: add clip
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 5 }))
+      // Action 2: add another clip
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c2', position: 10, duration: 3 }))
+      // Action 3: rename track
+      useTimelineStore.getState().renameTrack(trackId, 'Renamed')
+      // Action 4: move clip
+      useTimelineStore.getState().moveClip('c1', trackId, 20)
+      // Action 5: add marker
+      useTimelineStore.getState().addMarker(5.0, 'Drop', '#f00')
+
+      expect(useUndoStore.getState().past).toHaveLength(5)
+
+      // Undo all 5
+      for (let i = 0; i < 5; i++) useUndoStore.getState().undo()
+
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
+      expect(useTimelineStore.getState().tracks[0].name).toBe('Track 1')
+      expect(useTimelineStore.getState().markers).toHaveLength(0)
+      expect(useUndoStore.getState().future).toHaveLength(5)
+
+      // Redo all 5
+      for (let i = 0; i < 5; i++) useUndoStore.getState().redo()
+
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(2)
+      expect(useTimelineStore.getState().tracks[0].name).toBe('Renamed')
+      expect(useTimelineStore.getState().markers).toHaveLength(1)
+      // Clip c1 should be at position 20 (moved)
+      const c1 = useTimelineStore.getState().tracks[0].clips.find((c) => c.id === 'c1')
+      expect(c1?.position).toBe(20)
+    })
+
+    it('history buffer: undo mid-stream → new action clears future', () => {
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 5 }))
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c2', position: 10, duration: 3 }))
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c3', position: 20, duration: 2 }))
+
+      // Undo 2 actions
+      useUndoStore.getState().undo()
+      useUndoStore.getState().undo()
+      expect(useUndoStore.getState().future).toHaveLength(2)
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+
+      // New action should clear future (linear branching)
+      useTimelineStore.getState().renameTrack(trackId, 'Branched')
+      expect(useUndoStore.getState().future).toHaveLength(0)
+      expect(useUndoStore.getState().past).toHaveLength(2) // 1 add + 1 rename
+    })
+
+    it('splitClip → redo uses same clipB ID', () => {
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 10, inPoint: 0, outPoint: 10 }))
+      useUndoStore.getState().clear()
+
+      useTimelineStore.getState().splitClip('c1', 5)
+      const clipBId = useTimelineStore.getState().tracks[0].clips[1].id
+
+      useUndoStore.getState().undo()
+      useUndoStore.getState().redo()
+
+      // After redo, clipB should have the same pre-generated ID
+      expect(useTimelineStore.getState().tracks[0].clips[1].id).toBe(clipBId)
     })
   })
 })

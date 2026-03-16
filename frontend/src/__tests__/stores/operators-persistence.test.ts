@@ -100,6 +100,29 @@ describe('Operator Persistence', () => {
     expect(ops[0].processing[0].type).toBe('invert')
   })
 
+  // --- Deserialization hardening ---
+
+  it('loadOperators skips entries with missing processing array', () => {
+    useOperatorStore.getState().loadOperators([
+      { id: 'op-1', type: 'lfo', label: 'Good', isEnabled: true, parameters: {}, processing: [], mappings: [] } as Operator,
+      { id: 'op-2', type: 'lfo', label: 'Bad', isEnabled: true, parameters: {} } as unknown as Operator, // missing processing
+    ])
+    expect(useOperatorStore.getState().operators).toHaveLength(1)
+    expect(useOperatorStore.getState().operators[0].id).toBe('op-1')
+  })
+
+  it('loadOperators skips entries with missing id', () => {
+    useOperatorStore.getState().loadOperators([
+      { type: 'lfo', label: 'No ID', isEnabled: true, parameters: {}, processing: [], mappings: [] } as unknown as Operator,
+    ])
+    expect(useOperatorStore.getState().operators).toHaveLength(0)
+  })
+
+  it('loadOperators handles null entries gracefully', () => {
+    useOperatorStore.getState().loadOperators([null as unknown as Operator])
+    expect(useOperatorStore.getState().operators).toHaveLength(0)
+  })
+
   it('newProject resets operators', () => {
     useOperatorStore.getState().addOperator('lfo')
     expect(useOperatorStore.getState().operators).toHaveLength(1)
