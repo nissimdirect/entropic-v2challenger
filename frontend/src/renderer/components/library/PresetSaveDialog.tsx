@@ -72,7 +72,7 @@ export default function PresetSaveDialog({
       ...macros,
       {
         label: `Macro ${macros.length + 1}`,
-        effectIndex: 0,
+        effectId: chain?.[0]?.id ?? '',
         paramKey: '',
         min: 0,
         max: 1,
@@ -132,7 +132,7 @@ export default function PresetSaveDialog({
                 </button>
               </div>
               {macros.map((macro, i) => (
-                <div key={`macro-${macro.effectIndex}-${macro.paramKey}`} className="preset-save__macro-row">
+                <div key={`macro-${macro.effectId}-${macro.paramKey}`} className="preset-save__macro-row">
                   <input
                     className="preset-save__macro-label"
                     value={macro.label}
@@ -141,12 +141,12 @@ export default function PresetSaveDialog({
                   />
                   <select
                     className="preset-save__macro-select"
-                    value={macro.effectIndex}
-                    onChange={(e) => updateMacro(i, 'effectIndex', parseInt(e.target.value))}
+                    value={macro.effectId}
+                    onChange={(e) => updateMacro(i, 'effectId', e.target.value)}
                   >
-                    {chain.map((eff, ei) => (
-                      <option key={eff.id} value={ei}>
-                        Effect {ei}: {eff.effectId}
+                    {chain.map((eff) => (
+                      <option key={eff.id} value={eff.id}>
+                        {eff.effectId}
                       </option>
                     ))}
                   </select>
