@@ -1161,12 +1161,15 @@ function AppInner() {
         )}
       </div>
 
-      <div className="app__performance">
-        <PerformancePanel onEditPad={(id) => {
-          setEditingPadId(id)
-          usePerformanceStore.getState().setPadEditorOpen(true)
-        }} />
-      </div>
+      {/* Phase 15C: PerformancePanel converted to floating config overlay */}
+      {isPerformMode && (
+        <div className="app__performance-overlay">
+          <PerformancePanel onEditPad={(id) => {
+            setEditingPadId(id)
+            usePerformanceStore.getState().setPadEditorOpen(true)
+          }} />
+        </div>
+      )}
 
       <div style={{ position: 'relative' }}>
         <RoutingLines operatorValues={operatorValues} />
