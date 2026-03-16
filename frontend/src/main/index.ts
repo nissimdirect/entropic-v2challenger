@@ -9,6 +9,7 @@ import { registerRelayHandlers, setRelayPort, closeRelay } from './zmq-relay'
 import { registerDiagnosticsHandlers } from './diagnostics-handlers'
 import { registerSupportBundleHandler } from './support-bundle'
 import { registerFileHandlers } from './file-handlers'
+import { initAutoUpdater } from './updater'
 import { logger } from './logger'
 
 // PII stripping for Sentry events — matches Python's strip_pii pattern
@@ -21,10 +22,10 @@ function stripPiiFromEvent<T extends Record<string, any>>(event: T): T {
   const json = JSON.stringify(event)
   let stripped = json
   if (_homeDir) {
-    stripped = stripped.replaceAll(_homeDir, '<HOME>')
+    stripped = stripped.split(_homeDir).join('<HOME>')
   }
   if (_username && _username.length > 1) {
-    stripped = stripped.replaceAll(_username, '<USER>')
+    stripped = stripped.split(_username).join('<USER>')
   }
   stripped = stripped.replace(/\/Users\/[^/\\"\s]+/g, '/Users/<USER>')
   stripped = stripped.replace(/\/home\/[^/\\"\s]+/g, '/home/<USER>')
@@ -198,7 +199,8 @@ app.whenReady().then(async () => {
   registerSupportBundleHandler()
   registerRelayHandlers()
   registerFileHandlers()
-  createWindow()
+  const mainWindow = createWindow()
+  initAutoUpdater(mainWindow)
 
   // Enrich Sentry context with GPU and display info
   const display = screen.getPrimaryDisplay()

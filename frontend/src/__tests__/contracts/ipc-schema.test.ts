@@ -90,7 +90,12 @@ describe('IPC Contract', () => {
     expect(methods).toContain('writePreferences')
     expect(methods).toContain('readRecentProjects')
     expect(methods).toContain('writeRecentProjects')
-    expect(methods).toHaveLength(26)
+    // Auto-update bridge methods (Sprint 11-4-11)
+    expect(methods).toContain('onUpdateAvailable')
+    expect(methods).toContain('onUpdateDownloaded')
+    expect(methods).toContain('downloadUpdate')
+    expect(methods).toContain('installUpdate')
+    expect(methods).toHaveLength(30)
   })
 
   it('backend ZMQ server registers all expected commands', () => {

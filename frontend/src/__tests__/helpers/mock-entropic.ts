@@ -49,6 +49,10 @@ export interface EntropicBridge {
   writePreferences: (data: Record<string, unknown>) => Promise<void>
   readRecentProjects: () => Promise<{ path: string; name: string; lastModified: number }[]>
   writeRecentProjects: (data: { path: string; name: string; lastModified: number }[]) => Promise<void>
+  onUpdateAvailable: (callback: (data: { version: string; releaseDate?: string }) => void) => () => void
+  onUpdateDownloaded: (callback: (data: { version: string }) => void) => () => void
+  downloadUpdate: () => Promise<void>
+  installUpdate: () => Promise<void>
 }
 
 /**
@@ -85,6 +89,10 @@ export function createMockEntropic(
     writePreferences: vi.fn().mockResolvedValue(undefined),
     readRecentProjects: vi.fn().mockResolvedValue([]),
     writeRecentProjects: vi.fn().mockResolvedValue(undefined),
+    onUpdateAvailable: vi.fn().mockReturnValue(vi.fn()),
+    onUpdateDownloaded: vi.fn().mockReturnValue(vi.fn()),
+    downloadUpdate: vi.fn().mockResolvedValue(undefined),
+    installUpdate: vi.fn().mockResolvedValue(undefined),
   }
   return { ...defaults, ...overrides }
 }
@@ -111,6 +119,6 @@ export function setupMockEntropic(
  */
 export function teardownMockEntropic(): void {
   if ('entropic' in window) {
-    delete (window as Record<string, unknown>).entropic
+    delete (window as unknown as Record<string, unknown>).entropic
   }
 }

@@ -112,4 +112,30 @@ contextBridge.exposeInMainWorld('entropic', {
   writeRecentProjects: (data: { path: string; name: string; lastModified: number }[]): Promise<void> => {
     return ipcRenderer.invoke('recentProjects:write', data)
   },
+
+  // --- Auto-update ---
+
+  onUpdateAvailable: (
+    callback: (data: { version: string; releaseDate?: string }) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { version: string; releaseDate?: string }) => callback(data)
+    ipcRenderer.on('update-available', handler)
+    return () => ipcRenderer.removeListener('update-available', handler)
+  },
+
+  onUpdateDownloaded: (
+    callback: (data: { version: string }) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { version: string }) => callback(data)
+    ipcRenderer.on('update-downloaded', handler)
+    return () => ipcRenderer.removeListener('update-downloaded', handler)
+  },
+
+  downloadUpdate: (): Promise<void> => {
+    return ipcRenderer.invoke('updater:download')
+  },
+
+  installUpdate: (): Promise<void> => {
+    return ipcRenderer.invoke('updater:install')
+  },
 })

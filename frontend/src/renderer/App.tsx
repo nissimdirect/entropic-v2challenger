@@ -54,6 +54,7 @@ import { useToastStore } from './stores/toast'
 import { useLayoutStore } from './stores/layout'
 import Toast from './components/common/Toast'
 import Tooltip from './components/common/Tooltip'
+import UpdateBanner from './components/layout/UpdateBanner'
 import type { Preset } from '../shared/types'
 import './styles/transport.css'
 import './styles/timeline.css'
@@ -63,6 +64,13 @@ import './styles/automation.css'
 import './styles/library.css'
 import './styles/toast.css'
 import './styles/export.css'
+import './styles/polish.css'
+import WelcomeScreen from './components/layout/WelcomeScreen'
+import Preferences from './components/layout/Preferences'
+import AboutDialog from './components/layout/AboutDialog'
+import RenderQueue from './components/export/RenderQueue'
+import ErrorBoundary from './components/layout/ErrorBoundary'
+import { loadRecentProjects, type RecentProject } from './project-persistence'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -134,10 +142,18 @@ function AppInner() {
   const [frameHeight, setFrameHeight] = useState(0)
   const [activeFps, setActiveFps] = useState(30)
   const [showExportDialog, setShowExportDialog] = useState(false)
+  const [showPreferences, setShowPreferences] = useState(false)
+  const [showAbout, setShowAbout] = useState(false)
+  const [showRenderQueue, setShowRenderQueue] = useState(false)
+  const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
   const [isExporting, setIsExporting] = useState(false)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportError, setExportError] = useState<string | null>(null)
   const [exportJobId, setExportJobId] = useState<string | null>(null)
+  const [exportCurrentFrame, setExportCurrentFrame] = useState(0)
+  const [exportTotalFrames, setExportTotalFrames] = useState(0)
+  const [exportEta, setExportEta] = useState<number | null>(null)
+  const [exportOutputPath, setExportOutputPath] = useState<string | null>(null)
   const [isGlobalDragOver, setIsGlobalDragOver] = useState(false)
   const [dropError, setDropError] = useState<string | null>(null)
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
@@ -239,6 +255,11 @@ function AppInner() {
     return () => stopAutosave()
   }, [])
 
+  // Load recent projects for WelcomeScreen
+  useEffect(() => {
+    loadRecentProjects().then(setRecentProjects).catch(() => {})
+  }, [])
+
   // Initialize shortcut registry and keyboard listeners
   useEffect(() => {
     shortcutRegistry.loadDefaults(DEFAULT_SHORTCUTS)
@@ -299,6 +320,8 @@ function AppInner() {
       }
     })
     shortcutRegistry.register('export', () => setShowExportDialog(true))
+    shortcutRegistry.register('preferences', () => setShowPreferences(true))
+    shortcutRegistry.register('about', () => setShowAbout(true))
     shortcutRegistry.register('feedback_dialog', () => setShowFeedbackDialog(true))
     shortcutRegistry.register('support_bundle', () => {
       if (window.entropic) {
@@ -392,9 +415,13 @@ function AppInner() {
   // Listen for export progress
   useEffect(() => {
     if (typeof window === 'undefined' || !window.entropic) return
-    const cleanup = window.entropic.onExportProgress(({ jobId, progress, done, error }) => {
+    const cleanup = window.entropic.onExportProgress(({ jobId, progress, done, error, currentFrame: cf, totalFrames: tf, etaSeconds, outputPath }) => {
       if (exportJobId && jobId !== exportJobId) return
       setExportProgress(progress)
+      if (cf !== undefined) setExportCurrentFrame(cf)
+      if (tf !== undefined) setExportTotalFrames(tf)
+      if (etaSeconds !== undefined) setExportEta(etaSeconds)
+      if (outputPath !== undefined) setExportOutputPath(outputPath)
       if (done) {
         setIsExporting(false)
         setExportJobId(null)
@@ -768,12 +795,36 @@ function AppInner() {
       setExportProgress(0)
       setExportError(null)
 
+      setExportCurrentFrame(0)
+      setExportTotalFrames(totalFrames)
+      setExportEta(null)
+      setExportOutputPath(settings.outputPath)
+
       const res = await window.entropic.sendCommand({
         cmd: 'export_start',
         input_path: activeAssetPath.current,
         output_path: settings.outputPath,
         chain: serializeEffectChain(effectChain),
         project_seed: 42,
+        settings: {
+          codec: settings.codec,
+          resolution: settings.resolution,
+          custom_width: settings.customWidth,
+          custom_height: settings.customHeight,
+          fps: settings.fps,
+          quality_preset: settings.qualityPreset,
+          bitrate: settings.bitrateMode === 'cbr' ? settings.bitrate * 1_000_000 : undefined,
+          crf: settings.bitrateMode === 'crf' ? settings.crf : undefined,
+          region: settings.region,
+          start_frame: settings.startFrame,
+          end_frame: settings.endFrame,
+          include_audio: settings.includeAudio,
+          export_type: settings.exportType,
+          gif_max_width: settings.gifMaxWidth,
+          gif_dithering: settings.gifDithering,
+          image_format: settings.imageFormat,
+          jpeg_quality: settings.jpegQuality,
+        },
       })
 
       if (res.ok) {
@@ -885,6 +936,7 @@ function AppInner() {
       onDragLeave={handleGlobalDragLeave}
       onDrop={handleGlobalDrop}
     >
+      <UpdateBanner />
       {isGlobalDragOver && (
         <div className="app__drop-overlay">
           <span>Drop video file here</span>
@@ -1097,10 +1149,10 @@ function AppInner() {
         <ExportProgress
           isExporting={isExporting}
           progress={exportProgress}
-          currentFrame={0}
-          totalFrames={totalFrames}
-          etaSeconds={null}
-          outputPath={null}
+          currentFrame={exportCurrentFrame}
+          totalFrames={exportTotalFrames}
+          etaSeconds={exportEta}
+          outputPath={exportOutputPath}
           error={exportError}
           onCancel={handleExportCancel}
         />
@@ -1201,6 +1253,19 @@ function AppInner() {
         onClose={() => setShowExportDialog(false)}
       />
 
+      <Preferences
+        isOpen={showPreferences}
+        onClose={() => setShowPreferences(false)}
+      />
+      <AboutDialog
+        isOpen={showAbout}
+        onClose={() => setShowAbout(false)}
+      />
+      <RenderQueue
+        isOpen={showRenderQueue}
+        onClose={() => setShowRenderQueue(false)}
+      />
+
       <TelemetryConsentDialog
         isOpen={consentChecked && telemetryConsent === null}
         onDecision={handleConsentDecision}
@@ -1252,6 +1317,18 @@ function AppInner() {
         />
       )}
 
+      <WelcomeScreen
+        isVisible={!hasAssets}
+        recentProjects={recentProjects}
+        onNewProject={newProject}
+        onOpenProject={loadProject}
+        onOpenRecent={(path) => {
+          // Load the project at the given path
+          // For now, just call loadProject() as we don't have path-based load yet
+          loadProject()
+        }}
+      />
+
       <Toast />
     </div>
   )
@@ -1260,7 +1337,9 @@ function AppInner() {
 export default function App() {
   return (
     <SentryErrorBoundary>
-      <AppInner />
+      <ErrorBoundary>
+        <AppInner />
+      </ErrorBoundary>
     </SentryErrorBoundary>
   )
 }
