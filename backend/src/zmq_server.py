@@ -14,6 +14,7 @@ from engine.cache import encode_mjpeg
 from engine.export import ExportManager
 from engine.freeze import FreezeManager
 from engine.compositor import render_composite
+from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
     apply_chain,
     flush_timing,
@@ -772,7 +773,7 @@ class ZMQServer:
             fps = message.get("fps")
             if fps is None:
                 return {"id": msg_id, "ok": False, "error": "missing fps"}
-            fps = float(fps)
+            fps = guard_positive(float(fps), "fps")
             self.av_clock.set_fps(fps)
             return {"id": msg_id, "ok": True, "fps": self.av_clock.fps}
         except Exception as e:
@@ -861,8 +862,9 @@ class ZMQServer:
         sample_rate = self.audio_player._sample_rate
 
         # Window: one frame's worth of audio centered on the frame time
-        frame_duration_s = 1.0 / fps if fps > 0 else 1.0 / 30.0
-        center_sample = int((frame_index / fps) * sample_rate)
+        safe_fps = clamp_finite(fps, 1.0, 240.0, 30.0)
+        frame_duration_s = 1.0 / safe_fps
+        center_sample = int((frame_index / safe_fps) * sample_rate)
         window_samples = max(1, int(frame_duration_s * sample_rate))
 
         start = max(0, center_sample - window_samples // 2)
