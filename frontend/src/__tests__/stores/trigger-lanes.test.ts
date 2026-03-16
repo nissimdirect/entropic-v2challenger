@@ -164,4 +164,24 @@ describe('Trigger Lanes', () => {
     // Points should be rolled back
     expect(useAutomationStore.getState().getLanesForTrack('track-1')[0].points).toHaveLength(0)
   })
+
+  it('commitTransaction with 0 entries is a no-op', () => {
+    const undoBefore = useUndoStore.getState().past.length
+    useUndoStore.getState().beginTransaction('Empty pass')
+    useUndoStore.getState().commitTransaction()
+    expect(useUndoStore.getState().past.length).toBe(undoBefore)
+    expect(useUndoStore.getState()._transaction).toBeNull()
+  })
+
+  it('abortTransaction with 0 entries is a no-op', () => {
+    useUndoStore.getState().beginTransaction('Nothing')
+    useUndoStore.getState().abortTransaction()
+    expect(useUndoStore.getState()._transaction).toBeNull()
+  })
+
+  it('abortTransaction when no transaction is active is a no-op', () => {
+    useUndoStore.getState().abortTransaction()
+    // Should not throw
+    expect(useUndoStore.getState()._transaction).toBeNull()
+  })
 })
