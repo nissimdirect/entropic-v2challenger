@@ -32,6 +32,10 @@ import PerformancePanel from './components/performance/PerformancePanel'
 import PadEditor from './components/performance/PadEditor'
 import { usePerformanceStore } from './stores/performance'
 import { applyPadModulations } from './components/performance/applyPadModulations'
+import { applyCCModulations } from './components/performance/applyCCModulations'
+import { useMIDIStore } from './stores/midi'
+import { useMIDI } from './hooks/useMIDI'
+import { pushEvent } from './utils/retro-capture'
 import OperatorRack from './components/operators/OperatorRack'
 import ModulationMatrix from './components/operators/ModulationMatrix'
 import RoutingLines from './components/operators/RoutingLines'
@@ -103,6 +107,9 @@ function AppInner() {
 
   const isDirty = useUndoStore((s) => s.isDirty)
   const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
+
+  // Initialize MIDI (Web MIDI API)
+  useMIDI()
 
   const { registry, isLoading: effectsLoading, fetchRegistry } = useEffectsStore()
 
@@ -250,12 +257,36 @@ function AppInner() {
             const state = perfStore.padStates[pad.id]
             if (state && state.phase !== 'idle' && state.phase !== 'release') {
               perfStore.releasePad(pad.id, currentFrame)
+              pushEvent({
+                timestamp: performance.now(),
+                frameIndex: currentFrame,
+                padId: pad.id,
+                eventType: 'release',
+                source: 'keyboard',
+                mappings: pad.mappings,
+              })
             } else {
               perfStore.triggerPad(pad.id, currentFrame)
+              pushEvent({
+                timestamp: performance.now(),
+                frameIndex: currentFrame,
+                padId: pad.id,
+                eventType: 'trigger',
+                source: 'keyboard',
+                mappings: pad.mappings,
+              })
             }
           } else {
             // Gate + one-shot: trigger on keydown
             perfStore.triggerPad(pad.id, currentFrame)
+            pushEvent({
+              timestamp: performance.now(),
+              frameIndex: currentFrame,
+              padId: pad.id,
+              eventType: 'trigger',
+              source: 'keyboard',
+              mappings: pad.mappings,
+            })
           }
           return
         }
@@ -369,6 +400,14 @@ function AppInner() {
       // Gate: release on keyup. One-shot: start release on keyup.
       if (pad.mode === 'gate' || pad.mode === 'one-shot') {
         perfStore.releasePad(pad.id, currentFrame)
+        pushEvent({
+          timestamp: performance.now(),
+          frameIndex: currentFrame,
+          padId: pad.id,
+          eventType: 'release',
+          source: 'keyboard',
+          mappings: pad.mappings,
+        })
       }
       // Toggle: no action on keyup
     }
@@ -437,6 +476,12 @@ function AppInner() {
         const envelopeValues = perfStore.getEnvelopeValues(frame)
         if (Object.keys(envelopeValues).length > 0) {
           chain = applyPadModulations(chain, perfStore.drumRack.pads, envelopeValues)
+        }
+
+        // Apply MIDI CC modulations (absolute set, after pad ADSR)
+        const midiStore = useMIDIStore.getState()
+        if (midiStore.ccMappings.length > 0 && Object.keys(midiStore.ccValues).length > 0) {
+          chain = applyCCModulations(chain, midiStore.ccMappings, midiStore.ccValues)
         }
       }
 
@@ -943,6 +988,23 @@ function AppInner() {
                           registry,
                         )
                       : undefined,
+                    // Phase 9: CC overrides for ghost handles
+                    (() => {
+                      const midi = useMIDIStore.getState();
+                      if (midi.ccMappings.length === 0) return undefined;
+                      const ccOverrides: Record<string, number> = {};
+                      for (const m of midi.ccMappings) {
+                        if (m.effectId !== selectedEffect!.id) continue;
+                        const ccVal = midi.ccValues[m.cc];
+                        if (ccVal === undefined) continue;
+                        const def = selectedEffectInfo!.params[m.paramKey];
+                        if (!def || (def.type !== 'float' && def.type !== 'int')) continue;
+                        const pMin = def.min ?? 0;
+                        const pMax = def.max ?? 1;
+                        ccOverrides[m.paramKey] = pMin + ccVal * (pMax - pMin);
+                      }
+                      return Object.keys(ccOverrides).length > 0 ? ccOverrides : undefined;
+                    })(),
                   )
                 : undefined
             }

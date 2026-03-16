@@ -29,6 +29,7 @@ function createDefaultPads(): Pad[] {
     id: `pad-${i}`,
     label: `Pad ${i + 1}`,
     keyBinding: code,
+    midiNote: null,
     mode: 'gate' as PadMode,
     chokeGroup: null,
     envelope: { ...DEFAULT_ADSR },

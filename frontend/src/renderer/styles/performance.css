@@ -141,3 +141,201 @@
   height: 5px;
   border-radius: 50%;
 }
+
+/* --- MIDI Dot (on PadCell) --- */
+
+.pad-cell__midi-dot {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #3b82f6;
+}
+
+/* --- MIDI Learn Overlay --- */
+
+.midi-learn-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(59, 130, 246, 0.9);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 300;
+  animation: midi-learn-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes midi-learn-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.midi-learn-overlay__cancel {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  color: #fff;
+  font-size: 11px;
+  padding: 2px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.midi-learn-overlay__cancel:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* --- CC Badge (on Knob) --- */
+
+.param-panel__cc-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 2px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* --- Capture Button --- */
+
+.performance-panel__capture-btn {
+  background: transparent;
+  border: 1px solid #666;
+  border-radius: 3px;
+  color: #f59e0b;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.5px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.performance-panel__capture-btn:hover {
+  border-color: #f59e0b;
+  color: #fbbf24;
+}
+
+/* --- MIDI Settings --- */
+
+.performance-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.performance-panel__settings-btn {
+  background: transparent;
+  border: none;
+  color: #666;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: color 0.15s;
+}
+
+.performance-panel__settings-btn:hover {
+  color: #fff;
+}
+
+.performance-panel__settings {
+  padding: 8px 12px;
+  border-top: 1px solid #333;
+}
+
+.midi-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.midi-settings__unsupported {
+  font-size: 11px;
+  color: #666;
+  text-align: center;
+  padding: 8px;
+}
+
+.midi-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.midi-settings__section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.midi-settings__label {
+  font-size: 10px;
+  color: #888;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.midi-settings__clear-btn {
+  background: transparent;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #ef4444;
+  font-size: 9px;
+  padding: 1px 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.midi-settings__clear-btn:hover {
+  border-color: #ef4444;
+}
+
+.midi-settings__empty {
+  font-size: 11px;
+  color: #555;
+  text-align: center;
+  padding: 6px;
+}
+
+.midi-settings__mapping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.midi-settings__mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  background: #2a2a2a;
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.midi-settings__mapping-cc {
+  color: #3b82f6;
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.midi-settings__mapping-target {
+  color: #aaa;
+  flex: 1;
+}
