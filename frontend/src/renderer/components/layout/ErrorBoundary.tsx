@@ -1,4 +1,5 @@
 import React from 'react'
+import * as Sentry from '@sentry/electron/renderer'
 import '../../styles/error-boundary.css'
 
 interface ErrorBoundaryState {
@@ -18,6 +19,7 @@ export default class ErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     console.error('[ErrorBoundary]', error, errorInfo)
+    Sentry.captureException(error, { extra: { componentStack: errorInfo.componentStack } })
     try {
       ;(window as any).entropic?.writeLog?.(
         `[renderer-error] ${error.name}: ${error.message}\n${errorInfo.componentStack ?? ''}`,

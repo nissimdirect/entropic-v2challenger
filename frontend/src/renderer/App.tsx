@@ -1,4 +1,3 @@
-import * as Sentry from '@sentry/electron/renderer'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useEngineStore } from './stores/engine'
 import { useProjectStore } from './stores/project'
@@ -64,43 +63,12 @@ import './styles/automation.css'
 import './styles/library.css'
 import './styles/toast.css'
 import './styles/export.css'
-import './styles/polish.css'
 import WelcomeScreen from './components/layout/WelcomeScreen'
 import Preferences from './components/layout/Preferences'
 import AboutDialog from './components/layout/AboutDialog'
 import RenderQueue from './components/export/RenderQueue'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
-
-class SentryErrorBoundary extends React.Component<
-  { children: React.ReactNode },
-  { hasError: boolean }
-> {
-  constructor(props: { children: React.ReactNode }) {
-    super(props)
-    this.state = { hasError: false }
-  }
-
-  static getDerivedStateFromError(): { hasError: boolean } {
-    return { hasError: true }
-  }
-
-  componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    Sentry.captureException(error, { extra: { componentStack: info.componentStack } })
-  }
-
-  render(): React.ReactNode {
-    if (this.state.hasError) {
-      return (
-        <div style={{ padding: 40, color: '#ef4444', fontFamily: 'JetBrains Mono, monospace' }}>
-          <h2>Something went wrong.</h2>
-          <p>The error has been reported. Please restart the application.</p>
-        </div>
-      )
-    }
-    return this.props.children
-  }
-}
 
 function AppInner() {
   const { status, uptime } = useEngineStore()
@@ -1322,11 +1290,7 @@ function AppInner() {
         recentProjects={recentProjects}
         onNewProject={newProject}
         onOpenProject={loadProject}
-        onOpenRecent={(path) => {
-          // Load the project at the given path
-          // For now, just call loadProject() as we don't have path-based load yet
-          loadProject()
-        }}
+        onOpenRecent={(path) => loadProject(path)}
       />
 
       <Toast />
@@ -1336,10 +1300,8 @@ function AppInner() {
 
 export default function App() {
   return (
-    <SentryErrorBoundary>
-      <ErrorBoundary>
-        <AppInner />
-      </ErrorBoundary>
-    </SentryErrorBoundary>
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
   )
 }

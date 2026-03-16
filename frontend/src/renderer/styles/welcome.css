@@ -1,0 +1,28 @@
+/* --- Welcome Screen --- */
+
+.welcome-screen {
+  position: fixed; inset: 0; background: #1a1a1a; z-index: 900;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 24px;
+}
+.welcome-screen__logo { font-size: 48px; font-weight: 700; color: #4ade80; letter-spacing: 4px; }
+.welcome-screen__version { font-size: 13px; color: #888; margin-top: -16px; }
+.welcome-screen__actions { display: flex; gap: 12px; margin-top: 16px; }
+.welcome-screen__btn {
+  padding: 10px 24px; border-radius: 6px; border: 1px solid #555; background: #252525;
+  color: #e0e0e0; cursor: pointer; font-size: 14px; font-family: inherit;
+}
+.welcome-screen__btn:hover { background: #333; }
+.welcome-screen__btn--primary { background: #4ade80; color: #1a1a1a; border-color: #4ade80; font-weight: 600; }
+.welcome-screen__btn--primary:hover { background: #22c55e; }
+.welcome-screen__recent { width: 400px; max-height: 300px; overflow-y: auto; }
+.welcome-screen__recent-title { font-size: 14px; color: #888; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+.welcome-screen__recent-list { display: flex; flex-direction: column; gap: 4px; }
+.welcome-screen__recent-item {
+  padding: 8px 12px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between;
+  color: #e0e0e0; font-size: 13px;
+}
+.welcome-screen__recent-item:hover { background: #333; }
+.welcome-screen__recent-name { font-weight: 500; }
+.welcome-screen__recent-time { color: #888; font-size: 12px; }
+.welcome-screen__empty { color: #555; font-size: 13px; }

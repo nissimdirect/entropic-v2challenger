@@ -259,7 +259,7 @@ export async function saveProject(): Promise<boolean> {
   return true
 }
 
-export async function loadProject(): Promise<boolean> {
+export async function loadProject(filePath?: string): Promise<boolean> {
   if (!window.entropic) return false
 
   // Check if dirty and prompt
@@ -269,13 +269,17 @@ export async function loadProject(): Promise<boolean> {
     // that requires a custom dialog component (deferred).
   }
 
-  const filePath = await window.entropic.showOpenDialog({
-    filters: GLITCH_FILTERS,
-  })
-  if (!filePath) return false // user cancelled
+  let path: string | undefined = filePath
+  if (!path) {
+    const selected = await window.entropic.showOpenDialog({
+      filters: GLITCH_FILTERS,
+    })
+    if (!selected) return false // user cancelled
+    path = selected
+  }
 
   try {
-    const json = await window.entropic.readFile(filePath)
+    const json = await window.entropic.readFile(path)
     const data = JSON.parse(json)
 
     if (!validateProject(data)) {
@@ -285,12 +289,12 @@ export async function loadProject(): Promise<boolean> {
 
     hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData })
 
-    const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
-    useProjectStore.getState().setProjectPath(filePath)
+    const name = path.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
+    useProjectStore.getState().setProjectPath(path)
     useProjectStore.getState().setProjectName(name)
 
     // Track as recent project
-    addRecentProject({ path: filePath, name, lastModified: Date.now() })
+    addRecentProject({ path: path, name, lastModified: Date.now() })
 
     return true
   } catch (err) {

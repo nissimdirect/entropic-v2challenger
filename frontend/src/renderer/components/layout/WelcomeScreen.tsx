@@ -1,3 +1,5 @@
+import '../../styles/welcome.css'
+
 interface WelcomeScreenProps {
   isVisible: boolean
   recentProjects: Array<{ path: string; name: string; lastModified: number }>

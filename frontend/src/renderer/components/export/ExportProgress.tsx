@@ -144,12 +144,6 @@ export default function ExportProgress({
               {truncatePath(outputPath)}
             </span>
           )}
-          <button
-            className="export-progress__open-btn"
-            onClick={() => { /* noop for now */ }}
-          >
-            Open in Finder
-          </button>
         </div>
       )}
     </div>

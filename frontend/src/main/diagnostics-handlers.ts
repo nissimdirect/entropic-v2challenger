@@ -144,6 +144,10 @@ export function registerDiagnosticsHandlers(): void {
     if (typeof data !== 'object' || data === null || Array.isArray(data)) {
       throw new TypeError('preferences:write expects a plain object')
     }
+    const json = JSON.stringify(data)
+    if (json.length > 1_000_000) {
+      throw new Error('Preferences data too large (max 1MB)')
+    }
     try {
       mkdirSync(ENTROPIC_DIR, { recursive: true, mode: 0o700 })
       const prefsPath = join(ENTROPIC_DIR, 'preferences.json')
@@ -172,10 +176,15 @@ export function registerDiagnosticsHandlers(): void {
     if (!Array.isArray(data)) {
       throw new TypeError('recentProjects:write expects an array')
     }
+    const capped = data.slice(0, 20)
+    const json = JSON.stringify(capped)
+    if (json.length > 1_000_000) {
+      throw new Error('Recent projects data too large (max 1MB)')
+    }
     try {
       mkdirSync(ENTROPIC_DIR, { recursive: true, mode: 0o700 })
       const recentPath = join(ENTROPIC_DIR, 'recent-projects.json')
-      writeFileSync(recentPath, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
+      writeFileSync(recentPath, JSON.stringify(capped, null, 2), { encoding: 'utf8', mode: 0o600 })
     } catch {
       // Best-effort
     }

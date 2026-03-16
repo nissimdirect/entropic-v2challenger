@@ -247,6 +247,5 @@ describe('Export — Progress States', () => {
 
     const done = document.querySelector('.export-progress__done')
     expect(done?.textContent).toContain('output.mp4')
-    expect(document.querySelector('.export-progress__open-btn')).toBeTruthy()
   })
 })

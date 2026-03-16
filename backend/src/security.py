@@ -76,7 +76,7 @@ def validate_frame_count(count: int) -> list[str]:
     return errors
 
 
-ALLOWED_OUTPUT_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm"}
+ALLOWED_OUTPUT_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".gif"}
 BLOCKED_OUTPUT_PREFIXES = (
     "/System",
     "/Library",
@@ -125,6 +125,37 @@ def validate_output_path(path: str) -> list[str]:
     name = p.name
     if ".." in name or "/" in name or "\\" in name or "\x00" in name:
         errors.append(f"Unsafe output filename: {name}")
+
+    return errors
+
+
+def validate_output_directory(path: str) -> list[str]:
+    """Validate an export output directory (e.g. for image sequences). Returns list of errors.
+
+    Unlike validate_output_path, this does NOT require a file extension.
+    Checks:
+    - Path is absolute
+    - Not a system directory (BLOCKED_OUTPUT_PREFIXES)
+    - Under the user's home directory
+    """
+    errors: list[str] = []
+    p = Path(path)
+
+    if not p.is_absolute():
+        errors.append("Output path must be absolute")
+        return errors
+
+    resolved = str(p.resolve())
+
+    # Must be under user home
+    if not resolved.startswith(str(Path.home())):
+        errors.append("Output directory must be within user home directory")
+        return errors
+
+    for prefix in BLOCKED_OUTPUT_PREFIXES:
+        if resolved.startswith(prefix):
+            errors.append(f"Cannot write to system directory: {prefix}")
+            return errors
 
     return errors
 

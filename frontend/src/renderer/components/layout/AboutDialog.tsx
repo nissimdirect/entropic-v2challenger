@@ -1,3 +1,5 @@
+import '../../styles/about.css'
+
 interface AboutDialogProps {
   isOpen: boolean
   onClose: () => void

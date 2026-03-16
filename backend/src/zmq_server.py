@@ -26,6 +26,7 @@ from memory.writer import SharedMemoryWriter
 from security import (
     validate_chain_depth,
     validate_frame_count,
+    validate_output_directory,
     validate_output_path,
     validate_upload,
 )
@@ -821,10 +822,14 @@ class ZMQServer:
                 errors.append(
                     "custom_width must be a positive integer when resolution is 'custom'"
                 )
+            if isinstance(cw, int) and cw > 7680:
+                errors.append("custom_width must not exceed 7680")
             if not isinstance(ch, int) or ch <= 0:
                 errors.append(
                     "custom_height must be a positive integer when resolution is 'custom'"
                 )
+            if isinstance(ch, int) and ch > 4320:
+                errors.append("custom_height must not exceed 4320")
 
         fps = settings.get("fps", "source")
         valid_fps = ("source", "24", "25", "30", "60")
@@ -847,6 +852,25 @@ class ZMQServer:
             if not isinstance(bitrate, int) or bitrate <= 0:
                 errors.append("bitrate must be a positive integer")
 
+        if "gif_max_width" in settings:
+            gmw = settings["gif_max_width"]
+            if not isinstance(gmw, int) or gmw <= 0:
+                errors.append("gif_max_width must be a positive integer")
+            elif gmw > 1920:
+                errors.append("gif_max_width must not exceed 1920")
+
+        if "image_format" in settings:
+            ifmt = settings["image_format"]
+            if ifmt not in ("png", "jpeg", "tiff"):
+                errors.append(
+                    f"invalid image_format {ifmt!r}; must be png, jpeg, or tiff"
+                )
+
+        if "jpeg_quality" in settings:
+            jq = settings["jpeg_quality"]
+            if not isinstance(jq, int) or jq < 1 or jq > 100:
+                errors.append("jpeg_quality must be an integer between 1 and 100")
+
         return errors
 
     def _handle_export_start(self, message: dict, msg_id: str | None) -> dict:
@@ -867,7 +891,10 @@ class ZMQServer:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
         # Validate output path (prevents writing to system dirs)
-        out_errors = validate_output_path(output_path)
+        if settings.get("export_type") == "image_sequence":
+            out_errors = validate_output_directory(output_path)
+        else:
+            out_errors = validate_output_path(output_path)
         if out_errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(out_errors)}
 

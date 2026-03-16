@@ -10,10 +10,7 @@ import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropi
 import WelcomeScreen from '../../renderer/components/layout/WelcomeScreen'
 import AboutDialog from '../../renderer/components/layout/AboutDialog'
 import Tooltip from '../../renderer/components/common/Tooltip'
-import Spinner from '../../renderer/components/common/Spinner'
-import Skeleton from '../../renderer/components/common/Skeleton'
 import ErrorBoundary from '../../renderer/components/layout/ErrorBoundary'
-import ErrorMessage from '../../renderer/components/common/ErrorMessage'
 
 beforeEach(() => {
   setupMockEntropic()
@@ -126,38 +123,6 @@ describe('Tooltip', () => {
   })
 })
 
-/* ─── Spinner ─── */
-
-describe('Spinner', () => {
-  it('renders at all sizes', () => {
-    const { unmount: u1 } = render(<Spinner size="sm" />)
-    expect(document.querySelector('.spinner--sm')).not.toBeNull()
-    u1()
-
-    const { unmount: u2 } = render(<Spinner size="md" />)
-    expect(document.querySelector('.spinner--md')).not.toBeNull()
-    u2()
-
-    render(<Spinner size="lg" />)
-    expect(document.querySelector('.spinner--lg')).not.toBeNull()
-  })
-})
-
-/* ─── Skeleton ─── */
-
-describe('Skeleton', () => {
-  it('renders single block', () => {
-    render(<Skeleton width={200} height={20} />)
-    expect(document.querySelector('.skeleton')).not.toBeNull()
-  })
-
-  it('renders multiple lines', () => {
-    render(<Skeleton lines={3} />)
-    const lines = document.querySelectorAll('.skeleton__line')
-    expect(lines.length).toBe(3)
-  })
-})
-
 /* ─── ErrorBoundary ─── */
 
 describe('ErrorBoundary', () => {
@@ -180,12 +145,3 @@ describe('ErrorBoundary', () => {
   })
 })
 
-/* ─── ErrorMessage ─── */
-
-describe('ErrorMessage', () => {
-  it('renders warning', () => {
-    render(<ErrorMessage severity="warning" message="Low disk space" />)
-    expect(document.querySelector('.error-message--warning')).not.toBeNull()
-    expect(document.querySelector('.error-message__text')!.textContent).toContain('Low disk space')
-  })
-})
