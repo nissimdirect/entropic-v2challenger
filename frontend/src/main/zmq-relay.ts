@@ -7,6 +7,22 @@ import { logger } from './logger'
 const ZMQ_TIMEOUT = 10_000
 const EXPORT_POLL_INTERVAL = 500
 
+/** Map technical error messages to user-friendly descriptions (Phase 12). */
+function humanizeError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err)
+  if (msg.includes('timed out') || msg.includes('ETIMEDOUT') || msg.includes('timeout'))
+    return 'Engine took too long to respond. Try removing the last effect or reducing chain length.'
+  if (msg.includes('ECONNREFUSED') || msg.includes('connect'))
+    return 'Could not connect to the engine. It may be restarting — try again in a moment.'
+  if (msg.includes('EPIPE') || msg.includes('broken pipe'))
+    return 'Lost connection to the engine. It will restart automatically.'
+  if (msg.includes('memory') || msg.includes('MemoryError'))
+    return 'Engine ran out of memory. Try removing effects or using a smaller video.'
+  if (msg.includes('decode') || msg.includes('codec'))
+    return 'Could not decode the video. The file may be corrupt or use an unsupported codec.'
+  return `Engine error: ${msg}`
+}
+
 /** Commands that trigger heavy Python work and may block pings (BUG-4). */
 const RENDER_COMMANDS = new Set(['render_frame', 'apply_chain', 'export_start'])
 
@@ -120,7 +136,7 @@ async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<
     return {
       id: command.id as string,
       ok: false,
-      error: err instanceof Error ? err.message : 'ZMQ communication failed',
+      error: humanizeError(err),
     }
   } finally {
     if (isRender) {

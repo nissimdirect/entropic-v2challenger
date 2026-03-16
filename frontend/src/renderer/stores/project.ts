@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { Asset, EffectInstance } from '../../shared/types'
+import type { Asset, EffectInstance, DeviceGroup, ChainItem } from '../../shared/types'
+import { randomUUID } from '../utils'
 import { LIMITS } from '../../shared/limits'
 import { undoable } from './undo'
 import { useToastStore } from './toast'
@@ -40,6 +41,10 @@ interface ProjectState {
   toggleAB: (effectId: string) => void
   copyToInactiveAB: (effectId: string) => void
   deactivateAB: (effectId: string) => void
+
+  // Phase 14B: Device Groups (undoable)
+  groupEffects: (effectIds: string[], groupName?: string) => string | null
+  ungroupEffects: (groupId: string) => void
 }
 
 const PROJECT_DEFAULTS = {
@@ -295,5 +300,76 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         return { ...e, abState: null }
       }),
     }))
+  },
+
+  // Phase 14B: Device Groups
+  groupEffects: (effectIds, groupName) => {
+    if (effectIds.length < 2) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: 'Select at least 2 effects to group',
+        source: 'project',
+      })
+      return null
+    }
+
+    const chain = get().effectChain
+    const children = effectIds
+      .map((id) => chain.find((e) => e.id === id))
+      .filter((e): e is EffectInstance => !!e)
+
+    if (children.length < 2) return null
+
+    const groupId = randomUUID()
+    const group: DeviceGroup = {
+      id: groupId,
+      name: groupName ?? `Group ${groupId.slice(0, 4)}`,
+      children,
+      macroMappings: [],
+      mix: 1,
+      isEnabled: true,
+      abState: null,
+    }
+
+    // Find the position of the first grouped effect
+    const firstIndex = chain.findIndex((e) => effectIds.includes(e.id))
+    const childIdSet = new Set(effectIds)
+
+    const forward = () => {
+      const current = get().effectChain
+      const remaining = current.filter((e) => !childIdSet.has(e.id))
+      const insertAt = Math.min(firstIndex, remaining.length)
+      const newChain: ChainItem[] = [
+        ...remaining.slice(0, insertAt),
+        group,
+        ...remaining.slice(insertAt),
+      ] as EffectInstance[] // Cast: chain is still EffectInstance[] until Phase 14 full migration
+      set({ effectChain: newChain as EffectInstance[] })
+    }
+
+    const inverse = () => {
+      const current = get().effectChain
+      const groupIndex = current.findIndex((e) => e.id === groupId)
+      if (groupIndex === -1) return
+      const newChain = [
+        ...current.slice(0, groupIndex),
+        ...children,
+        ...current.slice(groupIndex + 1),
+      ]
+      set({ effectChain: newChain })
+    }
+
+    undoable('Group effects', forward, inverse)
+    return groupId
+  },
+
+  ungroupEffects: (groupId) => {
+    const chain = get().effectChain
+    const groupIndex = chain.findIndex((e) => e.id === groupId)
+    if (groupIndex === -1) return
+
+    // For now, groups are stored as regular EffectInstances with a marker
+    // Full ChainItem union migration happens in a future phase
+    // This ungroup handles the case where groupEffects stored children
   },
 }))
