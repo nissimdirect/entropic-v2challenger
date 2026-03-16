@@ -1,10 +1,10 @@
 # Entropic v2 Challenger — UAT & UIT Testing Guide
 
-> **Version:** 3.0
-> **Date:** 2026-03-07
-> **Covers:** Phases 0A, 0B, 1, 2A, 2B, 3, 4, 5, 6A, 6B, 7 (everything built so far)
+> **Version:** 4.0
+> **Date:** 2026-03-16
+> **Covers:** Phases 0A–10, 11.5, Ship Gate Audit (all built phases)
 > **Tester:** You (manual walkthrough)
-> **Time estimate:** 5-7 hours for full pass (419 test cases)
+> **Time estimate:** 6-8 hours for full pass (476 test cases)
 
 ---
 
@@ -1158,12 +1158,162 @@ When you find something broken, record it with this format:
 
 These features are **not yet built** — do NOT test them:
 
-- MIDI input / hardware controllers (Phase 9)
-- Preset library / preset save & load (Phase 10)
-- Freeze/flatten effects (Phase 10)
 - ProRes / H.265 export codecs (Phase 11)
 - Automation grouping across params (Phase 11)
 - Per-node velocity/tension (post-launch)
 - Automation on operator params (post-launch)
-- MIDI CC recording to automation (Phase 9)
-- Auto-save (Phase 4 — designed but may not be wired yet)
+
+---
+
+## Section 23: Phase 10 — Freeze/Flatten + Preset Library (2026-03-15)
+
+### 23.1 Effect Freeze
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Freeze single effect | Add effect, click freeze icon | Freeze indicator shows, effect renders from cache | [ ] |
+| 2 | Unfreeze effect | Freeze then unfreeze | Effect renders live again | [ ] |
+| 3 | Freeze chain prefix | Add 3 effects, freeze first 2 | First 2 frozen, 3rd renders live on top | [ ] |
+| 4 | Edit frozen effect param | Change param on frozen effect | Warning or auto-unfreeze | [ ] |
+| 5 | Freeze with no video | Freeze with no video loaded | Error toast, no crash | [ ] |
+
+### 23.2 Flatten
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 6 | Flatten chain | Freeze prefix, click flatten | New video file created, chain replaced with single asset | [ ] |
+| 7 | Flatten cancel | Start flatten, cancel mid-way | No orphan output file | [ ] |
+
+### 23.3 Preset Save
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 8 | Save single effect preset | Add effect, set params, save as preset | .glitchpreset file in ~/Documents/Entropic/Presets | [ ] |
+| 9 | Save effect chain preset | Add 3 effects, save chain preset | Preset includes all 3 effects + params | [ ] |
+| 10 | Preset name/tags | Save with name and tags | Name and tags shown in browser | [ ] |
+| 11 | Preset with macros | Add macros to chain preset | Macro knobs appear when preset loaded | [ ] |
+
+### 23.4 Preset Load
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 12 | Load single effect | Click preset in browser | Effect added to chain with saved params | [ ] |
+| 13 | Load chain preset | Click chain preset | Full chain loaded with all effects | [ ] |
+| 14 | Search presets | Type in search box | Filtered by name and tags | [ ] |
+| 15 | Favorite toggle | Click star on preset | Favorited, persists across reload | [ ] |
+| 16 | Delete preset | Delete a preset | File removed, disappears from browser | [ ] |
+
+### 23.5 Preset Validation
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 17 | Malformed preset file | Create .glitchpreset with bad JSON | Skipped in browser, no crash | [ ] |
+| 18 | Preset missing effectId | Edit preset, remove effectId | Skipped during load | [ ] |
+
+**Section 23 Total: 18 test cases**
+
+---
+
+## Section 24: Phase 11.5 — Toast, Layout, Observability
+
+### 24.1 Toast Notifications
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Info toast auto-dismiss | Trigger info toast | Disappears after 4s | [ ] |
+| 2 | Error toast longer | Trigger error | Stays 8s | [ ] |
+| 3 | Rate limiting | Rapid-fire same error source | Shows count badge, not 5 separate toasts | [ ] |
+| 4 | Max 5 visible | Trigger 6 toasts | Oldest evicted, max 5 on screen | [ ] |
+| 5 | Clear all | Click clear all | All toasts gone, no stale timers fire later | [ ] |
+
+### 24.2 Layout Persistence
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 6 | Sidebar toggle persists | Toggle sidebar (Cmd+B), reload app | Sidebar state preserved | [ ] |
+| 7 | Timeline height persists | Resize timeline, reload app | Height preserved | [ ] |
+| 8 | Focus mode (F) | Press F — both collapse; press F — both expand | Works both directions | [ ] |
+| 9 | Timeline height bounds | Drag resize to extreme values | Clamped to 100-800px | [ ] |
+
+### 24.3 MIDI (Phase 9)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 10 | MIDI device detection | Connect MIDI controller | Device appears in MIDI settings | [ ] |
+| 11 | MIDI learn (pad) | Right-click pad → Learn, press MIDI note | Note assigned to pad | [ ] |
+| 12 | MIDI learn (CC) | Right-click knob → Learn, turn CC knob | CC mapped to param | [ ] |
+| 13 | Channel filter | Set channel to 1, send on ch 2 | Messages ignored | [ ] |
+| 14 | CC mapping persists | Save project with CC mappings, reload | Mappings restored | [ ] |
+
+### 24.4 Auto-save
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 15 | Auto-save fires | Make changes, wait 60s | .autosave.glitch appears | [ ] |
+| 16 | Auto-save cleaned on save | Manual save | .autosave.glitch deleted | [ ] |
+| 17 | No auto-save if clean | Don't make changes | No .autosave.glitch | [ ] |
+
+**Section 24 Total: 17 test cases**
+
+**Updated Grand Total: 476 test cases**
+
+---
+
+## Section 22: Ship Gate Audit Remediation (2026-03-16)
+
+> **33 fixes, 127 automated tests. This section validates the fixes work in the live app.**
+
+### 22.1 Undo System (18 timeline + 6 project actions)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Undo add track | Add a track, Cmd+Z | Track removed | [ ] |
+| 2 | Undo remove track | Add track + clip, remove track, Cmd+Z | Track restored with clip | [ ] |
+| 3 | Undo split clip | Import video, add to timeline, split, Cmd+Z | Single clip restored | [ ] |
+| 4 | Undo trim | Trim clip in or out, Cmd+Z | Original duration restored | [ ] |
+| 5 | Undo move clip | Move clip to new track, Cmd+Z | Clip back on original track at original position | [ ] |
+| 6 | Full history | Do 5 actions, Cmd+Z x5, Cmd+Shift+Z x5 | Clean roundtrip, all actions redo correctly | [ ] |
+| 7 | Linear branching | Undo 2 actions, do new action | Future cleared, can't redo old actions | [ ] |
+| 8 | Undo add effect | Add effect in rack, Cmd+Z | Effect removed | [ ] |
+| 9 | Undo remove effect | Remove effect, Cmd+Z | Effect restored in original position | [ ] |
+| 10 | Undo param change | Change knob, Cmd+Z | Value reverts | [ ] |
+
+### 22.2 Cross-Store Cleanup
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 11 | Effect delete cleans automation | Add effect, add automation lane for it, delete effect | Automation lane gone | [ ] |
+| 12 | Effect delete cleans operator mappings | Add LFO targeting effect, delete effect | LFO mapping removed | [ ] |
+| 13 | Undo restores cleanup | Delete effect (with automation), Cmd+Z | Effect + automation lane both restored | [ ] |
+
+### 22.3 Pad Grid & Performance
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 14 | Mouse leave releases pad | Enter perform mode, mousedown on pad, drag mouse off pad | Pad releases (not stuck active) | [ ] |
+| 15 | Pad triggers at correct frame | Start playback at frame 100, click pad | ADSR envelope starts from frame 100, not 0 | [ ] |
+
+### 22.4 Project Save Safety
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 16 | Save doesn't corrupt | Save project, close app, reopen, load project | All data preserved | [ ] |
+| 17 | Load malformed project | Create .glitch file with `{"bad": true}`, try to load | Error toast, app stays functional | [ ] |
+| 18 | Load with NaN clip duration | Edit .glitch file, set clip duration to `NaN`, load | Validation rejects file | [ ] |
+
+### 22.5 Resource Limits
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 19 | Track limit | Add tracks until limit (64) | Toast warning, no more tracks added | [ ] |
+| 20 | Effect chain limit | Add 10 effects, try to add 11th | Toast warning, chain stays at 10 | [ ] |
+
+### 22.6 IPC Safety
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 21 | NaN param | Send NaN value to an effect param via knob | Effect uses default (no crash) | [ ] |
+| 22 | fps=0 rejected | (Dev console) Send clock_set_fps with fps=0 | Error response, no division crash | [ ] |
+
+**Section 22 Total: 22 test cases**
+**Updated Grand Total: 441 test cases**
