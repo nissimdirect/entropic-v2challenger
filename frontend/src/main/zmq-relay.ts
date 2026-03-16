@@ -2,6 +2,7 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { Request } from 'zeromq'
 import { randomUUID } from 'crypto'
 import { setRenderInFlight } from './watchdog'
+import { logger } from './logger'
 
 const ZMQ_TIMEOUT = 10_000
 const EXPORT_POLL_INTERVAL = 500
@@ -71,11 +72,21 @@ async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<
 
   const sock = getOrCreateSocket()
 
+  const tsSend = Date.now()
+
   try {
     command._token = currentToken
+    command._ts_send = tsSend
     await sock.send(JSON.stringify(command))
     const [raw] = await sock.receive()
-    return JSON.parse(raw.toString())
+    const result = JSON.parse(raw.toString())
+    const roundtripMs = Date.now() - tsSend
+    logger.info('[IPC] command complete', {
+      id: command.id,
+      cmd: command.cmd,
+      roundtrip_ms: roundtripMs,
+    })
+    return result
   } catch (err) {
     // On error, destroy the socket so the next call creates a fresh one
     closePersistentSocket()

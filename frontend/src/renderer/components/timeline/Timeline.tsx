@@ -1,5 +1,6 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import { useTimelineStore } from '../../stores/timeline'
+import { useLayoutStore } from '../../stores/layout'
 import TimeRuler from './TimeRuler'
 import Playhead from './Playhead'
 import { TrackHeader, TrackLane } from './Track'
@@ -22,7 +23,8 @@ export default function Timeline({ onSeek }: TimelineProps) {
   const markers = useTimelineStore((s) => s.markers)
   const loopRegion = useTimelineStore((s) => s.loopRegion)
 
-  const [height, setHeight] = useState(200)
+  const height = useLayoutStore((s) => s.timelineHeight)
+  const setHeight = useCallback((h: number) => useLayoutStore.getState().setTimelineHeight(h), [])
   const resizeRef = useRef<{ startY: number; startH: number } | null>(null)
 
   const handleResizeDown = useCallback(
@@ -42,8 +44,11 @@ export default function Timeline({ onSeek }: TimelineProps) {
   }, [])
 
   const handleResizeUp = useCallback(() => {
+    if (resizeRef.current) {
+      useLayoutStore.getState().setTimelineHeight(height)
+    }
     resizeRef.current = null
-  }, [])
+  }, [height])
 
   const handleAddTrack = useCallback(() => {
     const colors = ['#ef4444', '#f59e0b', '#4ade80', '#3b82f6', '#a855f7', '#ec4899']
@@ -157,6 +162,9 @@ export default function Timeline({ onSeek }: TimelineProps) {
         </div>
       </div>
       <div className="timeline__footer">
+        <button className="timeline__collapse-btn" onClick={() => useLayoutStore.getState().toggleTimeline()} title="Collapse timeline">
+          &#9660;
+        </button>
         <ZoomScroll zoom={zoom} onZoomChange={handleZoomChange} />
       </div>
     </div>
