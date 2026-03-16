@@ -1,6 +1,7 @@
 import React from 'react';
 import PadCell from './PadCell';
 import { usePerformanceStore } from '../../stores/performance';
+import { useProjectStore } from '../../stores/project';
 
 interface PadGridProps {
   onEditPad: (padId: string) => void;
@@ -12,6 +13,7 @@ export default function PadGrid({ onEditPad }: PadGridProps) {
   const isPerformMode = usePerformanceStore((s) => s.isPerformMode);
   const triggerPad = usePerformanceStore((s) => s.triggerPad);
   const releasePad = usePerformanceStore((s) => s.releasePad);
+  const currentFrame = useProjectStore((s) => s.currentFrame);
 
   const hasMappings = drumRack.pads.some((p) => p.mappings.length > 0);
 
@@ -22,8 +24,8 @@ export default function PadGrid({ onEditPad }: PadGridProps) {
           key={pad.id}
           pad={pad}
           runtimeState={padStates[pad.id]}
-          onTrigger={(id) => triggerPad(id, 0)}
-          onRelease={(id) => releasePad(id, 0)}
+          onTrigger={(id) => triggerPad(id, currentFrame)}
+          onRelease={(id) => releasePad(id, currentFrame)}
           onEdit={onEditPad}
         />
       ))}

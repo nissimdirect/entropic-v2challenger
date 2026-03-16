@@ -13,7 +13,7 @@ import type {
 } from '../../shared/types';
 import { DEFAULT_PAD_BINDINGS, DEFAULT_ADSR, RESERVED_KEYS } from '../../shared/constants';
 import { computeADSR } from '../components/performance/computeADSR';
-import { useUndoStore } from './undo';
+import { useUndoStore, undoable } from './undo';
 import { useMIDIStore } from './midi';
 
 function clampADSR(env: ADSREnvelope): ADSREnvelope {
@@ -178,12 +178,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       set({ drumRack: { ...current, pads: current.pads.map((p) => (p.id === padId ? oldPad : p)) } });
     };
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Update pad ${oldPad.label}`,
-      timestamp: Date.now(),
-    });
+    undoable(`Update pad ${oldPad.label}`, forward, inverse);
   },
 
   addPadMapping: (padId, mapping) => {
@@ -207,12 +202,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       ) } });
     };
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Add mapping to ${pad.label}`,
-      timestamp: Date.now(),
-    });
+    undoable(`Add mapping to ${pad.label}`, forward, inverse);
   },
 
   removePadMapping: (padId, index) => {
@@ -237,12 +227,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       ) } });
     };
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Remove mapping from ${pad.label}`,
-      timestamp: Date.now(),
-    });
+    undoable(`Remove mapping from ${pad.label}`, forward, inverse);
   },
 
   setPadKeyBinding: (padId, key) => {
@@ -285,12 +270,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       }) } });
     };
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Set key binding for ${pad.label}`,
-      timestamp: Date.now(),
-    });
+    undoable(`Set key binding for ${pad.label}`, forward, inverse);
   },
 
   setChokeGroup: (padId, group) => {
@@ -313,12 +293,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       ) } });
     };
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Set choke group for ${pad.label}`,
-      timestamp: Date.now(),
-    });
+    undoable(`Set choke group for ${pad.label}`, forward, inverse);
   },
 
   setPerformMode: (on) => {

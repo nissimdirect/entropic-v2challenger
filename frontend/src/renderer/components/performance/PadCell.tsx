@@ -36,6 +36,7 @@ export default function PadCell({ pad, runtimeState, onTrigger, onRelease, onEdi
       aria-label={`${pad.label} ${pad.keyBinding ? codeToLabel(pad.keyBinding) : 'unbound'}`}
       onMouseDown={() => onTrigger(pad.id)}
       onMouseUp={() => onRelease(pad.id)}
+      onMouseLeave={() => { if (isActive) onRelease(pad.id) }}
       onDoubleClick={() => onEdit(pad.id)}
     >
       <span className="pad-cell__key">

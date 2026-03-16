@@ -43,7 +43,21 @@ def _apply_resource_limits():
         print("WARNING: Could not set memory limit (SEC-9)", file=sys.stderr)
 
 
+def _check_cv2():
+    """Verify OpenCV is importable at startup with a clear error message."""
+    try:
+        import cv2  # noqa: F401
+    except ImportError:
+        print(
+            "FATAL: OpenCV (cv2) is required but not installed. "
+            "Install with: pip install opencv-python-headless",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+
 def main():
+    _check_cv2()
     init_diagnostics()
     _apply_resource_limits()
     server = ZMQServer()

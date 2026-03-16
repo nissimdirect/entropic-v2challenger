@@ -1,8 +1,9 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback } from 'react'
 import type { EffectInstance, EffectInfo } from '../../../shared/types'
 import EffectCard from './EffectCard'
 import FreezeOverlay from './FreezeOverlay'
 import { useFreezeStore } from '../../stores/freeze'
+import { useStableListener } from '../../hooks/useStableListener'
 
 interface EffectRackProps {
   chain: EffectInstance[]
@@ -70,24 +71,14 @@ export default function EffectRack({
   }, [])
 
   // Dismiss context menu on Escape or click outside
-  useEffect(() => {
-    if (!contextMenu) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        setContextMenu(null)
-      }
+  useStableListener(window, 'keydown', (e: Event) => {
+    if ((e as KeyboardEvent).key === 'Escape') {
+      e.preventDefault()
+      setContextMenu(null)
     }
-    const handleClickOutside = () => setContextMenu(null)
+  }, contextMenu !== null)
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('click', handleClickOutside)
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('click', handleClickOutside)
-    }
-  }, [contextMenu])
+  useStableListener(window, 'click', () => setContextMenu(null), contextMenu !== null)
 
   if (chain.length === 0) {
     return (

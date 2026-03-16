@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { usePerformanceStore } from '../../stores/performance';
 import { useMIDIStore } from '../../stores/midi';
 import { ADSR_PRESETS, RESERVED_KEYS, codeToLabel } from '../../../shared/constants';
 import { midiNoteToName } from '../../../shared/midi-utils';
+import { useStableListener } from '../../hooks/useStableListener';
 import type { EffectInstance, EffectInfo, ModulationRoute, PadMode } from '../../../shared/types';
 
 interface PadEditorProps {
@@ -27,31 +28,25 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
   const [keyError, setKeyError] = useState<string | null>(null);
 
   // Capture next keypress for key binding
-  useEffect(() => {
-    if (!isCapturingKey) return;
+  useStableListener(window, 'keydown', (e: Event) => {
+    const ke = e as KeyboardEvent;
+    ke.preventDefault();
+    ke.stopPropagation();
+    setIsCapturingKey(false);
 
-    const handler = (e: KeyboardEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      setIsCapturingKey(false);
-
-      if (e.code === 'Escape') {
-        setKeyError(null);
-        return;
-      }
-
-      if (RESERVED_KEYS.has(e.code)) {
-        setKeyError(`${codeToLabel(e.code)} is reserved`);
-        return;
-      }
-
+    if (ke.code === 'Escape') {
       setKeyError(null);
-      setPadKeyBinding(padId, e.code);
-    };
+      return;
+    }
 
-    window.addEventListener('keydown', handler, { capture: true });
-    return () => window.removeEventListener('keydown', handler, { capture: true });
-  }, [isCapturingKey, padId, setPadKeyBinding]);
+    if (RESERVED_KEYS.has(ke.code)) {
+      setKeyError(`${codeToLabel(ke.code)} is reserved`);
+      return;
+    }
+
+    setKeyError(null);
+    setPadKeyBinding(padId, ke.code);
+  }, isCapturingKey, { capture: true });
 
   const handleAddMapping = useCallback(() => {
     if (effectChain.length === 0) return;

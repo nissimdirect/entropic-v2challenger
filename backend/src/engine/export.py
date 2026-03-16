@@ -138,6 +138,15 @@ class ExportManager:
                 writer.close()
             if reader is not None:
                 reader.close()
+            # Clean up partial output file on cancel or error
+            if job.status in (ExportStatus.CANCELLED, ExportStatus.ERROR):
+                try:
+                    import os
+
+                    if os.path.exists(output_path):
+                        os.unlink(output_path)
+                except OSError:
+                    pass  # best-effort cleanup
 
     def get_status(self) -> dict:
         """Return serializable status dict."""

@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand'
 import type { AutomationLane, AutomationPoint } from '../../shared/types'
-import { useUndoStore } from './undo'
+import { undoable } from './undo'
 import { simplifyPoints } from '../utils/automation-simplify'
 
 export type AutomationMode = 'read' | 'latch' | 'touch' | 'draw'
@@ -98,12 +98,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Add automation lane for ${paramKey}`,
-      timestamp: Date.now(),
-    })
+    undoable(`Add automation lane for ${paramKey}`, forward, inverse)
   },
 
   removeLane: (trackId, laneId) => {
@@ -127,12 +122,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Remove automation lane`,
-      timestamp: Date.now(),
-    })
+    undoable(`Remove automation lane`, forward, inverse)
   },
 
   clearLane: (trackId, laneId) => {
@@ -157,12 +147,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Clear automation lane`,
-      timestamp: Date.now(),
-    })
+    undoable(`Clear automation lane`, forward, inverse)
   },
 
   setLaneVisible: (trackId, laneId, visible) => {
@@ -187,12 +172,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `${visible ? 'Show' : 'Hide'} automation lane`,
-      timestamp: Date.now(),
-    })
+    undoable(`${visible ? 'Show' : 'Hide'} automation lane`, forward, inverse)
   },
 
   simplifyLane: (trackId, laneId, tolerance) => {
@@ -218,12 +198,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Simplify automation lane`,
-      timestamp: Date.now(),
-    })
+    undoable(`Simplify automation lane`, forward, inverse)
   },
 
   addPoint: (trackId, laneId, time, value, curve = 0) => {
@@ -250,12 +225,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Add automation point`,
-      timestamp: Date.now(),
-    })
+    undoable(`Add automation point`, forward, inverse)
   },
 
   removePoint: (trackId, laneId, pointIndex) => {
@@ -281,12 +251,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Remove automation point`,
-      timestamp: Date.now(),
-    })
+    undoable(`Remove automation point`, forward, inverse)
   },
 
   updatePoint: (trackId, laneId, pointIndex, updates) => {
@@ -317,12 +282,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Update automation point`,
-      timestamp: Date.now(),
-    })
+    undoable(`Update automation point`, forward, inverse)
   },
 
   setPoints: (trackId, laneId, points) => {
@@ -347,12 +307,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Set automation points`,
-      timestamp: Date.now(),
-    })
+    undoable(`Set automation points`, forward, inverse)
   },
 
   setMode: (mode) => set({ mode }),
@@ -407,12 +362,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       set({ lanes: current })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Paste automation region`,
-      timestamp: Date.now(),
-    })
+    undoable(`Paste automation region`, forward, inverse)
   },
 
   getLanesForTrack: (trackId) => get().lanes[trackId] ?? [],

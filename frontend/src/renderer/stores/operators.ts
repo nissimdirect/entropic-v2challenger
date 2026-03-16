@@ -9,7 +9,7 @@ import type {
   OperatorMapping,
   SignalProcessingStep,
 } from '../../shared/types'
-import { useUndoStore } from './undo'
+import { useUndoStore, undoable } from './undo'
 
 function createDefaultOperator(type: OperatorType, id: string): Operator {
   const defaults: Record<OperatorType, Record<string, number | string | boolean>> = {
@@ -74,12 +74,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       set({ operators: get().operators.filter((o) => o.id !== newOp.id) })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Add ${newOp.label} operator`,
-      timestamp: Date.now(),
-    })
+    undoable(`Add ${newOp.label} operator`, forward, inverse)
   },
 
   removeOperator: (id) => {
@@ -119,12 +114,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       set({ operators: savedOps })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Remove ${removed.label} operator`,
-      timestamp: Date.now(),
-    })
+    undoable(`Remove ${removed.label} operator`, forward, inverse)
   },
 
   updateOperator: (id, updates) => {
@@ -146,12 +136,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Update ${oldOp.label}`,
-      timestamp: Date.now(),
-    })
+    undoable(`Update ${oldOp.label}`, forward, inverse)
   },
 
   setOperatorEnabled: (id, enabled) => {
@@ -171,12 +156,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `${enabled ? 'Enable' : 'Disable'} ${op.label}`,
-      timestamp: Date.now(),
-    })
+    undoable(`${enabled ? 'Enable' : 'Disable'} ${op.label}`, forward, inverse)
   },
 
   addMapping: (operatorId, mapping) => {
@@ -199,12 +179,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Add mapping to ${op.label}`,
-      timestamp: Date.now(),
-    })
+    undoable(`Add mapping to ${op.label}`, forward, inverse)
   },
 
   removeMapping: (operatorId, mappingIndex) => {
@@ -230,12 +205,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Remove mapping from ${op.label}`,
-      timestamp: Date.now(),
-    })
+    undoable(`Remove mapping from ${op.label}`, forward, inverse)
   },
 
   updateMapping: (operatorId, mappingIndex, updates) => {
@@ -262,12 +232,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: `Update mapping on ${op.label}`,
-      timestamp: Date.now(),
-    })
+    undoable(`Update mapping on ${op.label}`, forward, inverse)
   },
 
   reorderOperators: (fromIndex, toIndex) => {
@@ -296,12 +261,7 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       set({ operators: restored })
     }
 
-    useUndoStore.getState().execute({
-      forward,
-      inverse,
-      description: 'Reorder operators',
-      timestamp: Date.now(),
-    })
+    undoable('Reorder operators', forward, inverse)
   },
 
   resetOperators: () => {

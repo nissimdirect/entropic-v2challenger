@@ -316,7 +316,7 @@ class ZMQServer:
 
     def _handle_seek(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
-        time_s = message.get("time", 0.0)
+        time_s = clamp_finite(float(message.get("time", 0.0)), 0.0, 86400.0, 0.0)
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
 
@@ -370,7 +370,9 @@ class ZMQServer:
             if "frame_index" in message:
                 frame_index = int(message["frame_index"])
             else:
-                time_s = message.get("time", 0.0)
+                time_s = clamp_finite(
+                    float(message.get("time", 0.0)), 0.0, 86400.0, 0.0
+                )
                 frame_index = int(time_s * reader.fps)
 
             # F-3: Bounds check on frame_index
@@ -1012,7 +1014,7 @@ class ZMQServer:
         """Flatten a freeze cache to a new video file."""
         cache_id = message.get("cache_id")
         output_path = message.get("output_path")
-        fps = message.get("fps", 30)
+        fps = int(clamp_finite(float(message.get("fps", 30)), 1.0, 120.0, 30.0))
 
         err = self._validate_cache_id(cache_id, msg_id)
         if err:
