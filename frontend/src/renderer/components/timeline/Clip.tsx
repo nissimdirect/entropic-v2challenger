@@ -30,7 +30,15 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       dragStartPos.current = clip.position
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
 
-      useTimelineStore.getState().selectClip(clip.id)
+      const store = useTimelineStore.getState()
+      if (e.metaKey || e.ctrlKey) {
+        store.toggleClipSelection(clip.id)
+      } else if (e.shiftKey && store.selectedClipIds.length > 0) {
+        const lastSelected = store.selectedClipIds[store.selectedClipIds.length - 1]
+        store.rangeSelectClips(lastSelected, clip.id)
+      } else {
+        store.selectClip(clip.id)
+      }
     },
     [clip.id, clip.position],
   )
@@ -53,7 +61,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
       e.stopPropagation()
-      useTimelineStore.getState().selectClip(clip.id)
+      // Selection is handled in pointerDown — click is a no-op to prevent double-fire
     },
     [clip.id],
   )

@@ -45,6 +45,10 @@ export interface EntropicBridge {
   getSystemInfo: () => Promise<Record<string, unknown>>
   generateSupportBundle: () => Promise<string>
   submitFeedback: (text: string) => Promise<void>
+  readPreferences: () => Promise<Record<string, unknown>>
+  writePreferences: (data: Record<string, unknown>) => Promise<void>
+  readRecentProjects: () => Promise<{ path: string; name: string; lastModified: number }[]>
+  writeRecentProjects: (data: { path: string; name: string; lastModified: number }[]) => Promise<void>
 }
 
 /**
@@ -77,6 +81,10 @@ export function createMockEntropic(
     getSystemInfo: vi.fn().mockResolvedValue({ os: 'darwin', arch: 'arm64' }),
     generateSupportBundle: vi.fn().mockResolvedValue('/test/Desktop/entropic-support.tar.gz'),
     submitFeedback: vi.fn().mockResolvedValue(undefined),
+    readPreferences: vi.fn().mockResolvedValue({}),
+    writePreferences: vi.fn().mockResolvedValue(undefined),
+    readRecentProjects: vi.fn().mockResolvedValue([]),
+    writeRecentProjects: vi.fn().mockResolvedValue(undefined),
   }
   return { ...defaults, ...overrides }
 }

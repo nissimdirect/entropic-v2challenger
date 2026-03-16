@@ -96,4 +96,20 @@ contextBridge.exposeInMainWorld('entropic', {
   submitFeedback: (text: string): Promise<void> => {
     return ipcRenderer.invoke('feedback:submit', text)
   },
+
+  readPreferences: (): Promise<Record<string, unknown>> => {
+    return ipcRenderer.invoke('preferences:read')
+  },
+
+  writePreferences: (data: Record<string, unknown>): Promise<void> => {
+    return ipcRenderer.invoke('preferences:write', data)
+  },
+
+  readRecentProjects: (): Promise<{ path: string; name: string; lastModified: number }[]> => {
+    return ipcRenderer.invoke('recentProjects:read')
+  },
+
+  writeRecentProjects: (data: { path: string; name: string; lastModified: number }[]): Promise<void> => {
+    return ipcRenderer.invoke('recentProjects:write', data)
+  },
 })

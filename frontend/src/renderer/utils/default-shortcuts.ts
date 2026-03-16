@@ -32,4 +32,6 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'new_project',      keys: 'meta+n',         category: 'project',   label: 'New Project',         context: 'normal' },
   { action: 'export',           keys: 'meta+e',         category: 'project',   label: 'Export',              context: 'normal' },
   { action: 'toggle_perform',   keys: 'p',              category: 'project',   label: 'Toggle Perform Mode', context: 'normal' },
+  { action: 'feedback_dialog',  keys: 'meta+shift+f',   category: 'project',   label: 'Feedback Dialog',     context: 'normal' },
+  { action: 'support_bundle',   keys: 'meta+shift+d',   category: 'project',   label: 'Support Bundle',      context: 'normal' },
 ]

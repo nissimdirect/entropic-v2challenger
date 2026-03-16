@@ -37,6 +37,10 @@ interface Window {
     getSystemInfo: () => Promise<Record<string, unknown>>
     generateSupportBundle: () => Promise<string>
     submitFeedback: (text: string) => Promise<void>
+    readPreferences: () => Promise<Record<string, unknown>>
+    writePreferences: (data: Record<string, unknown>) => Promise<void>
+    readRecentProjects: () => Promise<{ path: string; name: string; lastModified: number }[]>
+    writeRecentProjects: (data: { path: string; name: string; lastModified: number }[]) => Promise<void>
   }
 }
 

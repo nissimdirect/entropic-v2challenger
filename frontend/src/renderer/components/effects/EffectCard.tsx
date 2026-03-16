@@ -1,4 +1,5 @@
 import type { EffectInstance } from '../../../shared/types'
+import Tooltip from '../common/Tooltip'
 
 interface EffectCardProps {
   effect: EffectInstance
@@ -22,27 +23,31 @@ export default function EffectCard({
       className={`effect-card ${isSelected ? 'effect-card--selected' : ''} ${!effect.isEnabled ? 'effect-card--disabled' : ''}`}
       onClick={onSelect}
     >
-      <button
-        className="effect-card__toggle"
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle()
-        }}
-        title={effect.isEnabled ? 'Disable' : 'Enable'}
-      >
-        {effect.isEnabled ? 'ON' : 'OFF'}
-      </button>
+      <Tooltip text={effect.isEnabled ? 'Disable effect' : 'Enable effect'} position="bottom">
+        <button
+          className="effect-card__toggle"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle()
+          }}
+          title={effect.isEnabled ? 'Disable' : 'Enable'}
+        >
+          {effect.isEnabled ? 'ON' : 'OFF'}
+        </button>
+      </Tooltip>
       <span className="effect-card__name">{name}</span>
-      <button
-        className="effect-card__remove"
-        onClick={(e) => {
-          e.stopPropagation()
-          onRemove()
-        }}
-        title="Remove effect"
-      >
-        x
-      </button>
+      <Tooltip text="Remove effect" position="bottom">
+        <button
+          className="effect-card__remove"
+          onClick={(e) => {
+            e.stopPropagation()
+            onRemove()
+          }}
+          title="Remove effect"
+        >
+          x
+        </button>
+      </Tooltip>
     </div>
   )
 }

@@ -15,7 +15,9 @@ interface TimelineState {
   zoom: number
   scrollX: number
   selectedTrackId: string | null
+  /** @deprecated Use selectedClipIds instead. Kept for backward compat — returns first selected or null. */
   selectedClipId: string | null
+  selectedClipIds: string[]
 
   // Track actions
   addTrack: (name: string, color: string) => void
@@ -56,6 +58,10 @@ interface TimelineState {
   // Selection
   selectTrack: (id: string | null) => void
   selectClip: (id: string | null) => void
+  toggleClipSelection: (clipId: string) => void
+  rangeSelectClips: (fromId: string, toId: string) => void
+  clearSelection: () => void
+  deleteSelectedClips: () => void
 
   // Helpers
   getActiveClipsAtTime: (time: number) => { track: Track; clip: Clip }[]
@@ -102,6 +108,17 @@ const INITIAL_STATE = {
   scrollX: 0,
   selectedTrackId: null as string | null,
   selectedClipId: null as string | null,
+  selectedClipIds: [] as string[],
+}
+
+/** Get all clips in track order (top track first, then by position within track). */
+function getAllClipsInOrder(tracks: Track[]): Clip[] {
+  const result: Clip[] = []
+  for (const track of tracks) {
+    const sorted = [...track.clips].sort((a, b) => a.position - b.position)
+    result.push(...sorted)
+  }
+  return result
 }
 
 export const useTimelineStore = create<TimelineState>((set, get) => ({
@@ -146,11 +163,10 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         const state = get()
         const tracks = state.tracks.filter((t) => t.id !== id)
         const selectedTrackId = state.selectedTrackId === id ? null : state.selectedTrackId
-        const selectedClipId =
-          state.selectedClipId && track.clips.some((c) => c.id === state.selectedClipId)
-            ? null
-            : state.selectedClipId
-        set({ tracks, selectedTrackId, selectedClipId, duration: recalcDuration(tracks) })
+        const trackClipIds = new Set(track.clips.map((c) => c.id))
+        const selectedClipIds = state.selectedClipIds.filter((cid) => !trackClipIds.has(cid))
+        const selectedClipId = selectedClipIds[0] ?? null
+        set({ tracks, selectedTrackId, selectedClipId, selectedClipIds, duration: recalcDuration(tracks) })
       },
       () => {
         const tracks = [...get().tracks]
@@ -296,8 +312,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           ...t,
           clips: t.clips.filter((c) => c.id !== clipId),
         }))
-        const selectedClipId = state.selectedClipId === clipId ? null : state.selectedClipId
-        set({ tracks, selectedClipId, duration: recalcDuration(tracks) })
+        const selectedClipIds = state.selectedClipIds.filter((id) => id !== clipId)
+        const selectedClipId = selectedClipIds[0] ?? null
+        set({ tracks, selectedClipId, selectedClipIds, duration: recalcDuration(tracks) })
       },
       () => {
         const tracks = get().tracks.map((t) =>
@@ -581,7 +598,71 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   // --- Selection (NOT undoable — UI state) ---
 
   selectTrack: (id) => set({ selectedTrackId: id }),
-  selectClip: (id) => set({ selectedClipId: id }),
+  selectClip: (id) => set({
+    selectedClipId: id,
+    selectedClipIds: id ? [id] : [],
+  }),
+
+  toggleClipSelection: (clipId) => {
+    const state = get()
+    const ids = state.selectedClipIds
+    const newIds = ids.includes(clipId)
+      ? ids.filter((id) => id !== clipId)
+      : [...ids, clipId]
+    set({ selectedClipIds: newIds, selectedClipId: newIds[0] ?? null })
+  },
+
+  rangeSelectClips: (fromId, toId) => {
+    const state = get()
+    const allClips = getAllClipsInOrder(state.tracks)
+    const fromIdx = allClips.findIndex((c) => c.id === fromId)
+    const toIdx = allClips.findIndex((c) => c.id === toId)
+    if (fromIdx === -1 || toIdx === -1) return
+    const lo = Math.min(fromIdx, toIdx)
+    const hi = Math.max(fromIdx, toIdx)
+    const rangeIds = allClips.slice(lo, hi + 1).map((c) => c.id)
+    set({ selectedClipIds: rangeIds, selectedClipId: rangeIds[0] ?? null })
+  },
+
+  clearSelection: () => set({ selectedClipIds: [], selectedClipId: null }),
+
+  deleteSelectedClips: () => {
+    const state = get()
+    if (state.selectedClipIds.length === 0) return
+    const idsToRemove = new Set(state.selectedClipIds)
+
+    // Capture removed clips for undo
+    const removedClips: { trackId: string; clip: Clip }[] = []
+    for (const track of state.tracks) {
+      for (const clip of track.clips) {
+        if (idsToRemove.has(clip.id)) {
+          removedClips.push({ trackId: track.id, clip: { ...clip } })
+        }
+      }
+    }
+    if (removedClips.length === 0) return
+
+    undoable(
+      `Delete ${removedClips.length} clip${removedClips.length > 1 ? 's' : ''}`,
+      () => {
+        const removeSet = new Set(removedClips.map((r) => r.clip.id))
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.filter((c) => !removeSet.has(c.id)),
+        }))
+        set({ tracks, selectedClipId: null, selectedClipIds: [], duration: recalcDuration(tracks) })
+      },
+      () => {
+        let tracks = get().tracks
+        for (const { trackId, clip } of removedClips) {
+          tracks = tracks.map((t) =>
+            t.id === trackId ? { ...t, clips: [...t.clips, clip] } : t,
+          )
+        }
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
 
   // --- Helpers ---
 

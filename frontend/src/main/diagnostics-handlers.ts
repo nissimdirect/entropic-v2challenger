@@ -125,6 +125,62 @@ export function registerDiagnosticsHandlers(): void {
     }
   })
 
+  // --- Preferences persistence ---
+
+  ipcMain.handle('preferences:read', async () => {
+    try {
+      const prefsPath = join(ENTROPIC_DIR, 'preferences.json')
+      if (!existsSync(prefsPath)) return {}
+      const content = readFileSync(prefsPath, 'utf8')
+      const parsed = JSON.parse(content)
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+      return parsed
+    } catch {
+      return {}
+    }
+  })
+
+  ipcMain.handle('preferences:write', async (_event, data: unknown) => {
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      throw new TypeError('preferences:write expects a plain object')
+    }
+    try {
+      mkdirSync(ENTROPIC_DIR, { recursive: true, mode: 0o700 })
+      const prefsPath = join(ENTROPIC_DIR, 'preferences.json')
+      writeFileSync(prefsPath, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
+    } catch {
+      // Best-effort
+    }
+  })
+
+  // --- Recent projects ---
+
+  ipcMain.handle('recentProjects:read', async () => {
+    try {
+      const recentPath = join(ENTROPIC_DIR, 'recent-projects.json')
+      if (!existsSync(recentPath)) return []
+      const content = readFileSync(recentPath, 'utf8')
+      const parsed = JSON.parse(content)
+      if (!Array.isArray(parsed)) return []
+      return parsed
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('recentProjects:write', async (_event, data: unknown) => {
+    if (!Array.isArray(data)) {
+      throw new TypeError('recentProjects:write expects an array')
+    }
+    try {
+      mkdirSync(ENTROPIC_DIR, { recursive: true, mode: 0o700 })
+      const recentPath = join(ENTROPIC_DIR, 'recent-projects.json')
+      writeFileSync(recentPath, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
+    } catch {
+      // Best-effort
+    }
+  })
+
   // --- Feedback ---
 
   ipcMain.handle('feedback:submit', async (_event, text: string) => {

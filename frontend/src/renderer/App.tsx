@@ -23,6 +23,8 @@ import type { Asset, EffectInstance } from '../shared/types'
 import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
+import { shortcutRegistry } from './utils/shortcuts'
+import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
@@ -51,6 +53,7 @@ import { useFreezeStore } from './stores/freeze'
 import { useToastStore } from './stores/toast'
 import { useLayoutStore } from './stores/layout'
 import Toast from './components/common/Toast'
+import Tooltip from './components/common/Tooltip'
 import type { Preset } from '../shared/types'
 import './styles/transport.css'
 import './styles/timeline.css'
@@ -236,33 +239,92 @@ function AppInner() {
     return () => stopAutosave()
   }, [])
 
-  // Keyboard shortcuts: undo/redo, zoom, save/load/new, split, marker, loop I/O, perform mode
+  // Initialize shortcut registry and keyboard listeners
   useEffect(() => {
+    shortcutRegistry.loadDefaults(DEFAULT_SHORTCUTS)
+
+    // Register all shortcut handlers
+    shortcutRegistry.register('undo', () => useUndoStore.getState().undo())
+    shortcutRegistry.register('redo', () => useUndoStore.getState().redo())
+    shortcutRegistry.register('zoom_in', () => {
+      const z = useTimelineStore.getState().zoom
+      useTimelineStore.getState().setZoom(z + 10)
+    })
+    shortcutRegistry.register('zoom_out', () => {
+      const z = useTimelineStore.getState().zoom
+      useTimelineStore.getState().setZoom(z - 10)
+    })
+    shortcutRegistry.register('zoom_fit', () => useTimelineStore.getState().setZoom(50))
+    shortcutRegistry.register('save', () => saveProject())
+    shortcutRegistry.register('open', () => loadProject())
+    shortcutRegistry.register('new_project', () => newProject())
+    shortcutRegistry.register('split_clip', () => {
+      const timeline = useTimelineStore.getState()
+      if (timeline.selectedClipId) {
+        timeline.splitClip(timeline.selectedClipId, timeline.playheadTime)
+      }
+    })
+    shortcutRegistry.register('add_marker', () => {
+      const timeline = useTimelineStore.getState()
+      timeline.addMarker(timeline.playheadTime, 'Marker', '#f59e0b')
+    })
+    shortcutRegistry.register('toggle_automation', () => {
+      const timeline = useTimelineStore.getState()
+      if (timeline.selectedTrackId) {
+        const autoStore = useAutomationStore.getState()
+        const lanes = autoStore.getLanesForTrack(timeline.selectedTrackId)
+        for (const lane of lanes) {
+          autoStore.setLaneVisible(timeline.selectedTrackId, lane.id, !lane.isVisible)
+        }
+      }
+    })
+    shortcutRegistry.register('toggle_sidebar', () => useLayoutStore.getState().toggleSidebar())
+    shortcutRegistry.register('toggle_focus', () => useLayoutStore.getState().toggleFocusMode())
+    shortcutRegistry.register('toggle_perform', () => {
+      const perfStore = usePerformanceStore.getState()
+      perfStore.setPerformMode(!perfStore.isPerformMode)
+    })
+    shortcutRegistry.register('loop_in', () => {
+      const timeline = useTimelineStore.getState()
+      const currentOut = timeline.loopRegion?.out ?? timeline.duration
+      if (timeline.playheadTime < currentOut) {
+        timeline.setLoopRegion(timeline.playheadTime, currentOut)
+      }
+    })
+    shortcutRegistry.register('loop_out', () => {
+      const timeline = useTimelineStore.getState()
+      const currentIn = timeline.loopRegion?.in ?? 0
+      if (timeline.playheadTime > currentIn) {
+        timeline.setLoopRegion(currentIn, timeline.playheadTime)
+      }
+    })
+    shortcutRegistry.register('export', () => setShowExportDialog(true))
+    shortcutRegistry.register('feedback_dialog', () => setShowFeedbackDialog(true))
+    shortcutRegistry.register('support_bundle', () => {
+      if (window.entropic) {
+        window.entropic.generateSupportBundle().then((path) => {
+          console.log('[Support] Bundle saved to:', path)
+        })
+      }
+    })
+
+    // Main keyboard listener — delegates to registry for normal shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't intercept shortcuts when typing in input fields
       const target = e.target as HTMLElement
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT'
       if (isInput) return
 
-      const mod = e.metaKey || e.ctrlKey
       const perfStore = usePerformanceStore.getState()
 
-      // P key (KeyP, no mods): toggle perform mode — ALWAYS handled regardless of mode
-      if (e.code === 'KeyP' && !mod && !e.shiftKey) {
-        e.preventDefault()
-        perfStore.setPerformMode(!perfStore.isPerformMode)
-        return
-      }
-
-      // When perform mode ON: consume ALL non-modifier keys for pads (Ableton pattern)
-      if (perfStore.isPerformMode && !mod) {
+      // Perform mode pad handling (NOT in registry — uses e.code for pad bindings)
+      if (perfStore.isPerformMode && !(e.metaKey || e.ctrlKey)) {
         if (e.code === 'Escape') {
           e.preventDefault()
           perfStore.panicAll()
           return
         }
 
-        // M4: PadEditor open → keys don't trigger pads
+        // PadEditor open → keys don't trigger pads
         if (perfStore.isPadEditorOpen) return
 
         // Ignore repeat events (held key)
@@ -273,7 +335,6 @@ function AppInner() {
         if (pad) {
           e.preventDefault()
           e.stopPropagation()
-
           handlePadTrigger(pad, perfStore, currentFrame, 'keyboard')
           return
         }
@@ -283,104 +344,8 @@ function AppInner() {
         return
       }
 
-      // --- Normal shortcuts (perform mode OFF or modifier key used) ---
-
-      // Undo/Redo
-      if (mod && e.key === 'z' && !e.shiftKey) {
-        e.preventDefault()
-        useUndoStore.getState().undo()
-      } else if (mod && e.key === 'z' && e.shiftKey) {
-        e.preventDefault()
-        useUndoStore.getState().redo()
-      }
-      // Zoom
-      else if (mod && (e.key === '=' || e.key === '+')) {
-        e.preventDefault()
-        const z = useTimelineStore.getState().zoom
-        useTimelineStore.getState().setZoom(z + 10)
-      } else if (mod && e.key === '-') {
-        e.preventDefault()
-        const z = useTimelineStore.getState().zoom
-        useTimelineStore.getState().setZoom(z - 10)
-      } else if (mod && e.key === '0') {
-        e.preventDefault()
-        useTimelineStore.getState().setZoom(50)
-      }
-      // Save/Load/New
-      else if (mod && e.key === 's' && !e.shiftKey) {
-        e.preventDefault()
-        saveProject()
-      } else if (mod && e.key === 'o' && !e.shiftKey) {
-        e.preventDefault()
-        loadProject()
-      } else if (mod && e.key === 'n' && !e.shiftKey) {
-        e.preventDefault()
-        newProject()
-      }
-      // Split clip at playhead (Cmd+Shift+K)
-      else if (mod && e.key === 'k' && e.shiftKey) {
-        e.preventDefault()
-        const timeline = useTimelineStore.getState()
-        const selectedClip = timeline.selectedClipId
-        if (selectedClip) {
-          timeline.splitClip(selectedClip, timeline.playheadTime)
-        }
-      }
-      // Add marker (Cmd+M)
-      else if (mod && e.key === 'm') {
-        e.preventDefault()
-        const timeline = useTimelineStore.getState()
-        timeline.addMarker(timeline.playheadTime, `Marker`, '#f59e0b')
-      }
-      // Feedback dialog (Cmd+Shift+F)
-      else if (mod && e.key === 'f' && e.shiftKey) {
-        e.preventDefault()
-        setShowFeedbackDialog(true)
-      }
-      // Support bundle (Cmd+Shift+D)
-      else if (mod && e.key === 'd' && e.shiftKey) {
-        e.preventDefault()
-        if (window.entropic) {
-          window.entropic.generateSupportBundle().then((path) => {
-            console.log('[Support] Bundle saved to:', path)
-          })
-        }
-      }
-      // A key: toggle automation lane visibility on selected track
-      else if (e.key === 'a' && !mod) {
-        const timeline = useTimelineStore.getState()
-        if (timeline.selectedTrackId) {
-          const autoStore = useAutomationStore.getState()
-          const lanes = autoStore.getLanesForTrack(timeline.selectedTrackId)
-          for (const lane of lanes) {
-            autoStore.setLaneVisible(timeline.selectedTrackId, lane.id, !lane.isVisible)
-          }
-        }
-      }
-      // Sidebar toggle (Cmd+B)
-      else if (mod && e.key === 'b' && !e.shiftKey) {
-        e.preventDefault()
-        useLayoutStore.getState().toggleSidebar()
-      }
-      // Focus mode (F key)
-      else if (e.key === 'f' && !mod && !e.shiftKey) {
-        e.preventDefault()
-        useLayoutStore.getState().toggleFocusMode()
-      }
-      // Loop in/out (I / O keys)
-      else if (e.key === 'i' && !mod) {
-        const timeline = useTimelineStore.getState()
-        const currentOut = timeline.loopRegion?.out ?? timeline.duration
-        if (timeline.playheadTime < currentOut) {
-          timeline.setLoopRegion(timeline.playheadTime, currentOut)
-        }
-      } else if (e.key === 'o' && !mod) {
-        const timeline = useTimelineStore.getState()
-        const currentIn = timeline.loopRegion?.in ?? 0
-        if (timeline.playheadTime > currentIn) {
-          timeline.setLoopRegion(currentIn, timeline.playheadTime)
-        }
-      }
+      // Normal shortcuts — delegate to registry
+      shortcutRegistry.handleKeyEvent(e)
     }
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -1144,9 +1109,11 @@ function AppInner() {
       <div className={`app__timeline${timelineCollapsed ? ' app__timeline--collapsed' : ''}`}>
         {timelineCollapsed ? (
           <div className="timeline-collapsed-header">
-            <button className="timeline-collapsed-header__toggle" onClick={() => useLayoutStore.getState().toggleTimeline()}>
-              &#9654; Timeline
-            </button>
+            <Tooltip text="Expand timeline" position="top">
+              <button className="timeline-collapsed-header__toggle" onClick={() => useLayoutStore.getState().toggleTimeline()}>
+                &#9654; Timeline
+              </button>
+            </Tooltip>
           </div>
         ) : (
           <>
@@ -1209,13 +1176,15 @@ function AppInner() {
             <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
           )}
           {hasAssets && (
-            <button
-              className="export-btn"
-              onClick={() => setShowExportDialog(true)}
-              disabled={isExporting}
-            >
-              Export
-            </button>
+            <Tooltip text="Export video" shortcut={shortcutRegistry.getEffectiveKey('export')} position="top">
+              <button
+                className="export-btn"
+                onClick={() => setShowExportDialog(true)}
+                disabled={isExporting}
+              >
+                Export
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>

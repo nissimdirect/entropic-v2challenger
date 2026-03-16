@@ -494,4 +494,147 @@ describe('TimelineStore', () => {
       expect(useTimelineStore.getState().tracks[0].clips[1].id).toBe(clipBId)
     })
   })
+
+  // --- Multi-clip selection ---
+
+  describe('multi-clip selection', () => {
+    let trackId: string
+
+    beforeEach(() => {
+      useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+      trackId = useTimelineStore.getState().tracks[0].id
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c1', position: 0, duration: 5 }))
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c2', position: 5, duration: 5 }))
+      useTimelineStore.getState().addClip(trackId, makeClip({ id: 'c3', position: 10, duration: 5 }))
+      useUndoStore.getState().clear()
+    })
+
+    it('selectClip sets single selection and syncs selectedClipId', () => {
+      useTimelineStore.getState().selectClip('c2')
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual(['c2'])
+      expect(state.selectedClipId).toBe('c2')
+    })
+
+    it('selectClip(null) clears all selections', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().selectClip(null)
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual([])
+      expect(state.selectedClipId).toBeNull()
+    })
+
+    it('toggleClipSelection adds clip to selection', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c2')
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual(['c1', 'c2'])
+      expect(state.selectedClipId).toBe('c1') // first in array
+    })
+
+    it('toggleClipSelection removes clip from selection', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c2')
+      useTimelineStore.getState().toggleClipSelection('c1')
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual(['c2'])
+      expect(state.selectedClipId).toBe('c2')
+    })
+
+    it('toggleClipSelection on last selected leaves empty selection', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c1')
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual([])
+      expect(state.selectedClipId).toBeNull()
+    })
+
+    it('rangeSelectClips selects all clips between from and to (inclusive)', () => {
+      useTimelineStore.getState().rangeSelectClips('c1', 'c3')
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual(['c1', 'c2', 'c3'])
+    })
+
+    it('rangeSelectClips works in reverse order', () => {
+      useTimelineStore.getState().rangeSelectClips('c3', 'c1')
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual(['c1', 'c2', 'c3'])
+    })
+
+    it('rangeSelectClips with same from/to selects just that clip', () => {
+      useTimelineStore.getState().rangeSelectClips('c2', 'c2')
+      expect(useTimelineStore.getState().selectedClipIds).toEqual(['c2'])
+    })
+
+    it('rangeSelectClips with invalid ID is no-op', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().rangeSelectClips('c1', 'nonexistent')
+      // Should not change selection
+      expect(useTimelineStore.getState().selectedClipIds).toEqual(['c1'])
+    })
+
+    it('rangeSelectClips spans across multiple tracks', () => {
+      useTimelineStore.getState().addTrack('Track 2', '#00ff00')
+      const track2Id = useTimelineStore.getState().tracks[1].id
+      useTimelineStore.getState().addClip(track2Id, makeClip({ id: 'c4', position: 0, duration: 5 }))
+
+      useTimelineStore.getState().rangeSelectClips('c1', 'c4')
+      const ids = useTimelineStore.getState().selectedClipIds
+      expect(ids).toContain('c1')
+      expect(ids).toContain('c2')
+      expect(ids).toContain('c3')
+      expect(ids).toContain('c4')
+    })
+
+    it('clearSelection empties selection', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c2')
+      useTimelineStore.getState().clearSelection()
+      const state = useTimelineStore.getState()
+      expect(state.selectedClipIds).toEqual([])
+      expect(state.selectedClipId).toBeNull()
+    })
+
+    it('deleteSelectedClips removes all selected clips', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c3')
+      useTimelineStore.getState().deleteSelectedClips()
+      const clips = useTimelineStore.getState().tracks[0].clips
+      expect(clips).toHaveLength(1)
+      expect(clips[0].id).toBe('c2')
+      expect(useTimelineStore.getState().selectedClipIds).toEqual([])
+    })
+
+    it('deleteSelectedClips is undoable', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c2')
+      useTimelineStore.getState().deleteSelectedClips()
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(3)
+    })
+
+    it('deleteSelectedClips with empty selection is no-op', () => {
+      useTimelineStore.getState().clearSelection()
+      useTimelineStore.getState().deleteSelectedClips()
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(3)
+    })
+
+    it('removeTrack cleans up selectedClipIds for clips on that track', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c2')
+      useTimelineStore.getState().removeTrack(trackId)
+      expect(useTimelineStore.getState().selectedClipIds).toEqual([])
+      expect(useTimelineStore.getState().selectedClipId).toBeNull()
+    })
+
+    it('removeClip cleans up selectedClipIds', () => {
+      useTimelineStore.getState().selectClip('c1')
+      useTimelineStore.getState().toggleClipSelection('c2')
+      useTimelineStore.getState().removeClip('c1')
+      expect(useTimelineStore.getState().selectedClipIds).toEqual(['c2'])
+      expect(useTimelineStore.getState().selectedClipId).toBe('c2')
+    })
+  })
 })

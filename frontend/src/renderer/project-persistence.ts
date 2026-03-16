@@ -16,6 +16,13 @@ import { randomUUID } from './utils'
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
 const PROJECT_VERSION = '2.0.0'
+const MAX_RECENT_PROJECTS = 20
+
+export interface RecentProject {
+  path: string
+  name: string
+  lastModified: number
+}
 
 let autosaveTimer: ReturnType<typeof setInterval> | null = null
 
@@ -246,6 +253,9 @@ export async function saveProject(): Promise<boolean> {
   // Delete autosave after successful save
   deleteAutosave()
 
+  // Track as recent project
+  addRecentProject({ path: filePath, name, lastModified: Date.now() })
+
   return true
 }
 
@@ -278,6 +288,9 @@ export async function loadProject(): Promise<boolean> {
     const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
     useProjectStore.getState().setProjectPath(filePath)
     useProjectStore.getState().setProjectName(name)
+
+    // Track as recent project
+    addRecentProject({ path: filePath, name, lastModified: Date.now() })
 
     return true
   } catch (err) {
@@ -374,6 +387,45 @@ export async function restoreAutosave(path: string): Promise<boolean> {
   } catch (err) {
     console.error('[Autosave] Failed to restore:', err)
     return false
+  }
+}
+
+// --- Recent projects ---
+
+export async function loadRecentProjects(): Promise<RecentProject[]> {
+  if (!window.entropic) return []
+  try {
+    const data = await window.entropic.readRecentProjects()
+    if (!Array.isArray(data)) return []
+    // Validate each entry has the required shape
+    return data.filter(
+      (entry): entry is RecentProject =>
+        typeof entry === 'object' &&
+        entry !== null &&
+        typeof entry.path === 'string' &&
+        typeof entry.name === 'string' &&
+        typeof entry.lastModified === 'number',
+    )
+  } catch {
+    return []
+  }
+}
+
+export async function addRecentProject(project: RecentProject): Promise<void> {
+  if (!window.entropic) return
+  try {
+    const existing = await loadRecentProjects()
+    // Remove any existing entry with the same path
+    const filtered = existing.filter((p) => p.path !== project.path)
+    // Add new entry at front
+    filtered.unshift(project)
+    // Sort by lastModified descending
+    filtered.sort((a, b) => b.lastModified - a.lastModified)
+    // Cap at MAX_RECENT_PROJECTS
+    const capped = filtered.slice(0, MAX_RECENT_PROJECTS)
+    await window.entropic.writeRecentProjects(capped)
+  } catch {
+    // Best-effort — don't break save flow
   }
 }
 
