@@ -1,0 +1,17 @@
+{
+  "id": "factory-795af5b7",
+  "name": "Gaussian Soft",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "temporal"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.blur",
+    "parameters": {
+      "radius": 5
+    },
+    "modulations": {}
+  }
+}

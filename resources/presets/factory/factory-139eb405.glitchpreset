@@ -1,0 +1,17 @@
+{
+  "id": "factory-139eb405",
+  "name": "Warm Shift",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.hue_shift",
+    "parameters": {
+      "shift": 30
+    },
+    "modulations": {}
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "factory-1f9ed4b5",
+  "name": "Extreme Split",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.chromatic_aberration",
+    "parameters": {
+      "offset": 15
+    },
+    "modulations": {}
+  }
+}

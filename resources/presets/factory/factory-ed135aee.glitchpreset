@@ -1,0 +1,17 @@
+{
+  "id": "factory-ed135aee",
+  "name": "Digital Rain",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.noise",
+    "parameters": {
+      "amount": 0.5
+    },
+    "modulations": {}
+  }
+}

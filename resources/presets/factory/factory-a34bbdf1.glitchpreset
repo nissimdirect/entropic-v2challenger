@@ -1,0 +1,17 @@
+{
+  "id": "factory-a34bbdf1",
+  "name": "Over Sharpen",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "temporal"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.sharpen",
+    "parameters": {
+      "amount": 3.0
+    },
+    "modulations": {}
+  }
+}

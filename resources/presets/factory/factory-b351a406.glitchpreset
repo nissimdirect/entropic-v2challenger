@@ -1,0 +1,17 @@
+{
+  "id": "factory-b351a406",
+  "name": "Dither",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.posterize",
+    "parameters": {
+      "levels": 3
+    },
+    "modulations": {}
+  }
+}

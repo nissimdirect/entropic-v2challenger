@@ -1,0 +1,54 @@
+{
+  "id": "factory-1cbefb42",
+  "name": "Surveillance",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "glitch",
+    "destruction"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-a995790e",
+        "effectId": "fx.pixelate",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "block_size": 4
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-fd0ba098",
+        "effectId": "fx.scanlines",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "spacing": 2,
+          "intensity": 0.7
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-13af2221",
+        "effectId": "fx.noise",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 0.3
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

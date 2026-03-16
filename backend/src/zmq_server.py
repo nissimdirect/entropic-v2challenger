@@ -12,6 +12,7 @@ import zmq
 from effects import registry
 from engine.cache import encode_mjpeg
 from engine.export import ExportManager
+from engine.freeze import FreezeManager
 from engine.compositor import render_composite
 from engine.pipeline import (
     apply_chain,
@@ -56,6 +57,7 @@ class ZMQServer:
         self._max_readers = 10
         self.last_frame_ms = 0.0
         self.export_manager = ExportManager()
+        self.freeze_manager = FreezeManager()
         # Waveform peak cache — keyed by (path, num_bins), LRU eviction
         self._waveform_cache: collections.OrderedDict[tuple[str, int], list] = (
             collections.OrderedDict()
@@ -108,6 +110,9 @@ class ZMQServer:
 
         # Reset signal engine state
         self._signal_state = {}
+
+        # Reset freeze caches
+        self.freeze_manager.reset()
 
     def _ensure_shm(self) -> SharedMemoryWriter:
         if self.shm_writer is None:
@@ -270,6 +275,16 @@ class ZMQServer:
         elif cmd == "flush_state":
             flush_timing()
             return {"id": msg_id, "ok": True}
+        elif cmd == "freeze_prefix":
+            return self._handle_freeze_prefix(message, msg_id)
+        elif cmd == "read_freeze":
+            return self._handle_read_freeze(message, msg_id)
+        elif cmd == "flatten":
+            return self._handle_flatten(message, msg_id)
+        elif cmd == "invalidate_cache":
+            return self._handle_invalidate_cache(message, msg_id)
+        elif cmd == "memory_status":
+            return self._handle_memory_status(msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -895,6 +910,163 @@ class ZMQServer:
         self.readers[path] = reader
         return reader
 
+    # --- Freeze/Flatten handlers ---
+
+    _CACHE_ID_RE = __import__("re").compile(r"^[0-9a-f]{16}$")
+
+    def _validate_cache_id(
+        self, cache_id: str | None, msg_id: str | None
+    ) -> dict | None:
+        """Validate cache_id format. Returns error dict or None if valid."""
+        if not cache_id or not isinstance(cache_id, str):
+            return {"id": msg_id, "ok": False, "error": "cache_id required"}
+        if not self._CACHE_ID_RE.match(cache_id):
+            return {"id": msg_id, "ok": False, "error": "invalid cache_id format"}
+        return None
+
+    def _handle_freeze_prefix(self, message: dict, msg_id: str | None) -> dict:
+        """Freeze an effect chain prefix to disk cache."""
+        asset_path = message.get("asset_path")
+        chain = message.get("chain", [])
+        project_seed = message.get("project_seed", 0)
+        frame_count = message.get("frame_count", 0)
+        resolution = message.get("resolution", [1280, 720])
+
+        if not asset_path or not isinstance(asset_path, str):
+            return {"id": msg_id, "ok": False, "error": "asset_path required"}
+        if frame_count <= 0:
+            return {"id": msg_id, "ok": False, "error": "frame_count must be > 0"}
+
+        # SEC-6: frame count cap
+        fc_errors = validate_frame_count(frame_count)
+        if fc_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(fc_errors)}
+
+        # SEC-7: chain depth cap
+        cd_errors = validate_chain_depth(chain)
+        if cd_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(cd_errors)}
+
+        if (
+            not isinstance(resolution, (list, tuple))
+            or len(resolution) != 2
+            or not all(isinstance(v, (int, float)) for v in resolution)
+        ):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "resolution must be [width, height]",
+            }
+
+        try:
+            cache_id = self.freeze_manager.freeze_prefix(
+                asset_path,
+                chain,
+                project_seed,
+                frame_count,
+                (int(resolution[0]), int(resolution[1])),
+            )
+            return {"id": msg_id, "ok": True, "cache_id": cache_id}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            return {"id": msg_id, "ok": False, "error": str(e)}
+
+    def _handle_read_freeze(self, message: dict, msg_id: str | None) -> dict:
+        """Read a single cached frame from a freeze cache."""
+        cache_id = message.get("cache_id")
+        frame_index = message.get("frame_index", 0)
+
+        err = self._validate_cache_id(cache_id, msg_id)
+        if err:
+            return err
+
+        try:
+            frame = self.freeze_manager.read_cached_frame(cache_id, frame_index)
+            jpeg_data = encode_mjpeg(
+                np.dstack([frame, np.full(frame.shape[:2], 255, dtype=np.uint8)])
+            )
+            frame_b64 = base64.b64encode(jpeg_data).decode("ascii")
+            return {
+                "id": msg_id,
+                "ok": True,
+                "frame_data": frame_b64,
+                "width": frame.shape[1],
+                "height": frame.shape[0],
+            }
+        except (KeyError, IndexError) as e:
+            return {"id": msg_id, "ok": False, "error": str(e)}
+
+    def _handle_flatten(self, message: dict, msg_id: str | None) -> dict:
+        """Flatten a freeze cache to a new video file."""
+        cache_id = message.get("cache_id")
+        output_path = message.get("output_path")
+        fps = message.get("fps", 30)
+
+        err = self._validate_cache_id(cache_id, msg_id)
+        if err:
+            return err
+        if not output_path or not isinstance(output_path, str):
+            return {"id": msg_id, "ok": False, "error": "output_path required"}
+
+        # Validate output path — check return value (returns list of errors)
+        path_errors = validate_output_path(output_path)
+        if path_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(path_errors)}
+
+        try:
+            result_path = self.freeze_manager.flatten(cache_id, output_path, fps=fps)
+            return {"id": msg_id, "ok": True, "output_path": result_path}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            return {"id": msg_id, "ok": False, "error": str(e)}
+
+    def _handle_invalidate_cache(self, message: dict, msg_id: str | None) -> dict:
+        """Invalidate (delete) a freeze cache."""
+        cache_id = message.get("cache_id")
+        err = self._validate_cache_id(cache_id, msg_id)
+        if err:
+            return err
+
+        self.freeze_manager.invalidate(cache_id)
+        return {"id": msg_id, "ok": True}
+
+    def _handle_memory_status(self, msg_id: str | None) -> dict:
+        """Return process and system memory info."""
+        import os
+
+        try:
+            import psutil
+
+            proc = psutil.Process(os.getpid())
+            mem = proc.memory_info()
+            vm = psutil.virtual_memory()
+            return {
+                "id": msg_id,
+                "ok": True,
+                "rss_mb": mem.rss // (1024 * 1024),
+                "percent": vm.percent,
+                "available_mb": vm.available // (1024 * 1024),
+            }
+        except ImportError:
+            # psutil not installed — return basic info from os
+            import resource
+            import sys
+
+            rusage = resource.getrusage(resource.RUSAGE_SELF)
+            # macOS: ru_maxrss is in bytes; Linux: in kilobytes
+            rss_bytes = (
+                rusage.ru_maxrss
+                if sys.platform == "darwin"
+                else rusage.ru_maxrss * 1024
+            )
+            return {
+                "id": msg_id,
+                "ok": True,
+                "rss_mb": rss_bytes // (1024 * 1024),
+                "percent": -1,
+                "available_mb": -1,
+            }
+
     def run(self):
         self.running = True
         poller = zmq.Poller()
@@ -953,6 +1125,7 @@ class ZMQServer:
 
     def close(self):
         self.audio_player.close()
+        self.freeze_manager.reset()
         for reader in self.readers.values():
             reader.close()
         if self.shm_writer is not None:

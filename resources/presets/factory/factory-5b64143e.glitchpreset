@@ -1,0 +1,15 @@
+{
+  "id": "factory-5b64143e",
+  "name": "Edge Detect",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "temporal"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.edge_detect",
+    "parameters": {},
+    "modulations": {}
+  }
+}

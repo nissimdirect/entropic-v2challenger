@@ -44,11 +44,21 @@ import { useAutomationStore } from './stores/automation'
 import { resolveGhostValues } from './utils/resolveGhostValues'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
 import AutomationToolbar from './components/automation/AutomationToolbar'
+import PresetBrowser from './components/library/PresetBrowser'
+import PresetSaveDialog from './components/library/PresetSaveDialog'
+import { useLibraryStore } from './stores/library'
+import { useFreezeStore } from './stores/freeze'
+import { useToastStore } from './stores/toast'
+import { useLayoutStore } from './stores/layout'
+import Toast from './components/common/Toast'
+import type { Preset } from '../shared/types'
 import './styles/transport.css'
 import './styles/timeline.css'
 import './styles/performance.css'
 import './styles/operators.css'
 import './styles/automation.css'
+import './styles/library.css'
+import './styles/toast.css'
 
 class SentryErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -142,12 +152,23 @@ function AppInner() {
   const [startupChecked, setStartupChecked] = useState(false)
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
   const [editingPadId, setEditingPadId] = useState<string | null>(null)
+  const [sidebarTab, setSidebarTab] = useState<'effects' | 'presets'>('effects')
+  const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
 
   const activeAssetPath = useRef<string | null>(null)
   const isRenderingRef = useRef(false)
   const pendingFrameRef = useRef<number | null>(null)
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
+  const renderSeqRef = useRef(0)
+  const lastDisabledEffectsRef = useRef<string>('')
+
+  // Layout store for sidebar/timeline collapse
+  const sidebarCollapsed = useLayoutStore((s) => s.sidebarCollapsed)
+  const timelineCollapsed = useLayoutStore((s) => s.timelineCollapsed)
+
+  // Engine store for frame timing
+  const lastFrameMs = useEngineStore((s) => s.lastFrameMs)
 
   // Startup: check telemetry consent, then crash reports + autosave
   useEffect(() => {
@@ -335,6 +356,16 @@ function AppInner() {
           }
         }
       }
+      // Sidebar toggle (Cmd+B)
+      else if (mod && e.key === 'b' && !e.shiftKey) {
+        e.preventDefault()
+        useLayoutStore.getState().toggleSidebar()
+      }
+      // Focus mode (F key)
+      else if (e.key === 'f' && !mod && !e.shiftKey) {
+        e.preventDefault()
+        useLayoutStore.getState().toggleFocusMode()
+      }
       // Loop in/out (I / O keys)
       else if (e.key === 'i' && !mod) {
         const timeline = useTimelineStore.getState()
@@ -404,6 +435,12 @@ function AppInner() {
         setExportError(error)
         setIsExporting(false)
         setExportJobId(null)
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'Export failed',
+          source: 'export',
+          details: error,
+        })
       }
     })
     return cleanup
@@ -472,8 +509,30 @@ function AppInner() {
           if (res.operator_values) {
             setOperatorValues(res.operator_values as Record<string, number>)
           }
+          // Wire disabled_effects to toast (deduplicated)
+          if (res.disabled_effects) {
+            const disabledKey = JSON.stringify(res.disabled_effects)
+            if (disabledKey !== lastDisabledEffectsRef.current) {
+              lastDisabledEffectsRef.current = disabledKey
+              const count = (res.disabled_effects as string[]).length
+              if (count > 0) {
+                useToastStore.getState().addToast({
+                  level: 'state',
+                  message: `${count} effect(s) auto-disabled`,
+                  source: 'engine',
+                  persistent: true,
+                })
+              }
+            }
+          }
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
+          useToastStore.getState().addToast({
+            level: 'error',
+            message: 'Frame render failed',
+            source: 'render',
+            details: res.error as string,
+          })
 
           // Auto-retry once with empty chain to at least show raw frame
           if (chain.length > 0) {
@@ -489,8 +548,15 @@ function AppInner() {
         }
       } catch (err) {
         console.error('[Render] frame', frame, 'exception:', err)
-        setRenderError(err instanceof Error ? err.message : 'Render failed')
+        const errMsg = err instanceof Error ? err.message : 'Render failed'
+        setRenderError(errMsg)
         setPreviewState('error')
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'Frame render failed',
+          source: 'render',
+          details: errMsg,
+        })
       }
 
       isRenderingRef.current = false
@@ -588,6 +654,12 @@ function AppInner() {
       } else {
         setIngestError(res.error as string)
         setPreviewState('empty')
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'Video ingest failed',
+          source: 'ingest',
+          details: res.error as string,
+        })
       }
 
       setIngesting(false)
@@ -741,6 +813,12 @@ function AppInner() {
       } else {
         setExportError(res.error as string)
         setIsExporting(false)
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'Export failed',
+          source: 'export',
+          details: res.error as string,
+        })
       }
     },
     [effectChain, totalFrames],
@@ -831,6 +909,9 @@ function AppInner() {
   return (
     <div
       className="app"
+      style={{
+        gridTemplateColumns: sidebarCollapsed ? 'var(--sidebar-width-collapsed) 1fr' : 'var(--sidebar-width) 1fr',
+      }}
       onDragEnter={handleGlobalDragEnter}
       onDragOver={handleGlobalDragOver}
       onDragLeave={handleGlobalDragLeave}
@@ -841,7 +922,7 @@ function AppInner() {
           <span>Drop video file here</span>
         </div>
       )}
-      <div className="app__sidebar">
+      <div className="app__sidebar" style={sidebarCollapsed ? { display: 'none' } : undefined}>
         {!hasAssets && (
           <div className="app__upload">
             <DropZone onFileDrop={handleFileIngest} disabled={isIngesting} />
@@ -876,12 +957,52 @@ function AppInner() {
             <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} label="Replace" />
           </div>
         )}
-        <EffectBrowser
-          registry={registry}
-          isLoading={effectsLoading}
-          onAddEffect={addEffect}
-          chainLength={effectChain.length}
-        />
+        <div className="sidebar-tabs">
+          <button
+            className={`sidebar-tabs__btn ${sidebarTab === 'effects' ? 'sidebar-tabs__btn--active' : ''}`}
+            onClick={() => setSidebarTab('effects')}
+          >
+            Effects
+          </button>
+          <button
+            className={`sidebar-tabs__btn ${sidebarTab === 'presets' ? 'sidebar-tabs__btn--active' : ''}`}
+            onClick={() => setSidebarTab('presets')}
+          >
+            Presets
+          </button>
+        </div>
+        {sidebarTab === 'effects' ? (
+          <EffectBrowser
+            registry={registry}
+            isLoading={effectsLoading}
+            onAddEffect={addEffect}
+            chainLength={effectChain.length}
+          />
+        ) : (
+          <PresetBrowser
+            onApplyPreset={(preset: Preset) => {
+              if (preset.type === 'single_effect' && preset.effectData) {
+                addEffect({
+                  id: randomUUID(),
+                  effectId: preset.effectData.effectId,
+                  isEnabled: true,
+                  isFrozen: false,
+                  parameters: { ...preset.effectData.parameters },
+                  modulations: { ...(preset.effectData.modulations ?? {}) },
+                  mix: 1,
+                  mask: null,
+                })
+              } else if (preset.type === 'effect_chain' && preset.chainData) {
+                for (const effect of preset.chainData.effects) {
+                  addEffect({
+                    ...effect,
+                    id: randomUUID(),
+                  })
+                }
+              }
+            }}
+          />
+        )}
         <EffectRack
           chain={effectChain}
           registry={registry}
@@ -890,6 +1011,45 @@ function AppInner() {
           onToggle={toggleEffect}
           onRemove={removeEffect}
           onReorder={reorderEffect}
+          onSavePreset={() => setShowPresetSave({ mode: 'effect_chain' })}
+          onSaveEffectPreset={(effectInstanceId) => {
+            const effect = effectChain.find((e) => e.id === effectInstanceId)
+            if (effect) {
+              setShowPresetSave({ mode: 'single_effect', instanceId: effect.id })
+            }
+          }}
+          onFreezeUpTo={async (index) => {
+            const assetPaths = Object.values(assets)
+            if (assetPaths.length === 0) return
+            const asset = assetPaths[0]
+            await useFreezeStore.getState().freezePrefix(
+              'default',
+              index,
+              asset.path,
+              effectChain.slice(0, index + 1).map((e) => ({
+                effect_id: e.effectId,
+                params: e.parameters,
+                enabled: e.isEnabled,
+              })),
+              Date.now() % 2147483647,
+              totalFrames,
+              [asset.meta.width, asset.meta.height],
+            )
+          }}
+          onUnfreeze={async () => {
+            await useFreezeStore.getState().unfreezePrefix('default')
+          }}
+          onFlatten={async () => {
+            if (!window.entropic) return
+            const savePath = await window.entropic.showSaveDialog({
+              title: 'Flatten to video',
+              defaultPath: 'flattened.mp4',
+              filters: [{ name: 'Video', extensions: ['mp4'] }],
+            })
+            if (savePath) {
+              await useFreezeStore.getState().flattenPrefix('default', savePath)
+            }
+          }}
         />
         <HistoryPanel />
       </div>
@@ -974,9 +1134,19 @@ function AppInner() {
         />
       </div>
 
-      <div className="app__timeline">
-        <Timeline onSeek={handleTimelineSeek} />
-        <AutomationToolbar />
+      <div className={`app__timeline${timelineCollapsed ? ' app__timeline--collapsed' : ''}`}>
+        {timelineCollapsed ? (
+          <div className="timeline-collapsed-header">
+            <button className="timeline-collapsed-header__toggle" onClick={() => useLayoutStore.getState().toggleTimeline()}>
+              &#9654; Timeline
+            </button>
+          </div>
+        ) : (
+          <>
+            <Timeline onSeek={handleTimelineSeek} />
+            <AutomationToolbar />
+          </>
+        )}
       </div>
 
       <div className="app__performance">
@@ -1011,6 +1181,20 @@ function AppInner() {
           <span className="status-text">{statusLabel[status]}</span>
           {status === 'connected' && uptime !== undefined && (
             <span className="uptime">Uptime: {uptime}s</span>
+          )}
+          {hasAssets && frameWidth > 0 && (
+            <span className="status-bar__metrics">
+              <span className="status-bar__metric">{frameWidth >= 3840 ? '4K' : frameWidth >= 1920 ? '1080p' : frameWidth >= 1280 ? '720p' : `${frameWidth}p`}</span>
+              <span className="status-bar__metric">{activeFps}fps</span>
+              {lastFrameMs !== undefined && (
+                <span
+                  className="status-bar__metric"
+                  style={{ color: lastFrameMs < 33 ? '#4ade80' : lastFrameMs < 66 ? '#ff9800' : '#ef4444' }}
+                >
+                  {Math.round(lastFrameMs)}ms
+                </span>
+              )}
+            </span>
           )}
         </div>
         <div className="status-bar__right">
@@ -1057,6 +1241,24 @@ function AppInner() {
         onClose={() => setShowFeedbackDialog(false)}
       />
 
+      {showPresetSave && (() => {
+        const targetEffect = showPresetSave.instanceId
+          ? effectChain.find((e) => e.id === showPresetSave.instanceId)
+          : undefined
+        return (
+          <PresetSaveDialog
+            isOpen={true}
+            mode={showPresetSave.mode}
+            effectId={targetEffect?.effectId}
+            parameters={targetEffect?.parameters}
+            modulations={targetEffect?.modulations}
+            chain={showPresetSave.mode === 'effect_chain' ? effectChain : undefined}
+            onSave={(preset) => useLibraryStore.getState().savePreset(preset)}
+            onClose={() => setShowPresetSave(null)}
+          />
+        )
+      })()}
+
       {editingPadId && (
         <PadEditor
           padId={editingPadId}
@@ -1068,6 +1270,8 @@ function AppInner() {
           }}
         />
       )}
+
+      <Toast />
     </div>
   )
 }

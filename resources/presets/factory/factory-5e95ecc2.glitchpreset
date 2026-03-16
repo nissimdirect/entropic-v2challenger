@@ -1,0 +1,52 @@
+{
+  "id": "factory-5e95ecc2",
+  "name": "Acid Trip",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "color",
+    "physics"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-fa330449",
+        "effectId": "fx.invert",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {},
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-c942493d",
+        "effectId": "fx.wave",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amplitude": 8,
+          "frequency": 6
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-fe61de64",
+        "effectId": "fx.posterize",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "levels": 6
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

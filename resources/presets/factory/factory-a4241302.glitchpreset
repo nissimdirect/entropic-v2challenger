@@ -1,0 +1,18 @@
+{
+  "id": "factory-a4241302",
+  "name": "High Contrast",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.levels",
+    "parameters": {
+      "black": 0.2,
+      "white": 0.8
+    },
+    "modulations": {}
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "factory-bd949d0c",
+  "name": "Micro Shake",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.wave",
+    "parameters": {
+      "amplitude": 2,
+      "frequency": 20
+    },
+    "modulations": {}
+  }
+}

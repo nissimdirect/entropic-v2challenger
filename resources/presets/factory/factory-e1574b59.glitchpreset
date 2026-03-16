@@ -1,0 +1,18 @@
+{
+  "id": "factory-e1574b59",
+  "name": "Subtle Warp",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.wave",
+    "parameters": {
+      "amplitude": 3,
+      "frequency": 8
+    },
+    "modulations": {}
+  }
+}

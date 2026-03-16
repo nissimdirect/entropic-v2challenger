@@ -291,3 +291,31 @@ export interface Operator {
   processing: SignalProcessingStep[];
   mappings: OperatorMapping[];
 }
+
+// --- Presets (Phase 10) ---
+
+export interface MacroMapping {
+  label: string;
+  effectIndex: number;
+  paramKey: string;
+  min: number;
+  max: number;
+}
+
+export interface Preset {
+  id: string;
+  name: string;
+  type: 'single_effect' | 'effect_chain';
+  created: number;
+  tags: string[];
+  isFavorite: boolean;
+  effectData?: {
+    effectId: string;
+    parameters: Record<string, number | string | boolean>;
+    modulations: Record<string, ModulationRoute[]>;
+  };
+  chainData?: {
+    effects: EffectInstance[];
+    macros: MacroMapping[];
+  };
+}

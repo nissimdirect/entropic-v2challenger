@@ -1,0 +1,18 @@
+{
+  "id": "factory-822c35a0",
+  "name": "Wave Distort",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.wave",
+    "parameters": {
+      "amplitude": 10,
+      "frequency": 5
+    },
+    "modulations": {}
+  }
+}

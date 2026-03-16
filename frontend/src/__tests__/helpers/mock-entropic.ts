@@ -34,6 +34,8 @@ export interface EntropicBridge {
   readFile: (filePath: string) => Promise<string>
   writeFile: (filePath: string, data: string) => Promise<void>
   deleteFile: (filePath: string) => Promise<void>
+  listFiles: (dirPath: string, pattern?: string) => Promise<string[]>
+  mkdirp: (dirPath: string) => Promise<void>
   getAppPath: (name: string) => Promise<string>
   checkTelemetryConsent: () => Promise<boolean | null>
   setTelemetryConsent: (consent: boolean) => Promise<void>
@@ -64,6 +66,8 @@ export function createMockEntropic(
     readFile: vi.fn().mockResolvedValue('{}'),
     writeFile: vi.fn().mockResolvedValue(undefined),
     deleteFile: vi.fn().mockResolvedValue(undefined),
+    listFiles: vi.fn().mockResolvedValue([]),
+    mkdirp: vi.fn().mockResolvedValue(undefined),
     getAppPath: vi.fn().mockResolvedValue('/test/userData'),
     checkTelemetryConsent: vi.fn().mockResolvedValue(null),
     setTelemetryConsent: vi.fn().mockResolvedValue(undefined),
