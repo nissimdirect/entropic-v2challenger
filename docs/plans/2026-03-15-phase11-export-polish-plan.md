@@ -25,7 +25,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Backend: Codec Expansion
 
-- [ ] **11-1-1** Create `backend/src/engine/codecs.py` — codec configuration module
+- [x] **11-1-1** Create `backend/src/engine/codecs.py` — codec configuration module
   - Codec registry: `{ "h264": {...}, "h265": {...}, "prores_422": {...}, "prores_4444": {...} }`
   - Per-codec: PyAV codec name, pixel format, bitrate range, quality presets (fast/medium/slow)
   - Resolution presets: source, 720p (1280x720), 1080p (1920x1080), 4K (3840x2160), custom
@@ -33,7 +33,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Validate codec availability via `av.codec.Codec(name)` at startup
   - **Files:** `backend/src/engine/codecs.py` (new, ~100 lines)
 
-- [ ] **11-1-2** Expand `ExportManager` in `export.py`
+- [x] **11-1-2** Expand `ExportManager` in `export.py`
   - Accept full settings dict: `{ codec, resolution, fps, bitrate, quality_preset, region, audio_mux }`
   - Resolution scaling: if target != source, resize frame via `cv2.resize()` after apply_chain
   - FPS conversion: if target != source, interpolate frame indices (drop/duplicate)
@@ -41,33 +41,33 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Region: full, loop_region (in/out from timeline), custom (start_frame/end_frame)
   - **Files:** `backend/src/engine/export.py` (expand _run_export, ~80 lines added)
 
-- [ ] **11-1-3** Audio muxing via PyAV
+- [x] **11-1-3** Audio muxing via PyAV
   - After video export completes: mux original audio track into output
   - Trim audio to match exported region
   - Use `av.open()` to copy audio stream (no re-encode)
   - Handle no-audio case gracefully (skip mux step)
   - **Files:** `backend/src/engine/export.py` (add _mux_audio method, ~50 lines)
 
-- [ ] **11-1-4** GIF export
+- [x] **11-1-4** GIF export
   - Use PyAV or Pillow for animated GIF generation
   - Palette optimization: global palette via median-cut, optional dithering
   - Max resolution: 480p (auto-downscale if larger)
   - Max duration: 30 seconds (truncate with warning)
   - **Files:** `backend/src/engine/gif_export.py` (new, ~80 lines)
 
-- [ ] **11-1-5** Image sequence export
+- [x] **11-1-5** Image sequence export
   - Output formats: PNG (lossless), JPEG (Q95), TIFF (lossless)
   - Naming: `frame_000001.png` zero-padded to total frame count digits
   - Output to subdirectory of chosen path
   - **Files:** `backend/src/engine/image_sequence.py` (new, ~50 lines)
 
-- [ ] **11-1-6** Wire new export modes into ZMQ server
+- [x] **11-1-6** Wire new export modes into ZMQ server
   - Expand `export_start` command to accept full settings
   - Add `export_type` field: "video" (default), "gif", "image_sequence"
   - `export_status` now includes ETA (estimated time remaining based on frames/sec rate)
   - **Files:** `backend/src/zmq_server.py` (~30 lines modified in export handlers)
 
-- [ ] **11-1-7** Backend export tests
+- [x] **11-1-7** Backend export tests
   - `test_codecs.py`: codec registry lists all supported, validates availability
   - `test_export_h264.py`: existing tests still pass (regression)
   - `test_export_h265.py`: H.265 export → valid file (skip if codec unavailable)
