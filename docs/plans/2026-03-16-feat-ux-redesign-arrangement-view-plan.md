@@ -1,7 +1,7 @@
 ---
 title: "feat: UX Redesign — Arrangement View + Device Chain"
 type: feat
-status: active
+status: completed
 date: 2026-03-16
 phase: 12-16
 brainstorm: docs/brainstorms/2026-03-16-ux-redesign-brainstorm.md
