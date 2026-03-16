@@ -164,7 +164,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Perform: Cmd+P (toggle perform mode), M (add marker), I/O (loop in/out)
   - **Files:** `frontend/src/renderer/utils/default-shortcuts.ts` (new, ~60 lines)
 
-- [ ] **11-3-3** Migrate App.tsx hardcoded shortcuts to registry
+- [x] **11-3-3** Migrate App.tsx hardcoded shortcuts to registry
   - Remove the 160-line useEffect keyboard handler from App.tsx
   - Replace with `ShortcutRegistry.init()` call in App mount
   - All existing shortcuts preserved with same behavior
@@ -190,7 +190,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Save/Cancel buttons
   - **Files:** `frontend/src/renderer/components/layout/Preferences.tsx` (new, ~100 lines)
 
-- [ ] **11-3-6** Persist preferences
+- [x] **11-3-6** Persist preferences
   - Write to `~/.entropic/preferences.json` via preload bridge
   - Load on app start, apply to relevant stores
   - Add to preload: `readPreferences()`, `writePreferences(data)`
@@ -218,7 +218,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - Entropic logo + version at top
   - **Files:** `frontend/src/renderer/components/layout/WelcomeScreen.tsx` (new, ~80 lines)
 
-- [ ] **11-4-2** Recent projects tracking
+- [x] **11-4-2** Recent projects tracking
   - On save: add/update entry in `~/.entropic/recent-projects.json`
   - Max 20 entries, sorted by last-modified
   - Entry: `{ path, name, lastModified, thumbnailPath? }`
@@ -233,7 +233,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - BEM: `.tooltip`, `.tooltip__text`, `.tooltip__shortcut`
   - **Files:** `frontend/src/renderer/components/common/Tooltip.tsx` (new or expand existing, ~60 lines)
 
-- [ ] **11-4-4** Add tooltips to all interactive controls
+- [x] **11-4-4** Add tooltips to all interactive controls
   - Effect browser buttons, rack controls, transport controls, timeline tools
   - Export button, save button, perform mode toggle
   - Shortcut displayed from registry (auto-updates when user customizes)
@@ -263,14 +263,14 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Window Management
 
-- [ ] **11-4-8** Remember window size/position
+- [x] **11-4-8** Remember window size/position
   - On resize/move: debounce 500ms → save to `~/.entropic/window-state.json`
   - On launch: restore from saved state, validate still fits screen
   - **Files:** `frontend/src/main/index.ts` (add window state persist, ~30 lines)
 
 ### Multi-Clip Selection
 
-- [ ] **11-4-9** Add multi-select to timeline
+- [x] **11-4-9** Add multi-select to timeline
   - Shift+click: range select (all clips between last-selected and clicked)
   - Cmd+click: toggle individual clip selection
   - Marquee drag: draw selection rectangle on timeline, select all clips intersecting
