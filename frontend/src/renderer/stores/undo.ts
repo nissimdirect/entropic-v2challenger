@@ -15,18 +15,27 @@ interface UndoState {
   past: UndoEntry[]
   future: UndoEntry[]
   isDirty: boolean
+  /** Active transaction — mutations buffered until commitTransaction() */
+  _transaction: { description: string; entries: UndoEntry[] } | null
 
   execute: (entry: UndoEntry) => void
   undo: () => void
   redo: () => void
   clear: () => void
   clearDirty: () => void
+  /** Begin a transaction — all undoable() calls between begin/commit are coalesced into one undo entry */
+  beginTransaction: (description: string) => void
+  /** Commit the current transaction as a single undo entry */
+  commitTransaction: () => void
+  /** Abort the current transaction and undo all buffered mutations */
+  abortTransaction: () => void
 }
 
 export const useUndoStore = create<UndoState>((set, get) => ({
   past: [],
   future: [],
   isDirty: false,
+  _transaction: null,
 
   execute: (entry) => {
     try {
@@ -86,6 +95,56 @@ export const useUndoStore = create<UndoState>((set, get) => ({
   clear: () => set({ past: [], future: [], isDirty: false }),
 
   clearDirty: () => set({ isDirty: false }),
+
+  beginTransaction: (description) => {
+    if (get()._transaction) {
+      // Already in a transaction — commit the previous one first
+      get().commitTransaction()
+    }
+    set({ _transaction: { description, entries: [] } })
+  },
+
+  commitTransaction: () => {
+    const tx = get()._transaction
+    if (!tx || tx.entries.length === 0) {
+      set({ _transaction: null })
+      return
+    }
+
+    // Coalesce all buffered entries into a single undo entry
+    const entries = [...tx.entries]
+    const compositeEntry: UndoEntry = {
+      description: tx.description,
+      timestamp: Date.now(),
+      forward: () => {
+        for (const e of entries) e.forward()
+      },
+      inverse: () => {
+        // Replay inverses in reverse order
+        for (let i = entries.length - 1; i >= 0; i--) {
+          entries[i].inverse()
+        }
+      },
+    }
+
+    set((state) => {
+      let past = [...state.past, compositeEntry]
+      if (past.length > MAX_UNDO_ENTRIES) {
+        past = past.slice(past.length - MAX_UNDO_ENTRIES)
+      }
+      return { past, future: [], isDirty: true, _transaction: null }
+    })
+  },
+
+  abortTransaction: () => {
+    const tx = get()._transaction
+    if (!tx) return
+    // Undo all buffered mutations in reverse
+    for (let i = tx.entries.length - 1; i >= 0; i--) {
+      tx.entries[i].inverse()
+    }
+    set({ _transaction: null })
+  },
 }))
 
 /**
@@ -119,6 +178,14 @@ export function undoable(
     })
     return
   }
+
+  // If inside a transaction, buffer the entry instead of pushing to main stack
+  const tx = useUndoStore.getState()._transaction
+  if (tx) {
+    tx.entries.push(entry)
+    return
+  }
+
   pushToStack(entry)
 }
 

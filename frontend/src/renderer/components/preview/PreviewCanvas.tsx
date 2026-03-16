@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 
 export type PreviewState = 'empty' | 'loading' | 'ready' | 'error'
 
@@ -38,6 +38,21 @@ export default function PreviewCanvas({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const fpsRef = useRef({ frames: 0, lastTime: performance.now(), display: 0 })
+  const [isPopOutOpen, setIsPopOutOpen] = useState(false)
+
+  const handlePopOut = useCallback(async () => {
+    try {
+      if (isPopOutOpen) {
+        await window.entropic.closePopOut()
+        setIsPopOutOpen(false)
+      } else {
+        await window.entropic.openPopOut()
+        setIsPopOutOpen(true)
+      }
+    } catch {
+      // Best-effort
+    }
+  }, [isPopOutOpen])
 
   const drawToCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -84,6 +99,13 @@ export default function PreviewCanvas({
 
   return (
     <div className="preview-canvas">
+      <button
+        className="preview-canvas__popout-btn"
+        onClick={handlePopOut}
+        title={isPopOutOpen ? 'Close pop-out preview' : 'Pop out preview'}
+      >
+        {isPopOutOpen ? '↙' : '↗'}
+      </button>
       <canvas
         ref={canvasRef}
         className="preview-canvas__element"

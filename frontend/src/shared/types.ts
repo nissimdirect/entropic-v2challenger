@@ -155,12 +155,17 @@ export interface MaskConfig {
 
 // --- Automation ---
 
+export type TriggerMode = 'toggle' | 'gate' | 'one-shot';
+
 export interface AutomationLane {
   id: string;
   paramPath: string;
   color: string;
   isVisible: boolean;
   points: AutomationPoint[];
+  isTrigger: boolean;
+  triggerMode?: TriggerMode;
+  triggerADSR?: ADSREnvelope;
 }
 
 export interface AutomationPoint {

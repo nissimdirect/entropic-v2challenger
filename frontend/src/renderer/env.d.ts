@@ -55,6 +55,10 @@ interface Window {
     onUpdateDownloaded?: (callback: (data: { version: string }) => void) => (() => void)
     downloadUpdate?: () => Promise<void>
     installUpdate?: () => Promise<void>
+    openPopOut: () => Promise<void>
+    closePopOut: () => Promise<void>
+    isPopOutOpen: () => Promise<boolean>
+    sendFrameToPopOut: (dataUrl: string) => void
   }
 }
 

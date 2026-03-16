@@ -95,7 +95,12 @@ describe('IPC Contract', () => {
     expect(methods).toContain('onUpdateDownloaded')
     expect(methods).toContain('downloadUpdate')
     expect(methods).toContain('installUpdate')
-    expect(methods).toHaveLength(30)
+    // Pop-out preview (Phase 16)
+    expect(methods).toContain('openPopOut')
+    expect(methods).toContain('closePopOut')
+    expect(methods).toContain('isPopOutOpen')
+    expect(methods).toContain('sendFrameToPopOut')
+    expect(methods).toHaveLength(34)
   })
 
   it('backend ZMQ server registers all expected commands', () => {

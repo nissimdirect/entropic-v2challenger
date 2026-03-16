@@ -80,16 +80,16 @@ export function captureToAutomation(
         result[paramPath] = [];
       }
 
-      // Trigger → value based on depth * sustain (mapping.depth * mapping.max)
-      // Release → 0 (return to base)
+      // Square-wave trigger points: trigger → 1.0, release → 0.0
+      // Clamped to [0, 1] (numeric trust boundary)
       const value = event.eventType === 'trigger'
-        ? Math.max(0, Math.min(1, mapping.depth))
-        : 0;
+        ? 1.0
+        : 0.0;
 
       result[paramPath].push({
         time: timelineTime,
         value,
-        curve: 0, // linear
+        curve: 0, // square-wave: no interpolation
       });
     }
   }

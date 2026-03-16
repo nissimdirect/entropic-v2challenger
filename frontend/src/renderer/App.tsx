@@ -504,7 +504,10 @@ function AppInner() {
         }
 
         if (res.ok && res.frame_data) {
-          setFrameDataUrl(`data:image/jpeg;base64,${res.frame_data as string}`)
+          const dataUrl = `data:image/jpeg;base64,${res.frame_data as string}`
+          setFrameDataUrl(dataUrl)
+          // Relay frame to pop-out window if open
+          window.entropic.sendFrameToPopOut(dataUrl)
           if (res.width) setFrameWidth(res.width as number)
           if (res.height) setFrameHeight(res.height as number)
           setPreviewState('ready')
