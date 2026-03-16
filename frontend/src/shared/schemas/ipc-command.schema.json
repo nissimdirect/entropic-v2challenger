@@ -5,18 +5,34 @@
   "description": "ZMQ command from Electron to Python backend",
   "type": "object",
   "required": ["cmd", "id"],
+  "definitions": {
+    "trace_fields": {
+      "type": "object",
+      "properties": {
+        "_token": { "type": "string", "description": "Auth token injected by relay" },
+        "_ts_send": { "type": "number", "description": "Timestamp (ms) when relay sent the command" },
+        "_render_seq": { "type": "integer", "description": "Monotonic sequence number for stale-frame detection" }
+      }
+    }
+  },
   "oneOf": [
     {
       "properties": {
         "cmd": { "const": "ping" },
-        "id": { "type": "string" }
+        "id": { "type": "string" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "additionalProperties": false
     },
     {
       "properties": {
         "cmd": { "const": "shutdown" },
-        "id": { "type": "string" }
+        "id": { "type": "string" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "additionalProperties": false
     },
@@ -24,7 +40,10 @@
       "properties": {
         "cmd": { "const": "flush_state" },
         "id": { "type": "string" },
-        "project": { "type": "object" }
+        "project": { "type": "object" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "required": ["cmd", "id"],
       "additionalProperties": false
@@ -33,7 +52,10 @@
       "properties": {
         "cmd": { "const": "ingest" },
         "id": { "type": "string" },
-        "path": { "type": "string", "minLength": 1 }
+        "path": { "type": "string", "minLength": 1 },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "required": ["cmd", "id", "path"],
       "additionalProperties": false
@@ -43,7 +65,10 @@
         "cmd": { "const": "seek" },
         "id": { "type": "string" },
         "path": { "type": "string", "minLength": 1 },
-        "time": { "type": "number", "minimum": 0 }
+        "time": { "type": "number", "minimum": 0 },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "required": ["cmd", "id", "path", "time"],
       "additionalProperties": false
@@ -56,7 +81,10 @@
         "frame_index": { "type": "integer", "minimum": 0 },
         "time": { "type": "number", "minimum": 0 },
         "chain": { "type": "array", "items": { "type": "object" } },
-        "project_seed": { "type": "integer" }
+        "project_seed": { "type": "integer" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "required": ["cmd", "id", "path"],
       "additionalProperties": false
@@ -68,7 +96,10 @@
         "path": { "type": "string", "minLength": 1 },
         "frame_index": { "type": "integer", "minimum": 0 },
         "chain": { "type": "array", "items": { "type": "object" } },
-        "project_seed": { "type": "integer" }
+        "project_seed": { "type": "integer" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "required": ["cmd", "id", "path", "frame_index", "chain"],
       "additionalProperties": false
@@ -76,7 +107,10 @@
     {
       "properties": {
         "cmd": { "const": "list_effects" },
-        "id": { "type": "string" }
+        "id": { "type": "string" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "additionalProperties": false
     },
@@ -87,7 +121,10 @@
         "input_path": { "type": "string", "minLength": 1 },
         "output_path": { "type": "string", "minLength": 1 },
         "chain": { "type": "array", "items": { "type": "object" } },
-        "project_seed": { "type": "integer" }
+        "project_seed": { "type": "integer" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "required": ["cmd", "id", "input_path", "output_path"],
       "additionalProperties": false
@@ -95,14 +132,20 @@
     {
       "properties": {
         "cmd": { "const": "export_status" },
-        "id": { "type": "string" }
+        "id": { "type": "string" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "additionalProperties": false
     },
     {
       "properties": {
         "cmd": { "const": "export_cancel" },
-        "id": { "type": "string" }
+        "id": { "type": "string" },
+        "_token": { "type": "string" },
+        "_ts_send": { "type": "number" },
+        "_render_seq": { "type": "integer" }
       },
       "additionalProperties": false
     }

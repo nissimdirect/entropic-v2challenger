@@ -1111,6 +1111,7 @@ class ZMQServer:
                     logging.getLogger(__name__).error("ZMQ error on main socket")
                     break
 
+                t0 = time.monotonic()
                 try:
                     response = self.handle_message(message)
                 except Exception as e:
@@ -1119,6 +1120,17 @@ class ZMQServer:
                         "Unhandled handler error: %s", type(e).__name__
                     )
                     response = {"ok": False, "error": "Internal processing error"}
+
+                cmd = message.get("cmd")
+                if cmd and cmd != "ping":
+                    elapsed_ms = (time.monotonic() - t0) * 1000
+                    logging.getLogger(__name__).info(
+                        "IPC handled: id=%s cmd=%s elapsed_ms=%.1f ok=%s",
+                        message.get("id"),
+                        cmd,
+                        elapsed_ms,
+                        response.get("ok"),
+                    )
 
                 self.socket.send_json(response)
         self.close()

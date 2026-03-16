@@ -22,9 +22,9 @@ let timeoutId: ReturnType<typeof setTimeout> | null = null
 let renderInFlight = false
 const missCounter = new MissCounter(MAX_MISSES)
 
-function broadcast(status: EngineStatus, uptime?: number): void {
+function broadcast(status: EngineStatus, uptime?: number, lastFrameMs?: number): void {
   for (const win of BrowserWindow.getAllWindows()) {
-    win.webContents.send('engine-status', { status, uptime })
+    win.webContents.send('engine-status', { status, uptime, lastFrameMs })
   }
 }
 
@@ -41,7 +41,7 @@ async function ping(): Promise<void> {
     const res = JSON.parse(raw.toString())
     if (res.status === 'alive') {
       missCounter.hit()
-      broadcast('connected', res.uptime_s)
+      broadcast('connected', res.uptime_s, res.last_frame_ms)
     }
   } catch {
     // Use higher miss tolerance while a render_frame is in flight,

@@ -5,9 +5,16 @@
 import type { Project } from "./types";
 import type { SerializedEffectInstance } from "./ipc-serialize";
 
+// --- Trace fields injected by zmq-relay (never set by calling code) ---
+interface TraceFields {
+  _token?: string;
+  _ts_send?: number;
+  _render_seq?: number;
+}
+
 // --- Commands (Electron → Python) ---
 
-export type Command =
+export type Command = TraceFields & (
   | { cmd: "ping"; id: string }
   | { cmd: "shutdown"; id: string }
   | { cmd: "flush_state"; id: string; project: Project }
@@ -65,7 +72,7 @@ export type Command =
   | { cmd: "audio_position"; id: string }
   | { cmd: "audio_stop"; id: string }
   | { cmd: "clock_sync"; id: string }
-  | { cmd: "clock_set_fps"; id: string; fps: number };
+  | { cmd: "clock_set_fps"; id: string; fps: number });
 
 // --- Responses (Python → Electron) ---
 
