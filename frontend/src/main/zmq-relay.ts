@@ -10,6 +10,33 @@ const EXPORT_POLL_INTERVAL = 500
 /** Commands that trigger heavy Python work and may block pings (BUG-4). */
 const RENDER_COMMANDS = new Set(['render_frame', 'apply_chain', 'export_start'])
 
+/**
+ * Commands the renderer is allowed to send to the Python engine.
+ * Adding a new Python handler requires a corresponding entry here.
+ * NOTE: 'shutdown' is intentionally excluded — it is main-process only.
+ */
+const ALLOWED_COMMANDS = new Set([
+  // Playback & rendering
+  'render_frame', 'render_composite', 'apply_chain', 'seek',
+  // Ingest & info
+  'ingest', 'list_effects', 'effect_health', 'effect_stats',
+  // Export
+  'export_start', 'export_cancel', 'export_status',
+  // Audio
+  'audio_decode', 'audio_load', 'audio_play', 'audio_pause',
+  'audio_stop', 'audio_seek', 'audio_volume', 'audio_position', 'waveform',
+  // Clock
+  'clock_sync', 'clock_set_fps',
+  // Freeze & cache
+  'freeze_prefix', 'read_freeze', 'flatten', 'invalidate_cache',
+  // State
+  'flush_state', 'memory_status',
+  // Routing
+  'check_dag',
+  // Health
+  'ping',
+])
+
 let currentPort = 0
 let currentToken = ''
 let persistentSocket: InstanceType<typeof Request> | null = null
@@ -138,6 +165,10 @@ function startExportPoll(): void {
 
 export function registerRelayHandlers(): void {
   ipcMain.handle('send-command', async (_event, command: Record<string, unknown>) => {
+    const cmd = command.cmd as string | undefined
+    if (!cmd || !ALLOWED_COMMANDS.has(cmd)) {
+      return { id: command.id ?? randomUUID(), ok: false, error: `Unknown command: ${cmd}` }
+    }
     if (!command.id) {
       command.id = randomUUID()
     }
