@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/ascii_art.py
+# hypothesis_version: 6.151.9
+
+[0.55, 0.85, 1.15, 1.8, 191, 200, 255, 256, ' .:-=+*#%@', ' ░▒▓█', '01', 'ASCII Art', 'Charset', 'Color', 'Invert', 'RGB', 'Text color mode', 'Width', 'X', 'amber', 'basic', 'binary', 'block', 'chars', 'charset', 'choice', 'color_mode', 'curve', 'default', 'dense', 'description', 'dots', 'false', 'fx.ascii_art', 'green', 'int', 'invert', 'katakana', 'label', 'linear', 'max', 'min', 'mono', 'options', 'original', 'stylize', 'true', 'type', 'unit', 'width']

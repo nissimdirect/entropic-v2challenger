@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/posterize.py
+# hypothesis_version: 6.151.9
+
+[256.0, 255, 'Color Levels', 'Posterize', 'curve', 'default', 'description', 'enhance', 'fx.posterize', 'int', 'label', 'levels', 'linear', 'max', 'min', 'type', 'unit']

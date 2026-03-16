@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/film_grain_warm.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.15, 0.3, 0.5, 1.0, 1.5, 4.0, 128, 255, '%', 'Amount', 'Film Grain Warm', 'Grain intensity', 'Mood', 'Size', 'Warmth', 'amount', 'choice', 'curve', 'default', 'description', 'expired', 'exponential', 'float', 'fx.film_grain_warm', 'kodak', 'label', 'linear', 'max', 'min', 'mood', 'options', 'px', 'size', 'texture', 'type', 'unit', 'vintage', 'warmth']

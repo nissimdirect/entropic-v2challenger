@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/_calibration.py
+# hypothesis_version: 6.151.9
+
+[0.9, 100.0, 100, 150, 200, 256, 12345, '-', '__main__', 'curve', 'default', 'effect_id', 'exponential', 'float', 'fn', 'frame_index', 'id', 'int', 'level_pct', 'linear', 'logarithmic', 'max', 'mean_pixel_diff', 'min', 'param', 'params', 'resolution', 's-curve', 'seed', 'type', 'unit', 'value']

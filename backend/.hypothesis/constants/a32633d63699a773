@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/frame_smash.py
+# hypothesis_version: 6.151.9
+
+[100, 255, 'Blend Mode', 'Copies', 'Frame Smash', 'Offset Range', 'average', 'blend_mode', 'choice', 'copies', 'curve', 'default', 'description', 'destruction', 'fx.frame_smash', 'int', 'label', 'linear', 'max', 'min', 'offset_range', 'options', 'px', 'type', 'unit', 'xor']

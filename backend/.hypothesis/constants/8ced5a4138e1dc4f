@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/grid_moire.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 2.0, 90.0, 255, 'Angle', 'Grid Moire', 'Grid Size', 'Line Width', 'Opacity', 'Width of grid lines', 'angle', 'codec_archaeology', 'curve', 'default', 'deg', 'description', 'float', 'fx.grid_moire', 'grid_size', 'int', 'label', 'line_width', 'linear', 'max', 'min', 'opacity', 'px', 'type', 'unit']

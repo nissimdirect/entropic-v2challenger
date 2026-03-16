@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/lo_fi_lens.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.01, 0.2, 0.3, 0.5, 1.0, 2.0, 255, 'Edge Blur', 'Fringe', 'Lo-Fi Lens', 'Vignette', 'curve', 'default', 'description', 'edge_blur', 'float', 'fringe', 'fx.lo_fi_lens', 'label', 'linear', 'max', 'min', 'optics', 'type', 'unit', 'vignette']

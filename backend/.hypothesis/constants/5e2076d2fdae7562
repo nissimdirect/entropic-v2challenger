@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/saturation_warp.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.5, 5.0, 255, '%', 'Amount', 'Channel', 'Saturation Warp', 'all', 'amount', 'b', 'channel', 'choice', 'color', 'curve', 'default', 'description', 'float', 'fx.saturation_warp', 'g', 'label', 'max', 'min', 'options', 'r', 's-curve', 'type', 'unit']

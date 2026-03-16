@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/subliminal.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.01, 0.05, 0.1, 0.114, 0.299, 0.3, 0.5, 0.587, 1.0, 100, 255, '#ffffff', 'Blend Opacity', 'Embed Bits', 'Embed Channel', 'Flash Probability', 'Helvetica', 'Mode', 'OBEY', 'Source Path', 'Source Text', 'Source Type', 'Spray Count', 'Spray Size', 'Subliminal', 'alignment', 'b', 'bits', 'center', 'channel', 'channel_embed', 'choice', 'color', 'creative', 'curve', 'default', 'description', 'flash_insert', 'float', 'font_family', 'font_size', 'fx.subliminal', 'g', 'image', 'image_reader', 'int', 'label', 'linear', 'max', 'min', 'mode', 'opacity', 'options', 'position', 'probability', 'r', 'second_source', 'source_path', 'source_text', 'source_type', 'spray_count', 'spray_size', 'string', 'text', 'type', 'unit', 'video', 'video_reader']

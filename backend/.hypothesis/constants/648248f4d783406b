@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/reaction_diffusion.py
+# hypothesis_version: 6.151.9
+
+[-1.0, 0.0, 0.01, 0.04, 0.05, 0.055, 0.062, 0.07, 0.08, 0.1, 0.114, 0.2, 0.299, 0.5, 0.587, 0.8, 1.0, 1.5, 255.0, 255, '%', 'A', 'B', 'Diffusion A', 'Diffusion B', 'Feed Rate', 'Kill Rate', 'Mix', 'Reaction Diffusion', 'Steps/Frame', 'curve', 'default', 'description', 'diffusion_a', 'diffusion_b', 'emergent', 'feed_rate', 'float', 'int', 'kill_rate', 'label', 'linear', 'max', 'min', 'mix', 'same', 'steps_per_frame', 'type', 'unit', 'wrap']

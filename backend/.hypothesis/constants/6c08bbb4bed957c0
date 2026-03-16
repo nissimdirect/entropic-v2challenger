@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/modulation/engine.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 44100, '_proc', 'attack', 'audio_follower', 'blend_mode', 'decay', 'effect_id', 'envelope', 'fusion', 'id', 'isEnabled', 'is_enabled', 'lfo', 'luminance', 'method', 'parameters', 'params', 'phase_offset', 'processing', 'rate_hz', 'release', 'rms', 'sine', 'sources', 'step_sequencer', 'steps', 'sustain', 'trigger', 'type', 'video_analyzer', 'waveform', 'weighted_average']

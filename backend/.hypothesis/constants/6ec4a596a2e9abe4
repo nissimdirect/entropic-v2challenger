@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/generation_loss.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 255, '%', 'Generation Loss', 'Generations', 'JPEG', 'Mix', 'Quality', 'RGB', 'codec_archaeology', 'curve', 'default', 'description', 'float', 'fx.generation_loss', 'generations', 'int', 'label', 'linear', 'max', 'min', 'mix', 'quality', 'type', 'unit']

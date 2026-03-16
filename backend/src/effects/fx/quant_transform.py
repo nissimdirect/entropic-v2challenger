@@ -5,12 +5,9 @@ import numpy as np
 from effects.shared.dct_utils import (
     JPEG_CHROMA_QT,
     JPEG_LUMA_QT,
-    apply_per_block,
-    block_dct,
-    block_idct,
+    apply_per_block_vectorized,
     halfres_wrap,
 )
-from engine.determinism import make_rng
 
 EFFECT_ID = "fx.quant_transform"
 EFFECT_NAME = "Quant Transform"
@@ -59,43 +56,31 @@ PARAMS: dict = {
 _BLOCK_SIZE = 8
 
 
-def _make_quant_amplify_fn(qt: np.ndarray, amplification: float):
-    """Requantize with amplified QT values."""
-    amplified_qt = qt * amplification
-
-    def fn(block: np.ndarray) -> np.ndarray:
-        coeffs = block_dct(block)
-        # Quantize then dequantize with amplified table
-        quantized = np.round(coeffs / amplified_qt)
-        return block_idct(quantized * amplified_qt)
-
-    return fn
+def _quant_amplify_batch(
+    coeffs: np.ndarray, qt: np.ndarray, amplification: float
+) -> np.ndarray:
+    """Requantize with amplified QT values — vectorized over all blocks."""
+    amplified_qt = (qt * amplification)[np.newaxis, np.newaxis, :, :]
+    quantized = np.round(coeffs / amplified_qt)
+    return quantized * amplified_qt
 
 
-def _make_quant_morph_fn(morph: float):
-    """Requantize with lerped luma/chroma QTs."""
-    morphed_qt = JPEG_LUMA_QT * (1.0 - morph) + JPEG_CHROMA_QT * morph
-
-    def fn(block: np.ndarray) -> np.ndarray:
-        coeffs = block_dct(block)
-        quantized = np.round(coeffs / morphed_qt)
-        return block_idct(quantized * morphed_qt)
-
-    return fn
+def _quant_morph_batch(coeffs: np.ndarray, morph: float) -> np.ndarray:
+    """Requantize with lerped luma/chroma QTs — vectorized."""
+    morphed_qt = (JPEG_LUMA_QT * (1.0 - morph) + JPEG_CHROMA_QT * morph)[
+        np.newaxis, np.newaxis, :, :
+    ]
+    quantized = np.round(coeffs / morphed_qt)
+    return quantized * morphed_qt
 
 
-def _make_quant_lerp_fn(flatness: float):
-    """Requantize with lerp between standard and flat QT."""
+def _quant_lerp_batch(coeffs: np.ndarray, flatness: float) -> np.ndarray:
+    """Requantize with lerp between standard and flat QT — vectorized."""
     flat_qt = np.ones((8, 8), dtype=np.float32) * np.mean(JPEG_LUMA_QT)
     lerped_qt = JPEG_LUMA_QT * (1.0 - flatness) + flat_qt * flatness
-    lerped_qt = np.maximum(lerped_qt, 1.0)  # Avoid division by zero
-
-    def fn(block: np.ndarray) -> np.ndarray:
-        coeffs = block_dct(block)
-        quantized = np.round(coeffs / lerped_qt)
-        return block_idct(quantized * lerped_qt)
-
-    return fn
+    lerped_qt = np.maximum(lerped_qt, 1.0)[np.newaxis, np.newaxis, :, :]
+    quantized = np.round(coeffs / lerped_qt)
+    return quantized * lerped_qt
 
 
 def apply(
@@ -107,26 +92,26 @@ def apply(
     seed: int,
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
-    """Apply quantization table manipulation per 8x8 block."""
+    """Apply quantization table manipulation per 8x8 block (vectorized batch DCT)."""
     mode = str(params.get("mode", "quant_amplify"))
 
     if mode == "quant_amplify":
         amp = max(0.1, min(50.0, float(params.get("amplification", 5.0))))
-        transform_fn = _make_quant_amplify_fn(JPEG_LUMA_QT, amp)
+        batch_fn = lambda c: _quant_amplify_batch(c, JPEG_LUMA_QT, amp)
     elif mode == "quant_morph":
         morph = max(0.0, min(1.0, float(params.get("morph_amount", 0.5))))
-        transform_fn = _make_quant_morph_fn(morph)
+        batch_fn = lambda c: _quant_morph_batch(c, morph)
     else:  # quant_table_lerp
         flatness = max(0.0, min(1.0, float(params.get("flatness", 0.5))))
-        transform_fn = _make_quant_lerp_fn(flatness)
+        batch_fn = lambda c: _quant_lerp_batch(c, flatness)
 
     def _process(f: np.ndarray) -> np.ndarray:
         rgb = f[:, :, :3].astype(np.float32)
         alpha = f[:, :, 3:4]
         channels = []
-        for c in range(3):
-            ch = apply_per_block(rgb[:, :, c], _BLOCK_SIZE, transform_fn)
-            channels.append(ch)
+        for ch in range(3):
+            result_ch = apply_per_block_vectorized(rgb[:, :, ch], _BLOCK_SIZE, batch_fn)
+            channels.append(result_ch)
         result = np.stack(channels, axis=2)
         result_rgb = np.clip(result, 0, 255).astype(np.uint8)
         return np.concatenate([result_rgb, alpha], axis=2)

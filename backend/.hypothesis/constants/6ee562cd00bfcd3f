@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/resonant_filter.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1e-06, 0.01, 0.2, 0.3, 0.45, 0.5, 1.0, 5.0, 295.0, 255, 'Cutoff', 'Filter type', 'Mode', 'Resonance', 'Resonant Filter', 'bandpass', 'choice', 'curve', 'cutoff', 'default', 'description', 'float', 'fx.resonant_filter', 'highpass', 'label', 'linear', 'lowpass', 'max', 'min', 'mode', 'modulation', 'options', 'prev_output', 'resonance', 'type', 'unit']

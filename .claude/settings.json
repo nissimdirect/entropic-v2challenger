@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/nissimagent/Development/entropic-v2challenger/scripts/targeted-test.sh",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

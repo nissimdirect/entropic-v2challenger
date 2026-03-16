@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/pixel_superfluid.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.02, 0.03, 0.05, 0.1, 0.3, 0.4, 0.5, 0.6, 1.0, 1.7, 2.0, 2.3, 3.0, 4.0, 5.0, 6.0, 10.0, 15.0, 30.0, 50.0, 100.0, 255, 'Base flow velocity', 'Boundary', 'Climb Force', 'Flow Speed', 'Pixel Superfluid', 'Thermal Noise', 'Viscosity', 'Vortex Strength', 'Vortices', 'black', 'boundary', 'choice', 'clamp', 'climb_force', 'curve', 'default', 'description', 'dx', 'dy', 'float', 'flow_speed', 'fx.pixel_superfluid', 'int', 'label', 'linear', 'max', 'min', 'mirror', 'options', 'physics', 'quantized_vortices', 'thermal_noise', 'type', 'unit', 'viscosity', 'vortex_strength', 'vx', 'vy', 'wrap']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/modulation/envelope.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 'attack', 'current_value', 'decay', 'idle', 'phase', 'release', 'release_frame', 'release_start_value', 'sustain', 'trigger_frame', 'was_triggered']

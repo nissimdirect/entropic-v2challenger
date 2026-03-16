@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/comb_filter.py
+# hypothesis_version: 6.151.9
+
+[-1.0, 0.0, 0.5, 0.95, 1.0, 255, 'Comb Filter', 'Delay (px)', 'Feedback', 'curve', 'default', 'delay_px', 'description', 'feedback', 'float', 'fx.comb_filter', 'int', 'label', 'linear', 'max', 'min', 'modulation', 'type', 'unit']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/invert_bands.py
+# hypothesis_version: 6.151.9
+
+[100, 200, 255, 'Band Height', 'Band orientation', 'Band position offset', 'Direction', 'Invert Bands', 'Offset', 'band_height', 'choice', 'curve', 'default', 'description', 'destruction', 'direction', 'fx.invert_bands', 'horizontal', 'int', 'label', 'linear', 'max', 'min', 'offset', 'options', 'px', 'type', 'unit', 'vertical']

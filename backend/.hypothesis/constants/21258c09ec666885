@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/chroma_control.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 2.0, 10.0, 255, 'Chroma Blur', 'Chroma Control', 'Chroma Subsample', 'chroma_blur', 'chroma_subsample', 'codec_archaeology', 'curve', 'default', 'description', 'float', 'fx.chroma_control', 'int', 'label', 'linear', 'max', 'min', 'type', 'unit', 'x']

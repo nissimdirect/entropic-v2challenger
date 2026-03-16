@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/displacement.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.6, 10.0, 100.0, 128, '%', 'Block Size', 'Displacement', 'Intensity', 'block_size', 'curve', 'default', 'description', 'distortion', 'exponential', 'float', 'fx.displacement', 'int', 'intensity', 'label', 'linear', 'max', 'min', 'px', 'type', 'unit']

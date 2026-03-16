@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/blur.py
+# hypothesis_version: 6.151.9
+
+[0.0, 5.0, 50.0, 'Blur', 'Blur Radius', 'curve', 'default', 'description', 'distortion', 'exponential', 'float', 'fx.blur', 'label', 'max', 'min', 'px', 'radius', 'type', 'unit']

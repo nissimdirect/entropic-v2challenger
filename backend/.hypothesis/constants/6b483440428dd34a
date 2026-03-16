@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/rainbow_shift.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.02, 0.1, 0.4, 1.0, 2.0, 5.0, 180, 255, 360, '%', 'Direction', 'Gradient direction', 'Opacity', 'Rainbow Shift', 'Speed', 'choice', 'curve', 'default', 'description', 'diagonal', 'direction', 'float', 'fx.rainbow_shift', 'horizontal', 'label', 'linear', 'max', 'min', 'opacity', 'options', 'radial', 'speed', 'type', 'unit', 'vertical', 'whimsy']

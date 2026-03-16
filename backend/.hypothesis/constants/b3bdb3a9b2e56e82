@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/quant_transform.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.5, 1.0, 5.0, 50.0, 255, 'Amplification', 'Flatness', 'Mode', 'Morph Amount', 'Quant Transform', 'amplification', 'choice', 'codec_archaeology', 'curve', 'default', 'description', 'exponential', 'flatness', 'float', 'fx.quant_transform', 'label', 'linear', 'max', 'min', 'mode', 'morph_amount', 'options', 'quant_amplify', 'quant_morph', 'quant_table_lerp', 'type', 'unit', 'x']

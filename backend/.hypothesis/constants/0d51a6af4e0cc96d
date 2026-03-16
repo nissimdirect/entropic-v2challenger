@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/cellular_automata.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.114, 0.299, 0.5, 0.587, 1.0, 255.0, 255, '%', 'Cellular Automata', 'Mix', 'Rule', 'Steps/Frame', 'Threshold', 'choice', 'curve', 'default', 'description', 'emergent', 'float', 'fx.cellular_automata', 'grid', 'highlife', 'int', 'label', 'life', 'linear', 'max', 'min', 'mix', 'options', 'rule', 'same', 'seeds', 'steps_per_frame', 'threshold', 'type', 'unit', 'wrap']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/channelshift.py
+# hypothesis_version: 6.151.9
+
+['Blue Offset', 'Channel Shift', 'Green Offset', 'Red Offset', 'b_offset', 'curve', 'default', 'description', 'fx.channelshift', 'g_offset', 'glitch', 'int', 'label', 'linear', 'max', 'min', 'px', 'r_offset', 'type', 'unit']

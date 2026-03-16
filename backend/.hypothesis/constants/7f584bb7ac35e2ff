@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/gate.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.114, 0.299, 0.3, 0.587, 1.0, 255.0, '%', 'Gate', 'Mode', 'Threshold', 'brightness', 'channel', 'choice', 'curve', 'default', 'description', 'float', 'fx.gate', 'label', 'linear', 'max', 'min', 'mode', 'modulation', 'options', 'threshold', 'type', 'unit']

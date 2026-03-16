@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/color_temperature.py
+# hypothesis_version: 6.151.9
+
+[-100.0, 0.1, 30.0, 100.0, 255, 'Color Temperature', 'K', 'Temperature', 'color', 'curve', 'default', 'description', 'float', 'fx.color_temperature', 'label', 'linear', 'max', 'min', 'temp', 'type', 'unit']

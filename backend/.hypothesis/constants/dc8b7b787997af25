@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/cumulative_smear.py
+# hypothesis_version: 6.151.9
+
+[0.5, 0.95, 0.999, 255.0, 255, '%', 'Animate', 'Cumulative Smear', 'Decay', 'Direction', 'Smear direction', 'animate', 'choice', 'curve', 'decay', 'default', 'description', 'diagonal_left', 'diagonal_right', 'direction', 'distortion', 'false', 'float', 'fx.cumulative_smear', 'horizontal', 'label', 'logarithmic', 'max', 'min', 'options', 'true', 'type', 'unit', 'vertical']

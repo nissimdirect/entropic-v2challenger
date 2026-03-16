@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/dct_transform.py
+# hypothesis_version: 6.151.9
+
+[-1.0, 0.0, 0.3, 0.5, 1.0, 255, '%', 'Affect DC', 'DCT Transform', 'Destroy Probability', 'Freq Band High', 'Freq Band Low', 'Mode', 'Swap Probability', 'affect_dc', 'choice', 'codec_archaeology', 'curve', 'dct_phase_destroy', 'dct_sculpt', 'dct_swap', 'default', 'description', 'destroy_probability', 'false', 'float', 'freq_band_high', 'freq_band_low', 'fx.dct_transform', 'int', 'label', 'linear', 'max', 'min', 'mode', 'options', 'swap_probability', 'true', 'type', 'unit']

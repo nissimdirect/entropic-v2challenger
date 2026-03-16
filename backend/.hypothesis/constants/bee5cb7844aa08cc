@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/wave_distort.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 2.0, 10.0, 50.0, 'Amplitude', 'Direction', 'Frequency', 'Hz', 'Wave Distort', 'amplitude', 'choice', 'curve', 'default', 'description', 'direction', 'distortion', 'exponential', 'float', 'frequency', 'fx.wave_distort', 'horizontal', 'label', 'logarithmic', 'max', 'min', 'options', 'px', 'type', 'unit', 'vertical']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/lens_distortion.py
+# hypothesis_version: 6.151.9
+
+[-1.0, -0.5, 0.0, 0.01, 0.1, 0.3, 0.5, 1.0, 1.5, 2.0, 3.0, 45.0, 360.0, 255, 'Bokeh Oval', 'Coma Angle', 'Coma Strength', 'Distortion type', 'FOV', 'K1', 'K2', 'Lens Distortion', 'Mode', 'Squeeze Ratio', 'anamorphic', 'bokeh_oval', 'choice', 'coma', 'coma_angle', 'coma_strength', 'curve', 'default', 'deg', 'description', 'fisheye', 'float', 'fov', 'fx.lens_distortion', 'k1', 'k2', 'label', 'linear', 'max', 'min', 'mode', 'optics', 'options', 'squeeze_ratio', 'type', 'unit']

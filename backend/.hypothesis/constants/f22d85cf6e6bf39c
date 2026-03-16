@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/engine/text_renderer.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 0.5, 1.0, 30.0, 255, 1080, 1920, 2000, '#', '#000000', '#ffffff', '*', '.otf', '.ttc', '.ttf', '/Library/Fonts/', '/usr/share/fonts/', 'Darwin', 'Helvetica', 'RGBA', 'alignment', 'animation', 'animation_duration', 'bounce', 'center', 'color', 'fade_in', 'fade_out', 'font_family', 'font_size', 'left', 'lt', 'mt', 'name', 'none', 'opacity', 'path', 'position', 'right', 'rt', 'scale_up', 'shadow_color', 'shadow_offset', 'slide_left', 'slide_up', 'stroke_color', 'stroke_width', 'style', 'text', 'typewriter', '~/.fonts/', '~/Library/Fonts/']

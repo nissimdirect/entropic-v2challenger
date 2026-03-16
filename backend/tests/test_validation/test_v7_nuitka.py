@@ -1,9 +1,12 @@
-"""V7: Nuitka Build Test — validate compiled binary exists, is sane-sized, and imports core modules."""
+"""V7: Nuitka Build Test — validate compiled binary exists, is sane-sized, imports core modules, and serves ZMQ."""
 
+import signal
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
+import zmq
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 DIST_DIR = BACKEND_DIR / "main.dist"
@@ -71,7 +74,7 @@ def test_v7_binary_imports_core_modules():
         f"stdout: {result.stdout[:500]}\n"
         f"stderr: {result.stderr[:500]}"
     )
-    assert "OK" in result.stdout, f"Unexpected output: {result.stdout[:300]}"
+    assert "OK" in result.stdout, f"Unexpected output (imports): {result.stdout[:300]}"
 
 
 @nuitka_skip
@@ -102,4 +105,69 @@ def test_v7_binary_runs_determinism():
         f"stdout: {result.stdout[:500]}\n"
         f"stderr: {result.stderr[:500]}"
     )
-    assert "OK" in result.stdout, f"Unexpected output: {result.stdout[:300]}"
+    assert "OK" in result.stdout, (
+        f"Unexpected output (determinism): {result.stdout[:300]}"
+    )
+
+
+@nuitka_skip
+def test_v7_binary_zmq_smoke():
+    """Start the compiled binary as a ZMQ server, ping it, verify response.
+    PASS: binary starts, prints port/token, responds to ping, shuts down cleanly."""
+    binary = _find_binary()
+    assert binary is not None
+    proc = subprocess.Popen(
+        [str(binary)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        cwd=str(DIST_DIR),
+    )
+    try:
+        port = None
+        ping_port = None
+        token = None
+        deadline = time.monotonic() + 10
+
+        assert proc.stdout is not None
+        while time.monotonic() < deadline:
+            line = proc.stdout.readline()
+            if not line:
+                time.sleep(0.1)
+                continue
+            line = line.strip()
+            if line.startswith("ZMQ_PORT="):
+                port = int(line.split("=")[1])
+            elif line.startswith("ZMQ_PING_PORT="):
+                ping_port = int(line.split("=")[1])
+            elif line.startswith("ZMQ_TOKEN="):
+                token = line.split("=")[1]
+            if port and ping_port and token:
+                break
+
+        assert port is not None, "Binary did not print ZMQ_PORT"
+        assert ping_port is not None, "Binary did not print ZMQ_PING_PORT"
+        assert token is not None, "Binary did not print ZMQ_TOKEN"
+
+        ctx = zmq.Context()
+        sock = ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.RCVTIMEO, 5000)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.connect(f"tcp://127.0.0.1:{ping_port}")
+
+        sock.send_json({"cmd": "ping", "id": "nuitka-smoke", "_token": token})
+        resp = sock.recv_json()
+
+        assert isinstance(resp, dict)
+        assert resp.get("status") == "alive", f"Unexpected ping response: {resp}"
+        assert "uptime_s" in resp, f"Missing uptime_s in response: {resp}"
+
+        sock.close()
+        ctx.term()
+    finally:
+        proc.send_signal(signal.SIGTERM)
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait()
