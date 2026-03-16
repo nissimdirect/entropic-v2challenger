@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { randomUUID } from '../../utils'
 import type { EffectInfo, EffectInstance } from '../../../shared/types'
+import { LIMITS } from '../../../shared/limits'
 import EffectSearch from './EffectSearch'
 
 interface EffectBrowserProps {
@@ -9,8 +10,6 @@ interface EffectBrowserProps {
   onAddEffect: (effect: EffectInstance) => void
   chainLength: number
 }
-
-const MAX_CHAIN_LENGTH = 10
 
 export default function EffectBrowser({
   registry,
@@ -43,7 +42,7 @@ export default function EffectBrowser({
   }, [registry, selectedCategory, searchQuery])
 
   const handleAdd = (info: EffectInfo) => {
-    if (chainLength >= MAX_CHAIN_LENGTH) return
+    if (chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN) return
 
     const instance: EffectInstance = {
       id: randomUUID(),
@@ -99,8 +98,8 @@ export default function EffectBrowser({
               key={info.id}
               className="effect-browser__item"
               onClick={() => handleAdd(info)}
-              disabled={chainLength >= MAX_CHAIN_LENGTH}
-              title={chainLength >= MAX_CHAIN_LENGTH ? 'Max 10 effects' : `Add ${info.name}`}
+              disabled={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN}
+              title={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN ? `Max ${LIMITS.MAX_EFFECTS_PER_CHAIN} effects` : `Add ${info.name}`}
             >
               {info.name}
             </button>
