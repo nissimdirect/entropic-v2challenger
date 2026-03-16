@@ -1,7 +1,7 @@
 """Reaction Diffusion — Gray-Scott model evolving over frames."""
 
 import numpy as np
-from scipy.signal import convolve2d
+from scipy.ndimage import convolve
 
 EFFECT_ID = "fx.reaction_diffusion"
 EFFECT_NAME = "Reaction Diffusion"
@@ -119,8 +119,8 @@ def apply(
 
     # Run simulation steps
     for _ in range(steps):
-        lap_a = convolve2d(A, _LAPLACIAN, mode="same", boundary="wrap")
-        lap_b = convolve2d(B, _LAPLACIAN, mode="same", boundary="wrap")
+        lap_a = convolve(A, _LAPLACIAN, mode="wrap")
+        lap_b = convolve(B, _LAPLACIAN, mode="wrap")
         abb = A * B * B
         A_new = A + da * lap_a - abb + f * (1.0 - A)
         B_new = B + db * lap_b + abb - (k + f) * B
