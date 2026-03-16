@@ -1,10 +1,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { resolve, join } from 'path'
+import { join } from 'path'
 import { homedir } from 'os'
 
 // Use real homedir for path tests (module-level constants are computed at import time)
 const HOME = homedir()
 const ENTROPIC = join(HOME, '.entropic')
+
+// Hoisted mocks — shared references between mock factory and test code
+const fsMocks = vi.hoisted(() => ({
+  existsSync: vi.fn(() => false),
+  lstatSync: vi.fn(() => ({ isSymbolicLink: () => false })),
+}))
+
+const mockFileHandle = vi.hoisted(() => ({
+  writeFile: vi.fn(),
+  sync: vi.fn(),
+  close: vi.fn(),
+}))
+
+const fsPromiseMocks = vi.hoisted(() => ({
+  readFile: vi.fn(),
+  open: vi.fn(() => Promise.resolve(mockFileHandle)),
+  rename: vi.fn(),
+  unlink: vi.fn(),
+}))
 
 // Mock electron before importing the module under test
 vi.mock('electron', () => ({
@@ -25,9 +44,21 @@ vi.mock('fs/promises', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs/promises')>()
   return {
     ...actual,
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-    unlink: vi.fn(),
+    default: { ...actual, ...fsPromiseMocks },
+    readFile: fsPromiseMocks.readFile,
+    open: fsPromiseMocks.open,
+    rename: fsPromiseMocks.rename,
+    unlink: fsPromiseMocks.unlink,
+  }
+})
+
+vi.mock('fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fs')>()
+  return {
+    ...actual,
+    default: { ...actual, ...fsMocks },
+    existsSync: fsMocks.existsSync,
+    lstatSync: fsMocks.lstatSync,
   }
 })
 
@@ -37,10 +68,20 @@ import { ipcMain } from 'electron'
 describe('file-handlers', () => {
   beforeEach(() => {
     clearGrantedPaths()
+    // Reset fs mocks to defaults
+    fsMocks.existsSync.mockReturnValue(false)
+    fsMocks.lstatSync.mockReturnValue({ isSymbolicLink: () => false })
+    // Reset file handle mocks
+    mockFileHandle.writeFile.mockResolvedValue(undefined)
+    mockFileHandle.sync.mockResolvedValue(undefined)
+    mockFileHandle.close.mockResolvedValue(undefined)
+    fsPromiseMocks.open.mockResolvedValue(mockFileHandle)
+    fsPromiseMocks.rename.mockResolvedValue(undefined)
+    fsPromiseMocks.unlink.mockResolvedValue(undefined)
   })
 
   afterEach(() => {
-    vi.restoreAllMocks()
+    vi.clearAllMocks()
   })
 
   describe('isPathAllowed', () => {
@@ -193,6 +234,74 @@ describe('file-handlers', () => {
           'app:getPath',
         ]),
       )
+    })
+
+    // Atomic write tests
+    it('file:write uses atomic write (open + writeFile + sync + rename)', async () => {
+      const testPath = join(ENTROPIC, 'test.glitch')
+      await handlers['file:write']({} as Electron.IpcMainInvokeEvent, testPath, '{"data":1}')
+      // open() called with unique tmp suffix
+      expect(fsPromiseMocks.open).toHaveBeenCalledTimes(1)
+      const tmpPath = fsPromiseMocks.open.mock.calls[0][0] as string
+      expect(tmpPath).toMatch(new RegExp(`^${testPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.tmp\\.\\d+\\.\\d+$`))
+      // fsync called before rename
+      expect(mockFileHandle.writeFile).toHaveBeenCalledWith('{"data":1}', 'utf8')
+      expect(mockFileHandle.sync).toHaveBeenCalled()
+      expect(mockFileHandle.close).toHaveBeenCalled()
+      expect(fsPromiseMocks.rename).toHaveBeenCalledWith(tmpPath, testPath)
+    })
+
+    it('file:write cleans up .tmp on rename failure', async () => {
+      fsPromiseMocks.rename.mockRejectedValueOnce(new Error('rename failed'))
+      const testPath = join(ENTROPIC, 'test.glitch')
+      await expect(
+        handlers['file:write']({} as Electron.IpcMainInvokeEvent, testPath, '{"data":1}'),
+      ).rejects.toThrow('rename failed')
+      const tmpPath = fsPromiseMocks.open.mock.calls[0][0] as string
+      expect(fsPromiseMocks.unlink).toHaveBeenCalledWith(tmpPath)
+    })
+
+    it('file:write closes file handle even on write error', async () => {
+      mockFileHandle.writeFile.mockRejectedValueOnce(new Error('disk full'))
+      const testPath = join(ENTROPIC, 'test.glitch')
+      await expect(
+        handlers['file:write']({} as Electron.IpcMainInvokeEvent, testPath, 'data'),
+      ).rejects.toThrow('disk full')
+      expect(mockFileHandle.close).toHaveBeenCalled()
+    })
+  })
+
+  describe('isPathAllowed — .tmp sibling for atomic writes', () => {
+    it('allows .tmp sibling of dialog-granted path', () => {
+      grantPath('/tmp/project/myfile.glitch')
+      expect(isPathAllowed('/tmp/project/myfile.glitch.tmp')).toBe(true)
+    })
+
+    it('denies .tmp for non-granted path', () => {
+      expect(isPathAllowed('/tmp/random/file.glitch.tmp')).toBe(false)
+    })
+
+    it('allows .tmp.PID.TIMESTAMP sibling of dialog-granted path', () => {
+      grantPath('/tmp/project/myfile.glitch')
+      expect(isPathAllowed('/tmp/project/myfile.glitch.tmp.12345.1710600000000')).toBe(true)
+    })
+
+    it('denies .tmp.PID.TIMESTAMP for non-granted path', () => {
+      expect(isPathAllowed('/tmp/random/file.glitch.tmp.12345.1710600000000')).toBe(false)
+    })
+  })
+
+  describe('isPathAllowed — symlink rejection', () => {
+    it('denies symlink paths even under allowed dirs', () => {
+      fsMocks.existsSync.mockReturnValue(true)
+      fsMocks.lstatSync.mockReturnValue({ isSymbolicLink: () => true })
+      expect(isPathAllowed(join(ENTROPIC, 'evil-link'))).toBe(false)
+    })
+
+    it('allows non-symlink paths under allowed dirs', () => {
+      fsMocks.existsSync.mockReturnValue(true)
+      fsMocks.lstatSync.mockReturnValue({ isSymbolicLink: () => false })
+      expect(isPathAllowed(join(ENTROPIC, 'legit-file'))).toBe(true)
     })
   })
 })
