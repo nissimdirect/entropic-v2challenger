@@ -6,7 +6,7 @@ import numpy as np
 import sentry_sdk
 
 from engine.determinism import derive_seed
-from engine.guards import sanitize_params
+from engine.guards import clamp_finite, sanitize_params
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class EffectContainer:
         # Sanitize NaN/Inf values — drop them so effect uses its default.
         effect_params = sanitize_params(params)
         mask = effect_params.pop("_mask", None)
-        mix = effect_params.pop("_mix", 1.0)
+        mix = clamp_finite(effect_params.pop("_mix", 1.0), 0.0, 1.0, 1.0)
 
         # Context for Sentry (PII-safe: keys only, no values)
         sentry_ctx = {

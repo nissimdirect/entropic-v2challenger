@@ -64,6 +64,18 @@ describe('UndoStore', () => {
       useUndoStore.getState().execute(makeEntry())
       expect(useUndoStore.getState().isDirty).toBe(true)
     })
+
+    it('pushes to stack even when forward() throws', () => {
+      const entry = makeEntry({
+        forward: () => { throw new Error('boom') },
+        description: 'failing execute',
+      })
+      useUndoStore.getState().execute(entry)
+
+      // Entry should still be on the stack so user can undo partial damage
+      expect(useUndoStore.getState().past).toHaveLength(1)
+      expect(useUndoStore.getState().past[0].description).toBe('failing execute')
+    })
   })
 
   describe('undo', () => {

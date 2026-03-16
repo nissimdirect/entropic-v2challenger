@@ -29,7 +29,18 @@ export const useUndoStore = create<UndoState>((set, get) => ({
   isDirty: false,
 
   execute: (entry) => {
-    entry.forward()
+    try {
+      entry.forward()
+    } catch (err) {
+      // forward() threw — still push so user can undo partial damage
+      pushToStack(entry)
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: `Action "${entry.description}" failed: ${err instanceof Error ? err.message : 'unknown error'}`,
+        source: 'undo',
+      })
+      return
+    }
     set((state) => {
       let past = [...state.past, entry]
       if (past.length > MAX_UNDO_ENTRIES) {
