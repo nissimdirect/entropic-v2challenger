@@ -1,0 +1,131 @@
+/* --- Automation --- */
+
+.auto-lane {
+  pointer-events: all;
+  overflow: visible;
+}
+
+.auto-node__circle {
+  transition: r 0.1s ease;
+}
+
+.auto-node__circle:hover {
+  r: 6;
+}
+
+.auto-node__circle--active {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.auto-node__tooltip {
+  pointer-events: none;
+}
+
+.auto-curve {
+  pointer-events: none;
+}
+
+/* --- Automation Toolbar --- */
+
+.auto-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: #222;
+  border-top: 1px solid #333;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.auto-toolbar__modes {
+  display: flex;
+  gap: 2px;
+}
+
+.auto-toolbar__mode-btn {
+  background: #333;
+  border: 1px solid #444;
+  color: #888;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  min-width: 24px;
+}
+
+.auto-toolbar__mode-btn:hover {
+  background: #444;
+  color: #ccc;
+}
+
+.auto-toolbar__mode-btn--active {
+  background: #4ade80;
+  color: #111;
+  border-color: #4ade80;
+}
+
+.auto-toolbar__btn {
+  background: #333;
+  border: 1px solid #444;
+  color: #aaa;
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.auto-toolbar__btn:hover:not(:disabled) {
+  background: #444;
+  color: #fff;
+}
+
+.auto-toolbar__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.auto-toolbar__btn--danger:hover:not(:disabled) {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.auto-toolbar__armed {
+  color: #4ade80;
+  margin-left: auto;
+}
+
+/* --- Automation Draw Overlay --- */
+
+.auto-draw {
+  background: transparent;
+}
+
+/* --- Track automation toggle --- */
+
+.track-header__auto-btn {
+  background: transparent;
+  border: 1px solid #555;
+  color: #777;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+.track-header__auto-btn:hover {
+  color: #4ade80;
+  border-color: #4ade80;
+}
+
+.track-header__auto-btn--active {
+  color: #4ade80;
+  border-color: #4ade80;
+}

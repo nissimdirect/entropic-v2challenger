@@ -140,8 +140,7 @@ export default function Knob({
   const trackPath = arcPath(START_ANGLE, START_ANGLE + SWEEP)
   // Value arc
   const valuePath = sliderPos > 0.001 ? arcPath(START_ANGLE, valueAngle) : ''
-  // Ghost arc — visible only when ghostValue differs from value.
-  // TODO Phase 6: Replace ghostValue with resolved modulation value
+  // Ghost arc — visible only when ghostValue differs from value (modulation active)
   const ghostPath = ghostValue !== undefined && Math.abs(ghostSliderPos - sliderPos) > 0.001
     ? arcPath(START_ANGLE, ghostAngle)
     : ''
