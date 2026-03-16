@@ -404,12 +404,14 @@ function AppInner() {
       usePerformanceStore.getState().panicAll()
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('keyup', handleKeyUp)
+    // Capture phase ensures shortcuts fire before any child stopPropagation()
+    // (e.g. PadEditor key capture). Per Electron docs best practice.
+    window.addEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keyup', handleKeyUp, true)
     window.addEventListener('blur', handleBlur)
     return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('keyup', handleKeyUp)
+      window.removeEventListener('keydown', handleKeyDown, true)
+      window.removeEventListener('keyup', handleKeyUp, true)
       window.removeEventListener('blur', handleBlur)
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
