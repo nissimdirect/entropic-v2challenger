@@ -9,8 +9,7 @@ import DropZone from './components/upload/DropZone'
 import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
 import EffectBrowser from './components/effects/EffectBrowser'
-import EffectRack from './components/effects/EffectRack'
-import ParamPanel from './components/effects/ParamPanel'
+// Phase 13C: EffectRack + ParamPanel removed — replaced by DeviceChain
 import PreviewCanvas, { type PreviewState } from './components/preview/PreviewCanvas'
 import TextPanel from './components/text/TextPanel'
 import TextOverlay from './components/text/TextOverlay'
@@ -19,7 +18,7 @@ import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
-import HistoryPanel from './components/layout/HistoryPanel'
+// Phase 13C: HistoryPanel removed from sidebar
 import DeviceChain from './components/device-chain/DeviceChain'
 import HelpPanel from './components/effects/HelpPanel'
 import type { Asset, EffectInstance } from '../shared/types'
@@ -1066,55 +1065,8 @@ function AppInner() {
             }}
           />
         )}
-        <EffectRack
-          chain={effectChain}
-          registry={registry}
-          selectedEffectId={selectedEffectId}
-          onSelect={selectEffect}
-          onToggle={toggleEffect}
-          onRemove={removeEffect}
-          onReorder={reorderEffect}
-          onSavePreset={() => setShowPresetSave({ mode: 'effect_chain' })}
-          onSaveEffectPreset={(effectInstanceId) => {
-            const effect = effectChain.find((e) => e.id === effectInstanceId)
-            if (effect) {
-              setShowPresetSave({ mode: 'single_effect', instanceId: effect.id })
-            }
-          }}
-          onFreezeUpTo={async (index) => {
-            const assetPaths = Object.values(assets)
-            if (assetPaths.length === 0) return
-            const asset = assetPaths[0]
-            await useFreezeStore.getState().freezePrefix(
-              'default',
-              index,
-              asset.path,
-              effectChain.slice(0, index + 1).map((e) => ({
-                effect_id: e.effectId,
-                params: e.parameters,
-                enabled: e.isEnabled,
-              })),
-              Date.now() % 2147483647,
-              totalFrames,
-              [asset.meta.width, asset.meta.height],
-            )
-          }}
-          onUnfreeze={async () => {
-            await useFreezeStore.getState().unfreezePrefix('default')
-          }}
-          onFlatten={async () => {
-            if (!window.entropic) return
-            const savePath = await window.entropic.showSaveDialog({
-              title: 'Flatten to video',
-              defaultPath: 'flattened.mp4',
-              filters: [{ name: 'Video', extensions: ['mp4'] }],
-            })
-            if (savePath) {
-              await useFreezeStore.getState().flattenPrefix('default', savePath)
-            }
-          }}
-        />
-        <HistoryPanel />
+        {/* Phase 13C: EffectRack removed — replaced by DeviceChain at bottom */}
+        {/* Phase 13C: HistoryPanel removed from sidebar — accessible via Edit → Undo History */}
         <HelpPanel />
       </div>
 
@@ -1171,56 +1123,15 @@ function AppInner() {
             onAudioSeek={handleAudioSeek}
           />
         </div>
-        <div className="app__params">
-          <ParamPanel
-            effect={selectedEffect}
-            effectInfo={selectedEffectInfo}
-            onUpdateParam={updateParam}
-            onSetMix={setMix}
-            modulatedValues={
-              selectedEffect && selectedEffectInfo
-                ? resolveGhostValues(
-                    selectedEffect.id,
-                    selectedEffectInfo.params,
-                    selectedEffect.parameters,
-                    useOperatorStore.getState().operators,
-                    operatorValues,
-                    // Phase 7: Include automation overrides in ghost value calculation
-                    useAutomationStore.getState().getAllLanes().length > 0
-                      ? evaluateAutomationOverrides(
-                          useAutomationStore.getState().getAllLanes(),
-                          useTimelineStore.getState().playheadTime,
-                          registry,
-                        )
-                      : undefined,
-                    // Phase 9: CC overrides for ghost handles
-                    (() => {
-                      const midi = useMIDIStore.getState();
-                      if (midi.ccMappings.length === 0) return undefined;
-                      const ccOverrides: Record<string, number> = {};
-                      for (const m of midi.ccMappings) {
-                        if (m.effectId !== selectedEffect!.id) continue;
-                        const ccVal = midi.ccValues[m.cc];
-                        if (ccVal === undefined) continue;
-                        const def = selectedEffectInfo!.params[m.paramKey];
-                        if (!def || (def.type !== 'float' && def.type !== 'int')) continue;
-                        const pMin = def.min ?? 0;
-                        const pMax = def.max ?? 1;
-                        ccOverrides[m.paramKey] = pMin + ccVal * (pMax - pMin);
-                      }
-                      return Object.keys(ccOverrides).length > 0 ? ccOverrides : undefined;
-                    })(),
-                  )
-                : undefined
-            }
-          />
-          {selectedTextClip?.textConfig && (
+        {/* Phase 13C: ParamPanel removed — replaced by inline params in DeviceChain */}
+        {selectedTextClip?.textConfig && (
+          <div className="app__params">
             <TextPanel
               config={selectedTextClip.textConfig}
               onUpdate={(changes) => useTimelineStore.getState().updateTextConfig(selectedTextClip.id, changes)}
             />
-          )}
-        </div>
+          </div>
+        )}
         <ExportProgress
           isExporting={isExporting}
           progress={exportProgress}
