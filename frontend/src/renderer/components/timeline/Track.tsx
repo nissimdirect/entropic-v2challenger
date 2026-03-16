@@ -52,7 +52,10 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     >
       <div className="track-header__color" style={{ background: track.color }} />
       <div className="track-header__info">
-        <div className="track-header__name">{track.name}</div>
+        <div className="track-header__name">
+          {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
+          {' '}{track.name}
+        </div>
       </div>
       <div className="track-header__controls">
         <button

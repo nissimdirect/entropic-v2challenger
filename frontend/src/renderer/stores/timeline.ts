@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, BlendMode } from '../../shared/types'
+import type { Track, Clip, Marker, BlendMode, TextClipConfig } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
 import { undoable } from './undo'
@@ -20,7 +20,7 @@ interface TimelineState {
   selectedClipIds: string[]
 
   // Track actions
-  addTrack: (name: string, color: string) => void
+  addTrack: (name: string, color: string, type?: 'video' | 'text') => void
   removeTrack: (id: string) => void
   reorderTrack: (fromIdx: number, toIdx: number) => void
   setTrackOpacity: (id: string, opacity: number) => void
@@ -28,6 +28,11 @@ interface TimelineState {
   toggleMute: (id: string) => void
   toggleSolo: (id: string) => void
   renameTrack: (id: string, name: string) => void
+
+  // Text track actions
+  addTextTrack: (name: string, color: string) => void
+  addTextClip: (trackId: string, config: TextClipConfig, position: number, duration: number) => void
+  updateTextConfig: (clipId: string, config: Partial<TextClipConfig>) => void
 
   // Clip actions
   addClip: (trackId: string, clip: Clip) => void
@@ -71,10 +76,10 @@ interface TimelineState {
   reset: () => void
 }
 
-function makeEmptyTrack(name: string, color: string, id?: string): Track {
+function makeEmptyTrack(name: string, color: string, id?: string, type: 'video' | 'performance' | 'text' = 'video'): Track {
   return {
     id: id ?? randomUUID(),
-    type: 'video',
+    type,
     name,
     color,
     isMuted: false,
@@ -84,6 +89,24 @@ function makeEmptyTrack(name: string, color: string, id?: string): Track {
     clips: [],
     effectChain: [],
     automationLanes: [],
+  }
+}
+
+function defaultTextConfig(): TextClipConfig {
+  return {
+    text: 'Text',
+    fontFamily: 'Helvetica',
+    fontSize: 48,
+    color: '#ffffff',
+    position: [960, 540],
+    alignment: 'center',
+    opacity: 1.0,
+    strokeWidth: 0,
+    strokeColor: '#000000',
+    shadowOffset: [0, 0],
+    shadowColor: '#00000080',
+    animation: 'none',
+    animationDuration: 1.0,
   }
 }
 
@@ -126,24 +149,114 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   // --- Track actions ---
 
-  addTrack: (name, color) => {
+  addTrack: (name, color, type) => {
     if (get().tracks.length >= LIMITS.MAX_TRACKS) {
       useToastStore.getState().addToast({ level: 'warning', message: `Track limit (${LIMITS.MAX_TRACKS}) reached`, source: 'timeline' })
       return
     }
     const trackId = randomUUID()
-    const oldTracks = get().tracks
 
     undoable(
       'Add track',
       () => {
-        const track = makeEmptyTrack(name, color, trackId)
+        const track = makeEmptyTrack(name, color, trackId, type ?? 'video')
         set({ tracks: [...get().tracks, track] })
       },
       () => {
         const tracks = get().tracks.filter((t) => t.id !== trackId)
         set({ tracks, duration: recalcDuration(tracks) })
       },
+    )
+  },
+
+  // --- Text track actions ---
+
+  addTextTrack: (name, color) => {
+    if (get().tracks.length >= LIMITS.MAX_TRACKS) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Track limit (${LIMITS.MAX_TRACKS}) reached`, source: 'timeline' })
+      return
+    }
+    const trackId = randomUUID()
+
+    undoable(
+      'Add text track',
+      () => {
+        const track = makeEmptyTrack(name, color, trackId, 'text')
+        set({ tracks: [...get().tracks, track] })
+      },
+      () => {
+        const tracks = get().tracks.filter((t) => t.id !== trackId)
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  addTextClip: (trackId, config, position, duration) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track || track.type !== 'text') return
+    if (track.clips.length >= LIMITS.MAX_CLIPS_PER_TRACK) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Clip limit (${LIMITS.MAX_CLIPS_PER_TRACK}) reached`, source: 'timeline' })
+      return
+    }
+    const clipId = randomUUID()
+    const newClip: Clip = {
+      id: clipId,
+      assetId: '',
+      trackId,
+      position,
+      duration,
+      inPoint: 0,
+      outPoint: duration,
+      speed: 1.0,
+      textConfig: { ...defaultTextConfig(), ...config },
+    }
+
+    undoable(
+      'Add text clip',
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? { ...t, clips: [...t.clips, newClip] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  updateTextConfig: (clipId, config) => {
+    let oldConfig: TextClipConfig | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip?.textConfig) {
+        oldConfig = { ...clip.textConfig }
+        break
+      }
+    }
+    if (!oldConfig) return
+
+    undoable(
+      'Update text',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId && c.textConfig ? { ...c, textConfig: { ...c.textConfig, ...config } } : c,
+          ),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, textConfig: oldConfig } : c,
+          ),
+        })),
+      }),
     )
   },
 

@@ -192,6 +192,11 @@ class TestAllEffectsVisibleChange:
         "fx.feedback_phaser",
         "fx.resonant_filter",
         "fx.temporal_crystal",
+        # Subliminal — probabilistic trigger (5% default), not guaranteed visible
+        "fx.subliminal",
+        "fx.subliminal_flash",
+        "fx.subliminal_embed",
+        "fx.subliminal_spray",
     }
 
     def test_visible_change_with_defaults(self, effect_entry):

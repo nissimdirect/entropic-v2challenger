@@ -1,4 +1,4 @@
-"""Fast video header probing."""
+"""Fast video/image header probing."""
 
 import logging
 from pathlib import Path
@@ -6,6 +6,9 @@ from pathlib import Path
 import av
 
 logger = logging.getLogger(__name__)
+
+# Default duration for static images on the timeline (seconds)
+IMAGE_DEFAULT_DURATION = 5.0
 
 
 def probe(path: str) -> dict:
@@ -48,3 +51,38 @@ def probe(path: str) -> dict:
 
     container.close()
     return result
+
+
+def probe_image(path: str) -> dict:
+    """Probe an image file for metadata. Returns dict matching probe() shape."""
+    from PIL import Image
+
+    from video.image_reader import MAX_IMAGE_DIMENSION
+
+    try:
+        img = Image.open(path)
+    except Exception as e:
+        logger.exception(f"Image probe failed for {Path(path).name}")
+        return {"ok": False, "error": f"Failed to open image: {type(e).__name__}"}
+
+    width, height = img.size
+    img_format = img.format or "unknown"
+    img.close()
+
+    if width > MAX_IMAGE_DIMENSION or height > MAX_IMAGE_DIMENSION:
+        return {
+            "ok": False,
+            "error": f"Image dimensions {width}x{height} exceed maximum "
+            f"{MAX_IMAGE_DIMENSION}x{MAX_IMAGE_DIMENSION}",
+        }
+
+    return {
+        "ok": True,
+        "width": width,
+        "height": height,
+        "fps": 0,
+        "duration_s": IMAGE_DEFAULT_DURATION,
+        "codec": img_format.lower(),
+        "has_audio": False,
+        "frame_count": 0,
+    }

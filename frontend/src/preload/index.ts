@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 
 contextBridge.exposeInMainWorld('entropic', {
+  isTestMode: process.env.NODE_ENV === 'test',
   getPathForFile: (file: File): string => {
     return webUtils.getPathForFile(file)
   },

@@ -118,9 +118,14 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   // Don't render if off-screen
   if (left + width < 0) return null
 
+  const isTextClip = !!clip.textConfig
+  const displayName = isTextClip
+    ? (clip.textConfig!.text.slice(0, 30) || 'Text')
+    : assetName
+
   return (
     <div
-      className={`clip${isSelected ? ' clip--selected' : ''}`}
+      className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}`}
       style={{ left: `${left}px`, width: `${Math.max(4, width)}px` }}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
@@ -131,7 +136,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         className="clip__trim-handle clip__trim-handle--left"
         onPointerDown={handleTrimLeftDown}
       />
-      <span className="clip__name">{assetName}</span>
+      <span className={`clip__name${isTextClip ? ' clip__name--text' : ''}`}>{displayName}</span>
       <div
         className="clip__trim-handle clip__trim-handle--right"
         onPointerDown={handleTrimRightDown}

@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest'
  * Tests the validation rules from PHASE-1-IMPL-PLAN.md SEC-5.
  */
 
-const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm']
+const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.mkv', '.webm', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
 const MAX_FILE_SIZE_MB = 500
 
 function validateFileType(filename: string): boolean {

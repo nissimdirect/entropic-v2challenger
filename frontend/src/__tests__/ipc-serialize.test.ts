@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import type { EffectInstance } from '../shared/types'
+import type { EffectInstance, TextClipConfig } from '../shared/types'
 import {
   serializeEffectInstance,
   serializeEffectChain,
+  serializeTextConfig,
   type SerializedEffectInstance,
 } from '../shared/ipc-serialize'
 
@@ -144,5 +145,67 @@ describe('IPC contract: field names match backend expectations', () => {
     expect(serialized).not.toHaveProperty('effectId')
     expect(serialized).not.toHaveProperty('isEnabled')
     expect(serialized).not.toHaveProperty('parameters')
+  })
+})
+
+describe('serializeTextConfig', () => {
+  const makeTextConfig = (): TextClipConfig => ({
+    text: 'Hello World',
+    fontFamily: 'Helvetica',
+    fontSize: 48,
+    color: '#ffffff',
+    position: [960, 540],
+    alignment: 'center',
+    opacity: 1.0,
+    strokeWidth: 2,
+    strokeColor: '#000000',
+    shadowOffset: [4, 4],
+    shadowColor: '#00000080',
+    animation: 'fade_in',
+    animationDuration: 1.5,
+  })
+
+  it('maps camelCase to snake_case', () => {
+    const config = makeTextConfig()
+    const serialized = serializeTextConfig(config)
+    expect(serialized.font_family).toBe('Helvetica')
+    expect(serialized.font_size).toBe(48)
+    expect(serialized.stroke_width).toBe(2)
+    expect(serialized.stroke_color).toBe('#000000')
+    expect(serialized.shadow_offset).toEqual([4, 4])
+    expect(serialized.shadow_color).toBe('#00000080')
+    expect(serialized.animation_duration).toBe(1.5)
+  })
+
+  it('preserves already-lowercase fields', () => {
+    const config = makeTextConfig()
+    const serialized = serializeTextConfig(config)
+    expect(serialized.text).toBe('Hello World')
+    expect(serialized.color).toBe('#ffffff')
+    expect(serialized.position).toEqual([960, 540])
+    expect(serialized.alignment).toBe('center')
+    expect(serialized.opacity).toBe(1.0)
+    expect(serialized.animation).toBe('fade_in')
+  })
+
+  it('does NOT include camelCase keys', () => {
+    const serialized = serializeTextConfig(makeTextConfig()) as Record<string, unknown>
+    expect(serialized).not.toHaveProperty('fontFamily')
+    expect(serialized).not.toHaveProperty('fontSize')
+    expect(serialized).not.toHaveProperty('strokeWidth')
+    expect(serialized).not.toHaveProperty('strokeColor')
+    expect(serialized).not.toHaveProperty('shadowOffset')
+    expect(serialized).not.toHaveProperty('shadowColor')
+    expect(serialized).not.toHaveProperty('animationDuration')
+  })
+
+  it('outputs exactly the keys the backend text_renderer expects', () => {
+    const serialized = serializeTextConfig(makeTextConfig())
+    const keys = Object.keys(serialized).sort()
+    expect(keys).toEqual([
+      'alignment', 'animation', 'animation_duration', 'color',
+      'font_family', 'font_size', 'opacity', 'position',
+      'shadow_color', 'shadow_offset', 'stroke_color', 'stroke_width', 'text',
+    ])
   })
 })

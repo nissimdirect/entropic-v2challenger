@@ -52,7 +52,7 @@ export interface Timeline {
 
 export interface Track {
   id: string;
-  type: "video" | "performance";
+  type: "video" | "performance" | "text";
   name: string;
   color: string;
   isMuted: boolean;
@@ -84,6 +84,35 @@ export interface Clip {
   inPoint: number;
   outPoint: number;
   speed: number;
+  textConfig?: TextClipConfig;
+}
+
+// --- Text ---
+
+export type TextAnimation =
+  | "none"
+  | "fade_in"
+  | "fade_out"
+  | "scale_up"
+  | "slide_left"
+  | "slide_up"
+  | "typewriter"
+  | "bounce";
+
+export interface TextClipConfig {
+  text: string;
+  fontFamily: string;
+  fontSize: number;
+  color: string;
+  position: [number, number];
+  alignment: "left" | "center" | "right";
+  opacity: number;
+  strokeWidth: number;
+  strokeColor: string;
+  shadowOffset: [number, number];
+  shadowColor: string;
+  animation: TextAnimation;
+  animationDuration: number;
 }
 
 export interface Marker {

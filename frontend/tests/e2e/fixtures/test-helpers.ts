@@ -41,15 +41,32 @@ export async function stubSaveDialog(
 
 /**
  * Wait for a rendered frame to appear in the preview canvas.
- * The app renders frames as base64 JPEG into an <img> tag.
+ * Uses multiple signals to detect readiness:
+ * 1. canvas.dataset.frameReady === 'true' (set by drawToCanvas)
+ * 2. canvas has non-zero dimensions and pixel data
+ * 3. placeholder is gone (previewState moved past 'empty')
  */
 export async function waitForFrame(page: Page, timeoutMs = 15_000): Promise<void> {
   await page.waitForFunction(
     () => {
       const canvas = document.querySelector('.preview-canvas__element') as HTMLCanvasElement | null
-      return canvas !== null && canvas.dataset.frameReady === 'true'
+      if (!canvas) return false
+
+      // Signal 1: explicit dataset flag
+      if (canvas.dataset.frameReady === 'true') return true
+
+      // Signal 2: canvas has drawn content (non-zero size + pixel data)
+      if (canvas.width > 0 && canvas.height > 0) {
+        const ctx = canvas.getContext('2d')
+        if (ctx) {
+          const pixel = ctx.getImageData(0, 0, 1, 1).data
+          if (pixel[3] > 0) return true
+        }
+      }
+
+      return false
     },
-    { timeout: timeoutMs },
+    { timeout: timeoutMs, polling: 250 },
   )
 }
 

@@ -338,6 +338,11 @@ def _auto_register():
         spectral_analysis,
     ]
 
+    # --- Phase 12: Subliminal effect ---
+    from effects.fx import subliminal
+
+    phase12_mods = [subliminal]
+
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
         from effects.fx import debug_crash
@@ -345,7 +350,7 @@ def _auto_register():
         mods.append(debug_crash)
 
     # Register all simple effects
-    for mod in mods + phase8_mods + phase8_consolidated:
+    for mod in mods + phase8_mods + phase8_consolidated + phase12_mods:
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
         )
@@ -499,6 +504,17 @@ def _auto_register():
     )
     _register_variant(
         spectral_analysis, "fx.wavelet_split", "Wavelet Split", "wavelet_split"
+    )
+
+    # Phase 12 — subliminal variants (flash_insert/channel_embed/second_source)
+    _register_variant(
+        subliminal, "fx.subliminal_flash", "Subliminal Flash", "flash_insert"
+    )
+    _register_variant(
+        subliminal, "fx.subliminal_embed", "Subliminal Embed", "channel_embed"
+    )
+    _register_variant(
+        subliminal, "fx.subliminal_spray", "Subliminal Spray", "second_source"
     )
 
     # v1 name alias — dropout → frame_drop
