@@ -56,6 +56,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
           {' '}{track.name}
         </div>
+        <LaneBadges trackId={track.id} />
       </div>
       <div className="track-header__controls">
         <button
@@ -94,6 +95,19 @@ interface TrackLaneProps {
 
 const EMPTY_LANES: never[] = []
 
+function LaneBadges({ trackId }: { trackId: string }) {
+  const lanes = useAutomationStore((s) => s.lanes[trackId]) ?? EMPTY_LANES
+  const hasTrigger = lanes.some((l) => l.isTrigger)
+  const hasAuto = lanes.some((l) => !l.isTrigger)
+  if (!hasTrigger && !hasAuto) return null
+  return (
+    <div className="track-header__badges">
+      {hasTrigger && <span className="track-header__badge track-header__badge--trig">TRIG</span>}
+      {hasAuto && <span className="track-header__badge track-header__badge--auto">AUTO</span>}
+    </div>
+  )
+}
+
 export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds }: TrackLaneProps) {
   const assets = useProjectStore((s) => s.assets)
   const automationLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
@@ -126,7 +140,7 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds }:
           />
         )
       })}
-      {/* Automation lane overlays */}
+      {/* Automation + trigger lane overlays */}
       {automationLanes.map((lane) => (
         <AutomationLaneComponent
           key={lane.id}

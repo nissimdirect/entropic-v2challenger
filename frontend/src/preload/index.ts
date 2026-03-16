@@ -139,4 +139,22 @@ contextBridge.exposeInMainWorld('entropic', {
   installUpdate: (): Promise<void> => {
     return ipcRenderer.invoke('updater:install')
   },
+
+  // --- Pop-out preview ---
+
+  openPopOut: (): Promise<void> => {
+    return ipcRenderer.invoke('pop-out:open')
+  },
+
+  closePopOut: (): Promise<void> => {
+    return ipcRenderer.invoke('pop-out:close')
+  },
+
+  isPopOutOpen: (): Promise<boolean> => {
+    return ipcRenderer.invoke('pop-out:is-open')
+  },
+
+  sendFrameToPopOut: (dataUrl: string): void => {
+    ipcRenderer.send('pop-out:relay-frame', dataUrl)
+  },
 })

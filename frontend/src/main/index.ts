@@ -10,6 +10,7 @@ import { registerDiagnosticsHandlers } from './diagnostics-handlers'
 import { registerSupportBundleHandler } from './support-bundle'
 import { registerFileHandlers } from './file-handlers'
 import { initAutoUpdater } from './updater'
+import { registerPopOutHandlers, closePopOutWindow } from './pop-out-window'
 import { logger } from './logger'
 
 // PII stripping for Sentry events — matches Python's strip_pii pattern
@@ -199,6 +200,7 @@ app.whenReady().then(async () => {
   registerSupportBundleHandler()
   registerRelayHandlers()
   registerFileHandlers()
+  registerPopOutHandlers()
   const mainWindow = createWindow()
   initAutoUpdater(mainWindow)
 
@@ -225,6 +227,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  closePopOutWindow()
   stopWatchdog()
   closeRelay()
   killPython()

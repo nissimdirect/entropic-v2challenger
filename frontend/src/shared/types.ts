@@ -124,6 +124,12 @@ export interface Marker {
 
 // --- Effects ---
 
+export interface ABState {
+  a: Record<string, number | string | boolean>;
+  b: Record<string, number | string | boolean>;
+  active: 'a' | 'b';
+}
+
 export interface EffectInstance {
   id: string;
   effectId: string;
@@ -133,6 +139,7 @@ export interface EffectInstance {
   modulations: Record<string, ModulationRoute[]>;
   mix: number;
   mask: MaskConfig | null;
+  abState?: ABState | null;
 }
 
 export interface ModulationRoute {
@@ -155,12 +162,17 @@ export interface MaskConfig {
 
 // --- Automation ---
 
+export type TriggerMode = 'toggle' | 'gate' | 'one-shot';
+
 export interface AutomationLane {
   id: string;
   paramPath: string;
   color: string;
   isVisible: boolean;
   points: AutomationPoint[];
+  isTrigger: boolean;
+  triggerMode?: TriggerMode;
+  triggerADSR?: ADSREnvelope;
 }
 
 export interface AutomationPoint {
@@ -321,11 +333,35 @@ export interface Operator {
   mappings: OperatorMapping[];
 }
 
+// --- Device Groups (Phase 14B) ---
+
+export interface DeviceGroup {
+  id: string;
+  name: string;
+  children: EffectInstance[];
+  macroMappings: MacroMapping[];
+  mix: number;
+  isEnabled: boolean;
+  abState?: ABState | null;
+}
+
+export type ChainItem = EffectInstance | DeviceGroup;
+
+export function isDeviceGroup(item: ChainItem): item is DeviceGroup {
+  return 'children' in item && Array.isArray((item as DeviceGroup).children);
+}
+
+export function flattenChain(chain: ChainItem[]): EffectInstance[] {
+  return chain.flatMap(item =>
+    isDeviceGroup(item) ? item.children : [item]
+  );
+}
+
 // --- Presets (Phase 10) ---
 
 export interface MacroMapping {
   label: string;
-  effectIndex: number;
+  effectId: string;   // CTO I3: effectId not effectIndex (index breaks on reorder)
   paramKey: string;
   min: number;
   max: number;

@@ -4,8 +4,9 @@
  * All mutations go through the undo system.
  */
 import { create } from 'zustand'
-import type { AutomationLane, AutomationPoint } from '../../shared/types'
+import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope } from '../../shared/types'
 import { undoable } from './undo'
+import { useToastStore } from './toast'
 import { simplifyPoints } from '../utils/automation-simplify'
 
 export type AutomationMode = 'read' | 'latch' | 'touch' | 'draw'
@@ -24,6 +25,7 @@ interface AutomationState {
 
   // Lane CRUD
   addLane: (trackId: string, effectId: string, paramKey: string, color: string) => void
+  addTriggerLane: (trackId: string, effectId: string, paramKey: string, color: string, triggerMode: TriggerMode, triggerADSR?: ADSREnvelope) => string | null
   removeLane: (trackId: string, laneId: string) => void
   clearLane: (trackId: string, laneId: string) => void
   setLaneVisible: (trackId: string, laneId: string, visible: boolean) => void
@@ -39,6 +41,10 @@ interface AutomationState {
   setMode: (mode: AutomationMode) => void
   armTrack: (trackId: string | null) => void
   setRecordingParamPath: (path: string | null) => void
+  /** Record a trigger event (key-down/up) to the appropriate trigger lane during overdub */
+  recordTriggerEvent: (trackId: string, laneId: string, time: number, eventType: 'trigger' | 'release') => void
+  /** Merge retro-captured trigger points into a lane */
+  mergeCapturedTriggers: (trackId: string, laneId: string, points: AutomationPoint[]) => void
 
   // Clipboard
   copyRegion: (trackId: string, laneId: string, startTime: number, endTime: number) => void
@@ -84,6 +90,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       color,
       isVisible: true,
       points: [],
+      isTrigger: false,
     }
 
     const forward = () => {
@@ -99,6 +106,51 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     }
 
     undoable(`Add automation lane for ${paramKey}`, forward, inverse)
+  },
+
+  addTriggerLane: (trackId, effectId, paramKey, color, triggerMode, triggerADSR) => {
+    // Exclusive param ownership: check no other trigger lane owns this param
+    const paramPath = `${effectId}.${paramKey}`
+    for (const trackLanes of Object.values(get().lanes)) {
+      for (const lane of trackLanes) {
+        if (lane.isTrigger && lane.paramPath === paramPath) {
+          useToastStore.getState().addToast({
+            level: 'warning',
+            message: `Parameter already mapped to trigger lane "${lane.id}"`,
+            source: 'automation',
+          })
+          return null
+        }
+      }
+    }
+
+    const laneId = `trig-${Date.now()}-${nextLaneId++}`
+    const defaultADSR: ADSREnvelope = { attack: 0, decay: 0, sustain: 1, release: 0 }
+    const newLane: AutomationLane = {
+      id: laneId,
+      paramPath,
+      color,
+      isVisible: true,
+      points: [],
+      isTrigger: true,
+      triggerMode,
+      triggerADSR: triggerADSR ?? defaultADSR,
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = [...(current[trackId] ?? []), newLane]
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).filter((l) => l.id !== laneId)
+      if (current[trackId].length === 0) delete current[trackId]
+      set({ lanes: current })
+    }
+
+    undoable(`Add trigger lane for ${paramKey}`, forward, inverse)
+    return laneId
   },
 
   removeLane: (trackId, laneId) => {
@@ -314,6 +366,65 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   armTrack: (trackId) => set({ armedTrackId: trackId }),
   setRecordingParamPath: (path) => set({ recordingParamPath: path }),
 
+  recordTriggerEvent: (trackId, laneId, time, eventType) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || !lane.isTrigger) return
+
+    // Clamp value to exactly 0 or 1 (square-wave, numeric trust boundary)
+    const value = eventType === 'trigger' ? 1.0 : 0.0
+    const newPoint: AutomationPoint = { time, value, curve: 0 }
+    const newPoints = insertPointSorted([...lane.points], newPoint)
+
+    const oldPoints = [...lane.points]
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: newPoints } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    // Uses undo transaction when inside overdub recording pass
+    undoable(`Record trigger ${eventType}`, forward, inverse)
+  },
+
+  mergeCapturedTriggers: (trackId, laneId, points) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || !lane.isTrigger) return
+
+    const oldPoints = [...lane.points]
+    // Merge and sort
+    const merged = [...lane.points, ...points].sort((a, b) => a.time - b.time)
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: merged } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Merge captured trigger automation`, forward, inverse)
+  },
+
   copyRegion: (trackId, laneId, startTime, endTime) => {
     const trackLanes = get().lanes[trackId]
     if (!trackLanes) return
@@ -408,6 +519,8 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         return true
       }).map((lane) => ({
         ...lane,
+        // Backward-compatible: old projects may not have isTrigger
+        isTrigger: lane.isTrigger === true,
         // Filter out invalid points and sort by time for binary search
         points: lane.points
           .filter((p) =>

@@ -1,14 +1,25 @@
 import { create } from 'zustand'
 import { clampFinite } from '../../shared/numeric'
 
+interface PopOutBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 interface LayoutState {
   sidebarCollapsed: boolean
   timelineCollapsed: boolean
   timelineHeight: number
+  isPopOutOpen: boolean
+  popOutBounds: PopOutBounds | null
   toggleSidebar: () => void
   toggleTimeline: () => void
   setTimelineHeight: (h: number) => void
   toggleFocusMode: () => void
+  setPopOutOpen: (open: boolean) => void
+  setPopOutBounds: (bounds: PopOutBounds | null) => void
 }
 
 const STORAGE_KEY = 'entropic-layout'
@@ -51,6 +62,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   sidebarCollapsed: persisted.sidebarCollapsed ?? false,
   timelineCollapsed: persisted.timelineCollapsed ?? false,
   timelineHeight: persisted.timelineHeight ?? 200,
+  isPopOutOpen: false,
+  popOutBounds: null,
 
   toggleSidebar: () => {
     const next = !get().sidebarCollapsed
@@ -76,5 +89,13 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const shouldCollapse = !sidebarCollapsed || !timelineCollapsed
     set({ sidebarCollapsed: shouldCollapse, timelineCollapsed: shouldCollapse })
     persistLayout({ ...get(), sidebarCollapsed: shouldCollapse, timelineCollapsed: shouldCollapse })
+  },
+
+  setPopOutOpen: (open: boolean) => {
+    set({ isPopOutOpen: open })
+  },
+
+  setPopOutBounds: (bounds: PopOutBounds | null) => {
+    set({ popOutBounds: bounds })
   },
 }))

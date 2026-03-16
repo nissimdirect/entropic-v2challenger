@@ -1,0 +1,1688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Entropic Challenger — UX Redesign Mockup</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════
+   ENTROPIC CHALLENGER — UX REDESIGN MOCKUP
+   Arrangement View + Ableton Device Chain + Performance Triggers
+   Signal Bruise chromatic zones applied
+   ═══════════════════════════════════════════════════════════════ */
+
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap');
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  /* Zone backgrounds — three chromatic regions */
+  --zone-browser: #1a1a22;      /* sidebar: blue-violet undertone */
+  --zone-preview: #0a0a0e;      /* preview: near-black, content dominates */
+  --zone-timeline: #141418;     /* timeline: slightly lighter than preview */
+  --zone-device: #18181e;       /* device chain: distinct from timeline */
+  --zone-status: #1e1e26;       /* status bar */
+
+  /* Borders — subtle zone separation */
+  --border-subtle: #2a2a34;
+  --border-default: #333340;
+  --border-strong: #444450;
+
+  /* Signal Bruise palette */
+  --bruise-violet: #9B7BB5;     /* healing violet — creative zone accent */
+  --bruise-bile: #8B9B3D;       /* bile green — healthy state */
+  --bruise-oxide: #C45B28;      /* oxide — warning */
+  --bruise-wound: #B54A5A;      /* wound red — error/recording */
+  --bruise-jaundice: #B5894A;   /* jaundice — caution */
+
+  /* Existing Entropic tokens */
+  --green-accent: #4ade80;
+  --green-hover: #22c55e;
+  --red-error: #ef4444;
+  --red-record: #FF2D2D;
+  --text-primary: #e0e0e4;
+  --text-secondary: #888890;
+  --text-dim: #555560;
+  --text-ghost: #333340;
+
+  /* Layout */
+  --sidebar-width: 260px;
+  --device-chain-height: 200px;
+  --status-height: 32px;
+  --transport-height: 38px;
+}
+
+body {
+  background: #0e0e12;
+  color: var(--text-primary);
+  font-family: 'JetBrains Mono', monospace;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* ── MAIN GRID ── */
+.app {
+  display: grid;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-rows: var(--transport-height) 1fr auto var(--device-chain-height) var(--status-height);
+  grid-template-areas:
+    "transport transport"
+    "sidebar   main"
+    "sidebar   timeline"
+    "device    device"
+    "status    status";
+  height: 100vh;
+  width: 100vw;
+}
+
+/* ── TRANSPORT BAR ── */
+.transport {
+  grid-area: transport;
+  background: var(--zone-status);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 6px;
+}
+
+.transport__menus {
+  display: flex;
+  gap: 2px;
+  margin-right: 16px;
+}
+
+.transport__menu-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.transport__menu-btn:hover {
+  background: #2a2a34;
+  color: var(--text-primary);
+}
+
+.transport__controls {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-right: 8px;
+}
+
+.transport__btn {
+  width: 28px;
+  height: 26px;
+  background: #2a2a34;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+
+.transport__btn:hover {
+  background: #333340;
+  color: var(--text-primary);
+}
+
+.transport__btn--active {
+  background: var(--green-accent);
+  color: #0a0a0e;
+  border-color: var(--green-accent);
+}
+
+.transport__btn--record {
+  color: var(--red-record);
+  font-size: 14px;
+}
+
+.transport__btn--record.transport__btn--active {
+  background: var(--red-record);
+  color: #fff;
+  border-color: var(--red-record);
+  animation: record-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes record-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 45, 45, 0.4); }
+  50% { box-shadow: 0 0 8px 2px rgba(255, 45, 45, 0.3); }
+}
+
+.transport__ovr {
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+}
+
+.transport__ovr--active {
+  background: var(--bruise-wound);
+  border-color: var(--bruise-wound);
+  color: #fff;
+}
+
+.transport__time {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.5px;
+  margin-left: 12px;
+  min-width: 90px;
+}
+
+.transport__spacer { flex: 1; }
+
+.transport__connection {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.transport__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green-accent);
+  box-shadow: 0 0 6px var(--green-accent);
+}
+
+/* ── SIDEBAR (Browser Zone) ── */
+.sidebar {
+  grid-area: sidebar;
+  background: var(--zone-browser);
+  border-right: 1px solid var(--border-default);
+  border-left: 3px solid var(--bruise-violet);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar__search {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sidebar__search-input {
+  width: 100%;
+  padding: 6px 8px;
+  background: #0e0e14;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+}
+
+.sidebar__search-input:focus {
+  border-color: var(--bruise-violet);
+}
+
+.sidebar__search-input::placeholder {
+  color: var(--text-dim);
+}
+
+.sidebar__tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.sidebar__section {
+  user-select: none;
+}
+
+.sidebar__section-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  letter-spacing: 0.3px;
+}
+
+.sidebar__section-header:hover {
+  background: #22222c;
+  color: var(--text-primary);
+}
+
+.sidebar__section-header--fav {
+  color: var(--bruise-jaundice);
+}
+
+.sidebar__section-header--user {
+  color: var(--bruise-violet);
+}
+
+.sidebar__arrow {
+  font-size: 8px;
+  color: var(--text-dim);
+  transition: transform 0.15s;
+  width: 10px;
+}
+
+.sidebar__arrow--open {
+  transform: rotate(90deg);
+}
+
+.sidebar__count {
+  color: var(--text-dim);
+  font-size: 10px;
+  font-weight: 400;
+  margin-left: auto;
+}
+
+.sidebar__items {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar__item {
+  padding: 4px 10px 4px 26px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+}
+
+.sidebar__item:hover {
+  background: #22222c;
+  color: var(--text-primary);
+  border-left-color: var(--bruise-violet);
+}
+
+.sidebar__item--selected {
+  background: #26263a;
+  color: var(--text-primary);
+  border-left-color: var(--bruise-violet);
+}
+
+/* Help panel */
+.sidebar__help {
+  border-top: 1px solid var(--border-subtle);
+  padding: 8px 10px;
+  min-height: 72px;
+  background: #16161e;
+}
+
+.sidebar__help-title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bruise-violet);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.sidebar__help-text {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ── MAIN / PREVIEW (Output Zone) ── */
+.main {
+  grid-area: main;
+  background: var(--zone-preview);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: relative;
+}
+
+.preview {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  position: relative;
+  background: #050508;
+}
+
+.preview__canvas {
+  width: 80%;
+  height: 80%;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Fake glitch content */
+.preview__canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(155, 123, 181, 0.03) 2px, rgba(155, 123, 181, 0.03) 4px),
+    linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.1) 100%);
+}
+
+.preview__canvas-text {
+  color: var(--text-ghost);
+  font-size: 14px;
+  letter-spacing: 2px;
+  z-index: 1;
+}
+
+.preview__pop-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 24px;
+  background: rgba(30, 30, 38, 0.8);
+  border: 1px solid var(--border-subtle);
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-size: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  z-index: 2;
+}
+
+.preview__pop-btn:hover {
+  background: rgba(42, 42, 52, 0.9);
+  color: var(--text-primary);
+  border-color: var(--bruise-violet);
+}
+
+.preview-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: #12121a;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.preview-controls__scrub {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 3px;
+  background: var(--border-default);
+  border-radius: 2px;
+  outline: none;
+}
+
+.preview-controls__scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 10px;
+  height: 10px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.preview-controls__counter {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 70px;
+  text-align: right;
+}
+
+/* ── TIMELINE (Temporal Zone) ── */
+.timeline {
+  grid-area: timeline;
+  background: var(--zone-timeline);
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  min-height: 160px;
+  overflow: hidden;
+}
+
+/* Resize handle */
+.timeline__resize {
+  height: 5px;
+  background: var(--zone-timeline);
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.timeline__resize-dots {
+  display: flex;
+  gap: 3px;
+}
+
+.timeline__resize-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--text-ghost);
+}
+
+.timeline__resize:hover .timeline__resize-dot {
+  background: var(--text-dim);
+}
+
+/* Ruler */
+.timeline__ruler {
+  height: 20px;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 40px 0 140px;
+  gap: 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.timeline__ruler-mark {
+  font-size: 9px;
+  color: var(--text-ghost);
+  min-width: 80px;
+  padding-bottom: 2px;
+}
+
+/* Tracks */
+.timeline__tracks {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.timeline__track {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid #1a1a22;
+  min-height: 36px;
+}
+
+.timeline__track-header {
+  width: 140px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  background: #18181e;
+  border-right: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.timeline__track-name {
+  font-size: 10px;
+  color: var(--text-secondary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline__track-arm {
+  width: 18px;
+  height: 16px;
+  background: #2a2a34;
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-size: 7px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: -0.5px;
+}
+
+.timeline__track-arm:hover {
+  border-color: var(--bruise-wound);
+  color: var(--bruise-wound);
+}
+
+.timeline__track-arm--armed {
+  background: var(--bruise-wound);
+  border-color: var(--bruise-wound);
+  color: #fff;
+  box-shadow: 0 0 6px rgba(181, 74, 90, 0.4);
+}
+
+.timeline__track-lane {
+  flex: 1;
+  position: relative;
+  padding: 4px 0;
+}
+
+/* Automation curves (SVG-like with gradients) */
+.timeline__auto-curve {
+  height: 100%;
+  width: 100%;
+  position: relative;
+}
+
+.auto-wave {
+  position: absolute;
+  bottom: 4px;
+  height: calc(100% - 8px);
+  left: 0;
+  right: 0;
+}
+
+/* Continuous automation (knob recording) */
+.auto-wave--continuous {
+  background:
+    linear-gradient(90deg,
+      transparent 0%,
+      transparent 5%,
+      rgba(155, 123, 181, 0.15) 5%,
+      rgba(155, 123, 181, 0.15) 95%,
+      transparent 95%
+    );
+  clip-path: polygon(
+    0% 80%, 5% 75%, 10% 60%, 15% 45%, 18% 50%, 22% 35%, 25% 30%,
+    30% 40%, 35% 55%, 38% 50%, 42% 35%, 45% 25%, 48% 30%,
+    52% 45%, 55% 60%, 58% 55%, 62% 40%, 65% 30%, 68% 25%,
+    72% 35%, 75% 50%, 78% 60%, 82% 55%, 85% 40%, 88% 30%,
+    92% 45%, 95% 55%, 100% 50%, 100% 100%, 0% 100%
+  );
+  border-top: 1px solid var(--bruise-violet);
+}
+
+/* Square wave pulses (performance trigger) */
+.auto-wave--square {
+  background: rgba(74, 222, 128, 0.12);
+}
+
+.square-pulse {
+  position: absolute;
+  bottom: 0;
+  height: 85%;
+  background: rgba(74, 222, 128, 0.2);
+  border-top: 2px solid var(--green-accent);
+  border-left: 2px solid var(--green-accent);
+  border-right: 2px solid var(--green-accent);
+}
+
+.square-pulse--a {
+  left: 8%;
+  width: 12%;
+}
+
+.square-pulse--b {
+  left: 28%;
+  width: 22%;
+}
+
+.square-pulse--c {
+  left: 58%;
+  width: 6%;
+}
+
+.square-pulse--d {
+  left: 72%;
+  width: 18%;
+}
+
+/* Second trigger (different color) */
+.square-pulse--alt {
+  border-color: var(--bruise-jaundice);
+  background: rgba(181, 137, 74, 0.15);
+}
+
+.square-pulse--e {
+  left: 15%;
+  width: 18%;
+}
+
+.square-pulse--f {
+  left: 42%;
+  width: 14%;
+}
+
+.square-pulse--g {
+  left: 65%;
+  width: 25%;
+}
+
+/* Playhead */
+.timeline__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 35%;
+  width: 1px;
+  background: var(--text-primary);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.timeline__playhead::before {
+  content: '';
+  position: absolute;
+  top: -2px;
+  left: -4px;
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 6px solid var(--text-primary);
+}
+
+/* Track labels for perform triggers */
+.timeline__track--perform .timeline__track-header {
+  background: #1a1a20;
+}
+
+.timeline__track--perform .timeline__track-name {
+  color: var(--green-accent);
+  font-weight: 500;
+}
+
+.timeline__track-badge {
+  font-size: 7px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 2px;
+  letter-spacing: 0.3px;
+}
+
+.timeline__track-badge--auto {
+  background: rgba(155, 123, 181, 0.2);
+  color: var(--bruise-violet);
+  border: 1px solid rgba(155, 123, 181, 0.3);
+}
+
+.timeline__track-badge--trig {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--green-accent);
+  border: 1px solid rgba(74, 222, 128, 0.25);
+}
+
+/* ── DEVICE CHAIN (Ableton-style) ── */
+.device-chain {
+  grid-area: device;
+  background: var(--zone-device);
+  border-top: 1px solid var(--bruise-violet);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.device-chain__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: #1c1c24;
+  border-bottom: 1px solid var(--border-subtle);
+  min-height: 24px;
+}
+
+.device-chain__title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.device-chain__depth {
+  font-size: 10px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.device-chain__strip {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+}
+
+/* Single device */
+.device {
+  min-width: 140px;
+  max-width: 180px;
+  background: #20202a;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.device--selected {
+  border-color: var(--bruise-violet);
+  box-shadow: 0 0 0 1px var(--bruise-violet);
+}
+
+.device__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  background: #24242e;
+  border-radius: 3px 3px 0 0;
+}
+
+.device__name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device__toggle {
+  width: 22px;
+  height: 14px;
+  background: var(--green-accent);
+  border: none;
+  border-radius: 2px;
+  color: #0a0a0e;
+  font-size: 7px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  margin-right: 4px;
+}
+
+.device__toggle--off {
+  background: var(--border-default);
+  color: var(--text-dim);
+}
+
+.device__ab {
+  width: 28px;
+  height: 14px;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: 2px;
+  color: var(--text-dim);
+  font-size: 8px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.device__ab:hover {
+  border-color: var(--bruise-violet);
+}
+
+.device__ab-active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.device__ab-inactive {
+  color: var(--text-ghost);
+}
+
+/* Device params */
+.device__params {
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+}
+
+.device__param {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.device__param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.device__param-label {
+  font-size: 9px;
+  color: var(--text-dim);
+}
+
+.device__param-value {
+  font-size: 9px;
+  color: var(--text-primary);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.device__param-slider {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 3px;
+  background: var(--border-default);
+  border-radius: 2px;
+  outline: none;
+}
+
+.device__param-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.device__param-slider::-webkit-slider-thumb:hover {
+  background: var(--bruise-violet);
+}
+
+/* Device mix */
+.device__mix {
+  padding: 4px 8px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.device__mix-label {
+  font-size: 8px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device__mix-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 2px;
+  background: var(--border-default);
+  border-radius: 1px;
+  outline: none;
+}
+
+.device__mix-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.device__mix-value {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: right;
+}
+
+/* Render time bar */
+.device__render-time {
+  height: 2px;
+  background: var(--green-accent);
+  border-radius: 0 0 3px 3px;
+  transition: width 0.3s;
+}
+
+.device__render-time--warn {
+  background: var(--bruise-jaundice);
+}
+
+.device__render-time--slow {
+  background: var(--bruise-wound);
+}
+
+/* Arrow between devices */
+.device-chain__arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--text-ghost);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* ── DEVICE GROUP ── */
+.device-group {
+  border: 2px solid var(--bruise-violet);
+  border-radius: 6px;
+  background: rgba(155, 123, 181, 0.04);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-width: 300px;
+}
+
+.device-group__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 3px 8px;
+  background: rgba(155, 123, 181, 0.08);
+  border-bottom: 1px solid rgba(155, 123, 181, 0.15);
+  border-radius: 4px 4px 0 0;
+}
+
+.device-group__name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--bruise-violet);
+}
+
+.device-group__controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.device-group__show-btn {
+  padding: 1px 6px;
+  background: transparent;
+  border: 1px solid rgba(155, 123, 181, 0.3);
+  border-radius: 2px;
+  color: var(--bruise-violet);
+  font-size: 8px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+}
+
+.device-group__show-btn:hover {
+  background: rgba(155, 123, 181, 0.1);
+}
+
+/* Macro strip */
+.device-group__macros {
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid rgba(155, 123, 181, 0.1);
+}
+
+.macro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 50px;
+}
+
+.macro__label {
+  font-size: 8px;
+  color: var(--bruise-violet);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.macro__slider {
+  -webkit-appearance: none;
+  width: 48px;
+  height: 3px;
+  background: rgba(155, 123, 181, 0.2);
+  border-radius: 2px;
+  outline: none;
+}
+
+.macro__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--bruise-violet);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.macro__value {
+  font-size: 8px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Inner devices in group */
+.device-group__devices {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 4px 4px;
+}
+
+.device-group__devices .device {
+  min-width: 120px;
+  max-width: 140px;
+  border-color: rgba(155, 123, 181, 0.2);
+}
+
+/* Group mix */
+.device-group__mix {
+  padding: 3px 8px;
+  border-top: 1px solid rgba(155, 123, 181, 0.1);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.device-group__mix-label {
+  font-size: 8px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-group__mix-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 2px;
+  background: rgba(155, 123, 181, 0.2);
+  border-radius: 1px;
+  outline: none;
+}
+
+.device-group__mix-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--bruise-violet);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.device-group__mix-value {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── STATUS BAR ── */
+.status-bar {
+  grid-area: status;
+  background: var(--zone-status);
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 10px;
+}
+
+.status-bar__left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-bar__metric {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar__metric span {
+  color: var(--text-secondary);
+}
+
+.status-bar__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.status-bar__export {
+  padding: 3px 12px;
+  background: var(--green-accent);
+  border: none;
+  border-radius: 3px;
+  color: #0a0a0e;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+}
+
+.status-bar__export:hover {
+  background: var(--green-hover);
+}
+
+/* ── SCROLLBAR STYLING ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-default);
+}
+
+/* ── ANNOTATIONS (for mockup only) ── */
+.annotation {
+  position: absolute;
+  font-size: 9px;
+  color: var(--bruise-jaundice);
+  background: rgba(181, 137, 74, 0.1);
+  border: 1px dashed rgba(181, 137, 74, 0.3);
+  padding: 2px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+  z-index: 100;
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══ TRANSPORT BAR ═══ -->
+  <div class="transport">
+    <div class="transport__menus">
+      <button class="transport__menu-btn">File</button>
+      <button class="transport__menu-btn">Edit</button>
+      <button class="transport__menu-btn">View</button>
+    </div>
+
+    <div class="transport__controls">
+      <button class="transport__btn" title="Rewind (J)">&#9664;&#9664;</button>
+      <button class="transport__btn transport__btn--active" title="Play (Space/L)">&#9654;</button>
+      <button class="transport__btn" title="Stop (K)">&#9632;</button>
+      <button class="transport__btn" title="Forward (L+L)">&#9654;&#9654;</button>
+    </div>
+
+    <button class="transport__btn transport__btn--record transport__btn--active" title="Record Automation">&#9679;</button>
+    <button class="transport__ovr transport__ovr--active" title="Overdub Mode">OVR</button>
+
+    <div class="transport__time">00:01:24.15</div>
+
+    <div class="transport__spacer"></div>
+
+    <div class="transport__connection">
+      <div class="transport__dot"></div>
+      Engine
+    </div>
+  </div>
+
+  <!-- ═══ SIDEBAR (Effect Browser) ═══ -->
+  <div class="sidebar">
+    <div class="sidebar__search">
+      <input class="sidebar__search-input" type="text" placeholder="Search effects...">
+    </div>
+
+    <div class="sidebar__tree">
+      <!-- Favorites -->
+      <div class="sidebar__section">
+        <div class="sidebar__section-header sidebar__section-header--fav">
+          <span class="sidebar__arrow sidebar__arrow--open">&#9654;</span>
+          &#9733; FAVORITES
+          <span class="sidebar__count">5</span>
+        </div>
+        <div class="sidebar__items">
+          <div class="sidebar__item">pixelsort</div>
+          <div class="sidebar__item">datamosh</div>
+          <div class="sidebar__item">wave_distort</div>
+          <div class="sidebar__item">channelshift</div>
+          <div class="sidebar__item">feedback</div>
+        </div>
+      </div>
+
+      <!-- User Presets -->
+      <div class="sidebar__section">
+        <div class="sidebar__section-header sidebar__section-header--user">
+          <span class="sidebar__arrow sidebar__arrow--open">&#9654;</span>
+          &#128193; USER PRESETS
+          <span class="sidebar__count">3</span>
+        </div>
+        <div class="sidebar__items">
+          <div class="sidebar__item">My Glitch Pack</div>
+          <div class="sidebar__item">Subtle Textures</div>
+          <div class="sidebar__item">Live Set 03/15</div>
+        </div>
+      </div>
+
+      <!-- Categories -->
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Destruction
+          <span class="sidebar__count">18</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow sidebar__arrow--open">&#9654;</span>
+          Glitch
+          <span class="sidebar__count">4</span>
+        </div>
+        <div class="sidebar__items">
+          <div class="sidebar__item sidebar__item--selected">pixelsort</div>
+          <div class="sidebar__item">channelshift</div>
+          <div class="sidebar__item">cumulative_smear</div>
+          <div class="sidebar__item">tvstatic</div>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Color
+          <span class="sidebar__count">8</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Physics
+          <span class="sidebar__count">21</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Temporal
+          <span class="sidebar__count">14</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Texture
+          <span class="sidebar__count">11</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Modulation
+          <span class="sidebar__count">13</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Distortion
+          <span class="sidebar__count">5</span>
+        </div>
+      </div>
+
+      <div class="sidebar__section">
+        <div class="sidebar__section-header">
+          <span class="sidebar__arrow">&#9654;</span>
+          Whimsy
+          <span class="sidebar__count">8</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Help Panel -->
+    <div class="sidebar__help">
+      <div class="sidebar__help-title">&#8505; pixelsort</div>
+      <div class="sidebar__help-text">
+        Sorts pixels by brightness along a direction.
+        Higher threshold = more sorting. Try 0.3-0.5
+        with direction 90&deg; for vertical streaks.
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PREVIEW ═══ -->
+  <div class="main">
+    <div class="preview">
+      <div class="preview__canvas">
+        <span class="preview__canvas-text">PREVIEW</span>
+      </div>
+      <button class="preview__pop-btn" title="Pop out to window">&#8599;</button>
+    </div>
+    <div class="preview-controls">
+      <input class="preview-controls__scrub" type="range" min="0" max="1000" value="350">
+      <span class="preview-controls__counter">00:01:24 / 00:04:12</span>
+    </div>
+  </div>
+
+  <!-- ═══ TIMELINE ═══ -->
+  <div class="timeline">
+    <div class="timeline__resize">
+      <div class="timeline__resize-dots">
+        <div class="timeline__resize-dot"></div>
+        <div class="timeline__resize-dot"></div>
+        <div class="timeline__resize-dot"></div>
+      </div>
+    </div>
+
+    <div class="timeline__ruler">
+      <span class="timeline__ruler-mark">1</span>
+      <span class="timeline__ruler-mark">2</span>
+      <span class="timeline__ruler-mark">3</span>
+      <span class="timeline__ruler-mark">4</span>
+      <span class="timeline__ruler-mark">5</span>
+      <span class="timeline__ruler-mark">6</span>
+      <span class="timeline__ruler-mark">7</span>
+      <span class="timeline__ruler-mark">8</span>
+    </div>
+
+    <div class="timeline__tracks" style="position: relative;">
+      <!-- Playhead -->
+      <div class="timeline__playhead"></div>
+
+      <!-- Track 1: Continuous automation -->
+      <div class="timeline__track">
+        <div class="timeline__track-header">
+          <button class="timeline__track-arm timeline__track-arm--armed">R</button>
+          <span class="timeline__track-name">pixelsort.thresh</span>
+          <span class="timeline__track-badge timeline__track-badge--auto">AUTO</span>
+        </div>
+        <div class="timeline__track-lane">
+          <div class="auto-wave auto-wave--continuous"></div>
+        </div>
+      </div>
+
+      <!-- Track 2: Continuous automation -->
+      <div class="timeline__track">
+        <div class="timeline__track-header">
+          <button class="timeline__track-arm">R</button>
+          <span class="timeline__track-name">datamosh.entropy</span>
+          <span class="timeline__track-badge timeline__track-badge--auto">AUTO</span>
+        </div>
+        <div class="timeline__track-lane">
+          <div class="auto-wave auto-wave--continuous" style="clip-path: polygon(0% 50%, 5% 55%, 10% 70%, 15% 80%, 20% 75%, 25% 60%, 30% 45%, 35% 40%, 40% 50%, 45% 65%, 50% 75%, 55% 70%, 60% 55%, 65% 40%, 70% 35%, 75% 45%, 80% 60%, 85% 70%, 90% 65%, 95% 50%, 100% 45%, 100% 100%, 0% 100%);"></div>
+        </div>
+      </div>
+
+      <!-- Track 3: Performance trigger (square wave) -->
+      <div class="timeline__track timeline__track--perform">
+        <div class="timeline__track-header">
+          <button class="timeline__track-arm">R</button>
+          <span class="timeline__track-name">Trigger 1</span>
+          <span class="timeline__track-badge timeline__track-badge--trig">TRIG</span>
+        </div>
+        <div class="timeline__track-lane">
+          <div class="auto-wave auto-wave--square">
+            <div class="square-pulse square-pulse--a"></div>
+            <div class="square-pulse square-pulse--b"></div>
+            <div class="square-pulse square-pulse--c"></div>
+            <div class="square-pulse square-pulse--d"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Track 4: Performance trigger 2 (different color) -->
+      <div class="timeline__track timeline__track--perform">
+        <div class="timeline__track-header">
+          <button class="timeline__track-arm">R</button>
+          <span class="timeline__track-name">Trigger 2</span>
+          <span class="timeline__track-badge timeline__track-badge--trig">TRIG</span>
+        </div>
+        <div class="timeline__track-lane">
+          <div class="auto-wave auto-wave--square">
+            <div class="square-pulse square-pulse--alt square-pulse--e"></div>
+            <div class="square-pulse square-pulse--alt square-pulse--f"></div>
+            <div class="square-pulse square-pulse--alt square-pulse--g"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ DEVICE CHAIN ═══ -->
+  <div class="device-chain">
+    <div class="device-chain__header">
+      <span class="device-chain__title">Device Chain</span>
+      <span class="device-chain__depth">4 / 10</span>
+    </div>
+
+    <div class="device-chain__strip">
+
+      <!-- Device 1: pixelsort (selected) -->
+      <div class="device device--selected">
+        <div class="device__header">
+          <button class="device__toggle">ON</button>
+          <span class="device__name">pixelsort</span>
+          <button class="device__ab">
+            <span class="device__ab-active">A</span>
+            <span class="device__ab-inactive">b</span>
+          </button>
+        </div>
+        <div class="device__params">
+          <div class="device__param">
+            <div class="device__param-row">
+              <span class="device__param-label">threshold</span>
+              <span class="device__param-value">0.45</span>
+            </div>
+            <input class="device__param-slider" type="range" min="0" max="100" value="45">
+          </div>
+          <div class="device__param">
+            <div class="device__param-row">
+              <span class="device__param-label">direction</span>
+              <span class="device__param-value">90&deg;</span>
+            </div>
+            <input class="device__param-slider" type="range" min="0" max="360" value="90">
+          </div>
+          <div class="device__param">
+            <div class="device__param-row">
+              <span class="device__param-label">sort_mode</span>
+              <span class="device__param-value">luminance</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__mix">
+          <span class="device__mix-label">Mix</span>
+          <input class="device__mix-slider" type="range" min="0" max="100" value="72">
+          <span class="device__mix-value">72%</span>
+        </div>
+        <div class="device__render-time" style="width: 30%;"></div>
+      </div>
+
+      <div class="device-chain__arrow">&rarr;</div>
+
+      <!-- Device 2: datamosh -->
+      <div class="device">
+        <div class="device__header">
+          <button class="device__toggle">ON</button>
+          <span class="device__name">datamosh</span>
+          <button class="device__ab">
+            <span class="device__ab-inactive">a</span>
+            <span class="device__ab-active">B</span>
+          </button>
+        </div>
+        <div class="device__params">
+          <div class="device__param">
+            <div class="device__param-row">
+              <span class="device__param-label">entropy</span>
+              <span class="device__param-value">0.72</span>
+            </div>
+            <input class="device__param-slider" type="range" min="0" max="100" value="72">
+          </div>
+          <div class="device__param">
+            <div class="device__param-row">
+              <span class="device__param-label">iframe_interval</span>
+              <span class="device__param-value">4</span>
+            </div>
+            <input class="device__param-slider" type="range" min="1" max="30" value="4">
+          </div>
+        </div>
+        <div class="device__mix">
+          <span class="device__mix-label">Mix</span>
+          <input class="device__mix-slider" type="range" min="0" max="100" value="100">
+          <span class="device__mix-value">100%</span>
+        </div>
+        <div class="device__render-time device__render-time--warn" style="width: 65%;"></div>
+      </div>
+
+      <div class="device-chain__arrow">&rarr;</div>
+
+      <!-- Device Group -->
+      <div class="device-group">
+        <div class="device-group__header">
+          <span class="device-group__name">Heavy Glitch</span>
+          <div class="device-group__controls">
+            <button class="device__toggle">ON</button>
+            <button class="device__ab">
+              <span class="device__ab-active">A</span>
+              <span class="device__ab-inactive">b</span>
+            </button>
+            <button class="device-group__show-btn">SHOW</button>
+          </div>
+        </div>
+
+        <div class="device-group__macros">
+          <div class="macro">
+            <span class="macro__label">Chaos</span>
+            <input class="macro__slider" type="range" min="0" max="100" value="70">
+            <span class="macro__value">70%</span>
+          </div>
+          <div class="macro">
+            <span class="macro__label">Depth</span>
+            <input class="macro__slider" type="range" min="0" max="100" value="40">
+            <span class="macro__value">40%</span>
+          </div>
+          <div class="macro">
+            <span class="macro__label">Speed</span>
+            <input class="macro__slider" type="range" min="0" max="100" value="90">
+            <span class="macro__value">90%</span>
+          </div>
+        </div>
+
+        <div class="device-group__devices">
+          <div class="device">
+            <div class="device__header">
+              <button class="device__toggle">ON</button>
+              <span class="device__name">xor_glitch</span>
+            </div>
+            <div class="device__params">
+              <div class="device__param">
+                <div class="device__param-row">
+                  <span class="device__param-label">intensity</span>
+                  <span class="device__param-value">0.8</span>
+                </div>
+                <input class="device__param-slider" type="range" min="0" max="100" value="80">
+              </div>
+            </div>
+            <div class="device__render-time" style="width: 20%;"></div>
+          </div>
+
+          <div class="device-chain__arrow">&rarr;</div>
+
+          <div class="device">
+            <div class="device__header">
+              <button class="device__toggle">ON</button>
+              <span class="device__name">channelshift</span>
+            </div>
+            <div class="device__params">
+              <div class="device__param">
+                <div class="device__param-row">
+                  <span class="device__param-label">offset</span>
+                  <span class="device__param-value">24px</span>
+                </div>
+                <input class="device__param-slider" type="range" min="0" max="100" value="24">
+              </div>
+            </div>
+            <div class="device__render-time" style="width: 15%;"></div>
+          </div>
+        </div>
+
+        <div class="device-group__mix">
+          <span class="device-group__mix-label">Mix</span>
+          <input class="device-group__mix-slider" type="range" min="0" max="100" value="80">
+          <span class="device-group__mix-value">80%</span>
+        </div>
+      </div>
+
+      <div class="device-chain__arrow">&rarr;</div>
+
+      <!-- Device 4: feedback -->
+      <div class="device">
+        <div class="device__header">
+          <button class="device__toggle">ON</button>
+          <span class="device__name">feedback</span>
+          <button class="device__ab">
+            <span class="device__ab-active">A</span>
+            <span class="device__ab-inactive">b</span>
+          </button>
+        </div>
+        <div class="device__params">
+          <div class="device__param">
+            <div class="device__param-row">
+              <span class="device__param-label">decay</span>
+              <span class="device__param-value">0.6</span>
+            </div>
+            <input class="device__param-slider" type="range" min="0" max="100" value="60">
+          </div>
+          <div class="device__param">
+            <div class="device__param-row">
+              <span class="device__param-label">blend</span>
+              <span class="device__param-value">screen</span>
+            </div>
+          </div>
+        </div>
+        <div class="device__mix">
+          <span class="device__mix-label">Mix</span>
+          <input class="device__mix-slider" type="range" min="0" max="100" value="45">
+          <span class="device__mix-value">45%</span>
+        </div>
+        <div class="device__render-time device__render-time--slow" style="width: 85%;"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══ STATUS BAR ═══ -->
+  <div class="status-bar">
+    <div class="status-bar__left">
+      <span class="status-bar__metric"><span>1920x1080</span></span>
+      <span class="status-bar__metric"><span>30</span> fps</span>
+      <span class="status-bar__metric"><span>12</span> ms</span>
+    </div>
+    <div class="status-bar__right">
+      <button class="status-bar__export">EXPORT &#9654;</button>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

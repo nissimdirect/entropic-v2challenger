@@ -115,8 +115,8 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
     useAutomationStore.setState({
       lanes: {
         'track-1': [
-          { id: 'lane-1', paramPath: 'fx-auto.amount', color: '#ff0000', isVisible: true, points: [] },
-          { id: 'lane-2', paramPath: 'fx-other.amount', color: '#00ff00', isVisible: true, points: [] },
+          { id: 'lane-1', paramPath: 'fx-auto.amount', color: '#ff0000', isVisible: true, points: [], isTrigger: false },
+          { id: 'lane-2', paramPath: 'fx-other.amount', color: '#00ff00', isVisible: true, points: [], isTrigger: false },
         ],
       },
     })
@@ -166,7 +166,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
     useAutomationStore.setState({
       lanes: {
         'track-1': [
-          { id: 'lane-1', paramPath: 'fx-undo.amount', color: '#ff0000', isVisible: true, points: [] },
+          { id: 'lane-1', paramPath: 'fx-undo.amount', color: '#ff0000', isVisible: true, points: [], isTrigger: false },
         ],
       },
     })

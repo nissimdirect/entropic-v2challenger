@@ -19,10 +19,25 @@
   height: var(--resize-handle-height);
   cursor: ns-resize;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline__resize-handle::after {
+  content: '· · ·';
+  font-size: 8px;
+  color: transparent;
+  letter-spacing: 2px;
+  transition: color 0.15s;
 }
 
 .timeline__resize-handle:hover {
-  background: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.timeline__resize-handle:hover::after {
+  color: #888;
 }
 
 .timeline__body {
