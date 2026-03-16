@@ -287,7 +287,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
 
 ### Auto-Update
 
-- [ ] **11-4-11** Add electron-updater
+- [x] **11-4-11** Add electron-updater
   - `npm install electron-updater`
   - Check for updates on launch (non-blocking)
   - If update available: notification bar at top of window "Update available — click to download"
@@ -316,7 +316,7 @@ Two subsystems: (A) Full export pipeline with multi-codec support, render queue,
   - **Files:** `frontend/src/__tests__/components/polish-*.test.ts` (5 new files)
   - **Target:** 10-12 new tests
 
-- [ ] **11-4-14** E2E tests for polish features
+- [x] **11-4-14** E2E tests for polish features
   - `phase-11/export.spec.ts`: export H.264 1080p → valid MP4
   - `phase-11/export.spec.ts`: export GIF → valid animated GIF
   - `phase-11/export.spec.ts`: cancel mid-export → cleanup
