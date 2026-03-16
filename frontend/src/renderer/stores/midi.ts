@@ -5,7 +5,7 @@
 import { create } from 'zustand';
 import type { CCMapping, MIDIDevice, LearnTarget, MIDIPersistData } from '../../shared/types';
 import { usePerformanceStore } from './performance';
-import { pushEvent } from '../utils/retro-capture';
+import { handlePadTrigger, releasePadWithCapture } from '../components/performance/padActions';
 
 interface MIDIState {
   devices: MIDIDevice[];
@@ -117,56 +117,13 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       // Note-on: find pad by midiNote
       const pad = perfStore.drumRack.pads.find((p) => p.midiNote === byte1);
       if (!pad) return;
-
-      if (pad.mode === 'toggle') {
-        const state = perfStore.padStates[pad.id];
-        if (state && state.phase !== 'idle' && state.phase !== 'release') {
-          perfStore.releasePad(pad.id, frameIndex);
-          pushEvent({
-            timestamp: performance.now(),
-            frameIndex,
-            padId: pad.id,
-            eventType: 'release',
-            source: 'midi',
-            mappings: pad.mappings,
-          });
-        } else {
-          perfStore.triggerPad(pad.id, frameIndex);
-          pushEvent({
-            timestamp: performance.now(),
-            frameIndex,
-            padId: pad.id,
-            eventType: 'trigger',
-            source: 'midi',
-            mappings: pad.mappings,
-          });
-        }
-      } else {
-        perfStore.triggerPad(pad.id, frameIndex);
-        pushEvent({
-          timestamp: performance.now(),
-          frameIndex,
-          padId: pad.id,
-          eventType: 'trigger',
-          source: 'midi',
-          mappings: pad.mappings,
-        });
-      }
+      handlePadTrigger(pad, perfStore, frameIndex, 'midi');
     } else if (statusByte === 0x80 || (statusByte === 0x90 && byte2 === 0)) {
       // Note-off: release pad for gate/one-shot
       const pad = perfStore.drumRack.pads.find((p) => p.midiNote === byte1);
       if (!pad) return;
-
       if (pad.mode === 'gate' || pad.mode === 'one-shot') {
-        perfStore.releasePad(pad.id, frameIndex);
-        pushEvent({
-          timestamp: performance.now(),
-          frameIndex,
-          padId: pad.id,
-          eventType: 'release',
-          source: 'midi',
-          mappings: pad.mappings,
-        });
+        releasePadWithCapture(pad, perfStore, frameIndex, 'midi');
       }
     } else if (statusByte === 0xb0) {
       // CC: update ccValues

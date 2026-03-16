@@ -35,7 +35,7 @@ import { applyPadModulations } from './components/performance/applyPadModulation
 import { applyCCModulations } from './components/performance/applyCCModulations'
 import { useMIDIStore } from './stores/midi'
 import { useMIDI } from './hooks/useMIDI'
-import { pushEvent } from './utils/retro-capture'
+import { handlePadTrigger, releasePadWithCapture } from './components/performance/padActions'
 import OperatorRack from './components/operators/OperatorRack'
 import ModulationMatrix from './components/operators/ModulationMatrix'
 import RoutingLines from './components/operators/RoutingLines'
@@ -252,42 +252,7 @@ function AppInner() {
           e.preventDefault()
           e.stopPropagation()
 
-          if (pad.mode === 'toggle') {
-            // Toggle: trigger if idle, release if active
-            const state = perfStore.padStates[pad.id]
-            if (state && state.phase !== 'idle' && state.phase !== 'release') {
-              perfStore.releasePad(pad.id, currentFrame)
-              pushEvent({
-                timestamp: performance.now(),
-                frameIndex: currentFrame,
-                padId: pad.id,
-                eventType: 'release',
-                source: 'keyboard',
-                mappings: pad.mappings,
-              })
-            } else {
-              perfStore.triggerPad(pad.id, currentFrame)
-              pushEvent({
-                timestamp: performance.now(),
-                frameIndex: currentFrame,
-                padId: pad.id,
-                eventType: 'trigger',
-                source: 'keyboard',
-                mappings: pad.mappings,
-              })
-            }
-          } else {
-            // Gate + one-shot: trigger on keydown
-            perfStore.triggerPad(pad.id, currentFrame)
-            pushEvent({
-              timestamp: performance.now(),
-              frameIndex: currentFrame,
-              padId: pad.id,
-              eventType: 'trigger',
-              source: 'keyboard',
-              mappings: pad.mappings,
-            })
-          }
+          handlePadTrigger(pad, perfStore, currentFrame, 'keyboard')
           return
         }
 
@@ -397,19 +362,10 @@ function AppInner() {
       const pad = perfStore.drumRack.pads.find((p) => p.keyBinding === e.code)
       if (!pad) return
 
-      // Gate: release on keyup. One-shot: start release on keyup.
+      // Gate: release on keyup. One-shot: start release on keyup. Toggle: no action.
       if (pad.mode === 'gate' || pad.mode === 'one-shot') {
-        perfStore.releasePad(pad.id, currentFrame)
-        pushEvent({
-          timestamp: performance.now(),
-          frameIndex: currentFrame,
-          padId: pad.id,
-          eventType: 'release',
-          source: 'keyboard',
-          mappings: pad.mappings,
-        })
+        releasePadWithCapture(pad, perfStore, currentFrame, 'keyboard')
       }
-      // Toggle: no action on keyup
     }
 
     // H2: Window blur → panic all gate-mode pads (stuck key recovery)
