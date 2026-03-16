@@ -9,6 +9,7 @@ export function simplifyPoints(
   epsilon: number
 ): AutomationPoint[] {
   if (points.length <= 2) return points
+  if (epsilon <= 0 || !Number.isFinite(epsilon)) return points
 
   // Find the point with maximum perpendicular distance from the line
   // between the first and last points
