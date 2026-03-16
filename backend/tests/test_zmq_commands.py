@@ -385,6 +385,54 @@ def test_clock_set_fps_missing(zmq_client):
     assert "missing fps" in resp["error"]
 
 
+def test_clock_set_fps_zero_rejected(zmq_client):
+    """fps=0 must be rejected to prevent division-by-zero downstream."""
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "clock_set_fps", "id": msg_id, "fps": 0})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+    assert "positive" in resp["error"]
+
+
+def test_clock_set_fps_negative_rejected(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "clock_set_fps", "id": msg_id, "fps": -30})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+    assert "positive" in resp["error"]
+
+
+def test_clock_set_fps_nan_rejected(zmq_client):
+    msg_id = str(uuid.uuid4())
+    zmq_client.send_json({"cmd": "clock_set_fps", "id": msg_id, "fps": "NaN"})
+    resp = zmq_client.recv_json()
+    assert resp["ok"] is False
+
+
+def test_get_audio_pcm_fps_zero_no_crash():
+    """_get_audio_pcm_for_frame with fps=0 must not raise ZeroDivisionError."""
+    import numpy as np
+    from zmq_server import ZMQServer
+
+    server = ZMQServer.__new__(ZMQServer)
+
+    # Mock audio player with loaded samples
+    class FakeAudioPlayer:
+        loaded = True
+        _samples = np.zeros((44100, 2), dtype=np.float32)  # 1 second stereo
+        _sample_rate = 44100
+
+    server.audio_player = FakeAudioPlayer()
+
+    # Should not raise ZeroDivisionError
+    result = server._get_audio_pcm_for_frame(frame_index=0, fps=0.0)
+    assert result is not None or result is None  # no crash is the test
+
+    # Also test negative fps
+    result = server._get_audio_pcm_for_frame(frame_index=10, fps=-30.0)
+    assert result is not None or result is None  # no crash is the test
+
+
 # --- ZMQ handler guard tests (Item 3) ---
 
 

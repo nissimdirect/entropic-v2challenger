@@ -127,9 +127,13 @@ class SignalEngine:
                 else:
                     value = 0.0
 
-                # Apply processing chain
+                # Apply processing chain (thread state for smooth/slew)
                 if processing:
-                    value = process_signal(value, processing)
+                    proc_state = (op_state or {}).get("_proc", None)
+                    value, proc_state = process_signal(value, processing, proc_state)
+                    if op_state is None:
+                        op_state = {}
+                    op_state["_proc"] = proc_state
 
                 values[op_id] = value
                 state[op_id] = op_state if isinstance(op_state, dict) else {}
