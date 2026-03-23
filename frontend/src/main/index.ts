@@ -11,6 +11,7 @@ import { registerSupportBundleHandler } from './support-bundle'
 import { registerFileHandlers } from './file-handlers'
 import { initAutoUpdater } from './updater'
 import { registerPopOutHandlers, closePopOutWindow } from './pop-out-window'
+import { buildMenu } from './menu'
 import { logger } from './logger'
 
 // PII stripping for Sentry events — matches Python's strip_pii pattern
@@ -172,11 +173,14 @@ function createWindow(): BrowserWindow {
   })
 
   // CSP header — restrict script/style sources (M-3)
+  // Dev mode needs 'unsafe-inline' for Vite's React Fast Refresh preamble injection
+  const isDev = !!process.env.ELECTRON_RENDERER_URL
+  const scriptSrc = isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'"
   win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"],
+        'Content-Security-Policy': [`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:`],
       },
     })
   })
@@ -202,6 +206,7 @@ app.whenReady().then(async () => {
   registerFileHandlers()
   registerPopOutHandlers()
   const mainWindow = createWindow()
+  buildMenu(mainWindow)
   initAutoUpdater(mainWindow)
 
   // Enrich Sentry context with GPU and display info

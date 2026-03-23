@@ -47,11 +47,10 @@ describe('Timeline UI — Empty State', () => {
     expect(document.querySelector('.timeline__resize-handle')).toBeTruthy()
   })
 
-  test('zoom controls are visible in footer', () => {
+  test('empty state has no footer zoom controls (zoom via Cmd+/- only)', () => {
     render(<Timeline onSeek={() => {}} />)
-    expect(document.querySelector('.timeline__footer')).toBeTruthy()
-    expect(document.querySelector('.zoom-scroll__slider')).toBeTruthy()
-    expect(document.querySelector('.zoom-scroll__label')).toBeTruthy()
+    // Zoom slider removed — zoom controlled via Cmd+=/- shortcuts
+    expect(document.querySelector('.zoom-scroll__slider')).toBeNull()
   })
 })
 

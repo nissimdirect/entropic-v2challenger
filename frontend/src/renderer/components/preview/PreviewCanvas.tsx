@@ -22,9 +22,29 @@ function drawBase64Frame(
   canvas: HTMLCanvasElement,
   img: HTMLImageElement,
 ): void {
-  canvas.width = img.naturalWidth
-  canvas.height = img.naturalHeight
-  ctx.drawImage(img, 0, 0)
+  // Scale canvas to fit its container (contain mode) instead of using native resolution.
+  // This prevents 4K images from blowing out the layout.
+  const container = canvas.parentElement
+  if (!container) {
+    canvas.width = img.naturalWidth
+    canvas.height = img.naturalHeight
+    ctx.drawImage(img, 0, 0)
+    return
+  }
+
+  const containerW = container.clientWidth
+  const containerH = container.clientHeight
+  const imgW = img.naturalWidth
+  const imgH = img.naturalHeight
+
+  // Fit the image inside the container (object-fit: contain logic)
+  const scale = Math.min(containerW / imgW, containerH / imgH, 1) // never upscale
+  const drawW = Math.round(imgW * scale)
+  const drawH = Math.round(imgH * scale)
+
+  canvas.width = drawW
+  canvas.height = drawH
+  ctx.drawImage(img, 0, 0, drawW, drawH)
 }
 
 export default function PreviewCanvas({
@@ -48,11 +68,15 @@ export default function PreviewCanvas({
       } else {
         await window.entropic.openPopOut()
         setIsPopOutOpen(true)
+        // Send current frame immediately so pop-out isn't black
+        if (frameDataUrl) {
+          window.entropic.sendFrameToPopOut(frameDataUrl)
+        }
       }
     } catch {
       // Best-effort
     }
-  }, [isPopOutOpen])
+  }, [isPopOutOpen, frameDataUrl])
 
   const drawToCanvas = useCallback(() => {
     const canvas = canvasRef.current

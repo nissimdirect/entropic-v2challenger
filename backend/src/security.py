@@ -20,6 +20,19 @@ ALLOWED_EXTENSIONS = {
     ".tif",
     ".webp",
     ".bmp",
+    ".heic",
+    ".heif",
+    # Additional video containers
+    ".mxf",
+    ".ts",
+    # Audio-only formats (for audio import)
+    ".wav",
+    ".mp3",
+    ".m4a",
+    ".aif",
+    ".aiff",
+    ".ogg",
+    ".flac",
 }
 
 # SEC-6: Frame count cap (300K = ~2.7 hours at 30fps)

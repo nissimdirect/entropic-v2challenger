@@ -38,4 +38,6 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'toggle_perform',    keys: 'p',              category: 'project',   label: 'Toggle Perform Mode', context: 'normal' },
   { action: 'feedback_dialog',   keys: 'meta+shift+f',   category: 'project',   label: 'Feedback Dialog',     context: 'normal' },
   { action: 'support_bundle',    keys: 'meta+shift+d',   category: 'project',   label: 'Support Bundle',      context: 'normal' },
+  { action: 'import_media',      keys: 'meta+i',         category: 'project',   label: 'Import Media',        context: 'normal' },
+  { action: 'add_text_track',    keys: 'meta+t',         category: 'project',   label: 'Add Text Track',      context: 'normal' },
 ]

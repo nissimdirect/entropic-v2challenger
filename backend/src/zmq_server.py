@@ -323,6 +323,10 @@ class ZMQServer:
         # Store reader for reuse (images use ImageReader)
         if result.get("ok"):
             self._get_reader(path)
+            # Sync video frame count to audio clock so it never overshoots
+            fc = result.get("frame_count", 0)
+            if fc > 0:
+                self.av_clock.set_video_frame_count(fc)
 
         return result
 
@@ -394,16 +398,14 @@ class ZMQServer:
                     "ok": False,
                     "error": "frame_index must be non-negative",
                 }
+            # Clamp to last valid frame instead of rejecting —
+            # audio clock can overshoot video frame count by 1-2 frames
             if (
                 hasattr(reader, "frame_count")
                 and reader.frame_count
                 and frame_index >= reader.frame_count
             ):
-                return {
-                    "id": msg_id,
-                    "ok": False,
-                    "error": f"frame_index {frame_index} exceeds frame count {reader.frame_count}",
-                }
+                frame_index = reader.frame_count - 1
 
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
@@ -500,16 +502,13 @@ class ZMQServer:
         try:
             reader = self._get_reader(path)
 
+            # Clamp to last valid frame (same as render_frame)
             if (
                 hasattr(reader, "frame_count")
                 and reader.frame_count
                 and frame_index >= reader.frame_count
             ):
-                return {
-                    "id": msg_id,
-                    "ok": False,
-                    "error": f"frame_index {frame_index} exceeds frame count {reader.frame_count}",
-                }
+                frame_index = reader.frame_count - 1
 
             t0 = time.time()
             frame = reader.decode_frame(frame_index)

@@ -20,7 +20,7 @@ interface TimelineState {
   selectedClipIds: string[]
 
   // Track actions
-  addTrack: (name: string, color: string, type?: 'video' | 'text') => void
+  addTrack: (name: string, color: string, type?: 'video' | 'text') => string | undefined
   removeTrack: (id: string) => void
   reorderTrack: (fromIdx: number, toIdx: number) => void
   setTrackOpacity: (id: string, opacity: number) => void
@@ -152,7 +152,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   addTrack: (name, color, type) => {
     if (get().tracks.length >= LIMITS.MAX_TRACKS) {
       useToastStore.getState().addToast({ level: 'warning', message: `Track limit (${LIMITS.MAX_TRACKS}) reached`, source: 'timeline' })
-      return
+      return undefined
     }
     const trackId = randomUUID()
 
@@ -167,6 +167,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         set({ tracks, duration: recalcDuration(tracks) })
       },
     )
+    return trackId
   },
 
   // --- Text track actions ---

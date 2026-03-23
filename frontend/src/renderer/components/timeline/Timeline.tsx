@@ -4,15 +4,15 @@ import { useLayoutStore } from '../../stores/layout'
 import TimeRuler from './TimeRuler'
 import Playhead from './Playhead'
 import { TrackHeader, TrackLane } from './Track'
-import ZoomScroll from './ZoomScroll'
 import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
 
 interface TimelineProps {
   onSeek: (time: number) => void
+  isDragOver?: boolean
 }
 
-export default function Timeline({ onSeek }: TimelineProps) {
+export default function Timeline({ onSeek, isDragOver }: TimelineProps) {
   const tracks = useTimelineStore((s) => s.tracks)
   const playheadTime = useTimelineStore((s) => s.playheadTime)
   const duration = useTimelineStore((s) => s.duration)
@@ -56,16 +56,8 @@ export default function Timeline({ onSeek }: TimelineProps) {
     useTimelineStore.getState().addTrack(`Track ${tracks.length + 1}`, color)
   }, [tracks.length])
 
-  const handleAddTextTrack = useCallback(() => {
-    useTimelineStore.getState().addTextTrack(`Text ${tracks.filter((t) => t.type === 'text').length + 1}`, '#6366f1')
-  }, [tracks])
-
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     useTimelineStore.getState().setScrollX(e.currentTarget.scrollLeft)
-  }, [])
-
-  const handleZoomChange = useCallback((z: number) => {
-    useTimelineStore.getState().setZoom(z)
   }, [])
 
   const handleDeleteMarker = useCallback((id: string) => {
@@ -73,7 +65,9 @@ export default function Timeline({ onSeek }: TimelineProps) {
   }, [])
 
   // Width of the scrollable area based on duration
-  const contentWidth = Math.max(800, (duration + 10) * zoom)
+  // Always add 20% runway past the end so user can scroll beyond, never shrink below viewport
+  const durationWidth = (duration + Math.max(10, duration * 0.2)) * zoom
+  const contentWidth = Math.max(2000, durationWidth)
 
   if (tracks.length === 0) {
     return (
@@ -84,16 +78,14 @@ export default function Timeline({ onSeek }: TimelineProps) {
           onPointerMove={handleResizeMove}
           onPointerUp={handleResizeUp}
         />
+        <div className={`timeline__drop-highlight ${isDragOver ? 'timeline__drop-highlight--active' : ''}`} />
         <div className="timeline__empty">
+          <div className="timeline__empty-hint">
+            Drag media here, press <kbd>&#8984;I</kbd>, or use File &rarr; Import
+          </div>
           <button className="timeline__add-track-btn" onClick={handleAddTrack}>
             + Add Track
           </button>
-          <button className="timeline__add-track-btn timeline__add-track-btn--text" onClick={handleAddTextTrack}>
-            T Add Text Track
-          </button>
-        </div>
-        <div className="timeline__footer">
-          <ZoomScroll zoom={zoom} onZoomChange={handleZoomChange} />
         </div>
       </div>
     )
@@ -107,15 +99,13 @@ export default function Timeline({ onSeek }: TimelineProps) {
         onPointerMove={handleResizeMove}
         onPointerUp={handleResizeUp}
       />
+      <div className={`timeline__drop-highlight ${isDragOver ? 'timeline__drop-highlight--active' : ''}`} />
       <div className="timeline__body">
         {/* Left: track headers */}
         <div className="timeline__headers">
           <div className="timeline__headers-spacer">
             <button className="timeline__add-track-btn" onClick={handleAddTrack} title="Add video track">
               +
-            </button>
-            <button className="timeline__add-track-btn timeline__add-track-btn--text" onClick={handleAddTextTrack} title="Add text track">
-              T
             </button>
           </div>
           <div className="timeline__track-headers">
@@ -175,7 +165,6 @@ export default function Timeline({ onSeek }: TimelineProps) {
         <button className="timeline__collapse-btn" onClick={() => useLayoutStore.getState().toggleTimeline()} title="Collapse timeline">
           &#9660;
         </button>
-        <ZoomScroll zoom={zoom} onZoomChange={handleZoomChange} />
       </div>
     </div>
   )

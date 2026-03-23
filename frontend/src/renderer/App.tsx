@@ -5,7 +5,6 @@ import { useEffectsStore } from './stores/effects'
 import { useAudioStore } from './stores/audio'
 import { useUndoStore } from './stores/undo'
 import { useTimelineStore } from './stores/timeline'
-import DropZone from './components/upload/DropZone'
 import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
 import EffectBrowser from './components/effects/EffectBrowser'
@@ -146,6 +145,7 @@ function AppInner() {
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
   const [editingPadId, setEditingPadId] = useState<string | null>(null)
   const [sidebarTab, setSidebarTab] = useState<'effects' | 'presets'>('effects')
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
 
   const activeAssetPath = useRef<string | null>(null)
@@ -303,6 +303,8 @@ function AppInner() {
         })
       }
     })
+    shortcutRegistry.register('import_media', () => handleImportMedia())
+    shortcutRegistry.register('add_text_track', () => handleAddTextTrack())
 
     // Main keyboard listener — delegates to registry for normal shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -362,8 +364,11 @@ function AppInner() {
     }
 
     // H2: Window blur → panic all gate-mode pads (stuck key recovery)
+    // Also reset drag state (fixes overlay stuck after Cmd+Tab)
     const handleBlur = () => {
       usePerformanceStore.getState().panicAll()
+      dragCountRef.current = 0
+      setIsGlobalDragOver(false)
     }
 
     // Capture phase ensures shortcuts fire before any child stopPropagation()
@@ -618,7 +623,7 @@ function AppInner() {
 
       if (res.ok) {
         const assetHasAudio = res.has_audio as boolean
-        const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
+        const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif']
         const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
         const isImage = IMAGE_EXTS.includes(ext)
         const asset: Asset = {
@@ -635,10 +640,41 @@ function AppInner() {
           },
         }
         addAsset(asset)
-        setTotalFrames(isImage ? 1 : (res.frame_count as number))
+
+        // Auto-create track + clip on import (CapCut behavior)
+        // Grouped as single undo entry so Cmd+Z reverses the entire import
+        const undoStore = useUndoStore.getState()
+        undoStore.beginTransaction('Import media')
+        const timeline = useTimelineStore.getState()
+        const trackColors = ['#ef4444', '#f59e0b', '#4ade80', '#3b82f6', '#a855f7', '#ec4899']
+        const trackColor = trackColors[timeline.tracks.length % trackColors.length]
+        const trackName = `Track ${timeline.tracks.length + 1}`
+        const trackId = timeline.addTrack(trackName, trackColor)
+        if (trackId) {
+          const clipDuration = isImage ? 5 : (res.duration_s as number)
+          // Place clip after existing content (append, don't stack at 0)
+          const timelineEnd = useTimelineStore.getState().duration
+          timeline.addClip(trackId, {
+            id: randomUUID(),
+            assetId: asset.id,
+            trackId,
+            position: timelineEnd,
+            duration: clipDuration,
+            inPoint: 0,
+            outPoint: clipDuration,
+            speed: 1,
+          })
+        }
+        undoStore.commitTransaction()
+
+        // For images: use the clip duration (5s) * default fps to get a playable frame count
+        // The sidecar's ImageReader returns the same frame for any index, so playback shows the held image
+        const imageFps = 30
+        const imageFrameCount = 5 * imageFps // 150 frames = 5 seconds
+        setTotalFrames(isImage ? imageFrameCount : (res.frame_count as number))
         setFrameWidth(res.width as number)
         setFrameHeight(res.height as number)
-        setActiveFps(isImage ? 30 : (res.fps as number))
+        setActiveFps(isImage ? imageFps : (res.fps as number))
         activeAssetPath.current = path
         setCurrentFrame(0)
         setHasAudio(assetHasAudio)
@@ -678,6 +714,77 @@ function AppInner() {
     },
     [addAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame, audioStore, loadWaveform],
   )
+
+  // --- Menu / shortcut action handlers ---
+  const handleImportMedia = useCallback(async () => {
+    if (!window.entropic || isIngesting) return
+    const path = await window.entropic.showOpenDialog({
+      title: 'Import Media',
+      filters: [{ name: 'Media Files', extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv', 'mxf', 'ts', 'png', 'jpg', 'jpeg', 'tiff', 'tif', 'webp', 'bmp', 'heic', 'heif', 'wav', 'mp3', 'm4a', 'aif', 'aiff', 'ogg', 'flac'] }],
+    })
+    if (path) handleFileIngest(path)
+  }, [isIngesting, handleFileIngest])
+
+  const handleAddTextTrack = useCallback(() => {
+    const timeline = useTimelineStore.getState()
+    const textCount = timeline.tracks.filter((t) => t.type === 'text').length
+    timeline.addTextTrack(`Text ${textCount + 1}`, '#6366f1')
+  }, [])
+
+  // Listen for menu actions from main process
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.entropic?.onMenuAction) return
+    const cleanup = window.entropic.onMenuAction((action: string) => {
+      switch (action) {
+        case 'import-media': handleImportMedia(); break
+        case 'add-text-track': handleAddTextTrack(); break
+        case 'new-project': newProject(); break
+        case 'open-project': loadProject(); break
+        case 'save': saveProject(); break
+        case 'save-as': saveProject(); break
+        case 'export': setShowExportDialog(true); break
+        case 'toggle-sidebar': useLayoutStore.getState().toggleSidebar(); break
+        case 'toggle-focus': useLayoutStore.getState().toggleFocusMode(); break
+        case 'toggle-automation': {
+          const tl = useTimelineStore.getState()
+          if (tl.selectedTrackId) {
+            const autoStore = useAutomationStore.getState()
+            const lanes = autoStore.getLanesForTrack(tl.selectedTrackId)
+            for (const lane of lanes) {
+              autoStore.setLaneVisible(tl.selectedTrackId, lane.id, !lane.isVisible)
+            }
+          }
+          break
+        }
+        case 'zoom-in': useTimelineStore.getState().setZoom(useTimelineStore.getState().zoom + 10); break
+        case 'zoom-out': useTimelineStore.getState().setZoom(useTimelineStore.getState().zoom - 10); break
+        case 'zoom-fit': useTimelineStore.getState().setZoom(50); break
+        case 'show-shortcuts': setShowPreferences(true); break
+        case 'show-feedback': setShowFeedbackDialog(true); break
+        default:
+          // Handle add-effect:{effectId} actions from Adjustments menu
+          if (action.startsWith('add-effect:')) {
+            const effectId = action.slice('add-effect:'.length)
+            const info = registry.find((e) => e.id === effectId)
+            if (info) {
+              addEffect({
+                id: randomUUID(),
+                effectId: info.id,
+                isEnabled: true,
+                isFrozen: false,
+                parameters: Object.fromEntries(
+                  Object.entries(info.params).map(([key, def]) => [key, def.default]),
+                ),
+                modulations: {},
+                mix: 1.0,
+                mask: null,
+              })
+            }
+          }
+      }
+    })
+    return cleanup
+  }, [handleImportMedia, handleAddTextTrack, newProject, loadProject, saveProject, registry, addEffect])
 
   const handleRenderRetry = useCallback(() => {
     if (!activeAssetPath.current) return
@@ -790,6 +897,10 @@ function AppInner() {
         const current = useProjectStore.getState().currentFrame
         const nextFrame = (current + framesToAdvance) % totalFrames
         setCurrentFrame(nextFrame)
+        // Sync timeline playhead for silent/image playback (audio path does this in clock sync)
+        if (activeFps > 0) {
+          useTimelineStore.getState().setPlayheadTime(nextFrame / activeFps)
+        }
       }
       playbackRafRef.current = requestAnimationFrame(tick)
     }
@@ -885,7 +996,7 @@ function AppInner() {
   }, [exportJobId])
 
   // Global window drop handler — accepts video drops anywhere
-  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
+  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
 
   const dragCountRef = useRef(0)
 
@@ -979,15 +1090,10 @@ function AppInner() {
       onDrop={handleGlobalDrop}
     >
       <UpdateBanner />
-      {isGlobalDragOver && (
-        <div className="app__drop-overlay">
-          <span>Drop video file here</span>
-        </div>
-      )}
+      <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />
       <div className="app__sidebar" style={sidebarCollapsed ? { display: 'none' } : undefined}>
         {!hasAssets && (
           <div className="app__upload">
-            <DropZone onFileDrop={handleFileIngest} disabled={isIngesting} />
             <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} />
             <IngestProgress isIngesting={isIngesting} error={ingestError} />
           </div>
@@ -1016,7 +1122,7 @@ function AppInner() {
                 </span>
               </div>
             ))}
-            <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} label="Replace" />
+            {/* Replace accessible via File > Import Media (Cmd+I) or right-click track context menu */}
           </div>
         )}
         <div className="sidebar-tabs">
@@ -1039,6 +1145,7 @@ function AppInner() {
             isLoading={effectsLoading}
             onAddEffect={addEffect}
             chainLength={effectChain.length}
+            onAddTextTrack={handleAddTextTrack}
           />
         ) : (
           <PresetBrowser
@@ -1155,7 +1262,7 @@ function AppInner() {
           </div>
         ) : (
           <>
-            <Timeline onSeek={handleTimelineSeek} />
+            <Timeline onSeek={handleTimelineSeek} isDragOver={isGlobalDragOver} />
             <AutomationToolbar />
           </>
         )}
@@ -1221,17 +1328,7 @@ function AppInner() {
           {isPerformMode && (
             <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
           )}
-          {hasAssets && (
-            <Tooltip text="Export video" shortcut={shortcutRegistry.getEffectiveKey('export')} position="top">
-              <button
-                className="export-btn"
-                onClick={() => setShowExportDialog(true)}
-                disabled={isExporting}
-              >
-                Export
-              </button>
-            </Tooltip>
-          )}
+          {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>
 
@@ -1312,11 +1409,11 @@ function AppInner() {
       )}
 
       <WelcomeScreen
-        isVisible={!hasAssets && !window.entropic?.isTestMode}
+        isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
-        onNewProject={newProject}
-        onOpenProject={loadProject}
-        onOpenRecent={(path) => loadProject(path)}
+        onNewProject={() => { newProject(); setWelcomeDismissed(true) }}
+        onOpenProject={() => { setWelcomeDismissed(true); loadProject() }}
+        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path) }}
       />
 
       <Toast />

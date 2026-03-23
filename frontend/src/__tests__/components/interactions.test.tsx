@@ -20,7 +20,6 @@ import React from 'react'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
-import PreviewControls from '../../renderer/components/preview/PreviewControls'
 import PreviewCanvas from '../../renderer/components/preview/PreviewCanvas'
 import ParamPanel from '../../renderer/components/effects/ParamPanel'
 import DropZone from '../../renderer/components/upload/DropZone'
@@ -172,75 +171,12 @@ describe('Interactions — Effect Browser Categories', () => {
 })
 
 // =============================================================================
-// Preview Controls — Empty State
+// Preview Controls — REMOVED
 // =============================================================================
-
-describe('Interactions — Preview Controls', () => {
-  it('scrub slider disabled when no video loaded (totalFrames=0)', () => {
-    render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={0}
-        fps={30}
-        isPlaying={false}
-        onSeek={vi.fn()}
-        onPlayPause={vi.fn()}
-      />,
-    )
-
-    const scrub = document.querySelector('.preview-controls__scrub') as HTMLInputElement
-    expect(scrub).toBeTruthy()
-    expect(scrub.disabled).toBe(true)
-  })
-
-  it('play button shows ">" when paused', () => {
-    render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={100}
-        fps={30}
-        isPlaying={false}
-        onSeek={vi.fn()}
-        onPlayPause={vi.fn()}
-      />,
-    )
-
-    const playBtn = document.querySelector('.preview-controls__play-btn')
-    expect(playBtn!.textContent?.trim()).toBe('>')
-  })
-
-  it('play button shows "||" when playing', () => {
-    render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={100}
-        fps={30}
-        isPlaying={true}
-        onSeek={vi.fn()}
-        onPlayPause={vi.fn()}
-      />,
-    )
-
-    const playBtn = document.querySelector('.preview-controls__play-btn')
-    expect(playBtn!.textContent?.trim()).toBe('||')
-  })
-
-  it('timecode displays correct format', () => {
-    render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={150}
-        fps={30}
-        isPlaying={false}
-        onSeek={vi.fn()}
-        onPlayPause={vi.fn()}
-      />,
-    )
-
-    const counter = document.querySelector('.preview-controls__counter')
-    expect(counter!.textContent).toContain('0:00.0')
-  })
-})
+// Play button, scrub slider, and timecode were removed from PreviewControls.
+// Play/pause is now triggered by Space key via shortcutRegistry.
+// Scrubbing is done by clicking the timeline ruler.
+// See: PreviewControls.tsx — component now only shows audio controls.
 
 // =============================================================================
 // Preview Canvas — States
@@ -420,19 +356,8 @@ describe('Interactions — Empty State Constraints', () => {
     expect(document.querySelector('.preview-canvas__placeholder')!.textContent).toBe('No video loaded')
     u2()
 
-    // 4. Scrub disabled
-    const { unmount: u3 } = render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={0}
-        fps={30}
-        isPlaying={false}
-        onSeek={vi.fn()}
-        onPlayPause={vi.fn()}
-      />,
-    )
-    expect((document.querySelector('.preview-controls__scrub') as HTMLInputElement).disabled).toBe(true)
-    u3()
+    // 4. Scrub disabled — REMOVED (scrub slider no longer in PreviewControls;
+    //    scrubbing is via timeline ruler)
 
     // 5. Empty param panel
     const { unmount: u4 } = render(

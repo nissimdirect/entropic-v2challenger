@@ -39,14 +39,21 @@ body {
   position: absolute;
   inset: 0;
   z-index: 100;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(74, 222, 128, 0.08);
-  border: 2px dashed #4ade80;
-  font-size: 20px;
-  color: #4ade80;
   pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 150ms ease, visibility 150ms;
+}
+
+.app__drop-overlay--active {
+  opacity: 1;
+  visibility: visible;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app__drop-overlay {
+    transition: none;
+  }
 }
 
 .app__sidebar {
@@ -527,6 +534,40 @@ body {
   text-align: center;
 }
 
+.effect-browser__actions {
+  padding: 0 12px 8px;
+  display: flex;
+  gap: 4px;
+}
+
+.effect-browser__action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px dashed #6366f1;
+  border-radius: 3px;
+  color: #a5b4fc;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  width: 100%;
+  text-align: left;
+}
+
+.effect-browser__action-btn:hover {
+  background: rgba(99, 102, 241, 0.1);
+  border-color: #818cf8;
+  color: #c7d2fe;
+}
+
+.effect-browser__action-btn:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 1px;
+}
+
 /* --- Effect Rack --- */
 
 .effect-rack {
@@ -838,6 +879,7 @@ body {
   background: #111;
   position: relative;
   min-height: 0;
+  overflow: hidden;
 }
 
 .preview-canvas__element {
@@ -954,6 +996,11 @@ body {
 
 .preview-controls__play-btn:hover {
   background: #444;
+}
+
+.preview-controls__play-btn:focus-visible {
+  outline: 2px solid #4ade80;
+  outline-offset: -2px;
 }
 
 .preview-controls__scrub {

@@ -16,6 +16,7 @@ class AVClock:
     def __init__(self, player: AudioPlayer) -> None:
         self._player = player
         self._fps: float = 30.0
+        self._video_frame_count: int | None = None
 
     @property
     def fps(self) -> float:
@@ -24,6 +25,14 @@ class AVClock:
     def set_fps(self, fps: float) -> None:
         """Set video frame rate. Clamps to [1.0, 240.0]."""
         self._fps = max(1.0, min(240.0, fps))
+
+    def set_video_frame_count(self, count: int) -> None:
+        """Set the actual video frame count from probe/ingest.
+
+        Used to clamp target_frame_index so it never exceeds the
+        video's real frame count (audio duration can be slightly longer).
+        """
+        self._video_frame_count = count if count > 0 else None
 
     @property
     def audio_time_s(self) -> float:
@@ -34,9 +43,13 @@ class AVClock:
     def target_frame_index(self) -> int:
         """Video frame index that should be displayed now.
 
-        floor(audio_time * fps) — video is always at or behind audio.
+        floor(audio_time * fps), clamped to video frame count.
+        Audio duration can exceed video duration by 1-2 frames in some containers.
         """
-        return math.floor(self.audio_time_s * self._fps)
+        raw = math.floor(self.audio_time_s * self._fps)
+        if self._video_frame_count is not None and raw >= self._video_frame_count:
+            return self._video_frame_count - 1
+        return raw
 
     @property
     def is_playing(self) -> bool:

@@ -1,10 +1,11 @@
 # Entropic v2 Challenger — UAT & UIT Testing Guide
 
-> **Version:** 4.0
-> **Date:** 2026-03-16
-> **Covers:** Phases 0A–10, 11.5, Ship Gate Audit (all built phases)
+> **Version:** 4.1
+> **Date:** 2026-03-23
+> **Covers:** Phases 0A–10, 11.5, Ship Gate Audit, Menu Bar + Drop Zone + Text Track UAT Sprint
 > **Tester:** You (manual walkthrough)
 > **Time estimate:** 6-8 hours for full pass (476 test cases)
+> **Companion doc:** `V2-AUTOMATED-UAT-PLAN.md` — automated Playwright/Vitest equivalents of these manual tests
 
 ---
 
@@ -65,7 +66,9 @@ If `npm run start` fails:
 | 1 | App opens | Run `npm run start` | Electron window appears, dark theme (#1a1a1a background) | [ ] |
 | 2 | Window title | Look at title bar | Contains "Entropic" and "Untitled" | [ ] |
 | 3 | Window is not blank | Look at main area | React app renders (not white/blank screen) | [ ] |
-| 4 | All panels visible | Look at layout | You see: toolbar (top), browser (left), preview (center), effects panel (right), timeline (bottom) | [ ] |
+| 4 | All panels visible | Look at layout | You see: menu bar (top, says "Entropic"), browser (left), preview (center), timeline (bottom) | [ ] |
+| 4a | Menu bar shows "Entropic" | Look at macOS menu bar | First menu item says "Entropic" (not "Electron") | [ ] |
+| 4b | Menu bar has all menus | Click through menu bar | Entropic, File, Edit, View, Window, Help all present | [ ] |
 
 ### 1.2 Engine Connection
 
@@ -92,9 +95,13 @@ If `npm run start` fails:
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
-| 10 | Open file dialog | Look for an import/upload button (there is NO menu bar — use the button or drag-drop) | File picker dialog opens | [ ] |
+| 10 | Open file dialog via menu | Click File > Import Media... in the menu bar (or press Cmd+I) | File picker dialog opens | [ ] |
+| 10a | Open file dialog via Browse | Click the Browse button in the sidebar (when no asset loaded) | File picker dialog opens | [ ] |
 | 11 | Select a video | Pick your test video (MP4/MOV) | Progress indicator appears during ingest | [ ] |
 | 12 | Ingest completes | Wait for progress to finish | Video appears in the preview canvas (first frame visible) | [ ] |
+| 12a | Track auto-created | Look at the timeline after import | A new track appears with a clip spanning the video duration | [ ] |
+| 12b | Clip positioned correctly | If this is a second import, check clip position | New clip starts AFTER existing clips (appended, not stacked at 0) | [ ] |
+| 12c | Single undo for import | Press Cmd+Z once | Track, clip, and asset all removed in one undo | [ ] |
 | 13 | Metadata shown | Check asset panel or status area | Video resolution, FPS, duration, and codec are displayed | [ ] |
 | 14 | Asset appears | Check Assets tab in browser | Your video file is listed | [ ] |
 
@@ -102,8 +109,10 @@ If `npm run start` fails:
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
-| 15 | Drop zone visible | Drag a video file from Finder toward the app | Drop zone / overlay appears indicating where to drop | [ ] |
-| 16 | Drop imports video | Release the file over the drop zone | Same result as file dialog: progress → preview shows frame | [ ] |
+| 15 | Drop highlight on timeline | Drag a video file from Finder toward the app | Green dashed highlight appears on the **timeline area** (not sidebar) | [ ] |
+| 15a | No drop zone in sidebar | Look at sidebar while dragging | No dashed "Drop video here" box in the sidebar — it was removed | [ ] |
+| 16 | Drop imports video | Release the file over the timeline area | Same result as file dialog: progress → preview shows frame | [ ] |
+| 16a | Empty timeline shows hint | Look at empty timeline (before import) | Shows "Drag media here, press ⌘I, or use File → Import" with styled kbd hint | [ ] |
 
 ### 2.3 Import Edge Cases
 
@@ -131,6 +140,8 @@ If `npm run start` fails:
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 22 | Play | Press Space | Video starts playing in preview | [ ] |
+| 22a | Play to end | Let video play to the very end | Last frame holds — no "Frame render failed" error, no freeze | [ ] |
+| 22b | Play button focus | Click the play button, look at its border | Green inset outline visible — not clipped/cutoff | [ ] |
 | 23 | Pause | Press Space again during playback | Video pauses, frame stays visible | [ ] |
 | 24 | Stop | Press Escape | Playback stops, playhead returns to start | [ ] |
 | 25 | Scrub by clicking | Click different positions on the timeline ruler | Preview updates to show the frame at that position | [ ] |
@@ -149,6 +160,15 @@ If `npm run start` fails:
 ## SECTION 4: Effect System (Phase 1 + Phase 3 Color Suite)
 
 > Tests: can you add, configure, reorder, and remove effects?
+
+### 4.0 Adjustments Menu (NEW — 2026-03-23)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 29a | Adjustments menu exists | Look at the menu bar between Edit and View | "Adjustments" menu is present | [ ] |
+| 29b | Adjustments has color tools | Click Adjustments menu | Shows Curves, Levels, Auto Levels, HSL Adjust, Color Balance, Color Temperature, Brightness/Exposure, etc. | [ ] |
+| 29c | Click adds effect | Click Adjustments > Curves (with a video loaded) | Curves effect appears in the device chain | [ ] |
+| 29d | Multiple adjustments | Click Adjustments > Levels after Curves | Both effects in chain, both applied to preview | [ ] |
 
 ### 4.1 Browsing Effects
 
@@ -365,7 +385,10 @@ If `npm run start` fails:
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 121 | Default track | After import | At least one track exists with your video clip | [ ] |
-| 122 | Add track | Find "add track" button | New empty track appears below existing tracks | [ ] |
+| 122 | Add video track | Click "+" button in timeline header area | New empty video track appears below existing tracks | [ ] |
+| 122a | Add text track via menu | Click File > Add Text Track (or Cmd+T) | New text track appears in timeline | [ ] |
+| 122b | Add text track via effects panel | Click "+ Add Text Track" button in the effects browser sidebar (dashed indigo border) | New text track appears in timeline | [ ] |
+| 122c | No text track button in timeline | Look at the timeline empty state and populated state | No purple "T" button — text track creation is in sidebar + menu only | [ ] |
 | 123 | Track header | Look at track header | Shows track name and color | [ ] |
 | 124 | Rename track | Double-click track name (or right-click rename) | Can type a new name | [ ] |
 | 125 | Track color | Look for color indicator on track | Track has a color label | [ ] |
@@ -584,6 +607,11 @@ If `npm run start` fails:
 | 215 | Cmd+0 | Fit canvas | Canvas fits to window | [ ] |
 | 216 | `\` (hold) | Before/after | Shows original while held | [ ] |
 | 284 | A | Toggle automation | Toggles automation lane visibility on selected track | [ ] |
+| 285 | Cmd+I | Import Media | Opens file dialog to import video/image | [ ] |
+| 286 | Cmd+T | Add Text Track | Creates a new text track in the timeline | [ ] |
+| 287 | Cmd+B | Toggle Sidebar | Shows/hides the left sidebar | [ ] |
+| 288 | F | Toggle Focus Mode | Collapses both sidebar and timeline | [ ] |
+| 289 | Cmd+T in text input | Should NOT fire | When editing text clip content, Cmd+T must not create a track | [ ] |
 
 ---
 

@@ -9,6 +9,7 @@ interface EffectBrowserProps {
   isLoading: boolean
   onAddEffect: (effect: EffectInstance) => void
   chainLength: number
+  onAddTextTrack?: () => void
 }
 
 export default function EffectBrowser({
@@ -16,6 +17,7 @@ export default function EffectBrowser({
   isLoading,
   onAddEffect,
   chainLength,
+  onAddTextTrack,
 }: EffectBrowserProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
@@ -74,6 +76,13 @@ export default function EffectBrowser({
     <div className="effect-browser">
       <div className="effect-browser__header">Effects</div>
       <EffectSearch query={searchQuery} onQueryChange={setSearchQuery} />
+      {onAddTextTrack && (
+        <div className="effect-browser__actions">
+          <button className="effect-browser__action-btn" onClick={onAddTextTrack}>
+            + Add Text Track
+          </button>
+        </div>
+      )}
       <div className="effect-browser__body">
         <div className="effect-browser__categories">
           <button

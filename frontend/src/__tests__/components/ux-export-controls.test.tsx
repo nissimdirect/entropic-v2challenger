@@ -194,7 +194,6 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
   })
 
   test('21. Export dialog coexists with preview controls', () => {
-    const onPlayPause = vi.fn()
     const onClose = vi.fn()
 
     render(
@@ -205,7 +204,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
           fps={30}
           isPlaying={true}
           onSeek={vi.fn()}
-          onPlayPause={onPlayPause}
+          onPlayPause={vi.fn()}
         />
         <ExportDialog {...DIALOG_DEFAULTS} onClose={onClose} />
       </>,
@@ -215,9 +214,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
     expect(document.querySelector('.preview-controls')).toBeTruthy()
     expect(document.querySelector('.export-dialog')).toBeTruthy()
 
-    // Play button shows pause indicator (playing)
-    const playBtn = document.querySelector('.preview-controls__play-btn')!
-    expect(playBtn.textContent?.trim()).toBe('||')
+    // Play button removed — play/pause now via Space key shortcutRegistry
 
     // Close export dialog
     fireEvent.click(document.querySelector('.export-dialog__close')!)
@@ -237,114 +234,9 @@ describe('UX Combos — Group 8: Playback + Effect Accumulation', () => {
     teardownMockEntropic()
   })
 
-  test('29. Toggle cycle: play → pause × 3 → state always correct', () => {
-    let isPlaying = false
-    const onPlayPause = vi.fn(() => {
-      isPlaying = !isPlaying
-    })
-
-    const { rerender } = render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={300}
-        fps={30}
-        isPlaying={isPlaying}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-
-    const playBtn = document.querySelector('.preview-controls__play-btn')!
-
-    // Cycle 1: play
-    expect(playBtn.textContent?.trim()).toBe('>')
-    fireEvent.click(playBtn)
-    expect(onPlayPause).toHaveBeenCalledTimes(1)
-
-    rerender(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={300}
-        fps={30}
-        isPlaying={isPlaying}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-    expect(playBtn.textContent?.trim()).toBe('||')
-
-    // Cycle 1: pause
-    fireEvent.click(playBtn)
-    rerender(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={300}
-        fps={30}
-        isPlaying={isPlaying}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-    expect(playBtn.textContent?.trim()).toBe('>')
-
-    // Cycle 2: play
-    fireEvent.click(playBtn)
-    rerender(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={300}
-        fps={30}
-        isPlaying={isPlaying}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-    expect(playBtn.textContent?.trim()).toBe('||')
-
-    // Cycle 2: pause
-    fireEvent.click(playBtn)
-    rerender(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={300}
-        fps={30}
-        isPlaying={isPlaying}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-    expect(playBtn.textContent?.trim()).toBe('>')
-
-    // Cycle 3: play
-    fireEvent.click(playBtn)
-    rerender(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={300}
-        fps={30}
-        isPlaying={isPlaying}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-    expect(playBtn.textContent?.trim()).toBe('||')
-
-    // Final: pause
-    fireEvent.click(playBtn)
-    rerender(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={300}
-        fps={30}
-        isPlaying={isPlaying}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-    expect(playBtn.textContent?.trim()).toBe('>')
-
-    expect(onPlayPause).toHaveBeenCalledTimes(6)
-  })
+  // REMOVED: '29. Toggle cycle: play → pause × 3'
+  // Play button was removed from PreviewControls.
+  // Play/pause is now triggered by Space key via shortcutRegistry.
 
   test('30. Effect accumulation: add 1→2→3 → remove 1 → count correct', () => {
     const onAdd = vi.fn()

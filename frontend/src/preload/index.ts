@@ -157,4 +157,14 @@ contextBridge.exposeInMainWorld('entropic', {
   sendFrameToPopOut: (dataUrl: string): void => {
     ipcRenderer.send('pop-out:relay-frame', dataUrl)
   },
+
+  // --- Menu actions ---
+
+  onMenuAction: (
+    callback: (action: string) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, action: string) => callback(action)
+    ipcRenderer.on('menu:action', handler)
+    return () => ipcRenderer.removeListener('menu:action', handler)
+  },
 })

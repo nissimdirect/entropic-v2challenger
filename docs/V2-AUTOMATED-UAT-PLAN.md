@@ -4,6 +4,7 @@
 > **Tool:** Playwright `_electron` + `electron-playwright-helpers` + pytest (sidecar)
 > **Evidence:** Screenshots saved to `test-results/phase-{N}/` per run.
 > **Rule:** User should NEVER receive an untested build.
+> **Companion doc:** `UAT-UIT-GUIDE.md` — manual walkthrough version of these tests (human tester)
 
 ---
 
@@ -944,6 +945,90 @@ Get ONE other person to use Entropic for 15 minutes with zero instruction. Watch
 
 ---
 
-*Generated: 2026-02-22 | Revised: 2026-02-23*
-*Reviews applied: CTO (architecture gaps, benchmarks), Don Norman (UX contracts, human UAT), Lenny (staged approach, tiered regression), Quality (7 blocking fixes, CI/CD, sequence errors)*
+---
+
+## Menu Bar, Drop Zone, Text Track Relocation (UAT Sprint — 2026-03-23)
+
+> **Plan:** `~/.claude/plans/cozy-wibbling-snowglobe.md`
+> **Reviews:** don-norman, cdo, ask-lenny, quality, qa-redteam, cto, review (8 skills)
+
+### Menu Bar (Change 2)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 1 | Menu bar shows "Entropic" not "Electron" | E2E | App menu label = "Entropic" |
+| 2 | File menu contains Import Media, Add Text Track, Save, Export | E2E | All items present with shortcut labels |
+| 3 | Edit menu has Undo/Redo/Cut/Copy/Paste | E2E | Standard role items present |
+| 4 | View menu toggles work (Sidebar, Focus, Automation, Zoom) | E2E | Each click sends menu:action, UI responds |
+| 5 | Window menu present (macOS only) | E2E | Minimize, Zoom, Bring All to Front |
+| 6 | Help menu has Keyboard Shortcuts + Send Feedback | E2E | Both items present and clickable |
+| 7 | File > Import Media opens file dialog | E2E | Native dialog appears, file ingests on selection |
+| 8 | File > Add Text Track creates text track | Vitest + E2E | Track appears in timeline |
+| 9 | Cmd+I triggers import from keyboard | E2E | Same as File > Import Media |
+| 10 | Cmd+T creates text track from keyboard | E2E | Same as File > Add Text Track |
+| 11 | Cmd+T blocked inside text input elements | Vitest | No track created when editing text clip content |
+| 12 | Menu action after window destroy — no crash | Vitest | webContents.isDestroyed() guard prevents error |
+| 13 | Menu:action IPC uses single multiplexed channel | Vitest | Only 'menu:action' channel, string payload |
+| 14 | onMenuAction cleanup on unmount — no listener leak | Vitest | Cleanup function called, no residual listeners |
+| 15 | All 23 shortcuts still work (21 existing + 2 new) | Vitest | shortcutRegistry has 23 bindings, no conflicts |
+
+### Drop Zone Relocation (Change 1)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 16 | Sidebar no longer shows dashed drop zone box | E2E | No `.drop-zone` element in sidebar |
+| 17 | Browse button still present in sidebar | E2E | FileDialog button visible when no assets |
+| 18 | Timeline empty state shows helper text with Cmd+I hint | Vitest + E2E | "Drag media here, press ⌘I, or use File → Import" |
+| 19 | Timeline empty state has dashed border (drop target signifier) | E2E | `.timeline__empty` has `border: 1px dashed #333` |
+| 20 | Drag file over app → timeline drop highlight appears (green dashed) | E2E | `.timeline__drop-highlight--active` visible |
+| 21 | Drop file on timeline → file ingests | E2E | Video appears in preview, track created |
+| 22 | Drag file + Cmd+Tab away → overlay disappears | E2E | blur handler resets isGlobalDragOver |
+| 23 | Drop overlay uses fade transition (150ms) | Visual | Smooth opacity transition, not instant |
+| 24 | prefers-reduced-motion disables transitions | Vitest | CSS has `@media (prefers-reduced-motion)` rule |
+| 25 | Drag-and-drop works when tracks already exist | E2E | Global handler still fires with populated timeline |
+| 26 | Drop unsupported file type (.psd) → error message | E2E | Toast or error banner with supported formats |
+| 27 | Drop during active ingestion → blocked | E2E | isIngesting guard prevents double import |
+
+### Text Track in Effects Panel (Change 3)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 28 | "T Add Text Track" button removed from timeline | Vitest + E2E | No `.timeline__add-track-btn--text` in DOM |
+| 29 | "+ Add Text Track" button appears in EffectBrowser | Vitest | `.effect-browser__action-btn` present above effects list |
+| 30 | Button has dashed indigo border (#6366f1) | Visual | Visually distinct from solid-background effect items |
+| 31 | Button click creates text track | Vitest | onAddTextTrack prop called, track appears |
+| 32 | Button has :focus-visible outline | Vitest | outline: 2px solid #6366f1 on keyboard focus |
+| 33 | EffectBrowser receives onAddTextTrack as prop (no store import) | Vitest | Component imports 0 stores, handler via prop |
+| 34 | Cmd+T at MAX_TRACKS limit → blocked gracefully | Vitest | No crash, track not created |
+| 35 | Rapid Cmd+T spam (10x) → reasonable number of tracks | Vitest | No runaway track creation |
+| 36 | Undo after text track add (via menu or shortcut) → track removed | Vitest | undoable() wrapper works for menu-triggered adds |
+
+### Cross-Feature Combinations
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 37 | Import via Cmd+I + apply effect + Cmd+T + export | E2E | Full workflow completes successfully |
+| 38 | Import via drag + apply effect via sidebar + text track via menu | E2E | All 3 input paths work together |
+| 39 | File > Import while playing → import succeeds, playback pauses or continues | E2E | No crash, deterministic behavior |
+| 40 | Concurrent Cmd+I + drag file → no double import | E2E | One import wins, other is blocked |
+
+### CTO Fixes (2026-03-23 — post-review)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 41 | Audio clock never emits frame index >= video frame count | Vitest + pytest | `target_frame_index` clamped to `video_frame_count - 1` |
+| 42 | Sidecar clamps out-of-range frame_index (defense in depth) | pytest | Returns last valid frame, not `ok: False` |
+| 43 | Import auto-creates track + clip in timeline | Vitest | Track appears with clip spanning video duration |
+| 44 | Second import places clip at end of timeline, not position 0 | Vitest | `clip.position === timeline.duration` before add |
+| 45 | Import is single undo entry (Cmd+Z undoes track + clip + asset) | Vitest | `beginTransaction`/`commitTransaction` groups all 3 actions |
+| 46 | `addTrack` returns new track ID | Vitest | `typeof result === 'string'` when under MAX_TRACKS |
+| 47 | `addTrack` returns `undefined` at MAX_TRACKS | Vitest | Returns `undefined`, shows toast warning |
+| 48 | Play button has inset focus-visible ring | Visual / Vitest | `outline-offset: -2px` — not clipped by parent overflow |
+| 49 | Playback at end of video holds last frame (no error) | E2E | Audio clock past video duration → renders last frame, no "Frame render failed" |
+| 50 | Adjustments menu adds effect to chain | E2E | Click Adjustments > Curves → Curves effect appears in device chain |
+
+---
+
+*Generated: 2026-02-22 | Revised: 2026-03-23*
+*Reviews applied: CTO (architecture gaps, benchmarks), Don Norman (UX contracts, human UAT), Lenny (staged approach, tiered regression), Quality (7 blocking fixes, CI/CD, sequence errors), CDO (design system), Red Team (IPC security)*
 *Sources: ELECTRON-TESTING-REFERENCE.md, /test-electron skill, /quality §11, PF-16/17 arsenal, UAT-FINDINGS-2026-02-15.md (116 items), UAT-PLAN.md (425 tests), TESTING-STRATEGY.md, v2 spec docs (17 files), Playwright Electron research*

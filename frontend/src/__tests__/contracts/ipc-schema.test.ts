@@ -100,7 +100,9 @@ describe('IPC Contract', () => {
     expect(methods).toContain('closePopOut')
     expect(methods).toContain('isPopOutOpen')
     expect(methods).toContain('sendFrameToPopOut')
-    expect(methods).toHaveLength(34)
+    // Menu actions (UAT sprint)
+    expect(methods).toContain('onMenuAction')
+    expect(methods).toHaveLength(35)
   })
 
   it('backend ZMQ server registers all expected commands', () => {
