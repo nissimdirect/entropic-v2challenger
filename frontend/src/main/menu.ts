@@ -36,6 +36,56 @@ export function buildMenu(mainWindow: BrowserWindow): void {
     ],
   }
 
+  const editMenu: MenuItemConstructorOptions = {
+    label: 'Edit',
+    submenu: [
+      { role: 'undo' },
+      { role: 'redo' },
+      { type: 'separator' },
+      { role: 'cut' },
+      { role: 'copy' },
+      { role: 'paste' },
+      ...(isMac ? [{ role: 'pasteAndMatchStyle' as const }] : []),
+      { role: 'delete' },
+    ],
+  }
+
+  const selectMenu: MenuItemConstructorOptions = {
+    label: 'Select',
+    submenu: [
+      { label: 'Select All Clips\tCmdOrCtrl+A', click: () => sendAction(mainWindow, 'select-all-clips') },
+      { label: 'Deselect All', click: () => sendAction(mainWindow, 'deselect-all') },
+      { label: 'Invert Selection', click: () => sendAction(mainWindow, 'invert-selection') },
+      { type: 'separator' },
+      { label: 'Select Clips on Track', click: () => sendAction(mainWindow, 'select-by-track') },
+    ],
+  }
+
+  const clipMenu: MenuItemConstructorOptions = {
+    label: 'Clip',
+    submenu: [
+      { label: 'Split at Playhead\tCmdOrCtrl+K', click: () => sendAction(mainWindow, 'split-at-playhead') },
+      { type: 'separator' },
+      { label: 'Speed/Duration...', click: () => sendAction(mainWindow, 'clip-speed') },
+      { label: 'Reverse', click: () => sendAction(mainWindow, 'clip-reverse') },
+      { type: 'separator' },
+      { label: 'Enable/Disable', click: () => sendAction(mainWindow, 'clip-toggle-enabled') },
+    ],
+  }
+
+  const timelineMenu: MenuItemConstructorOptions = {
+    label: 'Timeline',
+    submenu: [
+      { label: 'Add Video Track', click: () => sendAction(mainWindow, 'add-video-track') },
+      { label: 'Add Text Track\tCmdOrCtrl+T', click: () => sendAction(mainWindow, 'add-text-track') },
+      { type: 'separator' },
+      { label: 'Delete Selected Track', click: () => sendAction(mainWindow, 'delete-selected-track') },
+      { type: 'separator' },
+      { label: 'Move Track Up', click: () => sendAction(mainWindow, 'move-track-up') },
+      { label: 'Move Track Down', click: () => sendAction(mainWindow, 'move-track-down') },
+    ],
+  }
+
   const adjustmentsMenu: MenuItemConstructorOptions = {
     label: 'Adjustments',
     submenu: [
@@ -73,6 +123,8 @@ export function buildMenu(mainWindow: BrowserWindow): void {
       { label: 'Zoom In\tCmdOrCtrl+=', click: () => sendAction(mainWindow, 'zoom-in') },
       { label: 'Zoom Out\tCmdOrCtrl+-', click: () => sendAction(mainWindow, 'zoom-out') },
       { label: 'Zoom to Fit\tCmdOrCtrl+0', click: () => sendAction(mainWindow, 'zoom-fit') },
+      { type: 'separator' },
+      { label: 'Toggle Quantize\tCmdOrCtrl+U', click: () => sendAction(mainWindow, 'toggle-quantize') },
     ],
   }
 
@@ -87,7 +139,10 @@ export function buildMenu(mainWindow: BrowserWindow): void {
   const template: MenuItemConstructorOptions[] = [
     ...(isMac ? [{ role: 'appMenu' as const }] : []),
     fileMenu,
-    { role: 'editMenu' as const },
+    editMenu,
+    selectMenu,
+    clipMenu,
+    timelineMenu,
     adjustmentsMenu,
     viewMenu,
     ...(isMac ? [{ role: 'windowMenu' as const }] : []),

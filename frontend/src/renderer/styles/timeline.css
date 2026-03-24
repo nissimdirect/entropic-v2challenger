@@ -1,3 +1,50 @@
+/* --- Context Menu --- */
+
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 160px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 4px;
+  padding: 4px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.context-menu__item {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font-size: 12px;
+  font-family: inherit;
+  padding: 4px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.context-menu__item:hover {
+  background: #4ade80;
+  color: #1a1a1a;
+}
+
+.context-menu__item--disabled {
+  color: #666;
+  cursor: default;
+}
+
+.context-menu__item--disabled:hover {
+  background: none;
+  color: #666;
+}
+
+.context-menu__separator {
+  height: 1px;
+  background: #444;
+  margin: 4px 0;
+}
+
 /* --- Timeline Panel --- */
 
 .timeline {
@@ -166,6 +213,7 @@
 .timeline__footer {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
   padding: 4px 8px;
   background: #222;
@@ -187,6 +235,113 @@
 .timeline__collapse-btn:hover {
   color: #4ade80;
   background: rgba(74, 222, 128, 0.1);
+}
+
+/* --- Transport Controls --- */
+
+.timeline__transport {
+  display: flex;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.timeline__transport-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #888;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.timeline__transport-btn:hover {
+  color: #e0e0e0;
+  background: #333;
+}
+
+.timeline__transport-btn--active {
+  color: #4ade80;
+}
+
+.timeline__transport-btn--active:hover {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+}
+
+.timeline__transport-btn:focus-visible {
+  outline: 2px solid #4ade80;
+  outline-offset: -2px;
+}
+
+.timeline__timecode {
+  font-size: 10px;
+  color: #888;
+  font-family: 'JetBrains Mono', monospace;
+  flex: 1;
+  text-align: center;
+}
+
+/* --- BPM & Quantize Controls --- */
+
+.timeline__bpm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.timeline__bpm-label {
+  font-size: 10px;
+  color: #888;
+}
+
+.timeline__bpm-input {
+  width: 44px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 1px 4px;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+
+.timeline__bpm-input::-webkit-inner-spin-button,
+.timeline__bpm-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.timeline__bpm-input:focus {
+  outline: none;
+  border-color: #4ade80;
+}
+
+.timeline__quant {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.timeline__quant-select {
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 1px 2px;
+  cursor: pointer;
+}
+
+.timeline__quant-select:focus {
+  outline: none;
+  border-color: #4ade80;
 }
 
 .zoom-scroll__label {
@@ -381,6 +536,10 @@
 .clip--selected {
   border-color: #4ade80;
   box-shadow: 0 0 0 1px #4ade80;
+}
+
+.clip--disabled {
+  opacity: 0.4;
 }
 
 .clip__name {

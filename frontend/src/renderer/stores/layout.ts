@@ -14,12 +14,16 @@ interface LayoutState {
   timelineHeight: number
   isPopOutOpen: boolean
   popOutBounds: PopOutBounds | null
+  quantizeEnabled: boolean
+  quantizeDivision: number
   toggleSidebar: () => void
   toggleTimeline: () => void
   setTimelineHeight: (h: number) => void
   toggleFocusMode: () => void
   setPopOutOpen: (open: boolean) => void
   setPopOutBounds: (bounds: PopOutBounds | null) => void
+  toggleQuantize: () => void
+  setQuantizeDivision: (div: number) => void
 }
 
 const STORAGE_KEY = 'entropic-layout'
@@ -64,6 +68,8 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   timelineHeight: persisted.timelineHeight ?? 200,
   isPopOutOpen: false,
   popOutBounds: null,
+  quantizeEnabled: false,
+  quantizeDivision: 4, // 1/4 note
 
   toggleSidebar: () => {
     const next = !get().sidebarCollapsed
@@ -97,5 +103,14 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
 
   setPopOutBounds: (bounds: PopOutBounds | null) => {
     set({ popOutBounds: bounds })
+  },
+
+  toggleQuantize: () => {
+    set({ quantizeEnabled: !get().quantizeEnabled })
+  },
+
+  setQuantizeDivision: (div: number) => {
+    const valid = [1, 2, 4, 8, 16, 32]
+    if (valid.includes(div)) set({ quantizeDivision: div })
   },
 }))

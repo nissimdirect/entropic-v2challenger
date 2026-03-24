@@ -37,7 +37,7 @@ Always check these BEFORE asking the user to reproduce. The crash data is the re
 ## Test Commands
 
 - Backend: `cd backend && python -m pytest -x -n auto --tb=short`
-- Frontend unit: `cd frontend && npx vitest run`
+- Frontend unit: `cd frontend && npx --no vitest run` (MUST use `--no` to use project-local vitest; global `npx vitest` picks up E2E specs)
 - Frontend E2E: `cd frontend && npx playwright test`
 - Single backend file: `python -m pytest tests/test_<name>.py -x --tb=short`
 
@@ -61,6 +61,14 @@ Always check these BEFORE asking the user to reproduce. The crash data is the re
 |----------|--------|
 | Cmd+B | Toggle sidebar collapse |
 | F | Toggle focus mode (collapse/expand both panels) |
+| Cmd+U | Toggle quantize grid |
+| Cmd+K | Split clip at playhead |
+| Cmd+A | Select all clips |
+| Cmd+I | Import media |
+| Cmd+T | Add text track |
+| Cmd+=/- | Timeline zoom in/out |
+| Cmd+scroll | Timeline zoom (trackpad pinch maps here) |
+| Scroll | Timeline horizontal pan |
 | ▼ button | Toggle timeline collapse |
 | Drag resize handle | Adjust timeline height (persisted to localStorage) |
 

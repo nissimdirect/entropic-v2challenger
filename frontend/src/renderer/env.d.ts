@@ -60,6 +60,8 @@ interface Window {
     isPopOutOpen: () => Promise<boolean>
     sendFrameToPopOut: (dataUrl: string) => void
     onMenuAction: (callback: (action: string) => void) => () => void
+    onCloseRequested: (callback: () => void) => () => void
+    confirmClose: () => void
   }
 }
 

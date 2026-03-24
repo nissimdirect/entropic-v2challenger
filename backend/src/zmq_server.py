@@ -445,6 +445,11 @@ class ZMQServer:
                     automation_overrides=auto_overrides,
                 )
 
+            # Apply clip transform if present (before effect chain)
+            transform = message.get("transform")
+            if transform and isinstance(transform, dict):
+                frame = self._apply_clip_transform(frame, transform, resolution)
+
             # Use pipeline engine
             output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
 
@@ -573,6 +578,13 @@ class ZMQServer:
                         return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
                     reader = self._get_reader(asset_path)
                     frame = reader.decode_frame(frame_index)
+
+                    # Apply per-layer clip transform if present
+                    layer_transform = layer_info.get("transform")
+                    if layer_transform and isinstance(layer_transform, dict):
+                        frame = self._apply_clip_transform(
+                            frame, layer_transform, tuple(resolution)
+                        )
 
                 layers.append(
                     {
@@ -1083,6 +1095,65 @@ class ZMQServer:
             reader = VideoReader(path)
         self.readers[path] = reader
         return reader
+
+    def _apply_clip_transform(
+        self, frame: np.ndarray, transform: dict, resolution: tuple[int, int]
+    ) -> np.ndarray:
+        """Apply position/scale/rotation transform to frame.
+
+        All values are clamped at the trust boundary via clamp_finite.
+        """
+        import cv2
+
+        try:
+            scale = clamp_finite(float(transform.get("scale", 1.0)), 0.01, 4.0, 1.0)
+            rotation = clamp_finite(
+                float(transform.get("rotation", 0.0)), -360.0, 360.0, 0.0
+            )
+            tx = clamp_finite(float(transform.get("x", 0.0)), -10000.0, 10000.0, 0.0)
+            ty = clamp_finite(float(transform.get("y", 0.0)), -10000.0, 10000.0, 0.0)
+        except (ValueError, TypeError):
+            return frame  # Malformed transform values — render unmodified
+
+        # No-op check
+        if scale == 1.0 and rotation == 0.0 and tx == 0.0 and ty == 0.0:
+            return frame
+
+        h, w = frame.shape[:2]
+        canvas_w, canvas_h = resolution
+
+        # Scale
+        if scale != 1.0:
+            new_w = max(1, int(w * scale))
+            new_h = max(1, int(h * scale))
+            frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            h, w = frame.shape[:2]
+
+        # Create canvas and center the frame
+        canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+        x_off = int((canvas_w - w) / 2 + tx)
+        y_off = int((canvas_h - h) / 2 + ty)
+
+        # Compute source and destination regions (clip to canvas bounds)
+        src_x1 = max(0, -x_off)
+        src_y1 = max(0, -y_off)
+        dst_x1 = max(0, x_off)
+        dst_y1 = max(0, y_off)
+        copy_w = min(w - src_x1, canvas_w - dst_x1)
+        copy_h = min(h - src_y1, canvas_h - dst_y1)
+
+        if copy_w > 0 and copy_h > 0:
+            canvas[dst_y1 : dst_y1 + copy_h, dst_x1 : dst_x1 + copy_w] = frame[
+                src_y1 : src_y1 + copy_h, src_x1 : src_x1 + copy_w
+            ]
+
+        # Rotation (around center of canvas)
+        if rotation != 0.0:
+            center = (canvas_w / 2, canvas_h / 2)
+            rot_mat = cv2.getRotationMatrix2D(center, rotation, 1.0)
+            canvas = cv2.warpAffine(canvas, rot_mat, (canvas_w, canvas_h))
+
+        return canvas
 
     # --- Freeze/Flatten handlers ---
 

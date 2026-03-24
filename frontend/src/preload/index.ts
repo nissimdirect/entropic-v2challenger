@@ -167,4 +167,14 @@ contextBridge.exposeInMainWorld('entropic', {
     ipcRenderer.on('menu:action', handler)
     return () => ipcRenderer.removeListener('menu:action', handler)
   },
+
+  onCloseRequested: (callback: () => void): (() => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('close-requested', handler)
+    return () => ipcRenderer.removeListener('close-requested', handler)
+  },
+
+  confirmClose: (): void => {
+    ipcRenderer.send('close-confirmed')
+  },
 })

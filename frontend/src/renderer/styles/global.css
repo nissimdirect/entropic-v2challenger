@@ -968,6 +968,96 @@ body {
   background: rgba(0, 0, 0, 0.8);
 }
 
+/* --- Transform Panel --- */
+
+.transform-panel {
+  padding: 8px;
+  border-top: 1px solid #333;
+}
+
+.transform-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.transform-panel__title {
+  font-size: 11px;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.transform-panel__actions {
+  display: flex;
+  gap: 4px;
+}
+
+.transform-panel__btn {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #aaa;
+  font-size: 10px;
+  font-family: inherit;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.transform-panel__btn:hover {
+  color: #e0e0e0;
+  border-color: #4ade80;
+}
+
+.transform-panel__btn:focus-visible {
+  outline: 2px solid #4ade80;
+  outline-offset: -2px;
+}
+
+.transform-panel__fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.transform-panel__field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.transform-panel__label {
+  font-size: 10px;
+  color: #888;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.transform-panel__input {
+  width: 100%;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #e0e0e0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  padding: 2px 4px;
+  -moz-appearance: textfield;
+}
+
+.transform-panel__input::-webkit-inner-spin-button,
+.transform-panel__input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.transform-panel__input:focus {
+  outline: none;
+  border-color: #4ade80;
+}
+
 /* --- Preview Controls --- */
 
 .preview-controls {
@@ -2053,4 +2143,90 @@ body {
   background: #3a3a3a;
   border-color: #4ade80;
   color: #fff;
+}
+
+/* --- Generic Dialog --- */
+
+.dialog-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.dialog {
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 8px;
+  width: 340px;
+  max-width: 90vw;
+  padding: 16px;
+}
+
+.dialog__header {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e0e0e0;
+  margin-bottom: 8px;
+}
+
+.dialog__body {
+  font-size: 12px;
+  color: #aaa;
+  margin: 0 0 16px;
+  line-height: 1.5;
+}
+
+.dialog__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.dialog__btn {
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid #444;
+}
+
+.dialog__btn--secondary {
+  background: #333;
+  color: #aaa;
+}
+
+.dialog__btn--secondary:hover {
+  background: #444;
+  color: #e0e0e0;
+}
+
+.dialog__btn--primary {
+  background: #4ade80;
+  color: #1a1a1a;
+  border-color: #4ade80;
+  font-weight: 600;
+}
+
+.dialog__btn--primary:hover {
+  background: #22c55e;
+}
+
+.dialog__btn--danger {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.dialog__btn--danger:hover {
+  background: #dc2626;
+}
+
+.dialog__btn:focus-visible {
+  outline: 2px solid #4ade80;
+  outline-offset: 2px;
 }

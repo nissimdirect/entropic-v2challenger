@@ -21,19 +21,9 @@ function drawBase64Frame(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   img: HTMLImageElement,
+  containerW: number,
+  containerH: number,
 ): void {
-  // Scale canvas to fit its container (contain mode) instead of using native resolution.
-  // This prevents 4K images from blowing out the layout.
-  const container = canvas.parentElement
-  if (!container) {
-    canvas.width = img.naturalWidth
-    canvas.height = img.naturalHeight
-    ctx.drawImage(img, 0, 0)
-    return
-  }
-
-  const containerW = container.clientWidth
-  const containerH = container.clientHeight
   const imgW = img.naturalWidth
   const imgH = img.naturalHeight
 
@@ -56,9 +46,23 @@ export default function PreviewCanvas({
   onRetry,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const fpsRef = useRef({ frames: 0, lastTime: performance.now(), display: 0 })
+  const [containerSize, setContainerSize] = useState({ w: 1920, h: 1080 })
   const [isPopOutOpen, setIsPopOutOpen] = useState(false)
+
+  // Track container dimensions via ResizeObserver so drawBase64Frame never reads 0
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect
+      if (width > 0 && height > 0) setContainerSize({ w: width, h: height })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   const handlePopOut = useCallback(async () => {
     try {
@@ -86,7 +90,7 @@ export default function PreviewCanvas({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    drawBase64Frame(ctx, canvas, img)
+    drawBase64Frame(ctx, canvas, img, containerSize.w, containerSize.h)
     canvas.dataset.frameReady = 'true'
 
     // FPS counter (dev mode only)
@@ -107,7 +111,7 @@ export default function PreviewCanvas({
       ctx.fillText(`${fps.display} fps`, 8, 18)
       ctx.restore()
     }
-  }, [])
+  }, [containerSize])
 
   // Decode base64 JPEG and draw to canvas when frameDataUrl changes
   useEffect(() => {
@@ -122,7 +126,7 @@ export default function PreviewCanvas({
   }, [frameDataUrl, drawToCanvas])
 
   return (
-    <div className="preview-canvas">
+    <div className="preview-canvas" ref={containerRef}>
       <button
         className="preview-canvas__popout-btn"
         onClick={handlePopOut}

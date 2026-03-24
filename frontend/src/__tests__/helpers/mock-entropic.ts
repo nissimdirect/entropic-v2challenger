@@ -58,6 +58,8 @@ export interface EntropicBridge {
   isPopOutOpen: () => Promise<boolean>
   sendFrameToPopOut: (dataUrl: string) => void
   onMenuAction: (callback: (action: string) => void) => () => void
+  onCloseRequested: (callback: () => void) => () => void
+  confirmClose: () => void
 }
 
 /**
@@ -103,6 +105,8 @@ export function createMockEntropic(
     isPopOutOpen: vi.fn().mockResolvedValue(false),
     sendFrameToPopOut: vi.fn(),
     onMenuAction: vi.fn().mockReturnValue(vi.fn()),
+    onCloseRequested: vi.fn().mockReturnValue(vi.fn()),
+    confirmClose: vi.fn(),
   }
   return { ...defaults, ...overrides }
 }

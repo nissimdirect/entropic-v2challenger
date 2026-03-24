@@ -1,10 +1,10 @@
 # Entropic v2 Challenger — UAT & UIT Testing Guide
 
-> **Version:** 4.1
-> **Date:** 2026-03-23
-> **Covers:** Phases 0A–10, 11.5, Ship Gate Audit, Menu Bar + Drop Zone + Text Track UAT Sprint
+> **Version:** 4.3
+> **Date:** 2026-03-24
+> **Covers:** Phases 0A–10, 11.5, Ship Gate Audit, Sprint 1 (Menu/Drop/Text), Sprint 2 (Image/Transport/BPM/Transform), Sprint 3 (Editing Workflow)
 > **Tester:** You (manual walkthrough)
-> **Time estimate:** 6-8 hours for full pass (476 test cases)
+> **Time estimate:** 8-10 hours for full pass (517 test cases)
 > **Companion doc:** `V2-AUTOMATED-UAT-PLAN.md` — automated Playwright/Vitest equivalents of these manual tests
 
 ---
@@ -1344,4 +1344,146 @@ These features are **not yet built** — do NOT test them:
 | 22 | fps=0 rejected | (Dev console) Send clock_set_fps with fps=0 | Error response, no division crash | [ ] |
 
 **Section 22 Total: 22 test cases**
-**Updated Grand Total: 441 test cases**
+
+---
+
+## Section 23: UAT Sprint 2 — Image Sizing, Transport, BPM, Transform
+
+> **Version:** 4.2 — Sprint 2 features
+
+### 23.1 Image Sizing (ResizeObserver Fix)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Image fits on import | Import a 4K image | Image scales to fit preview canvas, not blown out | [ ] |
+| 2 | Container resize | Resize window after importing image | Canvas re-fits image to new size | [ ] |
+| 3 | Small image no upscale | Import 100x100 image | Image stays at native size (not upscaled) | [ ] |
+
+### 23.2 Operators Panel Removed
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 4 | No operators visible | Open app, import video | No OperatorRack/ModulationMatrix/RoutingLines rendered | [ ] |
+| 5 | Device chain still present | Open app, add effects | Ableton-style device chain renders below timeline | [ ] |
+
+### 23.3 Scroll-Wheel Zoom & Pan
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 6 | Cmd+scroll zooms | Cmd + scroll wheel up/down over timeline | Timeline zoom changes | [ ] |
+| 7 | Plain scroll pans | Scroll wheel without Cmd over timeline | Timeline scrolls horizontally | [ ] |
+| 8 | No native page zoom | Cmd+= in timeline area | Timeline zooms, page stays at 100% | [ ] |
+
+### 23.4 Timeline Transport Bar
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 9 | Play button visible | Add a track to timeline | Play button visible in footer | [ ] |
+| 10 | Stop button visible | Add a track | Stop button visible in footer | [ ] |
+| 11 | Loop button visible | Add a track | Loop button visible in footer | [ ] |
+| 12 | Timecode display | Add track, play video | Timecode updates in footer (current / duration) | [ ] |
+| 13 | Play/pause toggles | Click play, then click again | First click plays, second pauses | [ ] |
+| 14 | Stop resets to 0 | Play video, click stop | Playhead returns to 0:00.0 | [ ] |
+| 15 | Loop toggles | Click loop button | Loop region created (full duration), button highlights green | [ ] |
+| 16 | Space key still works | Press Space | Play/pause toggles (same as button) | [ ] |
+
+### 23.5 BPM & Quantize Grid
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 17 | BPM input visible | Add a track | BPM input shows "120" in footer | [ ] |
+| 18 | BPM input editable | Change BPM to 90 | Input updates, grid adjusts if Q is on | [ ] |
+| 19 | BPM clamps to 1-300 | Type 0 in BPM field | Clamps to 1. Type 999, clamps to 300 | [ ] |
+| 20 | Quantize button | Click Q button in footer | Toggles quantize on/off, button highlights green when on | [ ] |
+| 21 | Quantize division | Change dropdown to 1/8 | Grid lines adjust to 1/8 note intervals | [ ] |
+| 22 | Grid lines visible | Enable Q, zoom into timeline | Vertical grid lines visible at beat intervals | [ ] |
+| 23 | Grid density auto-adjusts | Zoom in/out with Q on | Grid lines skip sub-divisions when too dense | [ ] |
+| 24 | Cmd+U shortcut | Press Cmd+U | Toggles quantize same as button | [ ] |
+| 25 | Toggle Quantize in View menu | View → Toggle Quantize | Same as Cmd+U | [ ] |
+
+### 23.6 Clip Transform Controls
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 26 | Transform panel appears | Select a video clip | Transform panel shows in sidebar with X/Y/Scale/Rotation | [ ] |
+| 27 | No transform for text clips | Select a text clip | Transform panel does not appear | [ ] |
+| 28 | Scale changes preview | Change scale slider | Image scales in preview | [ ] |
+| 29 | Position X/Y changes preview | Change X/Y values | Image moves in preview | [ ] |
+| 30 | Rotation changes preview | Change rotation | Image rotates in preview | [ ] |
+| 31 | Fit to Canvas button | Click "Fit" button | Image auto-scales to fit project resolution | [ ] |
+| 32 | Reset button | Change transform, click Reset | All values return to defaults (0,0,1,0) | [ ] |
+| 33 | Transform undo | Change scale, press Cmd+Z | Scale reverts to previous value | [ ] |
+| 34 | Auto-fit on import | Import oversized image | Transform auto-set with fit scale on clip creation | [ ] |
+
+**Section 23 Total: 34 test cases**
+
+---
+
+## Section 24: UAT Sprint 3 — Editing Workflow
+
+> **Version:** 4.3 — Sprint 3 features
+
+### 24.1 Clip Snap-to-Grid
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Snap on drag | Enable Q, drag a clip | Clip snaps to grid lines | [ ] |
+| 2 | Cmd bypasses snap | Enable Q, Cmd+drag clip | Clip moves freely, ignoring grid | [ ] |
+| 3 | Snap on trim left | Enable Q, trim left handle | In-point snaps to grid | [ ] |
+| 4 | Snap on trim right | Enable Q, trim right handle | Out-point snaps to grid | [ ] |
+| 5 | Snap with BPM=300 1/32 | Set extreme BPM/division, drag | Clips snap to very fine grid | [ ] |
+| 6 | Snap disabled when Q off | Turn Q off, drag clip | Free positioning, no snap | [ ] |
+
+### 24.2 Right-Click Context Menus
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 7 | Clip context menu opens | Right-click a clip | Menu shows: Split, Duplicate, Delete, Speed, Reverse, Enable | [ ] |
+| 8 | Split at Playhead | Position playhead in clip, right-click > Split | Clip splits at playhead position | [ ] |
+| 9 | Split disabled when playhead outside clip | Position playhead outside clip, right-click | Split item is grayed out | [ ] |
+| 10 | Duplicate clip | Right-click > Duplicate | New clip appears at +0.5s offset | [ ] |
+| 11 | Delete clip | Right-click > Delete | Clip removed from timeline | [ ] |
+| 12 | Speed/Duration | Right-click > Speed, type 2 | Clip speed changes to 2x | [ ] |
+| 13 | Reverse clip | Right-click > Reverse | Clip marked as reversed | [ ] |
+| 14 | Disable clip | Right-click > Disable | Clip dims to 40% opacity | [ ] |
+| 15 | Re-enable clip | Right-click disabled clip > Enable | Clip returns to full opacity | [ ] |
+| 16 | Track header context menu | Right-click track header | Menu: Duplicate, Rename, Move Up/Down, Delete | [ ] |
+| 17 | Duplicate track | Right-click header > Duplicate | Copy of track appears below | [ ] |
+| 18 | Rename track | Right-click > Rename, type name | Track name updates | [ ] |
+| 19 | Move track up | Right-click > Move Up | Track moves up one position | [ ] |
+| 20 | Move track down | Right-click > Move Down | Track moves down one position | [ ] |
+| 21 | Delete track | Right-click > Delete | Track removed | [ ] |
+| 22 | Context menu dismisses on Escape | Open context menu, press Escape | Menu closes | [ ] |
+| 23 | Context menu dismisses on click outside | Open context menu, click elsewhere | Menu closes | [ ] |
+| 24 | Context menu near edge clamped | Right-click near bottom-right corner | Menu repositioned to stay visible | [ ] |
+
+### 24.3 Menu Bar — Select, Clip, Timeline Menus
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 25 | Select > Select All (Cmd+A) | Add clips, Select > Select All | All clips selected | [ ] |
+| 26 | Select > Deselect All | Select clips, Select > Deselect All | No clips selected | [ ] |
+| 27 | Select > Invert Selection | Select 1 of 3 clips, Invert | Other 2 selected | [ ] |
+| 28 | Select > Select Clips on Track | Select a track, use menu | All clips on that track selected | [ ] |
+| 29 | Clip > Split at Playhead (Cmd+K) | Select clip, position playhead, Cmd+K | Clip splits | [ ] |
+| 30 | Clip > Speed/Duration | Select clip, Clip > Speed | Speed prompt appears | [ ] |
+| 31 | Clip > Reverse | Select clip, Clip > Reverse | Reversed flag toggled | [ ] |
+| 32 | Clip > Enable/Disable | Select clip, Clip > Enable/Disable | Clip toggled | [ ] |
+| 33 | Timeline > Add Video Track | Timeline > Add Video Track | New track appears | [ ] |
+| 34 | Timeline > Delete Selected Track | Select track, Timeline > Delete | Track removed | [ ] |
+| 35 | Timeline > Move Track Up | Select track, Timeline > Move Up | Track moves up | [ ] |
+| 36 | Timeline > Move Track Down | Select track, Timeline > Move Down | Track moves down | [ ] |
+| 37 | Edit menu has Undo/Redo/Cut/Copy/Paste | Open Edit menu | Standard edit items present, no Select All (moved to Select menu) | [ ] |
+
+### 24.4 Unsaved Work Prompt
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 38 | Clean close no prompt | Open app, close immediately (no edits) | App closes without dialog | [ ] |
+| 39 | Dirty close shows dialog | Make an edit, try to close | "Unsaved Changes" dialog appears | [ ] |
+| 40 | Cancel button | Show dialog, click Cancel | Dialog closes, app stays open | [ ] |
+| 41 | Don't Save button | Show dialog, click Don't Save | App closes without saving | [ ] |
+| 42 | Save & Quit button | Show dialog, click Save & Quit | Project saves, then app closes | [ ] |
+
+**Section 24 Total: 42 test cases**
+**Updated Grand Total: 517 test cases**

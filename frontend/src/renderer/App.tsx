@@ -19,6 +19,7 @@ import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
 // Phase 13C: HistoryPanel removed from sidebar
 import DeviceChain from './components/device-chain/DeviceChain'
+import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
 import type { Asset, EffectInstance } from '../shared/types'
 import type { WaveformPeaks } from './components/transport/useWaveform'
@@ -39,9 +40,7 @@ import { applyCCModulations } from './components/performance/applyCCModulations'
 import { useMIDIStore } from './stores/midi'
 import { useMIDI } from './hooks/useMIDI'
 import { handlePadTrigger, releasePadWithCapture } from './components/performance/padActions'
-import OperatorRack from './components/operators/OperatorRack'
-import ModulationMatrix from './components/operators/ModulationMatrix'
-import RoutingLines from './components/operators/RoutingLines'
+// Operators removed from UI (Sprint 2) — components stay in codebase for future re-enable
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { resolveGhostValues } from './utils/resolveGhostValues'
@@ -305,6 +304,19 @@ function AppInner() {
     })
     shortcutRegistry.register('import_media', () => handleImportMedia())
     shortcutRegistry.register('add_text_track', () => handleAddTextTrack())
+    shortcutRegistry.register('toggle_quantize', () => useLayoutStore.getState().toggleQuantize())
+    shortcutRegistry.register('split_at_playhead', () => {
+      const ts = useTimelineStore.getState()
+      for (const clipId of ts.selectedClipIds) {
+        for (const track of ts.tracks) {
+          const clip = track.clips.find((c) => c.id === clipId)
+          if (clip && ts.playheadTime > clip.position && ts.playheadTime < clip.position + clip.duration) {
+            ts.splitClip(clipId, ts.playheadTime)
+            break
+          }
+        }
+      }
+    })
 
     // Main keyboard listener — delegates to registry for normal shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -470,6 +482,13 @@ function AppInner() {
             c.textConfig && currentTime >= c.position && currentTime < c.position + c.duration,
           ))
 
+        // Find active video clip transform at current time
+        const activeVideoClip = timelineState.tracks
+          .filter((t) => t.type === 'video' && !t.isMuted)
+          .flatMap((t) => t.clips)
+          .find((c) => c.isEnabled !== false && currentTime >= c.position && currentTime < c.position + c.duration)
+        const clipTransform = activeVideoClip?.transform
+
         let res
         if (activeTextClips.length > 0) {
           // Use render_composite to layer video + text
@@ -481,6 +500,8 @@ function AppInner() {
               chain: serializeEffectChain(chain),
               opacity: 1.0,
               blend_mode: 'normal',
+              ...(clipTransform && (clipTransform.x !== 0 || clipTransform.y !== 0 || clipTransform.scale !== 1 || clipTransform.rotation !== 0)
+                ? { transform: clipTransform } : {}),
             },
             ...activeTextClips.map((clip) => ({
               layer_type: 'text',
@@ -507,6 +528,8 @@ function AppInner() {
             project_seed: Date.now() % 2147483647,
             ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
+            ...(clipTransform && (clipTransform.x !== 0 || clipTransform.y !== 0 || clipTransform.scale !== 1 || clipTransform.rotation !== 0)
+              ? { transform: clipTransform } : {}),
           })
         }
 
@@ -654,6 +677,18 @@ function AppInner() {
           const clipDuration = isImage ? 5 : (res.duration_s as number)
           // Place clip after existing content (append, don't stack at 0)
           const timelineEnd = useTimelineStore.getState().duration
+          // Auto-fit transform: scale media to fit project canvas
+          const canvasW = frameWidth || 1920
+          const canvasH = frameHeight || 1080
+          const srcW = asset.meta.width
+          const srcH = asset.meta.height
+          const fitScale = (srcW > canvasW || srcH > canvasH)
+            ? Math.min(canvasW / srcW, canvasH / srcH)
+            : 1
+          const clipTransform = fitScale !== 1
+            ? { x: 0, y: 0, scale: Math.round(fitScale * 100) / 100, rotation: 0 }
+            : undefined
+
           timeline.addClip(trackId, {
             id: randomUUID(),
             assetId: asset.id,
@@ -663,6 +698,7 @@ function AppInner() {
             inPoint: 0,
             outPoint: clipDuration,
             speed: 1,
+            transform: clipTransform,
           })
         }
         undoStore.commitTransaction()
@@ -745,6 +781,79 @@ function AppInner() {
         case 'export': setShowExportDialog(true); break
         case 'toggle-sidebar': useLayoutStore.getState().toggleSidebar(); break
         case 'toggle-focus': useLayoutStore.getState().toggleFocusMode(); break
+        case 'toggle-quantize': useLayoutStore.getState().toggleQuantize(); break
+
+        // Select menu
+        case 'select-all-clips': useTimelineStore.getState().selectAllClips(); break
+        case 'deselect-all': useTimelineStore.getState().clearSelection(); break
+        case 'invert-selection': useTimelineStore.getState().invertSelection(); break
+        case 'select-by-track': {
+          const trackId = useTimelineStore.getState().selectedTrackId
+          if (trackId) useTimelineStore.getState().selectClipsByTrack(trackId)
+          break
+        }
+
+        // Clip menu
+        case 'split-at-playhead': {
+          const ts = useTimelineStore.getState()
+          for (const clipId of ts.selectedClipIds) {
+            for (const track of ts.tracks) {
+              const clip = track.clips.find((c) => c.id === clipId)
+              if (clip && ts.playheadTime > clip.position && ts.playheadTime < clip.position + clip.duration) {
+                ts.splitClip(clipId, ts.playheadTime)
+                break // clip can only be in one track
+              }
+            }
+          }
+          break
+        }
+        case 'clip-speed': {
+          const ts2 = useTimelineStore.getState()
+          if (ts2.selectedClipIds.length === 1) {
+            const val = window.prompt('Speed (0.1 - 10):', '1')
+            if (val !== null) {
+              const parsed = Number(val)
+              const speed = Math.max(0.1, Math.min(10, Number.isFinite(parsed) ? parsed : 1))
+              ts2.setClipSpeed(ts2.selectedClipIds[0], speed)
+            }
+          }
+          break
+        }
+        case 'clip-reverse': {
+          const ts3 = useTimelineStore.getState()
+          for (const clipId of ts3.selectedClipIds) ts3.reverseClip(clipId)
+          break
+        }
+        case 'clip-toggle-enabled': {
+          const ts4 = useTimelineStore.getState()
+          for (const clipId of ts4.selectedClipIds) ts4.toggleClipEnabled(clipId)
+          break
+        }
+
+        // Timeline menu
+        case 'add-video-track': {
+          const tracks = useTimelineStore.getState().tracks
+          const colors = ['#ef4444', '#f59e0b', '#4ade80', '#3b82f6', '#a855f7', '#ec4899']
+          useTimelineStore.getState().addTrack(`Track ${tracks.length + 1}`, colors[tracks.length % colors.length])
+          break
+        }
+        case 'delete-selected-track': {
+          const tid = useTimelineStore.getState().selectedTrackId
+          if (tid) useTimelineStore.getState().removeTrack(tid)
+          break
+        }
+        case 'move-track-up': {
+          const ts5 = useTimelineStore.getState()
+          const idx = ts5.tracks.findIndex((t) => t.id === ts5.selectedTrackId)
+          if (idx > 0) ts5.reorderTrack(idx, idx - 1)
+          break
+        }
+        case 'move-track-down': {
+          const ts6 = useTimelineStore.getState()
+          const idx2 = ts6.tracks.findIndex((t) => t.id === ts6.selectedTrackId)
+          if (idx2 >= 0 && idx2 < ts6.tracks.length - 1) ts6.reorderTrack(idx2, idx2 + 1)
+          break
+        }
         case 'toggle-automation': {
           const tl = useTimelineStore.getState()
           if (tl.selectedTrackId) {
@@ -785,6 +894,21 @@ function AppInner() {
     })
     return cleanup
   }, [handleImportMedia, handleAddTextTrack, newProject, loadProject, saveProject, registry, addEffect])
+
+  // Unsaved work prompt on close
+  const [showCloseDialog, setShowCloseDialog] = useState(false)
+  useEffect(() => {
+    if (!window.entropic?.onCloseRequested) return
+    const cleanup = window.entropic.onCloseRequested(() => {
+      const dirty = useUndoStore.getState().isDirty
+      if (!dirty) {
+        window.entropic.confirmClose()
+        return
+      }
+      setShowCloseDialog(true)
+    })
+    return cleanup
+  }, [])
 
   const handleRenderRetry = useCallback(() => {
     if (!activeAssetPath.current) return
@@ -838,6 +962,26 @@ function AppInner() {
       setIsTimerPlaying((prev) => !prev)
     }
   }, [hasAudio, audioStore])
+
+  const handleStop = useCallback(() => {
+    if (hasAudio && audioStore.isLoaded) {
+      if (audioStore.isPlaying) audioStore.togglePlayback()
+      audioStore.seek(0)
+    }
+    setIsTimerPlaying(false)
+    setCurrentFrame(0)
+    useTimelineStore.getState().setPlayheadTime(0)
+  }, [hasAudio, audioStore, setCurrentFrame])
+
+  const handleToggleLoop = useCallback(() => {
+    const ts = useTimelineStore.getState()
+    if (ts.loopRegion) {
+      ts.clearLoopRegion()
+    } else {
+      // Default loop: full duration
+      ts.setLoopRegion(0, ts.duration)
+    }
+  }, [])
 
   // Clock sync loop: when audio is playing, poll audio position at ~60Hz
   // and drive video frame from audio clock (audio is master, video is slave)
@@ -1053,6 +1197,20 @@ function AppInner() {
     : null
 
   // Derive selected text clip via Zustand selector (reactive — re-renders on change)
+  const loopRegion = useTimelineStore((s) => s.loopRegion)
+  const projectBpm = useProjectStore((s) => s.bpm)
+  const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
+  const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
+
+  const selectedClip = useTimelineStore((s) => {
+    if (s.selectedClipIds.length !== 1) return null
+    for (const track of s.tracks) {
+      const clip = track.clips.find((c) => c.id === s.selectedClipIds[0])
+      if (clip) return clip
+    }
+    return null
+  })
+
   const selectedTextClip = useTimelineStore((s) => {
     if (s.selectedClipIds.length !== 1) return null
     for (const track of s.tracks) {
@@ -1124,6 +1282,22 @@ function AppInner() {
             ))}
             {/* Replace accessible via File > Import Media (Cmd+I) or right-click track context menu */}
           </div>
+        )}
+        {selectedClip && !selectedClip.textConfig && (
+          <TransformPanel
+            transform={selectedClip.transform ?? { x: 0, y: 0, scale: 1, rotation: 0 }}
+            onChange={(t) => useTimelineStore.getState().setClipTransform(selectedClip.id, t)}
+            canvasWidth={frameWidth || 1920}
+            canvasHeight={frameHeight || 1080}
+            sourceWidth={(() => {
+              const asset = assets[selectedClip.assetId]
+              return asset?.meta.width ?? 1920
+            })()}
+            sourceHeight={(() => {
+              const asset = assets[selectedClip.assetId]
+              return asset?.meta.height ?? 1080
+            })()}
+          />
         )}
         <div className="sidebar-tabs">
           <button
@@ -1262,7 +1436,21 @@ function AppInner() {
           </div>
         ) : (
           <>
-            <Timeline onSeek={handleTimelineSeek} isDragOver={isGlobalDragOver} />
+            <Timeline
+              onSeek={handleTimelineSeek}
+              isDragOver={isGlobalDragOver}
+              isPlaying={isPlaying}
+              onPlayPause={handlePlayPause}
+              onStop={handleStop}
+              loopEnabled={!!loopRegion}
+              onToggleLoop={handleToggleLoop}
+              bpm={projectBpm}
+              onBpmChange={(v) => useProjectStore.getState().setBpm(v)}
+              quantizeEnabled={quantizeEnabled}
+              quantizeDivision={quantizeDivision}
+              onToggleQuantize={() => useLayoutStore.getState().toggleQuantize()}
+              onQuantizeDivisionChange={(d) => useLayoutStore.getState().setQuantizeDivision(d)}
+            />
             <AutomationToolbar />
           </>
         )}
@@ -1277,22 +1465,6 @@ function AppInner() {
           }} />
         </div>
       )}
-
-      <div style={{ position: 'relative' }}>
-        <RoutingLines operatorValues={operatorValues} />
-        <OperatorRack
-          effectChain={effectChain}
-          registry={registry}
-          operatorValues={operatorValues}
-          hasAudio={hasAudio}
-        />
-      </div>
-
-      <ModulationMatrix
-        effectChain={effectChain}
-        registry={registry}
-        operatorValues={operatorValues}
-      />
 
       {/* Phase 13: Ableton-style Device Chain */}
       <div className="app__device-chain">
@@ -1395,6 +1567,42 @@ function AppInner() {
           />
         )
       })()}
+
+      {showCloseDialog && (
+        <div className="dialog-overlay">
+          <div className="dialog">
+            <div className="dialog__header">Unsaved Changes</div>
+            <p className="dialog__body">You have unsaved changes. What would you like to do?</p>
+            <div className="dialog__actions">
+              <button
+                className="dialog__btn dialog__btn--secondary"
+                onClick={() => setShowCloseDialog(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="dialog__btn dialog__btn--danger"
+                onClick={() => {
+                  setShowCloseDialog(false)
+                  window.entropic.confirmClose()
+                }}
+              >
+                Don&apos;t Save
+              </button>
+              <button
+                className="dialog__btn dialog__btn--primary"
+                onClick={async () => {
+                  await saveProject()
+                  setShowCloseDialog(false)
+                  window.entropic.confirmClose()
+                }}
+              >
+                Save &amp; Quit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {editingPadId && (
         <PadEditor

@@ -1,6 +1,8 @@
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import type { Track as TrackType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
+import ContextMenu from './ContextMenu'
+import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
 import { useAutomationStore } from '../../stores/automation'
 import ClipComponent from './Clip'
@@ -15,10 +17,38 @@ interface TrackHeaderProps {
 export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const armedTrackId = useAutomationStore((s) => s.armedTrackId)
   const isArmed = armedTrackId === track.id
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
 
   const handleClick = useCallback(() => {
     useTimelineStore.getState().selectTrack(track.id)
   }, [track.id])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    useTimelineStore.getState().selectTrack(track.id)
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }, [track.id])
+
+  const getTrackMenuItems = useCallback((): MenuItem[] => {
+    const store = useTimelineStore.getState()
+    const idx = store.tracks.findIndex((t) => t.id === track.id)
+    return [
+      { label: 'Duplicate Track', action: () => store.duplicateTrack(track.id) },
+      {
+        label: 'Rename Track',
+        action: () => {
+          const name = window.prompt('Track name:', track.name)
+          if (name !== null && name.trim()) store.renameTrack(track.id, name.trim())
+        },
+      },
+      { label: '', action: () => {}, separator: true },
+      { label: 'Move Up', action: () => store.reorderTrack(idx, idx - 1), disabled: idx <= 0 },
+      { label: 'Move Down', action: () => store.reorderTrack(idx, idx + 1), disabled: idx >= store.tracks.length - 1 },
+      { label: '', action: () => {}, separator: true },
+      { label: 'Delete Track', action: () => store.removeTrack(track.id) },
+    ]
+  }, [track.id, track.name])
 
   const handleMute = useCallback(
     (e: React.MouseEvent) => {
@@ -46,42 +76,53 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   )
 
   return (
-    <div
-      className={`track-header${isSelected ? ' track-header--selected' : ''}`}
-      onClick={handleClick}
-    >
-      <div className="track-header__color" style={{ background: track.color }} />
-      <div className="track-header__info">
-        <div className="track-header__name">
-          {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
-          {' '}{track.name}
+    <>
+      <div
+        className={`track-header${isSelected ? ' track-header--selected' : ''}`}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
+        <div className="track-header__color" style={{ background: track.color }} />
+        <div className="track-header__info">
+          <div className="track-header__name">
+            {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
+            {' '}{track.name}
+          </div>
+          <LaneBadges trackId={track.id} />
         </div>
-        <LaneBadges trackId={track.id} />
+        <div className="track-header__controls">
+          <button
+            className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
+            onClick={handleMute}
+            title="Mute"
+          >
+            M
+          </button>
+          <button
+            className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
+            onClick={handleSolo}
+            title="Solo"
+          >
+            S
+          </button>
+          <button
+            className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
+            onClick={handleArmToggle}
+            title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+          >
+            A
+          </button>
+        </div>
       </div>
-      <div className="track-header__controls">
-        <button
-          className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
-          onClick={handleMute}
-          title="Mute"
-        >
-          M
-        </button>
-        <button
-          className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
-          onClick={handleSolo}
-          title="Solo"
-        >
-          S
-        </button>
-        <button
-          className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-          onClick={handleArmToggle}
-          title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-        >
-          A
-        </button>
-      </div>
-    </div>
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={getTrackMenuItems()}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+    </>
   )
 }
 

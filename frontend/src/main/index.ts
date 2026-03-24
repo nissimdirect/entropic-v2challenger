@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/electron/main'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { homedir, userInfo } from 'os'
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen, ipcMain } from 'electron'
 import { spawnPython, killPython } from './python'
 import { startWatchdog, stopWatchdog } from './watchdog'
 import { registerRelayHandlers, setRelayPort, closeRelay } from './zmq-relay'
@@ -167,9 +167,29 @@ function createWindow(): BrowserWindow {
   }
   win.on('resize', debouncedSave)
   win.on('move', debouncedSave)
-  win.on('close', () => {
+  // Intercept close to allow renderer to prompt "Save before quit?"
+  let isClosingConfirmed = false
+  let closeTimeout: ReturnType<typeof setTimeout> | null = null
+  win.on('close', (e) => {
     if (saveTimeout) clearTimeout(saveTimeout)
     saveWindowState(win)
+    if (!isClosingConfirmed) {
+      e.preventDefault()
+      win.webContents.send('close-requested')
+      // Safety: force close if renderer doesn't respond within 5s (crash/hang)
+      if (!closeTimeout) {
+        closeTimeout = setTimeout(() => {
+          isClosingConfirmed = true
+          if (!win.isDestroyed()) win.close()
+        }, 5000)
+      }
+    }
+  })
+
+  ipcMain.on('close-confirmed', () => {
+    if (closeTimeout) { clearTimeout(closeTimeout); closeTimeout = null }
+    isClosingConfirmed = true
+    win.close()
   })
 
   // CSP header — restrict script/style sources (M-3)
@@ -206,6 +226,8 @@ app.whenReady().then(async () => {
   registerFileHandlers()
   registerPopOutHandlers()
   const mainWindow = createWindow()
+  // Disable native page zoom — Cmd+scroll controls timeline zoom instead
+  mainWindow.webContents.setVisualZoomLevelLimits(1, 1)
   buildMenu(mainWindow)
   initAutoUpdater(mainWindow)
 

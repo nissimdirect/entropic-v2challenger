@@ -1029,6 +1029,84 @@ Get ONE other person to use Entropic for 15 minutes with zero instruction. Watch
 
 ---
 
-*Generated: 2026-02-22 | Revised: 2026-03-23*
-*Reviews applied: CTO (architecture gaps, benchmarks), Don Norman (UX contracts, human UAT), Lenny (staged approach, tiered regression), Quality (7 blocking fixes, CI/CD, sequence errors), CDO (design system), Red Team (IPC security)*
-*Sources: ELECTRON-TESTING-REFERENCE.md, /test-electron skill, /quality §11, PF-16/17 arsenal, UAT-FINDINGS-2026-02-15.md (116 items), UAT-PLAN.md (425 tests), TESTING-STRATEGY.md, v2 spec docs (17 files), Playwright Electron research*
+## Sprint 2: Image Sizing, Transport, BPM, Transform (2026-03-23)
+
+| # | Test Case | Layer | Acceptance Criterion |
+|---|-----------|-------|---------------------|
+| 51 | ResizeObserver tracks container dimensions | Vitest | `containerSize` updates when ResizeObserver fires, drawBase64Frame uses tracked dimensions |
+| 52 | drawBase64Frame uses passed dimensions (not DOM reads) | Vitest | Function signature takes `containerW`, `containerH` params |
+| 53 | Operators panel not rendered | Vitest | No `OperatorRack`, `ModulationMatrix`, `RoutingLines` in App render output |
+| 54 | Scroll-wheel zoom on timeline (Cmd+scroll) | Vitest | `handleWheel` with `metaKey=true` changes zoom state |
+| 55 | Scroll-wheel pan on timeline (plain scroll) | Vitest | `handleWheel` without metaKey changes scrollX state |
+| 56 | Native Electron page zoom disabled | E2E | `setVisualZoomLevelLimits(1, 1)` called on mainWindow |
+| 57 | Transport buttons render in timeline footer | Vitest | Play/Stop/Loop buttons present when props provided |
+| 58 | Timecode display updates with playheadTime | Vitest | `.timeline__timecode` shows formatted time |
+| 59 | Stop handler resets playhead to 0 | Vitest | Calls `setPlayheadTime(0)` and stops timer |
+| 60 | Loop toggle creates/clears loop region | Vitest | First click sets loop region, second click clears it |
+| 61 | BPM input visible in timeline footer | Vitest | `.timeline__bpm-input` renders with default value 120 |
+| 62 | BPM clamps to 1-300 | Vitest | `setBpm(0)` → 1, `setBpm(999)` → 300 |
+| 63 | Quantize toggle via Cmd+U | Vitest | Shortcut registered, `toggleQuantize()` toggles state |
+| 64 | Quantize division dropdown | Vitest | `.timeline__quant-select` renders with 1/1 through 1/32 options |
+| 65 | Grid lines visible when quantize ON | Vitest | Track content div gets `backgroundImage` with `repeating-linear-gradient` |
+| 66 | Grid auto-hides when too dense | Vitest | Grid suppressed when `gridPx < 10` |
+| 67 | setQuantizeDivision rejects invalid values | Vitest | Division 3 (invalid) → unchanged, division 8 (valid) → accepted |
+| 68 | ClipTransform defaults (undefined when not set) | Vitest | New clip has `transform: undefined` |
+| 69 | setClipTransform applies transform | Vitest | After `setClipTransform()`, clip has transform with correct values |
+| 70 | setClipTransform is undoable | Vitest | Ctrl+Z reverts transform to previous value |
+| 71 | TransformPanel renders for selected video clip | Vitest | Panel visible with X/Y/Scale/Rotation fields |
+| 72 | TransformPanel hidden for text clips | Vitest | No `.transform-panel` when text clip selected |
+| 73 | Fit to Canvas button auto-calculates scale | Vitest | Scale = `min(canvasW/srcW, canvasH/srcH)` |
+| 74 | Transform sent in render_frame IPC | Vitest | `sendCommand` payload includes `transform` when non-default |
+| 75 | Transform omitted when default (0,0,1,0) | Vitest | `sendCommand` payload has no `transform` key |
+| 76 | Backend transform clamps values via clamp_finite | pytest | scale clamped to [0.01, 10], rotation to [-360, 360], x/y to [-10000, 10000] |
+| 77 | Backend transform no-op for default values | pytest | Frame unchanged when transform is (0,0,1,0) |
+| 78 | Auto-fit on import for oversized images | Vitest | Clip created with `transform.scale < 1` when source > canvas |
+| 79 | Auto-fit on import for small images (no upscale) | Vitest | Clip created with no transform when source fits canvas |
+| 80 | Toggle Quantize in View menu | E2E | View → Toggle Quantize dispatches `toggle-quantize` action |
+
+---
+
+## Sprint 3: Editing Workflow (2026-03-24)
+
+| # | Test Case | Layer | Acceptance Criterion |
+|---|-----------|-------|---------------------|
+| 81 | Clip snaps to grid when quantize ON | Vitest | `snapToGrid()` returns rounded position when `quantizeEnabled=true` |
+| 82 | Cmd held bypasses snap | Vitest | `snapToGrid(pos, true)` returns unmodified position |
+| 83 | Trim in-point snaps to grid | Vitest | Trim handler calls `snapToGrid` on new in-point |
+| 84 | Trim out-point snaps to grid | Vitest | Trim handler calls `snapToGrid` on new out-point |
+| 85 | ContextMenu renders items | Vitest | `.context-menu__item` elements rendered for each non-separator item |
+| 86 | ContextMenu viewport clamping | Vitest | Menu positioned within viewport bounds |
+| 87 | ContextMenu dismisses on Escape | Vitest | `onClose` called when Escape key pressed |
+| 88 | ContextMenu dismisses on click outside | Vitest | `onClose` called on pointerdown outside menu |
+| 89 | duplicateClip creates copy with new ID | Vitest | New clip with unique ID, offset position, same duration |
+| 90 | duplicateClip is undoable | Vitest | Undo removes the duplicate |
+| 91 | duplicateClip deep copies transform | Vitest | Mutating original transform doesn't affect duplicate |
+| 92 | toggleClipEnabled disables clip | Vitest | `isEnabled` set to `false` |
+| 93 | toggleClipEnabled re-enables clip | Vitest | `isEnabled` returns to undefined |
+| 94 | toggleClipEnabled is undoable | Vitest | Undo restores previous state |
+| 95 | reverseClip toggles flag | Vitest | `reversed` toggles between true and undefined |
+| 96 | reverseClip is undoable | Vitest | Undo restores previous state |
+| 97 | duplicateTrack creates copy after source | Vitest | New track with "(Copy)" name, new clip IDs |
+| 98 | duplicateTrack deep copies effectChain | Vitest | Shared effectChain not mutated |
+| 99 | duplicateTrack is undoable | Vitest | Undo removes the duplicate track |
+| 100 | selectAllClips selects all | Vitest | `selectedClipIds` contains all clip IDs |
+| 101 | invertSelection flips selection | Vitest | Previously unselected clips now selected |
+| 102 | selectClipsByTrack selects track clips | Vitest | Only clips in specified track selected |
+| 103 | Select menu: Select All dispatches action | E2E | Select > Select All → all clips highlighted |
+| 104 | Clip menu: Split at Playhead (Cmd+K) | Vitest | Selected clip splits at playhead time |
+| 105 | Clip menu: Reverse toggles flag | Vitest | `reverseClip` called for selected clip |
+| 106 | Timeline menu: Add Video Track | Vitest | New track added with sequential name and color |
+| 107 | Timeline menu: Delete Selected Track | Vitest | `removeTrack` called for selected track |
+| 108 | Close with unsaved changes shows dialog | Vitest | `showCloseDialog` set when `isDirty=true` |
+| 109 | Clean close confirms immediately | Vitest | `confirmClose` called when `isDirty=false` |
+| 110 | Save & Quit saves then closes | Vitest | `saveProject` awaited, then `confirmClose` called |
+| 111 | Close timeout forces close after 5s | E2E | Main process force-closes if renderer doesn't respond |
+| 112 | isEnabled=false hides clip from render | Vitest | `activeVideoClip` filter excludes disabled clips |
+| 113 | Per-layer transform in render_composite | pytest | Backend applies `_apply_clip_transform` per layer |
+| 114 | Edit menu has no Select All (moved to Select) | E2E | Edit menu: Undo, Redo, Cut, Copy, Paste — no Select All |
+
+---
+
+*Generated: 2026-02-22 | Revised: 2026-03-24*
+*Reviews applied: CTO, Don Norman, Lenny, Quality, CDO, Red Team (IPC security, transform clamp, close timeout, shallow copy)*
+*Sources: ELECTRON-TESTING-REFERENCE.md, /test-electron skill, /quality §11, PF-16/17 arsenal, UAT docs, v2 spec docs, Playwright Electron research*

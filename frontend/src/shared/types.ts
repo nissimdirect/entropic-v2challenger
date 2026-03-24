@@ -25,6 +25,7 @@ export interface ProjectSettings {
   audioSampleRate: number;
   masterVolume: number;
   seed: number;
+  bpm: number;
 }
 
 export interface Asset {
@@ -75,6 +76,13 @@ export type BlendMode =
   | "darken"
   | "lighten";
 
+export interface ClipTransform {
+  x: number;       // horizontal offset (px, relative to canvas center)
+  y: number;       // vertical offset (px)
+  scale: number;   // 1.0 = 100%
+  rotation: number; // degrees
+}
+
 export interface Clip {
   id: string;
   assetId: string;
@@ -85,6 +93,9 @@ export interface Clip {
   outPoint: number;
   speed: number;
   textConfig?: TextClipConfig;
+  transform?: ClipTransform;
+  isEnabled?: boolean;   // default true (undefined = enabled)
+  reversed?: boolean;    // default false
 }
 
 // --- Text ---

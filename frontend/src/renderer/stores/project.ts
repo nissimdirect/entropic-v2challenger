@@ -33,6 +33,8 @@ interface ProjectState {
   setIngesting: (ingesting: boolean) => void
   setIngestError: (error: string | null) => void
   setProjectPath: (path: string | null) => void
+  bpm: number
+  setBpm: (bpm: number) => void
   setProjectName: (name: string) => void
   resetProject: () => void
 
@@ -57,6 +59,7 @@ const PROJECT_DEFAULTS = {
   ingestError: null as string | null,
   projectPath: null as string | null,
   projectName: 'Untitled',
+  bpm: 120,
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -227,6 +230,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     )
   },
 
+  bpm: PROJECT_DEFAULTS.bpm,
+  setBpm: (bpm: number) => {
+    if (!Number.isFinite(bpm)) return
+    set({ bpm: Math.max(1, Math.min(300, Math.round(bpm))) })
+  },
   selectEffect: (id) => set({ selectedEffectId: id }),
   setCurrentFrame: (frame) => set({ currentFrame: frame }),
   setTotalFrames: (total) => set({ totalFrames: total }),

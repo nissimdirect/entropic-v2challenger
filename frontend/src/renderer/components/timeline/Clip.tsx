@@ -1,6 +1,20 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
+import { useLayoutStore } from '../../stores/layout'
+import { useProjectStore } from '../../stores/project'
+import ContextMenu from './ContextMenu'
+import type { MenuItem } from './ContextMenu'
+
+/** Snap a position to the nearest grid line if quantize is enabled. */
+function snapToGrid(pos: number, bypassSnap: boolean): number {
+  if (bypassSnap) return pos
+  const { quantizeEnabled, quantizeDivision } = useLayoutStore.getState()
+  const { bpm } = useProjectStore.getState()
+  if (!quantizeEnabled || bpm <= 0) return pos
+  const interval = (60 / bpm) * (4 / quantizeDivision)
+  return Math.round(pos / interval) * interval
+}
 
 interface ClipProps {
   clip: ClipType
@@ -14,6 +28,48 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const isDragging = useRef(false)
   const dragStartX = useRef(0)
   const dragStartPos = useRef(0)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Select the clip if not already selected
+    const store = useTimelineStore.getState()
+    if (!store.selectedClipIds.includes(clip.id)) {
+      store.selectClip(clip.id)
+    }
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }, [clip.id])
+
+  const getContextMenuItems = useCallback((): MenuItem[] => {
+    const store = useTimelineStore.getState()
+    const playheadTime = store.playheadTime
+    const withinClip = playheadTime >= clip.position && playheadTime < clip.position + clip.duration
+
+    return [
+      { label: 'Split at Playhead', action: () => store.splitClip(clip.id, playheadTime), disabled: !withinClip },
+      { label: 'Duplicate', action: () => store.duplicateClip(clip.id) },
+      { label: 'Delete', action: () => store.removeClip(clip.id) },
+      { label: '', action: () => {}, separator: true },
+      {
+        label: 'Speed/Duration...',
+        action: () => {
+          const val = window.prompt('Speed (0.1 - 10):', String(clip.speed))
+          if (val !== null) {
+            const parsed = Number(val)
+            const speed = Math.max(0.1, Math.min(10, Number.isFinite(parsed) ? parsed : 1))
+            store.setClipSpeed(clip.id, speed)
+          }
+        },
+      },
+      { label: 'Reverse', action: () => store.reverseClip(clip.id) },
+      { label: '', action: () => {}, separator: true },
+      {
+        label: clip.isEnabled === false ? 'Enable' : 'Disable',
+        action: () => store.toggleClipEnabled(clip.id),
+      },
+    ]
+  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled])
 
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
@@ -49,7 +105,8 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const dx = e.clientX - dragStartX.current
       const dt = dx / zoom
       const newPos = Math.max(0, dragStartPos.current + dt)
-      useTimelineStore.getState().moveClip(clip.id, clip.trackId, newPos)
+      const snapped = snapToGrid(newPos, e.metaKey)
+      useTimelineStore.getState().moveClip(clip.id, clip.trackId, snapped)
     },
     [clip.id, clip.trackId, zoom],
   )
@@ -78,7 +135,8 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const onMove = (me: PointerEvent) => {
         const dx = me.clientX - startX
         const dt = dx / zoom
-        const newIn = Math.max(0, startIn + dt)
+        const rawIn = Math.max(0, startIn + dt)
+        const newIn = snapToGrid(rawIn, me.metaKey)
         useTimelineStore.getState().trimClipIn(clip.id, newIn)
       }
       const onUp = () => {
@@ -103,7 +161,9 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const onMove = (me: PointerEvent) => {
         const dx = me.clientX - startX
         const dt = dx / zoom
-        useTimelineStore.getState().trimClipOut(clip.id, startOut + dt)
+        const rawOut = startOut + dt
+        const newOut = snapToGrid(rawOut, me.metaKey)
+        useTimelineStore.getState().trimClipOut(clip.id, newOut)
       }
       const onUp = () => {
         document.removeEventListener('pointermove', onMove)
@@ -123,24 +183,37 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
     ? (clip.textConfig!.text.slice(0, 30) || 'Text')
     : assetName
 
+  const isDisabled = clip.isEnabled === false
+
   return (
-    <div
-      className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}`}
-      style={{ left: `${left}px`, width: `${Math.max(4, width)}px` }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onClick={handleClick}
-    >
+    <>
       <div
-        className="clip__trim-handle clip__trim-handle--left"
-        onPointerDown={handleTrimLeftDown}
-      />
-      <span className={`clip__name${isTextClip ? ' clip__name--text' : ''}`}>{displayName}</span>
-      <div
-        className="clip__trim-handle clip__trim-handle--right"
-        onPointerDown={handleTrimRightDown}
-      />
-    </div>
+        className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}${isDisabled ? ' clip--disabled' : ''}`}
+        style={{ left: `${left}px`, width: `${Math.max(4, width)}px` }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
+        <div
+          className="clip__trim-handle clip__trim-handle--left"
+          onPointerDown={handleTrimLeftDown}
+        />
+        <span className={`clip__name${isTextClip ? ' clip__name--text' : ''}`}>{displayName}</span>
+        <div
+          className="clip__trim-handle clip__trim-handle--right"
+          onPointerDown={handleTrimRightDown}
+        />
+      </div>
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={getContextMenuItems()}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+    </>
   )
 }

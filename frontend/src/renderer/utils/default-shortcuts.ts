@@ -29,6 +29,8 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'zoom_in',           keys: 'meta+=',         category: 'view',      label: 'Zoom In',             context: 'normal' },
   { action: 'zoom_out',          keys: 'meta+-',         category: 'view',      label: 'Zoom Out',            context: 'normal' },
   { action: 'zoom_fit',          keys: 'meta+0',         category: 'view',      label: 'Zoom to Fit',         context: 'normal' },
+  { action: 'toggle_quantize',   keys: 'meta+u',         category: 'view',      label: 'Toggle Quantize',    context: 'normal' },
+  { action: 'split_at_playhead', keys: 'meta+k',         category: 'timeline',  label: 'Split at Playhead',  context: 'normal' },
 
   // --- Project ---
   { action: 'save',              keys: 'meta+s',         category: 'project',   label: 'Save Project',        context: 'normal' },
