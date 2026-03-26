@@ -145,6 +145,7 @@ describe('IPC Contract', () => {
       'render_text_frame',
       'seek',
       'shutdown',
+      'thumbnails',
       'waveform',
     ]
 

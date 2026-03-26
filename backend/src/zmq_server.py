@@ -36,7 +36,7 @@ from audio.player import AudioPlayer
 from audio.waveform import compute_peaks
 from engine.text_renderer import list_system_fonts, render_text_frame
 from video.image_reader import ImageReader, is_image_file
-from video.ingest import probe, probe_image
+from video.ingest import generate_thumbnails, probe, probe_image
 from video.reader import VideoReader
 import diagnostics as _diagnostics_mod
 
@@ -294,6 +294,8 @@ class ZMQServer:
             return self._handle_invalidate_cache(message, msg_id)
         elif cmd == "memory_status":
             return self._handle_memory_status(msg_id)
+        elif cmd == "thumbnails":
+            return self._handle_thumbnails(message, msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -328,6 +330,21 @@ class ZMQServer:
             if fc > 0:
                 self.av_clock.set_video_frame_count(fc)
 
+        return result
+
+    def _handle_thumbnails(self, message: dict, msg_id: str | None) -> dict:
+        path = message.get("path")
+        if not path:
+            return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate upload path
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        count = int(message.get("count", 8))
+        result = generate_thumbnails(path, count=count)
+        result["id"] = msg_id
         return result
 
     def _handle_seek(self, message: dict, msg_id: str | None) -> dict:
@@ -398,14 +415,14 @@ class ZMQServer:
                     "ok": False,
                     "error": "frame_index must be non-negative",
                 }
-            # Clamp to last valid frame instead of rejecting —
-            # audio clock can overshoot video frame count by 1-2 frames
+            # Clamp to safe range — MKV/VP9 containers often can't decode
+            # the very last frames. Leave a 2-frame buffer from the end.
             if (
                 hasattr(reader, "frame_count")
                 and reader.frame_count
-                and frame_index >= reader.frame_count
+                and frame_index >= reader.frame_count - 2
             ):
-                frame_index = reader.frame_count - 1
+                frame_index = max(0, reader.frame_count - 3)
 
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
@@ -1368,7 +1385,9 @@ class ZMQServer:
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
                     logging.getLogger(__name__).error(
-                        "Unhandled handler error: %s", type(e).__name__
+                        "Unhandled handler error: %s",
+                        type(e).__name__,
+                        exc_info=True,
                     )
                     response = {"ok": False, "error": "Internal processing error"}
 

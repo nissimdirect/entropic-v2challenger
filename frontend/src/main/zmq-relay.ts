@@ -35,7 +35,7 @@ const ALLOWED_COMMANDS = new Set([
   // Playback & rendering
   'render_frame', 'render_composite', 'apply_chain', 'seek',
   // Ingest & info
-  'ingest', 'list_effects', 'effect_health', 'effect_stats',
+  'ingest', 'thumbnails', 'list_effects', 'effect_health', 'effect_stats',
   // Export
   'export_start', 'export_cancel', 'export_status',
   // Audio

@@ -322,12 +322,12 @@ describe('TimelineStore', () => {
   // --- View ---
 
   describe('zoom and scroll', () => {
-    it('setZoom clamps to 10-200', () => {
-      useTimelineStore.getState().setZoom(5)
-      expect(useTimelineStore.getState().zoom).toBe(10)
+    it('setZoom clamps to 0.5-500', () => {
+      useTimelineStore.getState().setZoom(0.1)
+      expect(useTimelineStore.getState().zoom).toBe(0.5)
 
-      useTimelineStore.getState().setZoom(300)
-      expect(useTimelineStore.getState().zoom).toBe(200)
+      useTimelineStore.getState().setZoom(600)
+      expect(useTimelineStore.getState().zoom).toBe(500)
     })
 
     it('setScrollX clamps to >= 0', () => {

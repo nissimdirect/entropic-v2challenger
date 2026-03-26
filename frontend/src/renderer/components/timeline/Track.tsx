@@ -132,6 +132,9 @@ interface TrackLaneProps {
   scrollX: number
   isSelected: boolean
   selectedClipIds: string[]
+  waveformPeaks?: number[][][] | null
+  clipThumbnails?: { time: number; data: string }[]
+  onSeek?: (time: number) => void
 }
 
 const EMPTY_LANES: never[] = []
@@ -149,15 +152,22 @@ function LaneBadges({ trackId }: { trackId: string }) {
   )
 }
 
-export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds }: TrackLaneProps) {
+export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds, waveformPeaks, clipThumbnails, onSeek }: TrackLaneProps) {
   const assets = useProjectStore((s) => s.assets)
   const automationLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
   const automationMode = useAutomationStore((s) => s.mode)
 
-  const handleLaneClick = useCallback(() => {
+  const handleLaneClick = useCallback((e: React.MouseEvent) => {
     useTimelineStore.getState().selectTrack(track.id)
     useTimelineStore.getState().clearSelection()
-  }, [track.id])
+    // Click-to-seek: use the full onSeek callback (sets frame + playhead + audio)
+    if (onSeek) {
+      const rect = e.currentTarget.getBoundingClientRect()
+      const x = e.clientX - rect.left + scrollX
+      const time = Math.max(0, x / zoom)
+      onSeek(time)
+    }
+  }, [track.id, zoom, scrollX, onSeek])
 
   const TRACK_HEIGHT = 60
 
@@ -170,6 +180,7 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds }:
       {track.clips.map((clip) => {
         const asset = assets[clip.assetId]
         const assetName = asset ? asset.path.split('/').pop() ?? '' : clip.assetId
+        const clipHasAudio = asset?.meta?.hasAudio === true
         return (
           <ClipComponent
             key={clip.id}
@@ -178,6 +189,9 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds }:
             scrollX={scrollX}
             isSelected={selectedClipIds.includes(clip.id)}
             assetName={assetName}
+            waveformPeaks={clipHasAudio ? waveformPeaks : undefined}
+            assetDuration={clipHasAudio ? asset?.meta?.duration : undefined}
+            thumbnails={clipThumbnails}
           />
         )
       })}

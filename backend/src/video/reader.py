@@ -9,8 +9,13 @@ class VideoReader:
         self.container = av.open(path)
         self.stream = self.container.streams.video[0]
         self.stream.thread_type = "AUTO"
-        self.fps = float(self.stream.average_rate)
-        self.duration = float(self.stream.duration * self.stream.time_base)
+        self.fps = float(self.stream.average_rate) if self.stream.average_rate else 30.0
+        if self.stream.duration is not None:
+            self.duration = float(self.stream.duration * self.stream.time_base)
+        elif self.container.duration is not None:
+            self.duration = float(self.container.duration / av.time_base)
+        else:
+            self.duration = 0.0
         self.width = self.stream.width
         self.height = self.stream.height
         self.frame_count = self.stream.frames or int(self.duration * self.fps)

@@ -21,6 +21,8 @@ interface TimelineProps {
   quantizeDivision?: number
   onToggleQuantize?: () => void
   onQuantizeDivisionChange?: (div: number) => void
+  waveformPeaks?: number[][][] | null
+  clipThumbnails?: { time: number; data: string }[]
 }
 
 function formatTimecode(seconds: number): string {
@@ -35,6 +37,8 @@ const QUANT_LABELS: Record<number, string> = { 1: '1/1', 2: '1/2', 4: '1/4', 8: 
 export default function Timeline({
   onSeek, isDragOver, isPlaying, onPlayPause, onStop, loopEnabled, onToggleLoop,
   bpm, onBpmChange, quantizeEnabled, quantizeDivision = 4, onToggleQuantize, onQuantizeDivisionChange,
+  waveformPeaks,
+  clipThumbnails,
 }: TimelineProps) {
   const tracks = useTimelineStore((s) => s.tracks)
   const playheadTime = useTimelineStore((s) => s.playheadTime)
@@ -87,23 +91,52 @@ export default function Timeline({
     useTimelineStore.getState().removeMarker(id)
   }, [])
 
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    const ts = useTimelineStore.getState()
-    if (e.metaKey || e.ctrlKey) {
-      // Cmd+scroll = zoom (pinch-to-zoom on trackpad maps to this)
-      e.preventDefault()
-      const delta = e.deltaY > 0 ? -5 : 5
-      ts.setZoom(Math.max(10, Math.min(200, ts.zoom + delta)))
-    } else {
-      // Plain scroll = horizontal pan
-      ts.setScrollX(Math.max(0, ts.scrollX + e.deltaX + e.deltaY))
+  // Native wheel listener with { passive: false } so preventDefault() works.
+  // React's onWheel uses passive listeners in Chrome/Electron, which makes
+  // preventDefault() a no-op and breaks Cmd+scroll zoom and pinch-to-zoom.
+  // Uses callback ref — guaranteed to fire when the conditionally-rendered
+  // body div mounts (useRef+useEffect missed it on mount with 0 tracks).
+  const prevBodyEl = useRef<HTMLDivElement | null>(null)
+  const prevWheelHandler = useRef<((e: WheelEvent) => void) | null>(null)
+  const bodyRef = useCallback((el: HTMLDivElement | null) => {
+    if (prevBodyEl.current && prevWheelHandler.current) {
+      prevBodyEl.current.removeEventListener('wheel', prevWheelHandler.current)
     }
+    prevBodyEl.current = el
+    prevWheelHandler.current = null
+    if (!el) return
+    const handler = (e: WheelEvent) => {
+      const ts = useTimelineStore.getState()
+      // Cmd+scroll = zoom. Pinch-to-zoom on macOS trackpad sets ctrlKey in
+      // Chrome/Electron (even with setVisualZoomLevelLimits(1,1)).
+      if (e.metaKey || e.ctrlKey) {
+        e.preventDefault()
+        // Scale delta proportionally — faster zoom at higher levels
+        const factor = e.deltaY > 0 ? 0.9 : 1.1
+        ts.setZoom(Math.max(0.5, Math.min(500, ts.zoom * factor)))
+      } else {
+        // Plain scroll = horizontal pan — clamp to content bounds
+        const maxScroll = Math.max(0, (ts.duration + 1) * ts.zoom - (el?.clientWidth ?? 800))
+        ts.setScrollX(Math.max(0, Math.min(maxScroll, ts.scrollX + e.deltaX)))
+      }
+    }
+
+    // macOS trackpad pinch gesture (fires as 'gesturechange' in Electron/WebKit)
+    const gestureHandler = (e: Event) => {
+      e.preventDefault()
+      const ge = e as unknown as { scale: number }
+      if (typeof ge.scale !== 'number') return
+      const ts = useTimelineStore.getState()
+      ts.setZoom(Math.max(0.5, Math.min(500, ts.zoom * ge.scale)))
+    }
+    prevWheelHandler.current = handler
+    el.addEventListener('wheel', handler, { passive: false })
+    el.addEventListener('gesturechange', gestureHandler as EventListener)
+    el.addEventListener('gesturestart', (e) => e.preventDefault())  // prevent native zoom
   }, [])
 
-  // Width of the scrollable area based on duration
-  // Always add 20% runway past the end so user can scroll beyond, never shrink below viewport
-  const durationWidth = (duration + Math.max(10, duration * 0.2)) * zoom
-  const contentWidth = Math.max(2000, durationWidth)
+  // Width = exactly clip duration + 1s buffer. No wasted space.
+  const contentWidth = (duration + 1) * zoom
 
   if (tracks.length === 0) {
     return (
@@ -136,7 +169,8 @@ export default function Timeline({
         onPointerUp={handleResizeUp}
       />
       <div className={`timeline__drop-highlight ${isDragOver ? 'timeline__drop-highlight--active' : ''}`} />
-      <div className="timeline__body" onWheel={handleWheel}>
+      {/* Transport bar moved to app__transport-bar at top of screen */}
+      <div className="timeline__body" ref={bodyRef}>
         {/* Left: track headers */}
         <div className="timeline__headers">
           <div className="timeline__headers-spacer">
@@ -202,6 +236,9 @@ export default function Timeline({
                   scrollX={scrollX}
                   isSelected={track.id === selectedTrackId}
                   selectedClipIds={selectedClipIds}
+                  waveformPeaks={waveformPeaks}
+                  clipThumbnails={clipThumbnails}
+                  onSeek={onSeek}
                 />
               ))}
               <Playhead time={playheadTime} zoom={zoom} scrollX={scrollX} onSeek={onSeek} />
@@ -209,74 +246,7 @@ export default function Timeline({
           </div>
         </div>
       </div>
-      <div className="timeline__footer">
-        <div className="timeline__transport">
-          {onPlayPause && (
-            <button
-              className={`timeline__transport-btn ${isPlaying ? 'timeline__transport-btn--active' : ''}`}
-              onClick={onPlayPause}
-              title={isPlaying ? 'Pause' : 'Play'}
-            >
-              {isPlaying ? '⏸' : '▶'}
-            </button>
-          )}
-          {onStop && (
-            <button className="timeline__transport-btn" onClick={onStop} title="Stop">
-              ⏹
-            </button>
-          )}
-          {onToggleLoop && (
-            <button
-              className={`timeline__transport-btn ${loopEnabled ? 'timeline__transport-btn--active' : ''}`}
-              onClick={onToggleLoop}
-              title={loopEnabled ? 'Disable loop' : 'Enable loop'}
-            >
-              🔁
-            </button>
-          )}
-        </div>
-        <span className="timeline__timecode">
-          {formatTimecode(playheadTime)} / {formatTimecode(duration)}
-        </span>
-        {onBpmChange && (
-          <div className="timeline__bpm">
-            <label className="timeline__bpm-label">BPM</label>
-            <input
-              className="timeline__bpm-input"
-              type="number"
-              min={1}
-              max={300}
-              value={bpm ?? 120}
-              onChange={(e) => onBpmChange(Number(e.target.value))}
-            />
-          </div>
-        )}
-        {onToggleQuantize && (
-          <div className="timeline__quant">
-            <button
-              className={`timeline__transport-btn ${quantizeEnabled ? 'timeline__transport-btn--active' : ''}`}
-              onClick={onToggleQuantize}
-              title="Toggle quantize (Cmd+U)"
-            >
-              Q
-            </button>
-            {onQuantizeDivisionChange && (
-              <select
-                className="timeline__quant-select"
-                value={quantizeDivision}
-                onChange={(e) => onQuantizeDivisionChange(Number(e.target.value))}
-              >
-                {QUANT_DIVISIONS.map((d) => (
-                  <option key={d} value={d}>{QUANT_LABELS[d]}</option>
-                ))}
-              </select>
-            )}
-          </div>
-        )}
-        <button className="timeline__collapse-btn" onClick={() => useLayoutStore.getState().toggleTimeline()} title="Collapse timeline">
-          &#9660;
-        </button>
-      </div>
+      {/* Transport bar moved to timeline__toolbar above the body */}
     </div>
   )
 }

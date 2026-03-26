@@ -859,8 +859,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   // --- View (NOT undoable — UI state) ---
 
-  setZoom: (pxPerSec) => set({ zoom: Math.max(10, Math.min(200, pxPerSec)) }),
-  setScrollX: (px) => set({ scrollX: Math.max(0, px) }),
+  setZoom: (pxPerSec) => set({ zoom: Math.max(0.5, Math.min(500, pxPerSec)) }),
+  setScrollX: (px) => {
+    const { duration, zoom } = get()
+    const maxScroll = Math.max(0, (duration + 1) * zoom)
+    set({ scrollX: Math.max(0, Math.min(maxScroll, px)) })
+  },
 
   // --- Selection (NOT undoable — UI state) ---
 

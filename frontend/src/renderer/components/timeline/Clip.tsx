@@ -1,8 +1,10 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
+import { downsamplePeaks } from '../transport/useWaveform'
+import type { WaveformPeaks } from '../transport/useWaveform'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 
@@ -22,13 +24,82 @@ interface ClipProps {
   scrollX: number
   isSelected: boolean
   assetName: string
+  waveformPeaks?: WaveformPeaks | null
+  assetDuration?: number
+  thumbnails?: { time: number; data: string }[]
 }
 
-export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName }: ClipProps) {
+export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
   const isDragging = useRef(false)
   const dragStartX = useRef(0)
   const dragStartPos = useRef(0)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+
+  // Mini waveform canvas
+  const waveCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [waveWidth, setWaveWidth] = useState(0)
+
+  // ResizeObserver to track clip pixel width for the waveform canvas
+  useEffect(() => {
+    const canvas = waveCanvasRef.current
+    if (!canvas) return
+    const parent = canvas.parentElement
+    if (!parent) return
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWaveWidth(Math.floor(entry.contentRect.width))
+      }
+    })
+    observer.observe(parent)
+    setWaveWidth(Math.floor(parent.clientWidth))
+
+    return () => observer.disconnect()
+  }, [])
+
+  // Draw the mini waveform slice corresponding to clip's inPoint/outPoint
+  useEffect(() => {
+    const canvas = waveCanvasRef.current
+    if (!canvas || !waveformPeaks || waveformPeaks.length === 0 || waveWidth <= 0) return
+
+    const totalPeaks = waveformPeaks.length
+    const totalDur = assetDuration && assetDuration > 0 ? assetDuration : clip.outPoint
+
+    // Determine which slice of peaks corresponds to clip's in/out range
+    const startFrac = Math.max(0, Math.min(1, clip.inPoint / totalDur))
+    const endFrac = Math.max(0, Math.min(1, clip.outPoint / totalDur))
+    const startIdx = Math.floor(startFrac * totalPeaks)
+    const endIdx = Math.min(totalPeaks, Math.ceil(endFrac * totalPeaks))
+    const slicedPeaks = waveformPeaks.slice(startIdx, endIdx)
+
+    const dpr = window.devicePixelRatio || 1
+    const logicalWidth = waveWidth
+    const logicalHeight = canvas.clientHeight || 30  // bottom half of 60px track
+
+    canvas.width = logicalWidth * dpr
+    canvas.height = logicalHeight * dpr
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.scale(dpr, dpr)
+    ctx.clearRect(0, 0, logicalWidth, logicalHeight)
+
+    const bins = downsamplePeaks(slicedPeaks, logicalWidth)
+    if (bins.length === 0) return
+
+    const midY = logicalHeight / 2
+    ctx.fillStyle = '#4ade80'  // bright green — visible on dark clip background
+    const binWidth = logicalWidth / bins.length
+
+    for (let i = 0; i < bins.length; i++) {
+      const { min, max } = bins[i]
+      const top = midY - max * midY
+      const bottom = midY - min * midY
+      const barHeight = Math.max(1, bottom - top)
+      ctx.fillRect(i * binWidth, top, Math.max(1, binWidth - 0.5), barHeight)
+    }
+  }, [waveformPeaks, assetDuration, clip.inPoint, clip.outPoint, waveWidth])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -196,6 +267,25 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
+        {thumbnails && thumbnails.length > 0 && (
+          <div className="clip__thumbnails">
+            {thumbnails.map((thumb, i) => (
+              <img
+                key={i}
+                src={`data:image/jpeg;base64,${thumb.data}`}
+                className="clip__thumb"
+                draggable={false}
+              />
+            ))}
+          </div>
+        )}
+        {waveformPeaks && waveformPeaks.length > 0 && (
+          <canvas
+            ref={waveCanvasRef}
+            className="clip__waveform"
+            style={{ width: '100%', height: '100%' }}
+          />
+        )}
         <div
           className="clip__trim-handle clip__trim-handle--left"
           onPointerDown={handleTrimLeftDown}

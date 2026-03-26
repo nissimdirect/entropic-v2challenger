@@ -135,6 +135,7 @@ function AppInner() {
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
   const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
+  const [clipThumbnails, setClipThumbnails] = useState<{ time: number; data: string }[]>([])
 
   // Startup diagnostics state
   const { telemetryConsent, consentChecked, checkConsent, setConsent } = useSettingsStore()
@@ -152,6 +153,7 @@ function AppInner() {
   const pendingFrameRef = useRef<number | null>(null)
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
+  const handlePlayPauseRef = useRef<() => void>(() => {})
   const renderSeqRef = useRef(0)
   const lastDisabledEffectsRef = useRef<string>('')
 
@@ -241,13 +243,18 @@ function AppInner() {
     shortcutRegistry.register('redo', () => useUndoStore.getState().redo())
     shortcutRegistry.register('zoom_in', () => {
       const z = useTimelineStore.getState().zoom
-      useTimelineStore.getState().setZoom(z + 10)
+      useTimelineStore.getState().setZoom(Math.min(500, z * 1.25))
     })
     shortcutRegistry.register('zoom_out', () => {
       const z = useTimelineStore.getState().zoom
-      useTimelineStore.getState().setZoom(z - 10)
+      useTimelineStore.getState().setZoom(Math.max(0.5, z * 0.8))
     })
-    shortcutRegistry.register('zoom_fit', () => useTimelineStore.getState().setZoom(50))
+    shortcutRegistry.register('zoom_fit', () => {
+      const dur = useTimelineStore.getState().duration
+      // Fit entire duration in ~80% of viewport width
+      const viewportWidth = window.innerWidth * 0.6
+      useTimelineStore.getState().setZoom(Math.max(0.5, viewportWidth / Math.max(1, dur)))
+    })
     shortcutRegistry.register('save', () => saveProject())
     shortcutRegistry.register('open', () => loadProject())
     shortcutRegistry.register('new_project', () => newProject())
@@ -302,6 +309,14 @@ function AppInner() {
         })
       }
     })
+    shortcutRegistry.register('play_pause', () => {
+      const audio = useAudioStore.getState()
+      if (audio.isLoaded) {
+        audio.togglePlayback()
+      } else {
+        handlePlayPauseRef.current()
+      }
+    })
     shortcutRegistry.register('import_media', () => handleImportMedia())
     shortcutRegistry.register('add_text_track', () => handleAddTextTrack())
     shortcutRegistry.register('toggle_quantize', () => useLayoutStore.getState().toggleQuantize())
@@ -351,6 +366,16 @@ function AppInner() {
 
         // Consume bare keys in perform mode (block i/o shortcuts etc.)
         e.preventDefault()
+        return
+      }
+
+      // Direct spacebar → play/pause (bypasses registry — most reliable)
+      if (e.code === 'Space') {
+        e.preventDefault()
+        const audio = useAudioStore.getState()
+        if (audio.isLoaded) {
+          audio.togglePlayback()
+        }
         return
       }
 
@@ -675,8 +700,7 @@ function AppInner() {
         const trackId = timeline.addTrack(trackName, trackColor)
         if (trackId) {
           const clipDuration = isImage ? 5 : (res.duration_s as number)
-          // Place clip after existing content (append, don't stack at 0)
-          const timelineEnd = useTimelineStore.getState().duration
+          // Place new clips at position 0 on their own track (NLE convention)
           // Auto-fit transform: scale media to fit project canvas
           const canvasW = frameWidth || 1920
           const canvasH = frameHeight || 1080
@@ -693,7 +717,7 @@ function AppInner() {
             id: randomUUID(),
             assetId: asset.id,
             trackId,
-            position: timelineEnd,
+            position: 0,
             duration: clipDuration,
             inPoint: 0,
             outPoint: clipDuration,
@@ -735,6 +759,24 @@ function AppInner() {
         // This ensures the user sees the video immediately regardless of effects.
         // The useEffect hook will then trigger a re-render with the current effectChain.
         await requestRenderFrame(0, [])
+
+        // Auto-fit zoom so the entire clip is visible on import
+        const clipDur = isImage ? 5 : (res.duration_s as number)
+        if (clipDur > 0) {
+          const viewW = window.innerWidth * 0.6 // approximate timeline viewport width
+          const fitZoom = Math.max(0.5, Math.min(500, viewW / clipDur))
+          useTimelineStore.getState().setZoom(fitZoom)
+          useTimelineStore.getState().setScrollX(0)
+        }
+
+        // Load clip thumbnails for timeline display (fire-and-forget)
+        if (!isImage && window.entropic) {
+          window.entropic.sendCommand({ cmd: 'thumbnails', path, count: 12 }).then((thumbRes: Record<string, unknown>) => {
+            if (thumbRes.ok && Array.isArray(thumbRes.thumbnails)) {
+              setClipThumbnails(thumbRes.thumbnails as { time: number; data: string }[])
+            }
+          }).catch(() => { /* thumbnails are optional */ })
+        }
       } else {
         setIngestError(res.error as string)
         setPreviewState('empty')
@@ -865,9 +907,13 @@ function AppInner() {
           }
           break
         }
-        case 'zoom-in': useTimelineStore.getState().setZoom(useTimelineStore.getState().zoom + 10); break
-        case 'zoom-out': useTimelineStore.getState().setZoom(useTimelineStore.getState().zoom - 10); break
-        case 'zoom-fit': useTimelineStore.getState().setZoom(50); break
+        case 'zoom-in': useTimelineStore.getState().setZoom(Math.min(500, useTimelineStore.getState().zoom * 1.25)); break
+        case 'zoom-out': useTimelineStore.getState().setZoom(Math.max(0.5, useTimelineStore.getState().zoom * 0.8)); break
+        case 'zoom-fit': {
+          const dur = useTimelineStore.getState().duration
+          useTimelineStore.getState().setZoom(Math.max(0.5, (window.innerWidth * 0.6) / Math.max(1, dur)))
+          break
+        }
         case 'show-shortcuts': setShowPreferences(true); break
         case 'show-feedback': setShowFeedbackDialog(true); break
         default:
@@ -962,6 +1008,7 @@ function AppInner() {
       setIsTimerPlaying((prev) => !prev)
     }
   }, [hasAudio, audioStore])
+  handlePlayPauseRef.current = handlePlayPause
 
   const handleStop = useCallback(() => {
     if (hasAudio && audioStore.isLoaded) {
@@ -985,8 +1032,13 @@ function AppInner() {
 
   // Clock sync loop: when audio is playing, poll audio position at ~60Hz
   // and drive video frame from audio clock (audio is master, video is slave)
+  //
+  // IMPORTANT: Dependencies must NOT include the entire audioStore object.
+  // syncClock() calls set() on the store, which would trigger effect cleanup
+  // and restart the RAF loop on every frame — killing playback.
+  const audioIsPlaying = useAudioStore((s) => s.isPlaying)
   useEffect(() => {
-    if (!hasAudio || !audioStore.isPlaying) {
+    if (!hasAudio || !audioIsPlaying) {
       if (clockSyncRafRef.current !== null) {
         cancelAnimationFrame(clockSyncRafRef.current)
         clockSyncRafRef.current = null
@@ -995,9 +1047,13 @@ function AppInner() {
     }
 
     let lastFrame = -1
+    let cancelled = false
 
     const tick = async () => {
-      await audioStore.syncClock()
+      if (cancelled) return
+      const store = useAudioStore.getState()
+      await store.syncClock()
+      if (cancelled) return
       const { targetFrame, currentTime } = useAudioStore.getState()
       if (targetFrame !== lastFrame) {
         lastFrame = targetFrame
@@ -1008,22 +1064,25 @@ function AppInner() {
       // Loop region: when playhead reaches loop out, jump back to loop in
       const loopRegion = useTimelineStore.getState().loopRegion
       if (loopRegion && currentTime >= loopRegion.out) {
-        audioStore.seek(loopRegion.in)
+        await useAudioStore.getState().seek(loopRegion.in)
         useTimelineStore.getState().setPlayheadTime(loopRegion.in)
       }
 
-      clockSyncRafRef.current = requestAnimationFrame(tick)
+      if (!cancelled) {
+        clockSyncRafRef.current = requestAnimationFrame(tick)
+      }
     }
 
     clockSyncRafRef.current = requestAnimationFrame(tick)
 
     return () => {
+      cancelled = true
       if (clockSyncRafRef.current !== null) {
         cancelAnimationFrame(clockSyncRafRef.current)
         clockSyncRafRef.current = null
       }
     }
-  }, [hasAudio, audioStore.isPlaying, setCurrentFrame, audioStore])
+  }, [hasAudio, audioIsPlaying, setCurrentFrame])
 
   // Timer-based playback loop for silent videos (no audio)
   // Only runs when there's no audio to drive the clock
@@ -1248,6 +1307,66 @@ function AppInner() {
       onDrop={handleGlobalDrop}
     >
       <UpdateBanner />
+      <div className="app__transport-bar">
+        <div className="app__transport-controls">
+          <button
+            className={`app__transport-btn ${isPlaying ? 'app__transport-btn--active' : ''}`}
+            onClick={handlePlayPause}
+            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          >
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button className="app__transport-btn" onClick={handleStop} title="Stop">
+            ⏹
+          </button>
+        </div>
+        <span className="app__transport-timecode">
+          {(() => {
+            const t = useTimelineStore.getState().playheadTime
+            const m = Math.floor(t / 60)
+            const s = t % 60
+            return `${m}:${s.toFixed(1).padStart(4, '0')}`
+          })()}
+          {' / '}
+          {(() => {
+            const t = useTimelineStore.getState().duration
+            const m = Math.floor(t / 60)
+            const s = t % 60
+            return `${m}:${s.toFixed(1).padStart(4, '0')}`
+          })()}
+        </span>
+        <div className="app__transport-bpm">
+          <label>BPM</label>
+          <input
+            type="number"
+            min={1}
+            max={300}
+            value={projectBpm}
+            onChange={(e) => useProjectStore.getState().setBpm(Number(e.target.value))}
+          />
+        </div>
+        <div className="app__transport-quant">
+          <button
+            className={`app__transport-btn ${quantizeEnabled ? 'app__transport-btn--active' : ''}`}
+            onClick={() => useLayoutStore.getState().toggleQuantize()}
+            title="Toggle quantize grid (Cmd+U)"
+          >
+            Q
+          </button>
+          <select
+            className="app__transport-select"
+            value={quantizeDivision}
+            onChange={(e) => useLayoutStore.getState().setQuantizeDivision(Number(e.target.value))}
+          >
+            <option value={1}>1/1</option>
+            <option value={2}>1/2</option>
+            <option value={4}>1/4</option>
+            <option value={8}>1/8</option>
+            <option value={16}>1/16</option>
+            <option value={32}>1/32</option>
+          </select>
+        </div>
+      </div>
       <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />
       <div className="app__sidebar" style={sidebarCollapsed ? { display: 'none' } : undefined}>
         {!hasAssets && (
@@ -1398,10 +1517,6 @@ function AppInner() {
             isMuted={audioStore.isMuted}
             onVolumeChange={(v) => audioStore.setVolume(v)}
             onToggleMute={() => audioStore.toggleMute()}
-            waveformPeaks={waveformPeaks}
-            audioDuration={audioStore.duration}
-            audioCurrentTime={audioStore.currentTime}
-            onAudioSeek={handleAudioSeek}
           />
         </div>
         {/* Phase 13C: ParamPanel removed — replaced by inline params in DeviceChain */}
@@ -1450,6 +1565,8 @@ function AppInner() {
               quantizeDivision={quantizeDivision}
               onToggleQuantize={() => useLayoutStore.getState().toggleQuantize()}
               onQuantizeDivisionChange={(d) => useLayoutStore.getState().setQuantizeDivision(d)}
+              waveformPeaks={waveformPeaks}
+              clipThumbnails={clipThumbnails}
             />
             <AutomationToolbar />
           </>

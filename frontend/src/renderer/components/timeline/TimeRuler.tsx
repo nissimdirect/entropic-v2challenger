@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect } from 'react'
+import { useTimelineStore } from '../../stores/timeline'
 
 interface TimeRulerProps {
   zoom: number
@@ -36,12 +37,15 @@ export default function TimeRuler({ zoom, scrollX, duration, onSeek }: TimeRuler
 
     ctx.clearRect(0, 0, width, height)
 
-    // Determine tick spacing based on zoom
-    let majorInterval = 1 // seconds
-    if (zoom < 20) majorInterval = 10
-    else if (zoom < 40) majorInterval = 5
-    else if (zoom < 80) majorInterval = 2
-    else if (zoom >= 80) majorInterval = 1
+    // Determine tick spacing based on zoom — target ~80-150px between major ticks
+    const targetPx = 100
+    const rawInterval = targetPx / zoom // seconds per major tick at ideal spacing
+    // Snap to nice intervals: 1, 2, 5, 10, 15, 30, 60, 120, 300, 600...
+    const niceIntervals = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800]
+    let majorInterval = niceIntervals[niceIntervals.length - 1]
+    for (const ni of niceIntervals) {
+      if (ni >= rawInterval) { majorInterval = ni; break }
+    }
 
     const minorInterval = majorInterval / 4
 
@@ -86,19 +90,55 @@ export default function TimeRuler({ zoom, scrollX, duration, onSeek }: TimeRuler
     return () => observer.disconnect()
   }, [draw])
 
-  const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const rect = e.currentTarget.getBoundingClientRect()
-      const x = e.clientX - rect.left
-      const time = (x + scrollX) / zoom
-      onSeek(Math.max(0, time))
+  // Drag-to-zoom (vertical drag on ruler) + click-to-seek
+  const dragRef = useRef<{ startY: number; startZoom: number; moved: boolean } | null>(null)
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const ts = useTimelineStore.getState()
+      dragRef.current = { startY: e.clientY, startZoom: ts.zoom, moved: false }
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [],
+  )
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      if (!dragRef.current) return
+      const dy = dragRef.current.startY - e.clientY // drag up = positive = zoom in
+      if (Math.abs(dy) > 3) dragRef.current.moved = true
+      if (!dragRef.current.moved) return
+      const factor = Math.pow(1.01, dy) // smooth exponential zoom
+      const newZoom = Math.max(0.5, Math.min(500, dragRef.current.startZoom * factor))
+      useTimelineStore.getState().setZoom(newZoom)
+    },
+    [],
+  )
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLCanvasElement>) => {
+      const wasDrag = dragRef.current?.moved
+      dragRef.current = null
+      // If it was a click (no drag), seek to that position
+      if (!wasDrag) {
+        const rect = e.currentTarget.getBoundingClientRect()
+        const x = e.clientX - rect.left
+        const time = (x + scrollX) / zoom
+        onSeek(Math.max(0, time))
+      }
     },
     [scrollX, zoom, onSeek],
   )
 
   return (
     <div className="time-ruler">
-      <canvas ref={canvasRef} className="time-ruler__canvas" onClick={handleClick} />
+      <canvas
+        ref={canvasRef}
+        className="time-ruler__canvas"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+      />
     </div>
   )
 }
