@@ -462,6 +462,49 @@ These tests CANNOT be done via computer use and require a human:
 
 ---
 
+## REMAINING WORK — For /eng pickup
+
+### Priority 1: Fix unfixed bugs (7 bugs, all Low/Medium severity)
+| Bug | Severity | File | What to fix |
+|-----|----------|------|-------------|
+| BUG-5 | Low | KnobControl component | Add scroll wheel event handler |
+| BUG-6 | Low | EffectBrowser.tsx sidebar | Make effect list scrollable independently of tags |
+| BUG-7 | Low | App.tsx handleNewProject | Clear frameDataUrl + canvas on Cmd+N |
+| BUG-9 | Medium | KnobControl component | Wire double-click on value to NumberInput |
+| BUG-10 | Low | KnobControl component | Add keyboard focus + arrow key handlers |
+| BUG-11 | Low | Track header component | Double-click rename unreliable (right-click menu works) |
+| BUG-8 | Low | Export dialog positioning | Position dialog higher to avoid dock overlap |
+
+### Priority 2: Remaining testable tests (~85 tests)
+| Section | Tests | What to test | Method |
+|---------|-------|-------------|--------|
+| 7: Timeline | 129-133 | Track opacity slider + blend mode dropdown | Computer use |
+| 7: Timeline | 138-139 | Clip trim (drag edges) | Computer use (precise edge grab needed) |
+| 7: Timeline | 142-144 | Loop region set + playback | Computer use |
+| 7: Timeline | 145-148 | Markers (Cmd+M, click, delete) | Computer use |
+| 8: Undo | 160, 164, 166 | Undo reorder, undo trim, undo marker | Computer use |
+| 17: Stress | 223-228 | Full chain export, large video, boundary params | Computer use + manual |
+| 19: Interactions | 239, 242, 255-262 | Knob double-click, slider interactions, file format tests | Computer use |
+| 20: Security | 278-283 | Symlink rejection, max frames, context isolation | Manual with crafted files |
+
+### Priority 3: Genuinely needs human tester (~135 tests)
+| Section | Tests | Why |
+|---------|-------|-----|
+| 6: Audio | 99-110 | Need ears for playback/sync/volume |
+| 14: Operators | 301-333 | No UI wired yet — store only |
+| 15: Modulation | 334-359 | No UI wired yet — store only |
+| 16: Automation | 360-419 | Automation lanes need operator mappings first |
+| 18: Integration | 232-238 | Full export E2E needs manual verification |
+
+### How to continue this UAT via /eng
+1. `cd ~/Development/entropic-v2challenger/frontend && npm start`
+2. Request computer use access for "Electron" (full tier)
+3. Reference `docs/UAT-UIT-GUIDE.md` for test steps
+4. Test videos at `test-assets/test-video.mp4` and `test-assets/test-video-audio.mp4`
+5. Update THIS file with results, commit to `feat/ux-redesign-phases-12-16`
+
+---
+
 ## Test Infrastructure Notes
 
 - **Computer use tier:** Full (click + type + key) for Electron dev mode
@@ -470,3 +513,5 @@ These tests CANNOT be done via computer use and require a human:
 - **Test video w/ audio:** `test-assets/test-video-audio.mp4` (5s, 1280x720, 30fps, color bars + 440Hz sine)
 - **All 1147 unit tests pass** after bug fixes
 - **Build time:** ~600ms (electron-vite build)
+- **Branch:** `feat/ux-redesign-phases-12-16`
+- **UAT Guide:** `docs/UAT-UIT-GUIDE.md` (574 total tests, v4.3)

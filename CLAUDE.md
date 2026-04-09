@@ -41,6 +41,13 @@ Always check these BEFORE asking the user to reproduce. The crash data is the re
 - Frontend E2E: `cd frontend && npx playwright test`
 - Single backend file: `python -m pytest tests/test_<name>.py -x --tb=short`
 
+## Visual UAT (Computer Use)
+
+- **UAT Guide:** `docs/UAT-UIT-GUIDE.md` (574 tests, v4.3)
+- **Latest Results:** `docs/UAT-RESULTS-2026-04-09.md` (230/574 click-verified, 11 bugs, 4 fixed)
+- **Remaining work:** See "REMAINING WORK" section in results doc — prioritized by fix/test/human
+- **How to run:** Launch app (`cd frontend && npm start`), request computer use for "Electron", follow guide
+
 ## Conventions
 
 - Effects are pure functions: `(frame, params, state_in) -> (result, state_out)`
