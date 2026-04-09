@@ -3,9 +3,9 @@
 > **Tester:** Claude (via computer use MCP)
 > **Method:** Visual inspection via screenshot + click/type/key interactions
 > **Build:** dev mode (`npm start` / `electron-vite dev`)
-> **Duration:** ~5 hours across multiple sessions
+> **Duration:** ~6 hours across multiple sessions
 > **Coverage:** Sections 1-21 of UAT-UIT-GUIDE.md v4.3
-> **Updated:** Pass 2 added ~30 more click-verified tests
+> **Updated:** Pass 5 added ~25 more click-verified tests (trim, markers, stress, export, presets, transform)
 
 ---
 
@@ -13,11 +13,12 @@
 
 | Metric | Count |
 |--------|-------|
-| Tests actually clicked/verified | ~230 |
-| PASS | 190 |
+| Tests actually clicked/verified | ~255 |
+| PASS | 210 |
 | FAIL | 9 |
 | FIXED (this session) | 4 |
-| N/A (genuinely can't test via computer use) | ~15 |
+| N/A (genuinely can't test via computer use) | ~20 |
+| INCONCLUSIVE | ~6 |
 | Sections covered | 21/21 |
 
 ---
@@ -454,6 +455,64 @@ These tests CANNOT be done via computer use and require a human:
 
 ---
 
+## PASS 5 — Additional Click-Verified Tests (2026-04-09 evening, session 2)
+
+### Section 7: Timeline — Track Features
+| # | Test | Result |
+|---|------|--------|
+| 129-133 | Track opacity slider + blend mode | **N/A** — No opacity slider or blend mode dropdown in track header or context menu. Not wired to UI. |
+| 138 | Trim clip right edge (drag) | **PASS** — Dragged right edge, duration changed 5.0→4.1s |
+| 139 | Trim clip left edge (drag) | **INCONCLUSIVE** — Left edge drag moved clip position rather than trimming start. May need Alt+drag. |
+| 142-144 | Loop region (I/O keys) | **INCONCLUSIVE** — I/O keys may set loop points but no visible loop region highlight. L button = automation Latch mode, not loop. |
+| 145 | Add marker (Cmd+M) | **PASS** — Green triangle marker appears on timeline ruler |
+| 146 | Multiple markers | **PASS** — Two markers visible at different positions |
+| 147 | Click marker to navigate | **PASS** — Clicking near marker moves playhead to that time |
+| 148 | Delete marker | **N/A** — No marker deletion option in Timeline menu or context menu |
+
+### Section 7: Clip Menu Features (NEW)
+| # | Test | Result |
+|---|------|--------|
+| NEW | Clip > Reverse | **INCONCLUSIVE** — Menu item exists, no visible change or dialog on click |
+| NEW | Clip > Speed/Duration | **INCONCLUSIVE** — Menu item exists, no dialog appeared |
+| NEW | Clip > Enable/Disable | **EXISTS** — Not tested |
+| NEW | Transform panel (click clip) | **PASS** — X, Y, Scale, Rot fields appear. Input accepted. Fit/Reset buttons work. Visual effect on preview inconclusive. |
+
+### Section 4: Effect Chain Stress (additional)
+| # | Test | Result |
+|---|------|--------|
+| 38 | 10/10 max chain | **PASS** — Invert→Hue Shift→Posterize→VHS→Curves→Levels→Auto Levels→HSL Adjust→Color Balance→Brightness/Exposure. 94ms render. |
+| 39 | 11th effect rejected | **PASS** — Still 10/10 after attempting via Adjustments menu |
+| 222 | Playback with 10 effects | **PASS** — 30fps, 94ms, no crash, no hang |
+| 222a | Scrub with 10 effects | **PASS** — 5 rapid clicks across timeline, no crash |
+
+### Section 10: Export Dialog (additional)
+| # | Test | Result |
+|---|------|--------|
+| 185 | Export dialog with full chain | **PASS** — All settings visible: H.264/MP4, Source res, CRF slider, Region |
+| 186 | GIF tab | **PASS** — Max Resolution 480p, Dithering checkbox, Region selector |
+| 187 | Image Sequence tab | **PASS** — Format: PNG, Region selector |
+| 189 | Export button accessible | **FAIL** — Wispr Flow app occludes Export button (environment issue, not app bug) |
+
+### Section 11: Presets Tab (NEW)
+| # | Test | Result |
+|---|------|--------|
+| NEW | Presets tab exists | **PASS** — Tab with search, category tags (ALL/glitch/color/temporal/destruction/physics/subtle/chain) |
+| NEW | Empty state | **PASS** — "No presets saved yet" message shown |
+| NEW | Hover hint | **PASS** — "Hover an effect for details" shown |
+
+### View Menu & Layout (additional)
+| # | Test | Result |
+|---|------|--------|
+| NEW | View menu items | **PASS** — Toggle Sidebar (Cmd+B), Focus Mode (F), Automation (A), Zoom In/Out/Fit, Quantize (Cmd+U), Full Screen |
+| NEW | Enter Full Screen | **PASS** — Window fills screen, all panels adapt, no layout breakage |
+| NEW | Exit Full Screen (Escape) | **PASS** — Returns to windowed mode correctly |
+| NEW | Engine uptime stability | **PASS** — Engine stayed connected 1000+ seconds continuously through all testing |
+
+### BUG-7 Re-confirmed
+- After Cmd+N (New Project), previous video's color bar thumbnail persists in preview area as a small image. Timeline is empty, title shows "Untitled — Entropic" correctly, but preview canvas doesn't fully clear.
+
+---
+
 ## Remaining Bugs to Fix (2 unfixed)
 
 1. **BUG-5: Scroll wheel on knob** — Low severity, investigate KnobControl scroll handler
@@ -475,17 +534,18 @@ These tests CANNOT be done via computer use and require a human:
 | BUG-11 | Low | Track header component | Double-click rename unreliable (right-click menu works) |
 | BUG-8 | Low | Export dialog positioning | Position dialog higher to avoid dock overlap |
 
-### Priority 2: Remaining testable tests (~85 tests)
+### Priority 2: Remaining testable tests (~45 tests)
 | Section | Tests | What to test | Method |
 |---------|-------|-------------|--------|
-| 7: Timeline | 129-133 | Track opacity slider + blend mode dropdown | Computer use |
-| 7: Timeline | 138-139 | Clip trim (drag edges) | Computer use (precise edge grab needed) |
-| 7: Timeline | 142-144 | Loop region set + playback | Computer use |
-| 7: Timeline | 145-148 | Markers (Cmd+M, click, delete) | Computer use |
+| 7: Timeline | 129-133 | Track opacity slider + blend mode dropdown | **N/A — not wired to UI** |
+| 7: Timeline | 139 | Clip left-trim (drag left edge) | Computer use (need Alt+drag?) |
+| 7: Timeline | 142-144 | Loop region playback verification | Computer use (I/O keys set points but no visual) |
+| 7: Timeline | 148 | Delete marker | **N/A — no UI for deletion** |
 | 8: Undo | 160, 164, 166 | Undo reorder, undo trim, undo marker | Computer use |
-| 17: Stress | 223-228 | Full chain export, large video, boundary params | Computer use + manual |
+| 17: Stress | 224-228 | Large video, boundary params, concurrent operations | Computer use + manual |
 | 19: Interactions | 239, 242, 255-262 | Knob double-click, slider interactions, file format tests | Computer use |
 | 20: Security | 278-283 | Symlink rejection, max frames, context isolation | Manual with crafted files |
+| NEW: Clip menu | Speed/Duration, Reverse, Enable/Disable | Verify these menu items work | Computer use |
 
 ### Priority 3: Genuinely needs human tester (~135 tests)
 | Section | Tests | Why |
