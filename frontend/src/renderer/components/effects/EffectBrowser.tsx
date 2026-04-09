@@ -34,10 +34,21 @@ export default function EffectBrowser({
     }
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
+      // Subsequence match: all chars of query appear in order in target
+      // e.g. "dtmsh" matches "datamosh" (d-a-t-a-m-o-s-h)
+      const subseqMatch = (target: string, query: string): boolean => {
+        let qi = 0
+        for (let i = 0; i < target.length && qi < query.length; i++) {
+          if (target[i] === query[qi]) qi++
+        }
+        return qi === query.length
+      }
       effects = effects.filter(
         (e) =>
           e.name.toLowerCase().includes(q) ||
-          e.id.toLowerCase().includes(q),
+          e.id.toLowerCase().includes(q) ||
+          subseqMatch(e.name.toLowerCase(), q) ||
+          subseqMatch(e.id.toLowerCase(), q),
       )
     }
     return effects

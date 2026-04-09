@@ -136,8 +136,23 @@ export function buildMenu(mainWindow: BrowserWindow): void {
     ],
   }
 
+  const appMenu: MenuItemConstructorOptions = {
+    label: 'Entropic',
+    submenu: [
+      { role: 'about', label: 'About Entropic' },
+      { type: 'separator' },
+      { role: 'services' },
+      { type: 'separator' },
+      { role: 'hide', label: 'Hide Entropic' },
+      { role: 'hideOthers' },
+      { role: 'unhide' },
+      { type: 'separator' },
+      { role: 'quit', label: 'Quit Entropic' },
+    ],
+  }
+
   const template: MenuItemConstructorOptions[] = [
-    ...(isMac ? [{ role: 'appMenu' as const }] : []),
+    ...(isMac ? [appMenu] : []),
     fileMenu,
     editMenu,
     selectMenu,

@@ -85,6 +85,7 @@ function AppInner() {
     ingestError,
     projectName,
     addAsset,
+    removeAsset,
     addEffect,
     removeEffect,
     reorderEffect,
@@ -366,6 +367,14 @@ function AppInner() {
 
         // Consume bare keys in perform mode (block i/o shortcuts etc.)
         e.preventDefault()
+        return
+      }
+
+      // Escape in normal mode → stop (reset playhead to 0)
+      // Dispatches custom event — handled by a separate useEffect with proper deps
+      if (e.code === 'Escape') {
+        e.preventDefault()
+        window.dispatchEvent(new Event('entropic:stop'))
         return
       }
 
@@ -687,12 +696,35 @@ function AppInner() {
             hasAudio: assetHasAudio,
           },
         }
-        addAsset(asset)
-
         // Auto-create track + clip on import (CapCut behavior)
         // Grouped as single undo entry so Cmd+Z reverses the entire import
+        // Asset, track, clip, and preview state all included in transaction
+        const prevAssetPath = activeAssetPath.current
+        const prevTotalFrames = totalFrames
+        const prevFrameWidth = frameWidth
+        const prevFrameHeight = frameHeight
+        const prevActiveFps = activeFps
+
         const undoStore = useUndoStore.getState()
         undoStore.beginTransaction('Import media')
+
+        // Add asset inside transaction so undo removes it
+        undoStore.execute({
+          description: 'Add asset',
+          timestamp: Date.now(),
+          forward: () => addAsset(asset),
+          inverse: () => {
+            removeAsset(asset.id)
+            // Clear preview state on undo
+            activeAssetPath.current = prevAssetPath
+            setTotalFrames(prevTotalFrames)
+            setFrameWidth(prevFrameWidth ?? 0)
+            setFrameHeight(prevFrameHeight ?? 0)
+            setCurrentFrame(0)
+            useTimelineStore.getState().setPlayheadTime(0)
+          },
+        })
+
         const timeline = useTimelineStore.getState()
         const trackColors = ['#ef4444', '#f59e0b', '#4ade80', '#3b82f6', '#a855f7', '#ec4899']
         const trackColor = trackColors[timeline.tracks.length % trackColors.length]
@@ -790,7 +822,7 @@ function AppInner() {
 
       setIngesting(false)
     },
-    [addAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame, audioStore, loadWaveform],
+    [addAsset, removeAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame, audioStore, loadWaveform, totalFrames, frameWidth, frameHeight, activeFps],
   )
 
   // --- Menu / shortcut action handlers ---
@@ -1019,6 +1051,14 @@ function AppInner() {
     setCurrentFrame(0)
     useTimelineStore.getState().setPlayheadTime(0)
   }, [hasAudio, audioStore, setCurrentFrame])
+
+  // Escape key stop — listens for custom event dispatched from keydown handler
+  // (keydown handler has [] deps so can't call handleStop directly)
+  useEffect(() => {
+    const onStop = () => handleStop()
+    window.addEventListener('entropic:stop', onStop)
+    return () => window.removeEventListener('entropic:stop', onStop)
+  }, [handleStop])
 
   const handleToggleLoop = useCallback(() => {
     const ts = useTimelineStore.getState()

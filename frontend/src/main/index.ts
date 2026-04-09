@@ -220,6 +220,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
+  app.setName('Entropic')
   registerDiagnosticsHandlers()
   registerSupportBundleHandler()
   registerRelayHandlers()
