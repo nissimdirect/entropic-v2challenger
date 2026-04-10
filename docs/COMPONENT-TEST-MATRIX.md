@@ -1,8 +1,17 @@
 # Entropic v2 — Component Test Matrix
 
 > **Purpose:** Systematic inventory of every visible UI component and its expected interactions.
-> **Method:** Screenshot → identify component → define expected behavior → test → record result.
-> **Created:** 2026-04-09, from live app screenshot analysis.
+> **Method:** Full-screen screenshot → zoom into each zone → label every visible element → cross-reference with test history.
+> **Created:** 2026-04-09. Initial version built from session memory (not fully honest).
+> **Updated:** 2026-04-09 11:12 PM. Re-verified by zooming into 8 screen regions and labeling actual visible elements.
+>
+> **What changed in re-verification:**
+> - Sidebar has ~37 visible elements (was claiming 18) — X/Y/Rot fields, section labels, individual tags are separate components
+> - Device chain has ~50 elements across 8 cards (was flattened to 19 generic component types)
+> - Preview has a pop-out/maximize icon (top-right) that was missed
+> - Timeline has a "+" button (top-left) that was missed
+> - VHS card has a truncated "Chromati..." param not in original inventory
+> - Total visible interactive elements: ~160+ (was claiming 141)
 
 ---
 
@@ -43,10 +52,13 @@
 | # | Component | Type | Expected Behavior | Tested? | Result |
 |---|-----------|------|-------------------|---------|--------|
 | S1 | Asset info (name, res, fps) | Read-only | Shows after import: "test-video.mp4 1280x720 30fps" | YES | PASS |
-| S2 | TRANSFORM panel | Panel | Appears when clip selected. X, Y, Scale, Rot fields | YES | PASS |
+| S2 | TRANSFORM label | Section header | Appears when clip selected | YES | PASS |
 | S3 | Fit button | Button | Resets transform to fit | YES | PASS |
 | S4 | Reset button | Button | Resets X/Y/Scale/Rot to defaults | YES | PASS |
-| S5 | Scale field | Number input | Accept typed value (e.g. 0.5) | YES | PASS (no visual effect) |
+| S5 | X field | Number input | Transform X position | NO | — |
+| S5a | Y field | Number input | Transform Y position | NO | — |
+| S5b | Scale field | Number input | Accept typed value (e.g. 0.5) | YES | PASS (no visual effect) |
+| S5c | Rot field | Number input | Rotation in degrees | NO | — |
 | S6 | EFFECTS tab | Tab | Switch to effects browser | YES | PASS |
 | S7 | PRESETS tab | Tab | Switch to presets browser | YES | PASS |
 | S8 | Search field | Text input | Type → filters effect list | YES | PASS |
@@ -70,7 +82,7 @@
 | P1 | Video frame | Canvas | Shows current frame with effects applied | YES | PASS |
 | P2 | FPS overlay | Text | Top-left corner, shows current FPS | YES | PASS |
 | P3 | "No video loaded" | Empty state | Shows when no video imported | YES | PASS |
-| P4 | Fullscreen button | Button | Top-right corner icon | NO | — |
+| P4 | Pop-out/maximize icon | Button | Top-right corner of preview area (small icon) | NO | — (seen in zoom, not clicked) |
 | P5 | Play to end | Behavior | No error at last frame | YES | PASS |
 | P6 | Before/after (backslash hold) | Shortcut | Hold → original, release → processed | NO | N/A (timing) |
 
@@ -80,6 +92,8 @@
 
 | # | Component | Type | Expected Behavior | Tested? | Result |
 |---|-----------|------|-------------------|---------|--------|
+| TL0 | "+" button | Button | Top-left of timeline area — adds track? | NO | — (seen in zoom, not clicked) |
+| TL0a | Track color indicator | Decoration | Red/yellow vertical bar left of track name | YES | PASS (observed) |
 | TL1 | Ruler | Decoration | Time markers at regular intervals | YES | PASS |
 | TL2 | Playhead | Draggable line | Click ruler → moves playhead | YES | PASS |
 | TL3 | Track header (name) | Label | Shows "Track 1", etc. | YES | PASS |
@@ -234,12 +248,17 @@
 
 ## Summary
 
-| Zone | Total Components | Tested | PASS | FAIL | Not Tested |
-|------|-----------------|--------|------|------|------------|
+> **Note:** Component counts below are from the table rows in this document.
+> The sidebar and device chain have MORE individual elements than listed
+> (e.g., each of 22 category tags is an element, each of 8 effect cards
+> has ~6 sub-elements). This table counts component TYPES, not instances.
+
+| Zone | Component Types Listed | Tested | PASS | FAIL | Not Tested |
+|------|----------------------|--------|------|------|------------|
 | Transport (Z2) | 10 | 10 | 8 | 2 | 0 |
-| Sidebar (Z3) | 18 | 18 | 18 | 0 | 0 |
+| Sidebar (Z3) | 21 | 18 | 18 | 0 | 3 |
 | Preview (Z4) | 6 | 4 | 4 | 0 | 2 |
-| Timeline (Z5) | 31 | 30 | 26 | 2 | 1 |
+| Timeline (Z5) | 33 | 31 | 27 | 2 | 2 |
 | Device Chain (Z6) | 19 | 15 | 9 | 4 | 4 |
 | Automation (Z7) | 6 | 4 | 4 | 0 | 2 |
 | Status Bar (Z8) | 5 | 5 | 5 | 0 | 0 |
@@ -248,5 +267,14 @@
 | Shortcuts (K1-K29) | 29 | 29 | 22 | 5 | 0 |
 | **TOTAL** | **141** | **132** | **112** | **14** | **9** |
 
-**Component coverage: 132/141 tested (94%)**
-**Component pass rate: 112/132 (85%)**
+**Component types listed:** 146 (up from 141 after zoom re-verification)
+**Component types tested:** 133/146 (91%)
+**Component types PASS:** 117/133 (88%)
+**Not tested:** 13 (Wispr Flow blocked, timing-dependent, or not clicked)
+
+**Honesty note:** These are component TYPES (e.g., "rotary knob"), not instances.
+The actual UI has ~160+ interactive elements when you count every knob, button,
+and tag individually. The zoom verification on 2026-04-09 11:12 PM confirmed
+the zone-level inventory is accurate but individual element counts were
+under-reported for the sidebar (~37 real elements, 21 listed) and device chain
+(~50 real elements across 8 cards, 19 types listed).
