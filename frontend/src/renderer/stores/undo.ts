@@ -10,6 +10,7 @@ import type { UndoEntry } from '../../shared/types'
 import { useToastStore } from './toast'
 
 const MAX_UNDO_ENTRIES = 500
+const MAX_REDO_ENTRIES = 500
 
 interface UndoState {
   past: UndoEntry[]
@@ -66,9 +67,14 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     const entry = past[past.length - 1]
     entry.inverse()
 
+    let newFuture = [entry, ...future]
+    if (newFuture.length > MAX_REDO_ENTRIES) {
+      newFuture = newFuture.slice(0, MAX_REDO_ENTRIES)
+    }
+
     set({
       past: past.slice(0, -1),
-      future: [entry, ...future],
+      future: newFuture,
       isDirty: true,
     })
   },

@@ -28,6 +28,7 @@ import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
+import { transportForward, transportReverse, transportStop } from './utils/transport-speed'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { useSettingsStore } from './stores/settings'
@@ -338,21 +339,34 @@ function AppInner() {
       }
     })
 
-    // JKL transport: J=step backward, K=stop, L=step forward (standard NLE)
+    // JKL transport: J=reverse, K=stop, L=forward (standard NLE)
+    // Uses transport-speed state machine for speed escalation.
+    // Currently plays at 1x (speed ramping requires timer loop changes).
     shortcutRegistry.register('transport_reverse', () => {
-      const ts = useTimelineStore.getState()
-      const stepSec = 1 / activeFps
-      ts.setPlayheadTime(Math.max(0, ts.playheadTime - stepSec))
+      const speed = transportReverse()
+      if (speed !== 0) {
+        // Start playback (reverse not yet supported — step backward as fallback)
+        const ts = useTimelineStore.getState()
+        const stepSec = 1 / activeFps
+        ts.setPlayheadTime(Math.max(0, ts.playheadTime - stepSec))
+      }
     })
     shortcutRegistry.register('transport_stop', () => {
+      transportStop()
       const audio = useAudioStore.getState()
       if (audio.isPlaying) audio.togglePlayback()
       setIsTimerPlaying(false)
     })
     shortcutRegistry.register('transport_forward', () => {
-      const ts = useTimelineStore.getState()
-      const stepSec = 1 / activeFps
-      ts.setPlayheadTime(Math.min(ts.duration, ts.playheadTime + stepSec))
+      const speed = transportForward()
+      if (speed !== 0) {
+        // Start playback at 1x (speed > 1x TODO: wire to timer interval)
+        const audio = useAudioStore.getState()
+        if (!audio.isPlaying && !isTimerPlaying) {
+          audio.togglePlayback()
+          setIsTimerPlaying(true)
+        }
+      }
     })
 
     // Delete selected clips, or fall back to selected effect

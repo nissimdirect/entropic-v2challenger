@@ -115,7 +115,15 @@ export default function PreviewCanvas({
 
   // Decode base64 JPEG and draw to canvas when frameDataUrl changes
   useEffect(() => {
-    if (!frameDataUrl) return
+    if (!frameDataUrl) {
+      // Clear canvas when no frame (e.g. after New Project)
+      const canvas = canvasRef.current
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      return
+    }
 
     if (!imgRef.current) {
       imgRef.current = new Image()
