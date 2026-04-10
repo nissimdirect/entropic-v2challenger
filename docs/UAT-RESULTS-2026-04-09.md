@@ -13,8 +13,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Tests actually clicked/verified | ~315 |
-| PASS | 260 |
+| Tests actually clicked/verified | ~340 |
+| PASS | 280 |
 | FAIL | 16 |
 | FIXED (this session) | 4 |
 | N/A (genuinely can't test via computer use) | ~20 |
@@ -575,6 +575,32 @@ These tests CANNOT be done via computer use and require a human:
 10. **BUG-14: Cmd+D (Duplicate Effect) non-functional** — Low severity, mapped in shortcuts but doesn't duplicate
 11. **BUG-15: Delete/Backspace key doesn't delete selected clip** — Low severity (right-click > Delete works)
 12. **BUG-16: Shift/Cmd drag modifiers don't change knob sensitivity** — Low severity, fine/coarse adjustment not wired
+
+---
+
+## PASS 9 — Effect Categories, Text Track, About Dialog, Save As (2026-04-09 night)
+
+### All 22 Effect Categories Verified
+| Category | Effects Found |
+|----------|--------------|
+| codec_archaeology | DCT Transform, Quant Transform, DCT Sculpt, DCT Swap, DCT Phase Destroy, Quant Amplify |
+| medical | Ultrasound, MRI, CT Windowing, PET Scan, Microscope |
+| surveillance | Surveillance Sim, Surveillance Cam, Night Vision, Infrared Thermal |
+| sidechain | Sidechain Cross Blend, Sidechain Duck, Sidechain Pump, Sidechain Cross, Sidechain Crossfeed |
+| info_theory | Compression Oracle, Logistic Cascade, Entropy Map |
+| key | Chroma Key, Luma Key |
+| optics | Lo-Fi Lens, Lens Distortion, Fisheye, Anamorphic, Coma |
+| emergent | Reaction Diffusion, Cellular Automata, Crystal Growth |
+| (previously verified) | ALL, color, creative, destruction, distortion, enhance, fx, glitch, modulation, physics, stylize, temporal, texture, util, warping, whimsy |
+
+### Additional Tests
+| # | Test | Result |
+|---|------|--------|
+| NEW | + Add Text Track (sidebar button) | **PASS** — "Text 1" with purple T icon, M/S/A buttons |
+| NEW | Electron > About Entropic | **PASS** — Shows Electron 40.6.0, Electron icon |
+| NEW | App menu says "Entropic" | **PASS** — About/Hide/Quit all say "Entropic" (BUG-1 fix verified) |
+| NEW | Save As filename reflected | **PASS** — Title bar shows "uat-test-pass8 * — Entropic" |
+| NEW | Save As creates file | **PASS** — 9867 bytes, valid .glitch |
 
 ---
 
