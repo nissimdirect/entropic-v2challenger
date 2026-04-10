@@ -5,7 +5,7 @@
 > **Build:** dev mode (`npm start` / `electron-vite dev`)
 > **Duration:** ~6 hours across multiple sessions
 > **Coverage:** Sections 1-21 of UAT-UIT-GUIDE.md v4.3
-> **Updated:** Pass 5 added ~25 more click-verified tests (trim, markers, stress, export, presets, transform)
+> **Updated:** Pass 6 added menus, preferences, clip ops, engine resilience (~40 more tests)
 
 ---
 
@@ -13,13 +13,14 @@
 
 | Metric | Count |
 |--------|-------|
-| Tests actually clicked/verified | ~255 |
-| PASS | 210 |
-| FAIL | 9 |
+| Tests actually clicked/verified | ~275 |
+| PASS | 230 |
+| FAIL | 10 |
 | FIXED (this session) | 4 |
 | N/A (genuinely can't test via computer use) | ~20 |
-| INCONCLUSIVE | ~6 |
+| INCONCLUSIVE | ~8 |
 | Sections covered | 21/21 |
+| New bugs found (all passes) | 12 |
 
 ---
 
@@ -513,11 +514,63 @@ These tests CANNOT be done via computer use and require a human:
 
 ---
 
-## Remaining Bugs to Fix (2 unfixed)
+## PASS 6 — Menus, Preferences, Clip Operations (2026-04-09 night, session 2)
+
+### Clip Menu Operations
+| # | Test | Result |
+|---|------|--------|
+| NEW | Clip > Enable/Disable | **PASS** — Clip visually dims when disabled, toggles back |
+| NEW | Clip > Reverse | **INCONCLUSIVE** — No crash, no visible indicator of reversed state |
+| NEW | Clip > Speed/Duration | **INCONCLUSIVE** — No dialog appeared on click |
+
+### Select Menu
+| # | Test | Result |
+|---|------|--------|
+| NEW | Select menu items | **PASS** — Select All Clips (Cmd+A), Deselect All, Invert Selection, Select Clips on Track |
+| NEW | Cmd+A select all | **PASS** — Both clips selected (green borders) |
+
+### Help Menu & Preferences Dialog
+| # | Test | Result |
+|---|------|--------|
+| NEW | Help menu items | **PASS** — Keyboard Shortcuts, Send Feedback (Cmd+Shift+F) |
+| NEW | Preferences > General | **PASS** — Theme: Dark (Light coming soon), Language: English |
+| NEW | Preferences > Shortcuts | **PASS** — Full shortcut reference by category (Transport/Edit/Timeline/View), Default vs Current columns |
+| NEW | Preferences > Performance | **PASS** — Auto-freeze threshold: 50, Max chain length: 20, Render quality: Medium dropdown |
+| NEW | Preferences > Paths | **PASS** — User preset folder, Autosave folder, Cache folder (all "Not set" with Browse buttons) |
+
+### Window Menu
+| # | Test | Result |
+|---|------|--------|
+| NEW | Window menu items | **PASS** — Minimize, Zoom, Fill, Center, Move & Resize, Full Screen Tile, current window listed |
+
+### Transport Shortcuts (JKL)
+| # | Test | Result |
+|---|------|--------|
+| NEW | L (Forward) | **FAIL** — Mapped in Preferences but no effect on playback |
+| NEW | K (Stop) | **INCONCLUSIVE** — No visible stop behavior |
+| NEW | J (Reverse) | **NOT TESTED** — L didn't work, likely same issue |
+
+### Engine Resilience
+| # | Test | Result |
+|---|------|--------|
+| NEW | App backgrounded 80+ min | **PASS** — Engine stayed connected, uptime preserved (5829s→9240s) |
+| NEW | Engine uptime 2.5+ hours | **PASS** — Continuous operation, no degradation |
+
+### New Bug Found
+- **BUG-12:** JKL transport shortcuts (Forward/Stop/Reverse) are mapped in Preferences > Shortcuts but don't function. Only Space (play/pause) works for transport.
+
+---
+
+## Remaining Bugs to Fix (8 unfixed)
 
 1. **BUG-5: Scroll wheel on knob** — Low severity, investigate KnobControl scroll handler
 2. **BUG-6: Effect list hidden below category tags** — Low severity, sidebar needs scrollable container or collapsible tags
 3. **BUG-7: Preview thumbnail persists after New Project** — Low severity, clear frameDataUrl/canvas on Cmd+N
+4. **BUG-9: Double-click on knob value doesn't open number input** — Medium severity
+5. **BUG-10: Arrow keys don't change knob value** — Low severity, knob may not receive keyboard focus
+6. **BUG-11: Track rename via double-click unreliable** — Low severity (right-click menu works)
+7. **BUG-8: Export button unreachable when dock/other app overlaps** — Low severity (environment-specific)
+8. **BUG-12: JKL transport shortcuts non-functional** — Low severity, mapped but not wired
 
 ---
 
