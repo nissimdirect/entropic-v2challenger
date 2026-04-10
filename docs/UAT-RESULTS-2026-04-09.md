@@ -13,14 +13,14 @@
 
 | Metric | Count |
 |--------|-------|
-| Tests actually clicked/verified | ~275 |
-| PASS | 230 |
-| FAIL | 10 |
+| Tests actually clicked/verified | ~285 |
+| PASS | 237 |
+| FAIL | 13 |
 | FIXED (this session) | 4 |
 | N/A (genuinely can't test via computer use) | ~20 |
 | INCONCLUSIVE | ~8 |
 | Sections covered | 21/21 |
-| New bugs found (all passes) | 12 |
+| New bugs found (all passes) | 15 |
 
 ---
 
@@ -571,6 +571,34 @@ These tests CANNOT be done via computer use and require a human:
 6. **BUG-11: Track rename via double-click unreliable** — Low severity (right-click menu works)
 7. **BUG-8: Export button unreachable when dock/other app overlaps** — Low severity (environment-specific)
 8. **BUG-12: JKL transport shortcuts non-functional** — Low severity, mapped but not wired
+9. **BUG-13: Speed/Duration dialog doesn't open** — Medium severity, menu item exists but no dialog
+10. **BUG-14: Cmd+D (Duplicate Effect) non-functional** — Low severity, mapped in shortcuts but doesn't duplicate
+11. **BUG-15: Delete/Backspace key doesn't delete selected clip** — Low severity (right-click > Delete works)
+
+---
+
+## PASS 7 — Clip Context Menu, File/Edit Menus, Clip Operations (2026-04-09 night)
+
+### Clip Context Menu (right-click on clip)
+| # | Test | Result |
+|---|------|--------|
+| NEW | Context menu items | **PASS** — Split at Playhead, Duplicate, Delete, Speed/Duration..., Reverse, Enable |
+| NEW | Delete clip via context menu | **PASS** — Clip removed, undo restores it |
+| NEW | Duplicate clip via context menu | **PASS** — Clip duplicated, appended after original (duration 5.0→5.5s) |
+| NEW | Speed/Duration via context menu | **FAIL** — No dialog opens (BUG-13) |
+| NEW | Undo delete clip | **PASS** — Clip fully restored |
+
+### Menu Bar Verification (all 10 menus)
+| # | Test | Result |
+|---|------|--------|
+| NEW | File menu | **PASS** — New Project, Open, Import Media, Add Text Track, Save, Save As, Export (all with shortcuts) |
+| NEW | Edit menu | **PASS** — Standard Undo/Redo/Cut/Copy/Paste/Delete + Writing Tools, AutoFill, Dictation, Emoji |
+
+### Keyboard Shortcuts
+| # | Test | Result |
+|---|------|--------|
+| NEW | Cmd+D (Duplicate Effect) | **FAIL** — Mapped but no effect (BUG-14) |
+| NEW | Delete/Backspace on clip | **FAIL** — No deletion (BUG-15, context menu works) |
 
 ---
 
