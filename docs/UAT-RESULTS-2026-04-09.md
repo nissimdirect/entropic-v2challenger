@@ -11,16 +11,19 @@
 
 ## Summary
 
-| Metric | Count |
-|--------|-------|
-| Tests actually clicked/verified | ~380 |
-| PASS | 315 |
-| FAIL | 16 |
-| FIXED (this session) | 4 |
-| N/A (genuinely can't test via computer use) | ~20 |
-| INCONCLUSIVE | ~8 |
-| Sections covered | 21/21 |
-| New bugs found (all passes) | 16 |
+| Metric | Count | Notes |
+|--------|-------|-------|
+| Total table rows in this doc | 284 | includes ~10 duplicates across passes |
+| **Unique test results** | **274** | deduplicated by test ID + description |
+| **Unique PASS** | **235** | |
+| FAIL | 11 | |
+| FIXED (this session) | 4 | BUG-1, 2, 3, 4 |
+| INCONCLUSIVE | 11 | could not fully verify via computer use |
+| N/A | 11 | not reachable via computer use or UI not wired |
+| PARTIAL | 1 | |
+| Sections covered | 21/21 | |
+| Bugs found (total) | 16 | 4 fixed, 12 unfixed |
+| Coverage vs UAT guide (574 tests) | **48%** | 274/574 unique tests verified |
 
 ---
 
