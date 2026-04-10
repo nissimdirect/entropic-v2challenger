@@ -1,1553 +1,1480 @@
-# Entropic v2 — Component Acceptance Criteria
+# Entropic v2 — Component Acceptance Criteria (v2)
 
-> **Format:** BDD-style tickets for every interactive UI component.
-> **Standard:** What a professional video effects DAW SHOULD do — not just what we currently implement.
-> **Source:** Screenshot-verified component inventory + common NLE conventions (After Effects, DaVinci Resolve, Premiere Pro).
+> **Format:** BDD tickets for every UI component. Each has: description, acceptance criteria (Given/When/Then), undo scenario, error states, red-team attack scenarios.
+> **Standard:** What a professional video effects DAW SHOULD do. Each scenario marked `[IMPL]` (implemented) or `[TODO]` (not yet implemented).
+> **Source:** Screenshot-verified inventory + code cross-reference (81 TSX files, 17 Zustand stores).
+> **Review:** v1 covered ~40% of components. v2 adds 35 missing components, fixes incorrect claims, adds attack scenarios.
+> **Component count:** 81 TSX files across 15 directories. This doc covers all of them.
+
+---
+
+## Status Legend
+
+- `[IMPL]` — Code exists and behavior is implemented
+- `[TODO]` — Code does not exist or behavior is not wired
+- `[PARTIAL]` — Component exists but some scenarios don't work
+- `[BUG-N]` — Known bug, see UAT-BUGS-2026-04-09.md
 
 ---
 
 ## Z1: Title Bar
 
-### Z1-01: Window Title
+### Z1-01: Window Title `[IMPL]`
 
-**Description:** Title bar displays project name and dirty state.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a new untitled project
-Then the title bar shows "Untitled — Entropic"
+Scenario: New project title
+  Given a new untitled project
+  Then the title bar shows "Untitled — Entropic"
 
-Given a saved project named "my-project.glitch"
-Then the title bar shows "my-project — Entropic"
+Scenario: Saved project title
+  Given a saved project named "my-project.glitch"
+  Then the title bar shows "my-project — Entropic"
 
-Given any unsaved changes exist (effect added, param changed, clip moved)
-Then the title bar shows an asterisk: "my-project * — Entropic"
+Scenario: Dirty state indicator
+  Given any unsaved changes exist
+  Then the title bar shows "my-project * — Entropic"
 
-Given the user saves (Cmd+S)
-Then the asterisk disappears
+Scenario: Save clears dirty
+  Given unsaved changes exist
+  When the user presses Cmd+S
+  Then the asterisk disappears
 
-Given the user is in dev mode (npm start)
-Then the first macOS menu says "Electron" (known limitation)
-But the dropdown items say "About Entropic", "Hide Entropic", "Quit Entropic"
+Scenario: Dev mode menu name
+  Given the app runs via npm start
+  Then the macOS menu bar first item says "Electron"
+  But dropdown items say "About Entropic", "Hide Entropic", "Quit Entropic"
 ```
 
-### Z1-02: Traffic Lights (Close/Minimize/Maximize)
+**Red-team:**
+- Title with special chars in filename (emoji, unicode, path separators) — should not crash or execute
+- Extremely long filename — should truncate, not overflow layout
 
-**Description:** Standard macOS window controls.
+### Z1-02: Traffic Lights `[IMPL]`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the app is running
-When the user clicks the red close button
-Then the app prompts to save if there are unsaved changes
-And closes the window if saved or discarded
+Scenario: Close with unsaved changes
+  Given unsaved changes exist
+  When the user clicks red close button
+  Then a "Save changes?" prompt appears with Save/Discard/Cancel
 
-When the user clicks the yellow minimize button
-Then the window minimizes to the dock
+Scenario: Close without changes
+  Given no unsaved changes
+  When the user clicks red close button
+  Then the window closes immediately
 
-When the user clicks the green maximize button
-Then the window enters full screen mode
-And all panels adapt to the new size
+Scenario: Minimize
+  When the user clicks yellow minimize button
+  Then the window minimizes to dock
+
+Scenario: Full screen
+  When the user clicks green maximize button
+  Then the window enters full screen
+  And all panels adapt to the new size
 ```
 
 ---
 
 ## Z2: Transport Bar
 
-### Z2-01: Play Button (▶)
+### Z2-01: Play Button `[IMPL]`
 
-**Description:** Starts/pauses video playback.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a video is loaded and playhead is at any position
-When the user clicks the Play button
-Then playback starts from the current playhead position
-And the timecode advances in real-time
-And the preview canvas updates with each new frame (with effects applied)
-And the playhead moves along the timeline ruler
-And the FPS overlay shows the actual playback framerate
+Scenario: Start playback
+  Given a video is loaded and playhead is at 0:02.0
+  When the user clicks Play
+  Then playback starts from 0:02.0
+  And the timecode advances in real-time
+  And the preview updates with each frame (effects applied)
+  And the playhead moves along the ruler
 
-Given playback is active
-When the user clicks the Play button again
-Then playback pauses
-And the current frame stays visible in the preview
-And the timecode stops advancing
-And the playhead stops moving
+Scenario: Pause playback
+  Given playback is active
+  When the user clicks Play again
+  Then playback pauses
+  And the current frame stays visible
+  And timecode stops advancing
 
-Given no video is loaded
-When the user clicks Play
-Then nothing happens (no crash, no error)
+Scenario: Play with no video
+  Given no video is loaded
+  When the user clicks Play
+  Then nothing happens (no crash)
 ```
 
-**Edge Cases:**
-- Rapid double-click should not cause desync
-- Click during effect chain render should queue, not crash
-- Playback at end of clip should stop at last frame (no error)
+**Red-team:**
+- Rapid double-click Play — should not desync audio/video
+- Click Play during heavy render (10 effects at 100ms) — should queue or skip frames, not crash
+- Play at last frame — should stop cleanly, no "frame render failed"
 
-### Z2-02: Stop Button (■)
+### Z2-02: Stop Button `[IMPL]`
 
-**Description:** Stops playback and returns playhead to start.
-
-**Acceptance Criteria:**
 ```gherkin
-Given playback is active
-When the user clicks Stop
-Then playback stops immediately
-And the playhead returns to 0:00.0
-And the timecode shows 0:00.0 / [total]
-And the preview shows the first frame
+Scenario: Stop during playback
+  Given playback is active at 0:03.5
+  When the user clicks Stop
+  Then playback stops
+  And playhead returns to 0:00.0
+  And preview shows the first frame
 
-Given playback is paused at 0:02.5
-When the user clicks Stop
-Then the playhead returns to 0:00.0
-And the preview shows the first frame
-
-Given no video is loaded
-When the user clicks Stop
-Then nothing happens (no crash)
+Scenario: Stop when already stopped
+  Given playback is paused at 0:02.0
+  When the user clicks Stop
+  Then playhead returns to 0:00.0
 ```
 
-### Z2-03: Timecode Display
+### Z2-03: Timecode Display `[IMPL]`
 
-**Description:** Shows current position and total duration.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a 5-second video at 30fps is loaded
-Then the timecode shows "0:00.0 / 0:05.0"
+Scenario: Shows position and duration
+  Given a 5s video at 30fps
+  Then timecode shows "0:00.0 / 0:05.0"
 
-Given the playhead is at frame 75 (2.5 seconds)
-Then the timecode shows "0:02.5 / 0:05.0"
+Scenario: Updates during playback
+  Given playback is running
+  Then timecode current position updates every frame
 
-Given playback is running
-Then the timecode current position updates every frame
-
-Given no video loaded
-Then the timecode shows "0:00.0 / 0:00.0"
-
-Given a trimmed clip (original 5s, trimmed to 3s)
-Then the total duration reflects the trimmed length
+Scenario: No video
+  Given no video loaded
+  Then timecode shows "0:00.0 / 0:00.0"
 ```
 
-### Z2-04: BPM Field
+### Z2-04: BPM Field `[IMPL]`
 
-**Description:** Editable tempo field for quantize grid alignment.
-
-**Acceptance Criteria:**
 ```gherkin
-Given the default project
-Then the BPM field shows "120"
+Scenario: Edit BPM
+  When the user triple-clicks the BPM field
+  And types "140" and presses Enter
+  Then BPM updates to 140
+  And quantize grid recalculates
 
-When the user triple-clicks the BPM field
-Then the entire value is selected (highlighted)
+Scenario: Reject invalid BPM
+  When the user types "abc" and presses Enter
+  Then the value reverts to previous BPM
 
-When the user types "140" and presses Enter
-Then the BPM updates to 140
-And the quantize grid recalculates based on new tempo
+Scenario: Cancel edit
+  When the user presses Escape while editing BPM
+  Then the edit cancels and previous value restores
 
-When the user types "0" and presses Enter
-Then the value is rejected or clamped to minimum (e.g., 20 BPM)
-
-When the user types "999" and presses Enter
-Then the value is accepted or clamped to maximum (e.g., 300 BPM)
-
-When the user types "abc" and presses Enter
-Then the value is rejected and reverts to previous value
-
-When the user presses Escape while editing
-Then the edit is cancelled and the previous value is restored
+Scenario: Undo BPM change
+  Given the user changed BPM from 120 to 140
+  When the user presses Cmd+Z
+  Then BPM reverts to 120
 ```
 
-**Edge Cases:**
-- Typing while field is not focused should not change BPM
-- BPM should persist in saved .glitch file
-- BPM change should be undoable (Cmd+Z)
+**Red-team:**
+- Type "0" — should clamp to minimum (e.g. 20)
+- Type "99999" — should clamp to maximum (e.g. 999)
+- Paste from clipboard with script injection — should sanitize input
 
-### Z2-05: Quantize Button (Q)
+### Z2-05: Quantize Button (Q) `[IMPL]`
 
-**Description:** Toggles quantize snap on/off.
-
-**Acceptance Criteria:**
 ```gherkin
-Given quantize is off
-When the user clicks the Q button
-Then the Q button highlights (yellow/green)
-And clip snapping aligns to the quantize grid
+Scenario: Toggle on
+  Given quantize is off
+  When the user clicks Q (or Cmd+U)
+  Then Q highlights yellow/green
+  And clip snapping aligns to grid
 
-Given quantize is on
-When the user clicks Q again
-Then the Q button returns to default (unhighlighted)
-And clip snapping is free (no grid alignment)
-
-When the user presses Cmd+U
-Then the same toggle behavior occurs
+Scenario: Toggle off
+  Given quantize is on
+  When the user clicks Q again
+  Then Q unhighlights
+  And snapping is free
 ```
 
-### Z2-06: Quantize Grid Dropdown
+### Z2-06: Quantize Grid Dropdown `[IMPL]`
 
-**Description:** Selects quantize resolution.
-
-**Acceptance Criteria:**
 ```gherkin
-Given the quantize dropdown shows "1/4"
-When the user clicks the dropdown
-Then a menu appears with options: 1/4, 1/8, 1/16, 1/32
-
-When the user selects "1/8"
-Then the dropdown updates to show "1/8"
-And the timeline grid updates to 1/8 note intervals (at current BPM)
-
-When the user selects "1/32"
-Then the grid is very fine (32nd notes)
-And clip snapping uses 1/32 resolution
+Scenario: Change grid
+  When the user clicks the dropdown (showing "1/4")
+  Then options appear: 1/4, 1/8, 1/16, 1/32
+  When the user selects "1/8"
+  Then dropdown shows "1/8"
+  And grid recalculates at current BPM
 ```
 
-### Z2-07: JKL Transport (Keyboard)
+### Z2-07: JKL Transport `[TODO]` `[BUG-12]`
 
-**Description:** Standard NLE shuttle controls.
+**Wiring gap:** Defined in `default-shortcuts.ts` lines 10-12 but NO handler registered in `App.tsx` lines 243-335.
 
-**Acceptance Criteria:**
 ```gherkin
-Given a video is loaded
-When the user presses L
-Then forward playback starts at 1x speed
+Scenario: Forward playback [TODO]
+  When the user presses L
+  Then forward playback starts at 1x
+  When pressed again: 2x, again: 4x
 
-When the user presses L twice
-Then forward playback runs at 2x speed
+Scenario: Reverse playback [TODO]
+  When the user presses J
+  Then reverse playback starts at 1x
+  When pressed again: 2x, again: 4x
 
-When the user presses L three times
-Then forward playback runs at 4x speed
+Scenario: Stop (pause in place) [TODO]
+  When the user presses K
+  Then playback pauses at current position (NOT return to 0)
 
-When the user presses J
-Then reverse playback starts at 1x speed
+Scenario: Jog forward [TODO]
+  When the user holds K and taps L
+  Then one frame advances
 
-When the user presses J twice
-Then reverse playback runs at 2x speed
-
-When the user presses K
-Then playback stops (pause at current position, NOT return to start)
-
-When the user presses K+L simultaneously (hold K, tap L)
-Then playback advances one frame forward (jog)
-
-When the user presses K+J simultaneously
-Then playback steps one frame backward (jog)
+Scenario: Jog backward [TODO]
+  When the user holds K and taps J
+  Then one frame steps back
 ```
 
-**Current Status:** FAIL (BUG-12) — mapped but non-functional.
+### Z2-08: Volume Control `[IMPL]`
+
+**Component:** `transport/VolumeControl.tsx`
+
+```gherkin
+Scenario: Adjust volume
+  Given the volume slider shows 100% with speaker icon
+  When the user drags the slider left
+  Then volume decreases
+  And audio playback gets quieter
+
+Scenario: Mute
+  When the user clicks the speaker icon
+  Then audio mutes (icon changes to muted)
+  When clicked again, unmutes
+
+Scenario: Silent video
+  Given a video with no audio track
+  Then the volume control is still visible but has no effect
+```
+
+### Z2-09: Waveform Display `[IMPL]`
+
+**Component:** `transport/Waveform.tsx`
+
+```gherkin
+Scenario: Show audio waveform
+  Given a video with audio is loaded
+  Then a waveform visualization appears in the transport area
+
+Scenario: No audio
+  Given a video with no audio
+  Then the waveform area is empty or hidden
+```
 
 ---
 
 ## Z3: Left Sidebar
 
-### Z3-01: Asset Info Display
+### Z3-01: Asset Info `[IMPL]`
 
-**Description:** Shows metadata for the currently loaded/selected asset.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a video "test-video.mp4" (1280x720, 30fps) is imported
-Then the sidebar shows:
-  - "test-video.mp4" (filename)
-  - "1280x720 | 30fps" (resolution and framerate)
+Scenario: Show metadata
+  Given "test-video.mp4" (1280x720, 30fps) is imported
+  Then sidebar shows "test-video.mp4" and "1280x720 | 30fps"
 
-Given no video is loaded
-Then the asset info area is empty or shows placeholder
-
-Given a second video is imported
-Then the asset info updates to show the most recently imported asset
+Scenario: No video
+  Given no video loaded
+  Then asset info area is empty
 ```
 
-### Z3-02: Transform Panel
+### Z3-02: Transform Panel `[PARTIAL]`
 
-**Description:** Position, scale, and rotation controls for the selected clip.
+**Component:** `timeline/TransformPanel.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given a clip is selected on the timeline
-Then the TRANSFORM panel appears in the sidebar with:
-  - "TRANSFORM" label
-  - X field (default: 0)
-  - Y field (default: 0)
-  - Scale field (default: 1)
-  - Rot field (default: 0)
-  - "Fit" button
-  - "Reset" button
+Scenario: Show on clip select [IMPL]
+  Given a clip is selected
+  Then TRANSFORM panel shows: X(0), Y(0), Scale(1), Rot(0), Fit, Reset
 
-Given no clip is selected
-Then the TRANSFORM panel is hidden
+Scenario: Hide on deselect [IMPL]
+  Given no clip selected
+  Then TRANSFORM panel is hidden
 
-When the user types "100" in the X field and presses Enter
-Then the clip moves 100 pixels to the right in the preview
-And the change is reflected in real-time
+Scenario: Edit X position [TODO — no visual effect confirmed]
+  When user types "100" in X and presses Enter
+  Then clip moves 100px right in preview
 
-When the user types "0.5" in the Scale field and presses Enter
-Then the clip renders at 50% size in the preview
-And black bars or background shows around the scaled clip
+Scenario: Edit Scale [TODO — no visual effect confirmed]
+  When user types "0.5" in Scale
+  Then clip renders at 50% size
 
-When the user types "45" in the Rot field and presses Enter
-Then the clip rotates 45 degrees in the preview
+Scenario: Edit Rotation [TODO — not tested]
+  When user types "45" in Rot
+  Then clip rotates 45 degrees
 
-When the user clicks "Fit"
-Then Scale adjusts so the clip fills the preview canvas
-And X/Y adjust to center the clip
+Scenario: Fit button [IMPL]
+  When user clicks Fit
+  Then Scale adjusts to fill preview, X/Y center
 
-When the user clicks "Reset"
-Then X=0, Y=0, Scale=1, Rot=0
-And the clip returns to its default position/size
+Scenario: Reset button [IMPL]
+  When user clicks Reset
+  Then X=0, Y=0, Scale=1, Rot=0
 
-Each transform change should be undoable (Cmd+Z)
-Transform values should persist in saved .glitch file
+Scenario: Undo transform
+  Given user changed Scale to 0.5
+  When user presses Cmd+Z
+  Then Scale reverts to 1
 ```
 
-### Z3-03: Effects Tab
+**Red-team:**
+- Type "-99999" in X — should clamp or handle gracefully
+- Type "NaN" or "Infinity" in Scale — should reject
+- Type "0" in Scale — should prevent (zero-size clip)
 
-**Description:** Tab to switch to the effect browser.
+### Z3-03: Effects Tab `[IMPL]`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the sidebar is visible
-When the user clicks "EFFECTS" tab
-Then the effects browser shows:
-  - Search field
-  - "+ Add Text Track" button
-  - Category tags (22 tags)
-  - Effect list (scrollable)
-And the EFFECTS tab has an active indicator (underline or highlight)
-And the PRESETS tab appears inactive
+Scenario: Switch to effects
+  When user clicks EFFECTS tab
+  Then effects browser shows: search field, + Add Text Track, category tags, effect list
+  And EFFECTS tab has active indicator
 ```
 
-### Z3-04: Presets Tab
+### Z3-04: Presets Tab `[IMPL]`
 
-**Description:** Tab to switch to the presets browser.
+**Component:** `library/PresetBrowser.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-When the user clicks "PRESETS" tab
-Then the presets browser shows:
-  - Search field
-  - Category tags (8: ALL, glitch, color, temporal, destruction, physics, subtle, chain)
-  - Preset list or "No presets saved yet" if empty
-And the PRESETS tab has an active indicator
-And the EFFECTS tab appears inactive
+Scenario: Switch to presets
+  When user clicks PRESETS tab
+  Then presets browser shows: search, 8 category tags, preset list or empty state
+
+Scenario: Empty state
+  Given no presets saved
+  Then "No presets saved yet" message shows
 ```
 
-### Z3-05: Effect Search Field
+### Z3-05: Preset Save Dialog `[IMPL]`
 
-**Description:** Text input that filters the effect list.
+**Component:** `library/PresetSaveDialog.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the search field is empty
-Then all effects in the current category filter are shown
+Scenario: Save current chain as preset [TODO — not tested]
+  Given effects are in the chain
+  When user triggers "Save Preset" (method TBD)
+  Then a dialog appears with name field, category selector, and Save/Cancel
 
-When the user types "pixel"
-Then the effect list filters to show only effects containing "pixel":
-  - Pixel Sort, Pixel Liquify, Pixel Annihilator, etc.
-And filtering happens in real-time (on each keystroke)
-
-When the user types "dtmsh" (misspelling)
-Then fuzzy/subsequence matching finds "Datamosh" and variants
-And results are ranked by match quality
-
-When the user clears the search field (select all + delete)
-Then the full effect list returns
-
-When the user types a query with no matches (e.g., "zzzzz")
-Then "No effects found" message appears
-Note: currently this message may be hidden below category tags (BUG-6)
-
-When the search field is focused
-Then pressing Space types a space (does NOT trigger play/pause)
-And other keyboard shortcuts are suppressed while typing
+Scenario: Preset card display [TODO — not tested]
+  Given presets exist
+  Then each preset shows as a card (PresetCard.tsx) with name and category
 ```
 
-### Z3-06: Category Tags (22)
+### Z3-06: Macro Knob `[TODO]`
 
-**Description:** Toggle buttons that filter the effect list by category.
+**Component:** `library/MacroKnob.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given no category is selected (ALL is active, green highlight)
-Then the full effect list is shown (all ~170 effects)
-
-When the user clicks "glitch"
-Then "glitch" tag highlights green
-And "ALL" tag deselects
-And only glitch-category effects are shown
-
-When the user clicks "destruction" (while "glitch" is already selected)
-Then both "glitch" and "destruction" highlight green
-And effects from EITHER category are shown (union filter)
-
-When the user clicks "ALL"
-Then all category tags deselect
-And "ALL" highlights green
-And the full effect list is shown
-
-The 22 categories are:
-ALL, codec_archaeology, color, creative, destruction, distortion,
-emergent, enhance, fx, glitch, info_theory, key, medical, misc,
-modulation, optics, physics, sidechain, stylize, surveillance,
-temporal, texture, util, warping, whimsy
-
-Each category should contain at least 1 effect.
-Category filtering should combine with search text filtering.
+Scenario: Macro parameter control [TODO]
+  Given a macro knob is configured
+  When user drags the macro knob
+  Then multiple linked parameters change simultaneously
 ```
 
-### Z3-07: Effect List Items
+### Z3-07: Effect Search `[IMPL]`
 
-**Description:** Clickable list of effects that can be added to the device chain.
+**Component:** `effects/EffectSearch.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the effect list shows available effects
-When the user clicks an effect name (e.g., "Invert")
-Then the effect is added to the end of the device chain
-And the preview updates immediately to show the effect applied
-And the chain count increments (e.g., "1 / 10")
+Scenario: Substring search [IMPL]
+  When user types "pixel"
+  Then list filters to Pixel Sort, Pixel Liquify, etc.
 
-When the user hovers over an effect name
-Then "Add [effect name]" tooltip appears
+Scenario: Fuzzy search [IMPL]
+  When user types "dtmsh"
+  Then Datamosh variants appear
 
-Given the device chain has 10 effects (max)
-When the user tries to click another effect
-Then nothing happens (click is ignored or effect names appear dimmed)
-And no error/crash occurs
+Scenario: Clear search [IMPL]
+  When user clears the field
+  Then full list returns
 
-Given the sidebar is scrolled so effect list is visible
-Then clicking an effect should work regardless of scroll position
+Scenario: No results [IMPL] [BUG-6]
+  When user types "zzzzz"
+  Then "No effects found" shows
+  Note: message hidden below category tags at small window sizes
+
+Scenario: Space doesn't trigger play [IMPL]
+  When search field is focused and user presses Space
+  Then a space character is typed (not play/pause)
 ```
 
-### Z3-08: + Add Text Track Button
+**Red-team:**
+- Paste 10,000 character string — should not hang
+- Type `<script>alert(1)</script>` — should not execute (XSS)
+- Type regex special chars `.*+?` — should not crash search
 
-**Description:** Creates a text overlay track in the timeline.
+### Z3-08: Category Tags (22) `[IMPL]`
 
-**Acceptance Criteria:**
 ```gherkin
-When the user clicks "+ Add Text Track"
-Then a new track appears in the timeline named "Text 1"
-And the track has a purple "T" icon
-And the track has M/S/A buttons
-And the track is empty (no clips)
+Scenario: Single tag filter [IMPL]
+  When user clicks "glitch"
+  Then only glitch effects show, tag highlights green
 
-When the user adds a second text track
-Then it appears as "Text 2"
+Scenario: Multi-tag union [IMPL]
+  When user clicks "glitch" then "destruction"
+  Then effects from EITHER category show
 
-Text tracks should be deletable via right-click > Delete Track
-Text tracks should be undoable (Cmd+Z removes the track)
+Scenario: ALL resets [IMPL]
+  When user clicks ALL
+  Then all tags deselect, full list shows
+
+Scenario: Combined with search [IMPL]
+  Given "glitch" tag active and search "pixel"
+  Then only glitch effects containing "pixel" show
 ```
 
-### Z3-09: Browse Button
+Categories: ALL, codec_archaeology, color, creative, destruction, distortion, emergent, enhance, fx, glitch, info_theory, key, medical, misc, modulation, optics, physics, sidechain, stylize, surveillance, temporal, texture, util, warping, whimsy
 
-**Description:** Opens file import dialog.
+### Z3-09: Effect List Items `[IMPL]`
 
-**Acceptance Criteria:**
 ```gherkin
-Given no video is loaded (sidebar shows Browse button)
-When the user clicks "Browse..."
-Then the macOS file picker dialog opens
-And the file picker filters for video files (MP4, MOV, etc.)
+Scenario: Add effect [IMPL]
+  When user clicks "Invert"
+  Then effect added to chain end, preview updates, count increments
 
-This is equivalent to Cmd+I or File > Import Media
+Scenario: Max chain [IMPL]
+  Given 10 effects in chain
+  When user clicks another
+  Then nothing happens, names dimmed
+
+Scenario: Hover tooltip [IMPL]
+  When user hovers effect name
+  Then "Add [name]" tooltip appears
 ```
 
-### Z3-10: Sidebar Collapse (Cmd+B)
+### Z3-10: + Add Text Track `[IMPL]`
 
-**Description:** Toggles the left sidebar visibility.
-
-**Acceptance Criteria:**
 ```gherkin
-Given the sidebar is visible
-When the user presses Cmd+B
-Then the sidebar collapses (hidden)
-And the preview canvas expands to fill the freed space
-And no content is lost (state preserved)
+Scenario: Add text track [IMPL]
+  When user clicks "+ Add Text Track"
+  Then "Text 1" track appears with purple T icon, M/S/A buttons
 
-Given the sidebar is collapsed
-When the user presses Cmd+B again
-Then the sidebar re-expands
-And all previous state is restored (search text, selected tab, scroll position)
+Scenario: Undo
+  When user presses Cmd+Z
+  Then text track removed
+```
+
+### Z3-11: Browse Button `[IMPL]`
+
+```gherkin
+Scenario: Open file picker [IMPL]
+  When user clicks "Browse..."
+  Then macOS file dialog opens, filtered for video files
+```
+
+### Z3-12: Sidebar Collapse `[IMPL]`
+
+```gherkin
+Scenario: Collapse [IMPL]
+  When user presses Cmd+B
+  Then sidebar hides, preview expands
+
+Scenario: Expand [IMPL]
+  When user presses Cmd+B again
+  Then sidebar restores with previous state
+```
+
+### Z3-13: Help Panel `[TODO]`
+
+**Component:** `effects/HelpPanel.tsx`
+
+```gherkin
+Scenario: Show effect help [TODO — not tested]
+  Given an effect is selected
+  When the help panel is visible
+  Then it shows effect description, parameter explanations, and usage tips
 ```
 
 ---
 
 ## Z4: Preview Canvas
 
-### Z4-01: Video Frame
+### Z4-01: Video Frame `[IMPL]`
 
-**Description:** Renders the current video frame with all active effects applied.
+**Component:** `preview/PreviewCanvas.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given a video is loaded and effects are in the chain
-Then the preview shows the current frame with all non-bypassed effects applied
-And the frame updates whenever:
-  - The playhead position changes (scrub/play)
-  - An effect parameter changes
-  - An effect is added/removed/reordered/bypassed
-  - The mix slider changes
+Scenario: Show processed frame [IMPL]
+  Given video loaded with effects
+  Then preview shows current frame with all non-bypassed effects
 
-Given no video is loaded
-Then the preview shows "No video loaded" text
+Scenario: Update triggers [IMPL]
+  Preview updates when: playhead moves, param changes, effect added/removed/bypassed, mix changes
 
-Given a video is loaded but all effects are bypassed
-Then the preview shows the original unprocessed frame
+Scenario: No video [IMPL]
+  Then preview shows "No video loaded"
 
-The preview should maintain the video's aspect ratio
-Black bars should appear if the canvas aspect ratio differs from the video
+Scenario: All bypassed [IMPL]
+  Then preview shows original unprocessed frame
+
+Scenario: Aspect ratio
+  Then preview maintains video aspect ratio with black bars if needed
 ```
 
-### Z4-02: FPS Overlay
+**Red-team:**
+- Load corrupt video file — should show error, not crash
+- Load 8K video — should handle or show resolution warning
+- Load 0-frame video — should handle gracefully
 
-**Description:** Real-time framerate indicator.
+### Z4-02: FPS Overlay `[IMPL]`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the preview is visible
-Then the FPS overlay appears in the top-left corner of the preview
+Scenario: During playback [IMPL]
+  Then FPS shows actual framerate (e.g. "30 fps")
 
-During playback
-Then the FPS shows the actual achieved framerate (e.g., "30 fps", "15 fps")
-
-When paused
-Then the FPS shows "1 fps" (only rendering on demand)
-
-The FPS overlay should not interfere with the video content
-The FPS overlay should be readable against any video content (has background/outline)
+Scenario: When paused [IMPL]
+  Then FPS shows "1 fps"
 ```
 
-### Z4-03: Pop-out/Maximize Icon
+### Z4-03: Pop-Out Preview `[IMPL]`
 
-**Description:** Small icon in the top-right corner of the preview.
+**Component:** `preview/PopOutPreview.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the preview canvas is visible
-Then a small icon appears in the top-right corner
+Scenario: Pop out [TODO — not tested]
+  When user clicks the pop-out icon (top-right of preview)
+  Then preview opens in a separate floating window
+  And the main window preview area may show "Preview in separate window"
 
-When the user clicks this icon
-Then either:
-  a) The preview pops out into a separate window, OR
-  b) The preview maximizes within the main window, OR
-  c) The preview enters a full-canvas mode
-
-The exact behavior needs to be determined from the implementation.
+Scenario: Close pop-out
+  When user closes the pop-out window
+  Then preview returns to the main window
 ```
 
-**Current Status:** NOT TESTED — seen in zoom screenshot but never clicked.
+### Z4-04: Preview Controls `[IMPL]`
 
-### Z4-04: Before/After Comparison
+**Component:** `preview/PreviewControls.tsx`
 
-**Description:** Hold backslash to see original frame without effects.
-
-**Acceptance Criteria:**
 ```gherkin
-Given effects are applied to the video
-When the user presses and holds the backslash key (\)
-Then the preview immediately shows the ORIGINAL frame (no effects)
+Scenario: Preview control buttons [TODO — not tested]
+  Then preview controls show play/pause, zoom, and possibly other controls
+  Note: needs investigation — may duplicate transport controls
+```
 
-When the user releases the backslash key
-Then the preview returns to showing the PROCESSED frame (with effects)
+### Z4-05: Before/After `[IMPL]`
 
-The transition should be instant (no fade, no delay)
-This should work during playback and while paused
+```gherkin
+Scenario: Hold backslash [IMPL — not tested via computer use]
+  Given effects applied
+  When user holds \
+  Then preview shows original (no effects)
+  When released
+  Then preview shows processed
 ```
 
 ---
 
 ## Z5: Timeline
 
-### Z5-01: Timeline Ruler
+### Z5-01: Ruler `[IMPL]`
 
-**Description:** Time ruler above the track area with time markers.
+**Component:** `timeline/TimeRuler.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given a project with content
-Then the ruler shows time markers at regular intervals
-And the interval adapts to zoom level:
-  - Zoomed out: markers every 1s or 0.5s
-  - Zoomed in: markers every 0.1s or finer
-  - Zoomed to fit: shows full duration
+Scenario: Time markers [IMPL]
+  Then ruler shows markers that adapt to zoom level
 
-When the user clicks on the ruler
-Then the playhead moves to that time position
-And the timecode display updates
-And the preview updates to show that frame
-
-Markers (green triangles from Cmd+M) appear ON the ruler
+Scenario: Click to seek [IMPL]
+  When user clicks ruler at 2.0s
+  Then playhead moves to 2.0s, preview updates
 ```
 
-### Z5-02: Playhead
+### Z5-02: Playhead `[IMPL]`
 
-**Description:** Vertical line indicating current playback position.
+**Component:** `timeline/Playhead.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given a video is loaded
-Then a green vertical line (playhead) appears on the timeline
+Scenario: Visual indicator [IMPL]
+  Then green vertical line on timeline
 
-During playback
-Then the playhead moves from left to right at playback speed
+Scenario: Click seek [IMPL]
+  When user clicks ruler
+  Then playhead jumps to that position
 
-When the user clicks the ruler
-Then the playhead jumps to that position
-
-When the user drags the playhead
-Then the preview updates in real-time (scrubbing)
-And the timecode updates in real-time
-
-When playback reaches the end of the last clip
-Then the playhead stops at the final frame
-And playback stops automatically
+Scenario: Drag scrub [PARTIAL — click-to-seek only, no drag confirmed]
+  When user drags playhead
+  Then preview updates in real-time
 ```
 
-### Z5-03: Track Header
+### Z5-03: Track `[IMPL]`
 
-**Description:** Left section of each track showing name and controls.
+**Component:** `timeline/Track.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given a track exists
-Then the track header shows:
-  - Color indicator (vertical bar, red/yellow/etc.)
-  - Track name (e.g., "Track 1", "Text 1")
-  - M button (Mute)
-  - S button (Solo)
-  - A button (Automation)
+Scenario: Track header [IMPL]
+  Then shows: color indicator, name, M/S/A buttons
 
-When the user right-clicks the track header
-Then a context menu appears with:
-  - Duplicate Track
-  - Rename Track
-  - Move Up (grayed if already at top)
-  - Move Down (grayed if already at bottom)
-  - Delete Track
+Scenario: Mute [IMPL]
+  When user clicks M
+  Then track muted (highlighted), excluded from render
+
+Scenario: Solo [IMPL]
+  When user clicks S
+  Then only soloed tracks render
+
+Scenario: Automation arm [IMPL]
+  When user clicks A
+  Then automation display toggles
 ```
 
-### Z5-04: Mute Button (M)
+### Z5-04: Clip `[IMPL]`
 
-**Description:** Mutes a track so its content is not rendered.
+**Component:** `timeline/Clip.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given a track with video content
-When the user clicks M
-Then the M button highlights
-And the track's content is excluded from the preview render
-And the track appears dimmed in the timeline
+Scenario: Display [IMPL]
+  Then clip shows thumbnails, filename, track-colored background
 
-When the user clicks M again
-Then the button unhighlights
-And the track content renders normally
+Scenario: Select [IMPL]
+  When user clicks clip
+  Then green border, Transform panel appears
 
-Mute state should persist in saved projects
-Mute should be undoable (Cmd+Z)
+Scenario: Deselect [IMPL]
+  When user clicks empty space
+  Then clip deselected, Transform hides
+
+Scenario: Move [IMPL]
+  When user drags clip horizontally
+  Then clip moves to new position, undoable
+
+Scenario: Enable/Disable [IMPL]
+  When user right-clicks > Enable/Disable
+  Then clip dims when disabled, undoable
 ```
 
-### Z5-05: Solo Button (S)
+**Red-team:**
+- Drag clip past timeline bounds — should clamp to 0
+- Drag clip onto another clip — should handle overlap (stack, replace, or prevent)
+- Select all + delete — should handle batch deletion
 
-**Description:** Solos a track so only its content renders.
+### Z5-05: Clip Trimming `[PARTIAL]`
 
-**Acceptance Criteria:**
 ```gherkin
-Given multiple tracks with content
-When the user clicks S on Track 1
-Then the S button highlights
-And ONLY Track 1's content renders in the preview
-And all other tracks are effectively muted
+Scenario: Trim right edge [IMPL]
+  When user drags right edge left
+  Then clip shortens, duration updates, undoable
 
-When the user clicks S on Track 2 (while Track 1 is soloed)
-Then both Track 1 and Track 2 are soloed
-And only those two tracks render
+Scenario: Trim left edge [TODO — moves clip instead of trimming]
+  When user drags left edge right
+  Then clip in-point moves later
 
-When the user clicks S on Track 1 again (unsolo)
-Then Track 1's solo is removed
-And if no other tracks are soloed, all tracks render normally
+Scenario: Trim to zero [TODO]
+  Then prevented (minimum 1 frame)
 ```
 
-### Z5-06: Automation Button (A)
+### Z5-06: Clip Split `[IMPL]`
 
-**Description:** Arms a track for automation recording/display.
-
-**Acceptance Criteria:**
 ```gherkin
-When the user clicks A on a track
-Then the A button highlights
-And automation lanes may appear below the track (if implemented)
+Scenario: Split at playhead [IMPL]
+  Given clip selected, playhead within clip
+  When Cmd+K pressed
+  Then clip splits into two, both selectable, undoable
 
-When the user presses the "A" key (keyboard shortcut)
-Then the same toggle occurs for the selected/focused track
+Scenario: Split outside clip
+  Given playhead outside any clip
+  When Cmd+K pressed
+  Then nothing happens
 ```
 
-### Z5-07: Clip Component
+### Z5-07: Context Menu (Clip) `[PARTIAL]`
 
-**Description:** Video clip on a track, showing thumbnails.
+**Component:** `timeline/ContextMenu.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given a video has been imported
-Then a clip appears on Track 1 spanning the video duration
-And the clip shows thumbnail frames at regular intervals
-And the clip shows the filename text (e.g., "test-video.mp4")
-And the clip has a colored background matching the track color
+Scenario: Menu items [IMPL]
+  When user right-clicks clip
+  Then shows: Split at Playhead, Duplicate, Delete, Speed/Duration..., Reverse, Enable
 
-When the user clicks a clip
-Then the clip is selected (green border appears)
-And the Transform panel appears in the sidebar
-And the clip is ready for keyboard commands (delete, split, etc.)
+Scenario: Delete [IMPL]
+  Then clip removed, undoable
 
-When the user clicks empty space on the timeline
-Then the clip is deselected
-And the Transform panel hides
+Scenario: Duplicate [IMPL]
+  Then copy appended after clip
 
-When the user drags a clip horizontally
-Then the clip moves to a new time position
-And the move is undoable (Cmd+Z)
+Scenario: Speed/Duration [TODO] [BUG-13]
+  Then should open dialog — no dialog component exists
+
+Scenario: Reverse [IMPL — no visual indicator]
+  Then toggles reverse flag
 ```
 
-### Z5-08: Clip Trimming
+### Z5-08: Context Menu (Track) `[IMPL]`
 
-**Description:** Drag clip edges to adjust in/out points.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a clip is on the timeline
-When the user hovers near the RIGHT edge of the clip
-Then the cursor should change to a trim cursor (e.g., bracket or resize icon)
+Scenario: Menu items [IMPL]
+  When user right-clicks track header
+  Then shows: Duplicate Track, Rename Track, Move Up/Down, Delete Track
 
-When the user drags the right edge to the left
-Then the clip's out point moves earlier
-And the clip appears shorter
-And the total duration in the timecode updates
-And the trim is undoable
+Scenario: Duplicate [IMPL]
+  Then creates "Track 1 (Copy)" with clips
 
-When the user hovers near the LEFT edge of the clip
-Then the cursor should change to a trim cursor
+Scenario: Move Up/Down [IMPL]
+  Then swaps positions, grayed at bounds
 
-When the user drags the left edge to the right
-Then the clip's in point moves later
-And the clip appears shorter (starts later in the source video)
-And the clip's position on the timeline may shift
-And the trim is undoable
+Scenario: Delete [IMPL]
+  Then removes track and clips, undoable
 
-When the user trims a clip to zero length
-Then the clip should be removed or the trim should be prevented (minimum 1 frame)
+Scenario: Rename [PARTIAL] [BUG-11]
+  Then should open inline input — unreliable via double-click, works via context menu
 ```
 
-**Current Status:** Right trim PASS, left trim INCONCLUSIVE.
+### Z5-09: Markers `[IMPL]`
 
-### Z5-09: Clip Split (Cmd+K)
+**Component:** `timeline/MarkerFlag.tsx`
 
-**Description:** Splits a clip at the playhead position.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a clip is selected and the playhead is within the clip
-When the user presses Cmd+K
-Then the clip splits into two clips at the playhead position
-And both clips are independently selectable
-And both clips play their respective portions
-And the split is undoable (Cmd+Z merges them back)
+Scenario: Add marker [IMPL]
+  When Cmd+M pressed at 1.5s
+  Then green triangle appears on ruler
 
-Given the playhead is outside any clip
-When the user presses Cmd+K
-Then nothing happens (no crash)
+Scenario: Navigate [IMPL]
+  When user clicks near marker
+  Then playhead snaps to marker position
 
-Given the playhead is at the very start or end of a clip
-When the user presses Cmd+K
-Then either nothing happens or a zero-length fragment is avoided
+Scenario: Delete marker [TODO]
+  No UI for deletion exists
+
+Scenario: Persist
+  Markers should persist in saved projects
 ```
 
-### Z5-10: Clip Context Menu
+### Z5-10: Loop Region `[IMPL]`
 
-**Description:** Right-click menu on a clip.
+**Component:** `timeline/LoopRegion.tsx` — **EXISTS (v1 doc incorrectly said "no visual")**
 
-**Acceptance Criteria:**
 ```gherkin
-When the user right-clicks on a clip
-Then a context menu appears with:
-  - "Split at Playhead" — splits clip at current playhead
-  - "Duplicate" — creates a copy appended after the clip
-  - "Delete" — removes the clip from the timeline
-  - "Speed/Duration..." — opens speed control dialog
-  - "Reverse" — toggles reverse playback flag on the clip
-  - "Enable" / "Disable" — toggles whether the clip renders
+Scenario: Set loop in/out [IMPL]
+  When user presses I at 1.0s
+  Then loop in point set at 1.0s
+  When user presses O at 3.0s
+  Then loop out point set at 3.0s
 
-Each action should be undoable (Cmd+Z)
+Scenario: Visual region [TODO — component exists but display not confirmed]
+  Then a highlighted region appears on the ruler between in and out points
+
+Scenario: Loop playback [TODO — not tested]
+  Given loop region set
+  When playback reaches out point
+  Then playback jumps to in point and continues
 ```
 
-### Z5-11: Track Context Menu
+### Z5-11: Timeline Zoom `[IMPL]`
 
-**Description:** Right-click menu on a track header.
+**Component:** `timeline/ZoomScroll.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-When the user right-clicks on a track header
-Then a context menu appears with:
-  - "Duplicate Track" — creates a copy with all clips
-  - "Rename Track" — opens inline rename input
-  - "Move Up" — swaps track with the one above (grayed if top)
-  - "Move Down" — swaps track with the one below (grayed if bottom)
-  - "Delete Track" — removes the track and all its clips
+Scenario: Zoom in [IMPL] — Cmd+=
+Scenario: Zoom out [IMPL] — Cmd+-
+Scenario: Zoom to fit [IMPL] — Cmd+0
+Scenario: Scroll zoom [IMPL] — Cmd+scroll
 
-"Duplicate Track" should copy the track name + " (Copy)"
-"Delete Track" should be undoable
-"Rename Track" should show a text input field in the track header
+Zoom should not affect playback speed.
+Min zoom: project fits in view. Max zoom: individual frames visible.
 ```
 
-### Z5-12: Markers (Cmd+M)
+### Z5-12: Empty Timeline Hint `[IMPL]`
 
-**Description:** Timeline markers for navigation.
-
-**Acceptance Criteria:**
 ```gherkin
-Given the playhead is at 1.5s
-When the user presses Cmd+M
-Then a green triangle marker appears on the ruler at 1.5s
-
-Multiple markers can be added at different positions
-
-When the user clicks near a marker on the ruler
-Then the playhead snaps to the marker position
-
-Markers should persist in saved projects
-Markers should be deletable (method TBD — no UI currently exists)
-Adding a marker should be undoable (Cmd+Z)
-```
-
-### Z5-13: Timeline Zoom
-
-**Description:** Zoom in/out on the timeline.
-
-**Acceptance Criteria:**
-```gherkin
-When the user presses Cmd+=
-Then the timeline zooms in (time spans fewer pixels)
-And ruler tick marks become more frequent
-And clip thumbnails show more detail
-
-When the user presses Cmd+-
-Then the timeline zooms out (more time visible)
-And ruler tick marks become less frequent
-
-When the user presses Cmd+0
-Then the timeline zooms to fit all content in the visible area
-
-When the user holds Cmd and scrolls the trackpad/mouse wheel
-Then the timeline zooms in/out centered on the cursor position
-
-Zoom level should NOT affect playback speed
-Zoom should be smooth (not jarring jumps)
-Minimum zoom: entire project fits in view
-Maximum zoom: individual frames visible
-```
-
-### Z5-14: Empty Timeline Hint
-
-**Description:** Guidance text shown when no content exists.
-
-**Acceptance Criteria:**
-```gherkin
-Given no video is imported and the timeline is empty
-Then the timeline area shows:
-  "Drag media here, press ⌘I, or use File → Import"
-And a "+ Add Track" text link
-
-When the user imports a video
-Then the hint text disappears
-And is replaced by the track with clip
+Scenario: Show hint [IMPL]
+  Given empty timeline
+  Then shows "Drag media here, press ⌘I, or use File → Import" and "+ Add Track"
 ```
 
 ---
 
 ## Z6: Device Chain
 
-### Z6-01: Effect Card
+### Z6-01: Device Chain Container `[IMPL]`
 
-**Description:** Container for a single effect in the chain.
+**Component:** `device-chain/DeviceChain.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given an effect has been added to the chain
-Then an effect card appears in the device chain area showing:
-  - Green "ON" toggle (left side)
-  - Effect name (e.g., "Invert", "Hue Shift")
-  - "AB" button (A/B comparison)
-  - "x" button (remove)
-  - Parameter controls (knobs, dropdowns) specific to the effect
-  - "MIX" label with slider and percentage
-
-Cards are arranged horizontally, left to right = processing order
-The chain count shows "X / 10" on the right side
-The render time shows in milliseconds (colored: green < 33ms, yellow < 66ms, red > 66ms)
+Scenario: Layout [IMPL]
+  Cards arranged horizontally, left-to-right = processing order
+  Chain count "X / 10" on right
+  Render time in ms (green <33ms, yellow <66ms, red >66ms)
 ```
 
-### Z6-02: Effect Bypass Toggle (Green ON)
+### Z6-02: Device Card `[IMPL]`
 
-**Description:** Bypasses a single effect without removing it.
+**Component:** `device-chain/DeviceCard.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given an effect is active (green "ON" indicator)
-When the user clicks the green toggle
-Then the toggle dims/changes to indicate bypassed state
-And the effect is skipped in the render pipeline
-And the preview updates immediately (without this effect)
-And the render time may decrease
-
-When the user clicks the toggle again
-Then the effect re-enables
-And the preview includes the effect again
-And the render time may increase
-
-Bypass state should persist in saved projects
-Bypass toggle should be undoable (Cmd+Z)
+Scenario: Card contents [IMPL]
+  Then shows: green ON toggle, effect name, AB button, x button, params, MIX slider
 ```
 
-### Z6-03: AB Button
+### Z6-03: Effect Bypass `[IMPL]`
 
-**Description:** A/B comparison between two parameter states.
-
-**Acceptance Criteria:**
 ```gherkin
-When the user adjusts parameters and clicks "AB"
-Then the effect toggles between the current params (B) and the previous params (A)
-And the preview updates to show the difference
+Scenario: Bypass [IMPL]
+  When user clicks green toggle
+  Then effect dimmed, skipped in render, preview updates, render time may decrease
 
-This allows quick comparison of "before my tweak" vs "after my tweak"
-without fully bypassing the effect.
+Scenario: Un-bypass [IMPL]
+  When clicked again
+  Then effect re-enables, preview includes it
+
+Scenario: Undo bypass
+  When Cmd+Z pressed
+  Then bypass state reverts
 ```
 
-**Current Status:** NOT TESTED.
+### Z6-04: AB Switch `[IMPL]`
 
-### Z6-04: Remove Button (x)
+**Component:** `device-chain/ABSwitch.tsx`
+**Store actions:** `toggleAB`, `copyToInactiveAB`
+**Note:** v1 doc had wrong spec. Corrected based on code.
 
-**Description:** Removes an effect from the chain.
-
-**Acceptance Criteria:**
 ```gherkin
-When the user clicks the "x" button on an effect card
-Then the effect is removed from the chain
-And the chain count decreases (e.g., 8/10 → 7/10)
-And the preview updates immediately
-And the remaining effects shift to fill the gap
-And the removal is undoable (Cmd+Z restores the effect with all its params)
+Scenario: Toggle AB [IMPL]
+  Given effect has two param snapshots (A and B)
+  When user clicks AB button
+  Then effect switches between A and B param sets
+  And preview updates to show the active set
+
+Scenario: Copy to inactive [IMPL]
+  When user adjusts params in A mode
+  And clicks "copy to B" (or equivalent)
+  Then current params are copied to the B snapshot
+
+Scenario: Deactivate AB [TODO — store action exists, no UI]
+  Store has deactivateAB(effectId) but no component calls it
 ```
 
-### Z6-05: Rotary Knob
+### Z6-05: Remove Button (x) `[IMPL]`
 
-**Description:** Circular drag control for continuous parameters.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a parameter has a rotary knob control
-Then the knob shows:
-  - A circular track with green arc indicating current value
-  - The parameter label above (e.g., "Hue Rota...")
-  - The current value below (e.g., "180.00°")
+Scenario: Remove effect [IMPL]
+  When user clicks x
+  Then effect removed, count decreases, preview updates
 
-When the user drags UP on the knob
-Then the value increases
-And the green arc extends clockwise
-And the preview updates in real-time
-
-When the user drags DOWN on the knob
-Then the value decreases
-And the green arc recedes
-
-When the user holds Shift while dragging
-Then the value changes at 1/10th normal speed (fine adjustment)
-
-When the user holds Cmd/Ctrl while dragging
-Then the value changes at 10x normal speed (coarse adjustment)
-
-When the user scrolls the mouse wheel over the knob
-Then the value increases (scroll up) or decreases (scroll down)
-And each tick changes by one step
-
-When the user double-clicks the value display
-Then an editable text field appears
-And the user can type an exact value
-And pressing Enter confirms, Escape cancels
-
-When the user right-clicks the knob
-Then the value resets to its default
-
-When the user focuses the knob (click or tab) and presses Up/Down arrows
-Then the value increments/decrements by one step per press
-And holding Shift + arrow = fine step (1/10th)
-
-The knob should clamp values to the parameter's min/max range
-Knob changes should be undoable (Cmd+Z)
-The knob arc should visually indicate the valid range
+Scenario: Undo removal [IMPL]
+  When Cmd+Z pressed
+  Then effect restored with all params at original position
 ```
 
-**Current Bugs:**
-- BUG-5: Scroll wheel doesn't work
-- BUG-9: Double-click doesn't open number input
-- BUG-10: Arrow keys don't work
-- BUG-16: Shift/Cmd modifiers don't affect sensitivity
+### Z6-06: Rotary Knob `[PARTIAL]`
 
-### Z6-06: Mix Slider
+**Component:** `common/Knob.tsx`
 
-**Description:** Dry/wet blend control for each effect.
-
-**Acceptance Criteria:**
 ```gherkin
-Given an effect card has a mix slider
-Then the slider shows:
-  - "MIX" label
-  - Horizontal slider track
-  - Slider thumb at current position
-  - Percentage value (e.g., "100%")
+Scenario: Drag to change value [IMPL]
+  When user drags up/down on knob
+  Then value increases/decreases, green arc moves, preview updates real-time
 
-When the slider is at 100%
-Then the effect is fully applied
+Scenario: Right-click reset [IMPL]
+  When user right-clicks knob
+  Then value resets to default
 
-When the slider is at 0%
-Then the effect is fully bypassed (original frame shown)
+Scenario: Shift+drag fine adjust [TODO] [BUG-16]
+  Knob.tsx has no modifier key detection in drag handler
 
-When the slider is at 50%
-Then the output is a 50/50 blend of original and processed frames
+Scenario: Cmd+drag coarse adjust [TODO] [BUG-16]
+  Same — no modifier detection
 
-When the user drags the slider
-Then the blend changes in real-time
-And the preview updates continuously
+Scenario: Scroll wheel [TODO] [BUG-5]
+  Knob.tsx has no onWheel handler
 
-Mix value should persist in saved projects
-Mix changes should be undoable
+Scenario: Double-click value for input [TODO] [BUG-9]
+  NumberInput.tsx exists but not wired to knob value display
+
+Scenario: Arrow keys [TODO] [BUG-10]
+  Knob.tsx has no onKeyDown handler
+
+Scenario: Value clamping [IMPL]
+  Values clamp to parameter min/max range
+
+Scenario: Undo knob change [IMPL]
+  When Cmd+Z pressed
+  Then value reverts to previous
 ```
 
-### Z6-07: Dropdown Parameters
+**Red-team:**
+- Drag knob while rapidly switching effects — should not apply to wrong effect
+- Drag knob during playback — should update render pipeline without frame drops
+- Set extreme values (min-1, max+1) via rapid drag — should clamp, not overflow
 
-**Description:** Select menus for enum/choice parameters.
+### Z6-07: Number Input `[IMPL]`
 
-**Acceptance Criteria:**
+**Component:** `common/NumberInput.tsx`
+
 ```gherkin
-Given an effect has a dropdown parameter (e.g., Curves "Channel")
-When the user clicks the dropdown
-Then a menu appears with the available options (e.g., master, r, g, b)
+Scenario: Direct value entry [TODO — not wired to knobs]
+  When NumberInput appears
+  Then user can type exact value, Enter confirms, Escape cancels
 
-When the user selects an option
-Then the dropdown updates to show the new selection
-And the effect re-renders with the new parameter value
-And the preview updates
-
-For Curves:
-  - Channel: master, r, g, b
-  - Interpolation: cubic, linear
-
-For Pixel Sort:
-  - Direction: horizontal, vertical
-
-For Datamosh:
-  - Mode: melt, bloom, etc.
-
-Dropdown selections should persist in saved projects
-Dropdown changes should be undoable
+Note: Component exists and works, but is not triggered by double-clicking knob values
 ```
 
-### Z6-08: Chain Count and Render Time
+### Z6-08: Param Slider `[IMPL]`
 
-**Description:** Displays current chain size and render performance.
+**Component:** `effects/ParamSlider.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given effects are in the chain
-Then the right side of the device chain header shows:
-  - "X / 10" where X is the current number of effects
-  - "[N]ms" render time for the current frame
-
-The render time should update whenever:
-  - Effects are added/removed
-  - Parameters change
-  - A new frame is rendered
-
-Color coding for render time:
-  - Green: < 33ms (can maintain 30fps)
-  - Yellow: 33-66ms (15-30fps achievable)
-  - Red: > 66ms (below 15fps)
+Scenario: Linear slider param [IMPL — not tested via computer use]
+  Given a parameter uses a linear slider (not rotary knob)
+  When user drags slider
+  Then value changes linearly, preview updates
 ```
 
-### Z6-09: Max Chain Enforcement
+### Z6-09: Param Toggle `[IMPL]`
 
-**Description:** Prevents adding more than the maximum number of effects.
+**Component:** `effects/ParamToggle.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the chain has 10 effects (the maximum)
-When the user tries to add another effect (from sidebar or Adjustments menu)
-Then the effect is NOT added
-And the chain stays at 10/10
-And effect names in the sidebar appear dimmed/disabled
-And no error dialog or crash occurs
+Scenario: Boolean toggle [IMPL]
+  When user clicks toggle
+  Then value flips true/false, preview updates
+  Example: Datamosh "Accumulate" toggle
+```
 
-The max chain length is configurable in Preferences > Performance
-(default: 20, but UI enforces 10 — this discrepancy should be resolved)
+### Z6-10: Param Choice (Dropdown) `[IMPL]`
+
+**Component:** `effects/ParamChoice.tsx`
+
+```gherkin
+Scenario: Select option [IMPL]
+  When user clicks dropdown
+  Then options appear (e.g. master/r/g/b for Curves Channel)
+  When user selects an option
+  Then dropdown updates, effect re-renders
+
+Scenario: Undo selection
+  When Cmd+Z pressed
+  Then previous selection restores
+```
+
+### Z6-11: Param Tooltip `[IMPL]`
+
+**Component:** `common/ParamTooltip.tsx`
+
+```gherkin
+Scenario: Hover shows tooltip [IMPL]
+  When user hovers over parameter label
+  Then tooltip shows: description, range, default value
+```
+
+### Z6-12: Mix Slider `[IMPL]`
+
+**Component:** `effects/ParamMix.tsx`
+
+```gherkin
+Scenario: Dry/wet blend [IMPL — drag not confirmed via computer use]
+  100% = full effect, 0% = original, 50% = 50/50 blend
+  When user drags slider
+  Then blend changes in real-time
+```
+
+### Z6-13: Freeze Overlay `[IMPL]`
+
+**Component:** `effects/FreezeOverlay.tsx`
+
+```gherkin
+Scenario: Freeze indicator [TODO — not tested]
+  Given an effect is frozen (render cached)
+  Then a freeze overlay/indicator appears on the effect card
+```
+
+### Z6-14: Max Chain Enforcement `[IMPL]`
+
+```gherkin
+Scenario: 10 effects max [IMPL]
+  Given 10 effects in chain
+  When user tries to add 11th
+  Then rejected, sidebar names dimmed
+
+Note: Preferences > Performance shows "Max chain length: 20" but UI enforces 10.
+This discrepancy should be resolved.
+```
+
+### Z6-15: Effect Reordering `[TODO]`
+
+```gherkin
+Scenario: Drag to reorder [TODO — not confirmed via computer use]
+  When user drags an effect card to a new position
+  Then effects reorder, preview updates
+  Note: Store has reorder logic but drag UI may not be wired
 ```
 
 ---
 
-## Z7: Automation Bar
+## Z7: Automation
 
-### Z7-01: R/L/T/D Mode Buttons
+### Z7-01: Automation Toolbar `[IMPL]`
 
-**Description:** Radio buttons for automation recording mode.
+**Component:** `automation/AutomationToolbar.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given the automation bar shows R, L, T, D buttons
-Then exactly one button is active (green) at any time
-And R (Read) is the default
+Scenario: R/L/T/D radio buttons [IMPL]
+  Exactly one active (green) at a time. R is default.
+  R = Read (playback only)
+  L = Latch (write on touch, continue until stop)
+  T = Touch (write while adjusting, return on release)
+  D = Draw (pencil draw in lane)
 
-When the user clicks L
-Then L highlights green
-And R deselects
-And automation recording uses Latch mode:
-  - Starts writing when a parameter is touched
-  - Continues writing until playback stops
+Scenario: Simplify [TODO — not tested]
+  Reduces automation point count while preserving shape
 
-When the user clicks T
-Then T highlights green
-And automation uses Touch mode:
-  - Writes while parameter is being adjusted
-  - Returns to previous automation when released
-
-When the user clicks D
-Then D highlights green
-And automation uses Draw mode:
-  - Clicking in the automation lane draws values directly
-
-When the user clicks R
-Then R highlights green
-And automation plays back existing curves (read-only)
+Scenario: Clear [TODO — not tested]
+  Removes all automation data (should prompt for confirmation)
 ```
 
-### Z7-02: Simplify Button
+### Z7-02: Automation Lane `[IMPL]`
 
-**Description:** Reduces the number of automation points.
+**Component:** `automation/AutomationLane.tsx`
 
-**Acceptance Criteria:**
 ```gherkin
-Given automation data exists with many control points
-When the user clicks "Simplify"
-Then the automation curve is simplified (fewer points, same shape)
-And the simplification is undoable
+Scenario: Display lane [TODO — not tested via computer use]
+  Given automation data exists for a parameter
+  Then a lane appears below the track showing the automation curve
 
-Given no automation data exists
-When the user clicks "Simplify"
-Then nothing happens (no crash)
+Scenario: Lane visibility
+  When user clicks A on track header
+  Then automation lanes toggle visible/hidden
 ```
 
-**Current Status:** NOT TESTED.
+### Z7-03: Automation Node `[IMPL]`
 
-### Z7-03: Clear Button
+**Component:** `automation/AutomationNode.tsx`
 
-**Description:** Removes all automation data.
-
-**Acceptance Criteria:**
 ```gherkin
-When the user clicks "Clear"
-Then all automation data is removed from the current track/parameter
-And the automation lane (if visible) shows an empty curve
-And the clear is undoable (Cmd+Z restores the data)
+Scenario: Drag node [TODO — not tested]
+  When user drags a node point
+  Then the automation value changes at that time position
+  And the curve updates
 
-This should probably prompt for confirmation if there is significant automation data.
+Scenario: Delete node [IMPL — Delete key works for automation nodes]
+  When user selects node and presses Delete
+  Then node removed (this IS wired, unlike clip deletion)
 ```
 
-**Current Status:** NOT TESTED.
+### Z7-04: Automation Draw `[IMPL]`
+
+**Component:** `automation/AutomationDraw.tsx`
+
+```gherkin
+Scenario: Pencil draw [TODO — not tested]
+  Given D (Draw) mode is active
+  When user clicks and drags in automation lane
+  Then automation values are drawn directly
+```
+
+### Z7-05: Curve Segment `[IMPL]`
+
+**Component:** `automation/CurveSegment.tsx`
+
+```gherkin
+Scenario: Curve rendering [TODO — not tested]
+  Then segments between nodes render as smooth curves
+```
 
 ---
 
 ## Z8: Status Bar
 
-### Z8-01: Engine Status Indicator
+### Z8-01: Engine Status `[IMPL]`
 
-**Description:** Shows Python sidecar connection state.
-
-**Acceptance Criteria:**
 ```gherkin
-Given the Python sidecar is running and connected
-Then a green dot + "Engine: Connected" shows in the status bar
+Scenario: Connected [IMPL]
+  Then green dot + "Engine: Connected"
 
-Given the sidecar is disconnected (crashed or killed)
-Then the indicator changes to red/yellow + "Engine: Disconnected"
-And the watchdog begins automatic restart (within 5-10 seconds)
+Scenario: Disconnected [IMPL]
+  Then indicator changes, watchdog restarts within 5-10s
 
-When the sidecar reconnects after a crash
-Then the indicator returns to green + "Engine: Connected"
-And the uptime resets
-And the app continues functioning normally (no manual intervention needed)
+Scenario: Reconnect [IMPL]
+  Then indicator returns to green, uptime resets
 ```
 
-### Z8-02: Uptime Counter
+### Z8-02: Uptime `[IMPL]`
 
-**Description:** Shows how long the engine has been connected.
-
-**Acceptance Criteria:**
 ```gherkin
-Given the engine is connected
-Then the uptime shows "Uptime: X.Xs" and increments continuously
-
-When the engine disconnects and reconnects
-Then the uptime resets to 0
-
-The uptime should be formatted as seconds with one decimal (e.g., "16640.2s")
+Scenario: Counter [IMPL]
+  Then "Uptime: X.Xs" increments continuously
+  Resets on reconnect
 ```
 
-### Z8-03: Resolution, FPS, Render Time
+### Z8-03: Render Info `[IMPL]`
 
-**Description:** Technical info about the current render.
-
-**Acceptance Criteria:**
 ```gherkin
-Given a 1280x720 30fps video is loaded
-Then the status bar shows "720p 30fps [N]ms"
+Scenario: Display [IMPL]
+  Then shows "720p 30fps [N]ms"
+```
 
-The resolution should reflect the source video (720p, 1080p, etc.)
-The FPS should reflect the source framerate
-The render time should match the device chain render time
+---
+
+## Z9: Operators (9 components) `[IMPL — UI exists, NOT tested]`
+
+**Component directory:** `operators/`
+**Store:** `stores/operators.ts`
+
+### Z9-01: Operator Rack
+
+**Component:** `operators/OperatorRack.tsx`
+
+```gherkin
+Scenario: Show operator list [TODO — not tested]
+  Then available operator types: LFO, Envelope, Step Sequencer, Fusion, Audio Follower, Video Analyzer
+
+Scenario: Add operator [TODO]
+  When user adds an LFO
+  Then LFO editor appears
+
+Scenario: Reorder operators [TODO — store exists, UI not wired]
+```
+
+**Red-team:**
+- Add maximum operators — should limit or degrade gracefully
+- Circular routing — should prevent
+
+### Z9-02: LFO Editor
+
+**Component:** `operators/LFOEditor.tsx`
+
+```gherkin
+Scenario: LFO controls [TODO]
+  Rate (Hz), Depth (%), Shape (sine/square/triangle/saw), free/sync toggle
+```
+
+### Z9-03: Envelope Editor
+
+**Component:** `operators/EnvelopeEditor.tsx`
+
+```gherkin
+Scenario: ADSR controls [TODO]
+  Attack, Decay, Sustain, Release sliders/knobs
+```
+
+### Z9-04: Step Sequencer Editor
+
+**Component:** `operators/StepSequencerEditor.tsx`
+
+```gherkin
+Scenario: Step grid [TODO]
+  Grid of steps (e.g. 16), click to toggle/adjust
+```
+
+### Z9-05: Fusion Editor
+
+**Component:** `operators/FusionEditor.tsx`
+
+```gherkin
+Scenario: Multi-source blend [TODO]
+  Source list with weight sliders
+```
+
+### Z9-06: Audio Follower Editor
+
+**Component:** `operators/AudioFollowerEditor.tsx`
+
+```gherkin
+Scenario: Audio-reactive [TODO]
+  Frequency band, sensitivity, smoothing
+```
+
+### Z9-07: Video Analyzer Editor
+
+**Component:** `operators/VideoAnalyzerEditor.tsx`
+
+```gherkin
+Scenario: Video-reactive [TODO]
+  Analysis mode (brightness, motion, color)
+```
+
+### Z9-08: Modulation Matrix
+
+**Component:** `operators/ModulationMatrix.tsx`
+
+```gherkin
+Scenario: Routing grid [TODO]
+  Operators as rows, effect params as columns, click to route
+```
+
+### Z9-09: Routing Lines
+
+**Component:** `operators/RoutingLines.tsx`
+
+```gherkin
+Scenario: Visual connections [TODO]
+  Lines between connected operators and targets
+```
+
+---
+
+## Z10: Performance Mode (6 components) `[PARTIAL]`
+
+### Z10-01: Performance Panel `[IMPL]`
+
+**Component:** `performance/PerformancePanel.tsx`
+
+```gherkin
+Scenario: Enter/exit [IMPL] — P key toggles PERFORM/CAPTURE indicators
+```
+
+### Z10-02: Pad Grid `[IMPL]`
+
+**Component:** `performance/PadGrid.tsx`
+
+```gherkin
+Scenario: 4x4 pad display [IMPL]
+  16 numbered pads with keyboard bindings
+
+Scenario: Pad hint [IMPL]
+  "No pad mappings configured — double-click a pad to add"
+```
+
+### Z10-03: Pad Cell `[IMPL]`
+
+**Component:** `performance/PadCell.tsx`
+
+```gherkin
+Scenario: Trigger pad [TODO]
+  Click or mapped key triggers assigned action
+```
+
+### Z10-04: Pad Editor `[IMPL]`
+
+**Component:** `performance/PadEditor.tsx`
+
+```gherkin
+Scenario: Configure pad [TODO]
+  Double-click pad opens editor for action mapping
+```
+
+### Z10-05: MIDI Settings `[IMPL]`
+
+**Component:** `performance/MIDISettings.tsx`
+
+```gherkin
+Scenario: MIDI device config [TODO]
+  Available devices, channel selection, controller mapping
+```
+
+### Z10-06: MIDI Learn Overlay `[IMPL]`
+
+**Component:** `performance/MIDILearnOverlay.tsx`
+
+```gherkin
+Scenario: MIDI learn [TODO]
+  Overlay appears, move controller to map
+```
+
+---
+
+## Z11: Text Overlays (2 components) `[IMPL]`
+
+### Z11-01: Text Panel
+
+**Component:** `text/TextPanel.tsx`
+
+```gherkin
+Scenario: Edit text [TODO]
+  Text content, font, size, color, position, animation controls
+```
+
+### Z11-02: Text Overlay
+
+**Component:** `text/TextOverlay.tsx`
+
+```gherkin
+Scenario: Render text [TODO]
+  Text renders on preview canvas above video
 ```
 
 ---
 
 ## Dialogs
 
-### D-01: Import Dialog (Cmd+I)
+### D-01: Import `[IMPL]`
 
-**Acceptance Criteria:**
+**Components:** `upload/FileDialog.tsx`, `upload/DropZone.tsx`, `upload/IngestProgress.tsx`
+
 ```gherkin
-When the user presses Cmd+I (or File > Import Media, or Browse button)
-Then the macOS native file picker opens
-And it filters for video file types (MP4, MOV, AVI, WebM, etc.)
+Scenario: File dialog import [IMPL]
+  Cmd+I → file picker → select video → track + clip + preview
 
-When the user selects a valid video file and clicks Open
-Then the file is imported:
-  - A track is auto-created if none exists
-  - A clip appears on the track spanning the video duration
-  - The preview shows the first frame
-  - Asset info updates in the sidebar
-  - The timecode total updates
+Scenario: Drag-and-drop import [IMPL — not tested via CU]
+  Drag from Finder → green highlight on timeline → drop → import
 
-When the user selects a non-video file (e.g., PDF)
-Then the import is rejected with a clear error message
+Scenario: Progress indicator [IMPL — not explicitly tested]
+  During import, progress shows
 
-When the user clicks Cancel
-Then nothing happens (no crash, no state change)
-
-Importing should create a single undo point (Cmd+Z removes track + clip + asset)
+Scenario: Non-video rejected [IMPL]
+Scenario: Cancel [IMPL]
+Scenario: Undo import [IMPL]
 ```
 
-### D-02: Save Dialog (Cmd+S)
+**Red-team:**
+- Import symlink to /etc/passwd — should reject
+- Import 100GB video — should handle memory
+- Import during playback — should queue
 
-**Acceptance Criteria:**
+### D-02: Save `[IMPL]`
+
 ```gherkin
-Given an unsaved project (never been saved)
-When the user presses Cmd+S
-Then a Save dialog appears with:
-  - "Save As:" field with default name "Untitled.glitch"
-  - "Tags:" field (optional)
-  - "Where:" location picker
-  - Cancel / Save buttons
-
-When the user types a name and clicks Save
-Then a .glitch file is created at the chosen location
-And the file contains valid JSON with version, timeline, effects, assets, etc.
-And the title bar updates to show the new filename
-And the asterisk (dirty indicator) disappears
-
-Given a previously saved project
-When the user presses Cmd+S
-Then the file is overwritten at the same location (no dialog)
-And the asterisk disappears
+Scenario: First save [IMPL] — dialog with "Untitled.glitch"
+Scenario: Subsequent saves [IMPL] — overwrites, no dialog
 ```
 
-### D-03: Save As Dialog (Cmd+Shift+S)
+### D-03: Save As `[IMPL]`
 
-**Acceptance Criteria:**
 ```gherkin
-When the user presses Cmd+Shift+S
-Then a Save As dialog always appears (even if previously saved)
-And the user can choose a new name and location
-
-The saved .glitch file should be loadable via Cmd+O
+Scenario: Always shows dialog [IMPL]
 ```
 
-### D-04: Export Dialog (Cmd+E)
+### D-04: Export `[IMPL]`
 
-**Acceptance Criteria:**
+**Components:** `export/ExportDialog.tsx`, `export/ExportProgress.tsx`, `export/RenderQueue.tsx`
+
 ```gherkin
-When the user presses Cmd+E
-Then the Export dialog opens with three tabs:
-  - Video
-  - GIF
-  - Image Sequence
+Scenario: Three tabs [IMPL]
+  Video (codec, res, fps, quality, CRF, region, audio)
+  GIF (max res, dithering, region)
+  Image Sequence (format, region)
 
-VIDEO TAB:
-  - Codec dropdown: H.264 (MP4) (and possibly others)
-  - Resolution dropdown: Source (WxH), 720p, 1080p, etc.
-  - Frame Rate dropdown: Source (Xfps)
-  - Quality Preset dropdown: Low, Medium, High
-  - Bitrate Mode: CRF / CBR toggle
-  - CRF slider (if CRF mode): 0-51, default 23
-  - Region dropdown: Full Timeline (N frames), In-Out Range
-  - "Include Audio" checkbox
-  - Cancel / Export buttons
+Scenario: Export progress [TODO]
+  Progress bar with frame count, elapsed, ETA
 
-GIF TAB:
-  - Max Resolution dropdown (480p, etc.)
-  - Dithering checkbox
-  - Region dropdown
-  - Cancel / Export buttons
-
-IMAGE SEQUENCE TAB:
-  - Format dropdown: PNG, JPEG, TIFF
-  - Region dropdown
-  - Cancel / Export buttons
-
-When the user clicks Export
-Then a Save dialog appears for the output file location
-Then export begins with a progress indicator
-Then the exported file is created with all effects baked in
-
-The export should render every frame through the full effect chain
-Export should work with 0 effects (renders original video)
-Export with 10 effects should complete (may be slow)
+Scenario: Render queue [TODO]
+  Multiple exports with status tracking
 ```
 
-### D-05: Preferences Dialog
+### D-05: Preferences `[IMPL]`
 
-**Acceptance Criteria:**
+**Components:** `layout/Preferences.tsx`, `layout/ShortcutEditor.tsx`
+
 ```gherkin
-When the user opens Help > Keyboard Shortcuts (or equivalent)
-Then the Preferences dialog opens with 4 tabs:
-
-GENERAL TAB:
-  - Theme: Dark (Light — Coming soon)
-  - Language: English
-
-SHORTCUTS TAB:
-  - Full keyboard shortcut reference organized by category:
-    Transport, Edit, Timeline, View
-  - Each shortcut shows: Action, Default key, Current key
-  - Shortcuts should be rebindable (click → press new key)
-
-PERFORMANCE TAB:
-  - Auto-freeze threshold (effects): number input
-  - Max chain length: number input (default 20)
-  - Render quality: dropdown (Low, Medium, High)
-
-PATHS TAB:
-  - User preset folder: text + Browse button
-  - Autosave folder: text + Browse button
-  - Cache folder: text + Browse button
-
-Close button dismisses the dialog
-Changes should take effect immediately (no Apply button needed)
+Scenario: 4 tabs [IMPL] — General, Shortcuts, Performance, Paths
+Scenario: Shortcut rebinding [IMPL — via ShortcutEditor.tsx]
 ```
 
-### D-06: About Dialog
+### D-06: About `[IMPL]`
 
-**Acceptance Criteria:**
+**Component:** `layout/AboutDialog.tsx`
+
+### D-07: Speed/Duration `[TODO]` `[BUG-13]`
+
+**NO COMPONENT EXISTS.** Menu item dispatches nothing.
+
+### D-08: Welcome Screen `[IMPL]`
+
+**Component:** `layout/WelcomeScreen.tsx`
+
 ```gherkin
-When the user clicks Electron > About Entropic
-Then a small dialog appears showing:
-  - App icon
-  - "Electron" (or "Entropic" when packaged)
-  - Version number (e.g., "Version 40.6.0")
-  - Close button (red traffic light)
+Scenario: Launch screen [IMPL]
+  "ENTROPIC" title, version, New Project, Open Project, Recent Projects
 ```
 
-### D-07: Speed/Duration Dialog
+### D-09: Crash Recovery `[IMPL]`
 
-**Acceptance Criteria:**
+**Component:** `dialogs/CrashRecoveryDialog.tsx`
+
 ```gherkin
-When the user right-clicks a clip and selects "Speed/Duration..."
-Then a dialog should open showing:
-  - Speed percentage input (100% = normal, 200% = double speed, 50% = half speed)
-  - Duration display (updates inversely to speed)
-  - "Reverse" checkbox
-  - "Ripple edit" checkbox (shift subsequent clips)
-  - OK / Cancel buttons
-
-When the user sets speed to 200% and clicks OK
-Then the clip plays at double speed
-And the clip duration halves on the timeline
-And the change is undoable
+Scenario: Autosave recovery [TODO — not tested]
+  Given .autosave.glitch exists
+  Then dialog offers restore or discard
 ```
 
-**Current Status:** FAIL (BUG-13) — dialog doesn't open.
+### D-10: Feedback Dialog `[IMPL]`
 
----
-
-## Keyboard Shortcuts — Full BDD
-
-### Playback Shortcuts
+**Component:** `dialogs/FeedbackDialog.tsx`
 
 ```gherkin
-Space     → Toggle play/pause
-Escape    → Stop (playhead to 0:00.0)
-J         → Reverse playback (multiple presses = faster)
-K         → Pause at current position
-L         → Forward playback (multiple presses = faster)
-K+J       → Step one frame backward
-K+L       → Step one frame forward
+Scenario: Send feedback [TODO — not tested]
+  Cmd+Shift+F → text field + submit
 ```
 
-### Edit Shortcuts
+### D-11: Telemetry Consent `[IMPL]`
+
+**Component:** `dialogs/TelemetryConsentDialog.tsx`
 
 ```gherkin
-Cmd+Z     → Undo last action
-Cmd+Shift+Z → Redo last undone action
-Cmd+A     → Select all clips on all tracks
-Cmd+D     → Duplicate selected effect in device chain
-Delete    → Delete selected clip(s) from timeline
+Scenario: First launch opt-in [TODO — not tested]
 ```
 
-### File Shortcuts
+### D-12: Update Banner `[IMPL]`
+
+**Component:** `layout/UpdateBanner.tsx`
 
 ```gherkin
-Cmd+N     → New project (prompts to save if unsaved)
-Cmd+O     → Open .glitch project file
-Cmd+S     → Save project
-Cmd+Shift+S → Save As (always shows dialog)
-Cmd+I     → Import video media
-Cmd+E     → Open export dialog
-Cmd+T     → Add text track
+Scenario: Update available [TODO — not tested]
+  Banner with install button
 ```
 
-### Timeline Shortcuts
+### D-13: Error Boundary `[IMPL]`
+
+**Component:** `layout/ErrorBoundary.tsx`
 
 ```gherkin
-Cmd+K     → Split clip at playhead
-Cmd+M     → Add marker at playhead
-Cmd+=     → Zoom in timeline
-Cmd+-     → Zoom out timeline
-Cmd+0     → Zoom to fit all content
-I         → Set loop in point at playhead
-O         → Set loop out point at playhead
+Scenario: Catch render error [IMPL — not tested]
+  React error caught, fallback UI shown, no full crash
 ```
 
-### View Shortcuts
+### D-14: History Panel `[IMPL]`
+
+**Component:** `layout/HistoryPanel.tsx` — **EXISTS (v1 incorrectly said "not implemented")**
 
 ```gherkin
-Cmd+B     → Toggle sidebar visibility
-F         → Toggle focus mode (collapse sidebar + timeline)
-A         → Toggle automation display
-P         → Toggle perform mode
-Cmd+U     → Toggle quantize snap
-\         → Hold for before/after effect comparison
+Scenario: Undo history list [TODO — not tested]
+  List of past actions, click entry to revert to that point
 ```
 
 ---
 
-## Per-Effect Acceptance Criteria (Sample)
+## Keyboard Shortcuts — Wiring Status
 
-> There are ~170 effects. Below are criteria for the most commonly tested ones.
-> Each effect should follow the same pattern.
+**Files:** `default-shortcuts.ts` → `shortcuts.ts` → `App.tsx:243-335`
 
-### Effect: Invert
+| Shortcut | Action | Status |
+|----------|--------|--------|
+| Space | play_pause | `[IMPL]` App.tsx:313 |
+| Escape | stop | `[IMPL]` FIXED (BUG-3) |
+| J | transport_reverse | `[TODO]` Defined, NO handler (BUG-12) |
+| K | transport_stop | `[TODO]` Defined, NO handler (BUG-12) |
+| L | transport_forward | `[TODO]` Defined, NO handler (BUG-12) |
+| Cmd+Z | undo | `[IMPL]` |
+| Cmd+Shift+Z | redo | `[IMPL]` |
+| Cmd+A | select_all | `[IMPL]` |
+| Cmd+D | duplicate_effect | `[TODO]` Defined, NO handler (BUG-14) |
+| Delete | delete_clip | `[TODO]` NOT DEFINED (BUG-15) |
+| Cmd+N/O/S/Shift+S | file ops | `[IMPL]` |
+| Cmd+I | import | `[IMPL]` |
+| Cmd+E | export | `[IMPL]` |
+| Cmd+T | add_text_track | `[IMPL]` |
+| Cmd+K | split_at_playhead | `[IMPL]` |
+| Cmd+M | add_marker | `[IMPL]` |
+| Cmd+=/- /0 | zoom in/out/fit | `[IMPL]` |
+| I/O | loop in/out | `[IMPL]` |
+| Cmd+B | toggle_sidebar | `[IMPL]` |
+| F | toggle_focus | `[IMPL]` |
+| A | toggle_automation | `[IMPL]` |
+| P | toggle_perform | `[IMPL]` |
+| Cmd+U | toggle_quantize | `[IMPL]` |
+| Cmd+Shift+F | feedback | `[IMPL]` |
+| Cmd+Shift+D | support_bundle | `[IMPL]` |
+| \ | before_after | `[IMPL]` |
 
-```gherkin
-Given "Invert" is added to the chain
-Then the preview shows color-inverted video (white→black, red→cyan, etc.)
-And the effect card shows "Invert" with ON toggle, AB, x
-And the effect has NO parameters (only mix slider)
-```
+---
 
-### Effect: Hue Shift
+## Unwired Store Features (11 actions)
 
-```gherkin
-Given "Hue Shift" is added to the chain
-Then the preview shows hue-rotated colors
-And the effect card shows:
-  - "Hue Rotation" rotary knob (range: 0°–360°, default: 180°)
-  - MIX slider (default: 100%)
+| Store | Action | Description |
+|-------|--------|-------------|
+| timeline | `setTrackOpacity` | No UI |
+| timeline | `setTrackBlendMode` | No UI |
+| timeline | `setClipTransform` | Only tests |
+| operators | `reorderOperators` | No UI drag |
+| automation | `addTriggerLane` | No UI |
+| automation | `recordTriggerEvent` | No UI |
+| automation | `mergeCapturedTriggers` | No UI |
+| automation | `copyRegion` | No UI |
+| automation | `pasteAtPlayhead` | No UI |
+| project | `groupEffects` | No UI |
+| project | `ungroupEffects` | No UI |
 
-When Hue Rotation = 0°, the image appears unchanged
-When Hue Rotation = 180°, colors are shifted by half the spectrum
-When Hue Rotation = 360°, the image appears unchanged (full cycle)
-```
+---
 
-### Effect: VHS
+## Per-Effect Samples
 
-```gherkin
-Given "VHS" is added to the chain
-Then the preview shows VHS-style degradation:
-  - Scan lines
-  - Tracking errors (horizontal displacement)
-  - Noise
-  - Chromatic aberration
+> ~170 effects. Each follows this pattern.
 
-Parameters:
-  - Tracking (knob, default ~0.50%)
-  - Noise (knob, default ~0.20%)
-  - Chromatic Aberration (knob, partially visible as "Chromati...")
-  - MIX slider
-```
-
-### Effect: Posterize
-
-```gherkin
-Given "Posterize" is added to the chain
-Then the preview shows reduced color palette (banding)
-
-Parameters:
-  - Color Levels (knob, default: 4, range: 2–256)
-    - At 2: extreme posterization (2 colors per channel)
-    - At 256: no visible effect (full color range)
-  - MIX slider
-```
-
-### Effect: Datamosh Real
-
-```gherkin
-Given "Datamosh Real" is added to the chain
-Then the preview shows frame-blending/smearing artifacts
-
-Parameters:
-  - Intensity (knob, default: 1.00x)
-  - Corruption (knob, default: 0.30%)
-  - MIX slider
-```
-
-### Effect: Curves
-
-```gherkin
-Given "Curves" is added to the chain
-Then the effect card shows:
-  - Control point knob (0.00)
-  - Channel dropdown: master (default), r, g, b
-  - Interpolation dropdown: cubic (default), linear
-  - MIX slider
-
-When Channel = "master"
-Then adjustments affect all RGB channels equally
-
-When Channel = "r"
-Then only the red channel curve is modified
-
-Curves should support adding control points to shape the tonal curve
-An S-curve (darks down, lights up) should increase contrast
-```
-
-### Effect: Levels
-
-```gherkin
-Given "Levels" is added to the chain
-Then the effect card shows:
-  - Input Black (knob, default: 0, range: 0–255)
-  - Input White (knob, default: 255, range: 0–255)
-  - Gamma (knob, partially visible)
-  - Output Black (knob, partially visible)
-  - MIX slider
-
-When Input Black increases
-Then dark areas get crushed (pulled to black)
-
-When Input White decreases
-Then bright areas get blown out (pulled to white)
-```
+### Invert `[IMPL]` — No params. Preview inverts colors.
+### Hue Shift `[IMPL]` — Hue Rotation: 0°-360°, default 180°.
+### VHS `[IMPL]` — Tracking (~0.50%), Noise (~0.20%), Chromatic Aberration.
+### Posterize `[IMPL]` — Color Levels: 2-256, default 4.
+### Datamosh Real `[IMPL]` — Intensity (1.00x), Corruption (0.30%).
+### Curves `[IMPL]` — Control point, Channel (master/r/g/b), Interpolation (cubic/linear).
+### Levels `[IMPL]` — Input Black (0-255), Input White (0-255), Gamma, Output Black.
