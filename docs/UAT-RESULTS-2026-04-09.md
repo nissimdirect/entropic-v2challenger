@@ -13,8 +13,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Tests actually clicked/verified | ~340 |
-| PASS | 280 |
+| Tests actually clicked/verified | ~355 |
+| PASS | 293 |
 | FAIL | 16 |
 | FIXED (this session) | 4 |
 | N/A (genuinely can't test via computer use) | ~20 |
@@ -575,6 +575,35 @@ These tests CANNOT be done via computer use and require a human:
 10. **BUG-14: Cmd+D (Duplicate Effect) non-functional** — Low severity, mapped in shortcuts but doesn't duplicate
 11. **BUG-15: Delete/Backspace key doesn't delete selected clip** — Low severity (right-click > Delete works)
 12. **BUG-16: Shift/Cmd drag modifiers don't change knob sensitivity** — Low severity, fine/coarse adjustment not wired
+
+---
+
+## PASS 10 — Load Project, Layout Modes, Effect Removal, Perform (2026-04-09 late night)
+
+### Project Load (Round-Trip)
+| # | Test | Result |
+|---|------|--------|
+| 175 | Load .glitch project (Cmd+O) | **PASS** — File picker opens, selects .glitch file |
+| 176-178 | Effects/timeline/clip restored | **PASS** — 8/10 effects chain preserved, clip with thumbnails, 94ms render |
+| NEW | BPM preserved in save | **PASS** — BPM 120 restored from file |
+
+### Layout Modes
+| # | Test | Result |
+|---|------|--------|
+| 287 | Sidebar toggle (Cmd+B) | **PASS** — Sidebar collapses, preview expands to fill |
+| 288 | Focus mode (F) | **PASS** — Both sidebar AND timeline collapse, preview maximized, "20 fps" |
+| NEW | Exit focus mode (F again) | **PASS** — All panels restored |
+
+### Effect Chain Operations
+| # | Test | Result |
+|---|------|--------|
+| 54 | Remove effect (X button) | **PASS** — Chain 8/10→7/10, undo restores |
+
+### Perform Mode
+| # | Test | Result |
+|---|------|--------|
+| 285 | Enter perform mode (P) | **PASS** — "PERFORM" + "CAPTURE" indicators at bottom-right |
+| 286 | Exit perform mode (P) | **PASS** — Indicators disappear (verified via subsequent screenshot) |
 
 ---
 
