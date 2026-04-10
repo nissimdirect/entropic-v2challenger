@@ -25,6 +25,7 @@ export interface ProjectSettings {
   audioSampleRate: number;
   masterVolume: number;
   seed: number;
+  bpm: number;
 }
 
 export interface Asset {
@@ -75,6 +76,39 @@ export type BlendMode =
   | "darken"
   | "lighten";
 
+export interface ClipTransform {
+  x: number;          // horizontal offset (px, relative to canvas center)
+  y: number;          // vertical offset (px)
+  scaleX: number;     // horizontal scale (1.0 = 100%)
+  scaleY: number;     // vertical scale (1.0 = 100%)
+  rotation: number;   // degrees
+  anchorX: number;    // anchor X offset from clip center (px, 0 = center)
+  anchorY: number;    // anchor Y offset from clip center (px, 0 = center)
+  flipH: boolean;     // horizontal mirror
+  flipV: boolean;     // vertical mirror
+}
+
+/** Normalize a partial/legacy transform to the full interface. */
+export function normalizeTransform(t?: Partial<ClipTransform> & { scale?: number }): ClipTransform {
+  return {
+    x: t?.x ?? 0,
+    y: t?.y ?? 0,
+    scaleX: t?.scaleX ?? (t as any)?.scale ?? 1,
+    scaleY: t?.scaleY ?? (t as any)?.scale ?? 1,
+    rotation: t?.rotation ?? 0,
+    anchorX: t?.anchorX ?? 0,
+    anchorY: t?.anchorY ?? 0,
+    flipH: t?.flipH ?? false,
+    flipV: t?.flipV ?? false,
+  }
+}
+
+/** Identity transform — no changes applied. */
+export const IDENTITY_TRANSFORM: ClipTransform = {
+  x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0,
+  anchorX: 0, anchorY: 0, flipH: false, flipV: false,
+}
+
 export interface Clip {
   id: string;
   assetId: string;
@@ -85,6 +119,10 @@ export interface Clip {
   outPoint: number;
   speed: number;
   textConfig?: TextClipConfig;
+  transform?: ClipTransform;
+  opacity?: number;      // 0.0–1.0, default 1.0 (undefined = fully opaque)
+  isEnabled?: boolean;   // default true (undefined = enabled)
+  reversed?: boolean;    // default false
 }
 
 // --- Text ---
@@ -124,6 +162,12 @@ export interface Marker {
 
 // --- Effects ---
 
+export interface ABState {
+  a: Record<string, number | string | boolean>;
+  b: Record<string, number | string | boolean>;
+  active: 'a' | 'b';
+}
+
 export interface EffectInstance {
   id: string;
   effectId: string;
@@ -133,6 +177,7 @@ export interface EffectInstance {
   modulations: Record<string, ModulationRoute[]>;
   mix: number;
   mask: MaskConfig | null;
+  abState?: ABState | null;
 }
 
 export interface ModulationRoute {
@@ -155,12 +200,17 @@ export interface MaskConfig {
 
 // --- Automation ---
 
+export type TriggerMode = 'toggle' | 'gate' | 'one-shot';
+
 export interface AutomationLane {
   id: string;
   paramPath: string;
   color: string;
   isVisible: boolean;
   points: AutomationPoint[];
+  isTrigger: boolean;
+  triggerMode?: TriggerMode;
+  triggerADSR?: ADSREnvelope;
 }
 
 export interface AutomationPoint {
@@ -321,11 +371,35 @@ export interface Operator {
   mappings: OperatorMapping[];
 }
 
+// --- Device Groups (Phase 14B) ---
+
+export interface DeviceGroup {
+  id: string;
+  name: string;
+  children: EffectInstance[];
+  macroMappings: MacroMapping[];
+  mix: number;
+  isEnabled: boolean;
+  abState?: ABState | null;
+}
+
+export type ChainItem = EffectInstance | DeviceGroup;
+
+export function isDeviceGroup(item: ChainItem): item is DeviceGroup {
+  return 'children' in item && Array.isArray((item as DeviceGroup).children);
+}
+
+export function flattenChain(chain: ChainItem[]): EffectInstance[] {
+  return chain.flatMap(item =>
+    isDeviceGroup(item) ? item.children : [item]
+  );
+}
+
 // --- Presets (Phase 10) ---
 
 export interface MacroMapping {
   label: string;
-  effectIndex: number;
+  effectId: string;   // CTO I3: effectId not effectIndex (index breaks on reorder)
   paramKey: string;
   min: number;
   max: number;

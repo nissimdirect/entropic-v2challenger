@@ -29,6 +29,16 @@ const CY = SIZE / 2
 const START_ANGLE = 135 // degrees from 12 o'clock, clockwise
 const SWEEP = 270
 
+/** Drag sensitivity tiers (slider units per pixel of vertical mouse movement) */
+const SENSITIVITY_FINE = 0.001   // Shift+drag: 10x finer than normal
+const SENSITIVITY_NORMAL = 0.005 // Default drag
+const SENSITIVITY_COARSE = 0.02  // Cmd/Ctrl+drag: 4x faster than normal
+
+/** Scroll wheel step (slider units per wheel tick) */
+const WHEEL_STEP_NORMAL = 0.02
+const WHEEL_STEP_FINE = 0.004
+const WHEEL_STEP_COARSE = 0.08
+
 function polarToXY(angleDeg: number): [number, number] {
   const rad = ((angleDeg - 90) * Math.PI) / 180
   return [CX + RADIUS * Math.cos(rad), CY + RADIUS * Math.sin(rad)]
@@ -42,16 +52,23 @@ function arcPath(startAngle: number, endAngle: number): string {
   return `M ${sx} ${sy} A ${RADIUS} ${RADIUS} 0 ${largeArc} 1 ${ex} ${ey}`
 }
 
+function getDragSensitivity(e: { shiftKey: boolean; metaKey: boolean; ctrlKey: boolean }): number {
+  if (e.shiftKey) return SENSITIVITY_FINE
+  if (e.metaKey || e.ctrlKey) return SENSITIVITY_COARSE
+  return SENSITIVITY_NORMAL
+}
+
 /**
  * SVG rotary knob with Ghost Handle, fine-tune mode, and direct value entry.
  *
  * Interactions:
  * - Drag vertically to adjust value (up = increase)
- * - Shift+drag for 10x precision
- * - Double-click to type exact value
+ * - Shift+drag for fine precision (10x finer)
+ * - Cmd/Ctrl+drag for coarse adjustment (4x faster)
+ * - Scroll wheel to adjust value (Shift=fine, Cmd=coarse)
+ * - Double-click SVG or value label to type exact value
  * - Right-click to reset to default
- * - Arrow keys when focused: +/- 1% of range
- * - Shift+Arrow: +/- 10% of range
+ * - Arrow keys when focused: +/- 1% of range (Shift: 10%)
  */
 export default function Knob({
   value,
@@ -67,6 +84,7 @@ export default function Knob({
   onChange,
 }: KnobProps) {
   const [isEditing, setIsEditing] = useState(false)
+  const svgRef = useRef<SVGSVGElement>(null)
   const isDragging = useRef(false)
   const startY = useRef(0)
   const startSlider = useRef(0)
@@ -96,11 +114,13 @@ export default function Knob({
     startY.current = e.clientY
     startSlider.current = sliderPos
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+    // Focus the SVG so arrow keys work after drag interaction
+    svgRef.current?.focus()
   }, [sliderPos])
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!isDragging.current) return
-    const sensitivity = e.shiftKey ? 0.001 : 0.005 // Shift = 5x finer
+    const sensitivity = getDragSensitivity(e)
     const delta = (startY.current - e.clientY) * sensitivity
     const newSlider = Math.max(0, Math.min(1, startSlider.current + delta))
     const newValue = sliderToValue(newSlider, min, max, curve)
@@ -124,12 +144,28 @@ export default function Knob({
     const pct = e.shiftKey ? 0.1 : 0.01
     if (e.key === 'ArrowUp' || e.key === 'ArrowRight') {
       e.preventDefault()
+      e.stopPropagation()
       onChange(clampAndRound(value + range * pct))
     } else if (e.key === 'ArrowDown' || e.key === 'ArrowLeft') {
       e.preventDefault()
+      e.stopPropagation()
       onChange(clampAndRound(value - range * pct))
     }
   }, [value, range, onChange, clampAndRound])
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    e.preventDefault()
+    let wheelStep = WHEEL_STEP_NORMAL
+    if (e.shiftKey) wheelStep = WHEEL_STEP_FINE
+    else if (e.metaKey || e.ctrlKey) wheelStep = WHEEL_STEP_COARSE
+    // deltaY < 0 = scroll up = increase value
+    const direction = e.deltaY < 0 ? 1 : -1
+    const newSlider = Math.max(0, Math.min(1, sliderPos + direction * wheelStep))
+    const newValue = sliderToValue(newSlider, min, max, curve)
+    onChange(clampAndRound(newValue))
+    // Focus SVG so subsequent arrow keys work
+    svgRef.current?.focus()
+  }, [sliderPos, min, max, curve, onChange, clampAndRound])
 
   const handleNumberConfirm = useCallback((v: number) => {
     setIsEditing(false)
@@ -157,6 +193,7 @@ export default function Knob({
       <div className="knob">
         <span className="knob__label">{label}</span>
         <svg
+          ref={svgRef}
           className="knob__svg"
           width={SIZE}
           height={SIZE}
@@ -168,6 +205,7 @@ export default function Knob({
           onDoubleClick={handleDoubleClick}
           onContextMenu={handleContextMenu}
           onKeyDown={handleKeyDown}
+          onWheel={handleWheel}
         >
           {/* Track */}
           <path
@@ -211,13 +249,15 @@ export default function Knob({
             onCancel={() => setIsEditing(false)}
           />
         ) : (
-          <ParamLabel
-            label=""
-            value={value}
-            unit={unit}
-            type={type}
-            description={description}
-          />
+          <div className="knob__value" onDoubleClick={handleDoubleClick}>
+            <ParamLabel
+              label=""
+              value={value}
+              unit={unit}
+              type={type}
+              description={description}
+            />
+          </div>
         )}
       </div>
     </ParamTooltip>

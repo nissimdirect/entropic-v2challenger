@@ -53,6 +53,13 @@ export interface EntropicBridge {
   onUpdateDownloaded: (callback: (data: { version: string }) => void) => () => void
   downloadUpdate: () => Promise<void>
   installUpdate: () => Promise<void>
+  openPopOut: () => Promise<void>
+  closePopOut: () => Promise<void>
+  isPopOutOpen: () => Promise<boolean>
+  sendFrameToPopOut: (dataUrl: string) => void
+  onMenuAction: (callback: (action: string) => void) => () => void
+  onCloseRequested: (callback: () => void) => () => void
+  confirmClose: () => void
 }
 
 /**
@@ -93,6 +100,13 @@ export function createMockEntropic(
     onUpdateDownloaded: vi.fn().mockReturnValue(vi.fn()),
     downloadUpdate: vi.fn().mockResolvedValue(undefined),
     installUpdate: vi.fn().mockResolvedValue(undefined),
+    openPopOut: vi.fn().mockResolvedValue(undefined),
+    closePopOut: vi.fn().mockResolvedValue(undefined),
+    isPopOutOpen: vi.fn().mockResolvedValue(false),
+    sendFrameToPopOut: vi.fn(),
+    onMenuAction: vi.fn().mockReturnValue(vi.fn()),
+    onCloseRequested: vi.fn().mockReturnValue(vi.fn()),
+    confirmClose: vi.fn(),
   }
   return { ...defaults, ...overrides }
 }

@@ -25,6 +25,14 @@ export const STORE_RELATIONSHIPS = {
   operator: {
     fusionSources: 'operators[].parameters.sources where operatorId === operator ID (fusion type)',
   },
+  /** Deleting a device group (Phase 14B) */
+  deviceGroup: {
+    childEffects: 'group.children -- each child triggers effectInstance cleanup above',
+    automationLanes: 'timeline.tracks[].automationLanes where paramPath matches any child effect ID',
+    operatorMappings: 'operators[].mappings where targetEffectId matches any child effect ID',
+    ccMappings: 'midi.ccMappings where effectId matches any child effect ID',
+    padMappings: 'performance.pads[].mappings where effectId matches any child effect ID',
+  },
   /** Loading a new drum rack */
   drumRack: {
     midiNotes: 'midi.padMidiNotes -- reconcile with new pad IDs',

@@ -86,4 +86,32 @@ describe('useLayoutStore', () => {
     useLayoutStore.getState().setTimelineHeight(150)
     expect(useLayoutStore.getState().timelineHeight).toBe(150)
   })
+
+  it('quantize defaults to off with 1/4 division', () => {
+    const state = useLayoutStore.getState()
+    expect(state.quantizeEnabled).toBe(false)
+    expect(state.quantizeDivision).toBe(4)
+  })
+
+  it('toggleQuantize flips enabled state', () => {
+    useLayoutStore.getState().toggleQuantize()
+    expect(useLayoutStore.getState().quantizeEnabled).toBe(true)
+    useLayoutStore.getState().toggleQuantize()
+    expect(useLayoutStore.getState().quantizeEnabled).toBe(false)
+  })
+
+  it('setQuantizeDivision accepts valid values', () => {
+    useLayoutStore.getState().setQuantizeDivision(8)
+    expect(useLayoutStore.getState().quantizeDivision).toBe(8)
+    useLayoutStore.getState().setQuantizeDivision(16)
+    expect(useLayoutStore.getState().quantizeDivision).toBe(16)
+  })
+
+  it('setQuantizeDivision rejects invalid values', () => {
+    useLayoutStore.getState().setQuantizeDivision(8)
+    useLayoutStore.getState().setQuantizeDivision(3) // invalid
+    expect(useLayoutStore.getState().quantizeDivision).toBe(8) // unchanged
+    useLayoutStore.getState().setQuantizeDivision(0)
+    expect(useLayoutStore.getState().quantizeDivision).toBe(8) // unchanged
+  })
 })

@@ -36,7 +36,7 @@ from audio.player import AudioPlayer
 from audio.waveform import compute_peaks
 from engine.text_renderer import list_system_fonts, render_text_frame
 from video.image_reader import ImageReader, is_image_file
-from video.ingest import probe, probe_image
+from video.ingest import generate_thumbnails, probe, probe_image
 from video.reader import VideoReader
 import diagnostics as _diagnostics_mod
 
@@ -294,6 +294,8 @@ class ZMQServer:
             return self._handle_invalidate_cache(message, msg_id)
         elif cmd == "memory_status":
             return self._handle_memory_status(msg_id)
+        elif cmd == "thumbnails":
+            return self._handle_thumbnails(message, msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -323,7 +325,26 @@ class ZMQServer:
         # Store reader for reuse (images use ImageReader)
         if result.get("ok"):
             self._get_reader(path)
+            # Sync video frame count to audio clock so it never overshoots
+            fc = result.get("frame_count", 0)
+            if fc > 0:
+                self.av_clock.set_video_frame_count(fc)
 
+        return result
+
+    def _handle_thumbnails(self, message: dict, msg_id: str | None) -> dict:
+        path = message.get("path")
+        if not path:
+            return {"id": msg_id, "ok": False, "error": "missing path"}
+
+        # SEC-5: Validate upload path
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        count = int(message.get("count", 8))
+        result = generate_thumbnails(path, count=count)
+        result["id"] = msg_id
         return result
 
     def _handle_seek(self, message: dict, msg_id: str | None) -> dict:
@@ -394,16 +415,14 @@ class ZMQServer:
                     "ok": False,
                     "error": "frame_index must be non-negative",
                 }
+            # Clamp to safe range — MKV/VP9 containers often can't decode
+            # the very last frames. Leave a 2-frame buffer from the end.
             if (
                 hasattr(reader, "frame_count")
                 and reader.frame_count
-                and frame_index >= reader.frame_count
+                and frame_index >= reader.frame_count - 2
             ):
-                return {
-                    "id": msg_id,
-                    "ok": False,
-                    "error": f"frame_index {frame_index} exceeds frame count {reader.frame_count}",
-                }
+                frame_index = max(0, reader.frame_count - 3)
 
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
@@ -442,6 +461,11 @@ class ZMQServer:
                     registry.get,
                     automation_overrides=auto_overrides,
                 )
+
+            # Apply clip transform if present (before effect chain)
+            transform = message.get("transform")
+            if transform and isinstance(transform, dict):
+                frame = self._apply_clip_transform(frame, transform, resolution)
 
             # Use pipeline engine
             output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
@@ -500,16 +524,13 @@ class ZMQServer:
         try:
             reader = self._get_reader(path)
 
+            # Clamp to last valid frame (same as render_frame)
             if (
                 hasattr(reader, "frame_count")
                 and reader.frame_count
                 and frame_index >= reader.frame_count
             ):
-                return {
-                    "id": msg_id,
-                    "ok": False,
-                    "error": f"frame_index {frame_index} exceeds frame count {reader.frame_count}",
-                }
+                frame_index = reader.frame_count - 1
 
             t0 = time.time()
             frame = reader.decode_frame(frame_index)
@@ -574,6 +595,13 @@ class ZMQServer:
                         return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
                     reader = self._get_reader(asset_path)
                     frame = reader.decode_frame(frame_index)
+
+                    # Apply per-layer clip transform if present
+                    layer_transform = layer_info.get("transform")
+                    if layer_transform and isinstance(layer_transform, dict):
+                        frame = self._apply_clip_transform(
+                            frame, layer_transform, tuple(resolution)
+                        )
 
                 layers.append(
                     {
@@ -1085,6 +1113,113 @@ class ZMQServer:
         self.readers[path] = reader
         return reader
 
+    def _apply_clip_transform(
+        self, frame: np.ndarray, transform: dict, resolution: tuple[int, int]
+    ) -> np.ndarray:
+        """Apply position/scale/rotation/flip transform to frame.
+
+        Supports: scaleX/scaleY (independent), anchorX/anchorY, flipH/flipV.
+        Falls back to legacy 'scale' field for old project compatibility.
+        All values are clamped at the trust boundary via clamp_finite.
+        """
+        import cv2
+
+        try:
+            # Support both new scaleX/scaleY and legacy scale field
+            legacy_scale = transform.get("scale", None)
+            scale_x = clamp_finite(
+                float(
+                    transform.get(
+                        "scaleX", legacy_scale if legacy_scale is not None else 1.0
+                    )
+                ),
+                0.01,
+                100.0,
+                1.0,
+            )
+            scale_y = clamp_finite(
+                float(
+                    transform.get(
+                        "scaleY", legacy_scale if legacy_scale is not None else 1.0
+                    )
+                ),
+                0.01,
+                100.0,
+                1.0,
+            )
+            rotation = clamp_finite(
+                float(transform.get("rotation", 0.0)), -36000.0, 36000.0, 0.0
+            )
+            tx = clamp_finite(float(transform.get("x", 0.0)), -10000.0, 10000.0, 0.0)
+            ty = clamp_finite(float(transform.get("y", 0.0)), -10000.0, 10000.0, 0.0)
+            anchor_x = clamp_finite(
+                float(transform.get("anchorX", 0.0)), -10000.0, 10000.0, 0.0
+            )
+            anchor_y = clamp_finite(
+                float(transform.get("anchorY", 0.0)), -10000.0, 10000.0, 0.0
+            )
+            flip_h = bool(transform.get("flipH", False))
+            flip_v = bool(transform.get("flipV", False))
+        except (ValueError, TypeError):
+            return frame  # Malformed transform values — render unmodified
+
+        # No-op check
+        if (
+            scale_x == 1.0
+            and scale_y == 1.0
+            and rotation == 0.0
+            and tx == 0.0
+            and ty == 0.0
+            and anchor_x == 0.0
+            and anchor_y == 0.0
+            and not flip_h
+            and not flip_v
+        ):
+            return frame
+
+        h, w = frame.shape[:2]
+        canvas_w, canvas_h = resolution
+
+        # Flip
+        if flip_h:
+            frame = cv2.flip(frame, 1)
+        if flip_v:
+            frame = cv2.flip(frame, 0)
+
+        # Scale (independent X/Y)
+        if scale_x != 1.0 or scale_y != 1.0:
+            new_w = max(1, int(w * scale_x))
+            new_h = max(1, int(h * scale_y))
+            frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
+            h, w = frame.shape[:2]
+
+        # Create canvas and center the frame
+        channels = frame.shape[2] if frame.ndim == 3 else 1
+        canvas = np.zeros((canvas_h, canvas_w, channels), dtype=np.uint8)
+        x_off = int((canvas_w - w) / 2 + tx)
+        y_off = int((canvas_h - h) / 2 + ty)
+
+        # Compute source and destination regions (clip to canvas bounds)
+        src_x1 = max(0, -x_off)
+        src_y1 = max(0, -y_off)
+        dst_x1 = max(0, x_off)
+        dst_y1 = max(0, y_off)
+        copy_w = min(w - src_x1, canvas_w - dst_x1)
+        copy_h = min(h - src_y1, canvas_h - dst_y1)
+
+        if copy_w > 0 and copy_h > 0:
+            canvas[dst_y1 : dst_y1 + copy_h, dst_x1 : dst_x1 + copy_w] = frame[
+                src_y1 : src_y1 + copy_h, src_x1 : src_x1 + copy_w
+            ]
+
+        # Rotation (around anchor point offset from canvas center)
+        if rotation != 0.0:
+            center = (canvas_w / 2 + anchor_x, canvas_h / 2 + anchor_y)
+            rot_mat = cv2.getRotationMatrix2D(center, rotation, 1.0)
+            canvas = cv2.warpAffine(canvas, rot_mat, (canvas_w, canvas_h))
+
+        return canvas
+
     # --- Freeze/Flatten handlers ---
 
     _CACHE_ID_RE = __import__("re").compile(r"^[0-9a-f]{16}$")
@@ -1298,7 +1433,9 @@ class ZMQServer:
                 except Exception as e:
                     sentry_sdk.capture_exception(e)
                     logging.getLogger(__name__).error(
-                        "Unhandled handler error: %s", type(e).__name__
+                        "Unhandled handler error: %s",
+                        type(e).__name__,
+                        exc_info=True,
                     )
                     response = {"ok": False, "error": "Internal processing error"}
 

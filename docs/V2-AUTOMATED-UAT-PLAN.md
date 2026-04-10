@@ -4,6 +4,7 @@
 > **Tool:** Playwright `_electron` + `electron-playwright-helpers` + pytest (sidecar)
 > **Evidence:** Screenshots saved to `test-results/phase-{N}/` per run.
 > **Rule:** User should NEVER receive an untested build.
+> **Companion doc:** `UAT-UIT-GUIDE.md` — manual walkthrough version of these tests (human tester)
 
 ---
 
@@ -944,6 +945,168 @@ Get ONE other person to use Entropic for 15 minutes with zero instruction. Watch
 
 ---
 
-*Generated: 2026-02-22 | Revised: 2026-02-23*
-*Reviews applied: CTO (architecture gaps, benchmarks), Don Norman (UX contracts, human UAT), Lenny (staged approach, tiered regression), Quality (7 blocking fixes, CI/CD, sequence errors)*
-*Sources: ELECTRON-TESTING-REFERENCE.md, /test-electron skill, /quality §11, PF-16/17 arsenal, UAT-FINDINGS-2026-02-15.md (116 items), UAT-PLAN.md (425 tests), TESTING-STRATEGY.md, v2 spec docs (17 files), Playwright Electron research*
+---
+
+## Menu Bar, Drop Zone, Text Track Relocation (UAT Sprint — 2026-03-23)
+
+> **Plan:** `~/.claude/plans/cozy-wibbling-snowglobe.md`
+> **Reviews:** don-norman, cdo, ask-lenny, quality, qa-redteam, cto, review (8 skills)
+
+### Menu Bar (Change 2)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 1 | Menu bar shows "Entropic" not "Electron" | E2E | App menu label = "Entropic" |
+| 2 | File menu contains Import Media, Add Text Track, Save, Export | E2E | All items present with shortcut labels |
+| 3 | Edit menu has Undo/Redo/Cut/Copy/Paste | E2E | Standard role items present |
+| 4 | View menu toggles work (Sidebar, Focus, Automation, Zoom) | E2E | Each click sends menu:action, UI responds |
+| 5 | Window menu present (macOS only) | E2E | Minimize, Zoom, Bring All to Front |
+| 6 | Help menu has Keyboard Shortcuts + Send Feedback | E2E | Both items present and clickable |
+| 7 | File > Import Media opens file dialog | E2E | Native dialog appears, file ingests on selection |
+| 8 | File > Add Text Track creates text track | Vitest + E2E | Track appears in timeline |
+| 9 | Cmd+I triggers import from keyboard | E2E | Same as File > Import Media |
+| 10 | Cmd+T creates text track from keyboard | E2E | Same as File > Add Text Track |
+| 11 | Cmd+T blocked inside text input elements | Vitest | No track created when editing text clip content |
+| 12 | Menu action after window destroy — no crash | Vitest | webContents.isDestroyed() guard prevents error |
+| 13 | Menu:action IPC uses single multiplexed channel | Vitest | Only 'menu:action' channel, string payload |
+| 14 | onMenuAction cleanup on unmount — no listener leak | Vitest | Cleanup function called, no residual listeners |
+| 15 | All 23 shortcuts still work (21 existing + 2 new) | Vitest | shortcutRegistry has 23 bindings, no conflicts |
+
+### Drop Zone Relocation (Change 1)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 16 | Sidebar no longer shows dashed drop zone box | E2E | No `.drop-zone` element in sidebar |
+| 17 | Browse button still present in sidebar | E2E | FileDialog button visible when no assets |
+| 18 | Timeline empty state shows helper text with Cmd+I hint | Vitest + E2E | "Drag media here, press ⌘I, or use File → Import" |
+| 19 | Timeline empty state has dashed border (drop target signifier) | E2E | `.timeline__empty` has `border: 1px dashed #333` |
+| 20 | Drag file over app → timeline drop highlight appears (green dashed) | E2E | `.timeline__drop-highlight--active` visible |
+| 21 | Drop file on timeline → file ingests | E2E | Video appears in preview, track created |
+| 22 | Drag file + Cmd+Tab away → overlay disappears | E2E | blur handler resets isGlobalDragOver |
+| 23 | Drop overlay uses fade transition (150ms) | Visual | Smooth opacity transition, not instant |
+| 24 | prefers-reduced-motion disables transitions | Vitest | CSS has `@media (prefers-reduced-motion)` rule |
+| 25 | Drag-and-drop works when tracks already exist | E2E | Global handler still fires with populated timeline |
+| 26 | Drop unsupported file type (.psd) → error message | E2E | Toast or error banner with supported formats |
+| 27 | Drop during active ingestion → blocked | E2E | isIngesting guard prevents double import |
+
+### Text Track in Effects Panel (Change 3)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 28 | "T Add Text Track" button removed from timeline | Vitest + E2E | No `.timeline__add-track-btn--text` in DOM |
+| 29 | "+ Add Text Track" button appears in EffectBrowser | Vitest | `.effect-browser__action-btn` present above effects list |
+| 30 | Button has dashed indigo border (#6366f1) | Visual | Visually distinct from solid-background effect items |
+| 31 | Button click creates text track | Vitest | onAddTextTrack prop called, track appears |
+| 32 | Button has :focus-visible outline | Vitest | outline: 2px solid #6366f1 on keyboard focus |
+| 33 | EffectBrowser receives onAddTextTrack as prop (no store import) | Vitest | Component imports 0 stores, handler via prop |
+| 34 | Cmd+T at MAX_TRACKS limit → blocked gracefully | Vitest | No crash, track not created |
+| 35 | Rapid Cmd+T spam (10x) → reasonable number of tracks | Vitest | No runaway track creation |
+| 36 | Undo after text track add (via menu or shortcut) → track removed | Vitest | undoable() wrapper works for menu-triggered adds |
+
+### Cross-Feature Combinations
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 37 | Import via Cmd+I + apply effect + Cmd+T + export | E2E | Full workflow completes successfully |
+| 38 | Import via drag + apply effect via sidebar + text track via menu | E2E | All 3 input paths work together |
+| 39 | File > Import while playing → import succeeds, playback pauses or continues | E2E | No crash, deterministic behavior |
+| 40 | Concurrent Cmd+I + drag file → no double import | E2E | One import wins, other is blocked |
+
+### CTO Fixes (2026-03-23 — post-review)
+
+| # | Test | Type | Expected |
+|---|------|------|----------|
+| 41 | Audio clock never emits frame index >= video frame count | Vitest + pytest | `target_frame_index` clamped to `video_frame_count - 1` |
+| 42 | Sidecar clamps out-of-range frame_index (defense in depth) | pytest | Returns last valid frame, not `ok: False` |
+| 43 | Import auto-creates track + clip in timeline | Vitest | Track appears with clip spanning video duration |
+| 44 | Second import places clip at end of timeline, not position 0 | Vitest | `clip.position === timeline.duration` before add |
+| 45 | Import is single undo entry (Cmd+Z undoes track + clip + asset) | Vitest | `beginTransaction`/`commitTransaction` groups all 3 actions |
+| 46 | `addTrack` returns new track ID | Vitest | `typeof result === 'string'` when under MAX_TRACKS |
+| 47 | `addTrack` returns `undefined` at MAX_TRACKS | Vitest | Returns `undefined`, shows toast warning |
+| 48 | Play button has inset focus-visible ring | Visual / Vitest | `outline-offset: -2px` — not clipped by parent overflow |
+| 49 | Playback at end of video holds last frame (no error) | E2E | Audio clock past video duration → renders last frame, no "Frame render failed" |
+| 50 | Adjustments menu adds effect to chain | E2E | Click Adjustments > Curves → Curves effect appears in device chain |
+
+---
+
+## Sprint 2: Image Sizing, Transport, BPM, Transform (2026-03-23)
+
+| # | Test Case | Layer | Acceptance Criterion |
+|---|-----------|-------|---------------------|
+| 51 | ResizeObserver tracks container dimensions | Vitest | `containerSize` updates when ResizeObserver fires, drawBase64Frame uses tracked dimensions |
+| 52 | drawBase64Frame uses passed dimensions (not DOM reads) | Vitest | Function signature takes `containerW`, `containerH` params |
+| 53 | Operators panel not rendered | Vitest | No `OperatorRack`, `ModulationMatrix`, `RoutingLines` in App render output |
+| 54 | Scroll-wheel zoom on timeline (Cmd+scroll) | Vitest | `handleWheel` with `metaKey=true` changes zoom state |
+| 55 | Scroll-wheel pan on timeline (plain scroll) | Vitest | `handleWheel` without metaKey changes scrollX state |
+| 56 | Native Electron page zoom disabled | E2E | `setVisualZoomLevelLimits(1, 1)` called on mainWindow |
+| 57 | Transport buttons render in timeline footer | Vitest | Play/Stop/Loop buttons present when props provided |
+| 58 | Timecode display updates with playheadTime | Vitest | `.timeline__timecode` shows formatted time |
+| 59 | Stop handler resets playhead to 0 | Vitest | Calls `setPlayheadTime(0)` and stops timer |
+| 60 | Loop toggle creates/clears loop region | Vitest | First click sets loop region, second click clears it |
+| 61 | BPM input visible in timeline footer | Vitest | `.timeline__bpm-input` renders with default value 120 |
+| 62 | BPM clamps to 1-300 | Vitest | `setBpm(0)` → 1, `setBpm(999)` → 300 |
+| 63 | Quantize toggle via Cmd+U | Vitest | Shortcut registered, `toggleQuantize()` toggles state |
+| 64 | Quantize division dropdown | Vitest | `.timeline__quant-select` renders with 1/1 through 1/32 options |
+| 65 | Grid lines visible when quantize ON | Vitest | Track content div gets `backgroundImage` with `repeating-linear-gradient` |
+| 66 | Grid auto-hides when too dense | Vitest | Grid suppressed when `gridPx < 10` |
+| 67 | setQuantizeDivision rejects invalid values | Vitest | Division 3 (invalid) → unchanged, division 8 (valid) → accepted |
+| 68 | ClipTransform defaults (undefined when not set) | Vitest | New clip has `transform: undefined` |
+| 69 | setClipTransform applies transform | Vitest | After `setClipTransform()`, clip has transform with correct values |
+| 70 | setClipTransform is undoable | Vitest | Ctrl+Z reverts transform to previous value |
+| 71 | TransformPanel renders for selected video clip | Vitest | Panel visible with X/Y/Scale/Rotation fields |
+| 72 | TransformPanel hidden for text clips | Vitest | No `.transform-panel` when text clip selected |
+| 73 | Fit to Canvas button auto-calculates scale | Vitest | Scale = `min(canvasW/srcW, canvasH/srcH)` |
+| 74 | Transform sent in render_frame IPC | Vitest | `sendCommand` payload includes `transform` when non-default |
+| 75 | Transform omitted when default (0,0,1,0) | Vitest | `sendCommand` payload has no `transform` key |
+| 76 | Backend transform clamps values via clamp_finite | pytest | scale clamped to [0.01, 10], rotation to [-360, 360], x/y to [-10000, 10000] |
+| 77 | Backend transform no-op for default values | pytest | Frame unchanged when transform is (0,0,1,0) |
+| 78 | Auto-fit on import for oversized images | Vitest | Clip created with `transform.scale < 1` when source > canvas |
+| 79 | Auto-fit on import for small images (no upscale) | Vitest | Clip created with no transform when source fits canvas |
+| 80 | Toggle Quantize in View menu | E2E | View → Toggle Quantize dispatches `toggle-quantize` action |
+
+---
+
+## Sprint 3: Editing Workflow (2026-03-24)
+
+| # | Test Case | Layer | Acceptance Criterion |
+|---|-----------|-------|---------------------|
+| 81 | Clip snaps to grid when quantize ON | Vitest | `snapToGrid()` returns rounded position when `quantizeEnabled=true` |
+| 82 | Cmd held bypasses snap | Vitest | `snapToGrid(pos, true)` returns unmodified position |
+| 83 | Trim in-point snaps to grid | Vitest | Trim handler calls `snapToGrid` on new in-point |
+| 84 | Trim out-point snaps to grid | Vitest | Trim handler calls `snapToGrid` on new out-point |
+| 85 | ContextMenu renders items | Vitest | `.context-menu__item` elements rendered for each non-separator item |
+| 86 | ContextMenu viewport clamping | Vitest | Menu positioned within viewport bounds |
+| 87 | ContextMenu dismisses on Escape | Vitest | `onClose` called when Escape key pressed |
+| 88 | ContextMenu dismisses on click outside | Vitest | `onClose` called on pointerdown outside menu |
+| 89 | duplicateClip creates copy with new ID | Vitest | New clip with unique ID, offset position, same duration |
+| 90 | duplicateClip is undoable | Vitest | Undo removes the duplicate |
+| 91 | duplicateClip deep copies transform | Vitest | Mutating original transform doesn't affect duplicate |
+| 92 | toggleClipEnabled disables clip | Vitest | `isEnabled` set to `false` |
+| 93 | toggleClipEnabled re-enables clip | Vitest | `isEnabled` returns to undefined |
+| 94 | toggleClipEnabled is undoable | Vitest | Undo restores previous state |
+| 95 | reverseClip toggles flag | Vitest | `reversed` toggles between true and undefined |
+| 96 | reverseClip is undoable | Vitest | Undo restores previous state |
+| 97 | duplicateTrack creates copy after source | Vitest | New track with "(Copy)" name, new clip IDs |
+| 98 | duplicateTrack deep copies effectChain | Vitest | Shared effectChain not mutated |
+| 99 | duplicateTrack is undoable | Vitest | Undo removes the duplicate track |
+| 100 | selectAllClips selects all | Vitest | `selectedClipIds` contains all clip IDs |
+| 101 | invertSelection flips selection | Vitest | Previously unselected clips now selected |
+| 102 | selectClipsByTrack selects track clips | Vitest | Only clips in specified track selected |
+| 103 | Select menu: Select All dispatches action | E2E | Select > Select All → all clips highlighted |
+| 104 | Clip menu: Split at Playhead (Cmd+K) | Vitest | Selected clip splits at playhead time |
+| 105 | Clip menu: Reverse toggles flag | Vitest | `reverseClip` called for selected clip |
+| 106 | Timeline menu: Add Video Track | Vitest | New track added with sequential name and color |
+| 107 | Timeline menu: Delete Selected Track | Vitest | `removeTrack` called for selected track |
+| 108 | Close with unsaved changes shows dialog | Vitest | `showCloseDialog` set when `isDirty=true` |
+| 109 | Clean close confirms immediately | Vitest | `confirmClose` called when `isDirty=false` |
+| 110 | Save & Quit saves then closes | Vitest | `saveProject` awaited, then `confirmClose` called |
+| 111 | Close timeout forces close after 5s | E2E | Main process force-closes if renderer doesn't respond |
+| 112 | isEnabled=false hides clip from render | Vitest | `activeVideoClip` filter excludes disabled clips |
+| 113 | Per-layer transform in render_composite | pytest | Backend applies `_apply_clip_transform` per layer |
+| 114 | Edit menu has no Select All (moved to Select) | E2E | Edit menu: Undo, Redo, Cut, Copy, Paste — no Select All |
+
+---
+
+*Generated: 2026-02-22 | Revised: 2026-03-24*
+*Reviews applied: CTO, Don Norman, Lenny, Quality, CDO, Red Team (IPC security, transform clamp, close timeout, shallow copy)*
+*Sources: ELECTRON-TESTING-REFERENCE.md, /test-electron skill, /quality §11, PF-16/17 arsenal, UAT docs, v2 spec docs, Playwright Electron research*

@@ -33,6 +33,7 @@ function defaultSettings(): ProjectSettings {
     audioSampleRate: 44100,
     masterVolume: 1.0,
     seed: Math.floor(Math.random() * 2147483647),
+    bpm: 120,
   }
 }
 
@@ -59,7 +60,7 @@ function serializeProject(): string {
     created: Date.now(),
     modified: Date.now(),
     author: '',
-    settings: defaultSettings(),
+    settings: { ...defaultSettings(), resolution: projectStore.canvasResolution },
     assets: projectStore.assets,
     timeline,
     masterEffectChain: projectStore.effectChain,
@@ -235,6 +236,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate MIDI mappings (backward compat: missing = empty)
   if (project.midiMappings && typeof project.midiMappings === 'object') {
     useMIDIStore.getState().loadMIDIMappings(project.midiMappings)
+  }
+
+  // Hydrate canvas resolution from project settings (backward compat: default 1920x1080)
+  if (project.settings?.resolution && Array.isArray(project.settings.resolution) && project.settings.resolution.length === 2) {
+    useProjectStore.getState().setCanvasResolution(project.settings.resolution[0], project.settings.resolution[1])
   }
 }
 

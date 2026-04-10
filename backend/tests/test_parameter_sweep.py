@@ -78,6 +78,10 @@ class TestParameterSweep:
             "fx.rainbow_shift",
             "speed",
         ),  # Speed scales frame_index; at frame_index=0 all speeds are identical
+        (
+            "fx.hue_shift",
+            "amount",
+        ),  # 0 and 360 degrees are the same hue (full rotation = identity)
         ("fx.chroma_key", "hue"),  # 0 and 360 degrees are the same hue
         (
             "fx.chroma_key",

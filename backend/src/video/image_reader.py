@@ -13,7 +13,7 @@ MAX_IMAGE_DIMENSION = 8192
 
 # Supported image extensions (must match security.py ALLOWED_EXTENSIONS)
 IMAGE_EXTENSIONS = frozenset(
-    {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".webp", ".bmp"}
+    {".png", ".jpg", ".jpeg", ".tiff", ".tif", ".webp", ".bmp", ".heic", ".heif"}
 )
 
 

@@ -22,7 +22,7 @@ describe('PresetSaveDialog logic', () => {
 
   it('creates valid effect_chain preset with macros', () => {
     const macros: MacroMapping[] = [
-      { label: 'Intensity', effectIndex: 0, paramKey: 'amount', min: 0, max: 1 },
+      { label: 'Intensity', effectId: 'fx-1', paramKey: 'amount', min: 0, max: 1 },
     ]
     const preset: Preset = {
       id: 'test-save-2',

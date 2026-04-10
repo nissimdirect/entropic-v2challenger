@@ -136,7 +136,8 @@ describe('retro-capture buffer', () => {
     }));
 
     const result = captureToAutomation(30, 10);
-    expect(result['fx1.amount'][0].value).toBe(0.7);
+    // Trigger events now produce square-wave value 1.0 (Phase 15: trigger lanes)
+    expect(result['fx1.amount'][0].value).toBe(1.0);
     expect(result['fx1.amount'][0].value).toBeGreaterThan(0);
   });
 

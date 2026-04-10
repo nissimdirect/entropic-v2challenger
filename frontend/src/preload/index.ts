@@ -139,4 +139,42 @@ contextBridge.exposeInMainWorld('entropic', {
   installUpdate: (): Promise<void> => {
     return ipcRenderer.invoke('updater:install')
   },
+
+  // --- Pop-out preview ---
+
+  openPopOut: (): Promise<void> => {
+    return ipcRenderer.invoke('pop-out:open')
+  },
+
+  closePopOut: (): Promise<void> => {
+    return ipcRenderer.invoke('pop-out:close')
+  },
+
+  isPopOutOpen: (): Promise<boolean> => {
+    return ipcRenderer.invoke('pop-out:is-open')
+  },
+
+  sendFrameToPopOut: (dataUrl: string): void => {
+    ipcRenderer.send('pop-out:relay-frame', dataUrl)
+  },
+
+  // --- Menu actions ---
+
+  onMenuAction: (
+    callback: (action: string) => void,
+  ): (() => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, action: string) => callback(action)
+    ipcRenderer.on('menu:action', handler)
+    return () => ipcRenderer.removeListener('menu:action', handler)
+  },
+
+  onCloseRequested: (callback: () => void): (() => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('close-requested', handler)
+    return () => ipcRenderer.removeListener('close-requested', handler)
+  },
+
+  confirmClose: (): void => {
+    ipcRenderer.send('close-confirmed')
+  },
 })

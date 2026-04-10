@@ -9,8 +9,9 @@ export default function FileDialog({ onFileSelect, disabled, label }: FileDialog
     if (disabled || !window.entropic) return
 
     const path = await window.entropic.selectFile([
-      { name: 'Video', extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv'] },
-      { name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'tiff', 'tif', 'webp', 'bmp'] },
+      { name: 'Video', extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv', 'mxf', 'ts'] },
+      { name: 'Image', extensions: ['png', 'jpg', 'jpeg', 'tiff', 'tif', 'webp', 'bmp', 'heic', 'heif'] },
+      { name: 'Audio', extensions: ['wav', 'mp3', 'm4a', 'aif', 'aiff', 'ogg', 'flac'] },
     ])
 
     if (path) {

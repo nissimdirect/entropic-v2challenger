@@ -1,0 +1,302 @@
+/* --- Device Chain (Phase 13 — Ableton-style horizontal strip) --- */
+
+.device-chain {
+  background: #18181e;
+  border-top: 1px solid #9B7BB5;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+  max-height: 400px;
+  overflow: hidden;
+}
+
+.device-chain__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: #1c1c24;
+  border-bottom: 1px solid #2a2a34;
+  min-height: 24px;
+  flex-shrink: 0;
+}
+
+.device-chain__title {
+  font-size: 10px;
+  font-weight: 600;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.device-chain__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.device-chain__depth {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.device-chain__timing {
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.device-chain__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  font-size: 12px;
+}
+
+.device-chain__strip {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.device-chain__item {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+/* --- A/B Switch (Phase 14A) --- */
+
+.ab-switch {
+  width: 28px;
+  height: 14px;
+  background: transparent;
+  border: 1px solid #333;
+  border-radius: 2px;
+  color: #555;
+  font-size: 8px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.ab-switch:hover {
+  border-color: #9B7BB5;
+  color: #888;
+}
+
+.ab-switch--active {
+  border-color: #9B7BB5;
+}
+
+.ab-switch__slot--active {
+  color: #e0e0e4;
+  font-weight: 700;
+}
+
+.ab-switch__slot--dim {
+  color: #444;
+}
+
+.device-chain__arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: #333;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* --- Device Card --- */
+
+.device-card {
+  min-width: 130px;
+  max-width: 180px;
+  background: #20202a;
+  border: 1px solid #2a2a34;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.device-card:hover {
+  border-color: #444;
+}
+
+.device-card--selected {
+  border-color: #9B7BB5;
+  box-shadow: 0 0 0 1px #9B7BB5;
+}
+
+.device-card--disabled {
+  opacity: 0.5;
+}
+
+.device-card--error {
+  border-color: #ef4444;
+}
+
+.device-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid #2a2a34;
+  background: #24242e;
+  border-radius: 3px 3px 0 0;
+  gap: 4px;
+}
+
+.device-card__name {
+  font-size: 10px;
+  font-weight: 600;
+  color: #e0e0e4;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.device-card__toggle {
+  width: 22px;
+  height: 14px;
+  background: #4ade80;
+  border: none;
+  border-radius: 2px;
+  color: #0a0a0e;
+  font-size: 7px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.device-card__toggle--off {
+  background: #333;
+  color: #666;
+}
+
+.device-card__remove {
+  background: transparent;
+  border: none;
+  color: #555;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.device-card__remove:hover {
+  color: #ef4444;
+}
+
+/* Params area */
+.device-card__params {
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 120px;
+}
+
+.device-card__param {
+  position: relative;
+}
+
+.device-card__cc-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 7px;
+  font-weight: 700;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 2px;
+  padding: 0 2px;
+  line-height: 1.2;
+}
+
+/* Mix slider */
+.device-card__mix {
+  padding: 4px 8px;
+  border-top: 1px solid #2a2a34;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.device-card__mix-label {
+  font-size: 8px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.device-card__mix-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 2px;
+  background: #333;
+  border-radius: 1px;
+  outline: none;
+}
+
+.device-card__mix-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  background: #888;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.device-card__mix-slider::-webkit-slider-thumb:hover {
+  background: #9B7BB5;
+}
+
+.device-card__mix-value {
+  font-size: 9px;
+  color: #666;
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Scrollbar in device chain */
+.device-chain__strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.device-chain__strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.device-chain__strip::-webkit-scrollbar-thumb {
+  background: #333;
+  border-radius: 2px;
+}
+
+.device-chain__strip::-webkit-scrollbar-thumb:hover {
+  background: #444;
+}

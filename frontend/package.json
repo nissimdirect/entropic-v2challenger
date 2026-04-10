@@ -1,5 +1,6 @@
 {
   "name": "entropic-v2challenger",
+  "productName": "Entropic",
   "version": "0.1.0",
   "description": "Entropic v2 Challenger — Desktop Glitch Video DAW",
   "main": "./out/main/index.js",

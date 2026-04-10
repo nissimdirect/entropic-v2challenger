@@ -1,6 +1,23 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
+import { useLayoutStore } from '../../stores/layout'
+import { useProjectStore } from '../../stores/project'
+import { downsamplePeaks } from '../transport/useWaveform'
+import type { WaveformPeaks } from '../transport/useWaveform'
+import ContextMenu from './ContextMenu'
+import type { MenuItem } from './ContextMenu'
+import SpeedDialog from './SpeedDialog'
+
+/** Snap a position to the nearest grid line if quantize is enabled. */
+function snapToGrid(pos: number, bypassSnap: boolean): number {
+  if (bypassSnap) return pos
+  const { quantizeEnabled, quantizeDivision } = useLayoutStore.getState()
+  const { bpm } = useProjectStore.getState()
+  if (!quantizeEnabled || bpm <= 0) return pos
+  const interval = (60 / bpm) * (4 / quantizeDivision)
+  return Math.round(pos / interval) * interval
+}
 
 interface ClipProps {
   clip: ClipType
@@ -8,12 +25,117 @@ interface ClipProps {
   scrollX: number
   isSelected: boolean
   assetName: string
+  waveformPeaks?: WaveformPeaks | null
+  assetDuration?: number
+  thumbnails?: { time: number; data: string }[]
 }
 
-export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName }: ClipProps) {
+export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
   const isDragging = useRef(false)
   const dragStartX = useRef(0)
   const dragStartPos = useRef(0)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [speedDialog, setSpeedDialog] = useState<{ x: number; y: number } | null>(null)
+
+  // Mini waveform canvas
+  const waveCanvasRef = useRef<HTMLCanvasElement>(null)
+  const [waveWidth, setWaveWidth] = useState(0)
+
+  // ResizeObserver to track clip pixel width for the waveform canvas
+  useEffect(() => {
+    const canvas = waveCanvasRef.current
+    if (!canvas) return
+    const parent = canvas.parentElement
+    if (!parent) return
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        setWaveWidth(Math.floor(entry.contentRect.width))
+      }
+    })
+    observer.observe(parent)
+    setWaveWidth(Math.floor(parent.clientWidth))
+
+    return () => observer.disconnect()
+  }, [])
+
+  // Draw the mini waveform slice corresponding to clip's inPoint/outPoint
+  useEffect(() => {
+    const canvas = waveCanvasRef.current
+    if (!canvas || !waveformPeaks || waveformPeaks.length === 0 || waveWidth <= 0) return
+
+    const totalPeaks = waveformPeaks.length
+    const totalDur = assetDuration && assetDuration > 0 ? assetDuration : clip.outPoint
+
+    // Determine which slice of peaks corresponds to clip's in/out range
+    const startFrac = Math.max(0, Math.min(1, clip.inPoint / totalDur))
+    const endFrac = Math.max(0, Math.min(1, clip.outPoint / totalDur))
+    const startIdx = Math.floor(startFrac * totalPeaks)
+    const endIdx = Math.min(totalPeaks, Math.ceil(endFrac * totalPeaks))
+    const slicedPeaks = waveformPeaks.slice(startIdx, endIdx)
+
+    const dpr = window.devicePixelRatio || 1
+    const logicalWidth = waveWidth
+    const logicalHeight = canvas.clientHeight || 30  // bottom half of 60px track
+
+    canvas.width = logicalWidth * dpr
+    canvas.height = logicalHeight * dpr
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    ctx.scale(dpr, dpr)
+    ctx.clearRect(0, 0, logicalWidth, logicalHeight)
+
+    const bins = downsamplePeaks(slicedPeaks, logicalWidth)
+    if (bins.length === 0) return
+
+    const midY = logicalHeight / 2
+    ctx.fillStyle = '#4ade80'  // bright green — visible on dark clip background
+    const binWidth = logicalWidth / bins.length
+
+    for (let i = 0; i < bins.length; i++) {
+      const { min, max } = bins[i]
+      const top = midY - max * midY
+      const bottom = midY - min * midY
+      const barHeight = Math.max(1, bottom - top)
+      ctx.fillRect(i * binWidth, top, Math.max(1, binWidth - 0.5), barHeight)
+    }
+  }, [waveformPeaks, assetDuration, clip.inPoint, clip.outPoint, waveWidth])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    // Select the clip if not already selected
+    const store = useTimelineStore.getState()
+    if (!store.selectedClipIds.includes(clip.id)) {
+      store.selectClip(clip.id)
+    }
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }, [clip.id])
+
+  const getContextMenuItems = useCallback((): MenuItem[] => {
+    const store = useTimelineStore.getState()
+    const playheadTime = store.playheadTime
+    const withinClip = playheadTime >= clip.position && playheadTime < clip.position + clip.duration
+
+    return [
+      { label: 'Split at Playhead', action: () => store.splitClip(clip.id, playheadTime), disabled: !withinClip },
+      { label: 'Duplicate', action: () => store.duplicateClip(clip.id) },
+      { label: 'Delete', action: () => store.removeClip(clip.id) },
+      { label: '', action: () => {}, separator: true },
+      {
+        label: 'Speed/Duration...',
+        action: () => setSpeedDialog(ctxMenu ?? { x: 200, y: 200 }),
+      },
+      { label: 'Reverse', action: () => store.reverseClip(clip.id) },
+      { label: '', action: () => {}, separator: true },
+      {
+        label: clip.isEnabled === false ? 'Enable' : 'Disable',
+        action: () => store.toggleClipEnabled(clip.id),
+      },
+    ]
+  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled])
 
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
@@ -49,7 +171,8 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const dx = e.clientX - dragStartX.current
       const dt = dx / zoom
       const newPos = Math.max(0, dragStartPos.current + dt)
-      useTimelineStore.getState().moveClip(clip.id, clip.trackId, newPos)
+      const snapped = snapToGrid(newPos, e.metaKey)
+      useTimelineStore.getState().moveClip(clip.id, clip.trackId, snapped)
     },
     [clip.id, clip.trackId, zoom],
   )
@@ -78,7 +201,8 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const onMove = (me: PointerEvent) => {
         const dx = me.clientX - startX
         const dt = dx / zoom
-        const newIn = Math.max(0, startIn + dt)
+        const rawIn = Math.max(0, startIn + dt)
+        const newIn = snapToGrid(rawIn, me.metaKey)
         useTimelineStore.getState().trimClipIn(clip.id, newIn)
       }
       const onUp = () => {
@@ -103,7 +227,9 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const onMove = (me: PointerEvent) => {
         const dx = me.clientX - startX
         const dt = dx / zoom
-        useTimelineStore.getState().trimClipOut(clip.id, startOut + dt)
+        const rawOut = startOut + dt
+        const newOut = snapToGrid(rawOut, me.metaKey)
+        useTimelineStore.getState().trimClipOut(clip.id, newOut)
       }
       const onUp = () => {
         document.removeEventListener('pointermove', onMove)
@@ -123,24 +249,68 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
     ? (clip.textConfig!.text.slice(0, 30) || 'Text')
     : assetName
 
+  const isDisabled = clip.isEnabled === false
+
   return (
-    <div
-      className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}`}
-      style={{ left: `${left}px`, width: `${Math.max(4, width)}px` }}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onClick={handleClick}
-    >
+    <>
       <div
-        className="clip__trim-handle clip__trim-handle--left"
-        onPointerDown={handleTrimLeftDown}
-      />
-      <span className={`clip__name${isTextClip ? ' clip__name--text' : ''}`}>{displayName}</span>
-      <div
-        className="clip__trim-handle clip__trim-handle--right"
-        onPointerDown={handleTrimRightDown}
-      />
-    </div>
+        className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}${isDisabled ? ' clip--disabled' : ''}`}
+        style={{ left: `${left}px`, width: `${Math.max(4, width)}px` }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+      >
+        {thumbnails && thumbnails.length > 0 && (
+          <div className="clip__thumbnails">
+            {thumbnails.map((thumb, i) => (
+              <img
+                key={i}
+                src={`data:image/jpeg;base64,${thumb.data}`}
+                className="clip__thumb"
+                draggable={false}
+              />
+            ))}
+          </div>
+        )}
+        {waveformPeaks && waveformPeaks.length > 0 && (
+          <canvas
+            ref={waveCanvasRef}
+            className="clip__waveform"
+            style={{ width: '100%', height: '100%' }}
+          />
+        )}
+        <div
+          className="clip__trim-handle clip__trim-handle--left"
+          onPointerDown={handleTrimLeftDown}
+        />
+        <span className={`clip__name${isTextClip ? ' clip__name--text' : ''}`}>{displayName}</span>
+        <div
+          className="clip__trim-handle clip__trim-handle--right"
+          onPointerDown={handleTrimRightDown}
+        />
+      </div>
+      {ctxMenu && (
+        <ContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          items={getContextMenuItems()}
+          onClose={() => setCtxMenu(null)}
+        />
+      )}
+      {speedDialog && (
+        <SpeedDialog
+          currentSpeed={clip.speed}
+          clipDuration={clip.duration}
+          position={speedDialog}
+          onConfirm={(speed) => {
+            useTimelineStore.getState().setClipSpeed(clip.id, speed)
+            setSpeedDialog(null)
+          }}
+          onClose={() => setSpeedDialog(null)}
+        />
+      )}
+    </>
   )
 }

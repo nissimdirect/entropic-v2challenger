@@ -36,10 +36,10 @@
           "type": "array",
           "items": {
             "type": "object",
-            "required": ["label", "effectIndex", "paramKey", "min", "max"],
+            "required": ["label", "effectId", "paramKey", "min", "max"],
             "properties": {
               "label": { "type": "string" },
-              "effectIndex": { "type": "integer", "minimum": 0 },
+              "effectId": { "type": "string" },
               "paramKey": { "type": "string" },
               "min": { "type": "number" },
               "max": { "type": "number" }

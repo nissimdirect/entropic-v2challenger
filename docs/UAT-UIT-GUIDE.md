@@ -1,10 +1,11 @@
 # Entropic v2 Challenger — UAT & UIT Testing Guide
 
-> **Version:** 4.0
-> **Date:** 2026-03-16
-> **Covers:** Phases 0A–10, 11.5, Ship Gate Audit (all built phases)
+> **Version:** 4.3
+> **Date:** 2026-03-24
+> **Covers:** Phases 0A–10, 11.5, Ship Gate Audit, Sprint 1 (Menu/Drop/Text), Sprint 2 (Image/Transport/BPM/Transform), Sprint 3 (Editing Workflow)
 > **Tester:** You (manual walkthrough)
-> **Time estimate:** 6-8 hours for full pass (476 test cases)
+> **Time estimate:** 8-10 hours for full pass (517 test cases)
+> **Companion doc:** `V2-AUTOMATED-UAT-PLAN.md` — automated Playwright/Vitest equivalents of these manual tests
 
 ---
 
@@ -65,7 +66,9 @@ If `npm run start` fails:
 | 1 | App opens | Run `npm run start` | Electron window appears, dark theme (#1a1a1a background) | [ ] |
 | 2 | Window title | Look at title bar | Contains "Entropic" and "Untitled" | [ ] |
 | 3 | Window is not blank | Look at main area | React app renders (not white/blank screen) | [ ] |
-| 4 | All panels visible | Look at layout | You see: toolbar (top), browser (left), preview (center), effects panel (right), timeline (bottom) | [ ] |
+| 4 | All panels visible | Look at layout | You see: menu bar (top, says "Entropic"), browser (left), preview (center), timeline (bottom) | [ ] |
+| 4a | Menu bar shows "Entropic" | Look at macOS menu bar | First menu item says "Entropic" (not "Electron") | [ ] |
+| 4b | Menu bar has all menus | Click through menu bar | Entropic, File, Edit, View, Window, Help all present | [ ] |
 
 ### 1.2 Engine Connection
 
@@ -92,9 +95,13 @@ If `npm run start` fails:
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
-| 10 | Open file dialog | Look for an import/upload button (there is NO menu bar — use the button or drag-drop) | File picker dialog opens | [ ] |
+| 10 | Open file dialog via menu | Click File > Import Media... in the menu bar (or press Cmd+I) | File picker dialog opens | [ ] |
+| 10a | Open file dialog via Browse | Click the Browse button in the sidebar (when no asset loaded) | File picker dialog opens | [ ] |
 | 11 | Select a video | Pick your test video (MP4/MOV) | Progress indicator appears during ingest | [ ] |
 | 12 | Ingest completes | Wait for progress to finish | Video appears in the preview canvas (first frame visible) | [ ] |
+| 12a | Track auto-created | Look at the timeline after import | A new track appears with a clip spanning the video duration | [ ] |
+| 12b | Clip positioned correctly | If this is a second import, check clip position | New clip starts AFTER existing clips (appended, not stacked at 0) | [ ] |
+| 12c | Single undo for import | Press Cmd+Z once | Track, clip, and asset all removed in one undo | [ ] |
 | 13 | Metadata shown | Check asset panel or status area | Video resolution, FPS, duration, and codec are displayed | [ ] |
 | 14 | Asset appears | Check Assets tab in browser | Your video file is listed | [ ] |
 
@@ -102,8 +109,10 @@ If `npm run start` fails:
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
-| 15 | Drop zone visible | Drag a video file from Finder toward the app | Drop zone / overlay appears indicating where to drop | [ ] |
-| 16 | Drop imports video | Release the file over the drop zone | Same result as file dialog: progress → preview shows frame | [ ] |
+| 15 | Drop highlight on timeline | Drag a video file from Finder toward the app | Green dashed highlight appears on the **timeline area** (not sidebar) | [ ] |
+| 15a | No drop zone in sidebar | Look at sidebar while dragging | No dashed "Drop video here" box in the sidebar — it was removed | [ ] |
+| 16 | Drop imports video | Release the file over the timeline area | Same result as file dialog: progress → preview shows frame | [ ] |
+| 16a | Empty timeline shows hint | Look at empty timeline (before import) | Shows "Drag media here, press ⌘I, or use File → Import" with styled kbd hint | [ ] |
 
 ### 2.3 Import Edge Cases
 
@@ -131,6 +140,8 @@ If `npm run start` fails:
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 22 | Play | Press Space | Video starts playing in preview | [ ] |
+| 22a | Play to end | Let video play to the very end | Last frame holds — no "Frame render failed" error, no freeze | [ ] |
+| 22b | Play button focus | Click the play button, look at its border | Green inset outline visible — not clipped/cutoff | [ ] |
 | 23 | Pause | Press Space again during playback | Video pauses, frame stays visible | [ ] |
 | 24 | Stop | Press Escape | Playback stops, playhead returns to start | [ ] |
 | 25 | Scrub by clicking | Click different positions on the timeline ruler | Preview updates to show the frame at that position | [ ] |
@@ -149,6 +160,15 @@ If `npm run start` fails:
 ## SECTION 4: Effect System (Phase 1 + Phase 3 Color Suite)
 
 > Tests: can you add, configure, reorder, and remove effects?
+
+### 4.0 Adjustments Menu (NEW — 2026-03-23)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 29a | Adjustments menu exists | Look at the menu bar between Edit and View | "Adjustments" menu is present | [ ] |
+| 29b | Adjustments has color tools | Click Adjustments menu | Shows Curves, Levels, Auto Levels, HSL Adjust, Color Balance, Color Temperature, Brightness/Exposure, etc. | [ ] |
+| 29c | Click adds effect | Click Adjustments > Curves (with a video loaded) | Curves effect appears in the device chain | [ ] |
+| 29d | Multiple adjustments | Click Adjustments > Levels after Curves | Both effects in chain, both applied to preview | [ ] |
 
 ### 4.1 Browsing Effects
 
@@ -365,7 +385,10 @@ If `npm run start` fails:
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
 | 121 | Default track | After import | At least one track exists with your video clip | [ ] |
-| 122 | Add track | Find "add track" button | New empty track appears below existing tracks | [ ] |
+| 122 | Add video track | Click "+" button in timeline header area | New empty video track appears below existing tracks | [ ] |
+| 122a | Add text track via menu | Click File > Add Text Track (or Cmd+T) | New text track appears in timeline | [ ] |
+| 122b | Add text track via effects panel | Click "+ Add Text Track" button in the effects browser sidebar (dashed indigo border) | New text track appears in timeline | [ ] |
+| 122c | No text track button in timeline | Look at the timeline empty state and populated state | No purple "T" button — text track creation is in sidebar + menu only | [ ] |
 | 123 | Track header | Look at track header | Shows track name and color | [ ] |
 | 124 | Rename track | Double-click track name (or right-click rename) | Can type a new name | [ ] |
 | 125 | Track color | Look for color indicator on track | Track has a color label | [ ] |
@@ -584,6 +607,11 @@ If `npm run start` fails:
 | 215 | Cmd+0 | Fit canvas | Canvas fits to window | [ ] |
 | 216 | `\` (hold) | Before/after | Shows original while held | [ ] |
 | 284 | A | Toggle automation | Toggles automation lane visibility on selected track | [ ] |
+| 285 | Cmd+I | Import Media | Opens file dialog to import video/image | [ ] |
+| 286 | Cmd+T | Add Text Track | Creates a new text track in the timeline | [ ] |
+| 287 | Cmd+B | Toggle Sidebar | Shows/hides the left sidebar | [ ] |
+| 288 | F | Toggle Focus Mode | Collapses both sidebar and timeline | [ ] |
+| 289 | Cmd+T in text input | Should NOT fire | When editing text clip content, Cmd+T must not create a track | [ ] |
 
 ---
 
@@ -1316,4 +1344,146 @@ These features are **not yet built** — do NOT test them:
 | 22 | fps=0 rejected | (Dev console) Send clock_set_fps with fps=0 | Error response, no division crash | [ ] |
 
 **Section 22 Total: 22 test cases**
-**Updated Grand Total: 441 test cases**
+
+---
+
+## Section 23: UAT Sprint 2 — Image Sizing, Transport, BPM, Transform
+
+> **Version:** 4.2 — Sprint 2 features
+
+### 23.1 Image Sizing (ResizeObserver Fix)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Image fits on import | Import a 4K image | Image scales to fit preview canvas, not blown out | [ ] |
+| 2 | Container resize | Resize window after importing image | Canvas re-fits image to new size | [ ] |
+| 3 | Small image no upscale | Import 100x100 image | Image stays at native size (not upscaled) | [ ] |
+
+### 23.2 Operators Panel Removed
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 4 | No operators visible | Open app, import video | No OperatorRack/ModulationMatrix/RoutingLines rendered | [ ] |
+| 5 | Device chain still present | Open app, add effects | Ableton-style device chain renders below timeline | [ ] |
+
+### 23.3 Scroll-Wheel Zoom & Pan
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 6 | Cmd+scroll zooms | Cmd + scroll wheel up/down over timeline | Timeline zoom changes | [ ] |
+| 7 | Plain scroll pans | Scroll wheel without Cmd over timeline | Timeline scrolls horizontally | [ ] |
+| 8 | No native page zoom | Cmd+= in timeline area | Timeline zooms, page stays at 100% | [ ] |
+
+### 23.4 Timeline Transport Bar
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 9 | Play button visible | Add a track to timeline | Play button visible in footer | [ ] |
+| 10 | Stop button visible | Add a track | Stop button visible in footer | [ ] |
+| 11 | Loop button visible | Add a track | Loop button visible in footer | [ ] |
+| 12 | Timecode display | Add track, play video | Timecode updates in footer (current / duration) | [ ] |
+| 13 | Play/pause toggles | Click play, then click again | First click plays, second pauses | [ ] |
+| 14 | Stop resets to 0 | Play video, click stop | Playhead returns to 0:00.0 | [ ] |
+| 15 | Loop toggles | Click loop button | Loop region created (full duration), button highlights green | [ ] |
+| 16 | Space key still works | Press Space | Play/pause toggles (same as button) | [ ] |
+
+### 23.5 BPM & Quantize Grid
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 17 | BPM input visible | Add a track | BPM input shows "120" in footer | [ ] |
+| 18 | BPM input editable | Change BPM to 90 | Input updates, grid adjusts if Q is on | [ ] |
+| 19 | BPM clamps to 1-300 | Type 0 in BPM field | Clamps to 1. Type 999, clamps to 300 | [ ] |
+| 20 | Quantize button | Click Q button in footer | Toggles quantize on/off, button highlights green when on | [ ] |
+| 21 | Quantize division | Change dropdown to 1/8 | Grid lines adjust to 1/8 note intervals | [ ] |
+| 22 | Grid lines visible | Enable Q, zoom into timeline | Vertical grid lines visible at beat intervals | [ ] |
+| 23 | Grid density auto-adjusts | Zoom in/out with Q on | Grid lines skip sub-divisions when too dense | [ ] |
+| 24 | Cmd+U shortcut | Press Cmd+U | Toggles quantize same as button | [ ] |
+| 25 | Toggle Quantize in View menu | View → Toggle Quantize | Same as Cmd+U | [ ] |
+
+### 23.6 Clip Transform Controls
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 26 | Transform panel appears | Select a video clip | Transform panel shows in sidebar with X/Y/Scale/Rotation | [ ] |
+| 27 | No transform for text clips | Select a text clip | Transform panel does not appear | [ ] |
+| 28 | Scale changes preview | Change scale slider | Image scales in preview | [ ] |
+| 29 | Position X/Y changes preview | Change X/Y values | Image moves in preview | [ ] |
+| 30 | Rotation changes preview | Change rotation | Image rotates in preview | [ ] |
+| 31 | Fit to Canvas button | Click "Fit" button | Image auto-scales to fit project resolution | [ ] |
+| 32 | Reset button | Change transform, click Reset | All values return to defaults (0,0,1,0) | [ ] |
+| 33 | Transform undo | Change scale, press Cmd+Z | Scale reverts to previous value | [ ] |
+| 34 | Auto-fit on import | Import oversized image | Transform auto-set with fit scale on clip creation | [ ] |
+
+**Section 23 Total: 34 test cases**
+
+---
+
+## Section 24: UAT Sprint 3 — Editing Workflow
+
+> **Version:** 4.3 — Sprint 3 features
+
+### 24.1 Clip Snap-to-Grid
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Snap on drag | Enable Q, drag a clip | Clip snaps to grid lines | [ ] |
+| 2 | Cmd bypasses snap | Enable Q, Cmd+drag clip | Clip moves freely, ignoring grid | [ ] |
+| 3 | Snap on trim left | Enable Q, trim left handle | In-point snaps to grid | [ ] |
+| 4 | Snap on trim right | Enable Q, trim right handle | Out-point snaps to grid | [ ] |
+| 5 | Snap with BPM=300 1/32 | Set extreme BPM/division, drag | Clips snap to very fine grid | [ ] |
+| 6 | Snap disabled when Q off | Turn Q off, drag clip | Free positioning, no snap | [ ] |
+
+### 24.2 Right-Click Context Menus
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 7 | Clip context menu opens | Right-click a clip | Menu shows: Split, Duplicate, Delete, Speed, Reverse, Enable | [ ] |
+| 8 | Split at Playhead | Position playhead in clip, right-click > Split | Clip splits at playhead position | [ ] |
+| 9 | Split disabled when playhead outside clip | Position playhead outside clip, right-click | Split item is grayed out | [ ] |
+| 10 | Duplicate clip | Right-click > Duplicate | New clip appears at +0.5s offset | [ ] |
+| 11 | Delete clip | Right-click > Delete | Clip removed from timeline | [ ] |
+| 12 | Speed/Duration | Right-click > Speed, type 2 | Clip speed changes to 2x | [ ] |
+| 13 | Reverse clip | Right-click > Reverse | Clip marked as reversed | [ ] |
+| 14 | Disable clip | Right-click > Disable | Clip dims to 40% opacity | [ ] |
+| 15 | Re-enable clip | Right-click disabled clip > Enable | Clip returns to full opacity | [ ] |
+| 16 | Track header context menu | Right-click track header | Menu: Duplicate, Rename, Move Up/Down, Delete | [ ] |
+| 17 | Duplicate track | Right-click header > Duplicate | Copy of track appears below | [ ] |
+| 18 | Rename track | Right-click > Rename, type name | Track name updates | [ ] |
+| 19 | Move track up | Right-click > Move Up | Track moves up one position | [ ] |
+| 20 | Move track down | Right-click > Move Down | Track moves down one position | [ ] |
+| 21 | Delete track | Right-click > Delete | Track removed | [ ] |
+| 22 | Context menu dismisses on Escape | Open context menu, press Escape | Menu closes | [ ] |
+| 23 | Context menu dismisses on click outside | Open context menu, click elsewhere | Menu closes | [ ] |
+| 24 | Context menu near edge clamped | Right-click near bottom-right corner | Menu repositioned to stay visible | [ ] |
+
+### 24.3 Menu Bar — Select, Clip, Timeline Menus
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 25 | Select > Select All (Cmd+A) | Add clips, Select > Select All | All clips selected | [ ] |
+| 26 | Select > Deselect All | Select clips, Select > Deselect All | No clips selected | [ ] |
+| 27 | Select > Invert Selection | Select 1 of 3 clips, Invert | Other 2 selected | [ ] |
+| 28 | Select > Select Clips on Track | Select a track, use menu | All clips on that track selected | [ ] |
+| 29 | Clip > Split at Playhead (Cmd+K) | Select clip, position playhead, Cmd+K | Clip splits | [ ] |
+| 30 | Clip > Speed/Duration | Select clip, Clip > Speed | Speed prompt appears | [ ] |
+| 31 | Clip > Reverse | Select clip, Clip > Reverse | Reversed flag toggled | [ ] |
+| 32 | Clip > Enable/Disable | Select clip, Clip > Enable/Disable | Clip toggled | [ ] |
+| 33 | Timeline > Add Video Track | Timeline > Add Video Track | New track appears | [ ] |
+| 34 | Timeline > Delete Selected Track | Select track, Timeline > Delete | Track removed | [ ] |
+| 35 | Timeline > Move Track Up | Select track, Timeline > Move Up | Track moves up | [ ] |
+| 36 | Timeline > Move Track Down | Select track, Timeline > Move Down | Track moves down | [ ] |
+| 37 | Edit menu has Undo/Redo/Cut/Copy/Paste | Open Edit menu | Standard edit items present, no Select All (moved to Select menu) | [ ] |
+
+### 24.4 Unsaved Work Prompt
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 38 | Clean close no prompt | Open app, close immediately (no edits) | App closes without dialog | [ ] |
+| 39 | Dirty close shows dialog | Make an edit, try to close | "Unsaved Changes" dialog appears | [ ] |
+| 40 | Cancel button | Show dialog, click Cancel | Dialog closes, app stays open | [ ] |
+| 41 | Don't Save button | Show dialog, click Don't Save | App closes without saving | [ ] |
+| 42 | Save & Quit button | Show dialog, click Save & Quit | Project saves, then app closes | [ ] |
+
+**Section 24 Total: 42 test cases**
+**Updated Grand Total: 517 test cases**
