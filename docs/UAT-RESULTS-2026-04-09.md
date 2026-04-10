@@ -13,14 +13,14 @@
 
 | Metric | Count |
 |--------|-------|
-| Tests actually clicked/verified | ~285 |
-| PASS | 237 |
-| FAIL | 13 |
+| Tests actually clicked/verified | ~315 |
+| PASS | 260 |
+| FAIL | 16 |
 | FIXED (this session) | 4 |
 | N/A (genuinely can't test via computer use) | ~20 |
 | INCONCLUSIVE | ~8 |
 | Sections covered | 21/21 |
-| New bugs found (all passes) | 15 |
+| New bugs found (all passes) | 16 |
 
 ---
 
@@ -574,6 +574,59 @@ These tests CANNOT be done via computer use and require a human:
 9. **BUG-13: Speed/Duration dialog doesn't open** — Medium severity, menu item exists but no dialog
 10. **BUG-14: Cmd+D (Duplicate Effect) non-functional** — Low severity, mapped in shortcuts but doesn't duplicate
 11. **BUG-15: Delete/Backspace key doesn't delete selected clip** — Low severity (right-click > Delete works)
+12. **BUG-16: Shift/Cmd drag modifiers don't change knob sensitivity** — Low severity, fine/coarse adjustment not wired
+
+---
+
+## PASS 8 — Track Operations, Automation, Knobs, Categories, Save (2026-04-09 night)
+
+### Track Operations
+| # | Test | Result |
+|---|------|--------|
+| NEW | Timeline > Add Video Track | **PASS** — Track 2 created with M/S/A buttons |
+| NEW | Track context > Move Down | **PASS** — Track 1 moved below Track 2 |
+| NEW | Track context > Move Up | **PASS** — Track 1 moved back to top |
+| NEW | Track context > Duplicate Track | **PASS** — "Track 1 (Copy)" created with clip data |
+| NEW | Track context > Delete Track | **PASS** — Track removed |
+
+### Automation Toolbar
+| # | Test | Result |
+|---|------|--------|
+| NEW | R (Read) mode | **PASS** — Green highlight, default |
+| NEW | L (Latch) mode | **PASS** — Green highlight, R deselected |
+| NEW | T (Touch) mode | **PASS** — Green highlight |
+| NEW | D (Draw) mode | **PASS** — Green highlight |
+| NEW | Mode radio behavior | **PASS** — Only one mode active at a time |
+
+### Transport & Quantize
+| # | Test | Result |
+|---|------|--------|
+| NEW | BPM field edit | **PASS** — Changed 120→140 via triple-click+type |
+| NEW | Quantize grid dropdown | **PASS** — Shows 1/4, 1/8, 1/16, 1/32 |
+| NEW | Change quantize grid | **PASS** — 1/4→1/8 |
+
+### Knob Interactions
+| # | Test | Result |
+|---|------|--------|
+| 43 | Shift+drag (fine adjust) | **FAIL** — Same sensitivity as normal drag (BUG-16) |
+| 44 | Cmd+drag (coarse adjust) | **FAIL** — Same sensitivity as normal drag (BUG-16) |
+| 240 | Right-click knob reset | **PASS** — 288.00°→180.00° default |
+
+### Effect Categories
+| # | Test | Result |
+|---|------|--------|
+| NEW | "destruction" category | **PASS** — Data Bend, Film Grain, XOR Glitch, Pixel Annihilator, Channel Destroy, Datamosh Real |
+| NEW | "whimsy" category | **PASS** — Shape Overlay, Lens Flare, Watercolor, Rainbow Shift, Sparkle |
+| NEW | Effect hover hint | **PASS** — Shows "Add [effect name]" on hover |
+| NEW | Datamosh Real added | **PASS** — Intensity + Corruption params, 100ms at 8/10 chain |
+
+### Save/Load
+| # | Test | Result |
+|---|------|--------|
+| NEW | Cmd+S save dialog | **PASS** — Shows "Untitled.glitch", Save As field, location picker |
+| NEW | File created on disk | **PASS** — Untitled.glitch in test-assets |
+| NEW | Valid JSON structure | **PASS** — v2.0.0, 13 top-level keys |
+| NEW | Autosave exists | **PASS** — .autosave.glitch present |
 
 ---
 
