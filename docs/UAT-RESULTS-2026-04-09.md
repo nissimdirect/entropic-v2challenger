@@ -13,8 +13,8 @@
 
 | Metric | Count |
 |--------|-------|
-| Tests actually clicked/verified | ~355 |
-| PASS | 293 |
+| Tests actually clicked/verified | ~365 |
+| PASS | 302 |
 | FAIL | 16 |
 | FIXED (this session) | 4 |
 | N/A (genuinely can't test via computer use) | ~20 |
@@ -575,6 +575,31 @@ These tests CANNOT be done via computer use and require a human:
 10. **BUG-14: Cmd+D (Duplicate Effect) non-functional** — Low severity, mapped in shortcuts but doesn't duplicate
 11. **BUG-15: Delete/Backspace key doesn't delete selected clip** — Low severity (right-click > Delete works)
 12. **BUG-16: Shift/Cmd drag modifiers don't change knob sensitivity** — Low severity, fine/coarse adjustment not wired
+
+---
+
+## PASS 11 — Bypass, Zoom, Undo Stress, Layout (2026-04-09 late night)
+
+### Effect Interactions
+| # | Test | Result |
+|---|------|--------|
+| 52 | Bypass via green toggle | **PASS** — Colors change in preview, Invert dimmed, 89ms (faster without effect) |
+| 53 | Un-bypass (toggle back) | **PASS** — Effect re-enabled, colors restored |
+| 50 | Mix slider drag | **INCONCLUSIVE** — Slider shows 100%, drag didn't change it (tiny hit target) |
+
+### Timeline Zoom
+| # | Test | Result |
+|---|------|--------|
+| 117 | Zoom out (Cmd+-) | **PASS** — Full 5s clip fits in view |
+| 118 | Zoom in (Cmd+=) | **PASS** — 0-4s visible, zoomed in |
+| 119 | Zoom to Fit (Cmd+0) | **PASS** — Full ruler 0.0s-5.5s, clip fits perfectly |
+
+### Stress Tests
+| # | Test | Result |
+|---|------|--------|
+| 220 | 20x rapid undo | **PASS** — No crash, app responsive |
+| 220 | 20x rapid redo | **PASS** — No crash, chain restored |
+| NEW | Engine uptime 3.5+ hours | **PASS** — 13030s continuous, no degradation |
 
 ---
 
