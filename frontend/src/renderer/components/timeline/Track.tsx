@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useState, useRef, useEffect } from 'react'
 import type { Track as TrackType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import ContextMenu from './ContextMenu'
@@ -18,6 +18,31 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const armedTrackId = useAutomationStore((s) => s.armedTrackId)
   const isArmed = armedTrackId === track.id
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [isRenaming, setIsRenaming] = useState(false)
+  const [renameText, setRenameText] = useState(track.name)
+  const renameInputRef = useRef<HTMLInputElement>(null)
+
+  // Auto-select text when rename input appears
+  useEffect(() => {
+    if (isRenaming) renameInputRef.current?.select()
+  }, [isRenaming])
+
+  const startRename = useCallback(() => {
+    setRenameText(track.name)
+    setIsRenaming(true)
+  }, [track.name])
+
+  const confirmRename = useCallback(() => {
+    setIsRenaming(false)
+    const trimmed = renameText.trim()
+    if (trimmed && trimmed !== track.name) {
+      useTimelineStore.getState().renameTrack(track.id, trimmed)
+    }
+  }, [track.id, track.name, renameText])
+
+  const cancelRename = useCallback(() => {
+    setIsRenaming(false)
+  }, [])
 
   const handleClick = useCallback(() => {
     useTimelineStore.getState().selectTrack(track.id)
@@ -35,20 +60,14 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     const idx = store.tracks.findIndex((t) => t.id === track.id)
     return [
       { label: 'Duplicate Track', action: () => store.duplicateTrack(track.id) },
-      {
-        label: 'Rename Track',
-        action: () => {
-          const name = window.prompt('Track name:', track.name)
-          if (name !== null && name.trim()) store.renameTrack(track.id, name.trim())
-        },
-      },
+      { label: 'Rename Track', action: startRename },
       { label: '', action: () => {}, separator: true },
       { label: 'Move Up', action: () => store.reorderTrack(idx, idx - 1), disabled: idx <= 0 },
       { label: 'Move Down', action: () => store.reorderTrack(idx, idx + 1), disabled: idx >= store.tracks.length - 1 },
       { label: '', action: () => {}, separator: true },
       { label: 'Delete Track', action: () => store.removeTrack(track.id) },
     ]
-  }, [track.id, track.name])
+  }, [track.id, track.name, startRename])
 
   const handleMute = useCallback(
     (e: React.MouseEvent) => {
@@ -84,10 +103,27 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
       >
         <div className="track-header__color" style={{ background: track.color }} />
         <div className="track-header__info">
-          <div className="track-header__name">
-            {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
-            {' '}{track.name}
-          </div>
+          {isRenaming ? (
+            <input
+              ref={renameInputRef}
+              className="track-header__rename-input"
+              type="text"
+              value={renameText}
+              onChange={(e) => setRenameText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') confirmRename()
+                else if (e.key === 'Escape') cancelRename()
+                e.stopPropagation()
+              }}
+              onBlur={confirmRename}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <div className="track-header__name" onDoubleClick={startRename}>
+              {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
+              {' '}{track.name}
+            </div>
+          )}
           <LaneBadges trackId={track.id} />
         </div>
         <div className="track-header__controls">

@@ -492,6 +492,20 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: text;
+}
+
+.track-header__rename-input {
+  width: 100%;
+  padding: 1px 4px;
+  background: #1a1a1a;
+  border: 1px solid #4ade80;
+  border-radius: 2px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  outline: none;
 }
 
 .track-header__controls {
@@ -744,4 +758,114 @@
 
 .history-panel__entry--future {
   color: #555;
+}
+
+/* --- Speed Dialog --- */
+
+.speed-dialog__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+}
+
+.speed-dialog {
+  position: fixed;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 6px;
+  width: 200px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  z-index: 1001;
+}
+
+.speed-dialog__header {
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  border-bottom: 1px solid #333;
+}
+
+.speed-dialog__body {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.speed-dialog__field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #aaa;
+}
+
+.speed-dialog__input {
+  width: 60px;
+  padding: 3px 6px;
+  background: #1a1a1a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  color: #e0e0e0;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.speed-dialog__input:focus {
+  border-color: #4ade80;
+}
+
+.speed-dialog__unit {
+  color: #666;
+  font-size: 11px;
+}
+
+.speed-dialog__info {
+  font-size: 11px;
+  color: #666;
+}
+
+.speed-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid #333;
+}
+
+.speed-dialog__cancel,
+.speed-dialog__apply {
+  padding: 4px 12px;
+  border: 1px solid #444;
+  border-radius: 3px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.speed-dialog__cancel {
+  background: #333;
+  color: #aaa;
+}
+
+.speed-dialog__cancel:hover {
+  background: #444;
+}
+
+.speed-dialog__apply {
+  background: #4ade80;
+  color: #1a1a1a;
+  border-color: #4ade80;
+}
+
+.speed-dialog__apply:hover {
+  background: #3cc970;
+}
+
+.speed-dialog__apply:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }

@@ -7,6 +7,7 @@ import { downsamplePeaks } from '../transport/useWaveform'
 import type { WaveformPeaks } from '../transport/useWaveform'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
+import SpeedDialog from './SpeedDialog'
 
 /** Snap a position to the nearest grid line if quantize is enabled. */
 function snapToGrid(pos: number, bypassSnap: boolean): number {
@@ -34,6 +35,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const dragStartX = useRef(0)
   const dragStartPos = useRef(0)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [speedDialog, setSpeedDialog] = useState<{ x: number; y: number } | null>(null)
 
   // Mini waveform canvas
   const waveCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -124,14 +126,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       { label: '', action: () => {}, separator: true },
       {
         label: 'Speed/Duration...',
-        action: () => {
-          const val = window.prompt('Speed (0.1 - 10):', String(clip.speed))
-          if (val !== null) {
-            const parsed = Number(val)
-            const speed = Math.max(0.1, Math.min(10, Number.isFinite(parsed) ? parsed : 1))
-            store.setClipSpeed(clip.id, speed)
-          }
-        },
+        action: () => setSpeedDialog(ctxMenu ?? { x: 200, y: 200 }),
       },
       { label: 'Reverse', action: () => store.reverseClip(clip.id) },
       { label: '', action: () => {}, separator: true },
@@ -302,6 +297,18 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
           y={ctxMenu.y}
           items={getContextMenuItems()}
           onClose={() => setCtxMenu(null)}
+        />
+      )}
+      {speedDialog && (
+        <SpeedDialog
+          currentSpeed={clip.speed}
+          clipDuration={clip.duration}
+          position={speedDialog}
+          onConfirm={(speed) => {
+            useTimelineStore.getState().setClipSpeed(clip.id, speed)
+            setSpeedDialog(null)
+          }}
+          onClose={() => setSpeedDialog(null)}
         />
       )}
     </>

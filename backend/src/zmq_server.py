@@ -1116,38 +1116,86 @@ class ZMQServer:
     def _apply_clip_transform(
         self, frame: np.ndarray, transform: dict, resolution: tuple[int, int]
     ) -> np.ndarray:
-        """Apply position/scale/rotation transform to frame.
+        """Apply position/scale/rotation/flip transform to frame.
 
+        Supports: scaleX/scaleY (independent), anchorX/anchorY, flipH/flipV.
+        Falls back to legacy 'scale' field for old project compatibility.
         All values are clamped at the trust boundary via clamp_finite.
         """
         import cv2
 
         try:
-            scale = clamp_finite(float(transform.get("scale", 1.0)), 0.01, 4.0, 1.0)
+            # Support both new scaleX/scaleY and legacy scale field
+            legacy_scale = transform.get("scale", None)
+            scale_x = clamp_finite(
+                float(
+                    transform.get(
+                        "scaleX", legacy_scale if legacy_scale is not None else 1.0
+                    )
+                ),
+                0.01,
+                100.0,
+                1.0,
+            )
+            scale_y = clamp_finite(
+                float(
+                    transform.get(
+                        "scaleY", legacy_scale if legacy_scale is not None else 1.0
+                    )
+                ),
+                0.01,
+                100.0,
+                1.0,
+            )
             rotation = clamp_finite(
-                float(transform.get("rotation", 0.0)), -360.0, 360.0, 0.0
+                float(transform.get("rotation", 0.0)), -36000.0, 36000.0, 0.0
             )
             tx = clamp_finite(float(transform.get("x", 0.0)), -10000.0, 10000.0, 0.0)
             ty = clamp_finite(float(transform.get("y", 0.0)), -10000.0, 10000.0, 0.0)
+            anchor_x = clamp_finite(
+                float(transform.get("anchorX", 0.0)), -10000.0, 10000.0, 0.0
+            )
+            anchor_y = clamp_finite(
+                float(transform.get("anchorY", 0.0)), -10000.0, 10000.0, 0.0
+            )
+            flip_h = bool(transform.get("flipH", False))
+            flip_v = bool(transform.get("flipV", False))
         except (ValueError, TypeError):
             return frame  # Malformed transform values — render unmodified
 
         # No-op check
-        if scale == 1.0 and rotation == 0.0 and tx == 0.0 and ty == 0.0:
+        if (
+            scale_x == 1.0
+            and scale_y == 1.0
+            and rotation == 0.0
+            and tx == 0.0
+            and ty == 0.0
+            and anchor_x == 0.0
+            and anchor_y == 0.0
+            and not flip_h
+            and not flip_v
+        ):
             return frame
 
         h, w = frame.shape[:2]
         canvas_w, canvas_h = resolution
 
-        # Scale
-        if scale != 1.0:
-            new_w = max(1, int(w * scale))
-            new_h = max(1, int(h * scale))
+        # Flip
+        if flip_h:
+            frame = cv2.flip(frame, 1)
+        if flip_v:
+            frame = cv2.flip(frame, 0)
+
+        # Scale (independent X/Y)
+        if scale_x != 1.0 or scale_y != 1.0:
+            new_w = max(1, int(w * scale_x))
+            new_h = max(1, int(h * scale_y))
             frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
             h, w = frame.shape[:2]
 
         # Create canvas and center the frame
-        canvas = np.zeros((canvas_h, canvas_w, 3), dtype=np.uint8)
+        channels = frame.shape[2] if frame.ndim == 3 else 1
+        canvas = np.zeros((canvas_h, canvas_w, channels), dtype=np.uint8)
         x_off = int((canvas_w - w) / 2 + tx)
         y_off = int((canvas_h - h) / 2 + ty)
 
@@ -1164,9 +1212,9 @@ class ZMQServer:
                 src_y1 : src_y1 + copy_h, src_x1 : src_x1 + copy_w
             ]
 
-        # Rotation (around center of canvas)
+        # Rotation (around anchor point offset from canvas center)
         if rotation != 0.0:
-            center = (canvas_w / 2, canvas_h / 2)
+            center = (canvas_w / 2 + anchor_x, canvas_h / 2 + anchor_y)
             rot_mat = cv2.getRotationMatrix2D(center, rotation, 1.0)
             canvas = cv2.warpAffine(canvas, rot_mat, (canvas_w, canvas_h))
 

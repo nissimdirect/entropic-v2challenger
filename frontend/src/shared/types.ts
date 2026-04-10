@@ -77,10 +77,36 @@ export type BlendMode =
   | "lighten";
 
 export interface ClipTransform {
-  x: number;       // horizontal offset (px, relative to canvas center)
-  y: number;       // vertical offset (px)
-  scale: number;   // 1.0 = 100%
-  rotation: number; // degrees
+  x: number;          // horizontal offset (px, relative to canvas center)
+  y: number;          // vertical offset (px)
+  scaleX: number;     // horizontal scale (1.0 = 100%)
+  scaleY: number;     // vertical scale (1.0 = 100%)
+  rotation: number;   // degrees
+  anchorX: number;    // anchor X offset from clip center (px, 0 = center)
+  anchorY: number;    // anchor Y offset from clip center (px, 0 = center)
+  flipH: boolean;     // horizontal mirror
+  flipV: boolean;     // vertical mirror
+}
+
+/** Normalize a partial/legacy transform to the full interface. */
+export function normalizeTransform(t?: Partial<ClipTransform> & { scale?: number }): ClipTransform {
+  return {
+    x: t?.x ?? 0,
+    y: t?.y ?? 0,
+    scaleX: t?.scaleX ?? (t as any)?.scale ?? 1,
+    scaleY: t?.scaleY ?? (t as any)?.scale ?? 1,
+    rotation: t?.rotation ?? 0,
+    anchorX: t?.anchorX ?? 0,
+    anchorY: t?.anchorY ?? 0,
+    flipH: t?.flipH ?? false,
+    flipV: t?.flipV ?? false,
+  }
+}
+
+/** Identity transform — no changes applied. */
+export const IDENTITY_TRANSFORM: ClipTransform = {
+  x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0,
+  anchorX: 0, anchorY: 0, flipH: false, flipV: false,
 }
 
 export interface Clip {
@@ -94,6 +120,7 @@ export interface Clip {
   speed: number;
   textConfig?: TextClipConfig;
   transform?: ClipTransform;
+  opacity?: number;      // 0.0–1.0, default 1.0 (undefined = fully opaque)
   isEnabled?: boolean;   // default true (undefined = enabled)
   reversed?: boolean;    // default false
 }

@@ -36,6 +36,8 @@ interface ProjectState {
   bpm: number
   setBpm: (bpm: number) => void
   setProjectName: (name: string) => void
+  canvasResolution: [number, number]
+  setCanvasResolution: (width: number, height: number) => void
   resetProject: () => void
 
   // Phase 14A: A/B switching (NOT undoable — comparison tool)
@@ -60,6 +62,7 @@ const PROJECT_DEFAULTS = {
   projectPath: null as string | null,
   projectName: 'Untitled',
   bpm: 120,
+  canvasResolution: [1920, 1080] as [number, number],
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -242,6 +245,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setIngestError: (error) => set({ ingestError: error }),
   setProjectPath: (path) => set({ projectPath: path }),
   setProjectName: (name) => set({ projectName: name }),
+  canvasResolution: PROJECT_DEFAULTS.canvasResolution,
+  setCanvasResolution: (width: number, height: number) => {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return
+    const w = Math.max(1, Math.min(7680, Math.round(width)))
+    const h = Math.max(1, Math.min(4320, Math.round(height)))
+    set({ canvasResolution: [w, h] })
+  },
   resetProject: () => set(PROJECT_DEFAULTS),
 
   // Phase 14A: A/B switching — NOT undoable (comparison tool)

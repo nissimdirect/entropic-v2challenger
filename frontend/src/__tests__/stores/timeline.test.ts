@@ -645,10 +645,10 @@ describe('TimelineStore', () => {
       const clip = makeClip({ id: 'ct1', trackId })
       ts.addClip(trackId, clip)
 
-      ts.setClipTransform('ct1', { x: 10, y: 20, scale: 0.5, rotation: 45 })
+      ts.setClipTransform('ct1', { x: 10, y: 20, scaleX: 0.5, scaleY: 0.5, rotation: 45, anchorX: 0, anchorY: 0, flipH: false, flipV: false })
 
       const updated = useTimelineStore.getState().tracks[0].clips[0]
-      expect(updated.transform).toEqual({ x: 10, y: 20, scale: 0.5, rotation: 45 })
+      expect(updated.transform).toEqual({ x: 10, y: 20, scaleX: 0.5, scaleY: 0.5, rotation: 45, anchorX: 0, anchorY: 0, flipH: false, flipV: false })
     })
 
     it('setClipTransform is undoable', () => {
@@ -657,7 +657,7 @@ describe('TimelineStore', () => {
       const clip = makeClip({ id: 'ct2', trackId })
       ts.addClip(trackId, clip)
 
-      ts.setClipTransform('ct2', { x: 100, y: 0, scale: 2, rotation: 0 })
+      ts.setClipTransform('ct2', { x: 100, y: 0, scaleX: 2, scaleY: 2, rotation: 0, anchorX: 0, anchorY: 0, flipH: false, flipV: false })
       expect(useTimelineStore.getState().tracks[0].clips[0].transform?.x).toBe(100)
 
       useUndoStore.getState().undo()
