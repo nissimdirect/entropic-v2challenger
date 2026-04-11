@@ -123,6 +123,56 @@ These items are explicitly NOT in Phases 0A-11. They are future work that extend
 
 ---
 
+## Dimensional Translation (Infrastructure — Partially Shipped)
+
+Core compositing infrastructure for resize, scale, position, rotate, flip, and multi-track layering. PRD at `docs/DIMENSIONAL-TRANSLATION-PRD.md`.
+
+### Shipped (2026-04-10)
+
+| Feature | Status |
+|---------|--------|
+| Expanded ClipTransform (scaleX/Y, anchorX/Y, flipH/V) | DONE |
+| Per-clip opacity model (`Clip.opacity`) | DONE |
+| Canvas resolution in project store + persistence | DONE |
+| Multi-track video rendering (all tracks composited, not just first) | DONE |
+| Track opacity + blend mode wired to compositor | DONE |
+| Backend: independent scaleX/scaleY, anchor rotation, flip, expanded clamps (10000% scale, ±36000° rotation) | DONE |
+| TransformPanel: split W/H scale, aspect lock toggle, Fill button, Flip H/V, unit labels, per-property reset | DONE |
+| BoundingBoxOverlay: SVG handles (8 handles, move/scale/rotate), undo transactions, arrow key nudge | DONE |
+| Snap guides (center + edge indicators) | DONE |
+| Coordinate conversion utilities (DOM ↔ Canvas ↔ Transform) | DONE |
+| Import auto-fit uses canvas resolution | DONE |
+
+### Remaining — Transform Keyframe Animation
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| Keyframe diamonds per transform property | Click to set keyframe at current playhead time | P1 |
+| Stopwatch model (first click enables, subsequent add) | Premiere/AE convention | P1 |
+| Reuse existing AutomationLane + evaluateAutomation() | Extend paramPath convention: `clip:{clipId}.transform.{property}` | P1 |
+| Keyframe navigation (prev/next arrows) | In TransformPanel, flanking diamond | P1 |
+| Keyframe indicators on timeline clips | Small diamonds on clip at keyframed times | P1 |
+| Copy/paste keyframes | Cmd+C/V with keyframe selected | P2 |
+| Disable all keyframes (stopwatch off) | Warn user, deletes all keyframes for property | P1 |
+
+**Architectural prep (done):** AutomationLane system exists with binary search + easing interpolation. Extend paramPath to `clip:{clipId}.transform.x` etc. Values are absolute (px/multiplier/degrees), not normalized 0-1 — needs denormalization step.
+
+### Remaining — Polish
+
+| Feature | Description | Priority |
+|---------|-------------|----------|
+| User-created guide lines | Drag from ruler area to create persistent guides | P2 |
+| Safe zone overlay (title-safe 80%, action-safe 90%) | Toggle via shortcut or menu | P2 |
+| Crop (L/R/T/B + aspect presets) | Separate from transform — crops visible area | P2 |
+| Scrubby sliders on numeric fields | Hover+drag to change value (Shift=faster, Cmd=finer) | P1 |
+| ARIA labels on TransformPanel | Screen reader accessibility | P2 |
+| Math expressions in numeric fields (e.g. "50+25") | Nice-to-have, common in creative tools | P2 |
+| Multi-clip group transform | Group bounding box, batch reposition/scale/rotate | P2 |
+| CSS transform during drag for 60fps | Cache frame as img, apply CSS transform during drag, backend on mouseup | P1 |
+| Canvas resolution UI panel | Dropdown with presets + custom WxH | P1 |
+
+---
+
 ## Way Later (No Phase Number)
 
 | Feature | Description | Source |

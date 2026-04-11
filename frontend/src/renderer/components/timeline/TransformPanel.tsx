@@ -11,6 +11,8 @@ interface TransformPanelProps {
   sourceHeight: number
   aspectLocked?: boolean
   onAspectLockChange?: (locked: boolean) => void
+  opacity?: number
+  onOpacityChange?: (opacity: number) => void
 }
 
 export default function TransformPanel({
@@ -22,6 +24,8 @@ export default function TransformPanel({
   sourceHeight,
   aspectLocked: externalLocked,
   onAspectLockChange,
+  opacity = 1,
+  onOpacityChange,
 }: TransformPanelProps) {
   const [internalLocked, setInternalLocked] = useState(true)
   const aspectLocked = externalLocked ?? internalLocked
@@ -178,6 +182,22 @@ export default function TransformPanel({
             Flip V
           </button>
         </div>
+
+        {/* Opacity */}
+        {onOpacityChange && (
+          <label className="transform-panel__field">
+            <span className="transform-panel__label">Opacity</span>
+            <input
+              className="transform-panel__input"
+              type="range"
+              min={0}
+              max={100}
+              value={Math.round(opacity * 100)}
+              onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
+            />
+            <span className="transform-panel__unit">{Math.round(opacity * 100)}%</span>
+          </label>
+        )}
       </div>
     </div>
   )

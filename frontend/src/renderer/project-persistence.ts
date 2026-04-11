@@ -4,6 +4,7 @@
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
 import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData } from '../shared/types'
+import { normalizeTransform } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
 import { useUndoStore } from './stores/undo'
@@ -54,7 +55,7 @@ function serializeProject(): string {
 
   const midiStore = useMIDIStore.getState()
 
-  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData } = {
+  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -68,6 +69,7 @@ function serializeProject(): string {
     operators: operatorStore.operators,
     automationLanes: automationStore.lanes,
     midiMappings: midiStore.getMIDIPersistData(),
+    deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
   }
 
   return JSON.stringify(project, null, 2)
@@ -159,7 +161,7 @@ function validateProject(data: unknown): data is Project {
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -185,6 +187,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     }
   }
 
+  // Hydrate device groups (metadata-only)
+  if (project.deviceGroups && typeof project.deviceGroups === 'object') {
+    useProjectStore.setState({ deviceGroups: project.deviceGroups })
+  }
+
   // Hydrate timeline tracks
   for (const track of project.timeline.tracks) {
     const tls = useTimelineStore.getState()
@@ -197,9 +204,12 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     if (track.isSoloed) useTimelineStore.getState().toggleSolo(addedTrack.id)
     if (track.opacity !== 1.0) useTimelineStore.getState().setTrackOpacity(addedTrack.id, track.opacity)
     if (track.blendMode !== 'normal') useTimelineStore.getState().setTrackBlendMode(addedTrack.id, track.blendMode)
-    // Add clips
+    // Add clips (migrate legacy transform format: {scale} → {scaleX, scaleY, ...})
     for (const clip of track.clips) {
-      useTimelineStore.getState().addClip(addedTrack.id, { ...clip, trackId: addedTrack.id })
+      const migratedClip = clip.transform
+        ? { ...clip, trackId: addedTrack.id, transform: normalizeTransform(clip.transform as any) }
+        : { ...clip, trackId: addedTrack.id }
+      useTimelineStore.getState().addClip(addedTrack.id, migratedClip)
     }
   }
 
@@ -303,7 +313,7 @@ export async function loadProject(filePath?: string): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> })
 
     const name = path.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
     useProjectStore.getState().setProjectPath(path)
@@ -394,7 +404,7 @@ export async function restoreAutosave(path: string): Promise<boolean> {
       return false
     }
 
-    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData })
+    hydrateStores(data as Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> })
 
     // Delete autosave after successful restore
     try {

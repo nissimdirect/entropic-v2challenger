@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Asset, EffectInstance, DeviceGroup, ChainItem } from '../../shared/types'
+import type { Asset, EffectInstance } from '../../shared/types'
 import { randomUUID } from '../utils'
 import { LIMITS } from '../../shared/limits'
 import { undoable } from './undo'
@@ -46,7 +46,8 @@ interface ProjectState {
   copyToInactiveAB: (effectId: string) => void
   deactivateAB: (effectId: string) => void
 
-  // Phase 14B: Device Groups (undoable)
+  // Phase 14B: Device Groups (metadata-only, undoable)
+  deviceGroups: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>
   groupEffects: (effectIds: string[], groupName?: string) => string | null
   ungroupEffects: (groupId: string) => void
 }
@@ -63,6 +64,7 @@ const PROJECT_DEFAULTS = {
   projectName: 'Untitled',
   bpm: 120,
   canvasResolution: [1920, 1080] as [number, number],
+  deviceGroups: {} as Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>,
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -332,49 +334,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }
 
     const chain = get().effectChain
-    const children = effectIds
-      .map((id) => chain.find((e) => e.id === id))
-      .filter((e): e is EffectInstance => !!e)
+    const validIds = effectIds.filter((id) => chain.some((e) => e.id === id))
 
-    if (children.length < 2) return null
+    if (validIds.length < 2) return null
 
     const groupId = randomUUID()
-    const group: DeviceGroup = {
-      id: groupId,
+    const groupMeta = {
       name: groupName ?? `Group ${groupId.slice(0, 4)}`,
-      children,
-      macroMappings: [],
+      effectIds: validIds,
       mix: 1,
       isEnabled: true,
-      abState: null,
     }
 
-    // Find the position of the first grouped effect
-    const firstIndex = chain.findIndex((e) => effectIds.includes(e.id))
-    const childIdSet = new Set(effectIds)
-
     const forward = () => {
-      const current = get().effectChain
-      const remaining = current.filter((e) => !childIdSet.has(e.id))
-      const insertAt = Math.min(firstIndex, remaining.length)
-      const newChain: ChainItem[] = [
-        ...remaining.slice(0, insertAt),
-        group,
-        ...remaining.slice(insertAt),
-      ] as EffectInstance[] // Cast: chain is still EffectInstance[] until Phase 14 full migration
-      set({ effectChain: newChain as EffectInstance[] })
+      set((state) => ({
+        deviceGroups: { ...state.deviceGroups, [groupId]: groupMeta },
+      }))
     }
 
     const inverse = () => {
-      const current = get().effectChain
-      const groupIndex = current.findIndex((e) => e.id === groupId)
-      if (groupIndex === -1) return
-      const newChain = [
-        ...current.slice(0, groupIndex),
-        ...children,
-        ...current.slice(groupIndex + 1),
-      ]
-      set({ effectChain: newChain })
+      set((state) => {
+        const { [groupId]: _, ...rest } = state.deviceGroups
+        return { deviceGroups: rest }
+      })
     }
 
     undoable('Group effects', forward, inverse)
@@ -382,12 +364,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   ungroupEffects: (groupId) => {
-    const chain = get().effectChain
-    const groupIndex = chain.findIndex((e) => e.id === groupId)
-    if (groupIndex === -1) return
+    const groups = get().deviceGroups
+    if (!groups[groupId]) return
 
-    // For now, groups are stored as regular EffectInstances with a marker
-    // Full ChainItem union migration happens in a future phase
-    // This ungroup handles the case where groupEffects stored children
+    const forward = () => {
+      set((state) => {
+        const { [groupId]: _, ...rest } = state.deviceGroups
+        return { deviceGroups: rest }
+      })
+    }
+
+    const inverse = () => {
+      set((state) => ({
+        deviceGroups: { ...state.deviceGroups, [groupId]: groups[groupId] },
+      }))
+    }
+
+    undoable('Ungroup effects', forward, inverse)
   },
 }))

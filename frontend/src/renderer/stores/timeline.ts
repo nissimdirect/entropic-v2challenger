@@ -43,6 +43,7 @@ interface TimelineState {
   splitClip: (clipId: string, time: number) => void
   setClipSpeed: (clipId: string, speed: number) => void
   setClipTransform: (clipId: string, transform: ClipTransform) => void
+  setClipOpacity: (clipId: string, opacity: number) => void
   duplicateClip: (clipId: string) => void
   toggleClipEnabled: (clipId: string) => void
   reverseClip: (clipId: string) => void
@@ -665,6 +666,30 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         tracks: get().tracks.map((t) => ({
           ...t,
           clips: t.clips.map((c) => (c.id === clipId ? { ...c, transform: oldTransform } : c)),
+        })),
+      }),
+    )
+  },
+
+  setClipOpacity: (clipId, opacity) => {
+    let oldOpacity: number | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldOpacity = clip.opacity; break }
+    }
+    const clamped = Math.max(0, Math.min(1, opacity))
+    undoable(
+      'Set clip opacity',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, opacity: clamped } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, opacity: oldOpacity } : c)),
         })),
       }),
     )

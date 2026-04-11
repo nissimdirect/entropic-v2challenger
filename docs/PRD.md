@@ -256,6 +256,7 @@ If it's not stable, it doesn't ship. If it's not intuitive, it gets redesigned. 
 
 ## 8. Future Roadmap (Post V1)
 
+- **Dimensional Translation (Remaining):** Transform keyframe animation, scrubby sliders, CSS drag perf, canvas resolution UI, crop, group transform. Phases 1-2 shipped 2026-04-10. Full PRD: `docs/DIMENSIONAL-TRANSLATION-PRD.md`. Remaining work tracked in `docs/addendums/POST-V1-ROADMAP.md`.
 - **Media Pool:** Dedicated asset organization/tagging panel
 - **Render Queue:** Advanced batch export manager
 - **GPU Acceleration:** CUDA/Metal for compute-heavy effects
@@ -274,5 +275,6 @@ This PRD synthesizes and rebuilds from:
 - v2 Gemini spec PRD.md v2.2 (vision, modules, resource envelope)
 - v1 Entropic shipping experience (126 effects, 3,610 tests, UAT lessons)
 - Phase blueprints (PHASE-0A through PHASE-11)
+- Dimensional Translation PRD (DIMENSIONAL-TRANSLATION-PRD.md — competitor analysis, integration audit, implementation phasing)
 
 All requirements grounded in Challenger architecture. Where v2 Gemini spec was aspirational, this PRD is scoped to what the architecture actually supports.

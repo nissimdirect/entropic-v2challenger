@@ -22,13 +22,14 @@ import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
 import type { Asset, EffectInstance } from '../shared/types'
-import { IDENTITY_TRANSFORM, normalizeTransform } from '../shared/types'
+import { IDENTITY_TRANSFORM } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
+import SnapGuides from './components/preview/SnapGuides'
 import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
-import { transportForward, transportReverse, transportStop } from './utils/transport-speed'
+import { transportForward, transportReverse, transportStop, getTransportDirection } from './utils/transport-speed'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { useSettingsStore } from './stores/settings'
@@ -134,6 +135,7 @@ function AppInner() {
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
   const [renderError, setRenderError] = useState<string | null>(null)
   const [isTimerPlaying, setIsTimerPlaying] = useState(false)
+  const [transportSpeedMultiplier, setTransportSpeedMultiplier] = useState(1)
   const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
 
   // Audio-specific state
@@ -339,28 +341,60 @@ function AppInner() {
       }
     })
 
+    // Automation copy/paste
+    shortcutRegistry.register('automation_copy', () => {
+      const autoStore = useAutomationStore.getState()
+      const trackId = autoStore.armedTrackId
+      if (!trackId) return
+      const lanes = autoStore.getLanesForTrack(trackId)
+      if (lanes.length === 0) return
+      const laneId = lanes[0].id
+      const loopRegion = useTimelineStore.getState().loopRegion
+      if (loopRegion) {
+        autoStore.copyRegion(trackId, laneId, loopRegion.in, loopRegion.out)
+      } else {
+        // Copy the full lane duration
+        const lane = lanes[0]
+        if (lane.points.length === 0) return
+        const maxTime = Math.max(...lane.points.map((p) => p.time))
+        autoStore.copyRegion(trackId, laneId, 0, maxTime)
+      }
+    })
+    shortcutRegistry.register('automation_paste', () => {
+      const autoStore = useAutomationStore.getState()
+      const trackId = autoStore.armedTrackId
+      if (!trackId) return
+      const lanes = autoStore.getLanesForTrack(trackId)
+      if (lanes.length === 0) return
+      const laneId = lanes[0].id
+      const playheadTime = useTimelineStore.getState().playheadTime
+      autoStore.pasteAtPlayhead(trackId, laneId, playheadTime)
+    })
+
     // JKL transport: J=reverse, K=stop, L=forward (standard NLE)
     // Uses transport-speed state machine for speed escalation.
     // Currently plays at 1x (speed ramping requires timer loop changes).
     shortcutRegistry.register('transport_reverse', () => {
       const speed = transportReverse()
+      setTransportSpeedMultiplier(Math.abs(speed))
       if (speed !== 0) {
-        // Start playback (reverse not yet supported — step backward as fallback)
-        const ts = useTimelineStore.getState()
-        const stepSec = 1 / activeFps
-        ts.setPlayheadTime(Math.max(0, ts.playheadTime - stepSec))
+        // Reverse playback via timer (audio playback doesn't support reverse)
+        const audio = useAudioStore.getState()
+        if (audio.isPlaying) audio.togglePlayback()
+        setIsTimerPlaying(true)
       }
     })
     shortcutRegistry.register('transport_stop', () => {
       transportStop()
+      setTransportSpeedMultiplier(1)
       const audio = useAudioStore.getState()
       if (audio.isPlaying) audio.togglePlayback()
       setIsTimerPlaying(false)
     })
     shortcutRegistry.register('transport_forward', () => {
       const speed = transportForward()
+      setTransportSpeedMultiplier(Math.abs(speed))
       if (speed !== 0) {
-        // Start playback at 1x (speed > 1x TODO: wire to timer interval)
         const audio = useAudioStore.getState()
         if (!audio.isPlaying && !isTimerPlaying) {
           audio.togglePlayback()
@@ -634,15 +668,20 @@ function AppInner() {
             }
           })
 
-          const textLayers: Record<string, unknown>[] = activeTextClips.map((clip) => ({
-            layer_type: 'text',
-            text_config: serializeTextConfig(clip.textConfig!),
-            frame_index: Math.max(0, Math.round((currentTime - clip.position) * 30)),
-            fps: 30,
-            chain: [],
-            opacity: clip.textConfig!.opacity,
-            blend_mode: 'normal',
-          }))
+          const textLayers: Record<string, unknown>[] = activeTextClips.map((clip) => {
+            const ct = clip.transform
+            return {
+              layer_type: 'text',
+              text_config: serializeTextConfig(clip.textConfig!),
+              frame_index: Math.max(0, Math.round((currentTime - clip.position) * 30)),
+              fps: 30,
+              chain: [],
+              opacity: (clip.opacity ?? 1) * (clip.textConfig!.opacity ?? 1),
+              blend_mode: 'normal',
+              ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV)
+                ? { transform: ct } : {}),
+            }
+          })
 
           // Fallback: if no video clips, add a single layer from activeAssetPath
           if (videoLayers.length === 0 && activeAssetPath.current) {
@@ -665,11 +704,11 @@ function AppInner() {
           })
         } else {
           // Single video clip — use fast render_frame path
-          const { clip: singleClip } = activeVideoClips[0]
+          const { clip: singleClip, assetPath: singleAssetPath } = activeVideoClips[0]
           const ct = singleClip.transform
           res = await window.entropic.sendCommand({
             cmd: 'render_frame',
-            path: activeAssetPath.current,
+            path: singleAssetPath || activeAssetPath.current,
             frame_index: frame,
             chain: serializeEffectChain(chain),
             project_seed: Date.now() % 2147483647,
@@ -684,7 +723,9 @@ function AppInner() {
           const dataUrl = `data:image/jpeg;base64,${res.frame_data as string}`
           setFrameDataUrl(dataUrl)
           // Relay frame to pop-out window if open
-          window.entropic.sendFrameToPopOut(dataUrl)
+          if (useLayoutStore.getState().isPopOutOpen) {
+            window.entropic.sendFrameToPopOut(dataUrl)
+          }
           if (res.width) setFrameWidth(res.width as number)
           if (res.height) setFrameHeight(res.height as number)
           setPreviewState('ready')
@@ -957,6 +998,8 @@ function AppInner() {
     setFrameHeight(0)
     setActiveFps(30)
     setIsTimerPlaying(false)
+    setPreviewState('empty')
+    setRenderError(null)
     activeAssetPath.current = null
   }, [])
 
@@ -1250,11 +1293,14 @@ function AppInner() {
   }, [hasAudio, audioIsPlaying, setCurrentFrame])
 
   // Timer-based playback loop for silent videos (no audio)
-  // Only runs when there's no audio to drive the clock
+  // Only runs when there's no audio to drive the clock.
+  // Supports J/K/L speed ramping via transportSpeedMultiplier.
   useEffect(() => {
     if (!isTimerPlaying || totalFrames === 0) return
 
-    const frameDuration = 1000 / activeFps
+    const speedMult = Math.max(1, transportSpeedMultiplier)
+    const isReverse = getTransportDirection() === 'reverse'
+    const frameDuration = 1000 / (activeFps * speedMult)
     let lastFrameTime = performance.now()
 
     const tick = (now: number) => {
@@ -1263,7 +1309,13 @@ function AppInner() {
         const framesToAdvance = Math.max(1, Math.floor(elapsed / frameDuration))
         lastFrameTime = now - (elapsed % frameDuration)
         const current = useProjectStore.getState().currentFrame
-        const nextFrame = (current + framesToAdvance) % totalFrames
+        let nextFrame: number
+        if (isReverse) {
+          nextFrame = current - framesToAdvance
+          if (nextFrame < 0) nextFrame = 0
+        } else {
+          nextFrame = (current + framesToAdvance) % totalFrames
+        }
         setCurrentFrame(nextFrame)
         // Sync timeline playhead for silent/image playback (audio path does this in clock sync)
         if (activeFps > 0) {
@@ -1280,7 +1332,7 @@ function AppInner() {
         playbackRafRef.current = null
       }
     }
-  }, [isTimerPlaying, totalFrames, activeFps, setCurrentFrame])
+  }, [isTimerPlaying, totalFrames, activeFps, setCurrentFrame, transportSpeedMultiplier])
 
   const handleExport = useCallback(
     async (settings: ExportSettings) => {
@@ -1570,7 +1622,10 @@ function AppInner() {
         {selectedClip && !selectedClip.textConfig && (
           <TransformPanel
             transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
-            onChange={(t) => useTimelineStore.getState().setClipTransform(selectedClip.id, t)}
+            onChange={(t) => {
+              useTimelineStore.getState().setClipTransform(selectedClip.id, t)
+              requestRenderFrame(currentFrame)
+            }}
             canvasWidth={frameWidth || 1920}
             canvasHeight={frameHeight || 1080}
             sourceWidth={(() => {
@@ -1583,6 +1638,11 @@ function AppInner() {
             })()}
             aspectLocked={aspectLocked}
             onAspectLockChange={setAspectLocked}
+            opacity={selectedClip.opacity ?? 1}
+            onOpacityChange={(o) => {
+              useTimelineStore.getState().setClipOpacity(selectedClip.id, o)
+              requestRenderFrame(currentFrame)
+            }}
           />
         )}
         <div className="sidebar-tabs">
@@ -1642,16 +1702,42 @@ function AppInner() {
           <div
             ref={previewContainerRef}
             style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}
-            onClick={(e) => {
-              // Click-to-place text: if a text track is selected but no text clip exists at playhead, create one
+            onDoubleClick={() => {
+              // Double-click preview to select the topmost video clip at current playhead time
               const tl = useTimelineStore.getState()
+              const currentTime = tl.playheadTime
+              for (const track of [...tl.tracks].reverse()) {
+                if (track.type !== 'video' || track.isMuted) continue
+                for (const clip of track.clips) {
+                  if (clip.isEnabled === false) continue
+                  if (currentTime >= clip.position && currentTime < clip.position + clip.duration) {
+                    tl.selectClip(clip.id)
+                    return
+                  }
+                }
+              }
+            }}
+            onClick={(e) => {
+              const tl = useTimelineStore.getState()
+
+              // Click-to-place text: if a text track is selected but no text clip exists at playhead, create one
               const selTrack = tl.tracks.find((t) => t.id === tl.selectedTrackId)
-              if (!selTrack || selTrack.type !== 'text') return
-              if (!selectedTextClip) {
+              if (selTrack?.type === 'text' && !selectedTextClip) {
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                 const relX = Math.round(((e.clientX - rect.left) / rect.width) * (frameWidth || 1920))
                 const relY = Math.round(((e.clientY - rect.top) / rect.height) * (frameHeight || 1080))
                 tl.addTextClip(selTrack.id, { text: 'Text', fontFamily: 'Helvetica', fontSize: 48, color: '#ffffff', position: [relX, relY], alignment: 'left', opacity: 1.0, strokeWidth: 0, strokeColor: '#000000', shadowOffset: [0, 0], shadowColor: '#00000080', animation: 'none', animationDuration: 1.0 }, tl.playheadTime, 5)
+                return
+              }
+
+              // Deselect clip when clicking empty canvas area.
+              // Don't deselect if click originated from inside the bounding box overlay
+              // (drag operations fire mousedown→mousemove→mouseup→click, and we must
+              //  suppress the click after a drag to avoid deselecting mid-transform).
+              const target = e.target as HTMLElement
+              const isOverlayClick = target.closest('.bounding-box-overlay') !== null
+              if (tl.selectedClipIds.length > 0 && !isOverlayClick) {
+                tl.clearSelection()
               }
             }}
           >
@@ -1675,19 +1761,27 @@ function AppInner() {
             {selectedClip && !selectedClip.textConfig && (
               <BoundingBoxOverlay
                 transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
-                onChange={(t) => useTimelineStore.getState().setClipTransform(selectedClip.id, t)}
+                onChange={(t) => {
+                  useTimelineStore.getState().setClipTransform(selectedClip.id, t)
+                  requestRenderFrame(currentFrame)
+                }}
                 containerRef={previewContainerRef}
-                sourceWidth={(() => {
-                  const asset = assets[selectedClip.assetId]
-                  return asset?.meta?.width ?? 1920
-                })()}
-                sourceHeight={(() => {
-                  const asset = assets[selectedClip.assetId]
-                  return asset?.meta?.height ?? 1080
-                })()}
-                canvasWidth={useProjectStore.getState().canvasResolution[0] || 1920}
-                canvasHeight={useProjectStore.getState().canvasResolution[1] || 1080}
+                sourceWidth={assets[selectedClip.assetId]?.meta?.width ?? 1920}
+                sourceHeight={assets[selectedClip.assetId]?.meta?.height ?? 1080}
+                canvasWidth={frameWidth || 1920}
+                canvasHeight={frameHeight || 1080}
                 aspectLocked={aspectLocked}
+              />
+            )}
+            {selectedClip && !selectedClip.textConfig && (
+              <SnapGuides
+                transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
+                sourceWidth={assets[selectedClip.assetId]?.meta?.width ?? 1920}
+                sourceHeight={assets[selectedClip.assetId]?.meta?.height ?? 1080}
+                containerRef={previewContainerRef}
+                canvasWidth={frameWidth || 1920}
+                canvasHeight={frameHeight || 1080}
+                enabled={true}
               />
             )}
           </div>
