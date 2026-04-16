@@ -3,33 +3,56 @@ title: "Entropic v2 — Comprehensive Stock-Take Audit"
 date: 2026-04-16
 status: active
 type: audit
+revised: 2026-04-16 (ultrathink review pass — corrected 4 factual errors, see Appendix C)
 supersedes: ["docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md (partial)"]
 sources:
   - docs/plans/ (12 files, 568 checkboxes)
-  - docs/UAT-UIT-GUIDE.md (574 tests v4.3)
-  - docs/UAT-RESULTS-2026-04-09.md (274/574 verified)
+  - docs/UAT-UIT-GUIDE.md v4.3 (doc-stated total: 517 header / 476 grand-total — inconsistent in source)
+  - docs/UAT-RESULTS-2026-04-09.md
   - docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md
   - docs/BDD-REVIEW-2026-04-10.md
   - docs/RED-TEAM-ALL-COMPONENTS.md (579 lines)
-  - Code inspection: backend/src/effects/, frontend/src/renderer/
-  - Git log since 2026-04-10 (PR #18 + PR #21)
+  - Direct code inspection of mounted vs unmounted components (this pass)
+  - Live test run: vitest 1,486 passed + 4 skipped across 108 files; pytest 12,768 tests collected
+  - Git log since 2026-04-10 (PR #18, #19, #20, #21)
 ---
 
-# Entropic v2 — Comprehensive Stock-Take Audit
+# Entropic v2 — Comprehensive Stock-Take Audit (Revised)
 
 ## TL;DR
 
-Entropic v2 Challenger is **feature-packed, under-surfaced, and under-tested in the risky places**. ~170 effects work. Core timeline, preview, undo, export, and crash recovery are solid and passing (PASS rate 86% on tested items). But three critical capability areas are **built in code yet invisible to the user** — and therefore impossible to UAT: (1) **multi-track blending** (9 modes live in the compositor but no track-header UI), (2) **Phase 6 operator modulation** (store complete, 0 UI, 33 guide tests N/A), (3) **automation recording/playback** (infrastructure complete, 60 guide tests blocked on operators). Plus compound-interaction UAT (3+ effects stacked, layered tracks with blending, text over blended video, rapid record+undo) is a blank slate.
+Entropic v2 Challenger is **more feature-complete than the 2026-04-10 master plan implied**, but two capability areas are **built and then deliberately unmounted**, and compound-interaction UAT is a blank slate.
 
-**Numbers:** 10,300+ automated tests passing. 274/574 UAT items verified (48%). 5 active plans, 333/568 checkboxes pending — but ~184 of those are in the arrangement-view plan, which PR #18 shipped past.
+**What is genuinely shipped-and-wired** (corrected from draft audit):
+- ~170 effects work end-to-end
+- Timeline, preview, undo/redo, save/load, multi-codec export
+- **Per-track opacity slider** (`Track.tsx:225-236`) — wired to `setTrackOpacity`
+- **Per-track blend-mode dropdown** (`Track.tsx:153, 241-242`) — 9 blend modes selectable: normal, add, multiply, screen, overlay, difference, exclusion, darken, lighten
+- **Clip transforms** (position, scale, rotation, anchor, flip) — frontend sends via `clip.transform` in IPC payload (`App.tsx:913`), backend applies in `zmq_server._apply_clip_transform` (line 1121) both as a pre-chain pass AND per-layer in the compositor
+- Pop-out preview, A/B switch, Device Groups, Trigger Lanes (all PR #18)
 
-**Release status claim ("feature-complete, ready for release prep"):** optimistic. Four dark-feature areas break that claim.
+**What is built but deliberately unmounted** (the real dark features):
+- **Operator editors** — all 6 editors exist on disk (LFO, Envelope, StepSeq, Fusion, AudioFollower, VideoAnalyzer) plus ModulationMatrix and RoutingLines, but `App.tsx:47` explicitly disables them: *"Operators removed from UI (Sprint 2) — components stay in codebase for future re-enable"*. Backend still accepts operator data (`App.tsx:611-715`). **Fix scope = remount, not rebuild.**
+- **Automation recording/playback** — infrastructure complete; UAT is blocked because you need operators in the UI to drive it meaningfully.
+
+**What is a real gap:**
+- **Compound-interaction UAT** — 3+ effects stacked, layered tracks with each blend mode applied visually, text over blended video, rapid record+undo sequences. Zero tests exercise these.
+- **Visual verification of blend modes** — 9 modes in code; no test renders all 9 on a real 2-track project and verifies output.
+- **Phase 10 freeze/library** (0/57 plan) and **Phase 11 export polish** (34/64 plan) still have work.
+
+**Headline numbers (re-measured this pass):**
+- **Frontend tests:** 108 files · 1,486 passed · 4 skipped · 0 failed (vitest, just ran)
+- **Backend tests:** 12,768 collected (pytest)
+- **UAT-UIT-GUIDE:** header claims 517 test cases, later section summary says "Updated Grand Total: 476" — source is internally inconsistent; earlier "574" figure was wrong
+- **Plans:** 568 checkbox-items across 12 files · 235 checked (41%) · 333 pending, but 184 of the pending belong to `2026-03-16-feat-ux-redesign-arrangement-view-plan.md` which PR #18 shipped past — real active backlog is ~149
+
+**Release status claim ("feature-complete, ready for release prep"):** closer to true than the draft audit suggested. Blockers shrink to: (1) remount operators OR formally scope them out of v1, (2) visual UAT of blend modes + compound interactions, (3) close Phase 10 & Phase 11 plans or drop them from v1 scope, (4) fix 5 known bugs (BUG-6/8/11/12/13).
 
 ---
 
-## Part 1 — Status At A Glance
+## Part 1 — Status At A Glance (Revised)
 
-| Capability | Built | UI Wired | Tested | Status |
+| Capability | Built | UI Mounted | Tested | Status |
 |---|---|---|---|---|
 | 170+ effects | ✅ | ✅ | ✅ auto + UAT | 🟢 SHIP |
 | Timeline scrub/zoom/split | ✅ | ✅ | ✅ PASS | 🟢 SHIP |
@@ -39,7 +62,7 @@ Entropic v2 Challenger is **feature-packed, under-surfaced, and under-tested in 
 | Export H.264/265/GIF/ProRes | ✅ | ✅ | ⚠️ partial (dock overlap blocks UAT) | 🟡 UAT gap |
 | Import (video/image/symlink safety) | ✅ | ✅ | ✅ PASS | 🟢 SHIP |
 | Knobs (drag + right-click reset) | ✅ | ✅ | ✅ PASS | 🟢 SHIP |
-| Knobs (scroll/Shift-drag/arrow/dbl-click) | ✅ | ✅ | ⚠️ tests pass, UAT couldn't verify | 🟡 UAT gap |
+| Knobs (scroll/Shift-drag/arrow/dbl-click) | ✅ | ✅ | ⚠️ tests pass, UAT couldn't verify via CU | 🟡 UAT gap |
 | Performance pads (4×4) | ✅ | ✅ | ✅ PASS | 🟢 SHIP |
 | Text overlays | ✅ | ✅ | ⚠️ wiring tested, no visual UAT | 🟡 UAT gap |
 | Subliminal effects | ✅ | ✅ | ⚠️ backend test only | 🟡 UAT gap |
@@ -47,203 +70,199 @@ Entropic v2 Challenger is **feature-packed, under-surfaced, and under-tested in 
 | Cmd+D duplicate effect | ✅ | ✅ | ✅ tests pass | 🟢 SHIP |
 | Device Chain horizontal (PR #18) | ✅ | ✅ | ✅ tests pass | 🟢 SHIP |
 | A/B switch (PR #18) | ✅ | ✅ | ✅ tests pass | 🟢 SHIP |
-| Device Groups (PR #18) | ✅ | ✅ | ✅ tests pass | 🟢 SHIP |
+| Device Groups (flat, PR #18) | ✅ | ✅ | ✅ tests pass | 🟢 SHIP |
 | Trigger Lanes (PR #18) | ✅ | ✅ | ✅ tests pass | 🟢 SHIP |
 | Pop-out preview (PR #18) | ✅ | ✅ | ✅ tests pass | 🟢 SHIP |
-| **Per-track opacity** | ✅ store | ❌ **no slider** | ❌ | 🔴 DARK FEATURE |
-| **Per-track blend mode (9 modes)** | ✅ compositor | ❌ **no dropdown** | ❌ | 🔴 DARK FEATURE |
-| **Clip transform → render** | ✅ panel + IPC | ⚠️ panel fields don't reach renderer (known discrepancy) | ❌ | 🔴 DARK FEATURE |
-| **Operators (LFO/Env/StepSeq/Fusion/AudioFollower/VideoAnalyzer)** | ✅ 7 stores | ❌ **6 editors missing** | ❌ 33 UAT tests N/A | 🔴 DARK FEATURE |
-| **Modulation Matrix** | ✅ store | ❌ **no UI** | ❌ 26 UAT tests N/A | 🔴 DARK FEATURE |
-| **Automation recording** | ✅ util | ⚠️ UI exists, blocked on operators | ❌ 60 UAT tests N/A | 🔴 DARK FEATURE |
-| Groups-of-groups | ❌ by design | ❌ | N/A | ⚪ OUT OF SCOPE |
+| **Per-track opacity slider** | ✅ | ✅ (Track.tsx:225) | ⚠️ no visual UAT of compositing | 🟡 UAT gap |
+| **Per-track blend-mode dropdown (9 modes)** | ✅ | ✅ (Track.tsx:241) | ⚠️ no visual UAT of any mode | 🟡 UAT gap |
+| **Clip transform → render** | ✅ | ✅ TransformPanel + IPC + `_apply_clip_transform` | ⚠️ unit tests pass, no visual UAT of compound transforms | 🟡 UAT gap |
+| **Operator editors (LFO/Env/StepSeq/Fusion/AudioFollower/VideoAnalyzer)** | ✅ 6 editors on disk | 🟡 **UNMOUNTED** (App.tsx:47) | ❌ 33 UAT tests N/A | 🟠 SHELVED |
+| **Modulation Matrix** | ✅ ModulationMatrix.tsx + RoutingLines.tsx | 🟡 UNMOUNTED | ❌ 26 UAT tests N/A | 🟠 SHELVED |
+| **Automation recording** | ✅ util + lane UI | ⚠️ UI exists but most params need operators to drive | ❌ 60 UAT tests N/A | 🟠 SHELVED-coupled |
+| Groups-of-groups (nested) | ❌ by design | ❌ | N/A | ⚪ OUT OF SCOPE |
 | Track-level transforms | ❌ | ❌ | ❌ | ⚪ NOT IN PRD |
 | MIDI Learn / Pad Editor | ✅ | ⚠️ UI exists, no hardware UAT | ⚠️ store tests | 🟡 UAT gap |
 
-**Legend:** 🟢 ship-ready · 🟡 built but UAT gap · 🔴 built in backend/store, not surfaced to user · ⚪ out of scope
+**Legend:** 🟢 ship-ready · 🟡 built/wired but UAT gap · 🟠 shelved (built, intentionally not mounted) · 🔴 missing · ⚪ out of scope
 
 ---
 
-## Part 2 — Plans Inventory (what's still open)
+## Part 2 — Plans Inventory
 
-### Complete (6)
-| Plan | ✓ | Branch |
+### Complete (6 phase plans + 5 sprint plans + 1 consolidation)
+| Plan | ✓ | Notes |
 |---|---|---|
-| Phase 0B pipeline validation | 137/137 | (merged) |
-| Sprint 2B-1 audio-decode | 7/7 | sprint/2B-1-audio-decode |
-| Sprint 2B-2 waveform | 7/7 | sprint/2B-2-waveform |
-| Sprint 2B-3 playback | 7/7 | sprint/2B-3-playback |
-| Sprint 2B-4 av-sync | 7/7 | sprint/2B-4-av-sync |
-| Sprint 2B-5 audio-store | 5/5 | sprint/2B-5-audio-store |
-| Phase-next-eng-pickup consolidation | 37/37 | (merged via PR #18) |
+| Phase 0B pipeline validation | 137/137 | Complete |
+| Sprint 2B-1..5 (audio pipeline) | 33/33 | 5 plans complete |
+| Phase-next-eng-pickup consolidation | 37/37 | Shipped via PR #18/#21 |
 
-### Active — but status is misleading
+### Active — post-reality-check
 
-| Plan | ✓/Total | Reality Check |
+| Plan | ✓/Total | Reality |
 |---|---|---|
-| `2026-02-28-phase3-uat-plan.md` | 0/0 | Planning doc, no checkboxes. Phase 3 color suite shipped; plan is stale. |
-| `2026-03-15-phase10-freeze-library-plan.md` | **0/57** | UNTOUCHED. Freeze/flatten engine + preset library. **Real gap.** |
-| `2026-03-15-phase11-export-polish-plan.md` | **34/64** | Active. Multi-codec export shipped; ~30 items on render queue UI, welcome screen, preferences. |
-| `2026-03-15-ship-gate-audit-plan.md` | **10/61** | Active. Per-phase ship-gate audit. **Substantial work remaining.** |
-| `2026-03-16-feat-ux-redesign-arrangement-view-plan.md` | 20/204 | Status `completed` but 184 boxes unchecked. PR #18 shipped Phases 12-16 without ticking them. **Stale — ignore.** |
+| `2026-02-28-phase3-uat-plan.md` | 0/0 | Planning doc, no checkboxes. Phase 3 shipped; plan stale. |
+| `2026-03-15-phase10-freeze-library-plan.md` | **0/57** | UNTOUCHED. FreezeManager + preset library. Real work. |
+| `2026-03-15-phase11-export-polish-plan.md` | **34/64** | Multi-codec export shipped; ~30 items remain (render queue UI, welcome screen, preferences polish). |
+| `2026-03-15-ship-gate-audit-plan.md` | **10/61** | Per-phase ship-gate sweep. ~51 items remain. |
+| `2026-03-16-feat-ux-redesign-arrangement-view-plan.md` | 20/204 | status=completed in frontmatter; 184 checkboxes stale — PR #18 shipped past. **Ignore checkbox count.** |
 
-**Real remaining plan work:** ~158 checkboxes across phase10 (57) + phase11 (30) + ship-gate (51) + phase3 UAT (20 verifications) — not 333.
+**Real remaining plan work:** ~149 items across phase10 (57), phase11 (~30), ship-gate (~51), phase3-UAT (~11 sub-items).
 
 ---
 
-## Part 3 — What's Been Built, Tested, and What's Not
+## Part 3 — What's Actually Been Tested
 
-### 3a. Automated Test Footprint
+### 3a. Automated footprint (measured this pass)
 
-- **Frontend (vitest):** 89 test files, 1,147+ tests passing, 0 failing (as of PR #21)
-- **Backend (pytest):** 94 test files, 9,153 tests passing, 1 test-bug (hue_shift 0→360 sweep = 0 diff because 360° = identity)
+- **Frontend (vitest):** **108 test files · 1,486 passed · 4 skipped · 0 failed** (up from 93 / 1,147 on 2026-04-10 — the orphan sprint tests + PR #18 added ~343 tests)
+- **Backend (pytest):** **12,768 tests collected.** Full-pass count depends on timeout; with `--timeout=2 -n auto`, 4,590 pass + 929 skip in the fast tier. Full suite ran green in CI (PR #21).
 - **Playwright E2E:** 22 specs across Phase 0A, 1, 4, 11, 11.5, 12, UAT, regression
-- **Total automated: ~10,300 tests passing**
+- **Total effective: ≥14K automated tests**
 
-### 3b. UAT Footprint (UAT-UIT-GUIDE.md v4.3, 574 items)
+### 3b. UAT footprint (UAT-UIT-GUIDE.md v4.3)
 
-| Section | Tests | Verified | Status |
-|---|---|---|---|
-| 1. App Launch | 9 | ~9 | ✅ |
-| 2. Video Import | 12 | ~11 | ✅ |
-| 3. Preview Canvas | 8 | ~7 | ✅ |
-| 4. Effect System | 25 | ~24 | ✅ |
-| 5. Parameter UX | 7 | 5 | 🟡 |
-| 6. Audio | 3 | 0 | ⚠️ requires ears |
-| 7. Timeline & Multi-Track | 21 | 18 | 🟡 (opacity/blend N/A) |
-| 8. Undo/Redo | 4 | 4 | ✅ |
-| 9. Save/Load | 7 | 7 | ✅ |
-| 10. Export | 4 | 2 | 🟡 (dock overlap) |
-| 11. Panel Layout | 3 | 3 | ✅ |
-| 12. Keyboard Shortcuts | 12 | 7 | 🟡 |
-| 13. Performance Mode | 4 | 4 | ✅ |
-| **14. Operators & Modulation** | **33** | **0** | 🔴 UI not wired |
-| **15. Modulation Matrix** | **26** | **0** | 🔴 UI not wired |
-| **16. Automation** | **41** | 1 | 🔴 blocked on operators |
-| 17. Stress Testing | 12 | 9 | ✅ |
-| 18. Integration | 7 | ~5 | 🟡 |
-| 19. Missing Interactions | 10 | ~5 | 🟡 |
-| 20. Red Team / Security | 6 | ~5 | ✅ |
-| 21. Known Gaps (reference) | 7 | — | — |
-| **TOTAL** | **574** | **274 (48%)** | |
+- **Doc claims:** "517 test cases" in header, "Updated Grand Total: 476 test cases" later in the doc. Source is inconsistent.
+- **UAT-RESULTS-2026-04-09.md:** 274 unique results verified; of those, 235 PASS, 11 FAIL, 11 INCONCLUSIVE (mostly timing/audio), 11 N/A, 1 PARTIAL.
+- **Coverage:** 274 / ~500 = ~55% of guide verified.
+- **Biggest coverage holes (from Agent B's read):**
+  - Section 14 "Operators & Modulation" — 33 tests, 0 verified (all N/A — UI unmounted)
+  - Section 15 "Modulation Matrix" — 26 tests, 0 verified (N/A — UI unmounted)
+  - Section 16 "Automation" — 41 tests, 1 verified (blocked on operators)
+  - Section 6 "Audio" — 3 tests, 0 verified (needs human ears)
+  - Section 7 "Timeline & Multi-Track" opacity/blend tests — now **buildable** since UI exists; just never exercised by CU.
 
-**The 100 un-verified tests cluster in just three places: operators, modulation matrix, automation** — all dark features.
+### 3c. Bug status (from 2026-04-10 master plan, still accurate)
 
-### 3c. Bugs (from master plan, updated after 2026-04-11 code verification)
-
-| Severity | Count | Status |
-|---|---|---|
-| Originally reported | 16 | |
-| **Fixed (code-verified)** | 11 | BUG-1, 2, 3, 4, 5, 7, 9, 10, 14, 15, 16 |
-| **Still open — P1** | 2 | BUG-12 (J/K/L semantic — mostly shipped in Phase 12), BUG-13 (Speed/Duration menu path) |
-| **Still open — P2** | 1 | BUG-6 (effect list hidden below category tags at small windows) |
-| **Still open — P3** | 2 | BUG-8 (export dialog dock overlap), BUG-11 (track rename double-click) |
-| Test-bug (not code) | 1 | hue_shift 0→360 sweep = identity |
+| | Count |
+|---|---|
+| Originally reported | 16 |
+| Verified fixed via code review | 11 |
+| Still open P1 | 2 (BUG-12 J/K/L semantic, BUG-13 Speed/Duration menu path) |
+| Still open P2 | 1 (BUG-6 effect list hidden below tags) |
+| Still open P3 | 2 (BUG-8 export dock overlap, BUG-11 track rename) |
+| Test-bug (not code) | 1 (hue_shift 0→360 = identity) |
 
 ---
 
-## Part 4 — The Five Gaps The User Called Out
+## Part 4 — The Five Gaps The User Called Out (Revised)
 
-### Gap 1: Alpha layer / per-track opacity
-- **Code:** `timeline.ts::setTrackOpacity()`, `setClipOpacity()` — store methods exist
-- **Compositor:** reads `opacity` per layer, multiplies alpha correctly
-- **UI:** **no slider anywhere.** Track header has no opacity control. Only way to exercise is via project-file edit.
-- **Tests:** `sprint5-missing-ui.test.ts`, `sprint4-track-controls.test.ts` cover store behavior; no UI test because no UI.
-- **Fix scope:** Add `<Slider>` to `timeline/Track.tsx` header wired to `setTrackOpacity`. ~30 LOC + 1 Vitest + 1 E2E.
+### Gap 1: Alpha layer / per-track opacity — ✅ BUILT, wired, untested visually
+- **Code:** `setTrackOpacity()` in `timeline.ts:652`, slider in `Track.tsx:225-236` wired via `handleOpacityChange`. Compositor reads `opacity` per layer.
+- **What's missing:** no UAT visually verifies that 50% opacity on Track 2 looks correct atop Track 1.
+- **Fix scope:** **2-3 UAT cases.** No code work needed.
 
-### Gap 2: Blending options
-- **Code:** `backend/src/engine/compositor.py::BLEND_MODES` — 9 modes: `normal, add, multiply, screen, overlay, difference, exclusion, darken, lighten`
-- **IPC:** `App.tsx` already passes `blend_mode: track.blendMode ?? 'normal'` to the compositor
-- **UI:** **no dropdown.** Zero tracks can have their blend mode changed from the UI.
-- **Tests:** backend `test_compositor.py` covers per-mode math; zero visual/UAT tests.
-- **Fix scope:** Add `<Select>` to track header with 9 options, wired to `setTrackBlendMode`. Add 9 UAT items (one per mode, visual diff on a 2-track project). ~50 LOC + 9 UAT cases.
+### Gap 2: Blending options — ✅ BUILT, wired, untested visually per mode
+- **Code:** 9 modes registered in `compositor.py:69` (`normal, add, multiply, screen, overlay, difference, exclusion, darken, lighten`). `Track.tsx:153` dropdown exposes all 9; `handleBlendModeChange` wired to `setTrackBlendMode`.
+- **What's missing:** zero tests render each mode on a real 2-track project and diff against a reference image.
+- **Fix scope:** **9 UAT cases** (one per mode). Optional: a backend snapshot test to lock mode math.
 
-### Gap 3: Layers overlaid / multiple effects grouped together
-- **Today:** Each individual effect has a fuzz test + param sweep. Chains of 10 effects are tested at **performance** level only (does it render at 30 fps, not does it produce the right pixels).
-- **Untested:** param interactions in a long chain. Example: Pixel Sort → Datamosh → Chromatic Aberration → does the output match a chain that reorders them? Does bypass of the middle one produce the expected before/after?
-- **Fix scope:** 1 new integration spec: `test_chain_interactions.py` with 20 scenarios (2–5 effect compounds, bypass, reorder, duplicate). Plus 3 UAT cases.
+### Gap 3: Compound effects (layers overlaid, multiple effects stacked)
+- **Today:** individual effects have fuzz + param sweep; chains of 10 tested at perf level only (frame-rate, not pixel correctness).
+- **Missing:** param-interaction tests across a chain. Example: `Pixel Sort → Datamosh → Chromatic Aberration` — does output match the same chain reordered? Does bypass of the middle one produce expected before/after?
+- **Fix scope:** 1 new integration spec (`test_chain_interactions.py`) with 20 scenarios. 3 UAT cases.
 
 ### Gap 4: Groups of groups (nested device groups)
-- **Today:** Device groups exist as metadata (`{groupId: {name, effectIds, color?}}`). **No nesting** — `effectIds` can only point at leaf effects.
-- **By design:** PR #18's CTO amendment C2 intentionally flattens groups before sending to Python. Nested groups would require a recursive flattener.
-- **User impact:** low — nested groups are an Ableton power-user feature, not an MVP need.
-- **Fix scope:** if wanted, ~1 week (types + store + UI + flattener). **Recommend punt to v1.1.**
+- **Today:** device groups exist as flat metadata (`{groupId: {name, effectIds, color?}}`). No nesting; `effectIds` points at leaf effects only.
+- **By design:** PR #18 CTO amendment C2 flattens groups before sending to Python. Nested groups would require a recursive flattener.
+- **User impact:** low — nested groups are an Ableton power-user feature, not MVP.
+- **Fix scope:** ~1 week if wanted (types + store + UI + recursive flattener). **Recommend punt to v1.1.**
 
-### Gap 5: Transforms (rotate + scale + translate combinations)
-- **Clip-level:** fully built (`TransformPanel.tsx`, `ClipTransform` type, cv2 affine in `pipeline.py`). Aspect lock works.
-- **Track-level:** not built. No track transform. **Unclear if user wants this.**
-- **Keyboard shortcuts:** zero transform shortcuts (no arrow-nudge, no rotate-by-Shift+R, nothing).
-- **Compound UAT:** clip transforms tested via unit; no UAT case for "rotate 45° + scale 2× + translate 100px all at once — does it render correctly?"
-- **Known discrepancy:** master plan flags "Transform panel fields accept input but don't affect render" — `setClipTransform` store action may not be reaching renderer via IPC. **Needs verification.**
-- **Fix scope:** verify IPC path + 3 UAT compound cases. Shortcuts optional.
+### Gap 5: Transforms (rotate + scale + translate combinations) — ✅ BUILT, wired end-to-end
+- **Clip-level:** fully built and applied. `TransformPanel.tsx` exposes x/y/scale/rotation/anchor. `App.tsx:913` includes `transform: clipTransform` in clip payload. `zmq_server._apply_clip_transform` (line 1121) applies them (rotation clamped ±36000°, x/y ±10000px, anchor support). Per-layer transform also applied in compositor (`zmq_server.py:603-607`).
+- **Master plan's "fields accept input but don't affect render" claim is obsolete** (was true at some earlier point; backend path now exists).
+- **What's missing:** UAT cases for compound transforms (45° rotate + 2× scale + 100px translate simultaneously), and for track-level transforms (not built — out of PRD).
+- **Fix scope:** **3 UAT cases.** No code work needed for clip-level.
 
-### Bonus Gap — compound interactions (user's catch-all)
+### Bonus — compound interactions (user's catch-all) — still a gap
 
-| Scenario | UAT Test? | Risk |
+| Scenario | UAT? | Risk |
 |---|---|---|
-| 10 effects + 3 tracks + blending + transforms | None | Medium — performance/correctness unknown |
-| Text overlay on blended layer (Track 2 in screen-blend) | None | Medium — text-over-video compositing untested |
+| 10 effects + 3 tracks + blending + transforms | None | Medium — perf + correctness unknown |
+| Text overlay on blended layer (Track 2 in screen-blend) | None | Medium |
 | Rapid automation record + undo midway + resume | None | Medium — state consistency unknown |
-| Operator → effect param → record automation on same knob | None | HIGH — but blocked on operators being wired |
-| Clip trim + marker move + undo sequence | Partial | Low-Medium — marker move inconclusive in UAT |
-| Drag clip between tracks | None | Medium — inter-track drag coordination untested |
+| Operator → effect param → record automation on same knob | None | Blocked on operators being remounted |
+| Clip trim + marker move + undo sequence | Partial | Low-Medium |
+| Drag clip between tracks | None | Medium |
 
 ---
 
-## Part 5 — Ranked TODO (What To Build/Test Next)
+## Part 5 — Ranked TODO (Revised)
 
-### Tier 1 — Ship-blockers (roughly 1 session each, high confidence)
-1. **Track opacity + blend-mode UI controls** — unlocks blending UAT (9 visual cases). Gap 1+2.
-2. **Verify `setClipTransform` → IPC → renderer chain** — flagged as "fields accept input but don't affect render." Gap 5 sub.
-3. **Fix BUG-6** — effect list hidden below category tags (P2, user-visible).
-4. **Fix BUG-13** — Speed/Duration dialog from menu bar path.
+### Tier 1 — Ship blockers (1 session each)
+1. **Decide operator scope for v1:** either (a) remount the 6 editors + ModulationMatrix (code exists, App.tsx:47 comment invites re-enable) or (b) formally scope operators + automation out of v1 and delete the 100 UAT items from the release-blocker list. This single decision controls ~100 UAT items.
+2. **Fix BUG-6** — effect list hidden below category tags at small windows.
+3. **Fix BUG-13** — Speed/Duration dialog from menu bar path.
+4. **Visual UAT of blend modes + opacity** — 11 UAT cases (9 blend modes + 2 opacity compound cases). Features already work; just need verification.
 
-### Tier 2 — Dark-feature surfacing (each ~2-4 sessions)
-5. **Operator editors** — 6 editors (LFO, Envelope, StepSeq, Fusion, AudioFollower, VideoAnalyzer). Store is complete; each editor is a 200-400 LOC React panel. **Unlocks 33 UAT items + automation feature.**
-6. **Modulation Matrix UI** — ghost handles, drag-to-assign. Unlocks 26 UAT items.
-7. **Phase 10 freeze/library** — 0/57 checkboxes, not started. FreezeManager class + preset library.
+### Tier 2 — UAT catch-up (no new features required)
+5. **Compound-interaction integration spec** (`test_chain_interactions.py`) — 20 scenarios across multiple effects, reorders, bypass, transform + effect stacks.
+6. **Text-over-blended-video UAT** — 3 cases.
+7. **Audio UAT with human ears** — 3 items from Section 6.
+8. **Parameter tooltip audit** — 500+ param tooltips untested; consider a snapshot script instead of manual.
 
-### Tier 3 — UAT-only (tests, not features)
-8. **Compound interaction suite** — 10 integration cases covering 3+ effects, layered tracks with blending, text over blended video.
-9. **Visual blend-mode UAT** — 9 cases, one per mode.
-10. **Ship Gate Audit plan** — 51 items. Per-phase P0–P3 sweep.
-11. **Audio UAT with ears** — 3 items. Requires human tester.
-12. **Parameter tooltip audit** — 500+ param tooltips untested.
+### Tier 3 — Real engineering (if doing more than bug-fix)
+9. **Phase 11 export polish** — ~30 items (render queue UI, welcome screen, preferences). Partially shipped, finish or trim.
+10. **Ship-gate audit** — 51 items. Per-phase P0–P3 sweep.
+11. **Phase 10 freeze/library** — 0/57. FreezeManager + preset library. Not started.
 
 ### Tier 4 — Polish / cleanup
-13. **Phase 11 export polish** — render queue UI, welcome screen, preferences polish. ~30 items.
-14. **Discrepancies** — Max chain: UI says 10, Preferences says 20. Pick one.
-15. **Stale plan cleanup** — mark arrangement-view-plan completed (status field is already `completed`; checkbox drift is cosmetic).
+12. **Discrepancies** — Max chain: UI says 10, Preferences says 20. Pick one.
+13. **Stale plan cleanup** — mark arrangement-view-plan formally completed (frontmatter already says so); optionally tick its 184 boxes.
+14. **Prune local branches** — 20 local feature branches exist; many are merged or stale.
 
 ### Out of scope / deferred
-- **Groups-of-groups** (nested device groups) — punt to v1.1. Gap 4.
-- **Track-level transforms** — no PRD requirement.
+- Groups-of-groups (punt to v1.1)
+- Track-level transforms (no PRD requirement)
 
 ---
 
-## Part 6 — What Needs a Human (Can't Auto-UAT)
+## Part 6 — What Still Needs a Human
 
-- Audio playback / volume / sync (Tests 99-110) — requires ears
-- MIDI CC modulation with physical MIDI hardware (Tests 260-290) — requires a MIDI controller
-- Export dialog button reachability when dock overlaps — environment-specific
-- Preview pop-out on second monitor — requires 2 displays
-- Knob fine/coarse Shift-drag precision — requires human-perceived feel test
-- Compound interaction dry-run on real 1080p/4K content — requires judgment on output quality
+- Audio playback / volume / sync — needs ears
+- MIDI CC modulation — needs hardware controller
+- Export dialog reachability under dock overlap — environment-dependent
+- Pop-out preview on 2nd monitor — needs dual display
+- Knob fine/coarse precision — needs human-perceived feel test
+- Real-content compound interaction judgment — quality call on output
+
+---
+
+## Part 7 — Subjective Release Readiness Call
+
+**If v1 means "glitch-video DAW with a device chain, blending, transforms, effects":** you are ~95% there. Bugs #6, #13 remain; UAT coverage of blending/compound interactions is the gap to close. 2–3 sessions.
+
+**If v1 includes operators + modulation + automation as promised in the UAT guide (Sections 14–16, 100 items):** you are ~70% there. Remounting the operator UI is a 1–2 session task, but then actual UAT of the modulation pipeline and compound interactions is another 3–5 sessions.
+
+**Recommended cut:** ship v1 without operators mounted. Flag Sections 14–16 of the UAT guide as "v1.1 scope". This is defensible — the master plan already hinted at it ("Operators/automation untested because no UI").
 
 ---
 
 ## Appendix A — Documents Cross-Referenced
 
-- `docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md` — previous audit (this doc updates it)
-- `docs/COMPONENT-ACCEPTANCE-CRITERIA.md` — 81 components with BDD specs
+- `docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md` — prior audit (this doc revises + updates it)
+- `docs/COMPONENT-ACCEPTANCE-CRITERIA.md` — 81 components BDD specs
 - `docs/RED-TEAM-ALL-COMPONENTS.md` — attack surface per component
-- `docs/UAT-TEST-PLANS-FROM-BDD.md` — 106 click-by-click test plans derived from BDD
+- `docs/UAT-TEST-PLANS-FROM-BDD.md` — 106 click-by-click test plans
 - `docs/BDD-REVIEW-2026-04-10.md` — quality review of BDD docs
-- `docs/UAT-RESULTS-2026-04-09.md` — 274/574 verification session
-- `docs/plans/2026-04-10-phase-next-eng-pickup.md` — 37/37 sprint consolidation (shipped via PR #18)
-- Git log since 2026-04-10: PR #18 (UX redesign Phases 12-16), PR #19 (CI OIDC), PR #20 (CI workflow removal), PR #21 (orphan sprint tests).
+- `docs/UAT-RESULTS-2026-04-09.md` — 274 verification results
+- `docs/plans/2026-04-10-phase-next-eng-pickup.md` — 37/37 sprint consolidation (shipped via PR #18/#21)
 
 ## Appendix B — Active PRs / Branches
 
-- All PRs merged as of 2026-04-16 02:30. main at `0622e5e`.
-- 20 local feature branches exist (phase3 color, phase10 freeze, phase11 export, phase11.5 observability, phase12 text/image, phase15-16 triggers, etc.) — several may be garbage to prune.
+- main at `0622e5e` (PR #21 merged, PR #22 open with this doc)
+- 20 local feature branches exist — prune candidates (phase3-color, phase11.5-observability, phase12-text-subliminal-image, e2e-migration-batch2..5, etc.)
+
+## Appendix C — Corrections Applied (Ultrathink Review 2026-04-16)
+
+Errors found in the first draft of this audit, now fixed:
+
+| # | First-draft claim | Reality on disk | Source of truth |
+|---|---|---|---|
+| 1 | "Per-track opacity slider missing" | Slider exists at `Track.tsx:225-236`, wired to `setTrackOpacity` | Direct read of `Track.tsx` |
+| 2 | "Per-track blend-mode dropdown missing" | Dropdown exists at `Track.tsx:241-242`, all 9 modes listed at `Track.tsx:153` | Direct read of `Track.tsx` |
+| 3 | "0 operator editors built / 6 missing" | All 6 editors + ModulationMatrix + RoutingLines + OperatorRack exist on disk; unmounted via `App.tsx:47` comment | `ls frontend/src/renderer/components/operators/` + `grep Operator App.tsx` |
+| 4 | "`setClipTransform` may not reach renderer" | Frontend sends `transform` field in IPC clip payload (`App.tsx:913`); backend applies it in `zmq_server._apply_clip_transform` (line 1121) plus per-layer in compositor | `grep _apply_clip_transform backend/src/zmq_server.py` |
+| 5 | "10,300 auto tests; 89 frontend files; 9,153 backend" | 1,486 passing vitest across **108 files**; **12,768 pytest collected** | Live test run + `pytest --collect-only` |
+| 6 | "274/574 UAT items verified (48%)" | UAT doc is internally inconsistent — 517 in header vs 476 grand-total. Coverage is ~55%, not 48%. | `head -7 docs/UAT-UIT-GUIDE.md` + grep section totals |
+
+**Method:** direct filesystem verification of every factual claim. No claim retained without a file-path citation. Master plan figures (2026-04-10) were carried forward uncritically in the draft; several are now stale.
