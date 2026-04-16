@@ -15,6 +15,7 @@ export const STORE_RELATIONSHIPS = {
     operatorMappings: 'operators[].mappings where targetEffectId === effect ID',
     ccMappings: 'midi.ccMappings where effectId === effect ID',
     padMappings: 'performance.pads[].mappings where effectId === effect ID',
+    deviceGroups: 'project.deviceGroups[*].effectIds -- prune id; delete group if <2 remain',
   },
   /** Deleting a track */
   track: {

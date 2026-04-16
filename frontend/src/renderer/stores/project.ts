@@ -114,6 +114,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const savedLanes = JSON.parse(JSON.stringify(autoStore.lanes))
     const midiStore = useMIDIStore.getState()
     const savedCCMappings = [...midiStore.ccMappings]
+    // Phase 14B: deviceGroups may reference this effect — snapshot for restore
+    const savedDeviceGroups = JSON.parse(JSON.stringify(get().deviceGroups))
 
     undoable(
       'Remove effect',
@@ -142,6 +144,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // 4. CC mappings targeting this effect
         const ccMappings = useMIDIStore.getState().ccMappings.filter((m) => m.effectId !== id)
         useMIDIStore.setState({ ccMappings })
+
+        // 5. Device groups: remove this id from any group's effectIds.
+        // If pruning drops a group below 2 members, delete the group (mirrors
+        // the minimum-size rule enforced in groupEffects).
+        const nextGroups: typeof savedDeviceGroups = {}
+        for (const [gid, group] of Object.entries(get().deviceGroups)) {
+          const pruned = group.effectIds.filter((eid) => eid !== id)
+          if (pruned.length >= 2) {
+            nextGroups[gid] = { ...group, effectIds: pruned }
+          }
+          // else: group drops below minimum → omit (delete)
+        }
+        set({ deviceGroups: nextGroups })
       },
       () => {
         // Restore effect
@@ -153,6 +168,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         useOperatorStore.setState({ operators: savedOperators })
         useAutomationStore.setState({ lanes: savedLanes })
         useMIDIStore.setState({ ccMappings: savedCCMappings })
+        set({ deviceGroups: savedDeviceGroups })
       },
     )
   },

@@ -112,3 +112,76 @@ describe('ungroupEffects', () => {
     expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
   })
 })
+
+// -----------------------------------------------------------------------------
+// PR #18 /review P1 finding: removeEffect must prune deviceGroups[*].effectIds
+// Without this cleanup, deleting an effect leaves orphan IDs in groups that
+// persist to .glitch files and corrupt downstream lookups.
+// -----------------------------------------------------------------------------
+
+describe('removeEffect → deviceGroup cleanup', () => {
+  beforeEach(reset)
+
+  it('prunes the deleted effect from groups that still have ≥2 members', () => {
+    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2', 'fx-3'])!
+    useProjectStore.getState().removeEffect('fx-2')
+
+    const groups = useProjectStore.getState().deviceGroups
+    expect(groups[groupId]).toBeDefined()
+    expect(groups[groupId].effectIds).toEqual(['fx-1', 'fx-3'])
+  })
+
+  it('deletes the group when pruning drops it below 2 members', () => {
+    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(1)
+
+    useProjectStore.getState().removeEffect('fx-2')
+
+    const groups = useProjectStore.getState().deviceGroups
+    expect(groups[groupId]).toBeUndefined()
+    expect(Object.keys(groups)).toHaveLength(0)
+  })
+
+  it('leaves groups not containing the deleted effect untouched', () => {
+    // Two separate groups
+    const FX4: EffectInstance = {
+      id: 'fx-4', effectId: 'noise', isEnabled: true, isFrozen: false,
+      parameters: {}, modulations: {}, mix: 1, mask: null,
+    }
+    useProjectStore.setState({
+      effectChain: [{ ...FX1 }, { ...FX2 }, { ...FX3 }, { ...FX4 }],
+    })
+    const g1 = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    const g2 = useProjectStore.getState().groupEffects(['fx-3', 'fx-4'])!
+
+    useProjectStore.getState().removeEffect('fx-1')
+
+    const groups = useProjectStore.getState().deviceGroups
+    expect(groups[g1]).toBeUndefined() // dropped below 2
+    expect(groups[g2]).toBeDefined()
+    expect(groups[g2].effectIds).toEqual(['fx-3', 'fx-4']) // untouched
+  })
+
+  it('undo restores both the effect AND the groups that were pruned/deleted', () => {
+    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2', 'fx-3'])!
+    useProjectStore.getState().removeEffect('fx-2')
+    expect(useProjectStore.getState().deviceGroups[groupId].effectIds).toEqual(['fx-1', 'fx-3'])
+
+    useUndoStore.getState().undo()
+
+    expect(useProjectStore.getState().effectChain.map((e) => e.id)).toEqual(['fx-1', 'fx-2', 'fx-3'])
+    expect(useProjectStore.getState().deviceGroups[groupId].effectIds).toEqual(['fx-1', 'fx-2', 'fx-3'])
+  })
+
+  it('undo restores a group that was deleted by the cleanup', () => {
+    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    useProjectStore.getState().removeEffect('fx-1')
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
+
+    useUndoStore.getState().undo()
+
+    const restored = useProjectStore.getState().deviceGroups
+    expect(restored[groupId]).toBeDefined()
+    expect(restored[groupId].effectIds).toEqual(['fx-1', 'fx-2'])
+  })
+})
