@@ -322,12 +322,12 @@ describe('TimelineStore', () => {
   // --- View ---
 
   describe('zoom and scroll', () => {
-    it('setZoom clamps to 10-200', () => {
-      useTimelineStore.getState().setZoom(5)
-      expect(useTimelineStore.getState().zoom).toBe(10)
+    it('setZoom clamps to 0.5-500', () => {
+      useTimelineStore.getState().setZoom(0.1)
+      expect(useTimelineStore.getState().zoom).toBe(0.5)
 
-      useTimelineStore.getState().setZoom(300)
-      expect(useTimelineStore.getState().zoom).toBe(200)
+      useTimelineStore.getState().setZoom(600)
+      expect(useTimelineStore.getState().zoom).toBe(500)
     })
 
     it('setScrollX clamps to >= 0', () => {
@@ -635,6 +635,204 @@ describe('TimelineStore', () => {
       useTimelineStore.getState().removeClip('c1')
       expect(useTimelineStore.getState().selectedClipIds).toEqual(['c2'])
       expect(useTimelineStore.getState().selectedClipId).toBe('c2')
+    })
+  })
+
+  describe('clip transform', () => {
+    it('setClipTransform applies transform to clip', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      const clip = makeClip({ id: 'ct1', trackId })
+      ts.addClip(trackId, clip)
+
+      ts.setClipTransform('ct1', { x: 10, y: 20, scaleX: 0.5, scaleY: 0.5, rotation: 45, anchorX: 0, anchorY: 0, flipH: false, flipV: false })
+
+      const updated = useTimelineStore.getState().tracks[0].clips[0]
+      expect(updated.transform).toEqual({ x: 10, y: 20, scaleX: 0.5, scaleY: 0.5, rotation: 45, anchorX: 0, anchorY: 0, flipH: false, flipV: false })
+    })
+
+    it('setClipTransform is undoable', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      const clip = makeClip({ id: 'ct2', trackId })
+      ts.addClip(trackId, clip)
+
+      ts.setClipTransform('ct2', { x: 100, y: 0, scaleX: 2, scaleY: 2, rotation: 0, anchorX: 0, anchorY: 0, flipH: false, flipV: false })
+      expect(useTimelineStore.getState().tracks[0].clips[0].transform?.x).toBe(100)
+
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks[0].clips[0].transform).toBeUndefined()
+    })
+
+    it('clip defaults have no transform', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      const clip = makeClip({ id: 'ct3', trackId })
+      ts.addClip(trackId, clip)
+
+      expect(useTimelineStore.getState().tracks[0].clips[0].transform).toBeUndefined()
+    })
+  })
+
+  describe('duplicateClip', () => {
+    it('creates a copy with new ID at offset position', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'dc1', trackId, position: 1, duration: 2 }))
+
+      ts.duplicateClip('dc1')
+
+      const clips = useTimelineStore.getState().tracks[0].clips
+      expect(clips).toHaveLength(2)
+      expect(clips[1].id).not.toBe('dc1')
+      expect(clips[1].position).toBe(1.5)
+      expect(clips[1].duration).toBe(2)
+    })
+
+    it('is undoable', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'dc2', trackId }))
+
+      ts.duplicateClip('dc2')
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(2)
+
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+    })
+
+    it('no-ops for nonexistent clip', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('T1', '#f00')
+      ts.duplicateClip('nonexistent')
+      expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
+    })
+  })
+
+  describe('toggleClipEnabled', () => {
+    it('disables an enabled clip', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'te1', trackId }))
+
+      ts.toggleClipEnabled('te1')
+      expect(useTimelineStore.getState().tracks[0].clips[0].isEnabled).toBe(false)
+    })
+
+    it('re-enables a disabled clip', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'te2', trackId }))
+
+      ts.toggleClipEnabled('te2')
+      ts.toggleClipEnabled('te2')
+      expect(useTimelineStore.getState().tracks[0].clips[0].isEnabled).toBeUndefined()
+    })
+
+    it('is undoable', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'te3', trackId }))
+
+      ts.toggleClipEnabled('te3')
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks[0].clips[0].isEnabled).toBeUndefined()
+    })
+  })
+
+  describe('reverseClip', () => {
+    it('toggles reversed flag', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'rv1', trackId }))
+
+      ts.reverseClip('rv1')
+      expect(useTimelineStore.getState().tracks[0].clips[0].reversed).toBe(true)
+
+      ts.reverseClip('rv1')
+      expect(useTimelineStore.getState().tracks[0].clips[0].reversed).toBeUndefined()
+    })
+
+    it('is undoable', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'rv2', trackId }))
+
+      ts.reverseClip('rv2')
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks[0].clips[0].reversed).toBeUndefined()
+    })
+  })
+
+  describe('duplicateTrack', () => {
+    it('creates copy with new IDs after source', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'dt1', trackId }))
+
+      ts.duplicateTrack(trackId)
+
+      const tracks = useTimelineStore.getState().tracks
+      expect(tracks).toHaveLength(2)
+      expect(tracks[1].name).toBe('T1 (Copy)')
+      expect(tracks[1].id).not.toBe(trackId)
+      expect(tracks[1].clips).toHaveLength(1)
+      expect(tracks[1].clips[0].id).not.toBe('dt1')
+      expect(tracks[1].clips[0].trackId).toBe(tracks[1].id)
+    })
+
+    it('is undoable', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+
+      ts.duplicateTrack(trackId)
+      expect(useTimelineStore.getState().tracks).toHaveLength(2)
+
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().tracks).toHaveLength(1)
+    })
+  })
+
+  describe('selection actions', () => {
+    it('selectAllClips selects all clips across tracks', () => {
+      const ts = useTimelineStore.getState()
+      const t1 = ts.addTrack('T1', '#f00')!
+      const t2 = ts.addTrack('T2', '#0f0')!
+      ts.addClip(t1, makeClip({ id: 'sa1', trackId: t1 }))
+      ts.addClip(t2, makeClip({ id: 'sa2', trackId: t2 }))
+
+      ts.selectAllClips()
+      expect(useTimelineStore.getState().selectedClipIds).toEqual(['sa1', 'sa2'])
+    })
+
+    it('invertSelection flips selection', () => {
+      const ts = useTimelineStore.getState()
+      const trackId = ts.addTrack('T1', '#f00')!
+      ts.addClip(trackId, makeClip({ id: 'is1', trackId }))
+      ts.addClip(trackId, makeClip({ id: 'is2', trackId }))
+
+      ts.selectClip('is1')
+      ts.invertSelection()
+      expect(useTimelineStore.getState().selectedClipIds).toEqual(['is2'])
+    })
+
+    it('selectClipsByTrack selects only clips in specified track', () => {
+      const ts = useTimelineStore.getState()
+      const t1 = ts.addTrack('T1', '#f00')!
+      const t2 = ts.addTrack('T2', '#0f0')!
+      ts.addClip(t1, makeClip({ id: 'st1', trackId: t1 }))
+      ts.addClip(t2, makeClip({ id: 'st2', trackId: t2 }))
+
+      ts.selectClipsByTrack(t1)
+      expect(useTimelineStore.getState().selectedClipIds).toEqual(['st1'])
+    })
+
+    it('selectAllClips with no clips produces empty array', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('T1', '#f00')
+
+      ts.selectAllClips()
+      expect(useTimelineStore.getState().selectedClipIds).toEqual([])
     })
   })
 })

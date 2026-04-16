@@ -654,3 +654,68 @@ def test_export_start_catches_non_runtime_errors(zmq_client, monkeypatch):
     )
     assert resp["ok"] is False
     assert "error" in resp
+
+
+# ---------------------------------------------------------------------------
+# SEC: Resolution clamping at IPC boundary (PR #18 /quality finding)
+# Prevents OOM when render_composite / export_start receive hostile resolution.
+# ---------------------------------------------------------------------------
+
+
+class TestResolutionClamping:
+    """Verify that malformed or oversized `resolution` fields are rejected/clamped
+    before reaching cv2.resize in render_composite."""
+
+    def _build_server(self):
+        from zmq_server import ZMQServer
+
+        server = ZMQServer.__new__(ZMQServer)
+        server.token = "test-token"
+        # Attributes touched by _handle_render_composite before the resolution check
+        return server
+
+    def test_render_composite_rejects_non_list_resolution(self):
+        server = self._build_server()
+        resp = server._handle_render_composite(
+            {"layers": [], "resolution": "not-a-list"}, msg_id="m1"
+        )
+        assert resp["ok"] is False
+        assert "resolution" in resp["error"].lower()
+
+    def test_render_composite_rejects_wrong_length_resolution(self):
+        server = self._build_server()
+        resp = server._handle_render_composite(
+            {"layers": [], "resolution": [1920]}, msg_id="m2"
+        )
+        assert resp["ok"] is False
+        assert "resolution" in resp["error"].lower()
+
+    def test_render_composite_clamps_oversized_resolution(self):
+        """Hostile 999999x999999 → must be clamped to 8192x8192, not OOM."""
+        server = self._build_server()
+        # Empty layers list → render_composite returns an 8192x8192 black canvas
+        resp = server._handle_render_composite(
+            {"layers": [], "resolution": [999999, 999999]}, msg_id="m3"
+        )
+        # Either succeeds with clamped output, or fails cleanly (never crashes)
+        assert resp["ok"] is True
+        assert resp["width"] == 8192
+        assert resp["height"] == 8192
+
+    def test_render_composite_clamps_negative_resolution(self):
+        server = self._build_server()
+        resp = server._handle_render_composite(
+            {"layers": [], "resolution": [-500, -500]}, msg_id="m4"
+        )
+        # Clamps to min (1)
+        assert resp["ok"] is True
+        assert resp["width"] == 1
+        assert resp["height"] == 1
+
+    def test_render_text_frame_rejects_non_list_resolution(self):
+        server = self._build_server()
+        resp = server._handle_render_text_frame(
+            {"text_config": {"text": "hi"}, "resolution": "bogus"}, msg_id="m5"
+        )
+        assert resp["ok"] is False
+        assert "resolution" in resp["error"].lower()

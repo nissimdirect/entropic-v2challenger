@@ -106,11 +106,11 @@ describe('Timeline UI Integration', () => {
     })
 
     it('zoom is clamped to valid range', () => {
-      useTimelineStore.getState().setZoom(5)
-      expect(useTimelineStore.getState().zoom).toBe(10)
+      useTimelineStore.getState().setZoom(0.1)
+      expect(useTimelineStore.getState().zoom).toBe(0.5)
 
-      useTimelineStore.getState().setZoom(500)
-      expect(useTimelineStore.getState().zoom).toBe(200)
+      useTimelineStore.getState().setZoom(600)
+      expect(useTimelineStore.getState().zoom).toBe(500)
     })
   })
 

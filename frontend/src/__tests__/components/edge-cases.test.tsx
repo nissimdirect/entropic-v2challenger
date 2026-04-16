@@ -15,7 +15,6 @@ import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropi
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
 import EffectRack from '../../renderer/components/effects/EffectRack'
 import ParamPanel from '../../renderer/components/effects/ParamPanel'
-import PreviewControls from '../../renderer/components/preview/PreviewControls'
 import PreviewCanvas from '../../renderer/components/preview/PreviewCanvas'
 import DropZone from '../../renderer/components/upload/DropZone'
 import type { EffectInfo, EffectInstance } from '../../shared/types'
@@ -322,40 +321,8 @@ describe('Edge Cases — State Transitions', () => {
     teardownMockEntropic()
   })
 
-  test('empty state: scrub disabled, placeholder visible', () => {
-    render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={0}
-        isPlaying={false}
-        fps={30}
-        onSeek={vi.fn()}
-        onPlayPause={vi.fn()}
-      />,
-    )
-
-    // Scrub should be disabled when totalFrames = 0
-    const scrub = document.querySelector('.preview-controls__scrub') as HTMLInputElement
-    expect(scrub).toBeTruthy()
-    expect(scrub.disabled).toBe(true)
-  })
-
-  test('loaded state: scrub enabled', () => {
-    render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={150}
-        isPlaying={false}
-        fps={30}
-        onSeek={vi.fn()}
-        onPlayPause={vi.fn()}
-      />,
-    )
-
-    const scrub = document.querySelector('.preview-controls__scrub') as HTMLInputElement
-    expect(scrub).toBeTruthy()
-    expect(scrub.disabled).toBe(false)
-  })
+  // REMOVED: 'empty state: scrub disabled' and 'loaded state: scrub enabled'
+  // Scrub slider was removed from PreviewControls. Scrubbing is now done via timeline ruler.
 
   test('preview canvas: empty state shows placeholder', () => {
     render(

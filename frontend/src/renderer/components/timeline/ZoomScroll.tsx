@@ -19,13 +19,13 @@ export default function ZoomScroll({ zoom, onZoomChange }: ZoomScrollProps) {
       <input
         type="range"
         className="zoom-scroll__slider"
-        min={10}
-        max={200}
-        step={1}
+        min={0.5}
+        max={500}
+        step={0.5}
         value={zoom}
         onChange={handleChange}
       />
-      <span className="zoom-scroll__value">{zoom}px/s</span>
+      <span className="zoom-scroll__value">{zoom < 1 ? zoom.toFixed(1) : Math.round(zoom)}px/s</span>
     </>
   )
 }

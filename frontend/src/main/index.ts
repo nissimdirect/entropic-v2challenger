@@ -2,7 +2,7 @@ import * as Sentry from '@sentry/electron/main'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { homedir, userInfo } from 'os'
-import { app, BrowserWindow, screen } from 'electron'
+import { app, BrowserWindow, screen, ipcMain } from 'electron'
 import { spawnPython, killPython } from './python'
 import { startWatchdog, stopWatchdog } from './watchdog'
 import { registerRelayHandlers, setRelayPort, closeRelay } from './zmq-relay'
@@ -10,6 +10,8 @@ import { registerDiagnosticsHandlers } from './diagnostics-handlers'
 import { registerSupportBundleHandler } from './support-bundle'
 import { registerFileHandlers } from './file-handlers'
 import { initAutoUpdater } from './updater'
+import { registerPopOutHandlers, closePopOutWindow } from './pop-out-window'
+import { buildMenu } from './menu'
 import { logger } from './logger'
 
 // PII stripping for Sentry events — matches Python's strip_pii pattern
@@ -165,17 +167,40 @@ function createWindow(): BrowserWindow {
   }
   win.on('resize', debouncedSave)
   win.on('move', debouncedSave)
-  win.on('close', () => {
+  // Intercept close to allow renderer to prompt "Save before quit?"
+  let isClosingConfirmed = false
+  let closeTimeout: ReturnType<typeof setTimeout> | null = null
+  win.on('close', (e) => {
     if (saveTimeout) clearTimeout(saveTimeout)
     saveWindowState(win)
+    if (!isClosingConfirmed) {
+      e.preventDefault()
+      win.webContents.send('close-requested')
+      // Safety: force close if renderer doesn't respond within 5s (crash/hang)
+      if (!closeTimeout) {
+        closeTimeout = setTimeout(() => {
+          isClosingConfirmed = true
+          if (!win.isDestroyed()) win.close()
+        }, 5000)
+      }
+    }
+  })
+
+  ipcMain.on('close-confirmed', () => {
+    if (closeTimeout) { clearTimeout(closeTimeout); closeTimeout = null }
+    isClosingConfirmed = true
+    win.close()
   })
 
   // CSP header — restrict script/style sources (M-3)
+  // Dev mode needs 'unsafe-inline' for Vite's React Fast Refresh preamble injection
+  const isDev = !!process.env.ELECTRON_RENDERER_URL
+  const scriptSrc = isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'"
   win.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"],
+        'Content-Security-Policy': [`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:`],
       },
     })
   })
@@ -195,11 +220,16 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
+  app.setName('Entropic')
   registerDiagnosticsHandlers()
   registerSupportBundleHandler()
   registerRelayHandlers()
   registerFileHandlers()
+  registerPopOutHandlers()
   const mainWindow = createWindow()
+  // Disable native page zoom — Cmd+scroll controls timeline zoom instead
+  mainWindow.webContents.setVisualZoomLevelLimits(1, 1)
+  buildMenu(mainWindow)
   initAutoUpdater(mainWindow)
 
   // Enrich Sentry context with GPU and display info
@@ -225,6 +255,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  closePopOutWindow()
   stopWatchdog()
   closeRelay()
   killPython()

@@ -1,10 +1,13 @@
 /**
  * Mode selector: Read / Latch / Touch / Draw (radio buttons).
  * Simplify button, clear button. Shows armed track name.
+ * Add Lane / Add Trigger Lane buttons with param picker.
  */
-import { useCallback } from 'react'
+import { useCallback, useState } from 'react'
 import { useAutomationStore, type AutomationMode } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
+import { useEffectsStore } from '../../stores/effects'
+import type { TriggerMode } from '../../../shared/types'
 
 const MODES: { value: AutomationMode; label: string; title: string }[] = [
   { value: 'read', label: 'R', title: 'Read — playback only' },
@@ -13,11 +16,25 @@ const MODES: { value: AutomationMode; label: string; title: string }[] = [
   { value: 'draw', label: 'D', title: 'Draw — paint freehand' },
 ]
 
+const LANE_COLORS = ['#4ade80', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899']
+
+function pickColor(existingCount: number): string {
+  return LANE_COLORS[existingCount % LANE_COLORS.length]
+}
+
+interface ParamOption {
+  effectId: string
+  effectName: string
+  paramKey: string
+  paramLabel: string
+}
+
 export default function AutomationToolbar() {
   const mode = useAutomationStore((s) => s.mode)
   const armedTrackId = useAutomationStore((s) => s.armedTrackId)
   const tracks = useTimelineStore((s) => s.tracks)
   const armedTrack = tracks.find((t) => t.id === armedTrackId)
+  const [pickerMode, setPickerMode] = useState<'lane' | 'trigger' | null>(null)
 
   const handleModeChange = useCallback((newMode: AutomationMode) => {
     useAutomationStore.getState().setMode(newMode)
@@ -43,6 +60,58 @@ export default function AutomationToolbar() {
     }
   }, [])
 
+  const getAvailableParams = useCallback((): ParamOption[] => {
+    if (!armedTrack) return []
+    const registry = useEffectsStore.getState().registry
+    const autoState = useAutomationStore.getState()
+    const existingLanes = armedTrack ? autoState.getLanesForTrack(armedTrack.id) : []
+    const existingPaths = new Set(existingLanes.map((l) => l.paramPath))
+
+    const options: ParamOption[] = []
+    for (const effect of armedTrack.effectChain) {
+      const info = registry.find((r) => r.id === effect.effectId)
+      if (!info) continue
+      for (const [key, def] of Object.entries(info.params)) {
+        // Only show numeric params for automation lanes
+        if (def.type !== 'float' && def.type !== 'int') continue
+        const paramPath = `${effect.id}.${key}`
+        if (existingPaths.has(paramPath)) continue
+        options.push({
+          effectId: effect.id,
+          effectName: info.name,
+          paramKey: key,
+          paramLabel: def.label,
+        })
+      }
+    }
+    return options
+  }, [armedTrack])
+
+  const handleAddLane = useCallback(() => {
+    setPickerMode((prev) => (prev === 'lane' ? null : 'lane'))
+  }, [])
+
+  const handleAddTrigger = useCallback(() => {
+    setPickerMode((prev) => (prev === 'trigger' ? null : 'trigger'))
+  }, [])
+
+  const handlePickParam = useCallback((option: ParamOption) => {
+    if (!armedTrackId) return
+    const autoState = useAutomationStore.getState()
+    const existingCount = autoState.getLanesForTrack(armedTrackId).length
+    const color = pickColor(existingCount)
+
+    if (pickerMode === 'trigger') {
+      const defaultTriggerMode: TriggerMode = 'gate'
+      autoState.addTriggerLane(armedTrackId, option.effectId, option.paramKey, color, defaultTriggerMode)
+    } else {
+      autoState.addLane(armedTrackId, option.effectId, option.paramKey, color)
+    }
+    setPickerMode(null)
+  }, [armedTrackId, pickerMode])
+
+  const paramOptions = pickerMode ? getAvailableParams() : []
+
   return (
     <div className="auto-toolbar">
       <div className="auto-toolbar__modes">
@@ -57,6 +126,24 @@ export default function AutomationToolbar() {
           </button>
         ))}
       </div>
+      <button
+        className="auto-toolbar__btn"
+        onClick={handleAddLane}
+        title="Add automation lane to armed track"
+        disabled={!armedTrackId}
+        data-testid="add-lane-btn"
+      >
+        + Lane
+      </button>
+      <button
+        className="auto-toolbar__btn"
+        onClick={handleAddTrigger}
+        title="Add trigger automation lane (0/1 toggle) to armed track"
+        disabled={!armedTrackId}
+        data-testid="add-trigger-btn"
+      >
+        + Trigger
+      </button>
       <button
         className="auto-toolbar__btn"
         onClick={handleSimplify}
@@ -77,6 +164,29 @@ export default function AutomationToolbar() {
         <span className="auto-toolbar__armed">
           Armed: {armedTrack.name}
         </span>
+      )}
+      {pickerMode && armedTrackId && (
+        <div className="auto-toolbar__picker" data-testid="param-picker">
+          <div className="auto-toolbar__picker-title">
+            {pickerMode === 'trigger' ? 'Add Trigger Lane' : 'Add Automation Lane'}
+          </div>
+          {paramOptions.length === 0 ? (
+            <div className="auto-toolbar__picker-empty">
+              No available parameters (add effects or all params mapped)
+            </div>
+          ) : (
+            paramOptions.map((opt) => (
+              <button
+                key={`${opt.effectId}.${opt.paramKey}`}
+                className="auto-toolbar__picker-item"
+                onClick={() => handlePickParam(opt)}
+                data-testid={`param-option-${opt.paramKey}`}
+              >
+                {opt.effectName} &rsaquo; {opt.paramLabel}
+              </button>
+            ))
+          )}
+        </div>
       )}
     </div>
   )

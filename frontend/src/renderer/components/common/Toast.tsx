@@ -54,7 +54,7 @@ export default function Toast() {
             )}
           </div>
           {toast.details && (
-            <details className="toast__details">
+            <details className="toast__details" onClick={(e) => e.stopPropagation()}>
               <summary>Details</summary>
               <pre className="toast__details-text">{toast.details}</pre>
             </details>

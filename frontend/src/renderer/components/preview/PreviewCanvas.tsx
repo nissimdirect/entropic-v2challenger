@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useRef, useEffect, useCallback, useState } from 'react'
 
 export type PreviewState = 'empty' | 'loading' | 'ready' | 'error'
 
@@ -21,10 +21,20 @@ function drawBase64Frame(
   ctx: CanvasRenderingContext2D,
   canvas: HTMLCanvasElement,
   img: HTMLImageElement,
+  containerW: number,
+  containerH: number,
 ): void {
-  canvas.width = img.naturalWidth
-  canvas.height = img.naturalHeight
-  ctx.drawImage(img, 0, 0)
+  const imgW = img.naturalWidth
+  const imgH = img.naturalHeight
+
+  // Fit the image inside the container (object-fit: contain logic)
+  const scale = Math.min(containerW / imgW, containerH / imgH, 1) // never upscale
+  const drawW = Math.round(imgW * scale)
+  const drawH = Math.round(imgH * scale)
+
+  canvas.width = drawW
+  canvas.height = drawH
+  ctx.drawImage(img, 0, 0, drawW, drawH)
 }
 
 export default function PreviewCanvas({
@@ -36,8 +46,41 @@ export default function PreviewCanvas({
   onRetry,
 }: PreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
   const fpsRef = useRef({ frames: 0, lastTime: performance.now(), display: 0 })
+  const [containerSize, setContainerSize] = useState({ w: 1920, h: 1080 })
+  const [isPopOutOpen, setIsPopOutOpen] = useState(false)
+
+  // Track container dimensions via ResizeObserver so drawBase64Frame never reads 0
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const observer = new ResizeObserver((entries) => {
+      const { width, height } = entries[0].contentRect
+      if (width > 0 && height > 0) setContainerSize({ w: width, h: height })
+    })
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
+
+  const handlePopOut = useCallback(async () => {
+    try {
+      if (isPopOutOpen) {
+        await window.entropic.closePopOut()
+        setIsPopOutOpen(false)
+      } else {
+        await window.entropic.openPopOut()
+        setIsPopOutOpen(true)
+        // Send current frame immediately so pop-out isn't black
+        if (frameDataUrl) {
+          window.entropic.sendFrameToPopOut(frameDataUrl)
+        }
+      }
+    } catch {
+      // Best-effort
+    }
+  }, [isPopOutOpen, frameDataUrl])
 
   const drawToCanvas = useCallback(() => {
     const canvas = canvasRef.current
@@ -47,7 +90,7 @@ export default function PreviewCanvas({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    drawBase64Frame(ctx, canvas, img)
+    drawBase64Frame(ctx, canvas, img, containerSize.w, containerSize.h)
     canvas.dataset.frameReady = 'true'
 
     // FPS counter (dev mode only)
@@ -68,11 +111,19 @@ export default function PreviewCanvas({
       ctx.fillText(`${fps.display} fps`, 8, 18)
       ctx.restore()
     }
-  }, [])
+  }, [containerSize])
 
   // Decode base64 JPEG and draw to canvas when frameDataUrl changes
   useEffect(() => {
-    if (!frameDataUrl) return
+    if (!frameDataUrl) {
+      // Clear canvas when no frame (e.g. after New Project)
+      const canvas = canvasRef.current
+      if (canvas) {
+        const ctx = canvas.getContext('2d')
+        if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height)
+      }
+      return
+    }
 
     if (!imgRef.current) {
       imgRef.current = new Image()
@@ -83,7 +134,14 @@ export default function PreviewCanvas({
   }, [frameDataUrl, drawToCanvas])
 
   return (
-    <div className="preview-canvas">
+    <div className="preview-canvas" ref={containerRef}>
+      <button
+        className="preview-canvas__popout-btn"
+        onClick={handlePopOut}
+        title={isPopOutOpen ? 'Close pop-out preview' : 'Pop out preview'}
+      >
+        {isPopOutOpen ? '↙' : '↗'}
+      </button>
       <canvas
         ref={canvasRef}
         className="preview-canvas__element"

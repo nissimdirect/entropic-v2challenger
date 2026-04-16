@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Asset, EffectInstance } from '../../shared/types'
+import { randomUUID } from '../utils'
 import { LIMITS } from '../../shared/limits'
 import { undoable } from './undo'
 import { useToastStore } from './toast'
@@ -32,8 +33,23 @@ interface ProjectState {
   setIngesting: (ingesting: boolean) => void
   setIngestError: (error: string | null) => void
   setProjectPath: (path: string | null) => void
+  bpm: number
+  setBpm: (bpm: number) => void
   setProjectName: (name: string) => void
+  canvasResolution: [number, number]
+  setCanvasResolution: (width: number, height: number) => void
   resetProject: () => void
+
+  // Phase 14A: A/B switching (NOT undoable — comparison tool)
+  activateAB: (effectId: string) => void
+  toggleAB: (effectId: string) => void
+  copyToInactiveAB: (effectId: string) => void
+  deactivateAB: (effectId: string) => void
+
+  // Phase 14B: Device Groups (metadata-only, undoable)
+  deviceGroups: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>
+  groupEffects: (effectIds: string[], groupName?: string) => string | null
+  ungroupEffects: (groupId: string) => void
 }
 
 const PROJECT_DEFAULTS = {
@@ -46,6 +62,9 @@ const PROJECT_DEFAULTS = {
   ingestError: null as string | null,
   projectPath: null as string | null,
   projectName: 'Untitled',
+  bpm: 120,
+  canvasResolution: [1920, 1080] as [number, number],
+  deviceGroups: {} as Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>,
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -95,6 +114,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const savedLanes = JSON.parse(JSON.stringify(autoStore.lanes))
     const midiStore = useMIDIStore.getState()
     const savedCCMappings = [...midiStore.ccMappings]
+    // Phase 14B: deviceGroups may reference this effect — snapshot for restore
+    const savedDeviceGroups = JSON.parse(JSON.stringify(get().deviceGroups))
 
     undoable(
       'Remove effect',
@@ -123,6 +144,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         // 4. CC mappings targeting this effect
         const ccMappings = useMIDIStore.getState().ccMappings.filter((m) => m.effectId !== id)
         useMIDIStore.setState({ ccMappings })
+
+        // 5. Device groups: remove this id from any group's effectIds.
+        // If pruning drops a group below 2 members, delete the group (mirrors
+        // the minimum-size rule enforced in groupEffects).
+        const nextGroups: typeof savedDeviceGroups = {}
+        for (const [gid, group] of Object.entries(get().deviceGroups)) {
+          const pruned = group.effectIds.filter((eid) => eid !== id)
+          if (pruned.length >= 2) {
+            nextGroups[gid] = { ...group, effectIds: pruned }
+          }
+          // else: group drops below minimum → omit (delete)
+        }
+        set({ deviceGroups: nextGroups })
       },
       () => {
         // Restore effect
@@ -134,6 +168,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         useOperatorStore.setState({ operators: savedOperators })
         useAutomationStore.setState({ lanes: savedLanes })
         useMIDIStore.setState({ ccMappings: savedCCMappings })
+        set({ deviceGroups: savedDeviceGroups })
       },
     )
   },
@@ -216,6 +251,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     )
   },
 
+  bpm: PROJECT_DEFAULTS.bpm,
+  setBpm: (bpm: number) => {
+    if (!Number.isFinite(bpm)) return
+    set({ bpm: Math.max(1, Math.min(300, Math.round(bpm))) })
+  },
   selectEffect: (id) => set({ selectedEffectId: id }),
   setCurrentFrame: (frame) => set({ currentFrame: frame }),
   setTotalFrames: (total) => set({ totalFrames: total }),
@@ -223,5 +263,139 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setIngestError: (error) => set({ ingestError: error }),
   setProjectPath: (path) => set({ projectPath: path }),
   setProjectName: (name) => set({ projectName: name }),
+  canvasResolution: PROJECT_DEFAULTS.canvasResolution,
+  setCanvasResolution: (width: number, height: number) => {
+    if (!Number.isFinite(width) || !Number.isFinite(height)) return
+    const w = Math.max(1, Math.min(7680, Math.round(width)))
+    const h = Math.max(1, Math.min(4320, Math.round(height)))
+    set({ canvasResolution: [w, h] })
+  },
   resetProject: () => set(PROJECT_DEFAULTS),
+
+  // Phase 14A: A/B switching — NOT undoable (comparison tool)
+  activateAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId) return e
+        if (e.abState) return e // already active
+        return {
+          ...e,
+          abState: {
+            a: { ...e.parameters },
+            b: { ...e.parameters },
+            active: 'a' as const,
+          },
+        }
+      }),
+    }))
+  },
+
+  toggleAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId || !e.abState) return e
+        const { a, b, active } = e.abState
+        const nextActive = active === 'a' ? 'b' : 'a'
+        // Save current params to the active slot, load from the other slot
+        const saved = { ...e.parameters }
+        const loaded = nextActive === 'a' ? { ...a } : { ...b }
+        return {
+          ...e,
+          parameters: loaded,
+          abState: {
+            a: active === 'a' ? saved : a,
+            b: active === 'b' ? saved : b,
+            active: nextActive,
+          },
+        }
+      }),
+    }))
+  },
+
+  copyToInactiveAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId || !e.abState) return e
+        const current = { ...e.parameters }
+        return {
+          ...e,
+          abState: {
+            ...e.abState,
+            a: e.abState.active === 'b' ? current : e.abState.a,
+            b: e.abState.active === 'a' ? current : e.abState.b,
+          },
+        }
+      }),
+    }))
+  },
+
+  deactivateAB: (effectId) => {
+    set((state) => ({
+      effectChain: state.effectChain.map((e) => {
+        if (e.id !== effectId) return e
+        return { ...e, abState: null }
+      }),
+    }))
+  },
+
+  // Phase 14B: Device Groups
+  groupEffects: (effectIds, groupName) => {
+    if (effectIds.length < 2) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: 'Select at least 2 effects to group',
+        source: 'project',
+      })
+      return null
+    }
+
+    const chain = get().effectChain
+    const validIds = effectIds.filter((id) => chain.some((e) => e.id === id))
+
+    if (validIds.length < 2) return null
+
+    const groupId = randomUUID()
+    const groupMeta = {
+      name: groupName ?? `Group ${groupId.slice(0, 4)}`,
+      effectIds: validIds,
+      mix: 1,
+      isEnabled: true,
+    }
+
+    const forward = () => {
+      set((state) => ({
+        deviceGroups: { ...state.deviceGroups, [groupId]: groupMeta },
+      }))
+    }
+
+    const inverse = () => {
+      set((state) => {
+        const { [groupId]: _, ...rest } = state.deviceGroups
+        return { deviceGroups: rest }
+      })
+    }
+
+    undoable('Group effects', forward, inverse)
+    return groupId
+  },
+
+  ungroupEffects: (groupId) => {
+    const groups = get().deviceGroups
+    if (!groups[groupId]) return
+
+    const forward = () => {
+      set((state) => {
+        const { [groupId]: _, ...rest } = state.deviceGroups
+        return { deviceGroups: rest }
+      })
+    }
+
+    const inverse = () => {
+      set((state) => ({
+        deviceGroups: { ...state.deviceGroups, [groupId]: groups[groupId] },
+      }))
+    }
+
+    undoable('Ungroup effects', forward, inverse)
+  },
 }))

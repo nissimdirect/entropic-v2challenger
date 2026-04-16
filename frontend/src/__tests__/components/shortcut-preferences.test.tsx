@@ -26,7 +26,7 @@ describe('ShortcutEditor', () => {
     render(<ShortcutEditor />)
     await waitFor(() => {
       const categories = document.querySelectorAll('.shortcut-editor__category')
-      expect(categories.length).toBe(5)
+      expect(categories.length).toBe(6)
     })
   })
 

@@ -19,7 +19,6 @@ import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
 import EffectRack from '../../renderer/components/effects/EffectRack'
 import FileDialog from '../../renderer/components/upload/FileDialog'
 import DropZone from '../../renderer/components/upload/DropZone'
-import PreviewControls from '../../renderer/components/preview/PreviewControls'
 import type { EffectInfo, EffectInstance } from '../../shared/types'
 
 const mockRegistry: EffectInfo[] = [
@@ -212,32 +211,12 @@ describe('Chaos — Rapid Effect Toggle', () => {
 })
 
 // =============================================================================
-// Rapid Clicks — Play/Pause Button
+// Rapid Play/Pause — REMOVED
 // =============================================================================
-
-describe('Chaos — Rapid Play/Pause', () => {
-  it('rapid play/pause clicks do not crash', () => {
-    const onPlayPause = vi.fn()
-    render(
-      <PreviewControls
-        currentFrame={0}
-        totalFrames={100}
-        fps={30}
-        isPlaying={false}
-        onSeek={vi.fn()}
-        onPlayPause={onPlayPause}
-      />,
-    )
-
-    const playBtn = document.querySelector('.preview-controls__play-btn') as HTMLElement
-    for (let i = 0; i < 20; i++) {
-      fireEvent.click(playBtn)
-    }
-
-    expect(onPlayPause).toHaveBeenCalledTimes(20)
-    expect(document.querySelector('.preview-controls')).toBeTruthy()
-  })
-})
+// Play/pause button was removed from PreviewControls.
+// Play/pause is now triggered by Space key via shortcutRegistry.
+// Scrubbing is done by clicking the timeline ruler.
+// See: PreviewControls.tsx — component now only shows audio controls.
 
 // =============================================================================
 // Rapid Search Input

@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
+const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
 
 interface DropZoneProps {
   onFileDrop: (path: string) => void

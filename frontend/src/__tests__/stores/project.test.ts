@@ -159,3 +159,44 @@ describe('ProjectStore', () => {
     expect(store.assets['a1'].path).toBe('/path/to/video.mp4')
   })
 })
+
+// --- Real store BPM tests ---
+import { useProjectStore } from '../../renderer/stores/project'
+
+describe('useProjectStore — BPM', () => {
+  beforeEach(() => {
+    useProjectStore.setState({ bpm: 120 })
+  })
+
+  it('defaults to 120 BPM', () => {
+    expect(useProjectStore.getState().bpm).toBe(120)
+  })
+
+  it('setBpm clamps to minimum 1', () => {
+    useProjectStore.getState().setBpm(0)
+    expect(useProjectStore.getState().bpm).toBe(1)
+
+    useProjectStore.getState().setBpm(-5)
+    expect(useProjectStore.getState().bpm).toBe(1)
+  })
+
+  it('setBpm clamps to maximum 300', () => {
+    useProjectStore.getState().setBpm(999)
+    expect(useProjectStore.getState().bpm).toBe(300)
+  })
+
+  it('setBpm rounds to integer', () => {
+    useProjectStore.getState().setBpm(95.7)
+    expect(useProjectStore.getState().bpm).toBe(96)
+  })
+
+  it('setBpm rejects NaN', () => {
+    useProjectStore.getState().setBpm(NaN)
+    expect(useProjectStore.getState().bpm).toBe(120) // unchanged
+  })
+
+  it('setBpm rejects Infinity', () => {
+    useProjectStore.getState().setBpm(Infinity)
+    expect(useProjectStore.getState().bpm).toBe(120) // unchanged
+  })
+})

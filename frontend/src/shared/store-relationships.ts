@@ -15,6 +15,7 @@ export const STORE_RELATIONSHIPS = {
     operatorMappings: 'operators[].mappings where targetEffectId === effect ID',
     ccMappings: 'midi.ccMappings where effectId === effect ID',
     padMappings: 'performance.pads[].mappings where effectId === effect ID',
+    deviceGroups: 'project.deviceGroups[*].effectIds -- prune id; delete group if <2 remain',
   },
   /** Deleting a track */
   track: {
@@ -24,6 +25,14 @@ export const STORE_RELATIONSHIPS = {
   /** Deleting an operator */
   operator: {
     fusionSources: 'operators[].parameters.sources where operatorId === operator ID (fusion type)',
+  },
+  /** Deleting a device group (Phase 14B) */
+  deviceGroup: {
+    childEffects: 'group.children -- each child triggers effectInstance cleanup above',
+    automationLanes: 'timeline.tracks[].automationLanes where paramPath matches any child effect ID',
+    operatorMappings: 'operators[].mappings where targetEffectId matches any child effect ID',
+    ccMappings: 'midi.ccMappings where effectId matches any child effect ID',
+    padMappings: 'performance.pads[].mappings where effectId matches any child effect ID',
   },
   /** Loading a new drum rack */
   drumRack: {

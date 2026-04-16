@@ -5,12 +5,10 @@ import { useEffectsStore } from './stores/effects'
 import { useAudioStore } from './stores/audio'
 import { useUndoStore } from './stores/undo'
 import { useTimelineStore } from './stores/timeline'
-import DropZone from './components/upload/DropZone'
 import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
 import EffectBrowser from './components/effects/EffectBrowser'
-import EffectRack from './components/effects/EffectRack'
-import ParamPanel from './components/effects/ParamPanel'
+// Phase 13C: EffectRack + ParamPanel removed — replaced by DeviceChain
 import PreviewCanvas, { type PreviewState } from './components/preview/PreviewCanvas'
 import TextPanel from './components/text/TextPanel'
 import TextOverlay from './components/text/TextOverlay'
@@ -19,12 +17,19 @@ import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
-import HistoryPanel from './components/layout/HistoryPanel'
+// Phase 13C: HistoryPanel removed from sidebar
+import DeviceChain from './components/device-chain/DeviceChain'
+import TransformPanel from './components/timeline/TransformPanel'
+import HelpPanel from './components/effects/HelpPanel'
 import type { Asset, EffectInstance } from '../shared/types'
+import { IDENTITY_TRANSFORM } from '../shared/types'
+import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
+import SnapGuides from './components/preview/SnapGuides'
 import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
+import { transportForward, transportReverse, transportStop, getTransportDirection } from './utils/transport-speed'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { useSettingsStore } from './stores/settings'
@@ -39,9 +44,7 @@ import { applyCCModulations } from './components/performance/applyCCModulations'
 import { useMIDIStore } from './stores/midi'
 import { useMIDI } from './hooks/useMIDI'
 import { handlePadTrigger, releasePadWithCapture } from './components/performance/padActions'
-import OperatorRack from './components/operators/OperatorRack'
-import ModulationMatrix from './components/operators/ModulationMatrix'
-import RoutingLines from './components/operators/RoutingLines'
+// Operators removed from UI (Sprint 2) — components stay in codebase for future re-enable
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { resolveGhostValues } from './utils/resolveGhostValues'
@@ -66,6 +69,7 @@ import './styles/library.css'
 import './styles/toast.css'
 import './styles/export.css'
 import './styles/text.css'
+import './styles/device-chain.css'
 import WelcomeScreen from './components/layout/WelcomeScreen'
 import Preferences from './components/layout/Preferences'
 import AboutDialog from './components/layout/AboutDialog'
@@ -85,6 +89,7 @@ function AppInner() {
     ingestError,
     projectName,
     addAsset,
+    removeAsset,
     addEffect,
     removeEffect,
     reorderEffect,
@@ -130,11 +135,13 @@ function AppInner() {
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
   const [renderError, setRenderError] = useState<string | null>(null)
   const [isTimerPlaying, setIsTimerPlaying] = useState(false)
+  const [transportSpeedMultiplier, setTransportSpeedMultiplier] = useState(1)
   const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
 
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
   const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
+  const [clipThumbnails, setClipThumbnails] = useState<{ time: number; data: string }[]>([])
 
   // Startup diagnostics state
   const { telemetryConsent, consentChecked, checkConsent, setConsent } = useSettingsStore()
@@ -144,13 +151,17 @@ function AppInner() {
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
   const [editingPadId, setEditingPadId] = useState<string | null>(null)
   const [sidebarTab, setSidebarTab] = useState<'effects' | 'presets'>('effects')
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
 
   const activeAssetPath = useRef<string | null>(null)
+  const previewContainerRef = useRef<HTMLDivElement>(null)
+  const [aspectLocked, setAspectLocked] = useState(true)
   const isRenderingRef = useRef(false)
   const pendingFrameRef = useRef<number | null>(null)
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
+  const handlePlayPauseRef = useRef<() => void>(() => {})
   const renderSeqRef = useRef(0)
   const lastDisabledEffectsRef = useRef<string>('')
 
@@ -240,16 +251,21 @@ function AppInner() {
     shortcutRegistry.register('redo', () => useUndoStore.getState().redo())
     shortcutRegistry.register('zoom_in', () => {
       const z = useTimelineStore.getState().zoom
-      useTimelineStore.getState().setZoom(z + 10)
+      useTimelineStore.getState().setZoom(Math.min(500, z * 1.25))
     })
     shortcutRegistry.register('zoom_out', () => {
       const z = useTimelineStore.getState().zoom
-      useTimelineStore.getState().setZoom(z - 10)
+      useTimelineStore.getState().setZoom(Math.max(0.5, z * 0.8))
     })
-    shortcutRegistry.register('zoom_fit', () => useTimelineStore.getState().setZoom(50))
+    shortcutRegistry.register('zoom_fit', () => {
+      const dur = useTimelineStore.getState().duration
+      // Fit entire duration in ~80% of viewport width
+      const viewportWidth = window.innerWidth * 0.6
+      useTimelineStore.getState().setZoom(Math.max(0.5, viewportWidth / Math.max(1, dur)))
+    })
     shortcutRegistry.register('save', () => saveProject())
     shortcutRegistry.register('open', () => loadProject())
-    shortcutRegistry.register('new_project', () => newProject())
+    shortcutRegistry.register('new_project', () => handleNewProject())
     shortcutRegistry.register('split_clip', () => {
       const timeline = useTimelineStore.getState()
       if (timeline.selectedClipId) {
@@ -301,6 +317,120 @@ function AppInner() {
         })
       }
     })
+    shortcutRegistry.register('play_pause', () => {
+      const audio = useAudioStore.getState()
+      if (audio.isLoaded) {
+        audio.togglePlayback()
+      } else {
+        handlePlayPauseRef.current()
+      }
+    })
+    shortcutRegistry.register('import_media', () => handleImportMedia())
+    shortcutRegistry.register('add_text_track', () => handleAddTextTrack())
+    shortcutRegistry.register('toggle_quantize', () => useLayoutStore.getState().toggleQuantize())
+    shortcutRegistry.register('split_at_playhead', () => {
+      const ts = useTimelineStore.getState()
+      for (const clipId of ts.selectedClipIds) {
+        for (const track of ts.tracks) {
+          const clip = track.clips.find((c) => c.id === clipId)
+          if (clip && ts.playheadTime > clip.position && ts.playheadTime < clip.position + clip.duration) {
+            ts.splitClip(clipId, ts.playheadTime)
+            break
+          }
+        }
+      }
+    })
+
+    // Automation copy/paste
+    shortcutRegistry.register('automation_copy', () => {
+      const autoStore = useAutomationStore.getState()
+      const trackId = autoStore.armedTrackId
+      if (!trackId) return
+      const lanes = autoStore.getLanesForTrack(trackId)
+      if (lanes.length === 0) return
+      const laneId = lanes[0].id
+      const loopRegion = useTimelineStore.getState().loopRegion
+      if (loopRegion) {
+        autoStore.copyRegion(trackId, laneId, loopRegion.in, loopRegion.out)
+      } else {
+        // Copy the full lane duration
+        const lane = lanes[0]
+        if (lane.points.length === 0) return
+        const maxTime = Math.max(...lane.points.map((p) => p.time))
+        autoStore.copyRegion(trackId, laneId, 0, maxTime)
+      }
+    })
+    shortcutRegistry.register('automation_paste', () => {
+      const autoStore = useAutomationStore.getState()
+      const trackId = autoStore.armedTrackId
+      if (!trackId) return
+      const lanes = autoStore.getLanesForTrack(trackId)
+      if (lanes.length === 0) return
+      const laneId = lanes[0].id
+      const playheadTime = useTimelineStore.getState().playheadTime
+      autoStore.pasteAtPlayhead(trackId, laneId, playheadTime)
+    })
+
+    // JKL transport: J=reverse, K=stop, L=forward (standard NLE)
+    // Uses transport-speed state machine for speed escalation.
+    // Currently plays at 1x (speed ramping requires timer loop changes).
+    shortcutRegistry.register('transport_reverse', () => {
+      const speed = transportReverse()
+      setTransportSpeedMultiplier(Math.abs(speed))
+      if (speed !== 0) {
+        // Reverse playback via timer (audio playback doesn't support reverse)
+        const audio = useAudioStore.getState()
+        if (audio.isPlaying) audio.togglePlayback()
+        setIsTimerPlaying(true)
+      }
+    })
+    shortcutRegistry.register('transport_stop', () => {
+      transportStop()
+      setTransportSpeedMultiplier(1)
+      const audio = useAudioStore.getState()
+      if (audio.isPlaying) audio.togglePlayback()
+      setIsTimerPlaying(false)
+    })
+    shortcutRegistry.register('transport_forward', () => {
+      const speed = transportForward()
+      setTransportSpeedMultiplier(Math.abs(speed))
+      if (speed !== 0) {
+        const audio = useAudioStore.getState()
+        if (!audio.isPlaying && !isTimerPlaying) {
+          audio.togglePlayback()
+          setIsTimerPlaying(true)
+        }
+      }
+    })
+
+    // Delete selected clips, or fall back to selected effect
+    shortcutRegistry.register('delete_selected', () => {
+      const ts = useTimelineStore.getState()
+      if (ts.selectedClipIds.length > 0) {
+        ts.deleteSelectedClips()
+      } else {
+        const ps = useProjectStore.getState()
+        if (ps.selectedEffectId) {
+          ps.removeEffect(ps.selectedEffectId)
+        }
+      }
+    })
+
+    // Duplicate selected effect (deep clone with new ID)
+    shortcutRegistry.register('duplicate_effect', () => {
+      const ps = useProjectStore.getState()
+      if (!ps.selectedEffectId) return
+      const source = ps.effectChain.find((e) => e.id === ps.selectedEffectId)
+      if (!source) return
+      const clone = {
+        ...source,
+        id: randomUUID(),
+        parameters: { ...source.parameters },
+        modulations: { ...source.modulations },
+      }
+      ps.addEffect(clone)
+      ps.selectEffect(clone.id)
+    })
 
     // Main keyboard listener — delegates to registry for normal shortcuts
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -338,8 +468,38 @@ function AppInner() {
         return
       }
 
+      // Escape in normal mode → stop (reset playhead to 0)
+      // Dispatches custom event — handled by a separate useEffect with proper deps
+      if (e.code === 'Escape') {
+        e.preventDefault()
+        window.dispatchEvent(new Event('entropic:stop'))
+        return
+      }
+
+      // Direct spacebar → play/pause (bypasses registry — most reliable)
+      if (e.code === 'Space') {
+        e.preventDefault()
+        const audio = useAudioStore.getState()
+        if (audio.isLoaded) {
+          audio.togglePlayback()
+        }
+        return
+      }
+
       // Normal shortcuts — delegate to registry
-      shortcutRegistry.handleKeyEvent(e)
+      if (shortcutRegistry.handleKeyEvent(e)) return
+
+      // Fn+Delete (e.key='Delete') → same as Backspace (delete selected)
+      if (e.key === 'Delete') {
+        e.preventDefault()
+        const ts = useTimelineStore.getState()
+        if (ts.selectedClipIds.length > 0) {
+          ts.deleteSelectedClips()
+        } else {
+          const ps = useProjectStore.getState()
+          if (ps.selectedEffectId) ps.removeEffect(ps.selectedEffectId)
+        }
+      }
     }
 
     const handleKeyUp = (e: KeyboardEvent) => {
@@ -360,8 +520,11 @@ function AppInner() {
     }
 
     // H2: Window blur → panic all gate-mode pads (stuck key recovery)
+    // Also reset drag state (fixes overlay stuck after Cmd+Tab)
     const handleBlur = () => {
       usePerformanceStore.getState().panicAll()
+      dragCountRef.current = 0
+      setIsGlobalDragOver(false)
     }
 
     // Capture phase ensures shortcuts fire before any child stopPropagation()
@@ -455,56 +618,114 @@ function AppInner() {
           ? evaluateAutomationOverrides(allLanes, currentTime, registry)
           : undefined
 
-        // Check for active text clips at current time
+        // Collect ALL active clips at current time across all tracks
         const timelineState = useTimelineStore.getState()
+        const projectState = useProjectStore.getState()
+        const projectAssets = projectState.assets
+        const [canvasW, canvasH] = projectState.canvasResolution
+
+        // Active text clips
         const activeTextClips = timelineState.tracks
           .filter((t) => t.type === 'text' && !t.isMuted)
           .flatMap((t) => t.clips.filter((c) =>
-            c.textConfig && currentTime >= c.position && currentTime < c.position + c.duration,
+            c.textConfig && c.isEnabled !== false && currentTime >= c.position && currentTime < c.position + c.duration,
           ))
 
+        // Active video clips across ALL unmuted video tracks (multi-track compositing)
+        const activeVideoClips: { clip: typeof timelineState.tracks[0]['clips'][0]; track: typeof timelineState.tracks[0]; assetPath: string }[] = []
+        for (const track of timelineState.tracks) {
+          if (track.type !== 'video' || track.isMuted) continue
+          for (const clip of track.clips) {
+            if (clip.isEnabled === false) continue
+            if (currentTime < clip.position || currentTime >= clip.position + clip.duration) continue
+            const asset = projectAssets[clip.assetId]
+            if (!asset?.path) continue
+            activeVideoClips.push({ clip, track, assetPath: asset.path })
+          }
+        }
+
         let res
-        if (activeTextClips.length > 0) {
-          // Use render_composite to layer video + text
-          const layers: Record<string, unknown>[] = [
-            {
+        const hasMultipleLayers = activeVideoClips.length > 1 || activeTextClips.length > 0
+
+        if (hasMultipleLayers || activeVideoClips.length === 0) {
+          // Use render_composite for multi-layer rendering
+          const videoLayers: Record<string, unknown>[] = activeVideoClips.map(({ clip, track, assetPath }) => {
+            const clipFrame = Math.max(0, Math.round(
+              ((currentTime - clip.position) * (clip.speed || 1) + clip.inPoint) * activeFps,
+            ))
+            const ct = clip.transform
+            const trackOpacity = track.opacity ?? 1
+            const clipOpacity = clip.opacity ?? 1
+            return {
+              layer_type: 'video',
+              asset_path: assetPath,
+              frame_index: clipFrame,
+              chain: serializeEffectChain(track.effectChain ?? chain),
+              opacity: trackOpacity * clipOpacity,
+              blend_mode: track.blendMode ?? 'normal',
+              ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
+                ? { transform: ct } : {}),
+            }
+          })
+
+          const textLayers: Record<string, unknown>[] = activeTextClips.map((clip) => {
+            const ct = clip.transform
+            return {
+              layer_type: 'text',
+              text_config: serializeTextConfig(clip.textConfig!),
+              frame_index: Math.max(0, Math.round((currentTime - clip.position) * 30)),
+              fps: 30,
+              chain: [],
+              opacity: (clip.opacity ?? 1) * (clip.textConfig!.opacity ?? 1),
+              blend_mode: 'normal',
+              ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV)
+                ? { transform: ct } : {}),
+            }
+          })
+
+          // Fallback: if no video clips, add a single layer from activeAssetPath
+          if (videoLayers.length === 0 && activeAssetPath.current) {
+            videoLayers.push({
               layer_type: 'video',
               asset_path: activeAssetPath.current,
               frame_index: frame,
               chain: serializeEffectChain(chain),
               opacity: 1.0,
               blend_mode: 'normal',
-            },
-            ...activeTextClips.map((clip) => ({
-              layer_type: 'text',
-              text_config: serializeTextConfig(clip.textConfig!),
-              frame_index: Math.max(0, Math.round((currentTime - clip.position) * (timelineState.tracks[0]?.clips[0]?.speed ?? 30))),
-              fps: 30,
-              chain: [],
-              opacity: clip.textConfig!.opacity,
-              blend_mode: 'normal',
-            })),
-          ]
+            })
+          }
+
+          const layers = [...videoLayers, ...textLayers]
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',
             layers,
-            resolution: [frameWidth || 1920, frameHeight || 1080],
+            resolution: [canvasW || frameWidth || 1920, canvasH || frameHeight || 1080],
             project_seed: Date.now() % 2147483647,
           })
         } else {
+          // Single video clip — use fast render_frame path
+          const { clip: singleClip, assetPath: singleAssetPath } = activeVideoClips[0]
+          const ct = singleClip.transform
           res = await window.entropic.sendCommand({
             cmd: 'render_frame',
-            path: activeAssetPath.current,
+            path: singleAssetPath || activeAssetPath.current,
             frame_index: frame,
             chain: serializeEffectChain(chain),
             project_seed: Date.now() % 2147483647,
             ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
+            ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
+              ? { transform: ct } : {}),
           })
         }
 
         if (res.ok && res.frame_data) {
-          setFrameDataUrl(`data:image/jpeg;base64,${res.frame_data as string}`)
+          const dataUrl = `data:image/jpeg;base64,${res.frame_data as string}`
+          setFrameDataUrl(dataUrl)
+          // Relay frame to pop-out window if open
+          if (useLayoutStore.getState().isPopOutOpen) {
+            window.entropic.sendFrameToPopOut(dataUrl)
+          }
           if (res.width) setFrameWidth(res.width as number)
           if (res.height) setFrameHeight(res.height as number)
           setPreviewState('ready')
@@ -613,7 +834,7 @@ function AppInner() {
 
       if (res.ok) {
         const assetHasAudio = res.has_audio as boolean
-        const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
+        const IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif']
         const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
         const isImage = IMAGE_EXTS.includes(ext)
         const asset: Asset = {
@@ -629,11 +850,79 @@ function AppInner() {
             hasAudio: assetHasAudio,
           },
         }
-        addAsset(asset)
-        setTotalFrames(isImage ? 1 : (res.frame_count as number))
+        // Auto-create track + clip on import (CapCut behavior)
+        // Grouped as single undo entry so Cmd+Z reverses the entire import
+        // Asset, track, clip, and preview state all included in transaction
+        const prevAssetPath = activeAssetPath.current
+        const prevTotalFrames = totalFrames
+        const prevFrameWidth = frameWidth
+        const prevFrameHeight = frameHeight
+        const prevActiveFps = activeFps
+
+        const undoStore = useUndoStore.getState()
+        undoStore.beginTransaction('Import media')
+
+        // Add asset inside transaction so undo removes it
+        undoStore.execute({
+          description: 'Add asset',
+          timestamp: Date.now(),
+          forward: () => addAsset(asset),
+          inverse: () => {
+            removeAsset(asset.id)
+            // Clear preview state on undo
+            activeAssetPath.current = prevAssetPath
+            setTotalFrames(prevTotalFrames)
+            setFrameWidth(prevFrameWidth ?? 0)
+            setFrameHeight(prevFrameHeight ?? 0)
+            setCurrentFrame(0)
+            useTimelineStore.getState().setPlayheadTime(0)
+          },
+        })
+
+        const timeline = useTimelineStore.getState()
+        const trackColors = ['#ef4444', '#f59e0b', '#4ade80', '#3b82f6', '#a855f7', '#ec4899']
+        const trackColor = trackColors[timeline.tracks.length % trackColors.length]
+        const trackName = `Track ${timeline.tracks.length + 1}`
+        const trackId = timeline.addTrack(trackName, trackColor)
+        if (trackId) {
+          const clipDuration = isImage ? 5 : (res.duration_s as number)
+          // Place new clips at position 0 on their own track (NLE convention)
+          // Auto-fit transform: scale media to fit project canvas
+          const [projW, projH] = useProjectStore.getState().canvasResolution
+          const canvasW = projW || frameWidth || 1920
+          const canvasH = projH || frameHeight || 1080
+          const srcW = asset.meta.width
+          const srcH = asset.meta.height
+          const fitScale = (srcW > canvasW || srcH > canvasH)
+            ? Math.min(canvasW / srcW, canvasH / srcH)
+            : 1
+          const rounded = Math.round(fitScale * 100) / 100
+          const clipTransform = fitScale !== 1
+            ? { x: 0, y: 0, scaleX: rounded, scaleY: rounded, rotation: 0, anchorX: 0, anchorY: 0, flipH: false, flipV: false }
+            : undefined
+
+          timeline.addClip(trackId, {
+            id: randomUUID(),
+            assetId: asset.id,
+            trackId,
+            position: 0,
+            duration: clipDuration,
+            inPoint: 0,
+            outPoint: clipDuration,
+            speed: 1,
+            transform: clipTransform,
+          })
+        }
+        undoStore.commitTransaction()
+
+        // For images: use the clip duration (5s) * default fps to get a playable frame count
+        // The sidecar's ImageReader returns the same frame for any index, so playback shows the held image
+        const imageFps = 30
+        const imageFrameCount = 5 * imageFps // 150 frames = 5 seconds
+        setTotalFrames(isImage ? imageFrameCount : (res.frame_count as number))
         setFrameWidth(res.width as number)
         setFrameHeight(res.height as number)
-        setActiveFps(isImage ? 30 : (res.fps as number))
+        setActiveFps(isImage ? imageFps : (res.fps as number))
         activeAssetPath.current = path
         setCurrentFrame(0)
         setHasAudio(assetHasAudio)
@@ -658,6 +947,24 @@ function AppInner() {
         // This ensures the user sees the video immediately regardless of effects.
         // The useEffect hook will then trigger a re-render with the current effectChain.
         await requestRenderFrame(0, [])
+
+        // Auto-fit zoom so the entire clip is visible on import
+        const clipDur = isImage ? 5 : (res.duration_s as number)
+        if (clipDur > 0) {
+          const viewW = window.innerWidth * 0.6 // approximate timeline viewport width
+          const fitZoom = Math.max(0.5, Math.min(500, viewW / clipDur))
+          useTimelineStore.getState().setZoom(fitZoom)
+          useTimelineStore.getState().setScrollX(0)
+        }
+
+        // Load clip thumbnails for timeline display (fire-and-forget)
+        if (!isImage && window.entropic) {
+          window.entropic.sendCommand({ cmd: 'thumbnails', path, count: 12 }).then((thumbRes: Record<string, unknown>) => {
+            if (thumbRes.ok && Array.isArray(thumbRes.thumbnails)) {
+              setClipThumbnails(thumbRes.thumbnails as { time: number; data: string }[])
+            }
+          }).catch(() => { /* thumbnails are optional */ })
+        }
       } else {
         setIngestError(res.error as string)
         setPreviewState('empty')
@@ -671,8 +978,183 @@ function AppInner() {
 
       setIngesting(false)
     },
-    [addAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame, audioStore, loadWaveform],
+    [addAsset, removeAsset, setTotalFrames, setCurrentFrame, setIngesting, setIngestError, requestRenderFrame, audioStore, loadWaveform, totalFrames, frameWidth, frameHeight, activeFps],
   )
+
+  // --- Menu / shortcut action handlers ---
+  const handleImportMedia = useCallback(async () => {
+    if (!window.entropic || isIngesting) return
+    const path = await window.entropic.showOpenDialog({
+      title: 'Import Media',
+      filters: [{ name: 'Media Files', extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv', 'mxf', 'ts', 'png', 'jpg', 'jpeg', 'tiff', 'tif', 'webp', 'bmp', 'heic', 'heif', 'wav', 'mp3', 'm4a', 'aif', 'aiff', 'ogg', 'flac'] }],
+    })
+    if (path) handleFileIngest(path)
+  }, [isIngesting, handleFileIngest])
+
+  const handleNewProject = useCallback(() => {
+    newProject()
+    setFrameDataUrl(null)
+    setFrameWidth(0)
+    setFrameHeight(0)
+    setActiveFps(30)
+    setIsTimerPlaying(false)
+    setPreviewState('empty')
+    setRenderError(null)
+    activeAssetPath.current = null
+  }, [])
+
+  const handleAddTextTrack = useCallback(() => {
+    const timeline = useTimelineStore.getState()
+    const textCount = timeline.tracks.filter((t) => t.type === 'text').length
+    timeline.addTextTrack(`Text ${textCount + 1}`, '#6366f1')
+  }, [])
+
+  // Listen for menu actions from main process
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.entropic?.onMenuAction) return
+    const cleanup = window.entropic.onMenuAction((action: string) => {
+      switch (action) {
+        case 'import-media': handleImportMedia(); break
+        case 'add-text-track': handleAddTextTrack(); break
+        case 'new-project': handleNewProject(); break
+        case 'open-project': loadProject(); break
+        case 'save': saveProject(); break
+        case 'save-as': saveProject(); break
+        case 'export': setShowExportDialog(true); break
+        case 'toggle-sidebar': useLayoutStore.getState().toggleSidebar(); break
+        case 'toggle-focus': useLayoutStore.getState().toggleFocusMode(); break
+        case 'toggle-quantize': useLayoutStore.getState().toggleQuantize(); break
+
+        // Select menu
+        case 'select-all-clips': useTimelineStore.getState().selectAllClips(); break
+        case 'deselect-all': useTimelineStore.getState().clearSelection(); break
+        case 'invert-selection': useTimelineStore.getState().invertSelection(); break
+        case 'select-by-track': {
+          const trackId = useTimelineStore.getState().selectedTrackId
+          if (trackId) useTimelineStore.getState().selectClipsByTrack(trackId)
+          break
+        }
+
+        // Clip menu
+        case 'split-at-playhead': {
+          const ts = useTimelineStore.getState()
+          for (const clipId of ts.selectedClipIds) {
+            for (const track of ts.tracks) {
+              const clip = track.clips.find((c) => c.id === clipId)
+              if (clip && ts.playheadTime > clip.position && ts.playheadTime < clip.position + clip.duration) {
+                ts.splitClip(clipId, ts.playheadTime)
+                break // clip can only be in one track
+              }
+            }
+          }
+          break
+        }
+        case 'clip-speed': {
+          const ts2 = useTimelineStore.getState()
+          if (ts2.selectedClipIds.length === 1) {
+            const val = window.prompt('Speed (0.1 - 10):', '1')
+            if (val !== null) {
+              const parsed = Number(val)
+              const speed = Math.max(0.1, Math.min(10, Number.isFinite(parsed) ? parsed : 1))
+              ts2.setClipSpeed(ts2.selectedClipIds[0], speed)
+            }
+          }
+          break
+        }
+        case 'clip-reverse': {
+          const ts3 = useTimelineStore.getState()
+          for (const clipId of ts3.selectedClipIds) ts3.reverseClip(clipId)
+          break
+        }
+        case 'clip-toggle-enabled': {
+          const ts4 = useTimelineStore.getState()
+          for (const clipId of ts4.selectedClipIds) ts4.toggleClipEnabled(clipId)
+          break
+        }
+
+        // Timeline menu
+        case 'add-video-track': {
+          const tracks = useTimelineStore.getState().tracks
+          const colors = ['#ef4444', '#f59e0b', '#4ade80', '#3b82f6', '#a855f7', '#ec4899']
+          useTimelineStore.getState().addTrack(`Track ${tracks.length + 1}`, colors[tracks.length % colors.length])
+          break
+        }
+        case 'delete-selected-track': {
+          const tid = useTimelineStore.getState().selectedTrackId
+          if (tid) useTimelineStore.getState().removeTrack(tid)
+          break
+        }
+        case 'move-track-up': {
+          const ts5 = useTimelineStore.getState()
+          const idx = ts5.tracks.findIndex((t) => t.id === ts5.selectedTrackId)
+          if (idx > 0) ts5.reorderTrack(idx, idx - 1)
+          break
+        }
+        case 'move-track-down': {
+          const ts6 = useTimelineStore.getState()
+          const idx2 = ts6.tracks.findIndex((t) => t.id === ts6.selectedTrackId)
+          if (idx2 >= 0 && idx2 < ts6.tracks.length - 1) ts6.reorderTrack(idx2, idx2 + 1)
+          break
+        }
+        case 'toggle-automation': {
+          const tl = useTimelineStore.getState()
+          if (tl.selectedTrackId) {
+            const autoStore = useAutomationStore.getState()
+            const lanes = autoStore.getLanesForTrack(tl.selectedTrackId)
+            for (const lane of lanes) {
+              autoStore.setLaneVisible(tl.selectedTrackId, lane.id, !lane.isVisible)
+            }
+          }
+          break
+        }
+        case 'zoom-in': useTimelineStore.getState().setZoom(Math.min(500, useTimelineStore.getState().zoom * 1.25)); break
+        case 'zoom-out': useTimelineStore.getState().setZoom(Math.max(0.5, useTimelineStore.getState().zoom * 0.8)); break
+        case 'zoom-fit': {
+          const dur = useTimelineStore.getState().duration
+          useTimelineStore.getState().setZoom(Math.max(0.5, (window.innerWidth * 0.6) / Math.max(1, dur)))
+          break
+        }
+        case 'show-shortcuts': setShowPreferences(true); break
+        case 'show-feedback': setShowFeedbackDialog(true); break
+        default:
+          // Handle add-effect:{effectId} actions from Adjustments menu
+          if (action.startsWith('add-effect:')) {
+            const effectId = action.slice('add-effect:'.length)
+            const info = registry.find((e) => e.id === effectId)
+            if (info) {
+              addEffect({
+                id: randomUUID(),
+                effectId: info.id,
+                isEnabled: true,
+                isFrozen: false,
+                parameters: Object.fromEntries(
+                  Object.entries(info.params).map(([key, def]) => [key, def.default]),
+                ),
+                modulations: {},
+                mix: 1.0,
+                mask: null,
+              })
+            }
+          }
+      }
+    })
+    return cleanup
+  }, [handleImportMedia, handleAddTextTrack, newProject, loadProject, saveProject, registry, addEffect])
+
+  // Unsaved work prompt on close
+  const [showCloseDialog, setShowCloseDialog] = useState(false)
+  useEffect(() => {
+    if (!window.entropic?.onCloseRequested) return
+    const cleanup = window.entropic.onCloseRequested(() => {
+      const dirty = useUndoStore.getState().isDirty
+      if (!dirty) {
+        window.entropic.confirmClose()
+        return
+      }
+      setShowCloseDialog(true)
+    })
+    return cleanup
+  }, [])
 
   const handleRenderRetry = useCallback(() => {
     if (!activeAssetPath.current) return
@@ -726,11 +1208,45 @@ function AppInner() {
       setIsTimerPlaying((prev) => !prev)
     }
   }, [hasAudio, audioStore])
+  handlePlayPauseRef.current = handlePlayPause
+
+  const handleStop = useCallback(() => {
+    if (hasAudio && audioStore.isLoaded) {
+      if (audioStore.isPlaying) audioStore.togglePlayback()
+      audioStore.seek(0)
+    }
+    setIsTimerPlaying(false)
+    setCurrentFrame(0)
+    useTimelineStore.getState().setPlayheadTime(0)
+  }, [hasAudio, audioStore, setCurrentFrame])
+
+  // Escape key stop — listens for custom event dispatched from keydown handler
+  // (keydown handler has [] deps so can't call handleStop directly)
+  useEffect(() => {
+    const onStop = () => handleStop()
+    window.addEventListener('entropic:stop', onStop)
+    return () => window.removeEventListener('entropic:stop', onStop)
+  }, [handleStop])
+
+  const handleToggleLoop = useCallback(() => {
+    const ts = useTimelineStore.getState()
+    if (ts.loopRegion) {
+      ts.clearLoopRegion()
+    } else {
+      // Default loop: full duration
+      ts.setLoopRegion(0, ts.duration)
+    }
+  }, [])
 
   // Clock sync loop: when audio is playing, poll audio position at ~60Hz
   // and drive video frame from audio clock (audio is master, video is slave)
+  //
+  // IMPORTANT: Dependencies must NOT include the entire audioStore object.
+  // syncClock() calls set() on the store, which would trigger effect cleanup
+  // and restart the RAF loop on every frame — killing playback.
+  const audioIsPlaying = useAudioStore((s) => s.isPlaying)
   useEffect(() => {
-    if (!hasAudio || !audioStore.isPlaying) {
+    if (!hasAudio || !audioIsPlaying) {
       if (clockSyncRafRef.current !== null) {
         cancelAnimationFrame(clockSyncRafRef.current)
         clockSyncRafRef.current = null
@@ -739,9 +1255,13 @@ function AppInner() {
     }
 
     let lastFrame = -1
+    let cancelled = false
 
     const tick = async () => {
-      await audioStore.syncClock()
+      if (cancelled) return
+      const store = useAudioStore.getState()
+      await store.syncClock()
+      if (cancelled) return
       const { targetFrame, currentTime } = useAudioStore.getState()
       if (targetFrame !== lastFrame) {
         lastFrame = targetFrame
@@ -752,29 +1272,35 @@ function AppInner() {
       // Loop region: when playhead reaches loop out, jump back to loop in
       const loopRegion = useTimelineStore.getState().loopRegion
       if (loopRegion && currentTime >= loopRegion.out) {
-        audioStore.seek(loopRegion.in)
+        await useAudioStore.getState().seek(loopRegion.in)
         useTimelineStore.getState().setPlayheadTime(loopRegion.in)
       }
 
-      clockSyncRafRef.current = requestAnimationFrame(tick)
+      if (!cancelled) {
+        clockSyncRafRef.current = requestAnimationFrame(tick)
+      }
     }
 
     clockSyncRafRef.current = requestAnimationFrame(tick)
 
     return () => {
+      cancelled = true
       if (clockSyncRafRef.current !== null) {
         cancelAnimationFrame(clockSyncRafRef.current)
         clockSyncRafRef.current = null
       }
     }
-  }, [hasAudio, audioStore.isPlaying, setCurrentFrame, audioStore])
+  }, [hasAudio, audioIsPlaying, setCurrentFrame])
 
   // Timer-based playback loop for silent videos (no audio)
-  // Only runs when there's no audio to drive the clock
+  // Only runs when there's no audio to drive the clock.
+  // Supports J/K/L speed ramping via transportSpeedMultiplier.
   useEffect(() => {
     if (!isTimerPlaying || totalFrames === 0) return
 
-    const frameDuration = 1000 / activeFps
+    const speedMult = Math.max(1, transportSpeedMultiplier)
+    const isReverse = getTransportDirection() === 'reverse'
+    const frameDuration = 1000 / (activeFps * speedMult)
     let lastFrameTime = performance.now()
 
     const tick = (now: number) => {
@@ -783,8 +1309,18 @@ function AppInner() {
         const framesToAdvance = Math.max(1, Math.floor(elapsed / frameDuration))
         lastFrameTime = now - (elapsed % frameDuration)
         const current = useProjectStore.getState().currentFrame
-        const nextFrame = (current + framesToAdvance) % totalFrames
+        let nextFrame: number
+        if (isReverse) {
+          nextFrame = current - framesToAdvance
+          if (nextFrame < 0) nextFrame = 0
+        } else {
+          nextFrame = (current + framesToAdvance) % totalFrames
+        }
         setCurrentFrame(nextFrame)
+        // Sync timeline playhead for silent/image playback (audio path does this in clock sync)
+        if (activeFps > 0) {
+          useTimelineStore.getState().setPlayheadTime(nextFrame / activeFps)
+        }
       }
       playbackRafRef.current = requestAnimationFrame(tick)
     }
@@ -796,7 +1332,7 @@ function AppInner() {
         playbackRafRef.current = null
       }
     }
-  }, [isTimerPlaying, totalFrames, activeFps, setCurrentFrame])
+  }, [isTimerPlaying, totalFrames, activeFps, setCurrentFrame, transportSpeedMultiplier])
 
   const handleExport = useCallback(
     async (settings: ExportSettings) => {
@@ -880,7 +1416,7 @@ function AppInner() {
   }, [exportJobId])
 
   // Global window drop handler — accepts video drops anywhere
-  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp']
+  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
 
   const dragCountRef = useRef(0)
 
@@ -937,6 +1473,20 @@ function AppInner() {
     : null
 
   // Derive selected text clip via Zustand selector (reactive — re-renders on change)
+  const loopRegion = useTimelineStore((s) => s.loopRegion)
+  const projectBpm = useProjectStore((s) => s.bpm)
+  const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
+  const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
+
+  const selectedClip = useTimelineStore((s) => {
+    if (s.selectedClipIds.length !== 1) return null
+    for (const track of s.tracks) {
+      const clip = track.clips.find((c) => c.id === s.selectedClipIds[0])
+      if (clip) return clip
+    }
+    return null
+  })
+
   const selectedTextClip = useTimelineStore((s) => {
     if (s.selectedClipIds.length !== 1) return null
     for (const track of s.tracks) {
@@ -974,15 +1524,70 @@ function AppInner() {
       onDrop={handleGlobalDrop}
     >
       <UpdateBanner />
-      {isGlobalDragOver && (
-        <div className="app__drop-overlay">
-          <span>Drop video file here</span>
+      <div className="app__transport-bar">
+        <div className="app__transport-controls">
+          <button
+            className={`app__transport-btn ${isPlaying ? 'app__transport-btn--active' : ''}`}
+            onClick={handlePlayPause}
+            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+          >
+            {isPlaying ? '⏸' : '▶'}
+          </button>
+          <button className="app__transport-btn" onClick={handleStop} title="Stop">
+            ⏹
+          </button>
         </div>
-      )}
+        <span className="app__transport-timecode">
+          {(() => {
+            const t = useTimelineStore.getState().playheadTime
+            const m = Math.floor(t / 60)
+            const s = t % 60
+            return `${m}:${s.toFixed(1).padStart(4, '0')}`
+          })()}
+          {' / '}
+          {(() => {
+            const t = useTimelineStore.getState().duration
+            const m = Math.floor(t / 60)
+            const s = t % 60
+            return `${m}:${s.toFixed(1).padStart(4, '0')}`
+          })()}
+        </span>
+        <div className="app__transport-bpm">
+          <label>BPM</label>
+          <input
+            type="number"
+            min={1}
+            max={300}
+            value={projectBpm}
+            onChange={(e) => useProjectStore.getState().setBpm(Number(e.target.value))}
+          />
+        </div>
+        <div className="app__transport-quant">
+          <button
+            className={`app__transport-btn ${quantizeEnabled ? 'app__transport-btn--active' : ''}`}
+            onClick={() => useLayoutStore.getState().toggleQuantize()}
+            title="Toggle quantize grid (Cmd+U)"
+          >
+            Q
+          </button>
+          <select
+            className="app__transport-select"
+            value={quantizeDivision}
+            onChange={(e) => useLayoutStore.getState().setQuantizeDivision(Number(e.target.value))}
+          >
+            <option value={1}>1/1</option>
+            <option value={2}>1/2</option>
+            <option value={4}>1/4</option>
+            <option value={8}>1/8</option>
+            <option value={16}>1/16</option>
+            <option value={32}>1/32</option>
+          </select>
+        </div>
+      </div>
+      <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />
       <div className="app__sidebar" style={sidebarCollapsed ? { display: 'none' } : undefined}>
         {!hasAssets && (
           <div className="app__upload">
-            <DropZone onFileDrop={handleFileIngest} disabled={isIngesting} />
             <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} />
             <IngestProgress isIngesting={isIngesting} error={ingestError} />
           </div>
@@ -1011,8 +1616,34 @@ function AppInner() {
                 </span>
               </div>
             ))}
-            <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} label="Replace" />
+            {/* Replace accessible via File > Import Media (Cmd+I) or right-click track context menu */}
           </div>
+        )}
+        {selectedClip && !selectedClip.textConfig && (
+          <TransformPanel
+            transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
+            onChange={(t) => {
+              useTimelineStore.getState().setClipTransform(selectedClip.id, t)
+              requestRenderFrame(currentFrame)
+            }}
+            canvasWidth={frameWidth || 1920}
+            canvasHeight={frameHeight || 1080}
+            sourceWidth={(() => {
+              const asset = assets[selectedClip.assetId]
+              return asset?.meta.width ?? 1920
+            })()}
+            sourceHeight={(() => {
+              const asset = assets[selectedClip.assetId]
+              return asset?.meta.height ?? 1080
+            })()}
+            aspectLocked={aspectLocked}
+            onAspectLockChange={setAspectLocked}
+            opacity={selectedClip.opacity ?? 1}
+            onOpacityChange={(o) => {
+              useTimelineStore.getState().setClipOpacity(selectedClip.id, o)
+              requestRenderFrame(currentFrame)
+            }}
+          />
         )}
         <div className="sidebar-tabs">
           <button
@@ -1034,6 +1665,7 @@ function AppInner() {
             isLoading={effectsLoading}
             onAddEffect={addEffect}
             chainLength={effectChain.length}
+            onAddTextTrack={handleAddTextTrack}
           />
         ) : (
           <PresetBrowser
@@ -1060,71 +1692,52 @@ function AppInner() {
             }}
           />
         )}
-        <EffectRack
-          chain={effectChain}
-          registry={registry}
-          selectedEffectId={selectedEffectId}
-          onSelect={selectEffect}
-          onToggle={toggleEffect}
-          onRemove={removeEffect}
-          onReorder={reorderEffect}
-          onSavePreset={() => setShowPresetSave({ mode: 'effect_chain' })}
-          onSaveEffectPreset={(effectInstanceId) => {
-            const effect = effectChain.find((e) => e.id === effectInstanceId)
-            if (effect) {
-              setShowPresetSave({ mode: 'single_effect', instanceId: effect.id })
-            }
-          }}
-          onFreezeUpTo={async (index) => {
-            const assetPaths = Object.values(assets)
-            if (assetPaths.length === 0) return
-            const asset = assetPaths[0]
-            await useFreezeStore.getState().freezePrefix(
-              'default',
-              index,
-              asset.path,
-              effectChain.slice(0, index + 1).map((e) => ({
-                effect_id: e.effectId,
-                params: e.parameters,
-                enabled: e.isEnabled,
-              })),
-              Date.now() % 2147483647,
-              totalFrames,
-              [asset.meta.width, asset.meta.height],
-            )
-          }}
-          onUnfreeze={async () => {
-            await useFreezeStore.getState().unfreezePrefix('default')
-          }}
-          onFlatten={async () => {
-            if (!window.entropic) return
-            const savePath = await window.entropic.showSaveDialog({
-              title: 'Flatten to video',
-              defaultPath: 'flattened.mp4',
-              filters: [{ name: 'Video', extensions: ['mp4'] }],
-            })
-            if (savePath) {
-              await useFreezeStore.getState().flattenPrefix('default', savePath)
-            }
-          }}
-        />
-        <HistoryPanel />
+        {/* Phase 13C: EffectRack removed — replaced by DeviceChain at bottom */}
+        {/* Phase 13C: HistoryPanel removed from sidebar — accessible via Edit → Undo History */}
+        <HelpPanel />
       </div>
 
       <div className="app__main">
         <div className="app__preview">
           <div
+            ref={previewContainerRef}
             style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden' }}
-            onClick={(e) => {
-              // Click-to-place text: if a text track is selected but no text clip exists at playhead, create one
+            onDoubleClick={() => {
+              // Double-click preview to select the topmost video clip at current playhead time
               const tl = useTimelineStore.getState()
+              const currentTime = tl.playheadTime
+              for (const track of [...tl.tracks].reverse()) {
+                if (track.type !== 'video' || track.isMuted) continue
+                for (const clip of track.clips) {
+                  if (clip.isEnabled === false) continue
+                  if (currentTime >= clip.position && currentTime < clip.position + clip.duration) {
+                    tl.selectClip(clip.id)
+                    return
+                  }
+                }
+              }
+            }}
+            onClick={(e) => {
+              const tl = useTimelineStore.getState()
+
+              // Click-to-place text: if a text track is selected but no text clip exists at playhead, create one
               const selTrack = tl.tracks.find((t) => t.id === tl.selectedTrackId)
-              if (!selTrack || selTrack.type !== 'text') return
-              if (!selectedTextClip) {
+              if (selTrack?.type === 'text' && !selectedTextClip) {
                 const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                 const relX = Math.round(((e.clientX - rect.left) / rect.width) * (frameWidth || 1920))
                 const relY = Math.round(((e.clientY - rect.top) / rect.height) * (frameHeight || 1080))
                 tl.addTextClip(selTrack.id, { text: 'Text', fontFamily: 'Helvetica', fontSize: 48, color: '#ffffff', position: [relX, relY], alignment: 'left', opacity: 1.0, strokeWidth: 0, strokeColor: '#000000', shadowOffset: [0, 0], shadowColor: '#00000080', animation: 'none', animationDuration: 1.0 }, tl.playheadTime, 5)
+                return
+              }
+
+              // Deselect clip when clicking empty canvas area.
+              // Don't deselect if click originated from inside the bounding box overlay
+              // (drag operations fire mousedown→mousemove→mouseup→click, and we must
+              //  suppress the click after a drag to avoid deselecting mid-transform).
+              const target = e.target as HTMLElement
+              const isOverlayClick = target.closest('.bounding-box-overlay') !== null
+              if (tl.selectedClipIds.length > 0 && !isOverlayClick) {
+                tl.clearSelection()
               }
             }}
           >
@@ -1145,6 +1758,32 @@ function AppInner() {
                 onUpdateText={(text) => useTimelineStore.getState().updateTextConfig(selectedTextClip.id, { text })}
               />
             )}
+            {selectedClip && !selectedClip.textConfig && (
+              <BoundingBoxOverlay
+                transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
+                onChange={(t) => {
+                  useTimelineStore.getState().setClipTransform(selectedClip.id, t)
+                  requestRenderFrame(currentFrame)
+                }}
+                containerRef={previewContainerRef}
+                sourceWidth={assets[selectedClip.assetId]?.meta?.width ?? 1920}
+                sourceHeight={assets[selectedClip.assetId]?.meta?.height ?? 1080}
+                canvasWidth={frameWidth || 1920}
+                canvasHeight={frameHeight || 1080}
+                aspectLocked={aspectLocked}
+              />
+            )}
+            {selectedClip && !selectedClip.textConfig && (
+              <SnapGuides
+                transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
+                sourceWidth={assets[selectedClip.assetId]?.meta?.width ?? 1920}
+                sourceHeight={assets[selectedClip.assetId]?.meta?.height ?? 1080}
+                containerRef={previewContainerRef}
+                canvasWidth={frameWidth || 1920}
+                canvasHeight={frameHeight || 1080}
+                enabled={true}
+              />
+            )}
           </div>
           <PreviewControls
             currentFrame={currentFrame}
@@ -1158,62 +1797,17 @@ function AppInner() {
             isMuted={audioStore.isMuted}
             onVolumeChange={(v) => audioStore.setVolume(v)}
             onToggleMute={() => audioStore.toggleMute()}
-            waveformPeaks={waveformPeaks}
-            audioDuration={audioStore.duration}
-            audioCurrentTime={audioStore.currentTime}
-            onAudioSeek={handleAudioSeek}
           />
         </div>
-        <div className="app__params">
-          <ParamPanel
-            effect={selectedEffect}
-            effectInfo={selectedEffectInfo}
-            onUpdateParam={updateParam}
-            onSetMix={setMix}
-            modulatedValues={
-              selectedEffect && selectedEffectInfo
-                ? resolveGhostValues(
-                    selectedEffect.id,
-                    selectedEffectInfo.params,
-                    selectedEffect.parameters,
-                    useOperatorStore.getState().operators,
-                    operatorValues,
-                    // Phase 7: Include automation overrides in ghost value calculation
-                    useAutomationStore.getState().getAllLanes().length > 0
-                      ? evaluateAutomationOverrides(
-                          useAutomationStore.getState().getAllLanes(),
-                          useTimelineStore.getState().playheadTime,
-                          registry,
-                        )
-                      : undefined,
-                    // Phase 9: CC overrides for ghost handles
-                    (() => {
-                      const midi = useMIDIStore.getState();
-                      if (midi.ccMappings.length === 0) return undefined;
-                      const ccOverrides: Record<string, number> = {};
-                      for (const m of midi.ccMappings) {
-                        if (m.effectId !== selectedEffect!.id) continue;
-                        const ccVal = midi.ccValues[m.cc];
-                        if (ccVal === undefined) continue;
-                        const def = selectedEffectInfo!.params[m.paramKey];
-                        if (!def || (def.type !== 'float' && def.type !== 'int')) continue;
-                        const pMin = def.min ?? 0;
-                        const pMax = def.max ?? 1;
-                        ccOverrides[m.paramKey] = pMin + ccVal * (pMax - pMin);
-                      }
-                      return Object.keys(ccOverrides).length > 0 ? ccOverrides : undefined;
-                    })(),
-                  )
-                : undefined
-            }
-          />
-          {selectedTextClip?.textConfig && (
+        {/* Phase 13C: ParamPanel removed — replaced by inline params in DeviceChain */}
+        {selectedTextClip?.textConfig && (
+          <div className="app__params">
             <TextPanel
               config={selectedTextClip.textConfig}
               onUpdate={(changes) => useTimelineStore.getState().updateTextConfig(selectedTextClip.id, changes)}
             />
-          )}
-        </div>
+          </div>
+        )}
         <ExportProgress
           isExporting={isExporting}
           progress={exportProgress}
@@ -1237,34 +1831,42 @@ function AppInner() {
           </div>
         ) : (
           <>
-            <Timeline onSeek={handleTimelineSeek} />
+            <Timeline
+              onSeek={handleTimelineSeek}
+              isDragOver={isGlobalDragOver}
+              isPlaying={isPlaying}
+              onPlayPause={handlePlayPause}
+              onStop={handleStop}
+              loopEnabled={!!loopRegion}
+              onToggleLoop={handleToggleLoop}
+              bpm={projectBpm}
+              onBpmChange={(v) => useProjectStore.getState().setBpm(v)}
+              quantizeEnabled={quantizeEnabled}
+              quantizeDivision={quantizeDivision}
+              onToggleQuantize={() => useLayoutStore.getState().toggleQuantize()}
+              onQuantizeDivisionChange={(d) => useLayoutStore.getState().setQuantizeDivision(d)}
+              waveformPeaks={waveformPeaks}
+              clipThumbnails={clipThumbnails}
+            />
             <AutomationToolbar />
           </>
         )}
       </div>
 
-      <div className="app__performance">
-        <PerformancePanel onEditPad={(id) => {
-          setEditingPadId(id)
-          usePerformanceStore.getState().setPadEditorOpen(true)
-        }} />
-      </div>
+      {/* Phase 15C: PerformancePanel converted to floating config overlay */}
+      {isPerformMode && (
+        <div className="app__performance-overlay">
+          <PerformancePanel onEditPad={(id) => {
+            setEditingPadId(id)
+            usePerformanceStore.getState().setPadEditorOpen(true)
+          }} />
+        </div>
+      )}
 
-      <div style={{ position: 'relative' }}>
-        <RoutingLines operatorValues={operatorValues} />
-        <OperatorRack
-          effectChain={effectChain}
-          registry={registry}
-          operatorValues={operatorValues}
-          hasAudio={hasAudio}
-        />
+      {/* Phase 13: Ableton-style Device Chain */}
+      <div className="app__device-chain">
+        <DeviceChain />
       </div>
-
-      <ModulationMatrix
-        effectChain={effectChain}
-        registry={registry}
-        operatorValues={operatorValues}
-      />
 
       <div className="status-bar">
         <div className="status-bar__left">
@@ -1295,17 +1897,7 @@ function AppInner() {
           {isPerformMode && (
             <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
           )}
-          {hasAssets && (
-            <Tooltip text="Export video" shortcut={shortcutRegistry.getEffectiveKey('export')} position="top">
-              <button
-                className="export-btn"
-                onClick={() => setShowExportDialog(true)}
-                disabled={isExporting}
-              >
-                Export
-              </button>
-            </Tooltip>
-          )}
+          {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>
 
@@ -1373,6 +1965,42 @@ function AppInner() {
         )
       })()}
 
+      {showCloseDialog && (
+        <div className="dialog-overlay">
+          <div className="dialog">
+            <div className="dialog__header">Unsaved Changes</div>
+            <p className="dialog__body">You have unsaved changes. What would you like to do?</p>
+            <div className="dialog__actions">
+              <button
+                className="dialog__btn dialog__btn--secondary"
+                onClick={() => setShowCloseDialog(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="dialog__btn dialog__btn--danger"
+                onClick={() => {
+                  setShowCloseDialog(false)
+                  window.entropic.confirmClose()
+                }}
+              >
+                Don&apos;t Save
+              </button>
+              <button
+                className="dialog__btn dialog__btn--primary"
+                onClick={async () => {
+                  await saveProject()
+                  setShowCloseDialog(false)
+                  window.entropic.confirmClose()
+                }}
+              >
+                Save &amp; Quit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {editingPadId && (
         <PadEditor
           padId={editingPadId}
@@ -1386,11 +2014,11 @@ function AppInner() {
       )}
 
       <WelcomeScreen
-        isVisible={!hasAssets && !window.entropic?.isTestMode}
+        isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
-        onNewProject={newProject}
-        onOpenProject={loadProject}
-        onOpenRecent={(path) => loadProject(path)}
+        onNewProject={() => { handleNewProject(); setWelcomeDismissed(true) }}
+        onOpenProject={() => { setWelcomeDismissed(true); loadProject() }}
+        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path) }}
       />
 
       <Toast />

@@ -47,11 +47,10 @@ describe('Timeline UI — Empty State', () => {
     expect(document.querySelector('.timeline__resize-handle')).toBeTruthy()
   })
 
-  test('zoom controls are visible in footer', () => {
+  test('empty state has no footer zoom controls (zoom via Cmd+/- only)', () => {
     render(<Timeline onSeek={() => {}} />)
-    expect(document.querySelector('.timeline__footer')).toBeTruthy()
-    expect(document.querySelector('.zoom-scroll__slider')).toBeTruthy()
-    expect(document.querySelector('.zoom-scroll__label')).toBeTruthy()
+    // Zoom slider removed — zoom controlled via Cmd+=/- shortcuts
+    expect(document.querySelector('.zoom-scroll__slider')).toBeNull()
   })
 })
 
@@ -109,6 +108,88 @@ describe('Timeline UI — With Tracks', () => {
     fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
 
     expect(document.querySelector('.time-ruler')).toBeTruthy()
+  })
+})
+
+describe.skip('Timeline UI — Transport Controls (moved to app__transport-bar)', () => {
+  beforeEach(() => {
+    setupMockEntropic()
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    cleanup()
+    teardownMockEntropic()
+  })
+
+  test('transport buttons render when props provided', () => {
+    render(
+      <Timeline
+        onSeek={() => {}}
+        isPlaying={false}
+        onPlayPause={() => {}}
+        onStop={() => {}}
+        onToggleLoop={() => {}}
+      />
+    )
+    // Add a track to show the footer
+    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+
+    const transport = document.querySelector('.timeline__transport')
+    expect(transport).toBeTruthy()
+
+    const buttons = transport!.querySelectorAll('.timeline__transport-btn')
+    expect(buttons.length).toBe(3) // play, stop, loop
+  })
+
+  test('timecode display shows in footer', () => {
+    render(
+      <Timeline
+        onSeek={() => {}}
+        isPlaying={false}
+        onPlayPause={() => {}}
+        onStop={() => {}}
+      />
+    )
+    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+
+    const timecode = document.querySelector('.timeline__timecode')
+    expect(timecode).toBeTruthy()
+    expect(timecode?.textContent).toContain('/')
+  })
+
+  test('BPM input renders when onBpmChange provided', () => {
+    render(
+      <Timeline
+        onSeek={() => {}}
+        bpm={120}
+        onBpmChange={() => {}}
+      />
+    )
+    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+
+    const bpmInput = document.querySelector('.timeline__bpm-input') as HTMLInputElement
+    expect(bpmInput).toBeTruthy()
+    expect(bpmInput.value).toBe('120')
+  })
+
+  test('quantize button renders when onToggleQuantize provided', () => {
+    render(
+      <Timeline
+        onSeek={() => {}}
+        quantizeEnabled={false}
+        onToggleQuantize={() => {}}
+        onQuantizeDivisionChange={() => {}}
+      />
+    )
+    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+
+    const qBtn = document.querySelector('.timeline__quant .timeline__transport-btn')
+    expect(qBtn).toBeTruthy()
+    expect(qBtn?.textContent).toBe('Q')
+
+    const qSelect = document.querySelector('.timeline__quant-select')
+    expect(qSelect).toBeTruthy()
   })
 })
 

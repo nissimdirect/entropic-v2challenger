@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, BlendMode, TextClipConfig } from '../../shared/types'
+import type { Track, Clip, Marker, BlendMode, TextClipConfig, ClipTransform } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
 import { undoable } from './undo'
@@ -20,7 +20,7 @@ interface TimelineState {
   selectedClipIds: string[]
 
   // Track actions
-  addTrack: (name: string, color: string, type?: 'video' | 'text') => void
+  addTrack: (name: string, color: string, type?: 'video' | 'text') => string | undefined
   removeTrack: (id: string) => void
   reorderTrack: (fromIdx: number, toIdx: number) => void
   setTrackOpacity: (id: string, opacity: number) => void
@@ -42,6 +42,14 @@ interface TimelineState {
   trimClipOut: (clipId: string, newOutPoint: number) => void
   splitClip: (clipId: string, time: number) => void
   setClipSpeed: (clipId: string, speed: number) => void
+  setClipTransform: (clipId: string, transform: ClipTransform) => void
+  setClipOpacity: (clipId: string, opacity: number) => void
+  duplicateClip: (clipId: string) => void
+  toggleClipEnabled: (clipId: string) => void
+  reverseClip: (clipId: string) => void
+
+  // Track actions
+  duplicateTrack: (trackId: string) => void
 
   // Playhead
   setPlayheadTime: (t: number) => void
@@ -67,6 +75,9 @@ interface TimelineState {
   rangeSelectClips: (fromId: string, toId: string) => void
   clearSelection: () => void
   deleteSelectedClips: () => void
+  selectAllClips: () => void
+  invertSelection: () => void
+  selectClipsByTrack: (trackId: string) => void
 
   // Helpers
   getActiveClipsAtTime: (time: number) => { track: Track; clip: Clip }[]
@@ -152,7 +163,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   addTrack: (name, color, type) => {
     if (get().tracks.length >= LIMITS.MAX_TRACKS) {
       useToastStore.getState().addToast({ level: 'warning', message: `Track limit (${LIMITS.MAX_TRACKS}) reached`, source: 'timeline' })
-      return
+      return undefined
     }
     const trackId = randomUUID()
 
@@ -167,6 +178,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         set({ tracks, duration: recalcDuration(tracks) })
       },
     )
+    return trackId
   },
 
   // --- Text track actions ---
@@ -316,6 +328,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   setTrackOpacity: (id, opacity) => {
+    if (!Number.isFinite(opacity)) return
     const track = get().tracks.find((t) => t.id === id)
     if (!track) return
     const oldOpacity = track.opacity
@@ -611,6 +624,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   setClipSpeed: (clipId, speed) => {
+    if (!Number.isFinite(speed)) return
     let oldSpeed = 1
     for (const track of get().tracks) {
       const clip = track.clips.find((c) => c.id === clipId)
@@ -632,6 +646,173 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed: oldSpeed } : c)),
         })),
       }),
+    )
+  },
+
+  setClipTransform: (clipId, transform) => {
+    let oldTransform: ClipTransform | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldTransform = clip.transform; break }
+    }
+
+    undoable(
+      'Set clip transform',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, transform } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, transform: oldTransform } : c)),
+        })),
+      }),
+    )
+  },
+
+  setClipOpacity: (clipId, opacity) => {
+    let oldOpacity: number | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldOpacity = clip.opacity; break }
+    }
+    const clamped = Math.max(0, Math.min(1, opacity))
+    undoable(
+      'Set clip opacity',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, opacity: clamped } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, opacity: oldOpacity } : c)),
+        })),
+      }),
+    )
+  },
+
+  duplicateClip: (clipId) => {
+    let sourceClip: Clip | undefined
+    let sourceTrackId: string | undefined
+    for (const track of get().tracks) {
+      const c = track.clips.find((cl) => cl.id === clipId)
+      if (c) { sourceClip = c; sourceTrackId = track.id; break }
+    }
+    if (!sourceClip || !sourceTrackId) return
+
+    const newClip: Clip = {
+      ...sourceClip,
+      id: randomUUID(),
+      position: sourceClip.position + 0.5,
+      ...(sourceClip.transform ? { transform: { ...sourceClip.transform } } : {}),
+      ...(sourceClip.textConfig ? { textConfig: { ...sourceClip.textConfig } } : {}),
+    }
+
+    undoable(
+      'Duplicate clip',
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === sourceTrackId ? { ...t, clips: [...t.clips, newClip] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === sourceTrackId ? { ...t, clips: t.clips.filter((c) => c.id !== newClip.id) } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  toggleClipEnabled: (clipId) => {
+    let oldEnabled: boolean | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldEnabled = clip.isEnabled; break }
+    }
+
+    const newEnabled = oldEnabled === false ? undefined : false // undefined = enabled (default)
+
+    undoable(
+      'Toggle clip enabled',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, isEnabled: newEnabled } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, isEnabled: oldEnabled } : c)),
+        })),
+      }),
+    )
+  },
+
+  reverseClip: (clipId) => {
+    let oldReversed: boolean | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldReversed = clip.reversed; break }
+    }
+
+    const newReversed = oldReversed ? undefined : true
+
+    undoable(
+      'Reverse clip',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, reversed: newReversed } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, reversed: oldReversed } : c)),
+        })),
+      }),
+    )
+  },
+
+  duplicateTrack: (trackId) => {
+    const source = get().tracks.find((t) => t.id === trackId)
+    if (!source) return
+
+    const newTrackId = randomUUID()
+    const newTrack: Track = {
+      ...source,
+      id: newTrackId,
+      name: `${source.name} (Copy)`,
+      clips: source.clips.map((c) => ({
+        ...c,
+        id: randomUUID(),
+        trackId: newTrackId,
+        ...(c.transform ? { transform: { ...c.transform } } : {}),
+        ...(c.textConfig ? { textConfig: { ...c.textConfig } } : {}),
+      })),
+      effectChain: source.effectChain.map((e) => ({ ...e, id: randomUUID(), parameters: { ...e.parameters } })),
+      automationLanes: source.automationLanes.map((l) => ({ ...l, id: randomUUID(), points: l.points.map((p) => ({ ...p })) })),
+    }
+    const idx = get().tracks.findIndex((t) => t.id === trackId)
+    const insertIdx = idx >= 0 ? idx + 1 : get().tracks.length
+
+    undoable(
+      'Duplicate track',
+      () => {
+        const tracks = [...get().tracks]
+        tracks.splice(insertIdx, 0, newTrack)
+        set({ tracks })
+      },
+      () => set({ tracks: get().tracks.filter((t) => t.id !== newTrackId) }),
     )
   },
 
@@ -705,8 +886,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   // --- View (NOT undoable — UI state) ---
 
-  setZoom: (pxPerSec) => set({ zoom: Math.max(10, Math.min(200, pxPerSec)) }),
-  setScrollX: (px) => set({ scrollX: Math.max(0, px) }),
+  setZoom: (pxPerSec) => set({ zoom: Math.max(0.5, Math.min(500, pxPerSec)) }),
+  setScrollX: (px) => {
+    const { duration, zoom } = get()
+    const maxScroll = Math.max(0, (duration + 1) * zoom)
+    set({ scrollX: Math.max(0, Math.min(maxScroll, px)) })
+  },
 
   // --- Selection (NOT undoable — UI state) ---
 
@@ -775,6 +960,24 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         set({ tracks, duration: recalcDuration(tracks) })
       },
     )
+  },
+
+  selectAllClips: () => {
+    const allIds = get().tracks.flatMap((t) => t.clips.map((c) => c.id))
+    set({ selectedClipIds: allIds, selectedClipId: allIds[0] ?? null })
+  },
+
+  invertSelection: () => {
+    const current = new Set(get().selectedClipIds)
+    const inverted = get().tracks.flatMap((t) => t.clips.map((c) => c.id)).filter((id) => !current.has(id))
+    set({ selectedClipIds: inverted, selectedClipId: inverted[0] ?? null })
+  },
+
+  selectClipsByTrack: (trackId) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track) return
+    const ids = track.clips.map((c) => c.id)
+    set({ selectedClipIds: ids, selectedClipId: ids[0] ?? null })
   },
 
   // --- Helpers ---

@@ -1,0 +1,172 @@
+import { useCallback, useState } from 'react'
+import { useProjectStore } from '../../stores/project'
+import { useEffectsStore } from '../../stores/effects'
+import { useEngineStore } from '../../stores/engine'
+import { LIMITS } from '../../../shared/limits'
+import DeviceCard from './DeviceCard'
+import ContextMenu from '../timeline/ContextMenu'
+import type { MenuItem } from '../timeline/ContextMenu'
+
+interface DeviceChainProps {
+  modulatedValues?: Record<string, Record<string, number>>
+}
+
+export default function DeviceChain({ modulatedValues }: DeviceChainProps) {
+  const effectChain = useProjectStore((s) => s.effectChain)
+  const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
+  const deviceGroups = useProjectStore((s) => s.deviceGroups)
+  const registry = useEffectsStore((s) => s.registry)
+  const lastFrameMs = useEngineStore((s) => s.lastFrameMs) ?? 0
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; effectId: string; index: number } | null>(null)
+
+  const handleSelect = useCallback((id: string) => {
+    useProjectStore.getState().selectEffect(id)
+  }, [])
+
+  const handleToggle = useCallback((id: string) => {
+    useProjectStore.getState().toggleEffect(id)
+  }, [])
+
+  const handleRemove = useCallback((id: string) => {
+    useProjectStore.getState().removeEffect(id)
+  }, [])
+
+  const handleUpdateParam = useCallback(
+    (effectId: string, paramName: string, value: number | string | boolean) => {
+      useProjectStore.getState().updateParam(effectId, paramName, value)
+    },
+    [],
+  )
+
+  const handleSetMix = useCallback((effectId: string, mix: number) => {
+    useProjectStore.getState().setMix(effectId, mix)
+  }, [])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, effectId: string, index: number) => {
+    e.preventDefault()
+    setContextMenu({ x: e.clientX, y: e.clientY, effectId, index })
+  }, [])
+
+  const closeContextMenu = useCallback(() => {
+    setContextMenu(null)
+  }, [])
+
+  /** Find the group this effect belongs to, if any */
+  const findGroupForEffect = useCallback((effectId: string): string | null => {
+    for (const [groupId, group] of Object.entries(deviceGroups)) {
+      if (group.effectIds.includes(effectId)) return groupId
+    }
+    return null
+  }, [deviceGroups])
+
+  /** Build context menu items for a given effect */
+  const buildMenuItems = useCallback((effectId: string, index: number): MenuItem[] => {
+    const items: MenuItem[] = []
+    const groupId = findGroupForEffect(effectId)
+
+    // "Group with Previous" — enabled when there's a previous effect and neither is already in the same group
+    if (index > 0) {
+      const prevEffect = effectChain[index - 1]
+      const prevGroup = findGroupForEffect(prevEffect.id)
+      const alreadyGrouped = groupId !== null && groupId === prevGroup
+      items.push({
+        label: 'Group with Previous',
+        disabled: alreadyGrouped,
+        action: () => {
+          useProjectStore.getState().groupEffects([prevEffect.id, effectId])
+        },
+      })
+    }
+
+    // "Ungroup" — only shown when effect is in a group
+    if (groupId) {
+      items.push({
+        label: 'Ungroup',
+        action: () => {
+          useProjectStore.getState().ungroupEffects(groupId)
+        },
+      })
+    }
+
+    return items
+  }, [effectChain, findGroupForEffect])
+
+  const chainTimeColor = lastFrameMs < 50 ? '#4ade80' : lastFrameMs < 100 ? '#f59e0b' : '#ef4444'
+
+  if (effectChain.length === 0) {
+    return (
+      <div className="device-chain" data-testid="device-chain">
+        <div className="device-chain__header">
+          <span className="device-chain__title">Device Chain</span>
+        </div>
+        <div className="device-chain__empty">
+          <span>Add effects from the browser</span>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="device-chain" data-testid="device-chain">
+      <div className="device-chain__header">
+        <span className="device-chain__title">Device Chain</span>
+        <span className="device-chain__info">
+          <span
+            className="device-chain__depth"
+            style={{ color: effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN ? '#ef4444' : '#666' }}
+          >
+            {effectChain.length} / {LIMITS.MAX_EFFECTS_PER_CHAIN}
+          </span>
+          {lastFrameMs > 0 && (
+            <span className="device-chain__timing" style={{ color: chainTimeColor }}>
+              {lastFrameMs.toFixed(0)}ms
+            </span>
+          )}
+        </span>
+      </div>
+
+      <div className="device-chain__strip" data-testid="device-chain-strip">
+        {effectChain.map((effect, index) => {
+          const info = registry.find((r) => r.id === effect.effectId)
+          const groupId = findGroupForEffect(effect.id)
+          return (
+            <div
+              key={effect.id}
+              className={`device-chain__item${groupId ? ' device-chain__item--grouped' : ''}`}
+              data-group-id={groupId ?? undefined}
+            >
+              {index > 0 && (
+                <span className="device-chain__arrow">&rarr;</span>
+              )}
+              <DeviceCard
+                effect={effect}
+                effectInfo={info}
+                isSelected={effect.id === selectedEffectId}
+                modulatedValues={modulatedValues?.[effect.id]}
+                onSelect={() => handleSelect(effect.id)}
+                onToggle={() => handleToggle(effect.id)}
+                onRemove={() => handleRemove(effect.id)}
+                onUpdateParam={handleUpdateParam}
+                onSetMix={handleSetMix}
+                onContextMenu={(e) => handleContextMenu(e, effect.id, index)}
+              />
+            </div>
+          )
+        })}
+      </div>
+
+      {contextMenu && (() => {
+        const items = buildMenuItems(contextMenu.effectId, contextMenu.index)
+        if (items.length === 0) return null
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={items}
+            onClose={closeContextMenu}
+          />
+        )
+      })()}
+    </div>
+  )
+}
