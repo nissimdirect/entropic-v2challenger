@@ -13,6 +13,16 @@ evidence: every factual claim has a file:line or PR# citation. No carried-forwar
 
 # Entropic v2 — State of the Union (2026-04-16)
 
+## TL;DR (30 seconds)
+
+Entropic v2 is a **feature-complete Electron glitch-video DAW**: 193 effects (90.7% under 100ms at 1080p, measured this session), Ableton-style arrangement view (device chain + A/B switch + device groups + trigger lanes + pop-out preview), multi-track compositing with 9 blend modes + per-track opacity, clip transforms with SVG direct manipulation, multi-codec export. **1,486 frontend tests + 12,768 backend tests collected.**
+
+**The one decision that controls release:** scope operators + modulation matrix **in or out of v1**. Code exists on disk but is intentionally unmounted (App.tsx:47 Sprint-2 removal). OUT → ship with 5 bug fixes + compound-interaction UAT (~4 sessions). IN → add 1-2 sessions to remount + 4-6 sessions to UAT.
+
+**5 open bugs** (BUG-6, 8, 11, 12, 13) — all P1-P3 in master plan severity; none cause crashes or data loss.
+
+---
+
 > **This artifact is the single source of truth for Entropic v2 current state.**
 > Built from first principles: direct code grep, PR history since 2026-02-28, handoff log.
 > Adversarially compared against the 2026-04-16 stock-take audit (which had 6 factual errors).
@@ -23,7 +33,7 @@ evidence: every factual claim has a file:line or PR# citation. No carried-forwar
 ## Method & Confidence
 
 - **Mount inventory:** grep of JSX elements + imports in `frontend/src/renderer/App.tsx` (the single top-level component). If it's not rendered somewhere downstream of `<AppInner />`, it's not user-reachable.
-- **Effect count:** live `registry.list_all()` returns **193** (verified this session by running `from effects import registry; print(len(registry.list_all()))`). EFFECTS-INVENTORY.md header says 189 — that doc is stale by 4 effects. Internal structure: 68 "original" imports + 67 "Phase 8" imports + 58 variant registrations (some effect modules register multiple modes).
+- **Effect count:** live `registry.list_all()` returns **193** (verified this session by running `from effects import registry; print(len(registry.list_all()))`). All 193 are top-level IDs — no `::variant` suffix (variants register as distinct top-level IDs). EFFECTS-INVENTORY.md header says 189 — that doc is stale by 4 effects. Subdivision between base imports + variant calls exists in `registry._auto_register()` but individual counts vary by grep boundary and aren't stable citations.
 - **Test counts:** live vitest run (`108 files · 1,486 pass · 4 skip · 0 fail`) and `pytest --collect-only` (`12,768 tests collected`).
 - **PR history:** `gh pr list --state all --limit 22` + `git log --since=2026-02-28 --oneline` — 15 PRs merged in the v2 lifecycle.
 - **Handoffs:** 10 handoff files since 2026-04-09 walked chronologically.
@@ -50,7 +60,8 @@ evidence: every factual claim has a file:line or PR# citation. No carried-forwar
 | cdad72c | 2026-04-16 | safety | Cascade-prune deviceGroups on removeEffect |
 | #19, #20 | 2026-04-16 | ci | CI OIDC perm + claude-review removal |
 | #21 | 2026-04-16 | tests | Orphan sprint1-7 test files (+355 tests landed) |
-| #22 | 2026-04-16 | audit | Stock-take audit (revised after ultrathink review — superseded by this doc) |
+
+(PR #22 is this audit thread itself — see Appendix C for correction history. Not shipped-code so not listed above.)
 
 ### What is mounted and user-reachable (from `App.tsx` JSX grep)
 ```
@@ -136,12 +147,12 @@ frontend/src/renderer/components/operators/
 | **Automation recording (knob → lane)** | ✅ | ✅ (when knobs drive lanes directly) | ⚠️ CU UAT limited | `automation-record.ts` | 🟡 UAT gap |
 | **Automation simplify (Douglas-Peucker)** | ✅ | ✅ | ✅ unit tests | `automation-simplify.ts` | 🟢 SHIP |
 | **MIDI (learn, pad editor, CC mapping) (PR #12)** | ✅ | ✅ `PadEditor` | ⚠️ needs hardware | `frontend/src/renderer/hooks/useMIDI.ts` (imported App.tsx:46); `frontend/src/renderer/stores/midi.ts`; CC mapping at `components/performance/applyCCModulations.ts` (App.tsx:43) | 🟡 UAT gap |
-| **Operator editors (LFO/Env/StepSeq/Fusion/AudioFollower/VideoAnalyzer)** | ✅ 6 on disk | 🟠 **UNMOUNTED** (App.tsx:47) | ❌ 33 UAT N/A | `components/operators/*.tsx` | 🟠 SHELVED |
-| **Modulation Matrix + Routing Lines** | ✅ | 🟠 UNMOUNTED | ❌ 26 UAT N/A | `ModulationMatrix.tsx`, `RoutingLines.tsx` | 🟠 SHELVED |
+| **Operator editors (LFO/Env/StepSeq/Fusion/AudioFollower/VideoAnalyzer)** | ✅ 6 on disk | 🟠 **UNMOUNTED** (App.tsx:47) | ❌ UAT blocked (operator-related sections are N/A — specific count not re-verified this session) | `components/operators/*.tsx` | 🟠 SHELVED |
+| **Modulation Matrix + Routing Lines** | ✅ | 🟠 UNMOUNTED | ❌ UAT blocked | `ModulationMatrix.tsx`, `RoutingLines.tsx` | 🟠 SHELVED |
 | **Operator backend pipeline** | ✅ | ✅ (IPC accepts serialized ops) | ⚠️ pipeline tested, UI path unverifiable | App.tsx:611-715 | 🟡 dark but working |
-| **Perf Tier 1-4 (10 effects optimized)** | ✅ | ✅ | ✅ benchmark | PR #16 (7 effects 12-100× faster) + PR #17 (hue_shift 16×, block_crystallize 2.7×, reaction_diffusion 2.3×) | 🟢 SHIP |
-| **Freeze / Flatten (Phase 10)** | ❌ | ❌ | ❌ | Plan `2026-03-15-phase10-freeze-library-plan.md` 0/57 | 🔴 NOT BUILT |
-| **Preset Library (Phase 10)** | ⚠️ partial | ⚠️ UI exists; persistence unclear | ⚠️ not CU-verified | App.tsx:1671 (PresetBrowser mount) + App.tsx:1955 (PresetSaveDialog); CU confirms PRESETS tab exists in sidebar | 🟡 incomplete |
+| **Perf Tier 1-4 (10 effects optimized; 90.7% of all 193 under 100ms at 1080p)** | ✅ | ✅ | ✅ benchmark (this session) | PR #16 (7 effects 12-100× faster) + PR #17 (hue_shift 16×, block_crystallize 2.7×, reaction_diffusion 2.3×). **Measured 2026-04-16:** 175/193 effects under 100ms at 1080p; 18 remain over (slowest: `fx.freq_flanger` 367ms, `fx.pixel_bubbles` 339ms). | 🟢 SHIP |
+| **FreezeManager engine (Phase 10)** | ❌ | ❌ | ❌ | Plan `2026-03-15-phase10-freeze-library-plan.md` 0/57 — `backend/src/engine/freeze.py` does not exist; no frozen-prefix short-circuit in pipeline | 🔴 NOT BUILT |
+| **Preset Browser UI (separate from Phase 10 engine)** | ✅ UI components mounted | ✅ `PresetBrowser` + `PresetSaveDialog` + Presets tab | ⚠️ persistence end-to-end not CU-verified | App.tsx:1671 (PresetBrowser mount), App.tsx:1955 (PresetSaveDialog); CU confirms PRESETS tab exists in sidebar | 🟡 incomplete (engine missing) |
 | **Welcome Screen + Preferences + About (PR #14)** | ✅ | ✅ | ⚠️ WelcomeScreen CU-verified this session | App.tsx:2016 (`WelcomeScreen`), App.tsx:1916 (`Preferences`), App.tsx:1920 (`AboutDialog`). CU screenshot #1: ENTROPIC v2.0.0 welcome + Recent Projects list | 🟡 UAT gap |
 | **Crash recovery + telemetry + feedback dialogs (IPC Security Sprint, 2026-03-01)** | ✅ | ✅ | ✅ wiring tests + CU-verified | `CrashRecoveryDialog.tsx` at App.tsx:1935, `TelemetryConsentDialog.tsx` at App.tsx:1929, `FeedbackDialog.tsx` at App.tsx:1945. CU confirmed CrashRecoveryDialog rendered ("Unsaved Session Found / Start Fresh / Restore Autosave") on launch. | 🟢 SHIP |
 | **Tempo / BPM field** | ⚠️ partial | ⚠️ partial | ⚠️ CU verified | `frontend/src/renderer/stores/project.ts:36-37` (`bpm: number`, `setBpm`, clamped 1-300 at :257). CU screenshot: BPM field visible in transport at 120. **BUT** tap tempo, beat grid, tempo-synced params, swing — grep returns 0 hits. Phase 12 POST-V1 features beyond the bare field are NOT built. | 🟡 partial (field only) |
@@ -164,7 +175,7 @@ frontend/src/renderer/components/operators/
 | Blend modes | 9 (normal, add, multiply, screen, overlay, difference, exclusion, darken, lighten) | `backend/src/engine/compositor.py:69` |
 | UAT guide total | inconsistent — header says 517, grand-total says 476 | `docs/UAT-UIT-GUIDE.md` lines 7, 1286 |
 | Dim Translation UAT | 19/19 PASS | `docs/UAT-RESULTS-DIM-TRANSLATION-2026-04-10.md` |
-| UI component files | "146 component types" (per 2026-04-10 master plan appendix line 8); COMPONENT-TEST-MATRIX itself re-verified "Sidebar ~37 elements, Device chain ~50 elements across 8 cards" | `docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md` line 8 + `docs/COMPONENT-TEST-MATRIX.md` header |
+| UI component files | "146 component types" per master plan appendix line 16 (shifted from line 8 after the 2026-04-16 SUPERSEDED banner was added); COMPONENT-TEST-MATRIX itself re-verified "Sidebar ~37 elements, Device chain ~50 elements across 8 cards" | `docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md` line 16 + `docs/COMPONENT-TEST-MATRIX.md` header |
 | BDD-specced components | 81 | `docs/COMPONENT-ACCEPTANCE-CRITERIA.md` |
 | Open bugs | 5 (BUG-6, 8, 11, 12, 13) | `docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md` (bug table) |
 | Bugs verified fixed | 11 of 16 originally reported | same |
@@ -177,11 +188,11 @@ The stock-take audit (PR #22) was corrected once (6 factual errors about opacity
 
 | # | What the stock-take said / didn't say | Reality | Source of truth |
 |---|---|---|---|
-| 1 | "~170 effects" | **193 effects registered** (live registry); EFFECTS-INVENTORY.md's "189 / 69+102+18" breakdown is stale | `registry.list_all()` run this session |
+| 1 | "~170 effects" | **193 effects registered** (live `registry.list_all()` this session). EFFECTS-INVENTORY.md's stale "189" header and "69 + 102 + 18" decomposition don't match live state. | `registry.list_all()` run this session |
 | 2 | Did not mention the Dimensional Translation PR (4dc64bd, 2026-04-11) at all | Shipped: multi-track video rendering, BoundingBoxOverlay (SVG handles), SnapGuides, scaleX/Y/anchor/flip, per-clip opacity, GPU-accelerated drag, 19/19 UAT PASS | `docs/DIMENSIONAL-TRANSLATION-PRD.md`, PR commit 4dc64bd |
 | 3 | Said "automation blocked on operators, 60 UAT N/A" | Partially wrong — `AutomationToolbar` IS mounted (App.tsx:1851) with Read/Latch/Touch/Draw mode switching. Manual automation recording (knob movement → lane) works without operators. Only OPERATOR-DRIVEN automation needs operators. | App.tsx:1851, `automation-record.ts` |
 | 4 | Said "RenderQueue pending (Sprint 7)" | **RenderQueue IS mounted** (App.tsx:1924) and reachable via state toggle | App.tsx:123, 1924 |
-| 5 | Did not mention Perf Tier 1-4 work | PR #16 optimized 7 effects 12-100× faster; PR #17 optimized 3 more (hue_shift 16×, block_crystallize 2.7×, reaction_diffusion 2.3×) = **10 effects total**. Baseline was 78% of effects under 100ms at 1080p (147/189 per PERF-OPTIMIZATION-PLAN.md); post-tier-1-4 estimate ~83% — exact current number not measured this session | PR #16, #17 titles; `docs/PERF-OPTIMIZATION-PLAN.md` |
+| 5 | Did not mention Perf Tier 1-4 work | PR #16 optimized 7 effects 12-100× faster; PR #17 optimized 3 more (hue_shift 16×, block_crystallize 2.7×, reaction_diffusion 2.3×) = **10 effects total**. Baseline was 78% of effects under 100ms at 1080p (147/189 per PERF-OPTIMIZATION-PLAN.md). **Measured 2026-04-16 this session: 175/193 = 90.7% under 100ms.** 18 effects remain over budget (slowest: `fx.freq_flanger` 367ms). | PR #16, #17 titles; live benchmark this session |
 
 Plus secondary gaps: no mention of `BoundingBoxOverlay` + `SnapGuides` as user-facing features; no mention of the post-v1 roadmap (`docs/addendums/POST-V1-ROADMAP.md` — Phase 12 tempo/BPM, Phase 13 transition library, 53+ transitions, follow actions, choke groups); no mention of the 2026-02-18 `ADVERSARIAL-FINDINGS.md` that locked in the v2 architecture choice.
 
@@ -192,17 +203,25 @@ Plus secondary gaps: no mention of `BoundingBoxOverlay` + `SnapGuides` as user-f
 ## Part 5 — Reconciled Current State (Single Source of Truth)
 
 **What Entropic v2 actually IS, in one paragraph:**
-A feature-complete Electron-based glitch video DAW with Ableton-style arrangement view. 193 effects across ~20 categories (baseline 78% under 100ms at 1080p; Perf Tier 1-4 optimized 10 of the 42 slowest — current estimate ~83% under target). Multi-track timeline with per-track opacity + blend modes (9 modes) + clip-level transforms (x/y/scaleX/Y/rotation/anchor/flip) + SVG direct manipulation (BoundingBoxOverlay + SnapGuides) + GPU-accelerated preview. Horizontal device chain with A/B switch, device groups (flat), trigger lanes as automation, pop-out preview. Multi-codec export (H.264, H.265, ProRes 422/4444, GIF, PNG/JPEG/TIFF sequence) with render queue. Performance mode with 4×4 pad grid + MIDI CC mapping + pad editor. Automation lanes with Read/Latch/Touch/Draw modes and Douglas-Peucker simplification. Crash recovery, telemetry consent, feedback dialog. 10,300+ to 14,000+ automated tests (depends on runner) across 108 vitest files and 12,768 pytest tests.
+A feature-complete Electron-based glitch video DAW with Ableton-style arrangement view. **193 effects across 24 categories** — **90.7% run under 100ms at 1080p** (measured this session). Multi-track timeline with per-track opacity + 9 blend modes + clip-level transforms (x/y/scaleX/Y/rotation/anchor/flip) + SVG direct manipulation (BoundingBoxOverlay + SnapGuides) + GPU-accelerated preview. Horizontal device chain with A/B switch, device groups (flat), trigger lanes as automation, pop-out preview. Multi-codec export (H.264, H.265, ProRes 422/4444, GIF, PNG/JPEG/TIFF sequence) with render queue. Performance mode: 4×4 pad grid + MIDI CC mapping + pad editor. Automation lanes with Read/Latch/Touch/Draw modes + Douglas-Peucker simplification. Crash recovery, telemetry consent, feedback dialog. **1,486 frontend tests pass + 12,768 backend tests collected.**
 
 **What is explicitly out:**
 - Operator editors (LFO/Env/StepSeq/Fusion/AudioFollower/VideoAnalyzer) — exist on disk, intentionally unmounted per App.tsx:47 Sprint-2 decision. Backend IPC still accepts their payload.
 - Modulation Matrix — same shelving decision.
 - Groups of groups (nested) — CTO amendment C2 explicitly flattens.
 - Track-level transforms — not in PRD.
-- Freeze / flatten / preset library — Phase 10 plan untouched (0/57).
-- Tempo/BPM, transitions library, musician-native features — explicitly post-v1 (POST-V1-ROADMAP.md).
+- Phase 10 FreezeManager engine — plan untouched (0/57). PresetBrowser + PresetSaveDialog UI ARE mounted (separate from Phase 10 engine).
+- Full Tempo/Musical-time (tap tempo, beat grid, tempo-synced params, swing, transitions library) — explicit post-v1 (POST-V1-ROADMAP.md Phases 12-13). Bare BPM field IS implemented at project.ts:36-37.
 
-**Five open bugs** (BUG-6, 8, 11, 12, 13) — all P1-P3, none block shipping for a beta release.
+**Five open bugs** (BUG-6, 8, 11, 12, 13) — severity P1-P3 per master plan's "should-fix" scale. BUG-12 and BUG-13 are labelled P1 ("should fix before release"). None cause crashes or data loss; all recoverable via alternate paths documented in master plan.
+
+## Known Inconsistencies (carry-forward from master plan)
+
+| Issue | Where | Fix scope |
+|---|---|---|
+| Preferences says "Max chain: 20"; EffectBrowser enforces 10 | `components/layout/Preferences.tsx` vs `components/effects/EffectBrowser.tsx` | 1-line change, pick one value |
+| Left-edge clip trim moves the clip instead of trimming in-point | `components/timeline/Clip.tsx` | Design decision — how should left-edge drag behave? |
+| hue_shift sweep test 0→360 = 0 diff (360° = 0°) | `backend/tests/test_all_effects.py` | Change sweep range to 0→180 (already flagged) |
 
 **Release-readiness:**
 - If v1 scope = "what's mounted": ~95% ready. Gate = 5 bug fixes + compound-interaction UAT (9 blend modes × visual verification + 3+ stacked effects + text over blended layer).
@@ -333,7 +352,7 @@ Counts from `registry.list_all()` grouped by category, run this session. Replace
 |---|---|---|---|
 | A | "189 effects registered" | **193** (live registry) | `registry.list_all()` |
 | B | "69 original + 102 Phase 8 + 18 aliases" breakdown | Stale EFFECTS-INVENTORY numbers; real registry structure differs (68 original imports, 67 Phase 8 imports, 58 variant calls) | registry.py + live count |
-| C | "91% of effects under 100ms at 1080p" | **78% baseline** (147/189) per PERF-OPTIMIZATION-PLAN.md; post-tier-1-4 estimate ~83%. "91%" was never in any doc — carried forward from a stale memory entry | PERF-OPTIMIZATION-PLAN.md lines 3-5 |
+| C | "91% of effects under 100ms at 1080p" | Draft had no source. PERF-OPTIMIZATION-PLAN.md baseline: 78% (147/189). **Measured this session: 175/193 = 90.7%** (pass 6). So the original "91%" was close to the truth but was an uncited guess; pass 4 correction to "~83% estimate" swung too low; pass 6 live measurement gets it right. | live benchmark this session; compare to PERF-OPTIMIZATION-PLAN.md baseline |
 | D | "11 effects optimized" by Perf Tier 1-4 | **10 effects** — PR #16 7 effects + PR #17 3 effects | PR #16, #17 titles |
 | E | "4955ms→546ms, 9.1× aggregate" perf figure | Number not found in any PR or doc. Likely from a stale memory entry | grep across docs/ |
 | F | UAT Section 14/15/16 counts (33/26/41) | Came from a subagent's hypothesis, never directly verified | UAT-UIT-GUIDE.md section structure |
@@ -352,3 +371,5 @@ Counts from `registry.list_all()` grouped by category, run this session. Replace
    - **NUANCE:** Track-header opacity slider + blend dropdown are **progressively disclosed (hover-revealed)** — not always visible. Default fresh track shows only M/S/A. User must hover the track header to see opacity/blend. `Track.tsx:223` conditions render on `(showExtras || isNonDefault)`.
 
 **Third correction lesson:** "file:line citation" is not enough — MUST also run the live tool (registry, tests, etc.) to verify the current-state number. And for UI features, computer-use verification of mount state is the ultimate source of truth — component files imported ≠ component visible under default state. See `~/.claude/projects/-Users-nissimagent/memory/feedback_audits-are-evidence-generators.md` for the rule this session should have followed on pass 1.
+
+6. **Content + sourcing review (pass 6, this commit):** third content review uncovered (a) Tempo/Preset contradiction between Part 2 and Part 5, (b) vague test-count hand-waving ("10,300-14,000"), (c) unverified Subagent-derived UAT counts (33/26/41 for sections 14/15/16), (d) missing TL;DR, (e) PR #22 self-reference in shipped table, (f) citation bug ("master plan appendix line 8" after banner shifted actual line to 16), (g) fragile "68+67+58" effect decomposition. Fixed all. Also measured actual 1080p-under-100ms rate: **175/193 = 90.7%** (replaces the pass-4 estimate of ~83%). Added "Known Inconsistencies" section (Preferences max-chain 20 vs EffectBrowser 10; left-edge clip trim; hue_shift sweep).
