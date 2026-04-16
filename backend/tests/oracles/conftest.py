@@ -129,6 +129,31 @@ def per_pixel_l1_distance(path_a: Path, path_b: Path) -> float:
     return float(np.abs(a - b).mean())
 
 
+def nth_frame_l1_distance(path_a: Path, path_b: Path, n: int = 10) -> float:
+    """Mean per-pixel L1 distance at frame N.
+
+    Use for temporal effects whose first frame is often pass-through — state
+    accumulates by frame 10-30, revealing the effect's signature.
+    """
+
+    def _nth(path: Path) -> np.ndarray:
+        cap = cv2.VideoCapture(str(path))
+        frame = None
+        for _ in range(n + 1):
+            ok, frame = cap.read()
+            if not ok:
+                break
+        cap.release()
+        assert frame is not None, f"could not read frame {n} of {path}"
+        return frame
+
+    a = _nth(path_a).astype(np.int16)
+    b = _nth(path_b).astype(np.int16)
+    if a.shape != b.shape:
+        raise AssertionError(f"frame shape mismatch at n={n}: {a.shape} vs {b.shape}")
+    return float(np.abs(a - b).mean())
+
+
 def laplacian_variance(path: Path) -> float:
     """Sharpness signal — high-frequency content. Blur reduces this drastically."""
     frame = first_frame_bgr(path)
