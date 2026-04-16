@@ -8,6 +8,7 @@ CRITICAL: All blend math uses float32 to avoid uint8 overflow/wrap.
 
 import logging
 
+import cv2
 import numpy as np
 
 from engine.pipeline import apply_chain
@@ -122,6 +123,16 @@ def render_composite(
             )
         else:
             processed = frame
+
+        # Skip degenerate frames (zero-dimension)
+        if processed.shape[0] == 0 or processed.shape[1] == 0:
+            continue
+
+        # Resize layer to match canvas if dimensions differ
+        if processed.shape[:2] != (height, width):
+            processed = cv2.resize(
+                processed, (width, height), interpolation=cv2.INTER_LINEAR
+            )
 
         # Convert to float32 for blend math
         layer_f = processed.astype(np.float32)

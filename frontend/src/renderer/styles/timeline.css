@@ -493,6 +493,8 @@
   overflow: hidden;
   text-overflow: ellipsis;
   cursor: text;
+  user-select: none;
+  padding: 2px 0;
 }
 
 .track-header__rename-input {
@@ -538,6 +540,71 @@
 .track-header__btn--active {
   background: #4ade80;
   color: #1a1a1a;
+}
+
+/* --- Track Opacity Slider --- */
+
+.track-header__opacity {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 4px;
+}
+
+.track-header__opacity input[type="range"] {
+  width: 40px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #333;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+.track-header__opacity input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #4ade80;
+  cursor: pointer;
+}
+
+.track-header__opacity-label {
+  font-size: 9px;
+  color: #888;
+  min-width: 22px;
+  text-align: right;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* --- Track Blend Mode Dropdown --- */
+
+.track-header__blend {
+  height: 20px;
+  max-width: 48px;
+  background: #333;
+  border: none;
+  border-radius: 2px;
+  color: #888;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 2px;
+  outline: none;
+}
+
+.track-header__blend:hover {
+  background: #444;
+  color: #fff;
+}
+
+.track-header__blend:focus {
+  border: 1px solid #4ade80;
+  color: #e5e5e5;
 }
 
 /* --- Track Lane --- */

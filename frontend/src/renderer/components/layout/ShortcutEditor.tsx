@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { shortcutRegistry, keyEventToString } from '../../utils/shortcuts'
 import type { ShortcutBinding } from '../../utils/shortcuts'
 
-const CATEGORIES = ['Transport', 'Edit', 'Timeline', 'View', 'Project'] as const
+const CATEGORIES = ['Transport', 'Edit', 'Timeline', 'View', 'Automation', 'Project'] as const
 
 export default function ShortcutEditor() {
   const [bindings, setBindings] = useState<ShortcutBinding[]>([])

@@ -1,5 +1,6 @@
 /**
- * DeviceGroup store tests (Quality Fix 2).
+ * DeviceGroup store tests — metadata-only groups.
+ * Groups are stored as metadata in deviceGroups, not mixed into effectChain.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useProjectStore } from '../../renderer/stores/project'
@@ -22,6 +23,7 @@ const FX3: EffectInstance = {
 function reset() {
   useProjectStore.setState({
     effectChain: [{ ...FX1 }, { ...FX2 }, { ...FX3 }],
+    deviceGroups: {},
     selectedEffectId: null,
     assets: {},
     currentFrame: 0,
@@ -34,14 +36,13 @@ function reset() {
   useUndoStore.getState().clear()
 }
 
-describe('groupEffects', () => {
+describe('groupEffects (metadata-only)', () => {
   beforeEach(reset)
 
   it('rejects grouping fewer than 2 effects', () => {
     const result = useProjectStore.getState().groupEffects(['fx-1'])
     expect(result).toBeNull()
-    // Chain unchanged
-    expect(useProjectStore.getState().effectChain).toHaveLength(3)
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
   })
 
   it('rejects grouping 0 effects', () => {
@@ -52,18 +53,23 @@ describe('groupEffects', () => {
   it('groups 2 effects and returns group ID', () => {
     const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'], 'My Group')
     expect(groupId).toBeTruthy()
-    // Chain should now have 2 items: group + fx-3
-    expect(useProjectStore.getState().effectChain).toHaveLength(2)
+    // Chain unchanged — groups are metadata only
+    expect(useProjectStore.getState().effectChain).toHaveLength(3)
+    // Group metadata created
+    const groups = useProjectStore.getState().deviceGroups
+    expect(groups[groupId!]).toBeDefined()
+    expect(groups[groupId!].name).toBe('My Group')
+    expect(groups[groupId!].effectIds).toEqual(['fx-1', 'fx-2'])
   })
 
   it('grouping is undoable', () => {
-    useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])
-    expect(useProjectStore.getState().effectChain).toHaveLength(2)
+    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(1)
 
     useUndoStore.getState().undo()
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
+    // Chain never changed
     expect(useProjectStore.getState().effectChain).toHaveLength(3)
-    expect(useProjectStore.getState().effectChain[0].id).toBe('fx-1')
-    expect(useProjectStore.getState().effectChain[1].id).toBe('fx-2')
   })
 
   it('rejects non-existent effect IDs', () => {
@@ -71,10 +77,38 @@ describe('groupEffects', () => {
     expect(result).toBeNull()
   })
 
-  it('group replaces effects at first effect position', () => {
+  it('chain is not modified by grouping', () => {
     useProjectStore.getState().groupEffects(['fx-2', 'fx-3'])
     const chain = useProjectStore.getState().effectChain
-    // fx-1 should still be first, group should be second
     expect(chain[0].id).toBe('fx-1')
+    expect(chain[1].id).toBe('fx-2')
+    expect(chain[2].id).toBe('fx-3')
+  })
+})
+
+describe('ungroupEffects', () => {
+  beforeEach(reset)
+
+  it('removes group metadata', () => {
+    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(1)
+
+    useProjectStore.getState().ungroupEffects(groupId)
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
+  })
+
+  it('ungrouping is undoable', () => {
+    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    useProjectStore.getState().ungroupEffects(groupId)
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
+
+    useUndoStore.getState().undo()
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(1)
+  })
+
+  it('no-ops for non-existent group', () => {
+    useProjectStore.getState().ungroupEffects('non-existent')
+    // No error, no state change
+    expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
   })
 })

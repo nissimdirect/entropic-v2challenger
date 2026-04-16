@@ -5,7 +5,7 @@
 > **Build:** dev mode (`npm start` / `electron-vite dev`)
 > **Duration:** ~8 hours across multiple sessions
 > **Coverage:** Sections 1-21 of UAT-UIT-GUIDE.md v4.3
-> **Updated:** Pass 12 — all categories, knob params, multi-tag filtering, search, Adjustments inventory
+> **Updated:** 2026-04-11 — all 12 remaining bugs verified implemented (Sprint 1-3). Pass 12 — all categories, knob params, multi-tag filtering, search, Adjustments inventory
 
 ---
 
@@ -22,7 +22,7 @@
 | N/A | 11 | not reachable via computer use or UI not wired |
 | PARTIAL | 1 | |
 | Sections covered | 21/21 | |
-| Bugs found (total) | 16 | 4 fixed, 12 unfixed |
+| Bugs found (total) | 16 | 4 fixed, 0 unfixed (all 12 verified implemented 2026-04-11) |
 | Coverage vs UAT guide (574 tests) | **48%** | 274/574 unique tests verified |
 
 ---
@@ -62,18 +62,21 @@
 - **Severity:** Low
 - **Root cause:** Scroll events may not be captured on the knob component, or are consumed by the parent panel
 - **Status:** UNFIXED — needs investigation in KnobControl component
+- **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 
 ### BUG-6: "No effects found" message hidden below fold
 - **Test:** 265 (also observed in Tests 12, 34)
 - **Severity:** Low (UX)
 - **Root cause:** Category tags take up most of sidebar space at smaller window sizes. Effect list (including "No effects found" empty state) is pushed below visible area.
 - **Status:** UNFIXED — sidebar needs scroll container or collapsible tags
+- **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 
 ### BUG-7: Preview thumbnail persists after New Project
 - **Test:** 180
 - **Severity:** Low (cosmetic)
 - **Root cause:** `frameDataUrl` state and/or canvas content not fully cleared on Cmd+N. Preview shows stale thumbnail from previous session.
 - **Status:** UNFIXED — preview canvas should render "No video loaded" after new project
+- **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 
 ### BUG-8: Export button unreachable when macOS dock overlaps
 - **Test:** 189
@@ -86,6 +89,7 @@
 - **Severity:** Medium (missing interaction)
 - **Root cause:** Knob value display is not clickable/editable. No inline number input opens on double-click.
 - **Status:** UNFIXED — NumberInput component exists but may not be wired to knob values
+- **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 
 ---
 
@@ -202,7 +206,9 @@ These tests were actually clicked through with computer use after the initial pa
 
 ### New Bugs Found (Pass 3)
 - **BUG-10:** Arrow keys don't change knob value (Test 90) — knob may not receive keyboard focus
+  - **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 - **BUG-11:** Track rename via double-click unreliable (Test 124) — input field doesn't consistently appear. **UPDATE:** Right-click context menu has "Rename Track" which IS accessible.
+  - **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 
 ---
 
@@ -561,23 +567,36 @@ These tests CANNOT be done via computer use and require a human:
 
 ### New Bug Found
 - **BUG-12:** JKL transport shortcuts (Forward/Stop/Reverse) are mapped in Preferences > Shortcuts but don't function. Only Space (play/pause) works for transport.
+  - **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 
 ---
 
-## Remaining Bugs to Fix (8 unfixed)
+## Remaining Bugs to Fix (0 unfixed — all verified 2026-04-11)
 
 1. **BUG-5: Scroll wheel on knob** — Low severity, investigate KnobControl scroll handler
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 2. **BUG-6: Effect list hidden below category tags** — Low severity, sidebar needs scrollable container or collapsible tags
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 3. **BUG-7: Preview thumbnail persists after New Project** — Low severity, clear frameDataUrl/canvas on Cmd+N
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 4. **BUG-9: Double-click on knob value doesn't open number input** — Medium severity
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 5. **BUG-10: Arrow keys don't change knob value** — Low severity, knob may not receive keyboard focus
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 6. **BUG-11: Track rename via double-click unreliable** — Low severity (right-click menu works)
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 7. **BUG-8: Export button unreachable when dock/other app overlaps** — Low severity (environment-specific)
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 8. **BUG-12: JKL transport shortcuts non-functional** — Low severity, mapped but not wired
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 9. **BUG-13: Speed/Duration dialog doesn't open** — Medium severity, menu item exists but no dialog
+   **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 10. **BUG-14: Cmd+D (Duplicate Effect) non-functional** — Low severity, mapped in shortcuts but doesn't duplicate
+    **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 11. **BUG-15: Delete/Backspace key doesn't delete selected clip** — Low severity (right-click > Delete works)
+    **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 12. **BUG-16: Shift/Cmd drag modifiers don't change knob sensitivity** — Low severity, fine/coarse adjustment not wired
+    **UPDATE 2026-04-11:** Verified implemented. See Sprint 1-3 in `docs/plans/2026-04-10-phase-next-eng-pickup.md`. 267 new tests confirm all wiring.
 
 ---
 

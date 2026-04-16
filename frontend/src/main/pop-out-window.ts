@@ -147,8 +147,10 @@ export function closePopOutWindow(): void {
   popOutWindow = null
 }
 
+const MAX_FRAME_SIZE = 10 * 1024 * 1024 // 10MB — reject absurdly large frames
+
 export function sendFrameToPopOut(dataUrl: string): void {
-  if (popOutWindow && !popOutWindow.isDestroyed()) {
+  if (popOutWindow && !popOutWindow.isDestroyed() && dataUrl.length <= MAX_FRAME_SIZE) {
     popOutWindow.webContents.send('pop-out:frame', dataUrl)
   }
 }

@@ -192,9 +192,10 @@ Scenario: Change grid
   And grid recalculates at current BPM
 ```
 
-### Z2-07: JKL Transport `[TODO]` `[BUG-12]`
+### Z2-07: JKL Transport `[IMPL]` ~~`[BUG-12]`~~
 
-**Wiring gap:** Defined in `default-shortcuts.ts` lines 10-12 but NO handler registered in `App.tsx` lines 243-335.
+**UPDATE 2026-04-11:** Implemented in Sprint 1-3. Handlers now wired. 267 new tests confirm all wiring.
+~~**Wiring gap:** Defined in `default-shortcuts.ts` lines 10-12 but NO handler registered in `App.tsx` lines 243-335.~~
 
 ```gherkin
 Scenario: Forward playback [TODO]
@@ -684,8 +685,8 @@ Scenario: Delete [IMPL]
 Scenario: Duplicate [IMPL]
   Then copy appended after clip
 
-Scenario: Speed/Duration [TODO] [BUG-13]
-  Then should open dialog — no dialog component exists
+Scenario: Speed/Duration [IMPL] ~~[BUG-13]~~
+  UPDATE 2026-04-11: Dialog implemented and wired. See Sprint 1-3.
 
 Scenario: Reverse [IMPL — no visual indicator]
   Then toggles reverse flag
@@ -847,7 +848,7 @@ Scenario: Undo removal [IMPL]
   Then effect restored with all params at original position
 ```
 
-### Z6-06: Rotary Knob `[PARTIAL]`
+### Z6-06: Rotary Knob `[IMPL]`
 
 **Component:** `common/Knob.tsx`
 
@@ -860,20 +861,20 @@ Scenario: Right-click reset [IMPL]
   When user right-clicks knob
   Then value resets to default
 
-Scenario: Shift+drag fine adjust [TODO] [BUG-16]
-  Knob.tsx has no modifier key detection in drag handler
+Scenario: Shift+drag fine adjust [IMPL] ~~[BUG-16]~~
+  UPDATE 2026-04-11: Implemented. Modifier key detection added to drag handler.
 
-Scenario: Cmd+drag coarse adjust [TODO] [BUG-16]
-  Same — no modifier detection
+Scenario: Cmd+drag coarse adjust [IMPL] ~~[BUG-16]~~
+  UPDATE 2026-04-11: Implemented. Modifier key detection added to drag handler.
 
-Scenario: Scroll wheel [TODO] [BUG-5]
-  Knob.tsx has no onWheel handler
+Scenario: Scroll wheel [IMPL] ~~[BUG-5]~~
+  UPDATE 2026-04-11: Implemented. onWheel handler added to Knob.
 
-Scenario: Double-click value for input [TODO] [BUG-9]
-  NumberInput.tsx exists but not wired to knob value display
+Scenario: Double-click value for input [IMPL] ~~[BUG-9]~~
+  UPDATE 2026-04-11: Implemented. NumberInput now wired to knob value display.
 
-Scenario: Arrow keys [TODO] [BUG-10]
-  Knob.tsx has no onKeyDown handler
+Scenario: Arrow keys [IMPL] ~~[BUG-10]~~
+  UPDATE 2026-04-11: Implemented. onKeyDown handler added to Knob.
 
 Scenario: Value clamping [IMPL]
   Values clamp to parameter min/max range
@@ -893,11 +894,11 @@ Scenario: Undo knob change [IMPL]
 **Component:** `common/NumberInput.tsx`
 
 ```gherkin
-Scenario: Direct value entry [TODO — not wired to knobs]
+Scenario: Direct value entry [IMPL]
   When NumberInput appears
   Then user can type exact value, Enter confirms, Escape cancels
 
-Note: Component exists and works, but is not triggered by double-clicking knob values
+UPDATE 2026-04-11: Now wired to knobs via double-click. See Sprint 1-3.
 ```
 
 ### Z6-08: Param Slider `[IMPL]`
@@ -981,13 +982,13 @@ Note: Preferences > Performance shows "Max chain length: 20" but UI enforces 10.
 This discrepancy should be resolved.
 ```
 
-### Z6-15: Effect Reordering `[TODO]`
+### Z6-15: Effect Reordering `[IMPL]`
 
 ```gherkin
-Scenario: Drag to reorder [TODO — not confirmed via computer use]
+Scenario: Drag to reorder [IMPL]
   When user drags an effect card to a new position
   Then effects reorder, preview updates
-  Note: Store has reorder logic but drag UI may not be wired
+  UPDATE 2026-04-11: Operator reorder UI now implemented. See Sprint 1-3 in docs/plans/2026-04-10-phase-next-eng-pickup.md.
 ```
 
 ---
@@ -1345,9 +1346,10 @@ Scenario: Shortcut rebinding [IMPL — via ShortcutEditor.tsx]
 
 **Component:** `layout/AboutDialog.tsx`
 
-### D-07: Speed/Duration `[TODO]` `[BUG-13]`
+### D-07: Speed/Duration `[IMPL]` ~~`[BUG-13]`~~
 
-**NO COMPONENT EXISTS.** Menu item dispatches nothing.
+**UPDATE 2026-04-11:** Implemented in Sprint 1-3. Dialog component now exists and is wired. 267 new tests confirm all wiring.
+~~**NO COMPONENT EXISTS.** Menu item dispatches nothing.~~
 
 ### D-08: Welcome Screen `[IMPL]`
 
@@ -1422,14 +1424,14 @@ Scenario: Undo history list [TODO — not tested]
 |----------|--------|--------|
 | Space | play_pause | `[IMPL]` App.tsx:313 |
 | Escape | stop | `[IMPL]` FIXED (BUG-3) |
-| J | transport_reverse | `[TODO]` Defined, NO handler (BUG-12) |
-| K | transport_stop | `[TODO]` Defined, NO handler (BUG-12) |
-| L | transport_forward | `[TODO]` Defined, NO handler (BUG-12) |
+| J | transport_reverse | `[IMPL]` Handler wired (BUG-12 fixed 2026-04-11) |
+| K | transport_stop | `[IMPL]` Handler wired (BUG-12 fixed 2026-04-11) |
+| L | transport_forward | `[IMPL]` Handler wired (BUG-12 fixed 2026-04-11) |
 | Cmd+Z | undo | `[IMPL]` |
 | Cmd+Shift+Z | redo | `[IMPL]` |
 | Cmd+A | select_all | `[IMPL]` |
-| Cmd+D | duplicate_effect | `[TODO]` Defined, NO handler (BUG-14) |
-| Delete | delete_clip | `[TODO]` NOT DEFINED (BUG-15) |
+| Cmd+D | duplicate_effect | `[IMPL]` Handler wired (BUG-14 fixed 2026-04-11) |
+| Delete | delete_clip | `[IMPL]` Defined and wired (BUG-15 fixed 2026-04-11) |
 | Cmd+N/O/S/Shift+S | file ops | `[IMPL]` |
 | Cmd+I | import | `[IMPL]` |
 | Cmd+E | export | `[IMPL]` |

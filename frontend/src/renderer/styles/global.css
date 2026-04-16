@@ -526,6 +526,8 @@ body {
   flex-wrap: wrap;
   gap: 4px;
   padding: 0 12px 8px;
+  max-height: 72px;
+  overflow-y: auto;
 }
 
 .effect-browser__cat-btn {
@@ -1255,7 +1257,7 @@ body {
   border-radius: 8px;
   width: 360px;
   max-width: 90vw;
-  max-height: 85vh;
+  max-height: min(80vh, calc(100vh - 80px));
   display: flex;
   flex-direction: column;
 }

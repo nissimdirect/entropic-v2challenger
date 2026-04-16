@@ -328,6 +328,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   setTrackOpacity: (id, opacity) => {
+    if (!Number.isFinite(opacity)) return
     const track = get().tracks.find((t) => t.id === id)
     if (!track) return
     const oldOpacity = track.opacity
@@ -623,6 +624,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   setClipSpeed: (clipId, speed) => {
+    if (!Number.isFinite(speed)) return
     let oldSpeed = 1
     for (const track of get().tracks) {
       const clip = track.clips.find((c) => c.id === clipId)

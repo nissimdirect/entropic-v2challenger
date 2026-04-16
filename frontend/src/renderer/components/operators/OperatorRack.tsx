@@ -47,6 +47,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
   const addOperator = useOperatorStore((s) => s.addOperator)
   const removeOperator = useOperatorStore((s) => s.removeOperator)
   const setEnabled = useOperatorStore((s) => s.setOperatorEnabled)
+  const reorderOperators = useOperatorStore((s) => s.reorderOperators)
 
   const [showAddMenu, setShowAddMenu] = useState(false)
 
@@ -84,7 +85,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
         <div className="operator-rack__empty">No operators — click + Add to create one</div>
       ) : (
         <div className="operator-rack__cards">
-          {operators.map((op) => {
+          {operators.map((op, index) => {
             const cssType = TYPE_CSS[op.type] ?? 'lfo'
             const badge = TYPE_BADGE[op.type] ?? '?'
             const signalValue = operatorValues[op.id] ?? 0
@@ -107,6 +108,22 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
                   </span>
                   <span className={`operator-card__active-dot${isActive ? '' : ' operator-card__active-dot--inactive'}`} />
                   <div className="operator-card__controls">
+                    <button
+                      className="operator-card__move-up"
+                      disabled={index === 0}
+                      onClick={() => reorderOperators(index, index - 1)}
+                      title="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      className="operator-card__move-down"
+                      disabled={index === operators.length - 1}
+                      onClick={() => reorderOperators(index, index + 1)}
+                      title="Move down"
+                    >
+                      ↓
+                    </button>
                     <button
                       className="operator-card__toggle-btn"
                       onClick={() => setEnabled(op.id, !op.isEnabled)}

@@ -19,6 +19,7 @@ interface DeviceCardProps {
   onRemove: () => void
   onUpdateParam: (effectId: string, paramName: string, value: number | string | boolean) => void
   onSetMix: (effectId: string, mix: number) => void
+  onContextMenu?: (e: React.MouseEvent) => void
 }
 
 export default function DeviceCard({
@@ -31,6 +32,7 @@ export default function DeviceCard({
   onRemove,
   onUpdateParam,
   onSetMix,
+  onContextMenu,
 }: DeviceCardProps) {
   const handleKnobChange = useCallback(
     (key: string, def: ParamDef, value: number) => {
@@ -65,7 +67,7 @@ export default function DeviceCard({
 
   if (!effectInfo) {
     return (
-      <div className="device-card device-card--error" data-testid="device-card" onClick={onSelect}>
+      <div className="device-card device-card--error" data-testid="device-card" onClick={onSelect} onContextMenu={onContextMenu}>
         <div className="device-card__header">
           <span className="device-card__name">{effect.effectId}</span>
         </div>
@@ -84,6 +86,7 @@ export default function DeviceCard({
       className={`device-card${isSelected ? ' device-card--selected' : ''}${!effect.isEnabled ? ' device-card--disabled' : ''}`}
       data-testid="device-card"
       onClick={onSelect}
+      onContextMenu={onContextMenu}
     >
       {/* Header */}
       <div className="device-card__header">

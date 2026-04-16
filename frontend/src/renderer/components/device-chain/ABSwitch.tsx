@@ -19,6 +19,12 @@ export default function ABSwitch({ effectId, isActive, activeSlot }: ABSwitchPro
     }
   }
 
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    useProjectStore.getState().deactivateAB(effectId)
+  }
+
   if (!isActive) {
     return (
       <button
@@ -37,7 +43,8 @@ export default function ABSwitch({ effectId, isActive, activeSlot }: ABSwitchPro
       className="ab-switch ab-switch--active"
       data-testid="ab-switch"
       onClick={handleClick}
-      title={`${activeSlot === 'a' ? 'A active' : 'B active'} — Click to toggle, Shift+click to copy`}
+      onContextMenu={handleContextMenu}
+      title={`${activeSlot === 'a' ? 'A active' : 'B active'} — Click to toggle, Shift+click to copy, Right-click to deactivate`}
     >
       <span className={activeSlot === 'a' ? 'ab-switch__slot--active' : 'ab-switch__slot--dim'}>A</span>
       <span className={activeSlot === 'b' ? 'ab-switch__slot--active' : 'ab-switch__slot--dim'}>B</span>

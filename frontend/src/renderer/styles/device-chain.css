@@ -300,3 +300,12 @@
 .device-chain__strip::-webkit-scrollbar-thumb:hover {
   background: #444;
 }
+
+/* --- Device Groups (Phase 14B) --- */
+
+.device-chain__item--grouped {
+  border-top: 2px solid #9B7BB5;
+  border-radius: 4px;
+  margin-top: -2px;
+  padding-top: 2px;
+}

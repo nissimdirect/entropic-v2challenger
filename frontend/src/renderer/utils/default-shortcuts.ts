@@ -33,6 +33,10 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'toggle_quantize',   keys: 'meta+u',         category: 'view',      label: 'Toggle Quantize',    context: 'normal' },
   { action: 'split_at_playhead', keys: 'meta+k',         category: 'timeline',  label: 'Split at Playhead',  context: 'normal' },
 
+  // --- Automation ---
+  { action: 'automation_copy',  keys: 'meta+shift+c', category: 'automation', label: 'Copy Automation Region',       context: 'normal' },
+  { action: 'automation_paste', keys: 'meta+shift+v', category: 'automation', label: 'Paste Automation at Playhead', context: 'normal' },
+
   // --- Project ---
   { action: 'save',              keys: 'meta+s',         category: 'project',   label: 'Save Project',        context: 'normal' },
   { action: 'open',              keys: 'meta+o',         category: 'project',   label: 'Open Project',        context: 'normal' },

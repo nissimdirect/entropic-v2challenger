@@ -1,10 +1,11 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
-import type { Track as TrackType } from '../../../shared/types'
+import type { Track as TrackType, BlendMode, TriggerMode } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
 import { useAutomationStore } from '../../stores/automation'
+import { useEffectsStore } from '../../stores/effects'
 import ClipComponent from './Clip'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
@@ -21,6 +22,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameText, setRenameText] = useState(track.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const [showExtras, setShowExtras] = useState(false)
 
   // Auto-select text when rename input appears
   useEffect(() => {
@@ -58,12 +60,50 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const getTrackMenuItems = useCallback((): MenuItem[] => {
     const store = useTimelineStore.getState()
     const idx = store.tracks.findIndex((t) => t.id === track.id)
+    const currentTrack = store.tracks[idx]
+
+    // Build automation lane menu items from track's effect chain
+    const autoItems: MenuItem[] = []
+    if (currentTrack && currentTrack.effectChain.length > 0) {
+      const registry = useEffectsStore.getState().registry
+      const autoState = useAutomationStore.getState()
+      const existingLanes = autoState.getLanesForTrack(track.id)
+      const existingPaths = new Set(existingLanes.map((l) => l.paramPath))
+      const laneColors = ['#4ade80', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899']
+
+      for (const effect of currentTrack.effectChain) {
+        const info = registry.find((r) => r.id === effect.effectId)
+        if (!info) continue
+        for (const [key, def] of Object.entries(info.params)) {
+          if (def.type !== 'float' && def.type !== 'int') continue
+          const paramPath = `${effect.id}.${key}`
+          if (existingPaths.has(paramPath)) continue
+          const color = laneColors[existingLanes.length % laneColors.length]
+          autoItems.push({
+            label: `Add Lane: ${info.name} > ${def.label}`,
+            action: () => autoState.addLane(track.id, effect.id, key, color),
+          })
+          autoItems.push({
+            label: `Add Trigger: ${info.name} > ${def.label}`,
+            action: () => {
+              const defaultMode: TriggerMode = 'gate'
+              autoState.addTriggerLane(track.id, effect.id, key, color, defaultMode)
+            },
+          })
+        }
+      }
+    }
+
     return [
       { label: 'Duplicate Track', action: () => store.duplicateTrack(track.id) },
       { label: 'Rename Track', action: startRename },
       { label: '', action: () => {}, separator: true },
       { label: 'Move Up', action: () => store.reorderTrack(idx, idx - 1), disabled: idx <= 0 },
       { label: 'Move Down', action: () => store.reorderTrack(idx, idx + 1), disabled: idx >= store.tracks.length - 1 },
+      ...(autoItems.length > 0 ? [
+        { label: '', action: () => {}, separator: true },
+        ...autoItems,
+      ] : []),
       { label: '', action: () => {}, separator: true },
       { label: 'Delete Track', action: () => store.removeTrack(track.id) },
     ]
@@ -94,12 +134,44 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     [track.id],
   )
 
+  const handleOpacityChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      e.stopPropagation()
+      useTimelineStore.getState().setTrackOpacity(track.id, parseFloat(e.target.value))
+    },
+    [track.id],
+  )
+
+  const handleBlendModeChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      e.stopPropagation()
+      useTimelineStore.getState().setTrackBlendMode(track.id, e.target.value as BlendMode)
+    },
+    [track.id],
+  )
+
+  const BLEND_MODES: { value: BlendMode; label: string }[] = [
+    { value: 'normal', label: 'Nor' },
+    { value: 'add', label: 'Add' },
+    { value: 'multiply', label: 'Mul' },
+    { value: 'screen', label: 'Scr' },
+    { value: 'overlay', label: 'Ovr' },
+    { value: 'difference', label: 'Dif' },
+    { value: 'exclusion', label: 'Exc' },
+    { value: 'darken', label: 'Drk' },
+    { value: 'lighten', label: 'Ltn' },
+  ]
+
+  const isNonDefault = track.opacity !== 1 || track.blendMode !== 'normal'
+
   return (
     <>
       <div
         className={`track-header${isSelected ? ' track-header--selected' : ''}`}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
+        onMouseEnter={() => setShowExtras(true)}
+        onMouseLeave={() => setShowExtras(false)}
       >
         <div className="track-header__color" style={{ background: track.color }} />
         <div className="track-header__info">
@@ -148,6 +220,35 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           >
             A
           </button>
+          {(showExtras || isNonDefault) && (
+            <>
+              <div className="track-header__opacity" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={track.opacity}
+                  onChange={handleOpacityChange}
+                  title={`Opacity: ${Math.round(track.opacity * 100)}%`}
+                />
+                <span className="track-header__opacity-label">
+                  {Math.round(track.opacity * 100)}%
+                </span>
+              </div>
+              <select
+                className="track-header__blend"
+                value={track.blendMode}
+                onChange={handleBlendModeChange}
+                onClick={(e) => e.stopPropagation()}
+                title="Blend mode"
+              >
+                {BLEND_MODES.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
       {ctxMenu && (

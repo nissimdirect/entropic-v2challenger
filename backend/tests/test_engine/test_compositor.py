@@ -218,3 +218,96 @@ class TestEdgeCases:
         result = render_composite(layers, RESOLUTION)
         assert result.dtype == np.uint8
         assert result.shape == (100, 100, 4)
+
+
+class TestResolutionMismatch:
+    """Layers with different resolutions than the canvas should be resized."""
+
+    def test_smaller_layer_resized_to_canvas(self):
+        """A 50x50 layer composited onto a 100x100 canvas."""
+        small_frame = np.full((50, 50, 4), [200, 100, 50, 255], dtype=np.uint8)
+        result = render_composite(
+            [make_layer(small_frame)],
+            RESOLUTION,  # 100x100
+        )
+        assert result.shape == (100, 100, 4)
+        assert result.dtype == np.uint8
+        # Should be the resized solid color, not crash
+        assert result[0, 0, 0] == 200
+
+    def test_larger_layer_resized_to_canvas(self):
+        """A 200x200 layer composited onto a 100x100 canvas."""
+        large_frame = np.full((200, 200, 4), [100, 200, 50, 255], dtype=np.uint8)
+        result = render_composite(
+            [make_layer(large_frame)],
+            RESOLUTION,
+        )
+        assert result.shape == (100, 100, 4)
+        assert result[0, 0, 0] == 100
+
+    def test_mixed_resolution_layers(self):
+        """Two layers with different resolutions blend correctly."""
+        frame_a = np.full((100, 100, 4), [255, 0, 0, 255], dtype=np.uint8)
+        frame_b = np.full((50, 75, 4), [0, 255, 0, 255], dtype=np.uint8)
+        result = render_composite(
+            [make_layer(frame_a), make_layer(frame_b, opacity=0.5)],
+            RESOLUTION,
+        )
+        assert result.shape == (100, 100, 4)
+        # R: 255 * 0.5 + 0 * 0.5 ≈ 128
+        assert abs(int(result[0, 0, 0]) - 128) <= 1
+        # G: 0 * 0.5 + 255 * 0.5 ≈ 128
+        assert abs(int(result[0, 0, 1]) - 128) <= 1
+
+    def test_720p_on_1080p_canvas(self):
+        """Real-world case: 720p video on 1080p canvas."""
+        frame_720p = np.full((720, 1280, 4), [128, 128, 128, 255], dtype=np.uint8)
+        result = render_composite(
+            [make_layer(frame_720p)],
+            (1920, 1080),
+        )
+        assert result.shape == (1080, 1920, 4)
+        assert result.dtype == np.uint8
+        assert result[540, 960, 0] == 128  # center pixel
+
+    def test_non_standard_aspect_ratio(self):
+        """Layer with different aspect ratio still composites."""
+        wide_frame = np.full((50, 200, 4), [64, 128, 192, 255], dtype=np.uint8)
+        result = render_composite(
+            [make_layer(wide_frame)],
+            RESOLUTION,
+        )
+        assert result.shape == (100, 100, 4)
+        # Content should be stretched to fit (not letter-boxed)
+
+    def test_zero_height_layer_skipped(self):
+        """A degenerate frame with zero height should be skipped, not crash."""
+        zero_frame = np.zeros((0, 100, 4), dtype=np.uint8)
+        result = render_composite(
+            [make_layer(zero_frame)],
+            RESOLUTION,
+        )
+        # Should return black canvas (layer skipped)
+        assert result.shape == (100, 100, 4)
+        np.testing.assert_array_equal(result, 0)
+
+    def test_zero_width_layer_skipped(self):
+        """A degenerate frame with zero width should be skipped."""
+        zero_frame = np.zeros((100, 0, 4), dtype=np.uint8)
+        result = render_composite(
+            [make_layer(zero_frame)],
+            RESOLUTION,
+        )
+        assert result.shape == (100, 100, 4)
+        np.testing.assert_array_equal(result, 0)
+
+    def test_zero_dim_mixed_with_valid(self):
+        """A degenerate layer mixed with a valid layer — valid still composites."""
+        zero_frame = np.zeros((0, 0, 4), dtype=np.uint8)
+        valid_frame = make_solid_frame(200, 100, 50)
+        result = render_composite(
+            [make_layer(zero_frame), make_layer(valid_frame)],
+            RESOLUTION,
+        )
+        assert result.shape == (100, 100, 4)
+        assert result[0, 0, 0] == 200  # valid layer composited
