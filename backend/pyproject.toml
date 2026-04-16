@@ -28,4 +28,5 @@ addopts = "-m 'not perf' -n auto --dist loadfile --reruns=2 --reruns-delay=0.5"
 markers = [
     "perf: performance gate tests (deselected by default, run with: pytest -m perf)",
     "smoke: fast unit tests with no I/O, no ZMQ, no filesystem (run with: pytest -m smoke)",
+    "oracle: engine-correctness validators (CLI + FFmpeg/OpenCV signature checks, run with: pytest -m oracle)",
 ]

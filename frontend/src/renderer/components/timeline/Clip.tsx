@@ -3,11 +3,11 @@ import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
+import { useToastStore } from '../../stores/toast'
 import { downsamplePeaks } from '../transport/useWaveform'
 import type { WaveformPeaks } from '../transport/useWaveform'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
-import SpeedDialog from './SpeedDialog'
 
 /** Snap a position to the nearest grid line if quantize is enabled. */
 function snapToGrid(pos: number, bypassSnap: boolean): number {
@@ -35,7 +35,6 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const dragStartX = useRef(0)
   const dragStartPos = useRef(0)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
-  const [speedDialog, setSpeedDialog] = useState<{ x: number; y: number } | null>(null)
 
   // Mini waveform canvas
   const waveCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -126,7 +125,10 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       { label: '', action: () => {}, separator: true },
       {
         label: 'Speed/Duration...',
-        action: () => setSpeedDialog(ctxMenu ?? { x: 200, y: 200 }),
+        action: () => {
+          const pos = ctxMenu ?? { x: 200, y: 200 }
+          useTimelineStore.getState().openSpeedDialog(clip.id, pos)
+        },
       },
       { label: 'Reverse', action: () => store.reverseClip(clip.id) },
       { label: '', action: () => {}, separator: true },
@@ -172,12 +174,63 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const dt = dx / zoom
       const newPos = Math.max(0, dragStartPos.current + dt)
       const snapped = snapToGrid(newPos, e.metaKey)
-      useTimelineStore.getState().moveClip(clip.id, clip.trackId, snapped)
+
+      // Detect target track by Y. Iterate visible track lanes and check bounding rects.
+      // Do NOT latch pendingNewTrack from transient move samples — OS interrupts or window
+      // exits can leave a false latch. Re-check belowAllTracks at pointerup instead.
+      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+      let targetTrackId = clip.trackId
+
+      for (const lane of lanes) {
+        const rect = lane.getBoundingClientRect()
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const id = lane.dataset.trackId
+          if (id) targetTrackId = id
+        }
+      }
+
+      useTimelineStore.getState().moveClip(clip.id, targetTrackId, snapped)
     },
     [clip.id, clip.trackId, zoom],
   )
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isDragging.current) {
+        return
+      }
+      // Compute belowAllTracks from the pointer-UP position, not a latched move sample.
+      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+      let maxBottom = -Infinity
+      for (const lane of lanes) {
+        const rect = lane.getBoundingClientRect()
+        if (rect.bottom > maxBottom) maxBottom = rect.bottom
+      }
+      const belowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
+
+      if (belowAllTracks) {
+        const store = useTimelineStore.getState()
+        const current = store.tracks.find((t) => t.clips.some((c) => c.id === clip.id))
+        const currentClip = current?.clips.find((c) => c.id === clip.id)
+        const newTrackId = store.addTrack(`Track ${store.tracks.length + 1}`, '#4ade80', 'video')
+        if (newTrackId && currentClip) {
+          store.moveClip(clip.id, newTrackId, currentClip.position)
+        } else if (!newTrackId) {
+          useToastStore.getState().addToast({
+            level: 'warning',
+            message: 'Could not create new track — limit reached.',
+            source: 'clip-drag-new-track',
+          })
+        }
+      }
+      isDragging.current = false
+    },
+    [clip.id],
+  )
+
+  // pointercancel (OS interrupt, context menu, window focus loss) must reset state
+  // without creating a track — we can't trust the event's position in that case.
+  const handlePointerCancel = useCallback(() => {
     isDragging.current = false
   }, [])
 
@@ -259,6 +312,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
@@ -297,18 +351,6 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
           y={ctxMenu.y}
           items={getContextMenuItems()}
           onClose={() => setCtxMenu(null)}
-        />
-      )}
-      {speedDialog && (
-        <SpeedDialog
-          currentSpeed={clip.speed}
-          clipDuration={clip.duration}
-          position={speedDialog}
-          onConfirm={(speed) => {
-            useTimelineStore.getState().setClipSpeed(clip.id, speed)
-            setSpeedDialog(null)
-          }}
-          onClose={() => setSpeedDialog(null)}
         />
       )}
     </>

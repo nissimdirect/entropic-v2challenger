@@ -35,6 +35,10 @@ def read_json(path: Path) -> dict | None:
 def main() -> None:
     backend = read_json(PROJECT_ROOT / "backend" / ".test-manifest.json") or {}
     frontend = read_json(PROJECT_ROOT / "frontend" / ".vitest-results.json") or {}
+    oracles = (
+        read_json(PROJECT_ROOT / "backend" / "tests" / "oracles" / ".results.json")
+        or {}
+    )
 
     manifest = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -55,9 +59,18 @@ def main() -> None:
                 else 0,
                 "green": frontend.get("numFailedTests", 0) == 0,
             },
+            "oracles": {
+                "total": oracles.get("total", 0),
+                "passed": oracles.get("passed", 0),
+                "failed": oracles.get("failed", 0),
+                "duration_s": oracles.get("duration_seconds", 0),
+                "green": oracles.get("failed", 0) == 0,
+            },
         },
         "overall_green": (
-            backend.get("green", True) and frontend.get("numFailedTests", 0) == 0
+            backend.get("green", True)
+            and frontend.get("numFailedTests", 0) == 0
+            and oracles.get("failed", 0) == 0
         ),
     }
 
@@ -68,6 +81,9 @@ def main() -> None:
     )
     print(
         f"  Frontend: {manifest['layers']['frontend_vitest']['total']} tests ({manifest['layers']['frontend_vitest']['duration_s']:.1f}s)"
+    )
+    print(
+        f"  Oracles:  {manifest['layers']['oracles']['total']} tests ({manifest['layers']['oracles']['duration_s']:.1f}s)"
     )
     print(f"  Overall:  {'GREEN' if manifest['overall_green'] else 'RED'}")
 

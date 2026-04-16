@@ -144,15 +144,17 @@ describe('UX Combos — Group 7: Search + Category + Effect Add', () => {
       </>,
     )
 
-    // Click a non-All category (e.g., "distortion")
-    const catBtns = document.querySelectorAll('.effect-browser__cat-btn')
-    expect(catBtns.length).toBeGreaterThan(1)
+    // New folder-tree: collapse non-distortion folders to isolate distortion
+    const folderHeaders = document.querySelectorAll('.effect-browser__folder-header')
+    expect(folderHeaders.length).toBeGreaterThan(1)
 
-    // Find "distortion" button (categories are sorted: color, distortion, transform)
-    const distortionBtn = Array.from(catBtns).find((b) => b.textContent === 'distortion')!
-    fireEvent.click(distortionBtn)
+    // Collapse every folder whose label isn't "distortion"
+    folderHeaders.forEach((h) => {
+      const labelEl = h.querySelectorAll('span')[1] // caret, label, count
+      if (labelEl?.textContent !== 'distortion') fireEvent.click(h)
+    })
 
-    // Should show distortion effects only (Blur, Pixelate)
+    // Only distortion folder remains expanded → Blur + Pixelate visible
     let items = document.querySelectorAll('.effect-browser__item')
     expect(items.length).toBe(2)
 
@@ -182,16 +184,15 @@ describe('UX Combos — Group 7: Search + Category + Effect Add', () => {
       </>,
     )
 
-    // Switch to "All" category
-    const allBtn = document.querySelectorAll('.effect-browser__cat-btn')[0]
-    fireEvent.click(allBtn)
+    // Re-expand all folders to show everything (equivalent of old "All")
+    const headersAfter = document.querySelectorAll('.effect-browser__folder-header')
+    headersAfter.forEach((h) => {
+      const labelEl = h.querySelectorAll('span')[1]
+      if (labelEl?.textContent !== 'distortion') fireEvent.click(h)
+    })
 
-    // All 6 effects should be visible
     items = document.querySelectorAll('.effect-browser__item')
     expect(items.length).toBe(6)
-
-    // "All" button should be active
-    expect(allBtn.classList.contains('effect-browser__cat-btn--active')).toBe(true)
 
     // Rack still has 1 effect
     const rackItems = document.querySelectorAll('.effect-rack__item')

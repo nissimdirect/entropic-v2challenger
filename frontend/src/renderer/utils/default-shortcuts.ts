@@ -32,6 +32,7 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'zoom_fit',          keys: 'meta+0',         category: 'view',      label: 'Zoom to Fit',         context: 'normal' },
   { action: 'toggle_quantize',   keys: 'meta+u',         category: 'view',      label: 'Toggle Quantize',    context: 'normal' },
   { action: 'split_at_playhead', keys: 'meta+k',         category: 'timeline',  label: 'Split at Playhead',  context: 'normal' },
+  { action: 'split_at_playhead_e', keys: 'e',            category: 'timeline',  label: 'Split at Playhead (E)', context: 'normal' },
 
   // --- Automation ---
   { action: 'automation_copy',  keys: 'meta+shift+c', category: 'automation', label: 'Copy Automation Region',       context: 'normal' },

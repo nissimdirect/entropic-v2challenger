@@ -835,4 +835,129 @@ describe('TimelineStore', () => {
       expect(useTimelineStore.getState().selectedClipIds).toEqual([])
     })
   })
+
+  describe('speedDialog (BUG-13)', () => {
+    it('starts null', () => {
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+
+    it('openSpeedDialog sets clipId and anchor', () => {
+      useTimelineStore.getState().openSpeedDialog('clip-abc', { x: 100, y: 200 })
+      const state = useTimelineStore.getState().speedDialog
+      expect(state).toEqual({ clipId: 'clip-abc', anchor: { x: 100, y: 200 } })
+    })
+
+    it('closeSpeedDialog clears state', () => {
+      const ts = useTimelineStore.getState()
+      ts.openSpeedDialog('clip-xyz', { x: 50, y: 60 })
+      ts.closeSpeedDialog()
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+
+    it('reset clears speedDialog', () => {
+      const ts = useTimelineStore.getState()
+      ts.openSpeedDialog('clip-1', { x: 10, y: 20 })
+      ts.reset()
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+
+    it('removeClip clears speedDialog when its target is removed', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const trackId = useTimelineStore.getState().tracks[0].id
+      ts.addClip(trackId, makeClip({ id: 'speed-target', trackId }))
+      ts.openSpeedDialog('speed-target', { x: 1, y: 2 })
+      expect(useTimelineStore.getState().speedDialog).not.toBeNull()
+      ts.removeClip('speed-target')
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+
+    it('removeClip preserves speedDialog pointing at a different clip', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const trackId = useTimelineStore.getState().tracks[0].id
+      ts.addClip(trackId, makeClip({ id: 'keep', trackId }))
+      ts.addClip(trackId, makeClip({ id: 'remove', trackId, position: 10 }))
+      ts.openSpeedDialog('keep', { x: 1, y: 2 })
+      ts.removeClip('remove')
+      expect(useTimelineStore.getState().speedDialog?.clipId).toBe('keep')
+    })
+
+    it('deleteSelectedClips clears speedDialog if target is in selection', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const trackId = useTimelineStore.getState().tracks[0].id
+      ts.addClip(trackId, makeClip({ id: 'a', trackId }))
+      ts.addClip(trackId, makeClip({ id: 'b', trackId, position: 10 }))
+      ts.openSpeedDialog('a', { x: 1, y: 2 })
+      ts.selectClip('a')
+      ts.deleteSelectedClips()
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+  })
+
+  describe('setClipSpeed (P1-B trust boundary)', () => {
+    it('clamps speed to upper bound [0.1, 10]', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const trackId = useTimelineStore.getState().tracks[0].id
+      ts.addClip(trackId, makeClip({ id: 'c1', trackId, duration: 10, speed: 1 }))
+      // Caller passes 1000 (e.g. automation, scripting) — store must clamp to 10.
+      ts.setClipSpeed('c1', 1000)
+      const clip = useTimelineStore
+        .getState()
+        .tracks[0].clips.find((c) => c.id === 'c1')!
+      expect(clip.speed).toBe(10)
+      // Duration scales inversely: 10 / 10 = 1.
+      expect(clip.duration).toBeCloseTo(1, 5)
+    })
+
+    it('clamps speed to lower bound [0.1, 10]', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const trackId = useTimelineStore.getState().tracks[0].id
+      ts.addClip(trackId, makeClip({ id: 'c1', trackId, duration: 10, speed: 1 }))
+      // Negative input is silently clamped to 0.1.
+      ts.setClipSpeed('c1', -5)
+      const clip = useTimelineStore
+        .getState()
+        .tracks[0].clips.find((c) => c.id === 'c1')!
+      expect(clip.speed).toBe(0.1)
+    })
+
+    it('ignores non-finite speed', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const trackId = useTimelineStore.getState().tracks[0].id
+      ts.addClip(trackId, makeClip({ id: 'c1', trackId, speed: 1 }))
+      ts.setClipSpeed('c1', NaN)
+      ts.setClipSpeed('c1', Infinity)
+      const clip = useTimelineStore
+        .getState()
+        .tracks[0].clips.find((c) => c.id === 'c1')!
+      expect(clip.speed).toBe(1)
+    })
+
+    it('early-returns when target clip does not exist (no phantom undo)', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const undoLengthBefore = useUndoStore.getState().past.length
+      ts.setClipSpeed('nonexistent-clip', 2)
+      const undoLengthAfter = useUndoStore.getState().past.length
+      expect(undoLengthAfter).toBe(undoLengthBefore)
+    })
+
+    it('scales duration inversely with speed and clamps playhead', () => {
+      const ts = useTimelineStore.getState()
+      ts.addTrack('Track 1', '#ff0000')
+      const trackId = useTimelineStore.getState().tracks[0].id
+      ts.addClip(trackId, makeClip({ id: 'c1', trackId, duration: 10, speed: 1 }))
+      ts.setPlayheadTime(8)
+      ts.setClipSpeed('c1', 2)
+      const state = useTimelineStore.getState()
+      const clip = state.tracks[0].clips.find((c) => c.id === 'c1')!
+      expect(clip.duration).toBe(5)
+      expect(state.playheadTime).toBeLessThanOrEqual(5)
+    })
+  })
 })

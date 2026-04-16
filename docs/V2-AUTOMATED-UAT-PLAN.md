@@ -41,7 +41,7 @@ This plan is a **living reference spec**. NOT everything runs from day one.
 | React Unit | Vitest | Component logic, state management, prop contracts |
 | Electron E2E | Playwright `_electron` | UI interactions, buttons, menus, keyboard, drag, file import |
 | Visual Regression | `toHaveScreenshot()` | Layout/panel changes, theme breaks, element positioning |
-| Effect Output | Screenshot comparison (canvas-only clip) | Broken effects, dead params, render pipeline failures |
+| Effect Output | **CLI + FFmpeg/OpenCV signature validators** (`backend/tests/oracles/`, headless, `~$0/run`) — pixel-mean for invert, FFT energy for blur, motion-vector residual for glitch, etc. Replaces the old screenshot-comparison approach for engine-correctness. Screenshot comparison retained for visual-regression on canonical UI screens only. See `~/.claude/plans/lucid-swarm-loom.md`. | Broken effects, dead params, render pipeline failures |
 | IPC/Sidecar | pytest + pyzmq | ZMQ protocol, watchdog, mmap transport, effect contracts |
 | IPC Contracts | JSON Schema validation | Protocol drift between frontend and backend |
 | Cross-Process | Playwright + pytest | Full roundtrip: Frontend -> ZMQ -> Python -> mmap -> Frontend |

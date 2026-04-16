@@ -17,6 +17,7 @@ import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
+import SpeedDialog from './components/timeline/SpeedDialog'
 // Phase 13C: HistoryPanel removed from sidebar
 import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
@@ -76,6 +77,38 @@ import AboutDialog from './components/layout/AboutDialog'
 import RenderQueue from './components/export/RenderQueue'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
+
+function SpeedDialogHost() {
+  const speedDialog = useTimelineStore((s) => s.speedDialog)
+  const closeSpeedDialog = useTimelineStore((s) => s.closeSpeedDialog)
+  const setClipSpeed = useTimelineStore((s) => s.setClipSpeed)
+  const tracks = useTimelineStore((s) => s.tracks)
+
+  if (!speedDialog) return null
+
+  let clip: { speed: number; duration: number } | null = null
+  for (const t of tracks) {
+    const c = t.clips.find((x) => x.id === speedDialog.clipId)
+    if (c) {
+      clip = { speed: c.speed, duration: c.duration }
+      break
+    }
+  }
+  if (!clip) return null
+
+  return (
+    <SpeedDialog
+      currentSpeed={clip.speed}
+      clipDuration={clip.duration}
+      position={speedDialog.anchor}
+      onConfirm={(speed) => {
+        setClipSpeed(speedDialog.clipId, speed)
+        closeSpeedDialog()
+      }}
+      onClose={closeSpeedDialog}
+    />
+  )
+}
 
 function AppInner() {
   const { status, uptime } = useEngineStore()
@@ -328,7 +361,7 @@ function AppInner() {
     shortcutRegistry.register('import_media', () => handleImportMedia())
     shortcutRegistry.register('add_text_track', () => handleAddTextTrack())
     shortcutRegistry.register('toggle_quantize', () => useLayoutStore.getState().toggleQuantize())
-    shortcutRegistry.register('split_at_playhead', () => {
+    const splitAtPlayheadHandler = () => {
       const ts = useTimelineStore.getState()
       for (const clipId of ts.selectedClipIds) {
         for (const track of ts.tracks) {
@@ -339,7 +372,9 @@ function AppInner() {
           }
         }
       }
-    })
+    }
+    shortcutRegistry.register('split_at_playhead', splitAtPlayheadHandler)
+    shortcutRegistry.register('split_at_playhead_e', splitAtPlayheadHandler)
 
     // Automation copy/paste
     shortcutRegistry.register('automation_copy', () => {
@@ -650,8 +685,10 @@ function AppInner() {
         if (hasMultipleLayers || activeVideoClips.length === 0) {
           // Use render_composite for multi-layer rendering
           const videoLayers: Record<string, unknown>[] = activeVideoClips.map(({ clip, track, assetPath }) => {
+            const localTime = currentTime - clip.position
+            const srcTime = clip.reversed ? Math.max(0, clip.duration - localTime) : localTime
             const clipFrame = Math.max(0, Math.round(
-              ((currentTime - clip.position) * (clip.speed || 1) + clip.inPoint) * activeFps,
+              (srcTime * (clip.speed || 1) + clip.inPoint) * activeFps,
             ))
             const ct = clip.transform
             const trackOpacity = track.opacity ?? 1
@@ -706,10 +743,16 @@ function AppInner() {
           // Single video clip — use fast render_frame path
           const { clip: singleClip, assetPath: singleAssetPath } = activeVideoClips[0]
           const ct = singleClip.transform
+          // Speed-adjusted source frame; reverse flips local time across clip duration
+          const localTime = currentTime - singleClip.position
+          const srcTime = singleClip.reversed ? Math.max(0, singleClip.duration - localTime) : localTime
+          const clipFrame = Math.max(0, Math.round(
+            (srcTime * (singleClip.speed || 1) + singleClip.inPoint) * activeFps,
+          ))
           res = await window.entropic.sendCommand({
             cmd: 'render_frame',
             path: singleAssetPath || activeAssetPath.current,
-            frame_index: frame,
+            frame_index: clipFrame,
             chain: serializeEffectChain(chain),
             project_seed: Date.now() % 2147483647,
             ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
@@ -1052,12 +1095,11 @@ function AppInner() {
         case 'clip-speed': {
           const ts2 = useTimelineStore.getState()
           if (ts2.selectedClipIds.length === 1) {
-            const val = window.prompt('Speed (0.1 - 10):', '1')
-            if (val !== null) {
-              const parsed = Number(val)
-              const speed = Math.max(0.1, Math.min(10, Number.isFinite(parsed) ? parsed : 1))
-              ts2.setClipSpeed(ts2.selectedClipIds[0], speed)
+            const anchor = {
+              x: Math.max(0, Math.round(window.innerWidth / 2) - 100),
+              y: Math.max(0, Math.round(window.innerHeight / 2) - 80),
             }
+            ts2.openSpeedDialog(ts2.selectedClipIds[0], anchor)
           }
           break
         }
@@ -1946,6 +1988,8 @@ function AppInner() {
         isOpen={showFeedbackDialog}
         onClose={() => setShowFeedbackDialog(false)}
       />
+
+      <SpeedDialogHost />
 
       {showPresetSave && (() => {
         const targetEffect = showPresetSave.instanceId
