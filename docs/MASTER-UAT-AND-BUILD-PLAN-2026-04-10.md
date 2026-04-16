@@ -1,5 +1,13 @@
 # Entropic v2 — Master UAT Results + Build Plan
 
+> **⚠️ SUPERSEDED (2026-04-16):** See **`docs/audits/2026-04-16-state-of-union.md`** for the canonical current state. (The intermediate `docs/audits/2026-04-16-stock-take.md` had a correction pass but was itself superseded by the state-of-union.)
+> **Stale claims in this doc (corrected in the superseding audit):**
+> - Sprint 4 items #1 (track opacity), #2 (blend mode), #3 (setClipTransform → render) are **ALL wired** now — see `Track.tsx:225-242` for opacity + blend, `zmq_server._apply_clip_transform` (line 1121) for clip transform render path
+> - "Transform panel fields accept input but don't affect render" (line 340) is **OBSOLETE** — backend applies both pre-chain and per-layer
+> - Test totals below are from 2026-04-10; current: **108 vitest files · 1,486 passed** and **12,768 pytest collected**
+> - UAT coverage "274/574" is wrong — doc itself is inconsistent (517 header / 476 grand-total)
+> - Sprint 7 "Operator editors (6)" — editors exist on disk but were intentionally unmounted (App.tsx:47). Fix scope is **remount**, not **build**.
+
 > **Created:** 2026-04-10
 > **Sources combined:**
 > - `COMPONENT-ACCEPTANCE-CRITERIA.md` (1,480 lines, BDD tickets for 81 TSX components)
