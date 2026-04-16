@@ -44,6 +44,8 @@ coverage/
 frontend/test-results/
 frontend/playwright-report/
 test-evidence/
+backend/.hypothesis/
+test-assets/
 
 # Claude Code worktrees
 .claude/worktrees/
