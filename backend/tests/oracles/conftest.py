@@ -52,48 +52,10 @@ def _ffmpeg_testsrc(
 
 @pytest.fixture(scope="session")
 def testsrc_clip() -> Path:
-    """A short FFmpeg testsrc clip — colour bars, predictable content.
-
-    Best for effects whose signature is a per-pixel transform (color invert,
-    blur, channel destroy). Bad for effects that need within-segment
-    brightness variation to do anything (e.g. pixel sort) — see mandelbrot_clip.
-    """
+    """A short FFmpeg testsrc clip — colour bars, predictable content."""
     out = _FIXTURE_CACHE / "testsrc_2s_320x240_30fps.mp4"
     if not out.exists():
         _ffmpeg_testsrc(out)
-    return out
-
-
-@pytest.fixture(scope="session")
-def mandelbrot_clip() -> Path:
-    """A short FFmpeg mandelbrot clip — fractal gradient with rich brightness variation.
-
-    Best for effects that rearrange or sort pixels based on luminance
-    (pixel sort, datamosh, generation_loss).
-    """
-    out = _FIXTURE_CACHE / "mandelbrot_2s_320x240_30fps.mp4"
-    if not out.exists():
-        out.parent.mkdir(parents=True, exist_ok=True)
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-loglevel",
-                "error",
-                "-f",
-                "lavfi",
-                "-i",
-                "mandelbrot=size=320x240:rate=30",
-                "-t",
-                "2",
-                "-c:v",
-                "libx264",
-                "-pix_fmt",
-                "yuv420p",
-                str(out),
-            ],
-            check=True,
-        )
     return out
 
 
@@ -104,83 +66,6 @@ def first_frame_bgr_mean(path: Path) -> np.ndarray:
     cap.release()
     assert ok and frame is not None, f"could not read first frame of {path}"
     return frame.mean(axis=(0, 1))
-
-
-def first_frame_bgr(path: Path) -> np.ndarray:
-    """Return the first frame as a BGR uint8 array (H, W, 3)."""
-    cap = cv2.VideoCapture(str(path))
-    ok, frame = cap.read()
-    cap.release()
-    assert ok and frame is not None, f"could not read first frame of {path}"
-    return frame
-
-
-def per_pixel_l1_distance(path_a: Path, path_b: Path) -> float:
-    """Mean per-pixel absolute difference between first frames of two videos.
-
-    Sensitive to permutations — pixelsort, glitch, datamosh all move pixels
-    around without changing channel means, so this is the right metric for
-    'did the effect actually mutate the image'.
-    """
-    a = first_frame_bgr(path_a).astype(np.int16)
-    b = first_frame_bgr(path_b).astype(np.int16)
-    if a.shape != b.shape:
-        raise AssertionError(f"frame shape mismatch: {a.shape} vs {b.shape}")
-    return float(np.abs(a - b).mean())
-
-
-def laplacian_variance(path: Path) -> float:
-    """Sharpness signal — high-frequency content. Blur reduces this drastically."""
-    frame = first_frame_bgr(path)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
-
-
-def row_transitions(path: Path, n_rows: int = 10) -> float:
-    """Mean direction-changes per sampled row of luminance.
-
-    A 'sorted' row (monotonic) has 0 transitions; chaotic content has many.
-    Pixelsort drives this number down.
-    """
-    frame = first_frame_bgr(path)
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY).astype(np.int16)
-    h = gray.shape[0]
-    step = max(1, h // (n_rows + 1))
-    sample = gray[step::step][:n_rows]
-    if len(sample) == 0:
-        return 0.0
-    total = 0
-    for row in sample:
-        diffs = np.diff(row)
-        signs = np.sign(diffs)
-        # Count zero-crossings: signs[i] * signs[i+1] < 0 ⇒ direction flipped.
-        nonzero = signs[signs != 0]
-        if len(nonzero) < 2:
-            continue
-        total += int(np.sum(nonzero[:-1] * nonzero[1:] < 0))
-    return total / len(sample)
-
-
-def frame_diff_mean(path: Path, n_frames: int = 10) -> float:
-    """Mean absolute frame-to-frame pixel difference across N frames.
-
-    Datamosh / strobe / glitch effects modulate this — accumulating effects
-    smear it down, fragmenting effects spike it up.
-    """
-    cap = cv2.VideoCapture(str(path))
-    frames = []
-    for _ in range(n_frames):
-        ok, f = cap.read()
-        if not ok:
-            break
-        frames.append(f.astype(np.int16))
-    cap.release()
-    if len(frames) < 2:
-        return 0.0
-    diffs = [
-        float(np.abs(frames[i + 1] - frames[i]).mean()) for i in range(len(frames) - 1)
-    ]
-    return float(np.mean(diffs))
 
 
 def run_cli_apply(
