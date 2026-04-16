@@ -174,7 +174,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         onMouseLeave={() => setShowExtras(false)}
       >
         <div className="track-header__color" style={{ background: track.color }} />
-        <div className="track-header__info">
+        <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>
           {isRenaming ? (
             <input
               ref={renameInputRef}
@@ -191,7 +191,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <div className="track-header__name" onDoubleClick={startRename}>
+            <div className="track-header__name">
               {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
               {' '}{track.name}
             </div>
