@@ -311,6 +311,7 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds, w
   return (
     <div
       className={`track-lane${isSelected ? ' track-lane--selected' : ''}`}
+      data-track-id={track.id}
       onClick={handleLaneClick}
       style={{ position: 'relative' }}
     >

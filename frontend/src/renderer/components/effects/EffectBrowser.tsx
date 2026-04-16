@@ -12,6 +12,33 @@ interface EffectBrowserProps {
   onAddTextTrack?: () => void
 }
 
+const STORAGE_KEY = 'entropic-effect-browser-expanded'
+
+function loadExpanded(): { value: Set<string>; hasStored: boolean } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return { value: new Set<string>(), hasStored: false }
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(parsed)) {
+      return {
+        value: new Set(parsed.filter((s): s is string => typeof s === 'string')),
+        hasStored: true,
+      }
+    }
+  } catch {
+    // Best-effort
+  }
+  return { value: new Set<string>(), hasStored: false }
+}
+
+function persistExpanded(expanded: Set<string>): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(expanded)))
+  } catch {
+    // Best-effort
+  }
+}
+
 export default function EffectBrowser({
   registry,
   isLoading,
@@ -20,39 +47,77 @@ export default function EffectBrowser({
   onAddTextTrack,
 }: EffectBrowserProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
+  const initial = useMemo(() => loadExpanded(), [])
+  const [expanded, setExpanded] = useState<Set<string>>(initial.value)
+  const [hasInitialized, setHasInitialized] = useState(initial.hasStored)
 
   const categories = useMemo(() => {
     const cats = new Set(registry.map((e) => e.category))
     return Array.from(cats).sort()
   }, [registry])
 
-  const filteredEffects = useMemo(() => {
-    let effects = registry
-    if (selectedCategory) {
-      effects = effects.filter((e) => e.category === selectedCategory)
+  // First load without persisted state: expand all categories by default
+  useEffect(() => {
+    if (!hasInitialized && categories.length > 0) {
+      setExpanded(new Set(categories))
+      setHasInitialized(true)
     }
-    if (searchQuery) {
-      const q = searchQuery.toLowerCase()
-      // Subsequence match: all chars of query appear in order in target
-      // e.g. "dtmsh" matches "datamosh" (d-a-t-a-m-o-s-h)
-      const subseqMatch = (target: string, query: string): boolean => {
-        let qi = 0
-        for (let i = 0; i < target.length && qi < query.length; i++) {
-          if (target[i] === query[qi]) qi++
-        }
-        return qi === query.length
+  }, [hasInitialized, categories])
+
+  // Prune stored keys for removed categories
+  useEffect(() => {
+    setExpanded((prev) => {
+      let changed = false
+      const next = new Set<string>()
+      for (const cat of prev) {
+        if (categories.includes(cat)) next.add(cat)
+        else changed = true
       }
-      effects = effects.filter(
-        (e) =>
-          e.name.toLowerCase().includes(q) ||
-          e.id.toLowerCase().includes(q) ||
-          subseqMatch(e.name.toLowerCase(), q) ||
-          subseqMatch(e.id.toLowerCase(), q),
-      )
+      if (changed) persistExpanded(next)
+      return changed ? next : prev
+    })
+  }, [categories])
+
+  const effectsByCategory = useMemo(() => {
+    const map = new Map<string, EffectInfo[]>()
+    for (const e of registry) {
+      const list = map.get(e.category) ?? []
+      list.push(e)
+      map.set(e.category, list)
     }
-    return effects
-  }, [registry, selectedCategory, searchQuery])
+    for (const list of map.values()) list.sort((a, b) => a.name.localeCompare(b.name))
+    return map
+  }, [registry])
+
+  const searchMatches = useMemo(() => {
+    if (!searchQuery) return null
+    const q = searchQuery.toLowerCase()
+    const subseqMatch = (target: string, query: string): boolean => {
+      let qi = 0
+      for (let i = 0; i < target.length && qi < query.length; i++) {
+        if (target[i] === query[qi]) qi++
+      }
+      return qi === query.length
+    }
+    // Ranked scoring: prefix > word-start > substring > subsequence
+    const scoreEffect = (e: EffectInfo): number => {
+      const name = e.name.toLowerCase()
+      const id = e.id.toLowerCase()
+      if (name.startsWith(q) || id.startsWith(q)) return 4
+      if (name.split(/[\s_-]+/).some((w) => w.startsWith(q))) return 3
+      if (name.includes(q) || id.includes(q)) return 2
+      // Fuzzy only for queries >= 4 chars, to reduce noise for short queries
+      if (q.length >= 4 && (subseqMatch(name, q) || subseqMatch(id, q))) return 1
+      return 0
+    }
+    return [...registry]
+      .map((e) => ({ effect: e, score: scoreEffect(e) }))
+      .filter((x) => x.score > 0)
+      .sort((a, b) =>
+        b.score !== a.score ? b.score - a.score : a.effect.name.localeCompare(b.effect.name),
+      )
+      .map((x) => x.effect)
+  }, [registry, searchQuery])
 
   const handleAdd = (info: EffectInfo) => {
     if (chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN) return
@@ -72,12 +137,16 @@ export default function EffectBrowser({
     onAddEffect(instance)
   }
 
-  // Reset category filter if it disappears from registry
-  useEffect(() => {
-    if (selectedCategory && !categories.includes(selectedCategory)) {
-      setSelectedCategory(null)
-    }
-  }, [categories, selectedCategory])
+  const toggleCategory = (cat: string) => {
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(cat)) next.delete(cat)
+      else next.add(cat)
+      persistExpanded(next)
+      return next
+    })
+    setHasInitialized(true)
+  }
 
   if (isLoading) {
     return <div className="effect-browser effect-browser--loading">Loading effects...</div>
@@ -95,39 +164,60 @@ export default function EffectBrowser({
         </div>
       )}
       <div className="effect-browser__body">
-        <div className="effect-browser__categories">
-          <button
-            className={`effect-browser__cat-btn ${selectedCategory === null ? 'effect-browser__cat-btn--active' : ''}`}
-            onClick={() => setSelectedCategory(null)}
-          >
-            All
-          </button>
-          {categories.map((cat) => (
-            <button
-              key={cat}
-              className={`effect-browser__cat-btn ${selectedCategory === cat ? 'effect-browser__cat-btn--active' : ''}`}
-              onClick={() => setSelectedCategory(cat)}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-        <div className="effect-browser__list">
-          {filteredEffects.map((info) => (
-            <button
-              key={info.id}
-              className="effect-browser__item"
-              onClick={() => handleAdd(info)}
-              disabled={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN}
-              title={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN ? `Max ${LIMITS.MAX_EFFECTS_PER_CHAIN} effects` : `Add ${info.name}`}
-            >
-              {info.name}
-            </button>
-          ))}
-          {filteredEffects.length === 0 && (
-            <div className="effect-browser__empty">No effects found</div>
-          )}
-        </div>
+        {searchMatches ? (
+          <>
+            {searchMatches.map((info) => (
+              <button
+                key={info.id}
+                className="effect-browser__item"
+                onClick={() => handleAdd(info)}
+                disabled={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN}
+                title={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN ? `Max ${LIMITS.MAX_EFFECTS_PER_CHAIN} effects` : `Add ${info.name}`}
+              >
+                {info.name}
+              </button>
+            ))}
+            {searchMatches.length === 0 && (
+              <div className="effect-browser__empty">No effects found</div>
+            )}
+          </>
+        ) : (
+          categories.map((cat) => {
+            const isOpen = expanded.has(cat)
+            const list = effectsByCategory.get(cat) ?? []
+            return (
+              <div key={cat} className="effect-browser__folder">
+                <button
+                  className="effect-browser__folder-header"
+                  onClick={() => toggleCategory(cat)}
+                >
+                  <span
+                    className={`effect-browser__folder-caret${isOpen ? ' effect-browser__folder-caret--open' : ''}`}
+                  >
+                    ▶
+                  </span>
+                  <span>{cat}</span>
+                  <span className="effect-browser__folder-count">{list.length}</span>
+                </button>
+                {isOpen && (
+                  <div className="effect-browser__folder-list">
+                    {list.map((info) => (
+                      <button
+                        key={info.id}
+                        className="effect-browser__item"
+                        onClick={() => handleAdd(info)}
+                        disabled={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN}
+                        title={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN ? `Max ${LIMITS.MAX_EFFECTS_PER_CHAIN} effects` : `Add ${info.name}`}
+                      >
+                        {info.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )

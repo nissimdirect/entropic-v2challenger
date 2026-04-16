@@ -18,6 +18,7 @@ interface TimelineState {
   /** @deprecated Use selectedClipIds instead. Kept for backward compat — returns first selected or null. */
   selectedClipId: string | null
   selectedClipIds: string[]
+  speedDialog: { clipId: string; anchor: { x: number; y: number } } | null
 
   // Track actions
   addTrack: (name: string, color: string, type?: 'video' | 'text') => string | undefined
@@ -42,6 +43,8 @@ interface TimelineState {
   trimClipOut: (clipId: string, newOutPoint: number) => void
   splitClip: (clipId: string, time: number) => void
   setClipSpeed: (clipId: string, speed: number) => void
+  openSpeedDialog: (clipId: string, anchor: { x: number; y: number }) => void
+  closeSpeedDialog: () => void
   setClipTransform: (clipId: string, transform: ClipTransform) => void
   setClipOpacity: (clipId: string, opacity: number) => void
   duplicateClip: (clipId: string) => void
@@ -143,6 +146,7 @@ const INITIAL_STATE = {
   selectedTrackId: null as string | null,
   selectedClipId: null as string | null,
   selectedClipIds: [] as string[],
+  speedDialog: null as { clipId: string; anchor: { x: number; y: number } } | null,
 }
 
 /** Get all clips in track order (top track first, then by position within track). */
@@ -626,28 +630,42 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   setClipSpeed: (clipId, speed) => {
     if (!Number.isFinite(speed)) return
     let oldSpeed = 1
+    let oldDuration = 0
     for (const track of get().tracks) {
       const clip = track.clips.find((c) => c.id === clipId)
-      if (clip) { oldSpeed = clip.speed; break }
+      if (clip) { oldSpeed = clip.speed; oldDuration = clip.duration; break }
     }
     const clamped = Math.max(0.1, speed)
+    // Timeline duration scales inversely with speed: 2x speed → half the timeline length
+    const newDuration = oldDuration * (oldSpeed / clamped)
 
     undoable(
       'Set clip speed',
-      () => set({
-        tracks: get().tracks.map((t) => ({
+      () => {
+        const tracks = get().tracks.map((t) => ({
           ...t,
-          clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed: clamped } : c)),
-        })),
-      }),
-      () => set({
-        tracks: get().tracks.map((t) => ({
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, speed: clamped, duration: newDuration } : c,
+          ),
+        }))
+        const nextDuration = recalcDuration(tracks)
+        const nextPlayhead = Math.min(get().playheadTime, nextDuration)
+        set({ tracks, duration: nextDuration, playheadTime: nextPlayhead })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => ({
           ...t,
-          clips: t.clips.map((c) => (c.id === clipId ? { ...c, speed: oldSpeed } : c)),
-        })),
-      }),
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, speed: oldSpeed, duration: oldDuration } : c,
+          ),
+        }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
     )
   },
+
+  openSpeedDialog: (clipId, anchor) => set({ speedDialog: { clipId, anchor } }),
+  closeSpeedDialog: () => set({ speedDialog: null }),
 
   setClipTransform: (clipId, transform) => {
     let oldTransform: ClipTransform | undefined

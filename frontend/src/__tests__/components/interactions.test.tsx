@@ -119,34 +119,29 @@ describe('Interactions — Effect Browser Categories', () => {
       />,
     )
 
-    const catBtns = document.querySelectorAll('.effect-browser__cat-btn')
-    // "All" + 3 categories (distortion, fx, transform)
-    expect(catBtns.length).toBe(4)
+    // New folder-tree design: no "All" — each category is a collapsible folder
+    const folderHeaders = document.querySelectorAll('.effect-browser__folder-header')
+    // 3 categories (distortion, fx, transform)
+    expect(folderHeaders.length).toBe(3)
 
-    // "All" should be active by default
-    expect(catBtns[0].className).toContain('effect-browser__cat-btn--active')
-    expect(catBtns[0].textContent).toBe('All')
-
-    // Click "distortion" category
-    fireEvent.click(catBtns[1])
+    // All expanded by default → all 5 effects visible
     let items = document.querySelectorAll('.effect-browser__item')
-    expect(items.length).toBe(2) // Blur + Pixelate
-    expect(catBtns[1].className).toContain('effect-browser__cat-btn--active')
-
-    // Click "fx" category
-    fireEvent.click(catBtns[2])
-    items = document.querySelectorAll('.effect-browser__item')
-    expect(items.length).toBe(2) // Invert + Hue Shift
-
-    // Click "transform" category
-    fireEvent.click(catBtns[3])
-    items = document.querySelectorAll('.effect-browser__item')
-    expect(items.length).toBe(1) // Mirror
-
-    // Click "All" to reset
-    fireEvent.click(catBtns[0])
-    items = document.querySelectorAll('.effect-browser__item')
     expect(items.length).toBe(5)
+
+    // Collapse "distortion" (first folder)
+    fireEvent.click(folderHeaders[0])
+    items = document.querySelectorAll('.effect-browser__item')
+    expect(items.length).toBe(3) // only fx (2) + transform (1)
+
+    // Collapse "fx" (second folder)
+    fireEvent.click(folderHeaders[1])
+    items = document.querySelectorAll('.effect-browser__item')
+    expect(items.length).toBe(1) // only transform (1)
+
+    // Re-expand distortion
+    fireEvent.click(folderHeaders[0])
+    items = document.querySelectorAll('.effect-browser__item')
+    expect(items.length).toBe(3) // distortion (2) + transform (1)
   })
 
   it('max chain length disables effect buttons', () => {

@@ -7,7 +7,6 @@ import { downsamplePeaks } from '../transport/useWaveform'
 import type { WaveformPeaks } from '../transport/useWaveform'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
-import SpeedDialog from './SpeedDialog'
 
 /** Snap a position to the nearest grid line if quantize is enabled. */
 function snapToGrid(pos: number, bypassSnap: boolean): number {
@@ -35,7 +34,6 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const dragStartX = useRef(0)
   const dragStartPos = useRef(0)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
-  const [speedDialog, setSpeedDialog] = useState<{ x: number; y: number } | null>(null)
 
   // Mini waveform canvas
   const waveCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -126,7 +124,10 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       { label: '', action: () => {}, separator: true },
       {
         label: 'Speed/Duration...',
-        action: () => setSpeedDialog(ctxMenu ?? { x: 200, y: 200 }),
+        action: () => {
+          const pos = ctxMenu ?? { x: 200, y: 200 }
+          useTimelineStore.getState().openSpeedDialog(clip.id, pos)
+        },
       },
       { label: 'Reverse', action: () => store.reverseClip(clip.id) },
       { label: '', action: () => {}, separator: true },
@@ -140,6 +141,8 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
 
+  const pendingNewTrack = useRef(false)
+
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       // Don't start drag from trim handles
@@ -148,6 +151,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       e.preventDefault()
       e.stopPropagation()
       isDragging.current = true
+      pendingNewTrack.current = false
       dragStartX.current = e.clientX
       dragStartPos.current = clip.position
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -172,14 +176,42 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const dt = dx / zoom
       const newPos = Math.max(0, dragStartPos.current + dt)
       const snapped = snapToGrid(newPos, e.metaKey)
-      useTimelineStore.getState().moveClip(clip.id, clip.trackId, snapped)
+
+      // Detect target track by Y. Iterate visible track lanes and check bounding rects.
+      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+      let targetTrackId = clip.trackId
+      let belowAllTracks = false
+      let maxBottom = -Infinity
+
+      for (const lane of lanes) {
+        const rect = lane.getBoundingClientRect()
+        if (rect.bottom > maxBottom) maxBottom = rect.bottom
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const id = lane.dataset.trackId
+          if (id) targetTrackId = id
+        }
+      }
+      if (maxBottom !== -Infinity && e.clientY > maxBottom) belowAllTracks = true
+
+      pendingNewTrack.current = belowAllTracks
+      useTimelineStore.getState().moveClip(clip.id, targetTrackId, snapped)
     },
     [clip.id, clip.trackId, zoom],
   )
 
   const handlePointerUp = useCallback(() => {
+    if (isDragging.current && pendingNewTrack.current) {
+      const store = useTimelineStore.getState()
+      const current = store.tracks.find((t) => t.clips.some((c) => c.id === clip.id))
+      const currentClip = current?.clips.find((c) => c.id === clip.id)
+      const newTrackId = store.addTrack(`Track ${store.tracks.length + 1}`, '#4ade80', 'video')
+      if (newTrackId && currentClip) {
+        store.moveClip(clip.id, newTrackId, currentClip.position)
+      }
+    }
     isDragging.current = false
-  }, [])
+    pendingNewTrack.current = false
+  }, [clip.id])
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -297,18 +329,6 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
           y={ctxMenu.y}
           items={getContextMenuItems()}
           onClose={() => setCtxMenu(null)}
-        />
-      )}
-      {speedDialog && (
-        <SpeedDialog
-          currentSpeed={clip.speed}
-          clipDuration={clip.duration}
-          position={speedDialog}
-          onConfirm={(speed) => {
-            useTimelineStore.getState().setClipSpeed(clip.id, speed)
-            setSpeedDialog(null)
-          }}
-          onClose={() => setSpeedDialog(null)}
         />
       )}
     </>

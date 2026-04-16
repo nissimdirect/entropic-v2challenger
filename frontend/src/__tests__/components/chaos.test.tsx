@@ -69,7 +69,7 @@ describe('Chaos — Rapid Clicks on Browse', () => {
 // =============================================================================
 
 describe('Chaos — Rapid Clicks on Categories', () => {
-  it('rapid-click "All" category filter 20 times', () => {
+  it('rapid-click first folder header 20 times does not corrupt state', () => {
     render(
       <EffectBrowser
         registry={mockRegistry}
@@ -79,20 +79,20 @@ describe('Chaos — Rapid Clicks on Categories', () => {
       />,
     )
 
-    const allBtn = document.querySelector('.effect-browser__cat-btn') as HTMLElement
-    expect(allBtn).toBeTruthy()
-    expect(allBtn.textContent).toBe('All')
+    const firstHeader = document.querySelector('.effect-browser__folder-header') as HTMLElement
+    expect(firstHeader).toBeTruthy()
 
+    // Toggle folder 20 times (even count = back to initial state)
     for (let i = 0; i < 20; i++) {
-      fireEvent.click(allBtn)
+      fireEvent.click(firstHeader)
     }
 
-    // All effects should still be visible
+    // After even number of toggles, state should match initial (all expanded)
     const items = document.querySelectorAll('.effect-browser__item')
     expect(items.length).toBe(3)
   })
 
-  it('rapid category switching does not corrupt filter state', () => {
+  it('rapid folder toggling does not corrupt expansion state', () => {
     render(
       <EffectBrowser
         registry={mockRegistry}
@@ -102,17 +102,18 @@ describe('Chaos — Rapid Clicks on Categories', () => {
       />,
     )
 
-    const catBtns = document.querySelectorAll('.effect-browser__cat-btn')
+    const headers = document.querySelectorAll('.effect-browser__folder-header')
+    expect(headers.length).toBeGreaterThan(0)
 
-    // Rapidly switch between all categories
-    for (let round = 0; round < 5; round++) {
-      for (let i = 0; i < catBtns.length; i++) {
-        fireEvent.click(catBtns[i])
-      }
+    // Collapse all (odd toggle count)
+    for (let i = 0; i < headers.length; i++) {
+      fireEvent.click(headers[i])
+    }
+    // Re-expand all
+    for (let i = 0; i < headers.length; i++) {
+      fireEvent.click(headers[i])
     }
 
-    // After all the switching, click "All" — everything should be back
-    fireEvent.click(catBtns[0])
     const items = document.querySelectorAll('.effect-browser__item')
     expect(items.length).toBe(3)
   })

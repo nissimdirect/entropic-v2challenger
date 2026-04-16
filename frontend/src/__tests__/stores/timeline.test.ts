@@ -835,4 +835,30 @@ describe('TimelineStore', () => {
       expect(useTimelineStore.getState().selectedClipIds).toEqual([])
     })
   })
+
+  describe('speedDialog (BUG-13)', () => {
+    it('starts null', () => {
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+
+    it('openSpeedDialog sets clipId and anchor', () => {
+      useTimelineStore.getState().openSpeedDialog('clip-abc', { x: 100, y: 200 })
+      const state = useTimelineStore.getState().speedDialog
+      expect(state).toEqual({ clipId: 'clip-abc', anchor: { x: 100, y: 200 } })
+    })
+
+    it('closeSpeedDialog clears state', () => {
+      const ts = useTimelineStore.getState()
+      ts.openSpeedDialog('clip-xyz', { x: 50, y: 60 })
+      ts.closeSpeedDialog()
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+
+    it('reset clears speedDialog', () => {
+      const ts = useTimelineStore.getState()
+      ts.openSpeedDialog('clip-1', { x: 10, y: 20 })
+      ts.reset()
+      expect(useTimelineStore.getState().speedDialog).toBeNull()
+    })
+  })
 })
