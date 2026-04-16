@@ -168,6 +168,8 @@ function AppInner() {
   const [previewState, setPreviewState] = useState<PreviewState>('empty')
   const [renderError, setRenderError] = useState<string | null>(null)
   const [isTimerPlaying, setIsTimerPlaying] = useState(false)
+  // Kept in sync via useEffect below. Read from handlers that capture-by-closure.
+  const isTimerPlayingRef = useRef(false)
   const [transportSpeedMultiplier, setTransportSpeedMultiplier] = useState(1)
   const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
 
@@ -204,6 +206,12 @@ function AppInner() {
 
   // Engine store for frame timing
   const lastFrameMs = useEngineStore((s) => s.lastFrameMs)
+
+  // Sync isTimerPlaying state → ref so shortcut handlers (registered once at mount)
+  // can read the current value without stale closure.
+  useEffect(() => {
+    isTimerPlayingRef.current = isTimerPlaying
+  }, [isTimerPlaying])
 
   // Startup: check telemetry consent, then crash reports + autosave
   useEffect(() => {
@@ -406,16 +414,24 @@ function AppInner() {
       autoStore.pasteAtPlayhead(trackId, laneId, playheadTime)
     })
 
-    // JKL transport: J=reverse, K=stop, L=forward (standard NLE)
-    // Uses transport-speed state machine for speed escalation.
-    // Currently plays at 1x (speed ramping requires timer loop changes).
+    // JKL transport: J=reverse, K=stop, L=forward (standard NLE).
+    // Uses transport-speed state machine for speed escalation (1x → 2x → 4x → 8x).
+    // Timer loop below respects transportSpeedMultiplier. Audio has no speed-ramp
+    // or reverse support — we pause audio and drive video via timer in those cases.
     shortcutRegistry.register('transport_reverse', () => {
       const speed = transportReverse()
       setTransportSpeedMultiplier(Math.abs(speed))
       if (speed !== 0) {
-        // Reverse playback via timer (audio playback doesn't support reverse)
+        // Reverse is video-only. Pause audio if it was playing so it doesn't drift.
         const audio = useAudioStore.getState()
-        if (audio.isPlaying) audio.togglePlayback()
+        if (audio.isPlaying) {
+          audio.togglePlayback()
+          useToastStore.getState().addToast({
+            level: 'info',
+            message: 'Audio paused — reverse playback is video-only.',
+            source: 'transport-reverse-audio',
+          })
+        }
         setIsTimerPlaying(true)
       }
     })
@@ -428,13 +444,24 @@ function AppInner() {
     })
     shortcutRegistry.register('transport_forward', () => {
       const speed = transportForward()
-      setTransportSpeedMultiplier(Math.abs(speed))
-      if (speed !== 0) {
-        const audio = useAudioStore.getState()
-        if (!audio.isPlaying && !isTimerPlaying) {
-          audio.togglePlayback()
-          setIsTimerPlaying(true)
-        }
+      const newMultiplier = Math.abs(speed)
+      setTransportSpeedMultiplier(newMultiplier)
+      if (speed === 0) return
+      const audio = useAudioStore.getState()
+      if (audio.isPlaying && newMultiplier > 1) {
+        // Audio can't speed-ramp — pause it and drive video via timer at the new speed.
+        audio.togglePlayback()
+        setIsTimerPlaying(true)
+        useToastStore.getState().addToast({
+          level: 'info',
+          message: `Audio paused — playing video at ${newMultiplier}× (video-only speed ramp).`,
+          source: 'transport-forward-speed',
+        })
+      } else if (!audio.isPlaying && !isTimerPlayingRef.current) {
+        // Neither audio nor timer running — start playback. togglePlayback is a no-op
+        // if audio isn't loaded, so the timer fallback covers silent/image clips.
+        audio.togglePlayback()
+        setIsTimerPlaying(true)
       }
     })
 
