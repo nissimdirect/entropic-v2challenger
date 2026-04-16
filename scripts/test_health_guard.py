@@ -109,11 +109,52 @@ def check_duration_regression(health: dict) -> list[str]:
     return warnings
 
 
+def check_oracle_coverage() -> list[str]:
+    """Check oracle-coverage % vs effect count.
+
+    Counts effect source files in backend/src/effects/fx/ vs oracle test
+    files in backend/tests/oracles/. Threshold: 70%. Drives plan
+    ~/.claude/plans/lucid-swarm-loom.md (Part B).
+    """
+    warnings = []
+    effects_dir = PROJECT_ROOT / "backend" / "src" / "effects" / "fx"
+    oracles_dir = PROJECT_ROOT / "backend" / "tests" / "oracles"
+
+    if not effects_dir.exists():
+        return warnings
+
+    effect_files = [f for f in effects_dir.glob("*.py") if not f.name.startswith("_")]
+    effect_count = len(effect_files)
+    if effect_count == 0:
+        return warnings
+
+    oracle_count = (
+        len(list(oracles_dir.glob("test_*_oracle.py"))) if oracles_dir.exists() else 0
+    )
+    coverage_pct = oracle_count / effect_count * 100
+    threshold = 70
+
+    if coverage_pct < threshold:
+        warnings.append(
+            f"ORACLE COVERAGE: {oracle_count}/{effect_count} effects "
+            f"({coverage_pct:.0f}%) below threshold {threshold}%. "
+            f"Add validators to backend/tests/oracles/. "
+            f"See plan ~/.claude/plans/lucid-swarm-loom.md."
+        )
+
+    return warnings
+
+
 def run_all_checks() -> tuple[list[str], list[str]]:
     """Run all health checks. Returns (warnings, info)."""
     health = load_health()
     warnings = []
     info = []
+
+    # Oracle coverage and WHY E2E checks run against the filesystem, not
+    # .test-health.json — they should fire even before tests have been run.
+    warnings.extend(check_oracle_coverage())
+    warnings.extend(check_why_e2e())
 
     if health is None:
         info.append(
@@ -123,7 +164,6 @@ def run_all_checks() -> tuple[list[str], list[str]]:
 
     warnings.extend(check_pyramid_ratio(health))
     warnings.extend(check_ci_time(health))
-    warnings.extend(check_why_e2e())
     warnings.extend(check_duration_regression(health))
 
     # Summary info
