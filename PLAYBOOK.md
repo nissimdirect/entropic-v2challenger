@@ -56,3 +56,10 @@
 - **Rule:** Any file representing user data must use write-to-temp + atomic rename. Add cleanup in finally blocks for cancelled/errored operations.
 - **Why:** Direct `writeFile` for project save = crash mid-write = corrupted user data. Orphan partial export files left on cancel with no cleanup.
 - **Example:** BAD: `fs.writeFileSync(projectPath, data)` GOOD: `fs.writeFileSync(tmpPath, data); fs.renameSync(tmpPath, projectPath);` with `finally { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath); }`
+
+## PLAY-008: Retire orphaned components after UX redesigns
+- **Added:** 2026-04-16 (PR #18 CI failure)
+- **Category:** cleanup
+- **Rule:** When a major UX redesign renames or replaces a DOM container, (a) delete the orphaned `.tsx` file OR move it into a `legacy/` folder, and (b) grep `tests/e2e/**` and `__tests__/**` for class selectors pointing at the replaced element and update them in the same commit as the UI change.
+- **Why:** Phase 12-16 replaced `<DropZone>` (`.drop-zone`) with `FileDialog` inside `.app__upload`, but `DropZone.tsx` stayed on disk as dead code. `smoke.spec.ts` still targeted `.drop-zone`, so CI went red on every PR until a selector sweep. Dead components lie — they compile and pass unit tests that import them directly even when they're never rendered.
+- **Example:** After replacing a component: `rg -l "\.drop-zone|DropZone" frontend/src frontend/tests` before committing. If the orphan must stay for future re-enable (e.g., `OperatorRack`), add a comment at its only live import site explaining why, so it isn't mistaken for live UI in tests.
