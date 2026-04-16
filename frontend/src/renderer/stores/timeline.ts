@@ -444,7 +444,8 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         }))
         const selectedClipIds = state.selectedClipIds.filter((id) => id !== clipId)
         const selectedClipId = selectedClipIds[0] ?? null
-        set({ tracks, selectedClipId, selectedClipIds, duration: recalcDuration(tracks) })
+        const speedDialog = state.speedDialog?.clipId === clipId ? null : state.speedDialog
+        set({ tracks, selectedClipId, selectedClipIds, speedDialog, duration: recalcDuration(tracks) })
       },
       () => {
         const tracks = get().tracks.map((t) =>
@@ -631,11 +632,14 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     if (!Number.isFinite(speed)) return
     let oldSpeed = 1
     let oldDuration = 0
+    let found = false
     for (const track of get().tracks) {
       const clip = track.clips.find((c) => c.id === clipId)
-      if (clip) { oldSpeed = clip.speed; oldDuration = clip.duration; break }
+      if (clip) { oldSpeed = clip.speed; oldDuration = clip.duration; found = true; break }
     }
-    const clamped = Math.max(0.1, speed)
+    if (!found) return
+    // Store is the trust boundary: clamp both bounds regardless of caller (dialog, menubar, automation, scripting).
+    const clamped = Math.max(0.1, Math.min(10, speed))
     // Timeline duration scales inversely with speed: 2x speed → half the timeline length
     const newDuration = oldDuration * (oldSpeed / clamped)
 
@@ -962,11 +966,14 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       `Delete ${removedClips.length} clip${removedClips.length > 1 ? 's' : ''}`,
       () => {
         const removeSet = new Set(removedClips.map((r) => r.clip.id))
-        const tracks = get().tracks.map((t) => ({
+        const state = get()
+        const tracks = state.tracks.map((t) => ({
           ...t,
           clips: t.clips.filter((c) => !removeSet.has(c.id)),
         }))
-        set({ tracks, selectedClipId: null, selectedClipIds: [], duration: recalcDuration(tracks) })
+        const speedDialog =
+          state.speedDialog && removeSet.has(state.speedDialog.clipId) ? null : state.speedDialog
+        set({ tracks, selectedClipId: null, selectedClipIds: [], speedDialog, duration: recalcDuration(tracks) })
       },
       () => {
         let tracks = get().tracks

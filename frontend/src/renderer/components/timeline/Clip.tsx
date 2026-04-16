@@ -3,6 +3,7 @@ import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
+import { useToastStore } from '../../stores/toast'
 import { downsamplePeaks } from '../transport/useWaveform'
 import type { WaveformPeaks } from '../transport/useWaveform'
 import ContextMenu from './ContextMenu'
@@ -141,8 +142,6 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
 
-  const pendingNewTrack = useRef(false)
-
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       // Don't start drag from trim handles
@@ -151,7 +150,6 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       e.preventDefault()
       e.stopPropagation()
       isDragging.current = true
-      pendingNewTrack.current = false
       dragStartX.current = e.clientX
       dragStartPos.current = clip.position
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
@@ -178,40 +176,63 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const snapped = snapToGrid(newPos, e.metaKey)
 
       // Detect target track by Y. Iterate visible track lanes and check bounding rects.
+      // Do NOT latch pendingNewTrack from transient move samples — OS interrupts or window
+      // exits can leave a false latch. Re-check belowAllTracks at pointerup instead.
       const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
       let targetTrackId = clip.trackId
-      let belowAllTracks = false
-      let maxBottom = -Infinity
 
       for (const lane of lanes) {
         const rect = lane.getBoundingClientRect()
-        if (rect.bottom > maxBottom) maxBottom = rect.bottom
         if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
           const id = lane.dataset.trackId
           if (id) targetTrackId = id
         }
       }
-      if (maxBottom !== -Infinity && e.clientY > maxBottom) belowAllTracks = true
 
-      pendingNewTrack.current = belowAllTracks
       useTimelineStore.getState().moveClip(clip.id, targetTrackId, snapped)
     },
     [clip.id, clip.trackId, zoom],
   )
 
-  const handlePointerUp = useCallback(() => {
-    if (isDragging.current && pendingNewTrack.current) {
-      const store = useTimelineStore.getState()
-      const current = store.tracks.find((t) => t.clips.some((c) => c.id === clip.id))
-      const currentClip = current?.clips.find((c) => c.id === clip.id)
-      const newTrackId = store.addTrack(`Track ${store.tracks.length + 1}`, '#4ade80', 'video')
-      if (newTrackId && currentClip) {
-        store.moveClip(clip.id, newTrackId, currentClip.position)
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isDragging.current) {
+        return
       }
-    }
+      // Compute belowAllTracks from the pointer-UP position, not a latched move sample.
+      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+      let maxBottom = -Infinity
+      for (const lane of lanes) {
+        const rect = lane.getBoundingClientRect()
+        if (rect.bottom > maxBottom) maxBottom = rect.bottom
+      }
+      const belowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
+
+      if (belowAllTracks) {
+        const store = useTimelineStore.getState()
+        const current = store.tracks.find((t) => t.clips.some((c) => c.id === clip.id))
+        const currentClip = current?.clips.find((c) => c.id === clip.id)
+        const newTrackId = store.addTrack(`Track ${store.tracks.length + 1}`, '#4ade80', 'video')
+        if (newTrackId && currentClip) {
+          store.moveClip(clip.id, newTrackId, currentClip.position)
+        } else if (!newTrackId) {
+          useToastStore.getState().addToast({
+            level: 'warning',
+            message: 'Could not create new track — limit reached.',
+            source: 'clip-drag-new-track',
+          })
+        }
+      }
+      isDragging.current = false
+    },
+    [clip.id],
+  )
+
+  // pointercancel (OS interrupt, context menu, window focus loss) must reset state
+  // without creating a track — we can't trust the event's position in that case.
+  const handlePointerCancel = useCallback(() => {
     isDragging.current = false
-    pendingNewTrack.current = false
-  }, [clip.id])
+  }, [])
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -291,6 +312,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerCancel}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >

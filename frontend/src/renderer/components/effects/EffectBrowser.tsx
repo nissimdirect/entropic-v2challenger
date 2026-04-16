@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { randomUUID } from '../../utils'
 import type { EffectInfo, EffectInstance } from '../../../shared/types'
 import { LIMITS } from '../../../shared/limits'
@@ -47,22 +47,31 @@ export default function EffectBrowser({
   onAddTextTrack,
 }: EffectBrowserProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const initial = useMemo(() => loadExpanded(), [])
-  const [expanded, setExpanded] = useState<Set<string>>(initial.value)
-  const [hasInitialized, setHasInitialized] = useState(initial.hasStored)
+
+  // Ref captures whether localStorage had stored state at mount — never changes.
+  const hasStoredRef = useRef<boolean>(false)
+
+  // Lazy initializer avoids the paint-collapsed-then-paint-expanded flash on first mount.
+  // If registry is populated at mount, expand all categories immediately (no flash).
+  // If registry is empty at mount (async load), the useEffect below catches up when it populates.
+  const [expanded, setExpanded] = useState<Set<string>>(() => {
+    const { value, hasStored } = loadExpanded()
+    hasStoredRef.current = hasStored
+    return hasStored ? value : new Set(registry.map((e) => e.category))
+  })
 
   const categories = useMemo(() => {
     const cats = new Set(registry.map((e) => e.category))
     return Array.from(cats).sort()
   }, [registry])
 
-  // First load without persisted state: expand all categories by default
+  // Async-registry catch-up: if mount happened before registry loaded and user has no
+  // stored state, expand all categories when they first become available.
   useEffect(() => {
-    if (!hasInitialized && categories.length > 0) {
+    if (!hasStoredRef.current && expanded.size === 0 && categories.length > 0) {
       setExpanded(new Set(categories))
-      setHasInitialized(true)
     }
-  }, [hasInitialized, categories])
+  }, [categories, expanded.size])
 
   // Prune stored keys for removed categories
   useEffect(() => {
@@ -138,6 +147,8 @@ export default function EffectBrowser({
   }
 
   const toggleCategory = (cat: string) => {
+    // First toggle marks "user has expressed intent" — prevents async-catchup from clobbering.
+    hasStoredRef.current = true
     setExpanded((prev) => {
       const next = new Set(prev)
       if (next.has(cat)) next.delete(cat)
@@ -145,7 +156,6 @@ export default function EffectBrowser({
       persistExpanded(next)
       return next
     })
-    setHasInitialized(true)
   }
 
   if (isLoading) {
