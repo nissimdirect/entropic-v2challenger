@@ -553,11 +553,17 @@ class ZMQServer:
 
     def _handle_render_composite(self, message: dict, msg_id: str | None) -> dict:
         raw_layers = message.get("layers", [])
-        resolution = message.get("resolution", [1920, 1080])
+        raw_res = message.get("resolution", [1920, 1080])
         project_seed = message.get("project_seed", 0)
 
         if not isinstance(raw_layers, list):
             return {"id": msg_id, "ok": False, "error": "layers must be a list"}
+
+        if not isinstance(raw_res, list) or len(raw_res) != 2:
+            return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
+        res_w: int = max(1, min(8192, int(raw_res[0])))
+        res_h: int = max(1, min(8192, int(raw_res[1])))
+        resolution: tuple[int, int] = (res_w, res_h)
 
         try:
             layers = []
@@ -581,9 +587,7 @@ class ZMQServer:
                     if not text_config:
                         continue
                     fps = float(layer_info.get("fps", 30.0))
-                    frame = render_text_frame(
-                        text_config, tuple(resolution), frame_index, fps
-                    )
+                    frame = render_text_frame(text_config, resolution, frame_index, fps)
                 else:
                     # Video/image layer — decode from asset
                     asset_path = layer_info.get("asset_path")
@@ -600,7 +604,7 @@ class ZMQServer:
                     layer_transform = layer_info.get("transform")
                     if layer_transform and isinstance(layer_transform, dict):
                         frame = self._apply_clip_transform(
-                            frame, layer_transform, tuple(resolution)
+                            frame, layer_transform, resolution
                         )
 
                 layers.append(
@@ -614,7 +618,7 @@ class ZMQServer:
                 )
 
             t0 = time.time()
-            output = render_composite(layers, tuple(resolution), project_seed)
+            output = render_composite(layers, resolution, project_seed)
 
             jpeg_bytes = encode_mjpeg(output)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
@@ -1073,16 +1077,17 @@ class ZMQServer:
             return {"id": msg_id, "ok": False, "error": "text_config required"}
 
         raw_res = message.get("resolution", [1920, 1080])
-        resolution = [
-            max(1, min(8192, int(raw_res[0]))),
-            max(1, min(8192, int(raw_res[1]))),
-        ]
+        if not isinstance(raw_res, list) or len(raw_res) != 2:
+            return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
+        res_w: int = max(1, min(8192, int(raw_res[0])))
+        res_h: int = max(1, min(8192, int(raw_res[1])))
+        resolution: tuple[int, int] = (res_w, res_h)
         frame_index = max(0, int(message.get("frame_index", 0)))
         fps = max(1.0, min(120.0, float(message.get("fps", 30.0))))
 
         try:
             t0 = time.time()
-            frame = render_text_frame(text_config, tuple(resolution), frame_index, fps)
+            frame = render_text_frame(text_config, resolution, frame_index, fps)
             jpeg_bytes = encode_mjpeg(frame)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
@@ -1240,10 +1245,17 @@ class ZMQServer:
         chain = message.get("chain", [])
         project_seed = message.get("project_seed", 0)
         frame_count = message.get("frame_count", 0)
-        resolution = message.get("resolution", [1280, 720])
+        raw_res = message.get("resolution", [1280, 720])
 
         if not asset_path or not isinstance(asset_path, str):
             return {"id": msg_id, "ok": False, "error": "asset_path required"}
+
+        if not isinstance(raw_res, list) or len(raw_res) != 2:
+            return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
+        resolution: tuple[int, int] = (
+            max(1, min(8192, int(raw_res[0]))),
+            max(1, min(8192, int(raw_res[1]))),
+        )
 
         # SEC-5: validate asset path (prevents path traversal)
         upload_errors = validate_upload(asset_path)
