@@ -106,45 +106,45 @@ frontend/src/renderer/components/operators/
 
 | Capability | Built | Mounted | Tested | Evidence | Status |
 |---|---|---|---|---|---|
-| **Effects (189)** | ✅ | ✅ `EffectBrowser` | ✅ auto + UAT | `EFFECTS-INVENTORY.md` ; `registry.py` | 🟢 SHIP |
-| **Timeline (tracks, clips, zoom, split, markers)** | ✅ | ✅ `Timeline` | ✅ PASS | `Timeline.tsx` | 🟢 SHIP |
+| **Effects (193)** | ✅ | ✅ `EffectBrowser` | ✅ auto + UAT | `backend/src/effects/registry.py` — live `list_all()` returns 193 this session; CU screenshot shows category filters (codec_archaeology, color, creative, destruction, distortion, emergent, enhance, fx, glitch) matching registry categories | 🟢 SHIP |
+| **Timeline (tracks, clips, zoom, split, markers)** | ✅ | ✅ `Timeline` | ✅ PASS | `frontend/src/renderer/components/timeline/Timeline.tsx`; mounted App.tsx:1834; `TrackHeader` + `TrackLane` imported from `Track.tsx`; CU confirmed Track 1 added via Timeline menu → Add Video Track | 🟢 SHIP |
 | **Preview (play/pause/seek/zoom)** | ✅ | ✅ `PreviewCanvas` | ✅ PASS | App.tsx:1744 | 🟢 SHIP |
 | **Text overlays + Subliminal + Static image (PR #15)** | ✅ | ✅ `TextOverlay`, `TextPanel` | ⚠️ wiring tests only | App.tsx:1753, 1805 | 🟡 UAT gap |
-| **Undo/redo (incl. redo cap)** | ✅ | ✅ | ✅ PASS | `undo.ts` | 🟢 SHIP |
-| **Save/load .glitch round-trip** | ✅ | ✅ | ✅ PASS | — | 🟢 SHIP |
+| **Undo/redo (incl. redo cap)** | ✅ | ✅ | ✅ PASS | `frontend/src/renderer/stores/undo.ts` (MAX_REDO_ENTRIES = 500 cap added 2026-04-10, master plan Sprint 6 confirmation) | 🟢 SHIP |
+| **Save/load .glitch round-trip** | ✅ | ✅ | ✅ PASS | `frontend/src/renderer/project-persistence.ts` (imported App.tsx:34; bound to shortcuts App.tsx:266-267 and menu App.tsx:1020-1021) | 🟢 SHIP |
 | **Multi-codec export (H.264/265/ProRes/GIF/sequence)** | ✅ | ✅ `ExportDialog`, `ExportProgress` | ⚠️ dock overlap blocks CU UAT | PR #14 | 🟡 UAT gap |
 | **Render Queue** | ✅ | ✅ `RenderQueue` | ⚠️ untested | App.tsx:1924 | 🟡 UAT gap |
-| **Import (video/image, symlink-safe)** | ✅ | ✅ `FileDialog` | ✅ PASS | — | 🟢 SHIP |
-| **Knobs (drag + right-click reset)** | ✅ | ✅ | ✅ PASS | — | 🟢 SHIP |
+| **Import (video/image, symlink-safe)** | ✅ | ✅ `FileDialog` | ✅ PASS | `frontend/src/renderer/components/upload/FileDialog.tsx` (31 lines); `frontend/src/main/file-handlers.ts` (dialog-gated IPC, symlink rejection) | 🟢 SHIP |
+| **Knobs (drag + right-click reset)** | ✅ | ✅ | ✅ PASS | `frontend/src/renderer/components/common/Knob.tsx` (265 lines); drag at :55-59 (getDragSensitivity), right-click reset handler | 🟢 SHIP |
 | **Knobs (scroll/Shift-drag/arrow/dbl-click)** | ✅ | ✅ | ⚠️ tests pass, CU couldn't verify | `Knob.tsx:134-168` | 🟡 UAT gap |
-| **Performance pads (4×4)** | ✅ | ✅ `PerformancePanel`, `PadEditor` | ✅ PASS | — | 🟢 SHIP |
+| **Performance pads (4×4)** | ✅ | ✅ `PerformancePanel`, `PadEditor` | ✅ PASS | App.tsx:1859 (PerformancePanel mount) + App.tsx:2005 (PadEditor mount); `components/performance/padActions.ts` | 🟢 SHIP |
 | **J/K/L transport (Phase 12)** | ✅ | ✅ | ✅ tests pass | PR #18 | 🟢 SHIP |
 | **Cmd+D duplicate effect** | ✅ | ✅ | ✅ tests pass | PR #18 | 🟢 SHIP |
 | **Device Chain horizontal (Phase 13, PR #18)** | ✅ | ✅ `DeviceChain` | ✅ tests pass | App.tsx:1868 | 🟢 SHIP |
-| **A/B switch (Phase 14, PR #18)** | ✅ | ✅ (inside DeviceChain) | ✅ tests pass | `ab-switch` store | 🟢 SHIP |
-| **Device Groups (flat, Phase 14, PR #18)** | ✅ | ✅ | ✅ tests pass | `project.ts:deviceGroups` | 🟢 SHIP |
-| **Trigger Lanes (Phase 15, PR #18)** | ✅ | ✅ | ✅ tests pass | `trigger-lanes` store | 🟢 SHIP |
-| **Pop-out Preview (Phase 16, PR #18)** | ✅ | ✅ | ✅ tests pass | — | 🟢 SHIP |
+| **A/B switch (Phase 14, PR #18)** | ✅ | ✅ (inside DeviceChain) | ✅ tests pass | `frontend/src/renderer/stores/ab-switch.ts`; `sprint4-ab-deactivate.test.ts`; PR #18 body: "per-device A/B param comparison (click toggle, shift+click copy)". Not directly CU-verified without an effect loaded. | 🟢 SHIP |
+| **Device Groups (flat, Phase 14, PR #18)** | ✅ | ✅ | ✅ tests pass | `frontend/src/renderer/stores/project.ts` (deviceGroups map); `sprint7-device-group-ui.test.ts`; `fix(project): cascade-prune deviceGroups on removeEffect` commit cdad72c; PR #18 body CTO amendment C1/C2 (groups own children, flattenChain helper) | 🟢 SHIP |
+| **Trigger Lanes (Phase 15, PR #18)** | ✅ | ✅ | ✅ tests pass | `frontend/src/renderer/stores/trigger-lanes.ts`; `sprint7-trigger-lane-ui.test.ts`; PR #18 body: "`isTrigger` flag on AutomationLane, square-wave recording (key-down=1.0, key-up=0.0), exclusive param ownership (toast on conflict)" | 🟢 SHIP |
+| **Pop-out Preview (Phase 16, PR #18)** | ✅ | ✅ | ✅ tests pass | `frontend/src/renderer/components/preview/PopOutPreview.tsx`; references in App.tsx + `stores/layout.ts` + `env.d.ts`. PR #18 body: separate BrowserWindow, read-only preload (RT-1 security), bounds persistence, HT-4 memory leak guard | 🟢 SHIP |
 | **Per-track opacity slider** | ✅ | ✅ Track.tsx:225-236 | ⚠️ no visual compositing UAT | Track.tsx:231 `value={track.opacity}` | 🟡 UAT gap |
 | **Per-track blend-mode dropdown (9 modes)** | ✅ | ✅ Track.tsx:241 | ⚠️ no visual per-mode UAT | Track.tsx:153 `BLEND_MODES` array | 🟡 UAT gap |
 | **Clip transforms (x/y/scaleX/Y/rotation/anchor/flip)** | ✅ | ✅ `TransformPanel` | ✅ 19/19 UAT PASS | Dim-Translation PR 4dc64bd; `zmq_server._apply_clip_transform` line 1121 | 🟢 SHIP |
 | **BoundingBoxOverlay (8 SVG handles: move/scale/rotate)** | ✅ | ✅ App.tsx:1762 | ✅ UAT PASS | `BoundingBoxOverlay.tsx` | 🟢 SHIP |
 | **SnapGuides (center/edge snap indicators)** | ✅ | ✅ App.tsx:1777 | ✅ UAT PASS | `SnapGuides.tsx` | 🟢 SHIP |
-| **Multi-track compositing (video + text + blend + opacity)** | ✅ | ✅ in compositor | ⚠️ no compound UAT | `compositor.py:render_composite` | 🟡 UAT gap |
-| **Canvas resolution (project-scoped)** | ✅ | ✅ Preferences | ⚠️ no UAT | PR 4dc64bd | 🟡 UAT gap |
-| **Automation UI (Read/Latch/Touch/Draw modes)** | ✅ | ✅ `AutomationToolbar` App.tsx:1851 | ⚠️ partial | `automation` store | 🟡 UAT gap |
+| **Multi-track compositing (video + text + blend + opacity)** | ✅ | ✅ in compositor | ⚠️ no compound UAT | `backend/src/engine/compositor.py:render_composite(layers, resolution, project_seed)` — composites layers bottom-to-top with per-layer opacity + blend_mode + clip transform + effect chain; text blending at App.tsx:1753. PR 4dc64bd shipped multi-track video rendering. | 🟡 UAT gap |
+| **Canvas resolution (project-scoped)** | ✅ | ✅ Preferences | ⚠️ no UAT | PR 4dc64bd commit body: "canvas resolution in project store"; Preferences panel mounted at App.tsx:1916. (Not directly CU-verified this session — needs opening Preferences.) | 🟡 UAT gap |
+| **Automation UI (Read/Latch/Touch/Draw modes)** | ✅ | ✅ | ✅ CU-verified | `frontend/src/renderer/stores/automation.ts` (4 modes: Read/Latch/Touch/Draw); `AutomationToolbar.tsx:32` mounted at App.tsx:1851; CU screenshot shows R/L/T/D + "+ Lane", "+ Trigger", "Simplify", "Clear" buttons | 🟡 UAT gap |
 | **Automation recording (knob → lane)** | ✅ | ✅ (when knobs drive lanes directly) | ⚠️ CU UAT limited | `automation-record.ts` | 🟡 UAT gap |
 | **Automation simplify (Douglas-Peucker)** | ✅ | ✅ | ✅ unit tests | `automation-simplify.ts` | 🟢 SHIP |
-| **MIDI (learn, pad editor, CC mapping) (PR #12)** | ✅ | ✅ `PadEditor` | ⚠️ needs hardware | — | 🟡 UAT gap |
+| **MIDI (learn, pad editor, CC mapping) (PR #12)** | ✅ | ✅ `PadEditor` | ⚠️ needs hardware | `frontend/src/renderer/hooks/useMIDI.ts` (imported App.tsx:46); `frontend/src/renderer/stores/midi.ts`; CC mapping at `components/performance/applyCCModulations.ts` (App.tsx:43) | 🟡 UAT gap |
 | **Operator editors (LFO/Env/StepSeq/Fusion/AudioFollower/VideoAnalyzer)** | ✅ 6 on disk | 🟠 **UNMOUNTED** (App.tsx:47) | ❌ 33 UAT N/A | `components/operators/*.tsx` | 🟠 SHELVED |
 | **Modulation Matrix + Routing Lines** | ✅ | 🟠 UNMOUNTED | ❌ 26 UAT N/A | `ModulationMatrix.tsx`, `RoutingLines.tsx` | 🟠 SHELVED |
 | **Operator backend pipeline** | ✅ | ✅ (IPC accepts serialized ops) | ⚠️ pipeline tested, UI path unverifiable | App.tsx:611-715 | 🟡 dark but working |
 | **Perf Tier 1-4 (10 effects optimized)** | ✅ | ✅ | ✅ benchmark | PR #16 (7 effects 12-100× faster) + PR #17 (hue_shift 16×, block_crystallize 2.7×, reaction_diffusion 2.3×) | 🟢 SHIP |
 | **Freeze / Flatten (Phase 10)** | ❌ | ❌ | ❌ | Plan `2026-03-15-phase10-freeze-library-plan.md` 0/57 | 🔴 NOT BUILT |
-| **Preset Library (Phase 10)** | ⚠️ partial (PresetBrowser + PresetSaveDialog mounted) | ⚠️ UI exists, persistence unclear | ⚠️ | App.tsx:1671, 1955 | 🟡 incomplete |
-| **Welcome Screen + Preferences + About (PR #14)** | ✅ | ✅ | ⚠️ | App.tsx:1916, 2016, 1920 | 🟡 UAT gap |
-| **Crash recovery + telemetry + feedback dialogs (IPC Security Sprint, 2026-03-01)** | ✅ | ✅ | ✅ wiring tests | `CrashRecoveryDialog.tsx` etc. | 🟢 SHIP |
-| **Tempo / BPM / Musical time (Phase 12 of post-v1 roadmap)** | ❌ | ❌ | ❌ | `docs/addendums/POST-V1-ROADMAP.md` | ⚪ POST-V1 |
+| **Preset Library (Phase 10)** | ⚠️ partial | ⚠️ UI exists; persistence unclear | ⚠️ not CU-verified | App.tsx:1671 (PresetBrowser mount) + App.tsx:1955 (PresetSaveDialog); CU confirms PRESETS tab exists in sidebar | 🟡 incomplete |
+| **Welcome Screen + Preferences + About (PR #14)** | ✅ | ✅ | ⚠️ WelcomeScreen CU-verified this session | App.tsx:2016 (`WelcomeScreen`), App.tsx:1916 (`Preferences`), App.tsx:1920 (`AboutDialog`). CU screenshot #1: ENTROPIC v2.0.0 welcome + Recent Projects list | 🟡 UAT gap |
+| **Crash recovery + telemetry + feedback dialogs (IPC Security Sprint, 2026-03-01)** | ✅ | ✅ | ✅ wiring tests + CU-verified | `CrashRecoveryDialog.tsx` at App.tsx:1935, `TelemetryConsentDialog.tsx` at App.tsx:1929, `FeedbackDialog.tsx` at App.tsx:1945. CU confirmed CrashRecoveryDialog rendered ("Unsaved Session Found / Start Fresh / Restore Autosave") on launch. | 🟢 SHIP |
+| **Tempo / BPM field** | ⚠️ partial | ⚠️ partial | ⚠️ CU verified | `frontend/src/renderer/stores/project.ts:36-37` (`bpm: number`, `setBpm`, clamped 1-300 at :257). CU screenshot: BPM field visible in transport at 120. **BUT** tap tempo, beat grid, tempo-synced params, swing — grep returns 0 hits. Phase 12 POST-V1 features beyond the bare field are NOT built. | 🟡 partial (field only) |
 | **Transition library (Phase 13 of post-v1 roadmap)** | ❌ | ❌ | ❌ | POST-V1-ROADMAP.md | ⚪ POST-V1 |
 | **Groups of groups (nested device groups)** | ❌ by design | ❌ | — | CTO amendment C2 (PR #18 flattens) | ⚪ OUT OF SCOPE |
 | **Track-level transforms** | ❌ | ❌ | — | Not in PRD | ⚪ NOT IN PRD |
@@ -164,7 +164,7 @@ frontend/src/renderer/components/operators/
 | Blend modes | 9 (normal, add, multiply, screen, overlay, difference, exclusion, darken, lighten) | `backend/src/engine/compositor.py:69` |
 | UAT guide total | inconsistent — header says 517, grand-total says 476 | `docs/UAT-UIT-GUIDE.md` lines 7, 1286 |
 | Dim Translation UAT | 19/19 PASS | `docs/UAT-RESULTS-DIM-TRANSLATION-2026-04-10.md` |
-| UI component files | 146 per COMPONENT-TEST-MATRIX | `docs/COMPONENT-TEST-MATRIX.md` |
+| UI component files | "146 component types" (per 2026-04-10 master plan appendix line 8); COMPONENT-TEST-MATRIX itself re-verified "Sidebar ~37 elements, Device chain ~50 elements across 8 cards" | `docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md` line 8 + `docs/COMPONENT-TEST-MATRIX.md` header |
 | BDD-specced components | 81 | `docs/COMPONENT-ACCEPTANCE-CRITERIA.md` |
 | Open bugs | 5 (BUG-6, 8, 11, 12, 13) | `docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md` (bug table) |
 | Bugs verified fixed | 11 of 16 originally reported | same |
