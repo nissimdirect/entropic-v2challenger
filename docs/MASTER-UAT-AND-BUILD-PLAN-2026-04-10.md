@@ -1,6 +1,6 @@
 # Entropic v2 — Master UAT Results + Build Plan
 
-> **⚠️ SUPERSEDED (2026-04-16):** See `docs/audits/2026-04-16-stock-take.md` for the current picture.
+> **⚠️ SUPERSEDED (2026-04-16):** See **`docs/audits/2026-04-16-state-of-union.md`** for the canonical current state. (The intermediate `docs/audits/2026-04-16-stock-take.md` had a correction pass but was itself superseded by the state-of-union.)
 > **Stale claims in this doc (corrected in the superseding audit):**
 > - Sprint 4 items #1 (track opacity), #2 (blend mode), #3 (setClipTransform → render) are **ALL wired** now — see `Track.tsx:225-242` for opacity + blend, `zmq_server._apply_clip_transform` (line 1121) for clip transform render path
 > - "Transform panel fields accept input but don't affect render" (line 340) is **OBSOLETE** — backend applies both pre-chain and per-layer

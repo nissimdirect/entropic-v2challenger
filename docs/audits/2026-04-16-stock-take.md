@@ -1,9 +1,10 @@
 ---
 title: "Entropic v2 — Comprehensive Stock-Take Audit"
 date: 2026-04-16
-status: active
+status: superseded
+superseded_by: docs/audits/2026-04-16-state-of-union.md
 type: audit
-revised: 2026-04-16 (ultrathink review pass — corrected 4 factual errors, see Appendix C)
+revised: 2026-04-16 (ultrathink review pass — corrected 6 factual errors, see Appendix C)
 supersedes: ["docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md (partial)"]
 sources:
   - docs/plans/ (12 files, 568 checkboxes)
@@ -18,6 +19,10 @@ sources:
 ---
 
 # Entropic v2 — Comprehensive Stock-Take Audit (Revised)
+
+> **⚠️ SUPERSEDED (2026-04-16 later-same-day):** See `docs/audits/2026-04-16-state-of-union.md` for the canonical state.
+> A challenger first-principles pass found 5 additional gaps this audit missed even after its ultrathink correction: (1) effect count is **189** (not 170), (2) Dimensional Translation PR 4dc64bd shipped multi-track rendering + BoundingBoxOverlay + SnapGuides, (3) `AutomationToolbar` IS mounted (App.tsx:1851), (4) `RenderQueue` IS mounted (App.tsx:1924), (5) Perf Tier 1-4 (PRs #16, #17) optimized 11 effects 9.1× — unmentioned here.
+> This doc is retained for its correction log (Appendix C) and the audit-method lesson.
 
 ## TL;DR
 
