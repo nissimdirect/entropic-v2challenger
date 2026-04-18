@@ -608,6 +608,24 @@ function AppInner() {
     }
   }, [status, fetchRegistry])
 
+  // Start the audio bridge once the backend is up. The bridge is inert
+  // when EXPERIMENTAL_AUDIO_TRACKS is off — no extra IPC, no mutation
+  // of legacy paths.
+  useEffect(() => {
+    if (status !== 'connected') return
+    let cancelled = false
+    ;(async () => {
+      const { refreshFlag, startAudioBridge } = await import('./audio-bridge')
+      const enabled = await refreshFlag()
+      if (!cancelled && enabled) {
+        startAudioBridge()
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [status])
+
   // Listen for export progress
   useEffect(() => {
     if (typeof window === 'undefined' || !window.entropic) return
