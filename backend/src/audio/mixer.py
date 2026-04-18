@@ -228,6 +228,11 @@ class AudioMixer:
         """Release resources. Idempotent."""
         self.clear()
 
+    def has_tracks(self) -> bool:
+        """True if at least one audio track holds at least one clip."""
+        with self._lock:
+            return any(len(t.clips) > 0 for t in self._tracks)
+
     # --- Introspection ---
 
     def get_active_clips(self, t: float) -> list[tuple[MixerTrack, MixerClip]]:

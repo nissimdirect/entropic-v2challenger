@@ -13,6 +13,8 @@ import cv2
 import numpy as np
 import sentry_sdk
 
+from audio.mixer import AudioMixer
+from engine.audio_export import render_mix_to_temp_wav
 from engine.codecs import (
     CODEC_REGISTRY,
     FPS_PRESETS,
@@ -87,10 +89,77 @@ class ExportJob:
 
 
 class ExportManager:
-    """Manages background export jobs. One job at a time."""
+    """Manages background export jobs. One job at a time.
 
-    def __init__(self):
+    Optional `audio_mixer` injection enables the flag-ON path where the
+    final exported video carries a mixdown of the project's audio tracks
+    instead of the source video's audio stream.
+    """
+
+    def __init__(
+        self,
+        audio_mixer: AudioMixer | None = None,
+        experimental_audio_tracks: bool = False,
+    ):
         self._job: ExportJob | None = None
+        self._audio_mixer = audio_mixer
+        self._experimental_audio_tracks = bool(experimental_audio_tracks)
+
+    def _has_audio_tracks(self) -> bool:
+        """True iff the injected mixer has at least one clip to render."""
+        return self._audio_mixer is not None and self._audio_mixer.has_tracks()
+
+    def _perform_audio_mux(
+        self,
+        mux_fn,
+        *,
+        input_path: str,
+        output_path: str,
+        start_frame: int,
+        end_frame: int,
+        source_fps: float,
+        cancel_cb=None,
+    ) -> None:
+        """Route audio muxing to either the project mixdown (flag on + tracks)
+        or the source-video audio (legacy).
+
+        Extracted from the main export loop so the decision is unit-testable
+        without running the full pipeline. `mux_fn` is typically
+        ExportManager._mux_audio but can be injected for tests.
+        """
+        mixdown_used = False
+        if (
+            self._experimental_audio_tracks
+            and self._audio_mixer is not None
+            and self._has_audio_tracks()
+        ):
+            export_duration_s = (end_frame - start_frame + 1) / max(1e-6, source_fps)
+            with render_mix_to_temp_wav(
+                self._audio_mixer,
+                export_duration_s,
+                cancel_cb=cancel_cb,
+            ) as wav_path:
+                if wav_path is not None:
+                    # Mix was rendered successfully — mux from temp WAV.
+                    # start_frame=0 because the WAV is already trimmed to
+                    # the export region.
+                    render_frames = end_frame - start_frame
+                    mux_fn(
+                        wav_path,
+                        output_path,
+                        0,
+                        render_frames,
+                        source_fps,
+                    )
+                    mixdown_used = True
+        if not mixdown_used:
+            mux_fn(
+                input_path,
+                output_path,
+                start_frame,
+                end_frame,
+                source_fps,
+            )
 
     @property
     def job(self) -> ExportJob | None:
@@ -369,12 +438,14 @@ class ExportManager:
 
             # Audio muxing (video only, not GIF or image_sequence)
             if settings["include_audio"]:
-                self._mux_audio(
-                    input_path,
-                    output_path,
-                    start_frame,
-                    end_frame,
-                    source_fps,
+                self._perform_audio_mux(
+                    self._mux_audio,
+                    input_path=input_path,
+                    output_path=output_path,
+                    start_frame=start_frame,
+                    end_frame=end_frame,
+                    source_fps=source_fps,
+                    cancel_cb=lambda: job._cancel_event.is_set(),
                 )
 
             with job._lock:
