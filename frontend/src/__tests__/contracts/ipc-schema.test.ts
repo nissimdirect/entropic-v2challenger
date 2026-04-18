@@ -111,7 +111,7 @@ describe('IPC Contract', () => {
   it('backend ZMQ server registers all expected commands', () => {
     const commands = getBackendCommands()
 
-    // All 25 commands from handle_message()
+    // All commands from handle_message()
     const expected = [
       'apply_chain',
       'audio_decode',
@@ -121,6 +121,8 @@ describe('IPC Contract', () => {
       'audio_position',
       'audio_seek',
       'audio_stop',
+      'audio_tracks_clear',
+      'audio_tracks_set',
       'audio_volume',
       'check_dag',
       'clock_set_fps',
@@ -139,6 +141,11 @@ describe('IPC Contract', () => {
       'list_fonts',
       'memory_status',
       'ping',
+      'project_clock_pause',
+      'project_clock_play',
+      'project_clock_seek',
+      'project_clock_set_duration',
+      'project_clock_state',
       'read_freeze',
       'render_composite',
       'render_frame',

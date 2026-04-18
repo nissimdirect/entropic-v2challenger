@@ -35,6 +35,7 @@ from security import (
 from audio.decoder import decode_audio
 from audio.clock import AVClock
 from audio.mixer import AudioMixer
+from audio.mixer_player import MixerPlayer
 from audio.player import AudioPlayer
 from audio.project_clock import ProjectClock
 from audio.waveform import compute_peaks
@@ -87,6 +88,9 @@ class ZMQServer:
         # instantiated; empty state = silent output. State pushed via
         # audio_tracks_set / audio_tracks_clear ZMQ commands.
         self.audio_mixer = AudioMixer()
+        # MixerPlayer — PortAudio output stream for flag-ON path.
+        # Construction is cheap (no device open); start() opens the stream.
+        self.mixer_player = MixerPlayer(self.audio_mixer, self.project_clock)
         # Feature-flag routing: EXPERIMENTAL_AUDIO_TRACKS=true swaps AVClock
         # source to project_clock. When off, AudioPlayer remains master (legacy).
         self._experimental_audio_tracks = _experimental_audio_tracks_enabled()
@@ -124,9 +128,11 @@ class ZMQServer:
         )
         self.av_clock = AVClock(clock_source)
 
-        # Clear mixer state + release all decoder handles
+        # Clear mixer state + release all decoder handles + stop PortAudio stream
+        self.mixer_player.close()
         self.audio_mixer.close()
         self.audio_mixer = AudioMixer()
+        self.mixer_player = MixerPlayer(self.audio_mixer, self.project_clock)
 
         # Cancel any in-flight export
         self.export_manager.cancel()
@@ -875,11 +881,18 @@ class ZMQServer:
     def _handle_project_clock_play(self, msg_id: str | None) -> dict:
         try:
             self.project_clock.play()
+            # When the flag is on, start the PortAudio stream so the mixer is
+            # actually heard. Failure to open the device is non-fatal — the
+            # clock still advances silently.
+            mixer_started = False
+            if self._experimental_audio_tracks:
+                mixer_started = self.mixer_player.start()
             return {
                 "id": msg_id,
                 "ok": True,
                 "is_playing": self.project_clock.is_playing,
                 "position_s": self.project_clock.position_seconds,
+                "mixer_started": mixer_started,
             }
         except Exception as e:
             sentry_sdk.capture_exception(e)
@@ -891,6 +904,9 @@ class ZMQServer:
     def _handle_project_clock_pause(self, msg_id: str | None) -> dict:
         try:
             self.project_clock.pause()
+            # Stop the PortAudio stream to avoid burning CPU on silent output.
+            if self._experimental_audio_tracks:
+                self.mixer_player.stop()
             return {
                 "id": msg_id,
                 "ok": True,
