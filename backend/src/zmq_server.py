@@ -35,12 +35,20 @@ from security import (
 from audio.decoder import decode_audio
 from audio.clock import AVClock
 from audio.player import AudioPlayer
+from audio.project_clock import ProjectClock
 from audio.waveform import compute_peaks
 from engine.text_renderer import list_system_fonts, render_text_frame
 from video.image_reader import ImageReader, is_image_file
 from video.ingest import generate_thumbnails, probe, probe_image
 from video.reader import VideoReader
 import diagnostics as _diagnostics_mod
+import os
+
+
+def _experimental_audio_tracks_enabled() -> bool:
+    """Read EXPERIMENTAL_AUDIO_TRACKS env var. Accepts true/1/yes/on."""
+    val = os.environ.get("EXPERIMENTAL_AUDIO_TRACKS", "").strip().lower()
+    return val in {"true", "1", "yes", "on"}
 
 
 class ZMQServer:
@@ -70,10 +78,17 @@ class ZMQServer:
             collections.OrderedDict()
         )
         self._max_waveform_cache = 64
-        # Audio playback engine
+        # Audio playback engine — singleton bed (legacy path)
         self.audio_player = AudioPlayer()
-        # A/V sync clock — audio master, video slave
-        self.av_clock = AVClock(self.audio_player)
+        # Project clock — multi-track path, driven by time.monotonic()
+        self.project_clock = ProjectClock()
+        # Feature-flag routing: EXPERIMENTAL_AUDIO_TRACKS=true swaps AVClock
+        # source to project_clock. When off, AudioPlayer remains master (legacy).
+        self._experimental_audio_tracks = _experimental_audio_tracks_enabled()
+        clock_source = (
+            self.project_clock if self._experimental_audio_tracks else self.audio_player
+        )
+        self.av_clock = AVClock(clock_source)
         # Sentry breadcrumb rate-limiter for render_frame (every 30th frame)
         self._breadcrumb_frame_counter = 0
         # Signal engine for operator modulation (Phase 6A)
@@ -97,8 +112,12 @@ class ZMQServer:
         # Reset audio player (stop playback, unload)
         self.audio_player.stop()
 
-        # Reset A/V clock
-        self.av_clock = AVClock(self.audio_player)
+        # Reset project clock state + A/V clock (source follows flag state)
+        self.project_clock = ProjectClock()
+        clock_source = (
+            self.project_clock if self._experimental_audio_tracks else self.audio_player
+        )
+        self.av_clock = AVClock(clock_source)
 
         # Cancel any in-flight export
         self.export_manager.cancel()
@@ -255,6 +274,16 @@ class ZMQServer:
             return self._handle_audio_position(msg_id)
         elif cmd == "audio_stop":
             return self._handle_audio_stop(msg_id)
+        elif cmd == "project_clock_play":
+            return self._handle_project_clock_play(msg_id)
+        elif cmd == "project_clock_pause":
+            return self._handle_project_clock_pause(msg_id)
+        elif cmd == "project_clock_seek":
+            return self._handle_project_clock_seek(message, msg_id)
+        elif cmd == "project_clock_set_duration":
+            return self._handle_project_clock_set_duration(message, msg_id)
+        elif cmd == "project_clock_state":
+            return self._handle_project_clock_state(msg_id)
         elif cmd == "clock_sync":
             return self._handle_clock_sync(msg_id)
         elif cmd == "clock_set_fps":
@@ -826,6 +855,96 @@ class ZMQServer:
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error("Audio stop error: %s", type(e).__name__)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    # --- ProjectClock handlers (flag ON path) ---
+
+    def _handle_project_clock_play(self, msg_id: str | None) -> dict:
+        try:
+            self.project_clock.play()
+            return {
+                "id": msg_id,
+                "ok": True,
+                "is_playing": self.project_clock.is_playing,
+                "position_s": self.project_clock.position_seconds,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Project clock play error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_project_clock_pause(self, msg_id: str | None) -> dict:
+        try:
+            self.project_clock.pause()
+            return {
+                "id": msg_id,
+                "ok": True,
+                "is_playing": self.project_clock.is_playing,
+                "position_s": self.project_clock.position_seconds,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Project clock pause error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_project_clock_seek(self, message: dict, msg_id: str | None) -> dict:
+        try:
+            time_s = clamp_finite(float(message.get("time", 0.0)), 0.0, 86400.0, 0.0)
+            ok = self.project_clock.seek(time_s)
+            return {
+                "id": msg_id,
+                "ok": bool(ok),
+                "position_s": self.project_clock.position_seconds,
+            }
+        except (TypeError, ValueError):
+            return {"id": msg_id, "ok": False, "error": "invalid time"}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Project clock seek error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_project_clock_set_duration(
+        self, message: dict, msg_id: str | None
+    ) -> dict:
+        try:
+            dur = clamp_finite(float(message.get("duration_s", 0.0)), 0.0, 86400.0, 0.0)
+            self.project_clock.set_duration(dur)
+            return {
+                "id": msg_id,
+                "ok": True,
+                "duration_s": self.project_clock.duration_seconds,
+            }
+        except (TypeError, ValueError):
+            return {"id": msg_id, "ok": False, "error": "invalid duration"}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Project clock set_duration error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_project_clock_state(self, msg_id: str | None) -> dict:
+        try:
+            return {
+                "id": msg_id,
+                "ok": True,
+                "is_playing": self.project_clock.is_playing,
+                "position_s": round(self.project_clock.position_seconds, 6),
+                "duration_s": round(self.project_clock.duration_seconds, 6),
+                "volume": self.project_clock.volume,
+                "flag_enabled": self._experimental_audio_tracks,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "Project clock state error: %s", type(e).__name__
+            )
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_clock_sync(self, msg_id: str | None) -> dict:
