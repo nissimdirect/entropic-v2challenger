@@ -115,12 +115,15 @@ export function createPopOutWindow(): BrowserWindow {
     popOutWindow = null
   })
 
-  // CSP header — same policy as main window
+  // CSP header — mirror main window (dev mode needs 'unsafe-inline' for Vite's
+  // React Fast Refresh preamble, otherwise the renderer never mounts)
+  const isDev = !!process.env.ELECTRON_RENDERER_URL
+  const scriptSrc = isDev ? "script-src 'self' 'unsafe-inline'" : "script-src 'self'"
   popOutWindow.webContents.session.webRequest.onHeadersReceived((details, callback) => {
     callback({
       responseHeaders: {
         ...details.responseHeaders,
-        'Content-Security-Policy': ["default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:"],
+        'Content-Security-Policy': [`default-src 'self'; ${scriptSrc}; style-src 'self' 'unsafe-inline'; img-src 'self' data:`],
       },
     })
   })
@@ -149,10 +152,28 @@ export function closePopOutWindow(): void {
 
 const MAX_FRAME_SIZE = 10 * 1024 * 1024 // 10MB — reject absurdly large frames
 
+let popOutRelayCount = 0
+let popOutRelayDropWindow = 0
+let popOutRelayDropSize = 0
+
 export function sendFrameToPopOut(dataUrl: string): void {
-  if (popOutWindow && !popOutWindow.isDestroyed() && dataUrl.length <= MAX_FRAME_SIZE) {
-    popOutWindow.webContents.send('pop-out:frame', dataUrl)
+  if (!popOutWindow || popOutWindow.isDestroyed()) {
+    popOutRelayDropWindow++
+    if (popOutRelayDropWindow <= 3 || popOutRelayDropWindow % 50 === 0) {
+      console.log(`[pop-out-relay] drop (no window): count=${popOutRelayDropWindow}`)
+    }
+    return
   }
+  if (dataUrl.length > MAX_FRAME_SIZE) {
+    popOutRelayDropSize++
+    console.log(`[pop-out-relay] drop (size ${dataUrl.length} > ${MAX_FRAME_SIZE}): count=${popOutRelayDropSize}`)
+    return
+  }
+  popOutRelayCount++
+  if (popOutRelayCount <= 3 || popOutRelayCount % 30 === 0) {
+    console.log(`[pop-out-relay] forward #${popOutRelayCount} len=${dataUrl.length}`)
+  }
+  popOutWindow.webContents.send('pop-out:frame', dataUrl)
 }
 
 export function isPopOutOpen(): boolean {

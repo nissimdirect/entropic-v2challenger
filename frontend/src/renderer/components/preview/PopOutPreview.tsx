@@ -34,9 +34,7 @@ export default function PopOutPreview() {
         canvas.width = img.naturalWidth
         canvas.height = img.naturalHeight
         const ctx = canvas.getContext('2d')
-        if (ctx) {
-          ctx.drawImage(img, 0, 0)
-        }
+        if (ctx) ctx.drawImage(img, 0, 0)
       }
       img.src = dataUrl
     }
@@ -46,7 +44,6 @@ export default function PopOutPreview() {
       window.close()
     })
 
-    // Disconnected detection: check every second if no frame received for 2s
     const interval = setInterval(() => {
       if (Date.now() - lastFrameTimeRef.current > 2000) {
         setDisconnected(true)

@@ -1078,6 +1078,22 @@ body {
   line-height: 1;
 }
 
+.preview-canvas__fps {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #4ade80;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  z-index: 10;
+  line-height: 1;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
 .preview-canvas__popout-btn:hover {
   color: #fff;
   background: rgba(0, 0, 0, 0.8);
