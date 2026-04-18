@@ -4,6 +4,7 @@ import { useLayoutStore } from '../../stores/layout'
 import TimeRuler from './TimeRuler'
 import Playhead from './Playhead'
 import { TrackHeader, TrackLane } from './Track'
+import { AudioTrackHeader, AudioTrackLane } from './AudioTrack'
 import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
 
@@ -179,13 +180,21 @@ export default function Timeline({
             </button>
           </div>
           <div className="timeline__track-headers">
-            {tracks.map((track) => (
-              <TrackHeader
-                key={track.id}
-                track={track}
-                isSelected={track.id === selectedTrackId}
-              />
-            ))}
+            {tracks.map((track) =>
+              track.type === 'audio' ? (
+                <AudioTrackHeader
+                  key={track.id}
+                  track={track}
+                  isSelected={track.id === selectedTrackId}
+                />
+              ) : (
+                <TrackHeader
+                  key={track.id}
+                  track={track}
+                  isSelected={track.id === selectedTrackId}
+                />
+              ),
+            )}
           </div>
         </div>
 
@@ -228,19 +237,30 @@ export default function Timeline({
                   onDelete={handleDeleteMarker}
                 />
               ))}
-              {tracks.map((track) => (
-                <TrackLane
-                  key={track.id}
-                  track={track}
-                  zoom={zoom}
-                  scrollX={scrollX}
-                  isSelected={track.id === selectedTrackId}
-                  selectedClipIds={selectedClipIds}
-                  waveformPeaks={waveformPeaks}
-                  clipThumbnails={clipThumbnails}
-                  onSeek={onSeek}
-                />
-              ))}
+              {tracks.map((track) =>
+                track.type === 'audio' ? (
+                  <AudioTrackLane
+                    key={track.id}
+                    track={track}
+                    zoom={zoom}
+                    scrollX={scrollX}
+                    isSelected={track.id === selectedTrackId}
+                    onSeek={onSeek}
+                  />
+                ) : (
+                  <TrackLane
+                    key={track.id}
+                    track={track}
+                    zoom={zoom}
+                    scrollX={scrollX}
+                    isSelected={track.id === selectedTrackId}
+                    selectedClipIds={selectedClipIds}
+                    waveformPeaks={waveformPeaks}
+                    clipThumbnails={clipThumbnails}
+                    onSeek={onSeek}
+                  />
+                ),
+              )}
               <Playhead time={playheadTime} zoom={zoom} scrollX={scrollX} onSeek={onSeek} />
             </div>
           </div>

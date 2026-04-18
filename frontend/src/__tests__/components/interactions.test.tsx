@@ -274,10 +274,10 @@ describe('Interactions — Drop Zone', () => {
     render(<DropZone onFileDrop={vi.fn()} />)
 
     const text = document.querySelector('.drop-zone__text')
-    expect(text!.textContent).toBe('Drop video or image file here')
+    expect(text!.textContent).toBe('Drop video, image, or audio file here')
 
     const hint = document.querySelector('.drop-zone__hint')
-    expect(hint!.textContent).toBe('MP4, MOV, AVI, WebM, MKV, PNG, JPG, TIFF, WebP, BMP')
+    expect(hint!.textContent).toBe('MP4, MOV, PNG, WAV, MP3, FLAC, OGG, M4A …')
   })
 
   it('file extension validation accepts video formats', () => {
