@@ -152,6 +152,39 @@ function stopExportPoll(): void {
   }
 }
 
+const IDLE_STRIKE_LIMIT = 3
+
+/**
+ * Pure decision fn for export polling termination.
+ *
+ * Stops on terminal state (complete/cancelled/error) immediately.
+ * On 'idle', requires IDLE_STRIKE_LIMIT consecutive occurrences — avoids
+ * the race where the first poll lands before the worker thread has
+ * transitioned IDLE→RUNNING. Non-idle, non-terminal states reset the
+ * idle strike counter.
+ *
+ * Exported for unit tests (see __tests__/main/export-poll-decision-uat.test.ts).
+ */
+export function shouldStopExportPoll(
+  prevIdleStrikes: number,
+  exportState: string,
+): { stop: boolean; newIdleStrikes: number; reason: 'terminal' | 'sustained-idle' | 'continue' } {
+  const done = exportState === 'complete' || exportState === 'cancelled'
+  const failed = exportState === 'error'
+  if (done || failed) {
+    return { stop: true, newIdleStrikes: 0, reason: 'terminal' }
+  }
+  if (exportState === 'idle') {
+    const newIdleStrikes = prevIdleStrikes + 1
+    return {
+      stop: newIdleStrikes >= IDLE_STRIKE_LIMIT,
+      newIdleStrikes,
+      reason: newIdleStrikes >= IDLE_STRIKE_LIMIT ? 'sustained-idle' : 'continue',
+    }
+  }
+  return { stop: false, newIdleStrikes: 0, reason: 'continue' }
+}
+
 function startExportPoll(): void {
   stopExportPoll()
   let pollCount = 0
@@ -196,23 +229,15 @@ function startExportPoll(): void {
       })
     }
 
-    if (done || failed) {
-      logger.info('[export-poll] stopping — terminal state', { exportState })
-      stopExportPoll()
-      return
-    }
-
-    // Only stop on 'idle' after 3 consecutive idle polls — avoids the
-    // race where worker thread has not yet transitioned IDLE→RUNNING
-    // on the very first poll.
-    if (exportState === 'idle') {
-      idleStrikes++
-      if (idleStrikes >= 3) {
+    const decision = shouldStopExportPoll(idleStrikes, exportState)
+    idleStrikes = decision.newIdleStrikes
+    if (decision.stop) {
+      if (decision.reason === 'sustained-idle') {
         logger.warn('[export-poll] stopping — sustained idle state', { pollCount })
-        stopExportPoll()
+      } else {
+        logger.info('[export-poll] stopping — terminal state', { exportState })
       }
-    } else {
-      idleStrikes = 0
+      stopExportPoll()
     }
   }, EXPORT_POLL_INTERVAL)
 }
