@@ -1484,8 +1484,56 @@ function AppInner() {
     setExportJobId(null)
   }, [exportJobId])
 
-  // Global window drop handler — accepts video drops anywhere
+  // Global window drop handler — accepts video + image + audio drops anywhere
   const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
+  const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
+
+  const handleAudioIngest = useCallback(
+    async (path: string) => {
+      if (!window.entropic) return
+      // Probe duration via audio_decode (metadata only — backend also enforces
+      // safety guards: validate_upload, realpath, magic-byte, decode timeout).
+      const res = await window.entropic.sendCommand({
+        cmd: 'audio_decode',
+        path,
+        start_s: 0,
+        duration_s: 0.1,  // probe only — we need duration, not the samples
+      }) as unknown as { ok: boolean; duration_s?: number; error?: string }
+      if (!res.ok) {
+        setDropError(`Audio ingest failed: ${res.error ?? 'unknown error'}`)
+        return
+      }
+      // audio_decode with small duration_s returns that slice's duration, not
+      // the full file. Re-run with duration_s omitted to get full-file duration.
+      const full = await window.entropic.sendCommand({
+        cmd: 'audio_decode',
+        path,
+      }) as unknown as { ok: boolean; duration_s?: number; error?: string }
+      const duration = full.ok && typeof full.duration_s === 'number' ? full.duration_s : res.duration_s ?? 0
+      if (duration <= 0) {
+        setDropError('Audio file has no usable duration')
+        return
+      }
+      const timeline = useTimelineStore.getState()
+      let audioTrackId = timeline.tracks.find((t) => t.type === 'audio')?.id
+      if (!audioTrackId) {
+        audioTrackId = timeline.addAudioTrack()
+        if (!audioTrackId) return
+      }
+      timeline.addAudioClip(audioTrackId, {
+        path,
+        inSec: 0,
+        outSec: duration,
+        startSec: 0,
+        gainDb: 0,
+        fadeInSec: 0,
+        fadeOutSec: 0,
+        muted: false,
+      })
+      setDropError(null)
+    },
+    [],
+  )
 
   const dragCountRef = useRef(0)
 
@@ -1517,23 +1565,38 @@ function AppInner() {
     const files = e.dataTransfer.files
     if (files.length === 0) return
 
-    const file = files[0]
-    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
-    if (!ALLOWED_EXTENSIONS.includes(ext)) {
-      setDropError(`Unsupported format: ${ext}. Use ${ALLOWED_EXTENSIONS.join(', ')}`)
+    // Batch-drop cap — protect pipeline from 1000-file drop.
+    if (files.length > 8) {
+      setDropError(`Too many files (${files.length}). Drop up to 8 at once.`)
       return
     }
 
-    const filePath = window.entropic?.getPathForFile
-      ? window.entropic.getPathForFile(file)
-      : file.path
-    if (filePath) {
-      setDropError(null)
-      handleFileIngest(filePath)
-    } else {
-      setDropError('Could not resolve file path. Try using the file picker instead.')
+    const getPath = window.entropic?.getPathForFile
+    let hadError = false
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        setDropError(`Unsupported format: ${ext}. Use ${ALLOWED_EXTENSIONS.join(', ')}`)
+        hadError = true
+        continue
+      }
+      const filePath = getPath ? getPath(file) : file.path
+      if (!filePath) {
+        setDropError('Could not resolve file path. Try using the file picker instead.')
+        hadError = true
+        continue
+      }
+      if (AUDIO_EXTENSIONS.includes(ext)) {
+        handleAudioIngest(filePath)
+      } else {
+        handleFileIngest(filePath)
+      }
     }
-  }, [isIngesting, handleFileIngest])
+
+    if (!hadError) setDropError(null)
+  }, [isIngesting, handleFileIngest, handleAudioIngest])
 
   const hasAssets = Object.keys(assets).length > 0
   const selectedEffect = effectChain.find((e) => e.id === selectedEffectId) ?? null

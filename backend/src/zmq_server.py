@@ -24,6 +24,8 @@ from engine.pipeline import (
 )
 from memory.writer import SharedMemoryWriter
 from security import (
+    is_audio_magic,
+    resolve_safe_path,
     validate_chain_depth,
     validate_frame_count,
     validate_output_directory,
@@ -67,7 +69,7 @@ class ZMQServer:
         self._waveform_cache: collections.OrderedDict[tuple[str, int], list] = (
             collections.OrderedDict()
         )
-        self._max_waveform_cache = 10
+        self._max_waveform_cache = 64
         # Audio playback engine
         self.audio_player = AudioPlayer()
         # A/V sync clock — audio master, video slave
@@ -641,10 +643,11 @@ class ZMQServer:
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
 
-        # SEC-5: Validate path
-        errors = validate_upload(path)
-        if errors:
+        # SEC-5: Validate path + resolve realpath (TOCTOU defense)
+        resolved, errors = resolve_safe_path(path)
+        if errors or resolved is None:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+        safe_path = str(resolved)
 
         start_s = clamp_finite(float(message.get("start_s", 0.0)), 0.0, 86400.0, 0.0)
         duration_s = message.get("duration_s")
@@ -652,7 +655,7 @@ class ZMQServer:
             duration_s = clamp_finite(float(duration_s), 0.0, 86400.0, 1.0)
 
         try:
-            result = decode_audio(path, start_s=start_s, duration_s=duration_s)
+            result = decode_audio(safe_path, start_s=start_s, duration_s=duration_s)
             if not result["ok"]:
                 return {"id": msg_id, "ok": False, "error": result["error"]}
 
@@ -677,13 +680,14 @@ class ZMQServer:
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
 
-        # SEC-5: Validate path
-        errors = validate_upload(path)
-        if errors:
+        # SEC-5: Validate path + resolve realpath (TOCTOU defense)
+        resolved, errors = resolve_safe_path(path)
+        if errors or resolved is None:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+        safe_path = str(resolved)
 
-        # Check cache
-        cache_key = (path, num_bins)
+        # Check cache (keyed by resolved realpath to avoid dup entries for symlink paths)
+        cache_key = (safe_path, num_bins)
         if cache_key in self._waveform_cache:
             return {
                 "id": msg_id,
@@ -694,7 +698,7 @@ class ZMQServer:
             }
 
         try:
-            result = decode_audio(path)
+            result = decode_audio(safe_path)
             if not result["ok"]:
                 return {"id": msg_id, "ok": False, "error": result["error"]}
 
@@ -727,12 +731,21 @@ class ZMQServer:
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
 
-        errors = validate_upload(path)
-        if errors:
+        # Resolve realpath post-validation (TOCTOU defense) + magic-byte check.
+        resolved, errors = resolve_safe_path(path)
+        if errors or resolved is None:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
+        safe_path = str(resolved)
+        if not is_audio_magic(safe_path):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "File does not appear to be audio (magic-byte mismatch)",
+            }
+
         try:
-            result = self.audio_player.load(path)
+            result = self.audio_player.load(safe_path)
             result["id"] = msg_id
             return result
         except Exception as e:
