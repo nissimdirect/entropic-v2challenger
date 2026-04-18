@@ -1,4 +1,5 @@
 import { useRef, useEffect, useCallback, useState } from 'react'
+import { useLayoutStore } from '../../stores/layout'
 
 export type PreviewState = 'empty' | 'loading' | 'ready' | 'error'
 
@@ -51,6 +52,7 @@ export default function PreviewCanvas({
   const fpsRef = useRef({ frames: 0, lastTime: performance.now(), display: 0 })
   const [containerSize, setContainerSize] = useState({ w: 1920, h: 1080 })
   const [isPopOutOpen, setIsPopOutOpen] = useState(false)
+  const [fpsDisplay, setFpsDisplay] = useState(0)
 
   // Track container dimensions via ResizeObserver so drawBase64Frame never reads 0
   useEffect(() => {
@@ -69,9 +71,11 @@ export default function PreviewCanvas({
       if (isPopOutOpen) {
         await window.entropic.closePopOut()
         setIsPopOutOpen(false)
+        useLayoutStore.getState().setPopOutOpen(false)
       } else {
         await window.entropic.openPopOut()
         setIsPopOutOpen(true)
+        useLayoutStore.getState().setPopOutOpen(true)
         // Send current frame immediately so pop-out isn't black
         if (frameDataUrl) {
           window.entropic.sendFrameToPopOut(frameDataUrl)
@@ -93,23 +97,19 @@ export default function PreviewCanvas({
     drawBase64Frame(ctx, canvas, img, containerSize.w, containerSize.h)
     canvas.dataset.frameReady = 'true'
 
-    // FPS counter (dev mode only)
+    // FPS counter (dev mode only). Rendered as a DOM overlay below — do NOT
+    // draw onto the canvas bitmap, that causes sub-pixel jitter because
+    // drawBase64Frame resets canvas.width/height on every frame.
     if (import.meta.env.DEV) {
       const fps = fpsRef.current
       fps.frames++
       const now = performance.now()
       if (now - fps.lastTime >= 1000) {
+        if (fps.frames !== fps.display) setFpsDisplay(fps.frames)
         fps.display = fps.frames
         fps.frames = 0
         fps.lastTime = now
       }
-      ctx.save()
-      ctx.font = '12px JetBrains Mono, monospace'
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.6)'
-      ctx.fillRect(4, 4, 56, 20)
-      ctx.fillStyle = '#4ade80'
-      ctx.fillText(`${fps.display} fps`, 8, 18)
-      ctx.restore()
     }
   }, [containerSize])
 
@@ -148,6 +148,9 @@ export default function PreviewCanvas({
         width={width || undefined}
         height={height || undefined}
       />
+      {import.meta.env.DEV && previewState === 'ready' && (
+        <div className="preview-canvas__fps">{fpsDisplay} fps</div>
+      )}
       {previewState === 'empty' && (
         <div className="preview-canvas__placeholder">
           No video loaded

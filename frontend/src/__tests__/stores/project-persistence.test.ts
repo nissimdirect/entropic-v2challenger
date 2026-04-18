@@ -34,6 +34,7 @@ import {
   newProject,
   startAutosave,
   stopAutosave,
+  restoreAutosave,
 } from '../../renderer/project-persistence'
 
 // Helper: build a valid project JSON object
@@ -584,6 +585,57 @@ describe('loadProject', () => {
     await loadProject()
 
     expect(useTimelineStore.getState().tracks).toHaveLength(trackCountBefore)
+  })
+
+  it('invokes onHydrated callback after successful load (PLAY-010)', async () => {
+    const validProject = makeValidProject()
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify(validProject))
+    const onHydrated = vi.fn()
+
+    const result = await loadProject('/test/recent.glitch', onHydrated)
+
+    expect(result).toBe(true)
+    expect(onHydrated).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT invoke onHydrated callback when load fails (PLAY-010)', async () => {
+    mockEntropic.readFile.mockRejectedValue(new Error('Access denied'))
+    const onHydrated = vi.fn()
+
+    const result = await loadProject('/test/recent.glitch', onHydrated)
+
+    expect(result).toBe(false)
+    expect(onHydrated).not.toHaveBeenCalled()
+  })
+})
+
+describe('restoreAutosave', () => {
+  beforeEach(() => {
+    useProjectStore.getState().resetProject()
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    resetMocks()
+  })
+
+  it('invokes onHydrated callback after successful restore (PLAY-010)', async () => {
+    const validProject = makeValidProject()
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify(validProject))
+    const onHydrated = vi.fn()
+
+    const result = await restoreAutosave('/test/.autosave.glitch', onHydrated)
+
+    expect(result).toBe(true)
+    expect(onHydrated).toHaveBeenCalledTimes(1)
+  })
+
+  it('does NOT invoke onHydrated callback when restore fails (PLAY-010)', async () => {
+    mockEntropic.readFile.mockRejectedValue(new Error('Read failure'))
+    const onHydrated = vi.fn()
+
+    const result = await restoreAutosave('/test/.autosave.glitch', onHydrated)
+
+    expect(result).toBe(false)
+    expect(onHydrated).not.toHaveBeenCalled()
   })
 })
 

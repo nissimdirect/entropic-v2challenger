@@ -14,6 +14,7 @@ import TextPanel from './components/text/TextPanel'
 import TextOverlay from './components/text/TextOverlay'
 import PreviewControls from './components/preview/PreviewControls'
 import ExportDialog from './components/export/ExportDialog'
+import { applyExportProgress, type ExportProgressPayload } from './lib/export-progress'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
@@ -195,6 +196,7 @@ function AppInner() {
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
   const handlePlayPauseRef = useRef<() => void>(() => {})
+  const initPreviewRef = useRef<() => Promise<void>>(async () => {})
   const renderSeqRef = useRef(0)
   const lastDisabledEffectsRef = useRef<string>('')
 
@@ -234,7 +236,7 @@ function AppInner() {
 
   const handleCrashRestore = useCallback(async (_sendReport: boolean) => {
     if (autosavePath) {
-      await restoreAutosave(autosavePath)
+      await restoreAutosave(autosavePath, () => initPreviewRef.current())
     }
     if (window.entropic) {
       await window.entropic.clearCrashReports()
@@ -297,7 +299,7 @@ function AppInner() {
       useTimelineStore.getState().setZoom(Math.max(0.5, viewportWidth / Math.max(1, dur)))
     })
     shortcutRegistry.register('save', () => saveProject())
-    shortcutRegistry.register('open', () => loadProject())
+    shortcutRegistry.register('open', () => loadProject(undefined, () => initPreviewRef.current()))
     shortcutRegistry.register('new_project', () => handleNewProject())
     shortcutRegistry.register('split_clip', () => {
       const timeline = useTimelineStore.getState()
@@ -511,13 +513,11 @@ function AppInner() {
         return
       }
 
-      // Direct spacebar → play/pause (bypasses registry — most reliable)
+      // Direct spacebar → play/pause (bypasses registry — most reliable).
+      // Routes through handlePlayPauseRef so silent videos use the timer path too.
       if (e.code === 'Space') {
         e.preventDefault()
-        const audio = useAudioStore.getState()
-        if (audio.isLoaded) {
-          audio.togglePlayback()
-        }
+        handlePlayPauseRef.current()
         return
       }
 
@@ -584,28 +584,18 @@ function AppInner() {
   // Listen for export progress
   useEffect(() => {
     if (typeof window === 'undefined' || !window.entropic) return
-    const cleanup = window.entropic.onExportProgress(({ jobId, progress, done, error, currentFrame: cf, totalFrames: tf, etaSeconds, outputPath }) => {
-      if (exportJobId && jobId !== exportJobId) return
-      setExportProgress(progress)
-      if (cf !== undefined) setExportCurrentFrame(cf)
-      if (tf !== undefined) setExportTotalFrames(tf)
-      if (etaSeconds !== undefined) setExportEta(etaSeconds)
-      if (outputPath !== undefined) setExportOutputPath(outputPath)
-      if (done) {
-        setIsExporting(false)
-        setExportJobId(null)
-      }
-      if (error) {
-        setExportError(error)
-        setIsExporting(false)
-        setExportJobId(null)
-        useToastStore.getState().addToast({
-          level: 'error',
-          message: 'Export failed',
-          source: 'export',
-          details: error,
-        })
-      }
+    const cleanup = window.entropic.onExportProgress((payload) => {
+      applyExportProgress(payload as ExportProgressPayload, exportJobId, {
+        setExportProgress,
+        setExportCurrentFrame,
+        setExportTotalFrames,
+        setExportEta,
+        setExportOutputPath,
+        setIsExporting,
+        setExportJobId,
+        setExportError,
+        addToast: (t) => useToastStore.getState().addToast(t),
+      })
     })
     return cleanup
   }, [exportJobId])
@@ -765,10 +755,9 @@ function AppInner() {
         if (res.ok && res.frame_data) {
           const dataUrl = `data:image/jpeg;base64,${res.frame_data as string}`
           setFrameDataUrl(dataUrl)
-          // Relay frame to pop-out window if open
-          if (useLayoutStore.getState().isPopOutOpen) {
-            window.entropic.sendFrameToPopOut(dataUrl)
-          }
+          // Relay every frame unconditionally — main process drops if pop-out closed.
+          // Cheaper than a stale gate; avoids the state-divergence bug from F13.
+          window.entropic.sendFrameToPopOut(dataUrl)
           if (res.width) setFrameWidth(res.width as number)
           if (res.height) setFrameHeight(res.height as number)
           setPreviewState('ready')
@@ -861,6 +850,57 @@ function AppInner() {
       console.warn('[Audio] waveform load failed:', err)
     }
   }, [])
+
+  // PLAY-010 — Preview refs (activeAssetPath / totalFrames / frameWidth / etc.)
+  // are App.tsx local state, not part of any Zustand store. Import flow sets them
+  // inline; hydrate flows (autosave, recent, future cloud-sync) don't. This helper
+  // reconstructs preview state from the first video clip on the timeline and is
+  // called by restoreAutosave / loadProject via their onHydrated callback.
+  const initPreviewFromHydratedProject = useCallback(async () => {
+    if (!window.entropic) return
+
+    const projectState = useProjectStore.getState()
+    const timelineState = useTimelineStore.getState()
+
+    let assetPath: string | null = null
+    for (const track of timelineState.tracks) {
+      if (track.type !== 'video' || track.isMuted) continue
+      for (const clip of track.clips) {
+        const asset = projectState.assets[clip.assetId]
+        if (asset?.path && asset.type === 'video') {
+          assetPath = asset.path
+          break
+        }
+      }
+      if (assetPath) break
+    }
+    if (!assetPath) return
+
+    const res = await window.entropic.sendCommand({ cmd: 'ingest', path: assetPath })
+    if (!res.ok) {
+      console.warn('[initPreview] ingest probe failed for', assetPath, res.error)
+      return
+    }
+
+    const assetHasAudio = (res.has_audio as boolean) || false
+    setTotalFrames(res.frame_count as number)
+    setFrameWidth(res.width as number)
+    setFrameHeight(res.height as number)
+    setActiveFps(res.fps as number)
+    activeAssetPath.current = assetPath
+    setCurrentFrame(0)
+    setHasAudio(assetHasAudio)
+    setPreviewState('loading')
+
+    if (assetHasAudio) {
+      const audioLoaded = await audioStore.loadAudio(assetPath)
+      if (audioLoaded) {
+        await audioStore.setFps(res.fps as number)
+        loadWaveform(assetPath)
+      }
+    }
+  }, [audioStore, loadWaveform, setCurrentFrame, setTotalFrames])
+  initPreviewRef.current = initPreviewFromHydratedProject
 
   const handleFileIngest = useCallback(
     async (path: string) => {
@@ -1060,7 +1100,7 @@ function AppInner() {
         case 'import-media': handleImportMedia(); break
         case 'add-text-track': handleAddTextTrack(); break
         case 'new-project': handleNewProject(); break
-        case 'open-project': loadProject(); break
+        case 'open-project': loadProject(undefined, () => initPreviewRef.current()); break
         case 'save': saveProject(); break
         case 'save-as': saveProject(); break
         case 'export': setShowExportDialog(true); break
@@ -1351,17 +1391,31 @@ function AppInner() {
         const framesToAdvance = Math.max(1, Math.floor(elapsed / frameDuration))
         lastFrameTime = now - (elapsed % frameDuration)
         const current = useProjectStore.getState().currentFrame
+        const isLooping = useTimelineStore.getState().isLooping
         let nextFrame: number
+        let reachedEnd = false
         if (isReverse) {
           nextFrame = current - framesToAdvance
-          if (nextFrame < 0) nextFrame = 0
+          if (nextFrame < 0) {
+            if (isLooping) nextFrame = totalFrames - 1
+            else { nextFrame = 0; reachedEnd = true }
+          }
         } else {
-          nextFrame = (current + framesToAdvance) % totalFrames
+          const raw = current + framesToAdvance
+          if (raw >= totalFrames) {
+            if (isLooping) nextFrame = raw % totalFrames
+            else { nextFrame = totalFrames - 1; reachedEnd = true }
+          } else {
+            nextFrame = raw
+          }
         }
         setCurrentFrame(nextFrame)
-        // Sync timeline playhead for silent/image playback (audio path does this in clock sync)
         if (activeFps > 0) {
           useTimelineStore.getState().setPlayheadTime(nextFrame / activeFps)
+        }
+        if (reachedEnd) {
+          setIsTimerPlaying(false)
+          return
         }
       }
       playbackRafRef.current = requestAnimationFrame(tick)
@@ -1378,7 +1432,28 @@ function AppInner() {
 
   const handleExport = useCallback(
     async (settings: ExportSettings) => {
-      if (!window.entropic || !activeAssetPath.current) return
+      if (!window.entropic) {
+        console.error('[export] window.entropic bridge missing')
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'Export unavailable',
+          source: 'export',
+          details: 'IPC bridge to backend is missing. Restart the app.',
+        })
+        setShowExportDialog(false)
+        return
+      }
+      if (!activeAssetPath.current) {
+        console.error('[export] no active asset loaded — cannot export')
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'No asset loaded',
+          source: 'export',
+          details: 'Load a video or image before exporting.',
+        })
+        setShowExportDialog(false)
+        return
+      }
 
       setShowExportDialog(false)
       setIsExporting(true)
@@ -1433,13 +1508,19 @@ function AppInner() {
 
       if (res.ok) {
         setExportJobId(res.job_id as string)
+        useToastStore.getState().addToast({
+          level: 'info',
+          message: 'Export started',
+          source: 'export-start',
+          details: settings.outputPath,
+        })
       } else {
         setExportError(res.error as string)
         setIsExporting(false)
         useToastStore.getState().addToast({
           level: 'error',
-          message: 'Export failed',
-          source: 'export',
+          message: 'Export failed to start',
+          source: 'export-error',
           details: res.error as string,
         })
       }
@@ -1516,6 +1597,7 @@ function AppInner() {
 
   // Derive selected text clip via Zustand selector (reactive — re-renders on change)
   const loopRegion = useTimelineStore((s) => s.loopRegion)
+  const isLooping = useTimelineStore((s) => s.isLooping)
   const projectBpm = useProjectStore((s) => s.bpm)
   const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
   const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
@@ -1577,6 +1659,13 @@ function AppInner() {
           </button>
           <button className="app__transport-btn" onClick={handleStop} title="Stop">
             ⏹
+          </button>
+          <button
+            className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
+            onClick={() => useTimelineStore.getState().toggleLooping()}
+            title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
+          >
+            ⟳
           </button>
         </div>
         <span className="app__transport-timecode">
@@ -2061,8 +2150,8 @@ function AppInner() {
         isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
         onNewProject={() => { handleNewProject(); setWelcomeDismissed(true) }}
-        onOpenProject={() => { setWelcomeDismissed(true); loadProject() }}
-        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path) }}
+        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, () => initPreviewRef.current()) }}
+        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, () => initPreviewRef.current()) }}
       />
 
       <Toast />
