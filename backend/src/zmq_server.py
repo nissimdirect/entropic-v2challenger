@@ -34,6 +34,7 @@ from security import (
 )
 from audio.decoder import decode_audio
 from audio.clock import AVClock
+from audio.mixer import AudioMixer
 from audio.player import AudioPlayer
 from audio.project_clock import ProjectClock
 from audio.waveform import compute_peaks
@@ -82,6 +83,10 @@ class ZMQServer:
         self.audio_player = AudioPlayer()
         # Project clock — multi-track path, driven by time.monotonic()
         self.project_clock = ProjectClock()
+        # Audio mixer — sums N tracks × N clips when flag ON. Always
+        # instantiated; empty state = silent output. State pushed via
+        # audio_tracks_set / audio_tracks_clear ZMQ commands.
+        self.audio_mixer = AudioMixer()
         # Feature-flag routing: EXPERIMENTAL_AUDIO_TRACKS=true swaps AVClock
         # source to project_clock. When off, AudioPlayer remains master (legacy).
         self._experimental_audio_tracks = _experimental_audio_tracks_enabled()
@@ -118,6 +123,10 @@ class ZMQServer:
             self.project_clock if self._experimental_audio_tracks else self.audio_player
         )
         self.av_clock = AVClock(clock_source)
+
+        # Clear mixer state + release all decoder handles
+        self.audio_mixer.close()
+        self.audio_mixer = AudioMixer()
 
         # Cancel any in-flight export
         self.export_manager.cancel()
@@ -284,6 +293,10 @@ class ZMQServer:
             return self._handle_project_clock_set_duration(message, msg_id)
         elif cmd == "project_clock_state":
             return self._handle_project_clock_state(msg_id)
+        elif cmd == "audio_tracks_set":
+            return self._handle_audio_tracks_set(message, msg_id)
+        elif cmd == "audio_tracks_clear":
+            return self._handle_audio_tracks_clear(msg_id)
         elif cmd == "clock_sync":
             return self._handle_clock_sync(msg_id)
         elif cmd == "clock_set_fps":
@@ -926,6 +939,72 @@ class ZMQServer:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(
                 "Project clock set_duration error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_audio_tracks_set(self, message: dict, msg_id: str | None) -> dict:
+        """Replace mixer state with the given tracks. Each clip path is
+        resolve_safe_path-validated before the mixer sees it to defend against
+        TOCTOU / symlink escape; failed paths are dropped silently with a log."""
+        try:
+            tracks_raw = message.get("tracks", [])
+            if not isinstance(tracks_raw, list):
+                return {"id": msg_id, "ok": False, "error": "tracks must be a list"}
+            # Resolve every clip path through the security guard; strip invalid ones.
+            sanitized: list[dict] = []
+            dropped = 0
+            for t in tracks_raw:
+                if not isinstance(t, dict):
+                    continue
+                t_copy = dict(t)
+                clips = t_copy.get("audioClips") or []
+                if not isinstance(clips, list):
+                    continue
+                safe_clips: list[dict] = []
+                for c in clips:
+                    if not isinstance(c, dict):
+                        continue
+                    path = c.get("path")
+                    if not isinstance(path, str):
+                        continue
+                    resolved, errors = resolve_safe_path(path)
+                    if errors or resolved is None:
+                        dropped += 1
+                        logging.getLogger(__name__).warning(
+                            "audio_tracks_set: dropping clip with bad path %s: %s",
+                            path,
+                            errors,
+                        )
+                        continue
+                    # Replace the untrusted user path with the validated realpath
+                    c_copy = dict(c)
+                    c_copy["path"] = str(resolved)
+                    safe_clips.append(c_copy)
+                t_copy["audioClips"] = safe_clips
+                sanitized.append(t_copy)
+            self.audio_mixer.set_tracks(sanitized)
+            return {
+                "id": msg_id,
+                "ok": True,
+                "num_tracks": len(sanitized),
+                "dropped_clips": dropped,
+                "flag_enabled": self._experimental_audio_tracks,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "audio_tracks_set error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_audio_tracks_clear(self, msg_id: str | None) -> dict:
+        try:
+            self.audio_mixer.clear()
+            return {"id": msg_id, "ok": True}
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "audio_tracks_clear error: %s", type(e).__name__
             )
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
