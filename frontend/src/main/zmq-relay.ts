@@ -154,11 +154,29 @@ function stopExportPoll(): void {
 
 function startExportPoll(): void {
   stopExportPoll()
+  let pollCount = 0
+  let idleStrikes = 0
   exportPollTimer = setInterval(async () => {
     const res = await sendZmqCommand({ cmd: 'export_status', id: randomUUID() })
+    pollCount++
+
+    logger.info('[export-poll]', {
+      poll: pollCount,
+      ok: res.ok,
+      status: res.status,
+      progress: res.progress,
+      current_frame: res.current_frame,
+      total_frames: res.total_frames,
+      error: res.error,
+    })
+
     if (!res.ok) return
 
     const progress = (res.progress as number) ?? 0
+    const currentFrame = (res.current_frame as number) ?? 0
+    const totalFrames = (res.total_frames as number) ?? 0
+    const etaSeconds = res.eta_seconds as number | undefined
+    const outputPath = res.output_path as string | undefined
     const exportState = res.status as string
     const done = exportState === 'complete' || exportState === 'cancelled'
     const failed = exportState === 'error'
@@ -168,13 +186,33 @@ function startExportPoll(): void {
       win.webContents.send('export-progress', {
         jobId: null,
         progress,
+        currentFrame,
+        totalFrames,
+        etaSeconds,
+        outputPath,
         done: done || failed,
         error,
+        status: exportState,
       })
     }
 
-    if (done || failed || exportState === 'idle') {
+    if (done || failed) {
+      logger.info('[export-poll] stopping — terminal state', { exportState })
       stopExportPoll()
+      return
+    }
+
+    // Only stop on 'idle' after 3 consecutive idle polls — avoids the
+    // race where worker thread has not yet transitioned IDLE→RUNNING
+    // on the very first poll.
+    if (exportState === 'idle') {
+      idleStrikes++
+      if (idleStrikes >= 3) {
+        logger.warn('[export-poll] stopping — sustained idle state', { pollCount })
+        stopExportPoll()
+      }
+    } else {
+      idleStrikes = 0
     }
   }, EXPORT_POLL_INTERVAL)
 }

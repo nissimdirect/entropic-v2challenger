@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useToastStore } from '../../stores/toast'
 
 export interface ExportSettings {
   outputPath: string
@@ -122,7 +123,7 @@ export default function ExportDialog({
   // Region
   const [region, setRegion] = useState('full')
   const [startFrame, setStartFrame] = useState(0)
-  const [endFrame, setEndFrame] = useState(totalFrames)
+  const [endFrame, setEndFrame] = useState(Math.max(1, totalFrames))
 
   // GIF settings
   const [gifMaxWidth, setGifMaxWidth] = useState(480)
@@ -164,11 +165,54 @@ export default function ExportDialog({
   if (!isOpen) return null
 
   const handleExport = async () => {
-    if (!window.entropic) return
+    if (!window.entropic) {
+      console.error('[export-dialog] window.entropic bridge missing')
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: 'Export unavailable',
+        source: 'export',
+        details: 'IPC bridge to backend is missing. Restart the app.',
+      })
+      return
+    }
+
+    if (totalFrames === 0) {
+      console.error('[export-dialog] no asset loaded — totalFrames=0')
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: 'No asset loaded',
+        source: 'export',
+        details: 'Load a video or image before exporting.',
+      })
+      return
+    }
+
+    if (region === 'custom' && startFrame >= endFrame) {
+      console.error('[export-dialog] invalid range', { startFrame, endFrame })
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: 'Invalid export range',
+        source: 'export',
+        details: `Start (${startFrame}) must be before end (${endFrame}).`,
+      })
+      return
+    }
 
     const defaultName = getDefaultFilename(activeTab, codec)
-    const outputPath = await window.entropic.selectSavePath(defaultName)
-    if (!outputPath) return
+    let outputPath: string | null = null
+    try {
+      outputPath = await window.entropic.selectSavePath(defaultName)
+    } catch (err) {
+      console.error('[export-dialog] selectSavePath threw', err)
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: 'Could not open save dialog',
+        source: 'export',
+        details: err instanceof Error ? err.message : String(err),
+      })
+      return
+    }
+    if (!outputPath) return // user cancelled save dialog — silent is correct here
 
     onExport({ ...settings, outputPath })
   }
@@ -186,30 +230,44 @@ export default function ExportDialog({
           <option value="loop_region" disabled={!hasLoop}>
             Loop Region{hasLoop ? ` (${loopIn}–${loopOut})` : ' (no loop set)'}
           </option>
-          <option value="custom">Custom Range</option>
+          <option value="custom" disabled={totalFrames === 0}>
+            Custom Range{totalFrames === 0 ? ' (load a video first)' : ''}
+          </option>
         </select>
       </div>
       {region === 'custom' && (
-        <div className="export-dialog__field export-dialog__field--resolution">
-          <label>Start</label>
-          <input
-            type="number"
-            className="export-dialog__res-input"
-            value={startFrame}
-            onChange={(e) => setStartFrame(Math.max(0, parseInt(e.target.value, 10) || 0))}
-            min={0}
-            max={totalFrames - 1}
-          />
-          <label>End</label>
-          <input
-            type="number"
-            className="export-dialog__res-input"
-            value={endFrame}
-            onChange={(e) => setEndFrame(Math.min(totalFrames, parseInt(e.target.value, 10) || 0))}
-            min={1}
-            max={totalFrames}
-          />
-        </div>
+        <>
+          <div className="export-dialog__field export-dialog__field--resolution">
+            <label>Start frame</label>
+            <input
+              type="number"
+              className="export-dialog__res-input"
+              value={startFrame}
+              onChange={(e) => setStartFrame(Math.max(0, parseInt(e.target.value, 10) || 0))}
+              min={0}
+              max={totalFrames - 1}
+            />
+            <span className="export-dialog__hint">
+              {sourceFps > 0 ? `${(startFrame / sourceFps).toFixed(2)}s` : ''}
+            </span>
+            <label>End frame</label>
+            <input
+              type="number"
+              className="export-dialog__res-input"
+              value={endFrame}
+              onChange={(e) => setEndFrame(Math.min(totalFrames, parseInt(e.target.value, 10) || 0))}
+              min={1}
+              max={totalFrames}
+            />
+            <span className="export-dialog__hint">
+              {sourceFps > 0 ? `${(endFrame / sourceFps).toFixed(2)}s` : ''}
+            </span>
+          </div>
+          <div className="export-dialog__hint-row">
+            Range: frames {startFrame}–{endFrame} of {totalFrames}
+            {sourceFps > 0 && ` (${((endFrame - startFrame) / sourceFps).toFixed(2)}s @ ${sourceFps.toFixed(2)} fps)`}
+          </div>
+        </>
       )}
     </>
   )

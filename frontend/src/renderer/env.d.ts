@@ -29,6 +29,7 @@ interface Window {
         totalFrames?: number
         etaSeconds?: number | null
         outputPath?: string
+        status?: 'idle' | 'running' | 'complete' | 'cancelled' | 'error'
       }) => void,
     ) => () => void
     showSaveDialog: (options: Record<string, unknown>) => Promise<string | null>
