@@ -73,7 +73,8 @@ class ZMQServer:
         )
         self._max_readers = 10
         self.last_frame_ms = 0.0
-        self.export_manager = ExportManager()
+        # ExportManager is constructed after the audio mixer + flag below so
+        # it can receive the mixer + flag state for the mixdown export path.
         self.freeze_manager = FreezeManager()
         # Waveform peak cache — keyed by (path, num_bins), LRU eviction
         self._waveform_cache: collections.OrderedDict[tuple[str, int], list] = (
@@ -98,6 +99,13 @@ class ZMQServer:
             self.project_clock if self._experimental_audio_tracks else self.audio_player
         )
         self.av_clock = AVClock(clock_source)
+        # ExportManager receives audio_mixer + flag so that flag-on exports
+        # mux the project audio mixdown INTO the video instead of the source
+        # video's audio stream.
+        self.export_manager = ExportManager(
+            audio_mixer=self.audio_mixer,
+            experimental_audio_tracks=self._experimental_audio_tracks,
+        )
         # Sentry breadcrumb rate-limiter for render_frame (every 30th frame)
         self._breadcrumb_frame_counter = 0
         # Signal engine for operator modulation (Phase 6A)
@@ -142,9 +150,13 @@ class ZMQServer:
         self.audio_mixer = AudioMixer()
         self.mixer_player = MixerPlayer(self.audio_mixer, self.project_clock)
 
-        # Cancel any in-flight export
+        # Cancel any in-flight export. Re-create with the current mixer +
+        # flag so the mixdown path continues to work after reset.
         self.export_manager.cancel()
-        self.export_manager = ExportManager()
+        self.export_manager = ExportManager(
+            audio_mixer=self.audio_mixer,
+            experimental_audio_tracks=self._experimental_audio_tracks,
+        )
 
         # Close shared memory writer (will be re-created on demand)
         if self.shm_writer is not None:
