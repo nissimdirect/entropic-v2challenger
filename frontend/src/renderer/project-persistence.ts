@@ -285,7 +285,10 @@ export async function saveProject(): Promise<boolean> {
   return true
 }
 
-export async function loadProject(filePath?: string): Promise<boolean> {
+export async function loadProject(
+  filePath?: string,
+  onHydrated?: () => void | Promise<void>,
+): Promise<boolean> {
   if (!window.entropic) return false
 
   // Check if dirty and prompt
@@ -321,6 +324,11 @@ export async function loadProject(filePath?: string): Promise<boolean> {
 
     // Track as recent project
     addRecentProject({ path: path, name, lastModified: Date.now() })
+
+    // Post-hydrate: App.tsx wires preview refs/totalFrames from the hydrated
+    // project. See PLAY-010 — preview state is shadow-duplicated in App.tsx
+    // refs and must be initialized after every hydrate path.
+    if (onHydrated) await onHydrated()
 
     return true
   } catch (err) {
@@ -392,7 +400,10 @@ async function deleteAutosave(): Promise<void> {
   }
 }
 
-export async function restoreAutosave(path: string): Promise<boolean> {
+export async function restoreAutosave(
+  path: string,
+  onHydrated?: () => void | Promise<void>,
+): Promise<boolean> {
   if (!window.entropic) return false
 
   try {
@@ -412,6 +423,10 @@ export async function restoreAutosave(path: string): Promise<boolean> {
     } catch {
       // Best-effort cleanup
     }
+
+    // PLAY-010 — preview state lives in App.tsx refs, not the project store,
+    // so the hydrator can't populate it. Caller passes the init callback.
+    if (onHydrated) await onHydrated()
 
     return true
   } catch (err) {
