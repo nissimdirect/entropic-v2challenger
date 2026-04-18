@@ -171,6 +171,54 @@ class TestCallback:
         assert np.all(out[100:] == 0.0)
 
 
+# --- Status / observability counters ---
+
+
+class TestStatusCounters:
+    def test_underflow_counter_increments_on_truthy_status(self, fake_sd):
+        p = MixerPlayer(AudioMixer(), ProjectClock(), blocksize=64)
+        p.start()
+        out = np.zeros((64, 2), dtype=np.float32)
+
+        class _Truthy:
+            def __bool__(self):
+                return True
+
+        assert p.underflow_count == 0
+        fake_sd.last_stream.callback(out, 64, None, _Truthy())
+        assert p.underflow_count == 1
+        fake_sd.last_stream.callback(out, 64, None, _Truthy())
+        assert p.underflow_count == 2
+
+    def test_underflow_counter_stays_zero_on_falsy_status(self, fake_sd):
+        p = MixerPlayer(AudioMixer(), ProjectClock(), blocksize=64)
+        p.start()
+        out = np.zeros((64, 2), dtype=np.float32)
+
+        class _Falsy:
+            def __bool__(self):
+                return False
+
+        fake_sd.last_stream.callback(out, 64, None, _Falsy())
+        fake_sd.last_stream.callback(out, 64, None, None)
+        assert p.underflow_count == 0
+
+    def test_callback_error_counter_increments(self, fake_sd, monkeypatch):
+        mixer = AudioMixer()
+        p = MixerPlayer(mixer, ProjectClock(), blocksize=64)
+        p.start()
+
+        def boom(*a, **kw):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(mixer, "mix", boom)
+        out = np.ones((64, 2), dtype=np.float32)
+        assert p.callback_error_count == 0
+        fake_sd.last_stream.callback(out, 64, None, None)
+        assert p.callback_error_count == 1
+        assert np.all(out == 0)  # fallback silence
+
+
 # --- ZMQ integration via project_clock_play ---
 
 

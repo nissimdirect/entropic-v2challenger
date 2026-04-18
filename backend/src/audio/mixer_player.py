@@ -58,6 +58,8 @@ class MixerPlayer:
         self._stream: object | None = None  # sd.OutputStream when open
         self._lock = threading.Lock()
         self._is_running = False
+        self._underflow_count = 0
+        self._callback_error_count = 0
 
     # --- Properties ---
 
@@ -122,6 +124,25 @@ class MixerPlayer:
                 self._stream = None
             self._is_running = False
 
+    # --- Observability ---
+
+    @property
+    def underflow_count(self) -> int:
+        """Monotonic count of audio-thread underflows observed in the callback.
+
+        PortAudio raises an output_underflow flag when the previous callback
+        didn't fill the buffer in time (the audio thread missed its deadline).
+        A non-zero count after a long session is an early-warning signal that
+        the mixer is getting close to the per-callback budget.
+        """
+        return self._underflow_count
+
+    @property
+    def callback_error_count(self) -> int:
+        """Monotonic count of exceptions caught in _callback. Non-zero means
+        the audio thread fell back to silence at least once."""
+        return self._callback_error_count
+
     # --- Callback ---
 
     def _callback(
@@ -131,7 +152,24 @@ class MixerPlayer:
         time_info: object,
         status: object,
     ) -> None:
-        """sounddevice callback. Runs on the audio thread."""
+        """sounddevice callback. Runs on the audio thread.
+
+        Never raises — exceptions are caught and the output is zeroed so the
+        audio thread cannot die. Status flags (output_underflow etc.) are
+        tallied but do not alter output.
+        """
+        # PortAudio status reporting. sd.CallbackFlags implements __bool__ so
+        # truthy means at least one flag is set.
+        try:
+            if status:
+                # output_underflow is the main one that matters for us;
+                # sd.CallbackFlags has attributes like .output_underflow but
+                # simpler + portable: any truthy status counts as an underrun
+                # event for tally purposes.
+                self._underflow_count += 1
+        except Exception:
+            pass
+
         try:
             position = self._clock.position_seconds
             samples = self._mixer.mix(position, frames)
@@ -144,5 +182,6 @@ class MixerPlayer:
                 outdata[: samples.shape[0]] = samples
         except Exception as e:
             # Never let the audio thread die — fall back to silence.
+            self._callback_error_count += 1
             log.exception("MixerPlayer.callback error: %s", e)
             outdata.fill(0)
