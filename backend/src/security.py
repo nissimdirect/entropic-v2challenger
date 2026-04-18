@@ -94,6 +94,61 @@ def validate_upload(path: str) -> list[str]:
     return errors
 
 
+def resolve_safe_path(path: str) -> tuple[Path | None, list[str]]:
+    """Validate + resolve a path for trusted downstream use.
+
+    Returns (resolved_path, errors). When errors are non-empty, resolved_path
+    is None and the caller MUST refuse to use `path` at all. When errors is
+    empty, resolved_path is the realpath-resolved Path that is safe to pass
+    to downstream tools (avoids TOCTOU between validate and decode).
+    """
+    errors = validate_upload(path)
+    if errors:
+        return None, errors
+    try:
+        resolved = Path(path).resolve(strict=True)
+    except (OSError, RuntimeError) as e:
+        return None, [f"Path resolution failed: {e}"]
+    return resolved, []
+
+
+# Known audio file magic bytes (first 12 bytes). Extension is not enough —
+# renamed MP4→.wav would bypass a pure extension check.
+_AUDIO_MAGIC_PATTERNS: tuple[tuple[bytes, int], ...] = (
+    (b"RIFF", 0),  # WAV
+    (b"ID3", 0),  # MP3 with ID3 tag
+    (b"OggS", 0),  # OGG
+    (b"fLaC", 0),  # FLAC
+    (b"FORM", 0),  # AIFF
+    (b"ftyp", 4),  # M4A/AAC (after 4-byte size prefix)
+)
+# MP3 frame-sync (tag-less MP3): first byte 0xFF, second byte 0xE0..0xFF
+# with additional constraints. Handled separately.
+
+
+def is_audio_magic(path: str) -> bool:
+    """Best-effort magic-byte check for audio files.
+
+    Returns True if the file's first bytes match a known audio signature.
+    False for unrecognized files — caller should fall back to PyAV's probe.
+    """
+    try:
+        with open(path, "rb") as f:
+            head = f.read(12)
+    except (OSError, PermissionError):
+        return False
+    if len(head) < 4:
+        return False
+    for pattern, offset in _AUDIO_MAGIC_PATTERNS:
+        end = offset + len(pattern)
+        if len(head) >= end and head[offset:end] == pattern:
+            return True
+    # MP3 without ID3: frame-sync 0xFFE0..0xFFFF
+    if head[0] == 0xFF and (head[1] & 0xE0) == 0xE0:
+        return True
+    return False
+
+
 def validate_frame_count(count: int) -> list[str]:
     """Validate frame count against SEC-6 cap. Returns list of errors."""
     errors: list[str] = []

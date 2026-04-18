@@ -1,11 +1,32 @@
 """Audio decoding via PyAV — extracts PCM float32 from video containers."""
 
+import time
+
 import av
 import numpy as np
 
+# Hard limits — enforced to prevent codec-bomb / memory-exhaustion DoS.
+# MAX_DURATION_SEC: max audio duration we will decode (1 hour).
+# MAX_SAMPLES: max total samples post-decode (1 hour stereo @ 48 kHz = 345.6M).
+#   Separate from duration check — defends against files whose declared duration
+#   is small but actual sample count is huge.
+# DEFAULT_DECODE_TIMEOUT_S: wall-clock kill for PyAV decode loops.
+MAX_DURATION_SEC = 3600
+MAX_SAMPLES = 48000 * 2 * MAX_DURATION_SEC  # 345.6M float32 = ~1.4 GB
+DEFAULT_DECODE_TIMEOUT_S = 5.0
+
+
+class DecodeTimeoutError(Exception):
+    """Raised when decode exceeds the wall-clock budget (codec-bomb protection)."""
+
 
 def decode_audio(
-    path: str, start_s: float = 0.0, duration_s: float | None = None
+    path: str,
+    start_s: float = 0.0,
+    duration_s: float | None = None,
+    *,
+    timeout_s: float = DEFAULT_DECODE_TIMEOUT_S,
+    max_samples: int = MAX_SAMPLES,
 ) -> dict:
     """Decode audio from a video/audio container to PCM float32.
 
@@ -13,6 +34,11 @@ def decode_audio(
         path: Path to the media file.
         start_s: Start time in seconds (0.0 = beginning).
         duration_s: Duration to decode in seconds (None = entire stream).
+        timeout_s: Wall-clock budget for the decode loop. If exceeded, the
+            container is closed and an error returned.
+        max_samples: Hard cap on post-decode sample count. Files that report
+            small durations but decode into massive buffers (codec bombs) are
+            rejected once this cap is hit.
 
     Returns:
         dict with keys:
@@ -45,10 +71,28 @@ def decode_audio(
     # Compute end time for duration limiting
     end_s = start_s + duration_s if duration_s is not None else float("inf")
 
+    # Decode-loop timeout (wall clock) and sample-count cap (codec-bomb defense).
+    decode_deadline = time.monotonic() + timeout_s
+
     chunks: list[np.ndarray] = []
     total_samples = 0
 
     for frame in container.decode(audio=0):
+        if time.monotonic() > decode_deadline:
+            container.close()
+            return {
+                "ok": False,
+                "error": f"Decode timeout after {timeout_s:.1f}s",
+            }
+        if total_samples > max_samples:
+            container.close()
+            return {
+                "ok": False,
+                "error": (
+                    f"Sample count exceeded safe cap ({max_samples}) — "
+                    "likely codec bomb or unsupported format"
+                ),
+            }
         # Compute frame time
         if frame.pts is not None:
             frame_time = float(frame.pts * stream.time_base)
