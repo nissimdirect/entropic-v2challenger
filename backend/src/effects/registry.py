@@ -338,7 +338,13 @@ def _auto_register():
         spectral_analysis,
     ]
 
-    # --- Phase 12: Subliminal effect ---
+    # --- Phase 12: newer effects ---
+    # CONVENTION (added 2026-05-06 after the Frankenstein batch): when adding
+    # a new fx-style effect, append to `phase12_mods` (or open a `phase13_mods`
+    # if a new release-phase boundary is needed). Do NOT invent ad-hoc names
+    # like `frankenstein_mods` — those are caught by
+    # tests/test_effects/test_registry.py::test_no_orphan_module_lists.
+    # See docs/plans/2026-05-06-refactor-registry-consolidation.md for context.
     from effects.fx import subliminal
 
     phase12_mods = [subliminal]
