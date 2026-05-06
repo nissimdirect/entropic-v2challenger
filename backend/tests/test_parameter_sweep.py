@@ -256,6 +256,7 @@ class TestParameterSweep:
             "fx.strange_attractor",  # Stateful particle system — no displacement at frame 0
             "fx.erosion_sim",  # Stateful simulation — accumulates over time
             "fx.cellular_automata",  # Stateful CA — evolves over frames
+            "fx.cellular_pixel_sort",  # Stateful CA + sort — first frame is passthrough
             "fx.cross_codec",  # Codec roundtrip differences at extremes may be sub-threshold
             "fx.mosquito_amplify",  # JPEG artifact amplification — may be sub-threshold at small frame
         }
