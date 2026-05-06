@@ -151,6 +151,7 @@ class TestAllEffectsVisibleChange:
         "fx.sidechain_gate",
         "fx.sidechain_interference",
         # Stateful effects that may not visibly change on frame_index=0
+        "fx.logistic_generation_loss",
         "fx.datamosh",
         "fx.datamosh_melt",
         "fx.datamosh_bloom",
