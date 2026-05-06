@@ -343,6 +343,11 @@ def _auto_register():
 
     phase12_mods = [subliminal]
 
+    # --- EdgePixelWind: Sobel-tangent flow as displacement field ---
+    from effects.fx import edge_pixel_wind
+
+    extra_mods = [edge_pixel_wind]
+
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
         from effects.fx import debug_crash
@@ -350,7 +355,7 @@ def _auto_register():
         mods.append(debug_crash)
 
     # Register all simple effects
-    for mod in mods + phase8_mods + phase8_consolidated + phase12_mods:
+    for mod in mods + phase8_mods + phase8_consolidated + phase12_mods + extra_mods:
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
         )
