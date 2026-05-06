@@ -121,6 +121,7 @@ def _auto_register():
     # --- Phase 8: New effects (64 files) ---
     from effects.fx import (
         # Wave 1 — R&D
+        attractor_kaleidoscope,
         compression_oracle,
         logistic_cascade,
         reaction_diffusion,
@@ -266,6 +267,7 @@ def _auto_register():
 
     # Phase 8 effects (non-consolidated — register directly)
     phase8_mods = [
+        attractor_kaleidoscope,
         compression_oracle,
         logistic_cascade,
         reaction_diffusion,
