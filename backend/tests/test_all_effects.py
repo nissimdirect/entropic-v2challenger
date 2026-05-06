@@ -192,6 +192,8 @@ class TestAllEffectsVisibleChange:
         "fx.feedback_phaser",
         "fx.resonant_filter",
         "fx.temporal_crystal",
+        # Frame-buffer effect — first frame seeds the ring, no visible change yet
+        "fx.temporal_dispersion",
         # Subliminal — probabilistic trigger (5% default), not guaranteed visible
         "fx.subliminal",
         "fx.subliminal_flash",

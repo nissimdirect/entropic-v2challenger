@@ -189,6 +189,7 @@ def _auto_register():
         afterimage,
         moire,
         temporal_crystal,
+        temporal_dispersion,
         spectral_analysis,
         sonification_feedback,
     )
@@ -313,6 +314,7 @@ def _auto_register():
         afterimage,
         moire,
         temporal_crystal,
+        temporal_dispersion,
         sonification_feedback,
     ]
 
