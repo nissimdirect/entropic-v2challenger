@@ -77,6 +77,14 @@ class ZMQServer:
         # Signal engine for operator modulation (Phase 6A)
         self._signal_engine = None
         self._signal_state: dict = {}
+        # Per-effect state cache for preview render path. Mirrors how
+        # export.py threads the `states` dict frame-by-frame so stateful
+        # effects (datamosh, reaction_mosh, frame_drop, generation_loss,
+        # temporal_dispersion, etc.) actually accumulate across frames.
+        # Reset on path change or non-monotonic frame jump (seek/scrub).
+        self._render_states: dict[str, dict | None] = {}
+        # (path, last_frame_index) — used to detect discontinuities.
+        self._render_state_key: tuple[str | None, int] = (None, -1)
 
     def reset_state(self):
         """Clear accumulated state without closing sockets/context.
@@ -116,6 +124,10 @@ class ZMQServer:
         # Reset signal engine state
         self._signal_state = {}
 
+        # Reset per-effect render-state cache
+        self._render_states = {}
+        self._render_state_key = (None, -1)
+
         # Reset freeze caches
         self.freeze_manager.reset()
 
@@ -123,6 +135,33 @@ class ZMQServer:
         if self.shm_writer is None:
             self.shm_writer = SharedMemoryWriter()
         return self.shm_writer
+
+    def _get_render_states(self, path: str, frame_index: int) -> dict[str, dict | None]:
+        """Return the per-effect state dict for a preview render call.
+
+        Resets to an empty dict when:
+          - the source path changes (different video/image), or
+          - frame_index is not monotonically the next frame after the
+            previous render call (seek, scrub, replay).
+
+        This mirrors export.py's frame-by-frame state threading and is the
+        contract `apply_chain` expects (see engine/pipeline.py docstring).
+        """
+        last_path, last_index = self._render_state_key
+        is_continuous = path == last_path and frame_index == last_index + 1
+        if not is_continuous:
+            self._render_states = {}
+        return self._render_states
+
+    def _store_render_states(
+        self,
+        path: str,
+        frame_index: int,
+        new_states: dict[str, dict | None],
+    ) -> None:
+        """Persist post-frame states for the next monotonic call."""
+        self._render_states = new_states
+        self._render_state_key = (path, frame_index)
 
     def _validate_token(self, message: dict) -> str | None:
         """Validate auth token. Returns error message or None if valid."""
@@ -467,8 +506,14 @@ class ZMQServer:
             if transform and isinstance(transform, dict):
                 frame = self._apply_clip_transform(frame, transform, resolution)
 
-            # Use pipeline engine
-            output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
+            # Use pipeline engine — thread per-effect state across frames so
+            # stateful effects (datamosh, reaction_mosh, frame_drop, etc.)
+            # accumulate. Resets on path change or seek; see _get_render_states.
+            states_in = self._get_render_states(path, frame_index)
+            output, states_out = apply_chain(
+                frame, chain, project_seed, frame_index, resolution, states_in
+            )
+            self._store_render_states(path, frame_index, states_out)
 
             # Encode once for base64 transport (skip mmap — Electron uses base64)
             jpeg_bytes = encode_mjpeg(output)
@@ -536,7 +581,12 @@ class ZMQServer:
             frame = reader.decode_frame(frame_index)
             resolution = (reader.width, reader.height)
 
-            output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
+            # Thread per-effect state for stateful effects (see _handle_render_frame).
+            states_in = self._get_render_states(path, frame_index)
+            output, states_out = apply_chain(
+                frame, chain, project_seed, frame_index, resolution, states_in
+            )
+            self._store_render_states(path, frame_index, states_out)
 
             shm = self._ensure_shm()
             shm.write_frame(output)
