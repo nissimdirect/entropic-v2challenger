@@ -157,6 +157,7 @@ class TestAllEffectsVisibleChange:
         "fx.datamosh_freeze",
         "fx.flow_distort",
         "fx.spectral_freeze",
+        "fx.frequency_mosh",
         "fx.afterimage",
         # Physics effects that accumulate over time — no displacement at frame 0
         "fx.pixel_melt",

@@ -343,6 +343,11 @@ def _auto_register():
 
     phase12_mods = [subliminal]
 
+    # --- FrequencyMosh (PR #?? — datamosh in the FFT domain) ---
+    from effects.fx import frequency_mosh
+
+    phase12_mods.append(frequency_mosh)
+
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
         from effects.fx import debug_crash
