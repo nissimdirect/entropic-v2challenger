@@ -367,9 +367,9 @@ def _auto_register():
     # --- 2026-05 effect batch: experimental adds that landed individually as PRs
     # and were batched together after registry-list collisions. Each is single-
     # module; they share a list so the no_orphan_module_lists test keeps passing.
-    from effects.fx import edge_pixel_wind
+    from effects.fx import edge_pixel_wind, frequency_mosh
 
-    batch_2026_05_mods = [edge_pixel_wind]
+    batch_2026_05_mods = [edge_pixel_wind, frequency_mosh]
 
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
