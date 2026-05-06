@@ -82,10 +82,10 @@ PARAMS: dict = {
     },
     "seed_pattern": {
         "type": "choice",
-        "options": ["luma", "center", "edges", "random"],
-        "default": "luma",
+        "options": ["random", "luma", "center", "edges"],
+        "default": "random",
         "label": "Seed Pattern",
-        "description": "How to seed the initial B field from the first frame",
+        "description": "How to seed the initial B field. Random = scattered (most chaotic, default). Luma = bright areas. Center = single blob. Edges = follow contours.",
     },
 }
 
