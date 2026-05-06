@@ -364,6 +364,13 @@ def _auto_register():
 
     frankenstein_mods = [ascii_phantom]
 
+    # --- 2026-05 effect batch: experimental adds that landed individually as PRs
+    # and were batched together after registry-list collisions. Each is single-
+    # module; they share a list so the no_orphan_module_lists test keeps passing.
+    from effects.fx import edge_pixel_wind
+
+    batch_2026_05_mods = [edge_pixel_wind]
+
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
         from effects.fx import debug_crash
@@ -372,7 +379,12 @@ def _auto_register():
 
     # Register all simple effects
     for mod in (
-        mods + phase8_mods + phase8_consolidated + phase12_mods + frankenstein_mods
+        mods
+        + phase8_mods
+        + phase8_consolidated
+        + phase12_mods
+        + frankenstein_mods
+        + batch_2026_05_mods
     ):
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
