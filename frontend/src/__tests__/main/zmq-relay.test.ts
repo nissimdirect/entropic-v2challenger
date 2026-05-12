@@ -206,7 +206,9 @@ describe('zmq-relay', () => {
 
       const result = await handlers['select-save-path']({}, 'frame_sequence')
       expect(result).toBe('/Users/x/uat-seq')
-      const callArgs = vi.mocked(dialog.showSaveDialog).mock.calls[0][1]
+      // showSaveDialog is called with (window, options) in zmq-relay; the
+      // electron .d.ts type only sees the single-arg overload, so cast.
+      const callArgs = (vi.mocked(dialog.showSaveDialog).mock.calls[0] as unknown as [unknown, { filters?: unknown }])[1]
       expect(callArgs.filters).toBeUndefined()
     })
 
@@ -218,7 +220,7 @@ describe('zmq-relay', () => {
       } as never)
 
       await handlers['select-save-path']({}, 'output.gif')
-      const callArgs = vi.mocked(dialog.showSaveDialog).mock.calls[0][1]
+      const callArgs = (vi.mocked(dialog.showSaveDialog).mock.calls[0] as unknown as [unknown, { filters?: unknown }])[1]
       expect(callArgs.filters).toEqual([{ name: 'GIF', extensions: ['gif'] }])
     })
   })

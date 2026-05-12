@@ -9,6 +9,7 @@ import { useEffectsStore } from '../../stores/effects'
 import ClipComponent from './Clip'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
+import { FF } from '../../../shared/feature-flags'
 
 interface TrackHeaderProps {
   track: TrackType
@@ -25,22 +26,24 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const [showExtras, setShowExtras] = useState(false)
 
   // Auto-focus and select text when rename input appears.
-  // F-0512-32: previously this called `.select()` only, which on some
-  // Electron/React combinations did not implicitly focus the element when
-  // the prior focus was just-detached (the ContextMenu unmounted in the
-  // same batch). Without focus, `onBlur` could fire on the next click
-  // before the user could type, making "Rename Track" appear to be a
-  // no-op. Defer to the next microtask + explicit focus so the input
-  // captures focus after the menu's unmount has fully settled.
   useEffect(() => {
     if (!isRenaming) return
-    const id = requestAnimationFrame(() => {
-      const el = renameInputRef.current
-      if (!el) return
-      el.focus()
-      el.select()
-    })
-    return () => cancelAnimationFrame(id)
+    if (FF.F_0512_32_RENAME_FOCUS) {
+      // F-0512-32: defer to the next frame + explicit focus so the input
+      // captures focus after the ContextMenu's same-batch unmount has settled.
+      // Without this the input rendered but didn't gain focus on some
+      // Electron/React combos, and onBlur dismissed it before the user typed.
+      const id = requestAnimationFrame(() => {
+        const el = renameInputRef.current
+        if (!el) return
+        el.focus()
+        el.select()
+      })
+      return () => cancelAnimationFrame(id)
+    }
+    // Legacy: bare .select() — works in most environments, unreliable when
+    // the priorly-focused element is being detached in the same commit.
+    renameInputRef.current?.select()
   }, [isRenaming])
 
   const startRename = useCallback(() => {
@@ -244,7 +247,9 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                   step={0.01}
                   value={track.opacity}
                   onChange={handleOpacityChange}
-                  title={`Track opacity: ${Math.round(track.opacity * 100)}% (multiplies with clip opacity)`}
+                  title={FF.F_0512_21_OPACITY_LABELS
+                    ? `Track opacity: ${Math.round(track.opacity * 100)}% (multiplies with clip opacity)`
+                    : `Opacity: ${Math.round(track.opacity * 100)}%`}
                 />
                 <span className="track-header__opacity-label">
                   {Math.round(track.opacity * 100)}%

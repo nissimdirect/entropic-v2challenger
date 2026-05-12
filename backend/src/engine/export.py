@@ -388,9 +388,15 @@ class ExportManager:
                 # F-0512-22: drop the "Export failed:" prefix — callers
                 # (CLI, toast, inline UI) all prepend their own. Include the
                 # exception message so users see *what* went wrong, not just
-                # the class name.
-                msg = str(e).strip()
-                job.error = f"{type(e).__name__}: {msg}" if msg else type(e).__name__
+                # the class name. Set ENTROPIC_DISABLE_F_0512_22=1 to revert
+                # to the legacy "Export failed: <Type>" format.
+                if os.environ.get("ENTROPIC_DISABLE_F_0512_22") == "1":
+                    job.error = f"Export failed: {type(e).__name__}"
+                else:
+                    msg = str(e).strip()
+                    job.error = (
+                        f"{type(e).__name__}: {msg}" if msg else type(e).__name__
+                    )
         finally:
             if writer is not None:
                 writer.close()

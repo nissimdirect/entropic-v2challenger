@@ -1106,10 +1106,18 @@ body {
   border-top: 1px solid #333;
   /* F-0512-36: cap the panel's height so it does not push the Effects
      search + browser out of the visible sidebar when a clip is selected.
-     User can scroll within the panel; search stays in view. */
+     User can scroll within the panel; search stays in view. Flag-off
+     override below restores unbounded height. */
   max-height: 35vh;
   overflow-y: auto;
   flex-shrink: 0;
+}
+
+/* F-0512-36 disable override: revert to unbounded height. */
+body[data-disable-f-0512-36] .transform-panel {
+  max-height: none;
+  overflow-y: visible;
+  flex-shrink: 1;
 }
 
 .transform-panel__header {

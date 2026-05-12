@@ -714,6 +714,12 @@
   object-fit: cover;
 }
 
+/* F-0512-8 disable override (flag off): restore intrinsic-width packing. */
+body[data-disable-f-0512-8] .clip__thumb {
+  width: auto;
+  flex: 0 0 auto;
+}
+
 /* --- Clip Waveform --- */
 
 .clip__waveform {

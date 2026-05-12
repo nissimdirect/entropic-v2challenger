@@ -8,6 +8,7 @@ import { useAutomationStore, type AutomationMode } from '../../stores/automation
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import type { TriggerMode } from '../../../shared/types'
+import { FF } from '../../../shared/feature-flags'
 
 const MODES: { value: AutomationMode; label: string; title: string }[] = [
   { value: 'read', label: 'R', title: 'Read — playback only' },
@@ -132,9 +133,9 @@ export default function AutomationToolbar() {
       <button
         className="auto-toolbar__btn"
         onClick={handleAddLane}
-        title={armedTrackId
-          ? 'Add automation lane to armed track'
-          : 'Arm a track first — click the A button on a track header'}
+        title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          ? 'Arm a track first — click the A button on a track header'
+          : 'Add automation lane to armed track'}
         disabled={!armedTrackId}
         data-testid="add-lane-btn"
       >
@@ -143,9 +144,9 @@ export default function AutomationToolbar() {
       <button
         className="auto-toolbar__btn"
         onClick={handleAddTrigger}
-        title={armedTrackId
-          ? 'Add trigger automation lane (0/1 toggle) to armed track'
-          : 'Arm a track first — click the A button on a track header'}
+        title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          ? 'Arm a track first — click the A button on a track header'
+          : 'Add trigger automation lane (0/1 toggle) to armed track'}
         disabled={!armedTrackId}
         data-testid="add-trigger-btn"
       >
@@ -154,9 +155,9 @@ export default function AutomationToolbar() {
       <button
         className="auto-toolbar__btn"
         onClick={handleSimplify}
-        title={armedTrackId
-          ? 'Simplify curves (RDP)'
-          : 'Arm a track first — click the A button on a track header'}
+        title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          ? 'Arm a track first — click the A button on a track header'
+          : 'Simplify curves (RDP)'}
         disabled={!armedTrackId}
       >
         Simplify
@@ -164,14 +165,14 @@ export default function AutomationToolbar() {
       <button
         className="auto-toolbar__btn auto-toolbar__btn--danger"
         onClick={handleClear}
-        title={armedTrackId
-          ? 'Clear all automation on armed track'
-          : 'Arm a track first — click the A button on a track header'}
+        title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          ? 'Arm a track first — click the A button on a track header'
+          : 'Clear all automation on armed track'}
         disabled={!armedTrackId}
       >
         Clear
       </button>
-      {!armedTrackId && (
+      {FF.F_0512_34_ARM_HINT && !armedTrackId && (
         <span className="auto-toolbar__hint">
           Click <kbd>A</kbd> on a track to arm
         </span>

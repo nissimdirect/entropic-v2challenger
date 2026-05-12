@@ -1,9 +1,10 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron'
+import { ipcMain, dialog, BrowserWindow, type SaveDialogOptions } from 'electron'
 import { Request } from 'zeromq'
 import { randomUUID } from 'crypto'
 import { extname } from 'node:path'
 import { setRenderInFlight } from './watchdog'
 import { logger } from './logger'
+import { FF } from '../shared/feature-flags'
 
 const ZMQ_TIMEOUT = 10_000
 const EXPORT_POLL_INTERVAL = 500
@@ -221,28 +222,37 @@ export function registerRelayHandlers(): void {
     const win = BrowserWindow.getFocusedWindow()
     if (!win) return null
 
-    // F-0512-23: derive the dialog filter from the defaultName's extension
-    // so image-sequence (no extension) doesn't get forced into ".mp4", and
-    // so GIF / MOV / etc. exports honor their own format.
-    const defaultExt = extname(defaultName).toLowerCase().replace(/^\./, '')
-    const dialogOptions: Parameters<typeof dialog.showSaveDialog>[1] = {
-      defaultPath: defaultName,
-    }
-    if (defaultExt) {
-      dialogOptions.filters = [{ name: defaultExt.toUpperCase(), extensions: [defaultExt] }]
+    let dialogOptions: SaveDialogOptions
+    if (FF.F_0512_23_DERIVED_FILTER) {
+      // F-0512-23: derive the dialog filter from the defaultName's extension
+      // so image-sequence (no extension) doesn't get forced into ".mp4", and
+      // so GIF / MOV / etc. exports honor their own format.
+      const defaultExt = extname(defaultName).toLowerCase().replace(/^\./, '')
+      dialogOptions = { defaultPath: defaultName }
+      if (defaultExt) {
+        dialogOptions.filters = [{ name: defaultExt.toUpperCase(), extensions: [defaultExt] }]
+      }
+    } else {
+      // Legacy: filter hardcoded to mp4 regardless of export type.
+      dialogOptions = {
+        defaultPath: defaultName,
+        filters: [{ name: 'Video', extensions: ['mp4'] }],
+      }
     }
 
     const result = await dialog.showSaveDialog(win, dialogOptions)
 
     if (result.canceled || !result.filePath) return null
 
-    // F-0512-7: macOS appends the filter extension even when the user-typed
-    // name already ends with it ("foo.mp4" → "foo.mp4.mp4"). Strip the outer
-    // copy when the last two extensions are identical.
     const filePath = result.filePath
-    const outer = extname(filePath).toLowerCase()
-    if (outer && extname(filePath.slice(0, -outer.length)).toLowerCase() === outer) {
-      return filePath.slice(0, -outer.length)
+    if (FF.F_0512_7_EXPORT_DOUBLE_EXT) {
+      // F-0512-7: macOS appends the filter extension even when the user-typed
+      // name already ends with it ("foo.mp4" → "foo.mp4.mp4"). Strip the outer
+      // copy when the last two extensions are identical.
+      const outer = extname(filePath).toLowerCase()
+      if (outer && extname(filePath.slice(0, -outer.length)).toLowerCase() === outer) {
+        return filePath.slice(0, -outer.length)
+      }
     }
     return filePath
   })

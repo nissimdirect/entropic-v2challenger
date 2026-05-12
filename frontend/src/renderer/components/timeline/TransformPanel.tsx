@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import type { ClipTransform } from '../../../shared/types'
 import { IDENTITY_TRANSFORM } from '../../../shared/types'
+import { FF } from '../../../shared/feature-flags'
 
 interface TransformPanelProps {
   transform: ClipTransform
@@ -183,12 +184,14 @@ export default function TransformPanel({
           </button>
         </div>
 
-        {/* Opacity — clip-level. F-0512-21: there is also a track-level
-            opacity in the track header; the two multiply visually. Label
-            this one explicitly so the user knows which one they're editing. */}
+        {/* F-0512-21: label this slider "Clip opacity" so the user knows it
+            multiplies with the track-header opacity. Flag-off keeps the
+            generic "Opacity" wording. */}
         {onOpacityChange && (
           <label className="transform-panel__field">
-            <span className="transform-panel__label">Clip opacity</span>
+            <span className="transform-panel__label">
+              {FF.F_0512_21_OPACITY_LABELS ? 'Clip opacity' : 'Opacity'}
+            </span>
             <input
               className="transform-panel__input"
               type="range"
