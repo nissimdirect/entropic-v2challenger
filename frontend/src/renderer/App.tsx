@@ -883,11 +883,17 @@ function AppInner() {
   // F-0512-19: track-level state (blend mode, opacity, mute) affects the
   // composite. Subscribing to `tracks` here means any of those mutations
   // (which create a new tracks array via Zustand's set) re-fires the render.
+  // F-0512-29: `previewState` is included so that initPreviewFromHydratedProject
+  // (project reload after Electron relaunch) triggers a render once it has set
+  // activeAssetPath.current — without this, the effect's other deps may not
+  // change on reload (currentFrame/effectChain/tracks were already settled by
+  // hydrateStores before the ref was set) and the canvas stays "No video
+  // loaded" even though the project is fully wired.
   // requestRenderFrame's in-flight queue coalesces bursts.
   useEffect(() => {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
-  }, [currentFrame, effectChain, tracks, requestRenderFrame])
+  }, [currentFrame, effectChain, tracks, previewState, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
