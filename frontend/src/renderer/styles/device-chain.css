@@ -121,8 +121,13 @@
 /* --- Device Card --- */
 
 .device-card {
-  min-width: 130px;
-  max-width: 180px;
+  /* F-0512-30: bumped from 130/180 → 160/280. 180px was too narrow for
+     4-knob effects (Levels: Input Black / Input White / Gamma / Output
+     Black) and forced labels to truncate ("Input Bl...", "Output B...")
+     and to wrap to two rows. 280px fits 4 knobs in a single row with
+     full labels at ~64px per knob. */
+  min-width: 160px;
+  max-width: 280px;
   background: #20202a;
   border: 1px solid #2a2a34;
   border-radius: 4px;
