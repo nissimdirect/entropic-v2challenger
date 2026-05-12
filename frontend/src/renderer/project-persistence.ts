@@ -48,6 +48,8 @@ function serializeProject(): string {
     tracks: timelineStore.tracks,
     markers: timelineStore.markers,
     loopRegion: timelineStore.loopRegion,
+    // F-0512-25: persist zoom so reloads don't lose the user's view setting.
+    zoom: timelineStore.zoom,
   }
 
   const operatorStore = useOperatorStore.getState()
@@ -226,6 +228,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate duration
   if (project.timeline.duration > 0) {
     timelineStore.setDuration(project.timeline.duration)
+  }
+
+  // F-0512-25: hydrate timeline zoom (optional; absent on legacy files)
+  if (typeof project.timeline.zoom === 'number' && project.timeline.zoom > 0) {
+    timelineStore.setZoom(project.timeline.zoom)
   }
 
   // Hydrate drum rack (backward compat: missing = use defaults)
