@@ -656,7 +656,11 @@ function AppInner() {
       pendingFrameRef.current = null
       setRenderError(null)
 
-      let chain = chainOverride ?? effectChain
+      // F-0512-6: read the chain from the store instead of the closure so that
+      // a render queued during an in-flight render (rapid Cmd+Z, drag-reorder,
+      // sliders, etc.) picks up the latest chain — not whichever one was bound
+      // when the function was created.
+      let chain = chainOverride ?? useProjectStore.getState().effectChain
 
       // Apply pad modulations to the chain before sending to backend
       if (!chainOverride) {
