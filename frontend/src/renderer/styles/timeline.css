@@ -703,10 +703,14 @@
   opacity: 0.7;
 }
 
+/* F-0512-8: thumbs are intrinsic-width images, so without flex sizing they
+   packed left-to-right and ran out before the clip end. Stretch evenly across
+   the clip width regardless of how many were generated. */
 .clip__thumb {
   height: 100%;
-  width: auto;
-  flex-shrink: 0;
+  width: 0;
+  flex: 1 1 0;
+  min-width: 0;
   object-fit: cover;
 }
 
