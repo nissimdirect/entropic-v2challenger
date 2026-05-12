@@ -24,9 +24,23 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const [showExtras, setShowExtras] = useState(false)
 
-  // Auto-select text when rename input appears
+  // Auto-focus and select text when rename input appears.
+  // F-0512-32: previously this called `.select()` only, which on some
+  // Electron/React combinations did not implicitly focus the element when
+  // the prior focus was just-detached (the ContextMenu unmounted in the
+  // same batch). Without focus, `onBlur` could fire on the next click
+  // before the user could type, making "Rename Track" appear to be a
+  // no-op. Defer to the next microtask + explicit focus so the input
+  // captures focus after the menu's unmount has fully settled.
   useEffect(() => {
-    if (isRenaming) renameInputRef.current?.select()
+    if (!isRenaming) return
+    const id = requestAnimationFrame(() => {
+      const el = renameInputRef.current
+      if (!el) return
+      el.focus()
+      el.select()
+    })
+    return () => cancelAnimationFrame(id)
   }, [isRenaming])
 
   const startRename = useCallback(() => {
