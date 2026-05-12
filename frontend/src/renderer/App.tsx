@@ -30,7 +30,7 @@ import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
-import { transportForward, transportReverse, transportStop, getTransportDirection } from './utils/transport-speed'
+import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { useSettingsStore } from './stores/settings'
@@ -1332,14 +1332,33 @@ function AppInner() {
   )
 
   const handlePlayPause = useCallback(() => {
-    if (hasAudio && audioStore.isLoaded) {
-      // Audio-driven playback: toggle audio, video follows via clock sync
-      audioStore.togglePlayback()
-    } else {
-      // Silent video: use timer-based playback (existing behavior)
-      setIsTimerPlaying((prev) => !prev)
+    // F-0512-14 / F-0512-15: space and ▶ both route here, so this must always
+    // produce plain play/pause behavior regardless of prior J/K/L state.
+    // Previously we only toggled the audio transport; a stale isTimerPlaying
+    // from J (reverse) would keep the timer running in reverse while audio
+    // resumed forward, creating fights and "space toggles direction" UX.
+    const audio = useAudioStore.getState()
+    const audioIsPlaying = audio.isPlaying
+    const timerIsPlaying = isTimerPlayingRef.current
+
+    if (audioIsPlaying || timerIsPlaying) {
+      // Pause every active transport. Leave the JKL direction state intact so
+      // a subsequent J/L press picks up where the user left off; only space's
+      // own next press resets it (below).
+      if (audioIsPlaying) audio.togglePlayback()
+      if (timerIsPlaying) setIsTimerPlaying(false)
+      return
     }
-  }, [hasAudio, audioStore])
+
+    // Resume from a paused/stopped state. Space is unambiguously forward at 1×.
+    resetTransportSpeed()
+    setTransportSpeedMultiplier(1)
+    if (hasAudio && audio.isLoaded) {
+      audio.togglePlayback()
+    } else {
+      setIsTimerPlaying(true)
+    }
+  }, [hasAudio])
   handlePlayPauseRef.current = handlePlayPause
 
   const handleStop = useCallback(() => {
