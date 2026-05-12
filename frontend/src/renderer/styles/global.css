@@ -1104,6 +1104,12 @@ body {
 .transform-panel {
   padding: 8px;
   border-top: 1px solid #333;
+  /* F-0512-36: cap the panel's height so it does not push the Effects
+     search + browser out of the visible sidebar when a clip is selected.
+     User can scroll within the panel; search stays in view. */
+  max-height: 35vh;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 
 .transform-panel__header {
