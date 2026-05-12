@@ -158,6 +158,7 @@ function AppInner() {
   const [activeFps, setActiveFps] = useState(30)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)
+  const [preferencesInitialTab, setPreferencesInitialTab] = useState<'general' | 'shortcuts' | 'performance' | 'paths'>('general')
   const [showAbout, setShowAbout] = useState(false)
   const [showRenderQueue, setShowRenderQueue] = useState(false)
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
@@ -1262,7 +1263,12 @@ function AppInner() {
           useTimelineStore.getState().setZoom(Math.max(0.5, (window.innerWidth * 0.6) / Math.max(1, dur)))
           break
         }
-        case 'show-shortcuts': setShowPreferences(true); break
+        case 'show-shortcuts':
+          // F-0512-37: Help → Keyboard Shortcuts opens Preferences on the
+          // Shortcuts tab instead of the default General tab.
+          setPreferencesInitialTab('shortcuts')
+          setShowPreferences(true)
+          break
         case 'show-feedback': setShowFeedbackDialog(true); break
         default:
           // Handle add-effect:{effectId} actions from Adjustments menu
@@ -2132,6 +2138,7 @@ function AppInner() {
       <Preferences
         isOpen={showPreferences}
         onClose={() => setShowPreferences(false)}
+        initialTab={preferencesInitialTab}
       />
       <AboutDialog
         isOpen={showAbout}

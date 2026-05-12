@@ -1,12 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import ShortcutEditor from './ShortcutEditor'
+
+export type PreferencesTab = 'general' | 'shortcuts' | 'performance' | 'paths'
 
 interface PreferencesProps {
   isOpen: boolean
   onClose: () => void
+  /** F-0512-37: Help → Keyboard Shortcuts should land on the Shortcuts tab,
+   * not on the default General tab where the user has to hunt for it. */
+  initialTab?: PreferencesTab
 }
-
-type PreferencesTab = 'general' | 'shortcuts' | 'performance' | 'paths'
 
 const TAB_LABELS: Record<PreferencesTab, string> = {
   general: 'General',
@@ -17,8 +20,14 @@ const TAB_LABELS: Record<PreferencesTab, string> = {
 
 const TABS: PreferencesTab[] = ['general', 'shortcuts', 'performance', 'paths']
 
-export default function Preferences({ isOpen, onClose }: PreferencesProps) {
-  const [activeTab, setActiveTab] = useState<PreferencesTab>('general')
+export default function Preferences({ isOpen, onClose, initialTab }: PreferencesProps) {
+  const [activeTab, setActiveTab] = useState<PreferencesTab>(initialTab ?? 'general')
+
+  // Re-sync the active tab whenever the modal is reopened with a different
+  // initialTab — useState's initialiser only runs once at mount.
+  useEffect(() => {
+    if (isOpen && initialTab) setActiveTab(initialTab)
+  }, [isOpen, initialTab])
   const [autoFreezeThreshold, setAutoFreezeThreshold] = useState(50)
   const [maxChainLength, setMaxChainLength] = useState(20)
   const [renderQuality, setRenderQuality] = useState('medium')
