@@ -1385,13 +1385,27 @@ function AppInner() {
   handlePlayPauseRef.current = handlePlayPause
 
   const handleStop = useCallback(() => {
+    // F-0512-16: if transport is already at rest at frame 0 AND a loop region
+    // is set, treat the next Stop / Escape press as "clear the loop region"
+    // so users who accidentally set one can dismiss it without hunting for
+    // a button. First press: stop + return to 0 (existing behaviour). Second
+    // press while already stopped: clear loop region overlay.
+    const ts = useTimelineStore.getState()
+    const audioPlaying = hasAudio && audioStore.isLoaded && audioStore.isPlaying
+    const alreadyStopped =
+      !audioPlaying && !isTimerPlayingRef.current && ts.playheadTime === 0
+    if (alreadyStopped && ts.loopRegion) {
+      ts.clearLoopRegion()
+      return
+    }
+
     if (hasAudio && audioStore.isLoaded) {
       if (audioStore.isPlaying) audioStore.togglePlayback()
       audioStore.seek(0)
     }
     setIsTimerPlaying(false)
     setCurrentFrame(0)
-    useTimelineStore.getState().setPlayheadTime(0)
+    ts.setPlayheadTime(0)
   }, [hasAudio, audioStore, setCurrentFrame])
 
   // Escape key stop — listens for custom event dispatched from keydown handler
