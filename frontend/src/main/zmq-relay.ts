@@ -1,6 +1,7 @@
 import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { Request } from 'zeromq'
 import { randomUUID } from 'crypto'
+import { extname } from 'node:path'
 import { setRenderInFlight } from './watchdog'
 import { logger } from './logger'
 
@@ -226,6 +227,15 @@ export function registerRelayHandlers(): void {
     })
 
     if (result.canceled || !result.filePath) return null
-    return result.filePath
+
+    // F-0512-7: macOS appends the filter extension even when the user-typed
+    // name already ends with it ("foo.mp4" → "foo.mp4.mp4"). Strip the outer
+    // copy when the last two extensions are identical.
+    const filePath = result.filePath
+    const outer = extname(filePath).toLowerCase()
+    if (outer && extname(filePath.slice(0, -outer.length)).toLowerCase() === outer) {
+      return filePath.slice(0, -outer.length)
+    }
+    return filePath
   })
 }

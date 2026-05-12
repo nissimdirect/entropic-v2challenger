@@ -134,4 +134,67 @@ describe('zmq-relay', () => {
       )
     })
   })
+
+  describe('select-save-path (F-0512-7)', () => {
+    beforeEach(async () => {
+      const { dialog, BrowserWindow } = await import('electron')
+      vi.mocked(BrowserWindow.getFocusedWindow).mockReturnValue({} as never)
+      vi.mocked(dialog.showSaveDialog).mockReset()
+    })
+
+    it('strips duplicate extension when macOS appends one ("foo.mp4.mp4" → "foo.mp4")', async () => {
+      const { dialog } = await import('electron')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/Users/x/foo.mp4.mp4',
+      } as never)
+
+      const result = await handlers['select-save-path']({}, 'output.mp4')
+      expect(result).toBe('/Users/x/foo.mp4')
+    })
+
+    it('passes single extension through unchanged ("foo.mp4")', async () => {
+      const { dialog } = await import('electron')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/Users/x/foo.mp4',
+      } as never)
+
+      const result = await handlers['select-save-path']({}, 'output.mp4')
+      expect(result).toBe('/Users/x/foo.mp4')
+    })
+
+    it('is case-insensitive ("foo.MP4.mp4" → "foo.MP4")', async () => {
+      const { dialog } = await import('electron')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/Users/x/foo.MP4.mp4',
+      } as never)
+
+      const result = await handlers['select-save-path']({}, 'output.mp4')
+      expect(result).toBe('/Users/x/foo.MP4')
+    })
+
+    it('does not strip when extensions differ ("foo.bak.mp4")', async () => {
+      const { dialog } = await import('electron')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/Users/x/foo.bak.mp4',
+      } as never)
+
+      const result = await handlers['select-save-path']({}, 'output.mp4')
+      expect(result).toBe('/Users/x/foo.bak.mp4')
+    })
+
+    it('returns null on cancel', async () => {
+      const { dialog } = await import('electron')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: true,
+        filePath: undefined,
+      } as never)
+
+      const result = await handlers['select-save-path']({}, 'output.mp4')
+      expect(result).toBeNull()
+    })
+  })
 })
