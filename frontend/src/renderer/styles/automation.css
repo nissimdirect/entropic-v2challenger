@@ -99,6 +99,24 @@
   margin-left: auto;
 }
 
+/* F-0512-34: discoverability hint shown when no track is armed. */
+.auto-toolbar__hint {
+  color: #888;
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.auto-toolbar__hint kbd {
+  display: inline-block;
+  padding: 0 4px;
+  background: #2a2a2a;
+  border: 1px solid #444;
+  border-radius: 3px;
+  font-size: 10px;
+  color: #ccc;
+  font-family: inherit;
+}
+
 /* --- Automation Draw Overlay --- */
 
 .auto-draw {

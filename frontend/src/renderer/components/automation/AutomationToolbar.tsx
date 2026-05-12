@@ -126,10 +126,15 @@ export default function AutomationToolbar() {
           </button>
         ))}
       </div>
+      {/* F-0512-34: when no track is armed, the tooltips tell users HOW to
+          arm — previously they only mentioned the precondition and the user
+          had no way to discover the "A" button on the track header. */}
       <button
         className="auto-toolbar__btn"
         onClick={handleAddLane}
-        title="Add automation lane to armed track"
+        title={armedTrackId
+          ? 'Add automation lane to armed track'
+          : 'Arm a track first — click the A button on a track header'}
         disabled={!armedTrackId}
         data-testid="add-lane-btn"
       >
@@ -138,7 +143,9 @@ export default function AutomationToolbar() {
       <button
         className="auto-toolbar__btn"
         onClick={handleAddTrigger}
-        title="Add trigger automation lane (0/1 toggle) to armed track"
+        title={armedTrackId
+          ? 'Add trigger automation lane (0/1 toggle) to armed track'
+          : 'Arm a track first — click the A button on a track header'}
         disabled={!armedTrackId}
         data-testid="add-trigger-btn"
       >
@@ -147,7 +154,9 @@ export default function AutomationToolbar() {
       <button
         className="auto-toolbar__btn"
         onClick={handleSimplify}
-        title="Simplify curves (RDP)"
+        title={armedTrackId
+          ? 'Simplify curves (RDP)'
+          : 'Arm a track first — click the A button on a track header'}
         disabled={!armedTrackId}
       >
         Simplify
@@ -155,11 +164,18 @@ export default function AutomationToolbar() {
       <button
         className="auto-toolbar__btn auto-toolbar__btn--danger"
         onClick={handleClear}
-        title="Clear all automation on armed track"
+        title={armedTrackId
+          ? 'Clear all automation on armed track'
+          : 'Arm a track first — click the A button on a track header'}
         disabled={!armedTrackId}
       >
         Clear
       </button>
+      {!armedTrackId && (
+        <span className="auto-toolbar__hint">
+          Click <kbd>A</kbd> on a track to arm
+        </span>
+      )}
       {armedTrack && (
         <span className="auto-toolbar__armed">
           Armed: {armedTrack.name}
