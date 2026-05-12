@@ -121,6 +121,7 @@ function AppInner() {
     isIngesting,
     ingestError,
     projectName,
+    canvasResolution,
     addAsset,
     removeAsset,
     addEffect,
@@ -2102,7 +2103,13 @@ function AppInner() {
           )}
           {hasAssets && frameWidth > 0 && (
             <span className="status-bar__metrics">
-              <span className="status-bar__metric">{frameWidth >= 3840 ? '4K' : frameWidth >= 1920 ? '1080p' : frameWidth >= 1280 ? '720p' : `${frameWidth}p`}</span>
+              {/* F-0512-17: read resolution from the project canvas, not the
+                  most-recent rendered frame width. The single-clip render path
+                  outputs at source dims (e.g. 720p) while the composite path
+                  outputs at canvas dims (default 1080p), so frameWidth flipped
+                  back and forth across user actions. The canvas resolution is
+                  the stable project-level value the user has chosen. */}
+              <span className="status-bar__metric">{canvasResolution[0] >= 3840 ? '4K' : canvasResolution[0] >= 1920 ? '1080p' : canvasResolution[0] >= 1280 ? '720p' : `${canvasResolution[0]}p`}</span>
               <span className="status-bar__metric">{activeFps}fps</span>
               {lastFrameMs !== undefined && (
                 <span
