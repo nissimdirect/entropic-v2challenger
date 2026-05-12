@@ -196,5 +196,30 @@ describe('zmq-relay', () => {
       const result = await handlers['select-save-path']({}, 'output.mp4')
       expect(result).toBeNull()
     })
+
+    it('omits filter when defaultName has no extension (image sequence) — F-0512-23', async () => {
+      const { dialog } = await import('electron')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/Users/x/uat-seq',
+      } as never)
+
+      const result = await handlers['select-save-path']({}, 'frame_sequence')
+      expect(result).toBe('/Users/x/uat-seq')
+      const callArgs = vi.mocked(dialog.showSaveDialog).mock.calls[0][1]
+      expect(callArgs.filters).toBeUndefined()
+    })
+
+    it('uses gif filter when defaultName is .gif', async () => {
+      const { dialog } = await import('electron')
+      vi.mocked(dialog.showSaveDialog).mockResolvedValue({
+        canceled: false,
+        filePath: '/Users/x/loop.gif',
+      } as never)
+
+      await handlers['select-save-path']({}, 'output.gif')
+      const callArgs = vi.mocked(dialog.showSaveDialog).mock.calls[0][1]
+      expect(callArgs.filters).toEqual([{ name: 'GIF', extensions: ['gif'] }])
+    })
   })
 })

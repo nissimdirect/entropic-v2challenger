@@ -221,10 +221,18 @@ export function registerRelayHandlers(): void {
     const win = BrowserWindow.getFocusedWindow()
     if (!win) return null
 
-    const result = await dialog.showSaveDialog(win, {
+    // F-0512-23: derive the dialog filter from the defaultName's extension
+    // so image-sequence (no extension) doesn't get forced into ".mp4", and
+    // so GIF / MOV / etc. exports honor their own format.
+    const defaultExt = extname(defaultName).toLowerCase().replace(/^\./, '')
+    const dialogOptions: Parameters<typeof dialog.showSaveDialog>[1] = {
       defaultPath: defaultName,
-      filters: [{ name: 'Video', extensions: ['mp4'] }],
-    })
+    }
+    if (defaultExt) {
+      dialogOptions.filters = [{ name: defaultExt.toUpperCase(), extensions: [defaultExt] }]
+    }
+
+    const result = await dialog.showSaveDialog(win, dialogOptions)
 
     if (result.canceled || !result.filePath) return null
 

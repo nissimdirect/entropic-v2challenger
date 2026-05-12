@@ -385,7 +385,12 @@ class ExportManager:
             logger.exception("Export failed")
             with job._lock:
                 job.status = ExportStatus.ERROR
-                job.error = f"Export failed: {type(e).__name__}"
+                # F-0512-22: drop the "Export failed:" prefix — callers
+                # (CLI, toast, inline UI) all prepend their own. Include the
+                # exception message so users see *what* went wrong, not just
+                # the class name.
+                msg = str(e).strip()
+                job.error = f"{type(e).__name__}: {msg}" if msg else type(e).__name__
         finally:
             if writer is not None:
                 writer.close()
