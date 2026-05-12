@@ -267,11 +267,16 @@ function AppInner() {
     setAutosavePath(null)
   }, [autosavePath])
 
-  // Window title — show project name + dirty indicator
+  // Window title — show project name + dirty indicator.
+  // F-0512-3: while the welcome screen is still up (no project picked yet),
+  // show plain "Entropic" instead of the default "Untitled — Entropic".
   useEffect(() => {
-    const title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
-    document.title = title
-  }, [projectName, isDirty])
+    if (!welcomeDismissed) {
+      document.title = 'Entropic'
+      return
+    }
+    document.title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
+  }, [projectName, isDirty, welcomeDismissed])
 
   // Start autosave on mount, stop on unmount
   useEffect(() => {
@@ -1120,6 +1125,11 @@ function AppInner() {
     setPreviewState('empty')
     setRenderError(null)
     activeAssetPath.current = null
+    // F-0512-1: "New Project" implies Start Fresh — dismiss any pending
+    // autosave / crash recovery prompt so the user is not asked again
+    // about a session they have just chosen to abandon.
+    setAutosavePath(null)
+    setCrashReports([])
   }, [])
 
   const handleAddTextTrack = useCallback(() => {
@@ -2098,7 +2108,7 @@ function AppInner() {
         onDecision={handleConsentDecision}
       />
 
-      {startupChecked && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
+      {startupChecked && !welcomeDismissed && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
         <CrashRecoveryDialog
           isOpen={true}
           crashCount={crashReports.length}

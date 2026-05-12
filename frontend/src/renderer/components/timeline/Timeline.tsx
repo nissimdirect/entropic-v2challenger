@@ -150,7 +150,7 @@ export default function Timeline({
         <div className={`timeline__drop-highlight ${isDragOver ? 'timeline__drop-highlight--active' : ''}`} />
         <div className="timeline__empty">
           <div className="timeline__empty-hint">
-            Drag media here, press <kbd>&#8984;I</kbd>, or use File &rarr; Import
+            Drag media here, press <kbd>Cmd</kbd>+<kbd>I</kbd>, or use File &rarr; Import
           </div>
           <button className="timeline__add-track-btn" onClick={handleAddTrack}>
             + Add Track
