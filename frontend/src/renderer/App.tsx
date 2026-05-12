@@ -139,6 +139,12 @@ function AppInner() {
   const isDirty = useUndoStore((s) => s.isDirty)
   const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
 
+  // F-0512-19: subscribe to tracks so the render trigger below re-fires when
+  // any track-level state mutates (blend mode, opacity, mute, clip add/remove).
+  // Reactive subscription — needed at top of AppInner so it is in scope for
+  // the render-trigger useEffect.
+  const tracks = useTimelineStore((s) => s.tracks)
+
   // Initialize MIDI (Web MIDI API)
   useMIDI()
 
