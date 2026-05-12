@@ -873,11 +873,15 @@ function AppInner() {
     [effectChain],
   )
 
-  // Render immediately on frame or chain change — no debounce
+  // Render immediately on frame, chain, or track-state change — no debounce.
+  // F-0512-19: track-level state (blend mode, opacity, mute) affects the
+  // composite. Subscribing to `tracks` here means any of those mutations
+  // (which create a new tracks array via Zustand's set) re-fires the render.
+  // requestRenderFrame's in-flight queue coalesces bursts.
   useEffect(() => {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
-  }, [currentFrame, effectChain, requestRenderFrame])
+  }, [currentFrame, effectChain, tracks, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
