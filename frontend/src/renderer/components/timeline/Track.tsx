@@ -230,7 +230,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                   step={0.01}
                   value={track.opacity}
                   onChange={handleOpacityChange}
-                  title={`Opacity: ${Math.round(track.opacity * 100)}%`}
+                  title={`Track opacity: ${Math.round(track.opacity * 100)}% (multiplies with clip opacity)`}
                 />
                 <span className="track-header__opacity-label">
                   {Math.round(track.opacity * 100)}%

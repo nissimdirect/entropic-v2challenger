@@ -183,10 +183,12 @@ export default function TransformPanel({
           </button>
         </div>
 
-        {/* Opacity */}
+        {/* Opacity — clip-level. F-0512-21: there is also a track-level
+            opacity in the track header; the two multiply visually. Label
+            this one explicitly so the user knows which one they're editing. */}
         {onOpacityChange && (
           <label className="transform-panel__field">
-            <span className="transform-panel__label">Opacity</span>
+            <span className="transform-panel__label">Clip opacity</span>
             <input
               className="transform-panel__input"
               type="range"
