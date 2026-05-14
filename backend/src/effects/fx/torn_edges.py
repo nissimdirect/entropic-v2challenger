@@ -1,0 +1,220 @@
+"""Torn Edges — Photoshop-style threshold with oscillating balance + tear character.
+
+Mimics Photoshop's Filter > Sketch > Torn Edges, with three extensions:
+- Oscillating image_balance via frame-index-driven LFO (fps-independent, deterministic)
+- Greyscale (luminance) or per-channel RGB threshold modes
+- 2D value-noise displacement for authentic paper-fiber tear character
+
+Stacking two instances with different seeds produces layered tears (intentional).
+"""
+
+import numpy as np
+
+EFFECT_ID = "fx.torn_edges"
+EFFECT_NAME = "Torn Edges"
+EFFECT_CATEGORY = "texture"
+
+# Hard safety caps (seizure compliance + resource limits)
+# osc_rate UI knob is 0-1; internally maps to 0-_MAX_OSC_RATE_CPF cycles per frame.
+# 0.15 cpf = 4.5 Hz at 30fps — below the medical photosensitive seizure threshold.
+_MAX_OSC_RATE_CPF = 0.15
+_MAX_KERNEL = 31
+
+PARAMS: dict = {
+    "image_balance": {
+        "type": "float",
+        "min": 0.0,
+        "max": 50.0,
+        "default": 25.0,
+        "curve": "linear",
+        "unit": "",
+        "label": "Image Balance",
+        "description": "Threshold position (0=all white, 50=all black)",
+    },
+    "smoothness": {
+        "type": "int",
+        "min": 1,
+        "max": 15,
+        "default": 5,
+        "curve": "linear",
+        "unit": "",
+        "label": "Smoothness",
+        "description": "Pre-blur kernel — higher = chunkier, paper-pulp tears",
+    },
+    "contrast": {
+        "type": "int",
+        "min": 1,
+        "max": 25,
+        "default": 18,
+        "curve": "linear",
+        "unit": "",
+        "label": "Contrast",
+        "description": "Edge softness — low=anti-aliased, high=hard binary",
+    },
+    "greyscale": {
+        "type": "bool",
+        "default": True,
+        "label": "Greyscale",
+        "description": "ON: luminance threshold (B/W). OFF: per-channel RGB threshold (chaotic color)",
+    },
+    "osc_rate": {
+        "type": "float",
+        "min": 0.0,
+        "max": 1.0,
+        "default": 0.0,
+        "curve": "exponential",
+        "unit": "",
+        "label": "Osc Rate",
+        "description": "Modulation speed for image_balance (0=static). Hard-capped for seizure compliance.",
+    },
+    "osc_depth": {
+        "type": "float",
+        "min": 0.0,
+        "max": 25.0,
+        "default": 0.0,
+        "curve": "linear",
+        "unit": "",
+        "label": "Osc Depth",
+        "description": "How far the oscillator swings image_balance",
+    },
+    "osc_shape": {
+        "type": "choice",
+        "options": ["sine", "triangle", "square"],
+        "default": "sine",
+        "label": "Osc Shape",
+        "description": "LFO waveform shape",
+    },
+}
+
+
+def _oscillate(rate_unit: float, depth: float, shape: str, frame_index: int) -> float:
+    """Frame-index-driven LFO. Pure, deterministic, fps-independent.
+
+    rate_unit in [0,1] maps to [0, _MAX_OSC_RATE_CPF] cycles per frame.
+    Returns the additive offset for image_balance.
+    """
+    if rate_unit <= 0.0 or depth <= 0.0:
+        return 0.0
+    rate_cpf = min(max(rate_unit, 0.0), 1.0) * _MAX_OSC_RATE_CPF
+    phase = 2.0 * np.pi * rate_cpf * frame_index
+    if shape == "triangle":
+        p = (phase / (2.0 * np.pi)) % 1.0
+        wave = 4.0 * abs(p - 0.5) - 1.0
+    elif shape == "square":
+        wave = 1.0 if np.sin(phase) >= 0 else -1.0
+    else:
+        wave = float(np.sin(phase))
+    return wave * depth
+
+
+def _value_noise_2d(h: int, w: int, scale: int, rng: np.random.Generator) -> np.ndarray:
+    """Cheap 2D value noise: low-res random field upsampled with bicubic interp.
+
+    Produces smooth, paper-fiber-like noise for threshold-boundary displacement —
+    which is what makes the output look TORN (long jagged strokes), not FUZZY
+    (high-freq per-pixel dither).
+    """
+    import cv2
+
+    scale = max(2, int(scale))
+    low_h = max(2, h // scale)
+    low_w = max(2, w // scale)
+    low = rng.uniform(-1.0, 1.0, size=(low_h, low_w)).astype(np.float32)
+    return cv2.resize(low, (w, h), interpolation=cv2.INTER_CUBIC)
+
+
+def apply(
+    frame: np.ndarray,
+    params: dict,
+    state_in: dict | None = None,
+    *,
+    frame_index: int,
+    seed: int,
+    resolution: tuple[int, int],
+) -> tuple[np.ndarray, dict | None]:
+    """Torn-edges threshold with oscillation and tear displacement. Stateless."""
+    import cv2
+
+    # === Frame contract: uint8 only (HDR/float frames not supported) ===
+    assert frame.dtype == np.uint8, (
+        f"torn_edges requires uint8 frames, got {frame.dtype}"
+    )
+
+    # === Trust boundary: clamp every numeric param at entry ===
+    image_balance = max(0.0, min(50.0, float(params.get("image_balance", 25.0))))
+    smoothness = max(1, min(15, int(params.get("smoothness", 5))))
+    contrast = max(1, min(25, int(params.get("contrast", 18))))
+    greyscale = bool(params.get("greyscale", True))
+    try:
+        osc_rate = max(0.0, min(1.0, float(params.get("osc_rate", 0.0))))
+    except (TypeError, ValueError):
+        osc_rate = 0.0
+    try:
+        osc_depth = max(0.0, min(25.0, float(params.get("osc_depth", 0.0))))
+    except (TypeError, ValueError):
+        osc_depth = 0.0
+    osc_shape = params.get("osc_shape", "sine")
+    if osc_shape not in ("sine", "triangle", "square"):
+        osc_shape = "sine"
+
+    # === Oscillated balance ===
+    osc_offset = _oscillate(osc_rate, osc_depth, osc_shape, int(frame_index))
+    balance_eff = max(0.0, min(50.0, image_balance + osc_offset))
+
+    # === Pre-blur (separable Gaussian; capped kernel for resource safety) ===
+    kernel = min(_MAX_KERNEL, 2 * smoothness + 1)
+    if kernel < 3:
+        kernel = 3
+    sigma = smoothness * 0.7
+    rgb = frame[:, :, :3]
+    blurred = cv2.GaussianBlur(
+        rgb, (kernel, kernel), sigma, borderType=cv2.BORDER_REPLICATE
+    )
+    blurred_f = blurred.astype(np.float32)
+
+    # === Tear-displacement noise (value noise, not per-pixel) ===
+    # Boils only when oscillation is actually active (BOTH rate AND depth nonzero).
+    # Gating on rate alone causes off-axis strobing when user sets rate but
+    # leaves depth at default 0 (HT-1/HT-2 from red-team pass).
+    rng_seed_base = int(seed) & 0xFFFFFFFF
+    if osc_rate > 0.0 and osc_depth > 0.0:
+        rng_seed = (rng_seed_base * 1_000_003 + int(frame_index)) & 0xFFFFFFFF
+    else:
+        rng_seed = rng_seed_base
+    rng = np.random.default_rng(rng_seed)
+    h, w = blurred_f.shape[:2]
+    tear_amp = (16.0 - smoothness) * 2.5
+    tear_scale = max(2, smoothness * 2)
+    noise_field = _value_noise_2d(h, w, tear_scale, rng) * tear_amp
+
+    # === Threshold ===
+    t = balance_eff * 5.1  # map balance (0-50) → luminance cutoff (0-255)
+    k = contrast * 0.15
+
+    if greyscale:
+        luma = (
+            0.299 * blurred_f[:, :, 0]
+            + 0.587 * blurred_f[:, :, 1]
+            + 0.114 * blurred_f[:, :, 2]
+        )
+        x = luma + noise_field
+        exponent = np.clip(-(x - t) * k, -50.0, 50.0)
+        mask = 1.0 / (1.0 + np.exp(exponent))
+        mask = np.nan_to_num(mask, nan=0.0, posinf=1.0, neginf=0.0)
+        out_band = np.clip(mask * 255.0, 0, 255).astype(np.uint8)
+        result_rgb = np.stack([out_band, out_band, out_band], axis=2)
+    else:
+        # Per-channel threshold — single broadcast op (perf-friendly).
+        # Noise applied as shared luminance shift so tear strokes stay coherent across channels.
+        x = blurred_f + noise_field[:, :, np.newaxis]
+        exponent = np.clip(-(x - t) * k, -50.0, 50.0)
+        mask = 1.0 / (1.0 + np.exp(exponent))
+        mask = np.nan_to_num(mask, nan=0.0, posinf=1.0, neginf=0.0)
+        result_rgb = np.clip(mask * 255.0, 0, 255).astype(np.uint8)
+
+    # === Preserve alpha (or pass through 3-channel) ===
+    if frame.shape[2] >= 4:
+        output = np.concatenate([result_rgb, frame[:, :, 3:4]], axis=2)
+    else:
+        output = result_rgb
+    return output, None
