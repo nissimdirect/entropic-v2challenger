@@ -112,6 +112,48 @@ def test_greyscale_extreme_contrast_collapses_toward_binary():
     )
 
 
+def test_greyscale_bool_backward_compat():
+    """Legacy bool greyscale values (True/False) must still work after the
+    bool→float schema change."""
+    frame = _gradient_frame(32, 32)
+    base = {"contrast": 25, "image_balance": 25, "smoothness": 1, "tear_scale": 25}
+    # bool True should behave identically to float 1.0
+    out_true = _apply(frame, {**base, "greyscale": True}, seed=1)
+    out_one = _apply(frame, {**base, "greyscale": 1.0}, seed=1)
+    assert np.array_equal(out_true, out_one), (
+        "bool True did not coerce to float 1.0 (greyscale path)"
+    )
+    # bool False should behave identically to float 0.0
+    out_false = _apply(frame, {**base, "greyscale": False}, seed=1)
+    out_zero = _apply(frame, {**base, "greyscale": 0.0}, seed=1)
+    assert np.array_equal(out_false, out_zero), (
+        "bool False did not coerce to float 0.0 (per-channel path)"
+    )
+
+
+def test_greyscale_mix_blends_between_modes():
+    """Mid mix value (0.5) produces output distinct from both 0.0 and 1.0."""
+    h, w = 32, 32
+    frame = np.zeros((h, w, 4), dtype=np.uint8)
+    frame[:, :, 0] = 200  # R high
+    frame[:, :, 1] = 50  # G low
+    frame[:, :, 2] = 128  # B mid
+    frame[:, :, 3] = 255
+    base = {"contrast": 18, "image_balance": 25, "smoothness": 1, "tear_scale": 25}
+    out_color = _apply(frame, {**base, "greyscale": 0.0}, seed=1)
+    out_mix = _apply(frame, {**base, "greyscale": 0.5}, seed=1)
+    out_grey = _apply(frame, {**base, "greyscale": 1.0}, seed=1)
+    # Mix should be DIFFERENT from both extremes
+    l1_to_color = np.mean(np.abs(out_mix.astype(np.int16) - out_color.astype(np.int16)))
+    l1_to_grey = np.mean(np.abs(out_mix.astype(np.int16) - out_grey.astype(np.int16)))
+    assert l1_to_color > 1.0, (
+        f"mix=0.5 matched pure color too closely (L1={l1_to_color:.2f})"
+    )
+    assert l1_to_grey > 1.0, (
+        f"mix=0.5 matched pure greyscale too closely (L1={l1_to_grey:.2f})"
+    )
+
+
 def test_color_mode_per_channel_diverges():
     """greyscale=False produces independent per-channel thresholding."""
     h, w = 32, 32
