@@ -30,9 +30,11 @@ import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
-import { transportForward, transportReverse, transportStop, getTransportDirection } from './utils/transport-speed'
+import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
+import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
+import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
 import CrashRecoveryDialog from './components/dialogs/CrashRecoveryDialog'
@@ -121,6 +123,7 @@ function AppInner() {
     isIngesting,
     ingestError,
     projectName,
+    canvasResolution,
     addAsset,
     removeAsset,
     addEffect,
@@ -139,6 +142,12 @@ function AppInner() {
   const isDirty = useUndoStore((s) => s.isDirty)
   const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
 
+  // F-0512-19: subscribe to tracks so the render trigger below re-fires when
+  // any track-level state mutates (blend mode, opacity, mute, clip add/remove).
+  // Reactive subscription — needed at top of AppInner so it is in scope for
+  // the render-trigger useEffect.
+  const tracks = useTimelineStore((s) => s.tracks)
+
   // Initialize MIDI (Web MIDI API)
   useMIDI()
 
@@ -152,6 +161,7 @@ function AppInner() {
   const [activeFps, setActiveFps] = useState(30)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)
+  const [preferencesInitialTab, setPreferencesInitialTab] = useState<'general' | 'shortcuts' | 'performance' | 'paths'>('general')
   const [showAbout, setShowAbout] = useState(false)
   const [showRenderQueue, setShowRenderQueue] = useState(false)
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
@@ -267,11 +277,16 @@ function AppInner() {
     setAutosavePath(null)
   }, [autosavePath])
 
-  // Window title — show project name + dirty indicator
+  // Window title — show project name + dirty indicator.
   useEffect(() => {
-    const title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
-    document.title = title
-  }, [projectName, isDirty])
+    // F-0512-3: while the welcome screen is still up (no project picked yet),
+    // show plain "Entropic" instead of the default "Untitled — Entropic".
+    if (FF.F_0512_3_TITLE_BAR && !welcomeDismissed) {
+      document.title = 'Entropic'
+      return
+    }
+    document.title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
+  }, [projectName, isDirty, welcomeDismissed])
 
   // Start autosave on mount, stop on unmount
   useEffect(() => {
@@ -651,7 +666,14 @@ function AppInner() {
       pendingFrameRef.current = null
       setRenderError(null)
 
-      let chain = chainOverride ?? effectChain
+      // F-0512-6: read the chain from the store instead of the closure so that
+      // a render queued during an in-flight render (rapid Cmd+Z, drag-reorder,
+      // sliders, etc.) picks up the latest chain — not whichever one was bound
+      // when the function was created. Legacy path (flag off) reads from
+      // closure, which produces stale-frame previews after rapid undo.
+      let chain = chainOverride ?? (FF.F_0512_6_UNDO_RERENDER
+        ? useProjectStore.getState().effectChain
+        : effectChain)
 
       // Apply pad modulations to the chain before sending to backend
       if (!chainOverride) {
@@ -864,11 +886,32 @@ function AppInner() {
     [effectChain],
   )
 
-  // Render immediately on frame or chain change — no debounce
+  // Base render trigger — fires on frame or master-chain change. Always on.
   useEffect(() => {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
   }, [currentFrame, effectChain, requestRenderFrame])
+
+  // F-0512-19: also fire on track-level state change (blend mode, opacity,
+  // mute, clip add/remove). Without this, those mutations write to the store
+  // but never trigger a re-render IPC. requestRenderFrame's in-flight queue
+  // coalesces bursts.
+  useEffect(() => {
+    if (!FF.F_0512_19_TRACKS_RERENDER) return
+    if (!activeAssetPath.current) return
+    requestRenderFrame(currentFrame)
+  }, [tracks, currentFrame, requestRenderFrame])
+
+  // F-0512-29: also fire on previewState change so initPreviewFromHydratedProject
+  // (project reload after Electron relaunch) triggers a render once it has set
+  // activeAssetPath.current. Without this, on reload the effect's other deps
+  // had already settled in the prior render and the canvas stayed "No video
+  // loaded" even though the project was fully wired.
+  useEffect(() => {
+    if (!FF.F_0512_29_RELOAD_REBIND) return
+    if (!activeAssetPath.current) return
+    requestRenderFrame(currentFrame)
+  }, [previewState, currentFrame, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
@@ -1120,6 +1163,13 @@ function AppInner() {
     setPreviewState('empty')
     setRenderError(null)
     activeAssetPath.current = null
+    // F-0512-1: "New Project" implies Start Fresh — dismiss any pending
+    // autosave / crash recovery prompt so the user is not asked again
+    // about a session they have just chosen to abandon.
+    if (FF.F_0512_1_WELCOME_MODAL) {
+      setAutosavePath(null)
+      setCrashReports([])
+    }
   }, [])
 
   const handleAddTextTrack = useCallback(() => {
@@ -1232,7 +1282,12 @@ function AppInner() {
           useTimelineStore.getState().setZoom(Math.max(0.5, (window.innerWidth * 0.6) / Math.max(1, dur)))
           break
         }
-        case 'show-shortcuts': setShowPreferences(true); break
+        case 'show-shortcuts':
+          // F-0512-37: Help → Keyboard Shortcuts opens Preferences on the
+          // Shortcuts tab instead of the default General tab.
+          if (FF.F_0512_37_SHORTCUTS_TAB) setPreferencesInitialTab('shortcuts')
+          setShowPreferences(true)
+          break
         case 'show-feedback': setShowFeedbackDialog(true); break
         default:
           // Handle add-effect:{effectId} actions from Adjustments menu
@@ -1318,24 +1373,73 @@ function AppInner() {
   )
 
   const handlePlayPause = useCallback(() => {
+    if (FF.F_0512_14_SPACE_TRANSPORT) {
+      // F-0512-14 / F-0512-15: space and ▶ both route here, so this must always
+      // produce plain play/pause behavior regardless of prior J/K/L state.
+      // Previously we only toggled the audio transport; a stale isTimerPlaying
+      // from J (reverse) would keep the timer running in reverse while audio
+      // resumed forward, creating fights and "space toggles direction" UX.
+      const audio = useAudioStore.getState()
+      const audioIsPlaying = audio.isPlaying
+      const timerIsPlaying = isTimerPlayingRef.current
+
+      if (audioIsPlaying || timerIsPlaying) {
+        // Pause every active transport. Leave the JKL direction state intact so
+        // a subsequent J/L press picks up where the user left off; only space's
+        // own next press resets it (below).
+        if (audioIsPlaying) audio.togglePlayback()
+        if (timerIsPlaying) setIsTimerPlaying(false)
+        return
+      }
+
+      // Resume from a paused/stopped state. Space is unambiguously forward at 1×.
+      resetTransportSpeed()
+      setTransportSpeedMultiplier(1)
+      if (hasAudio && audio.isLoaded) {
+        audio.togglePlayback()
+      } else {
+        setIsTimerPlaying(true)
+      }
+      return
+    }
+
+    // Legacy path (F-0512-14 disabled): pre-fix behavior. Only toggles the
+    // primary transport; can leave JKL timer running in reverse.
     if (hasAudio && audioStore.isLoaded) {
-      // Audio-driven playback: toggle audio, video follows via clock sync
       audioStore.togglePlayback()
     } else {
-      // Silent video: use timer-based playback (existing behavior)
       setIsTimerPlaying((prev) => !prev)
     }
   }, [hasAudio, audioStore])
   handlePlayPauseRef.current = handlePlayPause
 
   const handleStop = useCallback(() => {
+    const ts = useTimelineStore.getState()
+    if (FF.F_0512_16_ESCAPE_LOOP) {
+      // F-0512-16: if transport is already at rest at frame 0 AND a loop region
+      // is set, treat the next Stop / Escape press as "clear the loop region"
+      // so users who accidentally set one can dismiss it without hunting for
+      // a button. First press: stop + return to 0 (existing behaviour). Second
+      // press while already stopped: clear loop region overlay.
+      //
+      // F-0512-16 follow-up (validator 2026-05-13): the original gate used
+      // strict `playheadTime === 0` plus `!isTimerPlayingRef.current` — neither
+      // Escape×2 nor k×2 from a ruler-clicked "0" cleared the loop in UAT. See
+      // shouldClearLoopOnStop() for the relaxed predicate and rationale.
+      const audioPlaying = hasAudio && audioStore.isLoaded && audioStore.isPlaying
+      if (shouldClearLoopOnStop(ts.playheadTime, audioPlaying, ts.loopRegion)) {
+        ts.clearLoopRegion()
+        return
+      }
+    }
+
     if (hasAudio && audioStore.isLoaded) {
       if (audioStore.isPlaying) audioStore.togglePlayback()
       audioStore.seek(0)
     }
     setIsTimerPlaying(false)
     setCurrentFrame(0)
-    useTimelineStore.getState().setPlayheadTime(0)
+    ts.setPlayheadTime(0)
   }, [hasAudio, audioStore, setCurrentFrame])
 
   // Escape key stop — listens for custom event dispatched from keydown handler
@@ -2047,7 +2151,13 @@ function AppInner() {
           )}
           {hasAssets && frameWidth > 0 && (
             <span className="status-bar__metrics">
-              <span className="status-bar__metric">{frameWidth >= 3840 ? '4K' : frameWidth >= 1920 ? '1080p' : frameWidth >= 1280 ? '720p' : `${frameWidth}p`}</span>
+              {/* F-0512-17: read resolution from the project canvas (stable),
+                  not the most-recent rendered frame width (flips between
+                  source dims and canvas dims across user actions). */}
+              {(() => {
+                const w = FF.F_0512_17_STATUS_BAR_CANVAS ? canvasResolution[0] : frameWidth
+                return <span className="status-bar__metric">{w >= 3840 ? '4K' : w >= 1920 ? '1080p' : w >= 1280 ? '720p' : `${w}p`}</span>
+              })()}
               <span className="status-bar__metric">{activeFps}fps</span>
               {lastFrameMs !== undefined && (
                 <span
@@ -2083,6 +2193,7 @@ function AppInner() {
       <Preferences
         isOpen={showPreferences}
         onClose={() => setShowPreferences(false)}
+        initialTab={preferencesInitialTab}
       />
       <AboutDialog
         isOpen={showAbout}
@@ -2098,7 +2209,7 @@ function AppInner() {
         onDecision={handleConsentDecision}
       />
 
-      {startupChecked && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
+      {startupChecked && (!FF.F_0512_1_WELCOME_MODAL || !welcomeDismissed) && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
         <CrashRecoveryDialog
           isOpen={true}
           crashCount={crashReports.length}
