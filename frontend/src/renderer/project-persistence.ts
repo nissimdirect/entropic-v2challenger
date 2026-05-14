@@ -13,6 +13,7 @@ import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { randomUUID } from './utils'
+import { FF } from '../shared/feature-flags'
 
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
@@ -48,6 +49,8 @@ function serializeProject(): string {
     tracks: timelineStore.tracks,
     markers: timelineStore.markers,
     loopRegion: timelineStore.loopRegion,
+    // F-0512-25: persist zoom so reloads don't lose the user's view setting.
+    ...(FF.F_0512_25_ZOOM_PERSIST ? { zoom: timelineStore.zoom } : {}),
   }
 
   const operatorStore = useOperatorStore.getState()
@@ -226,6 +229,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate duration
   if (project.timeline.duration > 0) {
     timelineStore.setDuration(project.timeline.duration)
+  }
+
+  // F-0512-25: hydrate timeline zoom (optional; absent on legacy files)
+  if (FF.F_0512_25_ZOOM_PERSIST && typeof project.timeline.zoom === 'number' && project.timeline.zoom > 0) {
+    timelineStore.setZoom(project.timeline.zoom)
   }
 
   // Hydrate drum rack (backward compat: missing = use defaults)

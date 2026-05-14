@@ -121,11 +121,14 @@ def _auto_register():
     # --- Phase 8: New effects (64 files) ---
     from effects.fx import (
         # Wave 1 — R&D
+        attractor_kaleidoscope,
         compression_oracle,
         logistic_cascade,
+        logistic_generation_loss,
         reaction_diffusion,
         domain_warp,
         entropy_map,
+        entropy_domain_warp,
         dct_transform,
         generation_loss,
         surveillance_sim,
@@ -191,6 +194,7 @@ def _auto_register():
         temporal_crystal,
         spectral_analysis,
         sonification_feedback,
+        resonant_paulstretch,
     )
 
     # Original effects list
@@ -266,11 +270,14 @@ def _auto_register():
 
     # Phase 8 effects (non-consolidated — register directly)
     phase8_mods = [
+        attractor_kaleidoscope,
         compression_oracle,
         logistic_cascade,
+        logistic_generation_loss,
         reaction_diffusion,
         domain_warp,
         entropy_map,
+        entropy_domain_warp,
         generation_loss,
         pixel_explode,
         pixel_superfluid,
@@ -314,6 +321,7 @@ def _auto_register():
         moire,
         temporal_crystal,
         sonification_feedback,
+        resonant_paulstretch,
     ]
 
     # Phase 8 consolidated effects (register base + variant aliases)
@@ -338,10 +346,21 @@ def _auto_register():
         spectral_analysis,
     ]
 
-    # --- Phase 12: Subliminal effect ---
+    # --- Phase 12: newer effects ---
+    # CONVENTION (added 2026-05-06 after the Frankenstein batch): when adding
+    # a new fx-style effect, append to `phase12_mods` (or open a `phase13_mods`
+    # if a new release-phase boundary is needed). Do NOT invent ad-hoc names
+    # like `frankenstein_mods` — those are caught by
+    # tests/test_effects/test_registry.py::test_no_orphan_module_lists.
+    # See docs/plans/2026-05-06-refactor-registry-consolidation.md for context.
     from effects.fx import subliminal
 
     phase12_mods = [subliminal]
+
+    # --- Frankenstein bench: ascii_phantom (recursive ASCII collapse) ---
+    from effects.fx import ascii_phantom
+
+    frankenstein_mods = [ascii_phantom]
 
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
@@ -350,7 +369,9 @@ def _auto_register():
         mods.append(debug_crash)
 
     # Register all simple effects
-    for mod in mods + phase8_mods + phase8_consolidated + phase12_mods:
+    for mod in (
+        mods + phase8_mods + phase8_consolidated + phase12_mods + frankenstein_mods
+    ):
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
         )
