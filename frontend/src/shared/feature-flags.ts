@@ -95,6 +95,10 @@ export const FF = {
   F_0512_36_TRANSFORM_HEIGHT: isFixEnabled('f-0512-36'),
   /** F-0512-37: Help → Keyboard Shortcuts opens Preferences on the Shortcuts tab */
   F_0512_37_SHORTCUTS_TAB: isFixEnabled('f-0512-37'),
+  /** F-0512-12/13: preview canvas locks CSS display size to bitmap so independent
+   * max-width/max-height caps can't stretch the canvas to non-source aspect, and
+   * the BoundingBoxOverlay's contain-fit math aligns with the visible canvas. */
+  F_0512_12_PREVIEW_ASPECT: isFixEnabled('f-0512-12'),
 } as const
 
 /**
