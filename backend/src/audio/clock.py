@@ -1,20 +1,29 @@
 """A/V sync clock — audio is master, video is slave."""
 
 import math
+from typing import Union
 
 from audio.player import AudioPlayer
+from audio.project_clock import ProjectClock
+
+ClockSource = Union[AudioPlayer, ProjectClock]
 
 
 class AVClock:
-    """Decoupled A/V clock that derives video frame position from audio playback.
+    """Decoupled A/V clock that derives video frame position from a time source.
 
     Audio runs on a real-time thread and never waits for video.
     Video queries this clock to know which frame to display.
     If video can't keep up, it holds the previous frame — audio never stutters.
+
+    The clock source may be either an AudioPlayer (legacy singleton-bed path)
+    or a ProjectClock (multi-track path, driven by time.monotonic() rather than
+    decoded samples). Both expose the same duck-typed surface:
+    position_seconds, is_playing, duration_seconds, volume.
     """
 
-    def __init__(self, player: AudioPlayer) -> None:
-        self._player = player
+    def __init__(self, player: ClockSource) -> None:
+        self._player: ClockSource = player
         self._fps: float = 30.0
         self._video_frame_count: int | None = None
 
