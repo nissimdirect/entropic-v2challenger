@@ -8,6 +8,8 @@ import { downsamplePeaks } from '../transport/useWaveform'
 import type { WaveformPeaks } from '../transport/useWaveform'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
+import { shortcutRegistry } from '../../utils/shortcuts'
+import { prettyShortcut } from '../../utils/pretty-shortcut'
 
 /** Snap a position to the nearest grid line if quantize is enabled. */
 function snapToGrid(pos: number, bypassSnap: boolean): number {
@@ -119,7 +121,12 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
     const withinClip = playheadTime >= clip.position && playheadTime < clip.position + clip.duration
 
     return [
-      { label: 'Split at Playhead', action: () => store.splitClip(clip.id, playheadTime), disabled: !withinClip },
+      {
+        label: 'Split at Playhead',
+        action: () => store.splitClip(clip.id, playheadTime),
+        disabled: !withinClip,
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('split_at_playhead')),
+      },
       { label: 'Duplicate', action: () => store.duplicateClip(clip.id) },
       { label: 'Delete', action: () => store.removeClip(clip.id) },
       { label: '', action: () => {}, separator: true },
