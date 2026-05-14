@@ -134,19 +134,33 @@ def test_color_mode_per_channel_diverges():
     )
 
 
-def test_smoothness_reduces_high_freq_detail():
-    """Higher smoothness → smoother output (lower Laplacian variance)."""
+def test_smoothness_blurs_source_detail_before_threshold():
+    """Higher smoothness → source detail blurred away → simpler mask.
+
+    Uses a high-detail checkerboard source so source-driven structure dominates.
+    Pins tear_scale to isolate smoothness as the only varying axis.
+    """
     import cv2
 
-    frame = _gradient_frame()
-    params_low = {"smoothness": 1, "contrast": 5, "greyscale": True}
-    params_high = {"smoothness": 15, "contrast": 5, "greyscale": True}
-    out_low = _apply(frame, params_low)
-    out_high = _apply(frame, params_high)
-    lap_low = cv2.Laplacian(out_low[:, :, 0], cv2.CV_64F).var()
-    lap_high = cv2.Laplacian(out_high[:, :, 0], cv2.CV_64F).var()
-    assert lap_low > lap_high, (
-        f"Smoothness did not reduce detail: low={lap_low:.2f}, high={lap_high:.2f}"
+    # High-detail checkerboard: smoothness should erase the small squares
+    h, w = 128, 128
+    checker = (
+        ((np.arange(h)[:, None] // 8) + (np.arange(w)[None, :] // 8)) % 2
+    ).astype(np.uint8) * 255
+    frame = np.zeros((h, w, 4), dtype=np.uint8)
+    for c in range(3):
+        frame[:, :, c] = checker
+    frame[:, :, 3] = 255
+
+    base = {"contrast": 25, "tear_scale": 60, "greyscale": True, "image_balance": 25}
+    out_sharp = _apply(frame, {**base, "smoothness": 1})
+    out_blur = _apply(frame, {**base, "smoothness": 15})
+    # Sharp pre-blur preserves the checkerboard pattern through to the mask
+    lap_sharp = cv2.Laplacian(out_sharp[:, :, 0], cv2.CV_64F).var()
+    # Heavy pre-blur turns checkerboard into uniform grey before threshold
+    lap_blur = cv2.Laplacian(out_blur[:, :, 0], cv2.CV_64F).var()
+    assert lap_sharp > lap_blur, (
+        f"Smoothness didn't blur source detail: sharp={lap_sharp:.1f}, blur={lap_blur:.1f}"
     )
 
 
@@ -180,6 +194,7 @@ def test_trust_boundary_clamps_garbage_params():
     params = {
         "image_balance": 999.0,
         "smoothness": 9999,
+        "tear_scale": 99999,
         "contrast": -50,
         "osc_rate": 99.0,
         "osc_depth": -10.0,
@@ -189,6 +204,25 @@ def test_trust_boundary_clamps_garbage_params():
     out = _apply(frame, params)
     assert out.shape == frame.shape
     assert out.dtype == np.uint8
+
+
+def test_tear_scale_spans_riso_to_pulp():
+    """tear_scale should produce different feature sizes across the param range."""
+    import cv2
+
+    frame = _gradient_frame(128, 128)
+    base = {"image_balance": 25, "contrast": 18, "smoothness": 3, "greyscale": True}
+    out_riso = _apply(frame, {**base, "tear_scale": 3})
+    out_pulp = _apply(frame, {**base, "tear_scale": 150})
+    # Smaller tear_scale → higher-frequency speckle → higher Laplacian variance
+    lap_riso = cv2.Laplacian(out_riso[:, :, 0], cv2.CV_64F).var()
+    lap_pulp = cv2.Laplacian(out_pulp[:, :, 0], cv2.CV_64F).var()
+    assert lap_riso > lap_pulp, (
+        f"tear_scale not scaling features: riso={lap_riso:.1f}, pulp={lap_pulp:.1f}"
+    )
+    # And the outputs must differ materially
+    l1 = np.mean(np.abs(out_riso.astype(np.int16) - out_pulp.astype(np.int16)))
+    assert l1 > 5.0, f"tear_scale=3 vs 150 produced near-identical output (L1={l1:.2f})"
 
 
 def test_three_channel_input_handled():
