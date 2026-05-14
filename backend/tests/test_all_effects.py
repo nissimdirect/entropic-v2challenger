@@ -93,6 +93,7 @@ class TestAllEffectsBasic:
             "fx.datamosh_real",
             "fx.flow_distort",
             "fx.domain_warp",
+            "fx.entropy_domain_warp",
             "fx.lens_distortion",
             "fx.fisheye",
             "fx.anamorphic",
@@ -158,6 +159,8 @@ class TestAllEffectsVisibleChange:
         "fx.flow_distort",
         "fx.spectral_freeze",
         "fx.afterimage",
+        # Entropy domain warp uses temporal smoothing — first frame may be near-identity on flat synthetic frames
+        "fx.entropy_domain_warp",
         # Physics effects that accumulate over time — no displacement at frame 0
         "fx.pixel_melt",
         "fx.pixel_haunt",
