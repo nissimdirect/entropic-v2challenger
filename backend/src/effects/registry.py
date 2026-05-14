@@ -347,6 +347,11 @@ def _auto_register():
 
     phase12_mods = [subliminal]
 
+    # --- Frankenstein bench: ascii_phantom (recursive ASCII collapse) ---
+    from effects.fx import ascii_phantom
+
+    frankenstein_mods = [ascii_phantom]
+
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
         from effects.fx import debug_crash
@@ -354,7 +359,9 @@ def _auto_register():
         mods.append(debug_crash)
 
     # Register all simple effects
-    for mod in mods + phase8_mods + phase8_consolidated + phase12_mods:
+    for mod in (
+        mods + phase8_mods + phase8_consolidated + phase12_mods + frankenstein_mods
+    ):
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
         )
