@@ -159,6 +159,7 @@ class TestAllEffectsVisibleChange:
         "fx.datamosh_freeze",
         "fx.flow_distort",
         "fx.spectral_freeze",
+        "fx.frequency_mosh",
         "fx.afterimage",
         # Entropy domain warp uses temporal smoothing — first frame may be near-identity on flat synthetic frames
         "fx.entropy_domain_warp",
