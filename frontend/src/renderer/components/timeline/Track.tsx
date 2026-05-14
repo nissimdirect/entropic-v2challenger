@@ -9,6 +9,7 @@ import { useEffectsStore } from '../../stores/effects'
 import ClipComponent from './Clip'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
+import { FF } from '../../../shared/feature-flags'
 
 interface TrackHeaderProps {
   track: TrackType
@@ -24,9 +25,25 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const renameInputRef = useRef<HTMLInputElement>(null)
   const [showExtras, setShowExtras] = useState(false)
 
-  // Auto-select text when rename input appears
+  // Auto-focus and select text when rename input appears.
   useEffect(() => {
-    if (isRenaming) renameInputRef.current?.select()
+    if (!isRenaming) return
+    if (FF.F_0512_32_RENAME_FOCUS) {
+      // F-0512-32: defer to the next frame + explicit focus so the input
+      // captures focus after the ContextMenu's same-batch unmount has settled.
+      // Without this the input rendered but didn't gain focus on some
+      // Electron/React combos, and onBlur dismissed it before the user typed.
+      const id = requestAnimationFrame(() => {
+        const el = renameInputRef.current
+        if (!el) return
+        el.focus()
+        el.select()
+      })
+      return () => cancelAnimationFrame(id)
+    }
+    // Legacy: bare .select() — works in most environments, unreliable when
+    // the priorly-focused element is being detached in the same commit.
+    renameInputRef.current?.select()
   }, [isRenaming])
 
   const startRename = useCallback(() => {
@@ -230,7 +247,9 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                   step={0.01}
                   value={track.opacity}
                   onChange={handleOpacityChange}
-                  title={`Opacity: ${Math.round(track.opacity * 100)}%`}
+                  title={FF.F_0512_21_OPACITY_LABELS
+                    ? `Track opacity: ${Math.round(track.opacity * 100)}% (multiplies with clip opacity)`
+                    : `Opacity: ${Math.round(track.opacity * 100)}%`}
                 />
                 <span className="track-header__opacity-label">
                   {Math.round(track.opacity * 100)}%
