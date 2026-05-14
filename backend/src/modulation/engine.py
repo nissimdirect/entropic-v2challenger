@@ -17,6 +17,71 @@ logger = logging.getLogger(__name__)
 MAX_OPERATORS = 16
 
 
+def _topological_sort(active_ops: list[dict]) -> list[dict]:
+    """Order operators so Fusion sources evaluate before Fusion consumers.
+
+    Fusion operators read other operators' values via `parameters.sources[].operator_id`.
+    The previous declaration-order loop returned 0.0 for any source declared after its
+    consumer (silent stale read, not a crash). This sort fixes that.
+
+    Stable: preserves declaration order for operators with no fusion dependencies.
+    Cycle-safe: if a cycle is detected, falls back to declaration order with a warning.
+    """
+    n = len(active_ops)
+    if n <= 1:
+        return active_ops
+
+    op_idx: dict[str, int] = {}
+    for i, op in enumerate(active_ops):
+        op_id = op.get("id", "")
+        if op_id and op_id not in op_idx:
+            op_idx[op_id] = i
+
+    # deps[i] = set of declaration indices that op i depends on
+    deps: list[set[int]] = [set() for _ in range(n)]
+    for i, op in enumerate(active_ops):
+        if op.get("type") != "fusion":
+            continue
+        params = op.get("parameters", op.get("params", {}))
+        sources = params.get("sources", [])
+        if not isinstance(sources, list):
+            continue
+        for src in sources:
+            if not isinstance(src, dict):
+                continue
+            src_id = src.get("operator_id", "")
+            j = op_idx.get(src_id)
+            if j is not None and j != i:
+                deps[i].add(j)
+
+    # Stable Kahn's algorithm: ready set kept sorted by declaration index
+    in_degree = [len(d) for d in deps]
+    ready = sorted(i for i in range(n) if in_degree[i] == 0)
+    ordered: list[int] = []
+    while ready:
+        i = ready.pop(0)
+        ordered.append(i)
+        for j in range(n):
+            if i in deps[j]:
+                deps[j].discard(i)
+                in_degree[j] -= 1
+                if in_degree[j] == 0:
+                    # Insert preserving sort
+                    pos = 0
+                    while pos < len(ready) and ready[pos] < j:
+                        pos += 1
+                    ready.insert(pos, j)
+
+    if len(ordered) < n:
+        logger.warning(
+            "Modulation graph contains a cycle in fusion sources; "
+            "falling back to declaration order. Some operators may read 0.0."
+        )
+        return active_ops
+
+    return [active_ops[i] for i in ordered]
+
+
 class SignalEngine:
     """Evaluates all operators and applies modulation to an effect chain."""
 
@@ -49,8 +114,9 @@ class SignalEngine:
 
         values: dict[str, float] = {}
 
-        # Cap at MAX_OPERATORS
-        active_ops = operators[:MAX_OPERATORS]
+        # Cap at MAX_OPERATORS, then topo-sort so Fusion sources resolve before
+        # their consumers (otherwise Fusion reads 0.0 silently — see _topological_sort).
+        active_ops = _topological_sort(operators[:MAX_OPERATORS])
 
         for op in active_ops:
             op_id = op.get("id", "")
