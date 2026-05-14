@@ -355,14 +355,9 @@ def _auto_register():
     # like `frankenstein_mods` — those are caught by
     # tests/test_effects/test_registry.py::test_no_orphan_module_lists.
     # See docs/plans/2026-05-06-refactor-registry-consolidation.md for context.
-    from effects.fx import subliminal
+    from effects.fx import ascii_phantom, subliminal
 
-    phase12_mods = [subliminal]
-
-    # --- Frankenstein bench: ascii_phantom (recursive ASCII collapse) ---
-    from effects.fx import ascii_phantom
-
-    frankenstein_mods = [ascii_phantom]
+    phase12_mods = [subliminal, ascii_phantom]
 
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":
@@ -371,9 +366,7 @@ def _auto_register():
         mods.append(debug_crash)
 
     # Register all simple effects
-    for mod in (
-        mods + phase8_mods + phase8_consolidated + phase12_mods + frankenstein_mods
-    ):
+    for mod in mods + phase8_mods + phase8_consolidated + phase12_mods:
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
         )
