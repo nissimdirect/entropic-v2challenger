@@ -12,7 +12,10 @@
 }
 
 .context-menu__item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
   background: none;
   border: none;
@@ -27,6 +30,20 @@
 .context-menu__item:hover {
   background: #4ade80;
   color: #1a1a1a;
+}
+
+/* Right-aligned shortcut hint (display-only; binding owned by shortcutRegistry).
+ * Muted by default; inverts on hover to stay legible against the green accent. */
+.context-menu__shortcut {
+  color: #888;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.context-menu__item:hover .context-menu__shortcut {
+  color: #1a1a1a;
+  opacity: 0.65;
 }
 
 .context-menu__item--disabled {
