@@ -12,13 +12,84 @@ import { usePerformanceStore } from './stores/performance'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
+import { useToastStore } from './stores/toast'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
 
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
 const PROJECT_VERSION = '2.0.0'
+const PROJECT_VERSION_MAJOR = 2
 const MAX_RECENT_PROJECTS = 20
+
+// Project-file load hardening — defends against weaponized .glitch files.
+// Project files are routinely shared (collab, presets, social posts), so the
+// JSON.parse(readFile()) → validateProject path is an attacker-controlled boundary.
+// Limits chosen to be far above any legitimate project's needs.
+const MAX_JSON_DEPTH = 32
+const MAX_KEYS_PER_NODE = 1024
+const MAX_ARRAY_LENGTH = 10_000
+const MAX_VERSION_STRING_LENGTH = 16
+const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+
+interface StructureCheckResult {
+  valid: boolean
+  reason?: string
+}
+
+export function validateProjectStructure(data: unknown): StructureCheckResult {
+  if (typeof data === 'object' && data !== null) {
+    const obj = data as Record<string, unknown>
+    if (typeof obj.version === 'string') {
+      if (obj.version.length > MAX_VERSION_STRING_LENGTH) {
+        return { valid: false, reason: `version field exceeds ${MAX_VERSION_STRING_LENGTH} chars` }
+      }
+      const major = Number.parseInt(obj.version.split('.')[0], 10)
+      if (Number.isFinite(major) && major > PROJECT_VERSION_MAJOR) {
+        return {
+          valid: false,
+          reason: `Project saved by a newer Entropic version (v${major}). Update Entropic to open it.`,
+        }
+      }
+    }
+  }
+
+  function walk(node: unknown, depth: number, path: string): string | null {
+    if (depth > MAX_JSON_DEPTH) {
+      return `JSON nesting depth exceeds ${MAX_JSON_DEPTH} at ${path}`
+    }
+    if (Array.isArray(node)) {
+      if (node.length > MAX_ARRAY_LENGTH) {
+        return `Array length ${node.length} exceeds ${MAX_ARRAY_LENGTH} at ${path}`
+      }
+      for (let i = 0; i < node.length; i++) {
+        const reason = walk(node[i], depth + 1, `${path}[${i}]`)
+        if (reason) return reason
+      }
+      return null
+    }
+    if (typeof node === 'object' && node !== null) {
+      const keys = Object.keys(node)
+      if (keys.length > MAX_KEYS_PER_NODE) {
+        return `Object key count ${keys.length} exceeds ${MAX_KEYS_PER_NODE} at ${path}`
+      }
+      for (const key of keys) {
+        if (FORBIDDEN_KEYS.has(key)) {
+          return `Forbidden key "${key}" at ${path}`
+        }
+      }
+      for (const key of keys) {
+        const reason = walk((node as Record<string, unknown>)[key], depth + 1, `${path}.${key}`)
+        if (reason) return reason
+      }
+    }
+    return null
+  }
+
+  const reason = walk(data, 0, '$')
+  if (reason) return { valid: false, reason }
+  return { valid: true }
+}
 
 export interface RecentProject {
   path: string
@@ -319,8 +390,24 @@ export async function loadProject(
     const json = await window.entropic.readFile(path)
     const data = JSON.parse(json)
 
+    const structureCheck = validateProjectStructure(data)
+    if (!structureCheck.valid) {
+      console.error('[Project] Project file rejected:', structureCheck.reason)
+      useToastStore.getState().addToast({
+        level: 'error',
+        source: 'project-load',
+        message: `Project file rejected: ${structureCheck.reason}`,
+      })
+      return false
+    }
+
     if (!validateProject(data)) {
       console.error('[Project] Invalid project file — validation failed')
+      useToastStore.getState().addToast({
+        level: 'error',
+        source: 'project-load',
+        message: 'Invalid project file — schema validation failed',
+      })
       return false
     }
 
@@ -418,8 +505,24 @@ export async function restoreAutosave(
     const json = await window.entropic.readFile(path)
     const data = JSON.parse(json)
 
+    const structureCheck = validateProjectStructure(data)
+    if (!structureCheck.valid) {
+      console.error('[Autosave] Autosave file rejected:', structureCheck.reason)
+      useToastStore.getState().addToast({
+        level: 'error',
+        source: 'project-load',
+        message: `Autosave rejected: ${structureCheck.reason}`,
+      })
+      return false
+    }
+
     if (!validateProject(data)) {
       console.error('[Autosave] Invalid autosave file — validation failed')
+      useToastStore.getState().addToast({
+        level: 'error',
+        source: 'project-load',
+        message: 'Autosave file failed schema validation',
+      })
       return false
     }
 
