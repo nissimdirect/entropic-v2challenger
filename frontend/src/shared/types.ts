@@ -56,7 +56,7 @@ export interface Timeline {
 
 export interface Track {
   id: string;
-  type: "video" | "performance" | "text";
+  type: "video" | "performance" | "text" | "audio";
   name: string;
   color: string;
   isMuted: boolean;
@@ -66,6 +66,59 @@ export interface Track {
   clips: Clip[];
   effectChain: EffectInstance[];
   automationLanes: AutomationLane[];
+  // Audio track only (undefined for video/performance/text)
+  gainDb?: number;
+  audioClips?: AudioClip[];
+}
+
+/**
+ * Audio clip on an audio track.
+ *
+ * Numeric invariants (enforced by timeline store + backend validator):
+ * - inSec >= 0, outSec > inSec + MIN_CLIP_SEC
+ * - startSec >= 0
+ * - gainDb clamped [-60, +6], finite
+ * - fadeInSec in [0, outSec - inSec], finite
+ * - fadeOutSec in [0, outSec - inSec - fadeInSec], finite
+ */
+export interface AudioClip {
+  id: string;
+  trackId: string;
+  path: string;           // absolute, post validate_upload + realpath + magic-byte
+  inSec: number;          // read offset into source file
+  outSec: number;         // end offset into source file
+  startSec: number;       // timeline position
+  gainDb: number;         // [-60, +6]
+  fadeInSec: number;      // linear ramp into clip
+  fadeOutSec: number;     // linear ramp out
+  muted: boolean;         // per-clip mute
+  missing?: boolean;      // true when clip.path is no longer resolvable
+}
+
+/** Audio track invariants — backend mirrors these. */
+export const AUDIO_LIMITS = {
+  MIN_CLIP_SEC: 0.01,
+  MAX_CLIP_DURATION_SEC: 3600,
+  MAX_CLIPS_PER_TRACK: 500,
+  MAX_AUDIO_TRACKS: 32,
+  MAX_ACTIVE_CLIPS: 16,
+  MIN_GAIN_DB: -60,
+  MAX_GAIN_DB: 6,
+  MAX_BATCH_DROP: 8,
+} as const;
+
+/** Clamp gain to the audio track range with NaN/Infinity rejection. */
+export function clampGainDb(value: unknown): number {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(AUDIO_LIMITS.MIN_GAIN_DB, Math.min(AUDIO_LIMITS.MAX_GAIN_DB, n));
+}
+
+/** Non-negative finite seconds, NaN/Infinity rejected to 0. */
+export function clampNonNegSec(value: unknown, max: number = AUDIO_LIMITS.MAX_CLIP_DURATION_SEC): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(max, n);
 }
 
 export type BlendMode =

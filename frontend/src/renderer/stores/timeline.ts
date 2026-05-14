@@ -1,8 +1,9 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, BlendMode, TextClipConfig, ClipTransform } from '../../shared/types'
+import type { Track, Clip, Marker, BlendMode, TextClipConfig, ClipTransform, AudioClip } from '../../shared/types'
+import { AUDIO_LIMITS, clampGainDb, clampNonNegSec } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
-import { undoable } from './undo'
+import { undoable, useUndoStore } from './undo'
 import { useToastStore } from './toast'
 
 interface TimelineState {
@@ -85,6 +86,19 @@ interface TimelineState {
   invertSelection: () => void
   selectClipsByTrack: (trackId: string) => void
 
+  // Audio track actions
+  addAudioTrack: (name?: string, color?: string) => string | undefined
+  addAudioClip: (trackId: string, clip: Omit<AudioClip, 'id' | 'trackId'>) => string | undefined
+  removeAudioClip: (clipId: string) => void
+  removeAudioClips: (clipIds: string[]) => void
+  setClipGain: (clipId: string, gainDb: number) => void
+  setClipFade: (clipId: string, fadeInSec: number, fadeOutSec: number) => void
+  setTrackGain: (trackId: string, gainDb: number) => void
+  moveAudioClip: (clipId: string, newStartSec: number) => void
+  trimAudioClip: (clipId: string, newInSec: number, newOutSec: number) => void
+  toggleAudioClipMute: (clipId: string) => void
+  getActiveAudioClipsAtTime: (time: number) => { track: Track; clip: AudioClip }[]
+
   // Helpers
   getActiveClipsAtTime: (time: number) => { track: Track; clip: Clip }[]
   getTimelineDuration: () => number
@@ -93,8 +107,8 @@ interface TimelineState {
   reset: () => void
 }
 
-function makeEmptyTrack(name: string, color: string, id?: string, type: 'video' | 'performance' | 'text' = 'video'): Track {
-  return {
+function makeEmptyTrack(name: string, color: string, id?: string, type: 'video' | 'performance' | 'text' | 'audio' = 'video'): Track {
+  const base: Track = {
     id: id ?? randomUUID(),
     type,
     name,
@@ -106,6 +120,48 @@ function makeEmptyTrack(name: string, color: string, id?: string, type: 'video' 
     clips: [],
     effectChain: [],
     automationLanes: [],
+  }
+  if (type === 'audio') {
+    base.gainDb = 0
+    base.audioClips = []
+  }
+  return base
+}
+
+/** Count audio tracks currently active. */
+function countAudioTracks(tracks: Track[]): number {
+  return tracks.filter((t) => t.type === 'audio').length
+}
+
+/** Find the audio clip by id across all audio tracks. Returns null if not found. */
+function findAudioClip(tracks: Track[], clipId: string): { track: Track; clip: AudioClip } | null {
+  for (const t of tracks) {
+    if (t.type !== 'audio' || !t.audioClips) continue
+    const clip = t.audioClips.find((c) => c.id === clipId)
+    if (clip) return { track: t, clip }
+  }
+  return null
+}
+
+/** Normalize an AudioClip's numeric fields with full trust-boundary clamps. */
+function normalizeAudioClip(clip: Omit<AudioClip, 'id' | 'trackId'>, id: string, trackId: string): AudioClip {
+  const inSec = clampNonNegSec(clip.inSec)
+  const outSec = Math.max(inSec + AUDIO_LIMITS.MIN_CLIP_SEC, clampNonNegSec(clip.outSec))
+  const clipDur = outSec - inSec
+  const fadeIn = Math.max(0, Math.min(clipDur, clampNonNegSec(clip.fadeInSec)))
+  const fadeOut = Math.max(0, Math.min(clipDur - fadeIn, clampNonNegSec(clip.fadeOutSec)))
+  return {
+    id,
+    trackId,
+    path: String(clip.path ?? ''),
+    inSec,
+    outSec,
+    startSec: clampNonNegSec(clip.startSec),
+    gainDb: clampGainDb(clip.gainDb),
+    fadeInSec: fadeIn,
+    fadeOutSec: fadeOut,
+    muted: Boolean(clip.muted),
+    missing: clip.missing ? true : undefined,
   }
 }
 
@@ -133,6 +189,12 @@ function recalcDuration(tracks: Track[]): number {
     for (const clip of track.clips) {
       const end = clip.position + clip.duration
       if (end > max) max = end
+    }
+    if (track.type === 'audio' && track.audioClips) {
+      for (const clip of track.audioClips) {
+        const end = clip.startSec + (clip.outSec - clip.inSec)
+        if (end > max) max = end
+      }
     }
   }
   return max
@@ -1028,6 +1090,306 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   getTimelineDuration: () => recalcDuration(get().tracks),
+
+  // --- Audio track actions ---
+
+  addAudioTrack: (name, color) => {
+    if (get().tracks.length >= LIMITS.MAX_TRACKS) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Track limit (${LIMITS.MAX_TRACKS}) reached`, source: 'timeline' })
+      return undefined
+    }
+    if (countAudioTracks(get().tracks) >= AUDIO_LIMITS.MAX_AUDIO_TRACKS) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Audio track limit (${AUDIO_LIMITS.MAX_AUDIO_TRACKS}) reached`, source: 'timeline' })
+      return undefined
+    }
+    const trackId = randomUUID()
+    const resolvedName = name ?? `Audio ${countAudioTracks(get().tracks) + 1}`
+    const resolvedColor = color ?? '#4ade80'
+
+    undoable(
+      'Add audio track',
+      () => {
+        const track = makeEmptyTrack(resolvedName, resolvedColor, trackId, 'audio')
+        set({ tracks: [...get().tracks, track] })
+      },
+      () => {
+        const tracks = get().tracks.filter((t) => t.id !== trackId)
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+    return trackId
+  },
+
+  addAudioClip: (trackId, clip) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track || track.type !== 'audio') return undefined
+    const existing = track.audioClips ?? []
+    if (existing.length >= AUDIO_LIMITS.MAX_CLIPS_PER_TRACK) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Audio clip limit (${AUDIO_LIMITS.MAX_CLIPS_PER_TRACK}) reached`, source: 'timeline' })
+      return undefined
+    }
+    const clipId = randomUUID()
+    const newClip = normalizeAudioClip(clip, clipId, trackId)
+
+    undoable(
+      'Add audio clip',
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? { ...t, audioClips: [...(t.audioClips ?? []), newClip] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? { ...t, audioClips: (t.audioClips ?? []).filter((c) => c.id !== clipId) } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+    return clipId
+  },
+
+  removeAudioClip: (clipId) => {
+    const found = findAudioClip(get().tracks, clipId)
+    if (!found) return
+    const { track: owner, clip: removed } = found
+    const ownerId = owner.id
+
+    undoable(
+      'Remove audio clip',
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === ownerId ? { ...t, audioClips: (t.audioClips ?? []).filter((c) => c.id !== clipId) } : t,
+        )
+        const selectedClipIds = get().selectedClipIds.filter((id) => id !== clipId)
+        set({
+          tracks,
+          duration: recalcDuration(tracks),
+          selectedClipIds,
+          selectedClipId: get().selectedClipId === clipId ? null : get().selectedClipId,
+        })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === ownerId ? { ...t, audioClips: [...(t.audioClips ?? []), removed] } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  removeAudioClips: (clipIds) => {
+    if (clipIds.length === 0) return
+    // Transaction coalesces all deletes into one undo entry.
+    const undo = useUndoStore.getState()
+    undo.beginTransaction(`Remove ${clipIds.length} audio clip${clipIds.length === 1 ? '' : 's'}`)
+    try {
+      for (const id of clipIds) get().removeAudioClip(id)
+    } finally {
+      undo.commitTransaction()
+    }
+  },
+
+  setClipGain: (clipId, gainDb) => {
+    const found = findAudioClip(get().tracks, clipId)
+    if (!found) return
+    const oldGain = found.clip.gainDb
+    const newGain = clampGainDb(gainDb)
+    if (oldGain === newGain) return
+    const trackId = found.track.id
+
+    undoable(
+      'Set audio clip gain',
+      () => set({
+        tracks: get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, gainDb: newGain } : c),
+          } : t,
+        ),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, gainDb: oldGain } : c),
+          } : t,
+        ),
+      }),
+    )
+  },
+
+  setClipFade: (clipId, fadeInSec, fadeOutSec) => {
+    const found = findAudioClip(get().tracks, clipId)
+    if (!found) return
+    const { clip: current, track: owner } = found
+    const clipDur = current.outSec - current.inSec
+    const newIn = Math.max(0, Math.min(clipDur, clampNonNegSec(fadeInSec)))
+    const newOut = Math.max(0, Math.min(clipDur - newIn, clampNonNegSec(fadeOutSec)))
+    if (newIn === current.fadeInSec && newOut === current.fadeOutSec) return
+    const oldIn = current.fadeInSec
+    const oldOut = current.fadeOutSec
+    const trackId = owner.id
+
+    undoable(
+      'Set audio clip fade',
+      () => set({
+        tracks: get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, fadeInSec: newIn, fadeOutSec: newOut } : c),
+          } : t,
+        ),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, fadeInSec: oldIn, fadeOutSec: oldOut } : c),
+          } : t,
+        ),
+      }),
+    )
+  },
+
+  setTrackGain: (trackId, gainDb) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track || track.type !== 'audio') return
+    const newGain = clampGainDb(gainDb)
+    const oldGain = track.gainDb ?? 0
+    if (oldGain === newGain) return
+
+    undoable(
+      'Set audio track gain',
+      () => set({
+        tracks: get().tracks.map((t) => t.id === trackId ? { ...t, gainDb: newGain } : t),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => t.id === trackId ? { ...t, gainDb: oldGain } : t),
+      }),
+    )
+  },
+
+  moveAudioClip: (clipId, newStartSec) => {
+    const found = findAudioClip(get().tracks, clipId)
+    if (!found) return
+    const oldStart = found.clip.startSec
+    const cleanStart = clampNonNegSec(newStartSec)
+    if (oldStart === cleanStart) return
+    const trackId = found.track.id
+
+    undoable(
+      'Move audio clip',
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, startSec: cleanStart } : c),
+          } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, startSec: oldStart } : c),
+          } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  trimAudioClip: (clipId, newInSec, newOutSec) => {
+    const found = findAudioClip(get().tracks, clipId)
+    if (!found) return
+    const { clip: current, track: owner } = found
+    const inSec = clampNonNegSec(newInSec)
+    const outSec = Math.max(inSec + AUDIO_LIMITS.MIN_CLIP_SEC, clampNonNegSec(newOutSec))
+    if (inSec === current.inSec && outSec === current.outSec) return
+    const oldIn = current.inSec
+    const oldOut = current.outSec
+    // Preserve existing fades if they still fit; clamp otherwise.
+    const newDur = outSec - inSec
+    const fadeIn = Math.min(current.fadeInSec, newDur)
+    const fadeOut = Math.min(current.fadeOutSec, newDur - fadeIn)
+    const oldFadeIn = current.fadeInSec
+    const oldFadeOut = current.fadeOutSec
+    const trackId = owner.id
+
+    undoable(
+      'Trim audio clip',
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) =>
+              c.id === clipId ? { ...c, inSec, outSec, fadeInSec: fadeIn, fadeOutSec: fadeOut } : c,
+            ),
+          } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) =>
+              c.id === clipId ? { ...c, inSec: oldIn, outSec: oldOut, fadeInSec: oldFadeIn, fadeOutSec: oldFadeOut } : c,
+            ),
+          } : t,
+        )
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  toggleAudioClipMute: (clipId) => {
+    const found = findAudioClip(get().tracks, clipId)
+    if (!found) return
+    const wasMuted = found.clip.muted
+    const trackId = found.track.id
+    undoable(
+      wasMuted ? 'Unmute audio clip' : 'Mute audio clip',
+      () => set({
+        tracks: get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, muted: !wasMuted } : c),
+          } : t,
+        ),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) =>
+          t.id === trackId ? {
+            ...t,
+            audioClips: (t.audioClips ?? []).map((c) => c.id === clipId ? { ...c, muted: wasMuted } : c),
+          } : t,
+        ),
+      }),
+    )
+  },
+
+  getActiveAudioClipsAtTime: (time) => {
+    const { tracks } = get()
+    const result: { track: Track; clip: AudioClip }[] = []
+    // Respect solo: if any audio track is soloed, only return clips from soloed tracks
+    const anyAudioSolo = tracks.some((t) => t.type === 'audio' && t.isSoloed)
+    for (const track of tracks) {
+      if (track.type !== 'audio' || !track.audioClips) continue
+      if (track.isMuted) continue
+      if (anyAudioSolo && !track.isSoloed) continue
+      for (const clip of track.audioClips) {
+        if (clip.muted || clip.missing) continue
+        const end = clip.startSec + (clip.outSec - clip.inSec)
+        if (time >= clip.startSec && time < end) {
+          result.push({ track, clip })
+        }
+      }
+    }
+    return result
+  },
 
   // --- Reset ---
 

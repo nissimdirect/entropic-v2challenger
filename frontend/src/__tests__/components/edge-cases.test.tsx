@@ -342,8 +342,8 @@ describe('Edge Cases — State Transitions', () => {
   test('drop zone: visible with correct hint text', () => {
     render(<DropZone onFileDrop={vi.fn()} />)
 
-    expect(screen.getByText('Drop video or image file here')).toBeInTheDocument()
-    expect(screen.getByText('MP4, MOV, AVI, WebM, MKV, PNG, JPG, TIFF, WebP, BMP')).toBeInTheDocument()
+    expect(screen.getByText('Drop video, image, or audio file here')).toBeInTheDocument()
+    expect(screen.getByText('MP4, MOV, PNG, WAV, MP3, FLAC, OGG, M4A …')).toBeInTheDocument()
   })
 
   test('effect rack: empty state message', () => {

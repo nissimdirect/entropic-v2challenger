@@ -193,9 +193,9 @@ function validateProject(data: unknown): data is Project {
     if (typeof t.id !== 'string') return false
     if (typeof t.name !== 'string') return false
     if (!Array.isArray(t.clips)) return false
-    // Track type validation — accept video, performance, text
+    // Track type validation — accept video, performance, text, audio
     if (t.type !== undefined && typeof t.type === 'string') {
-      if (!['video', 'performance', 'text'].includes(t.type)) return false
+      if (!['video', 'performance', 'text', 'audio'].includes(t.type)) return false
     }
     for (const clip of t.clips as unknown[]) {
       if (typeof clip !== 'object' || clip === null) return false
@@ -210,6 +210,25 @@ function validateProject(data: unknown): data is Project {
         if (typeof tc.text !== 'string') return false
       }
     }
+    // Audio-clip validation (audio tracks use t.audioClips, not t.clips)
+    if (t.audioClips !== undefined) {
+      if (!Array.isArray(t.audioClips)) return false
+      for (const clip of t.audioClips as unknown[]) {
+        if (typeof clip !== 'object' || clip === null) return false
+        const c = clip as Record<string, unknown>
+        if (typeof c.id !== 'string') return false
+        if (typeof c.path !== 'string') return false
+        // Numeric trust boundary: every field must be finite before clamp.
+        // The timeline store's normalizeAudioClip() re-clamps on hydrate; this
+        // validator rejects non-number-shaped data at the file boundary.
+        for (const key of ['inSec', 'outSec', 'startSec', 'gainDb', 'fadeInSec', 'fadeOutSec']) {
+          const v = c[key]
+          if (typeof v !== 'number' || !Number.isFinite(v)) return false
+        }
+        if (c.muted !== undefined && typeof c.muted !== 'boolean') return false
+      }
+    }
+    if (t.gainDb !== undefined && (typeof t.gainDb !== 'number' || !Number.isFinite(t.gainDb))) return false
   }
 
   // P1-5: Optional drumRack validation
@@ -269,21 +288,51 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate timeline tracks
   for (const track of project.timeline.tracks) {
     const tls = useTimelineStore.getState()
-    tls.addTrack(track.name, track.color, track.type === 'text' ? 'text' : undefined)
-    // Re-read state after addTrack to get the new track
-    const freshTracks = useTimelineStore.getState().tracks
-    const addedTrack = freshTracks[freshTracks.length - 1]
-    // Set track properties
-    if (track.isMuted) useTimelineStore.getState().toggleMute(addedTrack.id)
-    if (track.isSoloed) useTimelineStore.getState().toggleSolo(addedTrack.id)
-    if (track.opacity !== 1.0) useTimelineStore.getState().setTrackOpacity(addedTrack.id, track.opacity)
-    if (track.blendMode !== 'normal') useTimelineStore.getState().setTrackBlendMode(addedTrack.id, track.blendMode)
-    // Add clips (migrate legacy transform format: {scale} → {scaleX, scaleY, ...})
-    for (const clip of track.clips) {
-      const migratedClip = clip.transform
-        ? { ...clip, trackId: addedTrack.id, transform: normalizeTransform(clip.transform as any) }
-        : { ...clip, trackId: addedTrack.id }
-      useTimelineStore.getState().addClip(addedTrack.id, migratedClip)
+    const isAudio = track.type === 'audio'
+    let addedTrackId: string | undefined
+    if (isAudio) {
+      addedTrackId = tls.addAudioTrack(track.name, track.color)
+    } else {
+      tls.addTrack(track.name, track.color, track.type === 'text' ? 'text' : undefined)
+      const freshTracks = useTimelineStore.getState().tracks
+      addedTrackId = freshTracks[freshTracks.length - 1]?.id
+    }
+    if (!addedTrackId) continue
+    // Set shared track properties
+    if (track.isMuted) useTimelineStore.getState().toggleMute(addedTrackId)
+    if (track.isSoloed) useTimelineStore.getState().toggleSolo(addedTrackId)
+    if (isAudio) {
+      // Restore audio track gain
+      const gainDb = (track as unknown as { gainDb?: number }).gainDb
+      if (typeof gainDb === 'number' && Number.isFinite(gainDb) && gainDb !== 0) {
+        useTimelineStore.getState().setTrackGain(addedTrackId, gainDb)
+      }
+      // Hydrate audio clips
+      const audioClips = (track as unknown as { audioClips?: unknown[] }).audioClips ?? []
+      for (const rawClip of audioClips) {
+        const c = rawClip as Record<string, unknown>
+        useTimelineStore.getState().addAudioClip(addedTrackId, {
+          path: String(c.path ?? ''),
+          inSec: Number(c.inSec) || 0,
+          outSec: Number(c.outSec) || 0,
+          startSec: Number(c.startSec) || 0,
+          gainDb: Number(c.gainDb) || 0,
+          fadeInSec: Number(c.fadeInSec) || 0,
+          fadeOutSec: Number(c.fadeOutSec) || 0,
+          muted: Boolean(c.muted),
+          missing: c.missing === true ? true : undefined,
+        })
+      }
+    } else {
+      if (track.opacity !== 1.0) useTimelineStore.getState().setTrackOpacity(addedTrackId, track.opacity)
+      if (track.blendMode !== 'normal') useTimelineStore.getState().setTrackBlendMode(addedTrackId, track.blendMode)
+      // Add video/text clips (migrate legacy transform format: {scale} → {scaleX, scaleY, ...})
+      for (const clip of track.clips) {
+        const migratedClip = clip.transform
+          ? { ...clip, trackId: addedTrackId, transform: normalizeTransform(clip.transform as any) }
+          : { ...clip, trackId: addedTrackId }
+        useTimelineStore.getState().addClip(addedTrackId, migratedClip)
+      }
     }
   }
 
