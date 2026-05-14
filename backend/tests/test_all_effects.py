@@ -197,6 +197,9 @@ class TestAllEffectsVisibleChange:
         "fx.resonant_filter",
         "fx.resonant_paulstretch",
         "fx.temporal_crystal",
+        # Attractor kaleidoscope — solver state at frame 0 with default angle
+        # may produce sub-threshold rotation; first-frame visible diff is small.
+        "fx.attractor_kaleidoscope",
         # Subliminal — probabilistic trigger (5% default), not guaranteed visible
         "fx.subliminal",
         "fx.subliminal_flash",
