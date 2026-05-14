@@ -31,6 +31,7 @@ import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-seriali
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
+import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { FF } from '../shared/feature-flags'
@@ -1420,10 +1421,13 @@ function AppInner() {
       // so users who accidentally set one can dismiss it without hunting for
       // a button. First press: stop + return to 0 (existing behaviour). Second
       // press while already stopped: clear loop region overlay.
+      //
+      // F-0512-16 follow-up (validator 2026-05-13): the original gate used
+      // strict `playheadTime === 0` plus `!isTimerPlayingRef.current` — neither
+      // Escape×2 nor k×2 from a ruler-clicked "0" cleared the loop in UAT. See
+      // shouldClearLoopOnStop() for the relaxed predicate and rationale.
       const audioPlaying = hasAudio && audioStore.isLoaded && audioStore.isPlaying
-      const alreadyStopped =
-        !audioPlaying && !isTimerPlayingRef.current && ts.playheadTime === 0
-      if (alreadyStopped && ts.loopRegion) {
+      if (shouldClearLoopOnStop(ts.playheadTime, audioPlaying, ts.loopRegion)) {
         ts.clearLoopRegion()
         return
       }
