@@ -615,13 +615,13 @@ class ExportManager:
         try:
             out = av.open(tmp_path, "w")
 
-            # Copy video stream
+            # Copy video stream (PyAV 16+: template= kwarg removed, use add_stream_from_template)
             video_in = exported.streams.video[0]
-            video_out = out.add_stream(template=video_in)
+            video_out = out.add_stream_from_template(video_in)
 
             # Copy audio stream
             audio_in = src.streams.audio[0]
-            audio_out = out.add_stream(template=audio_in)
+            audio_out = out.add_stream_from_template(audio_in)
 
             # Mux video packets
             for packet in exported.demux(video_in):
