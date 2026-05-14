@@ -123,6 +123,7 @@ def _auto_register():
         # Wave 1 — R&D
         compression_oracle,
         logistic_cascade,
+        logistic_generation_loss,
         reaction_diffusion,
         domain_warp,
         entropy_map,
@@ -269,6 +270,7 @@ def _auto_register():
     phase8_mods = [
         compression_oracle,
         logistic_cascade,
+        logistic_generation_loss,
         reaction_diffusion,
         domain_warp,
         entropy_map,
