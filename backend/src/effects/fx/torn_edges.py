@@ -62,10 +62,14 @@ PARAMS: dict = {
         "description": "Edge softness — low=anti-aliased, high=hard binary",
     },
     "greyscale": {
-        "type": "bool",
-        "default": True,
+        "type": "float",
+        "min": 0.0,
+        "max": 1.0,
+        "default": 1.0,
+        "curve": "linear",
+        "unit": "",
         "label": "Greyscale",
-        "description": "ON: luminance threshold (B/W). OFF: per-channel RGB threshold (chaotic color)",
+        "description": "0 = per-channel RGB threshold (chaotic color); 1 = luminance threshold (B/W); blend between",
     },
     "osc_rate": {
         "type": "float",
@@ -155,7 +159,16 @@ def apply(
     smoothness = max(1, min(15, int(params.get("smoothness", 5))))
     tear_scale_param = max(3, min(200, int(params.get("tear_scale", 25))))
     contrast = max(1, min(25, int(params.get("contrast", 18))))
-    greyscale = bool(params.get("greyscale", True))
+    # Greyscale: now a 0-1 mix (was bool). Accept legacy bool values for
+    # backward compat with any projects saved against the previous schema.
+    _gs = params.get("greyscale", 1.0)
+    if isinstance(_gs, bool):
+        greyscale_mix = 1.0 if _gs else 0.0
+    else:
+        try:
+            greyscale_mix = max(0.0, min(1.0, float(_gs)))
+        except (TypeError, ValueError):
+            greyscale_mix = 1.0
     try:
         osc_rate = max(0.0, min(1.0, float(params.get("osc_rate", 0.0))))
     except (TypeError, ValueError):
@@ -206,26 +219,24 @@ def apply(
     t = balance_eff * 5.1  # map balance (0-50) → luminance cutoff (0-255)
     k = contrast * 0.15
 
-    if greyscale:
-        luma = (
-            0.299 * blurred_f[:, :, 0]
-            + 0.587 * blurred_f[:, :, 1]
-            + 0.114 * blurred_f[:, :, 2]
-        )
-        x = luma + noise_field
-        exponent = np.clip(-(x - t) * k, -50.0, 50.0)
-        mask = 1.0 / (1.0 + np.exp(exponent))
-        mask = np.nan_to_num(mask, nan=0.0, posinf=1.0, neginf=0.0)
-        out_band = np.clip(mask * 255.0, 0, 255).astype(np.uint8)
-        result_rgb = np.stack([out_band, out_band, out_band], axis=2)
-    else:
-        # Per-channel threshold — single broadcast op (perf-friendly).
-        # Noise applied as shared luminance shift so tear strokes stay coherent across channels.
-        x = blurred_f + noise_field[:, :, np.newaxis]
-        exponent = np.clip(-(x - t) * k, -50.0, 50.0)
-        mask = 1.0 / (1.0 + np.exp(exponent))
-        mask = np.nan_to_num(mask, nan=0.0, posinf=1.0, neginf=0.0)
-        result_rgb = np.clip(mask * 255.0, 0, 255).astype(np.uint8)
+    # Unified threshold path: lerp per-channel input toward luma by greyscale_mix.
+    # mix=0 → each channel keeps its own value (chaotic per-channel threshold).
+    # mix=1 → all channels see luma (pure B/W).
+    # in between → smooth blend (e.g. partial desaturation with torn edges).
+    # Noise applied as shared luminance shift across channels so tear strokes
+    # stay coherent — same as the prior color-mode behavior.
+    luma = (
+        0.299 * blurred_f[:, :, 0]
+        + 0.587 * blurred_f[:, :, 1]
+        + 0.114 * blurred_f[:, :, 2]
+    )
+    luma_3 = luma[:, :, np.newaxis]
+    effective_input = blurred_f * (1.0 - greyscale_mix) + luma_3 * greyscale_mix
+    x = effective_input + noise_field[:, :, np.newaxis]
+    exponent = np.clip(-(x - t) * k, -50.0, 50.0)
+    mask = 1.0 / (1.0 + np.exp(exponent))
+    mask = np.nan_to_num(mask, nan=0.0, posinf=1.0, neginf=0.0)
+    result_rgb = np.clip(mask * 255.0, 0, 255).astype(np.uint8)
 
     # === Preserve alpha (or pass through 3-channel) ===
     if frame.shape[2] >= 4:
