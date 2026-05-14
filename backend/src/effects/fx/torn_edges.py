@@ -39,7 +39,17 @@ PARAMS: dict = {
         "curve": "linear",
         "unit": "",
         "label": "Smoothness",
-        "description": "Pre-blur kernel — higher = chunkier, paper-pulp tears",
+        "description": "Pre-blur kernel — controls edge anti-aliasing of the threshold",
+    },
+    "tear_scale": {
+        "type": "int",
+        "min": 3,
+        "max": 200,
+        "default": 25,
+        "curve": "exponential",
+        "unit": "px",
+        "label": "Tear Scale",
+        "description": "Feature size of tear noise — 3=riso speckle, 25=torn paper, 150=heavy pulp",
     },
     "contrast": {
         "type": "int",
@@ -143,6 +153,7 @@ def apply(
     # === Trust boundary: clamp every numeric param at entry ===
     image_balance = max(0.0, min(50.0, float(params.get("image_balance", 25.0))))
     smoothness = max(1, min(15, int(params.get("smoothness", 5))))
+    tear_scale_param = max(3, min(200, int(params.get("tear_scale", 25))))
     contrast = max(1, min(25, int(params.get("contrast", 18))))
     greyscale = bool(params.get("greyscale", True))
     try:
@@ -183,8 +194,12 @@ def apply(
         rng_seed = rng_seed_base
     rng = np.random.default_rng(rng_seed)
     h, w = blurred_f.shape[:2]
+    # tear_amp = luminance shift magnitude (boundary wander distance).
+    # tear_scale is a user-controlled param (3-200px) so the full visual range
+    # from risograph speckle through torn paper to heavy pulp is reachable
+    # independently of smoothness. Tuned from visual UAT 2026-05-14.
     tear_amp = (16.0 - smoothness) * 2.5
-    tear_scale = max(2, smoothness * 2)
+    tear_scale = tear_scale_param
     noise_field = _value_noise_2d(h, w, tear_scale, rng) * tear_amp
 
     # === Threshold ===
