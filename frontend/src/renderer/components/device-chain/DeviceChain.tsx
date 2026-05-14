@@ -6,6 +6,8 @@ import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import ContextMenu from '../timeline/ContextMenu'
 import type { MenuItem } from '../timeline/ContextMenu'
+import { shortcutRegistry } from '../../utils/shortcuts'
+import { prettyShortcut } from '../../utils/pretty-shortcut'
 
 interface DeviceChainProps {
   modulatedValues?: Record<string, Record<string, number>>
@@ -75,6 +77,7 @@ export default function DeviceChain({ modulatedValues }: DeviceChainProps) {
         action: () => {
           useProjectStore.getState().groupEffects([prevEffect.id, effectId])
         },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('group_with_previous')),
       })
     }
 
@@ -85,6 +88,7 @@ export default function DeviceChain({ modulatedValues }: DeviceChainProps) {
         action: () => {
           useProjectStore.getState().ungroupEffects(groupId)
         },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('ungroup')),
       })
     }
 

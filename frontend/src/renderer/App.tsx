@@ -1307,6 +1307,13 @@ function AppInner() {
           setShowPreferences(true)
           break
         case 'show-feedback': setShowFeedbackDialog(true); break
+        case 'support-bundle':
+          if (window.entropic) {
+            window.entropic.generateSupportBundle().then((path) => {
+              console.log('[Support] Bundle saved to:', path)
+            })
+          }
+          break
         default:
           // Handle add-effect:{effectId} actions from Adjustments menu
           if (action.startsWith('add-effect:')) {

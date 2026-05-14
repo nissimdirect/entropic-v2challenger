@@ -6,6 +6,8 @@ import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
 import { useAutomationStore } from '../../stores/automation'
 import { useEffectsStore } from '../../stores/effects'
+import { shortcutRegistry } from '../../utils/shortcuts'
+import { prettyShortcut } from '../../utils/pretty-shortcut'
 import ClipComponent from './Clip'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
@@ -112,17 +114,39 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     }
 
     return [
-      { label: 'Duplicate Track', action: () => store.duplicateTrack(track.id) },
-      { label: 'Rename Track', action: startRename },
+      {
+        label: 'Duplicate Track',
+        action: () => store.duplicateTrack(track.id),
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('duplicate_track')),
+      },
+      {
+        label: 'Rename Track',
+        action: startRename,
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('rename_track')),
+      },
       { label: '', action: () => {}, separator: true },
-      { label: 'Move Up', action: () => store.reorderTrack(idx, idx - 1), disabled: idx <= 0 },
-      { label: 'Move Down', action: () => store.reorderTrack(idx, idx + 1), disabled: idx >= store.tracks.length - 1 },
+      {
+        label: 'Move Up',
+        action: () => store.reorderTrack(idx, idx - 1),
+        disabled: idx <= 0,
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('move_track_up')),
+      },
+      {
+        label: 'Move Down',
+        action: () => store.reorderTrack(idx, idx + 1),
+        disabled: idx >= store.tracks.length - 1,
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('move_track_down')),
+      },
       ...(autoItems.length > 0 ? [
         { label: '', action: () => {}, separator: true },
         ...autoItems,
       ] : []),
       { label: '', action: () => {}, separator: true },
-      { label: 'Delete Track', action: () => store.removeTrack(track.id) },
+      {
+        label: 'Delete Track',
+        action: () => store.removeTrack(track.id),
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('delete_track')),
+      },
     ]
   }, [track.id, track.name, startRename])
 
