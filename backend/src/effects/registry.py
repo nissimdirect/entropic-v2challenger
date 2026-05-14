@@ -193,6 +193,7 @@ def _auto_register():
         temporal_crystal,
         spectral_analysis,
         sonification_feedback,
+        resonant_paulstretch,
     )
 
     # Original effects list
@@ -318,6 +319,7 @@ def _auto_register():
         moire,
         temporal_crystal,
         sonification_feedback,
+        resonant_paulstretch,
     ]
 
     # Phase 8 consolidated effects (register base + variant aliases)

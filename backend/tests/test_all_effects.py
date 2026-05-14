@@ -195,6 +195,7 @@ class TestAllEffectsVisibleChange:
         "fx.brightness_phaser",
         "fx.feedback_phaser",
         "fx.resonant_filter",
+        "fx.resonant_paulstretch",
         "fx.temporal_crystal",
         # Subliminal — probabilistic trigger (5% default), not guaranteed visible
         "fx.subliminal",
