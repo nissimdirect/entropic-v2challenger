@@ -30,9 +30,11 @@ import type { WaveformPeaks } from './components/transport/useWaveform'
 import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
-import { transportForward, transportReverse, transportStop, getTransportDirection } from './utils/transport-speed'
+import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
+import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
+import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
 import CrashRecoveryDialog from './components/dialogs/CrashRecoveryDialog'
@@ -121,6 +123,7 @@ function AppInner() {
     isIngesting,
     ingestError,
     projectName,
+    canvasResolution,
     addAsset,
     removeAsset,
     addEffect,
@@ -139,6 +142,12 @@ function AppInner() {
   const isDirty = useUndoStore((s) => s.isDirty)
   const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
 
+  // F-0512-19: subscribe to tracks so the render trigger below re-fires when
+  // any track-level state mutates (blend mode, opacity, mute, clip add/remove).
+  // Reactive subscription — needed at top of AppInner so it is in scope for
+  // the render-trigger useEffect.
+  const tracks = useTimelineStore((s) => s.tracks)
+
   // Initialize MIDI (Web MIDI API)
   useMIDI()
 
@@ -152,6 +161,7 @@ function AppInner() {
   const [activeFps, setActiveFps] = useState(30)
   const [showExportDialog, setShowExportDialog] = useState(false)
   const [showPreferences, setShowPreferences] = useState(false)
+  const [preferencesInitialTab, setPreferencesInitialTab] = useState<'general' | 'shortcuts' | 'performance' | 'paths'>('general')
   const [showAbout, setShowAbout] = useState(false)
   const [showRenderQueue, setShowRenderQueue] = useState(false)
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
@@ -197,6 +207,7 @@ function AppInner() {
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
   const handlePlayPauseRef = useRef<() => void>(() => {})
+  const initPreviewRef = useRef<() => Promise<void>>(async () => {})
   const renderSeqRef = useRef(0)
   const lastDisabledEffectsRef = useRef<string>('')
 
@@ -242,7 +253,7 @@ function AppInner() {
 
   const handleCrashRestore = useCallback(async (_sendReport: boolean) => {
     if (autosavePath) {
-      await restoreAutosave(autosavePath)
+      await restoreAutosave(autosavePath, () => initPreviewRef.current())
     }
     if (window.entropic) {
       await window.entropic.clearCrashReports()
@@ -266,11 +277,16 @@ function AppInner() {
     setAutosavePath(null)
   }, [autosavePath])
 
-  // Window title — show project name + dirty indicator
+  // Window title — show project name + dirty indicator.
   useEffect(() => {
-    const title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
-    document.title = title
-  }, [projectName, isDirty])
+    // F-0512-3: while the welcome screen is still up (no project picked yet),
+    // show plain "Entropic" instead of the default "Untitled — Entropic".
+    if (FF.F_0512_3_TITLE_BAR && !welcomeDismissed) {
+      document.title = 'Entropic'
+      return
+    }
+    document.title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
+  }, [projectName, isDirty, welcomeDismissed])
 
   // Start autosave on mount, stop on unmount
   useEffect(() => {
@@ -305,7 +321,7 @@ function AppInner() {
       useTimelineStore.getState().setZoom(Math.max(0.5, viewportWidth / Math.max(1, dur)))
     })
     shortcutRegistry.register('save', () => saveProject())
-    shortcutRegistry.register('open', () => loadProject())
+    shortcutRegistry.register('open', () => loadProject(undefined, () => initPreviewRef.current()))
     shortcutRegistry.register('new_project', () => handleNewProject())
     shortcutRegistry.register('split_clip', () => {
       const timeline = useTimelineStore.getState()
@@ -538,13 +554,11 @@ function AppInner() {
         return
       }
 
-      // Direct spacebar → play/pause (bypasses registry — most reliable)
+      // Direct spacebar → play/pause (bypasses registry — most reliable).
+      // Routes through handlePlayPauseRef so silent videos use the timer path too.
       if (e.code === 'Space') {
         e.preventDefault()
-        const audio = useAudioStore.getState()
-        if (audio.isLoaded) {
-          audio.togglePlayback()
-        }
+        handlePlayPauseRef.current()
         return
       }
 
@@ -652,7 +666,14 @@ function AppInner() {
       pendingFrameRef.current = null
       setRenderError(null)
 
-      let chain = chainOverride ?? effectChain
+      // F-0512-6: read the chain from the store instead of the closure so that
+      // a render queued during an in-flight render (rapid Cmd+Z, drag-reorder,
+      // sliders, etc.) picks up the latest chain — not whichever one was bound
+      // when the function was created. Legacy path (flag off) reads from
+      // closure, which produces stale-frame previews after rapid undo.
+      let chain = chainOverride ?? (FF.F_0512_6_UNDO_RERENDER
+        ? useProjectStore.getState().effectChain
+        : effectChain)
 
       // Apply pad modulations to the chain before sending to backend
       if (!chainOverride) {
@@ -792,10 +813,9 @@ function AppInner() {
         if (res.ok && res.frame_data) {
           const dataUrl = `data:image/jpeg;base64,${res.frame_data as string}`
           setFrameDataUrl(dataUrl)
-          // Relay frame to pop-out window if open
-          if (useLayoutStore.getState().isPopOutOpen) {
-            window.entropic.sendFrameToPopOut(dataUrl)
-          }
+          // Relay every frame unconditionally — main process drops if pop-out closed.
+          // Cheaper than a stale gate; avoids the state-divergence bug from F13.
+          window.entropic.sendFrameToPopOut(dataUrl)
           if (res.width) setFrameWidth(res.width as number)
           if (res.height) setFrameHeight(res.height as number)
           setPreviewState('ready')
@@ -866,11 +886,32 @@ function AppInner() {
     [effectChain],
   )
 
-  // Render immediately on frame or chain change — no debounce
+  // Base render trigger — fires on frame or master-chain change. Always on.
   useEffect(() => {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
   }, [currentFrame, effectChain, requestRenderFrame])
+
+  // F-0512-19: also fire on track-level state change (blend mode, opacity,
+  // mute, clip add/remove). Without this, those mutations write to the store
+  // but never trigger a re-render IPC. requestRenderFrame's in-flight queue
+  // coalesces bursts.
+  useEffect(() => {
+    if (!FF.F_0512_19_TRACKS_RERENDER) return
+    if (!activeAssetPath.current) return
+    requestRenderFrame(currentFrame)
+  }, [tracks, currentFrame, requestRenderFrame])
+
+  // F-0512-29: also fire on previewState change so initPreviewFromHydratedProject
+  // (project reload after Electron relaunch) triggers a render once it has set
+  // activeAssetPath.current. Without this, on reload the effect's other deps
+  // had already settled in the prior render and the canvas stayed "No video
+  // loaded" even though the project was fully wired.
+  useEffect(() => {
+    if (!FF.F_0512_29_RELOAD_REBIND) return
+    if (!activeAssetPath.current) return
+    requestRenderFrame(currentFrame)
+  }, [previewState, currentFrame, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
@@ -888,6 +929,57 @@ function AppInner() {
       console.warn('[Audio] waveform load failed:', err)
     }
   }, [])
+
+  // PLAY-010 — Preview refs (activeAssetPath / totalFrames / frameWidth / etc.)
+  // are App.tsx local state, not part of any Zustand store. Import flow sets them
+  // inline; hydrate flows (autosave, recent, future cloud-sync) don't. This helper
+  // reconstructs preview state from the first video clip on the timeline and is
+  // called by restoreAutosave / loadProject via their onHydrated callback.
+  const initPreviewFromHydratedProject = useCallback(async () => {
+    if (!window.entropic) return
+
+    const projectState = useProjectStore.getState()
+    const timelineState = useTimelineStore.getState()
+
+    let assetPath: string | null = null
+    for (const track of timelineState.tracks) {
+      if (track.type !== 'video' || track.isMuted) continue
+      for (const clip of track.clips) {
+        const asset = projectState.assets[clip.assetId]
+        if (asset?.path && asset.type === 'video') {
+          assetPath = asset.path
+          break
+        }
+      }
+      if (assetPath) break
+    }
+    if (!assetPath) return
+
+    const res = await window.entropic.sendCommand({ cmd: 'ingest', path: assetPath })
+    if (!res.ok) {
+      console.warn('[initPreview] ingest probe failed for', assetPath, res.error)
+      return
+    }
+
+    const assetHasAudio = (res.has_audio as boolean) || false
+    setTotalFrames(res.frame_count as number)
+    setFrameWidth(res.width as number)
+    setFrameHeight(res.height as number)
+    setActiveFps(res.fps as number)
+    activeAssetPath.current = assetPath
+    setCurrentFrame(0)
+    setHasAudio(assetHasAudio)
+    setPreviewState('loading')
+
+    if (assetHasAudio) {
+      const audioLoaded = await audioStore.loadAudio(assetPath)
+      if (audioLoaded) {
+        await audioStore.setFps(res.fps as number)
+        loadWaveform(assetPath)
+      }
+    }
+  }, [audioStore, loadWaveform, setCurrentFrame, setTotalFrames])
+  initPreviewRef.current = initPreviewFromHydratedProject
 
   const handleFileIngest = useCallback(
     async (path: string) => {
@@ -1071,6 +1163,13 @@ function AppInner() {
     setPreviewState('empty')
     setRenderError(null)
     activeAssetPath.current = null
+    // F-0512-1: "New Project" implies Start Fresh — dismiss any pending
+    // autosave / crash recovery prompt so the user is not asked again
+    // about a session they have just chosen to abandon.
+    if (FF.F_0512_1_WELCOME_MODAL) {
+      setAutosavePath(null)
+      setCrashReports([])
+    }
   }, [])
 
   const handleAddTextTrack = useCallback(() => {
@@ -1087,7 +1186,7 @@ function AppInner() {
         case 'import-media': handleImportMedia(); break
         case 'add-text-track': handleAddTextTrack(); break
         case 'new-project': handleNewProject(); break
-        case 'open-project': loadProject(); break
+        case 'open-project': loadProject(undefined, () => initPreviewRef.current()); break
         case 'save': saveProject(); break
         case 'save-as': saveProject(); break
         case 'export': setShowExportDialog(true); break
@@ -1183,7 +1282,12 @@ function AppInner() {
           useTimelineStore.getState().setZoom(Math.max(0.5, (window.innerWidth * 0.6) / Math.max(1, dur)))
           break
         }
-        case 'show-shortcuts': setShowPreferences(true); break
+        case 'show-shortcuts':
+          // F-0512-37: Help → Keyboard Shortcuts opens Preferences on the
+          // Shortcuts tab instead of the default General tab.
+          if (FF.F_0512_37_SHORTCUTS_TAB) setPreferencesInitialTab('shortcuts')
+          setShowPreferences(true)
+          break
         case 'show-feedback': setShowFeedbackDialog(true); break
         default:
           // Handle add-effect:{effectId} actions from Adjustments menu
@@ -1269,24 +1373,73 @@ function AppInner() {
   )
 
   const handlePlayPause = useCallback(() => {
+    if (FF.F_0512_14_SPACE_TRANSPORT) {
+      // F-0512-14 / F-0512-15: space and ▶ both route here, so this must always
+      // produce plain play/pause behavior regardless of prior J/K/L state.
+      // Previously we only toggled the audio transport; a stale isTimerPlaying
+      // from J (reverse) would keep the timer running in reverse while audio
+      // resumed forward, creating fights and "space toggles direction" UX.
+      const audio = useAudioStore.getState()
+      const audioIsPlaying = audio.isPlaying
+      const timerIsPlaying = isTimerPlayingRef.current
+
+      if (audioIsPlaying || timerIsPlaying) {
+        // Pause every active transport. Leave the JKL direction state intact so
+        // a subsequent J/L press picks up where the user left off; only space's
+        // own next press resets it (below).
+        if (audioIsPlaying) audio.togglePlayback()
+        if (timerIsPlaying) setIsTimerPlaying(false)
+        return
+      }
+
+      // Resume from a paused/stopped state. Space is unambiguously forward at 1×.
+      resetTransportSpeed()
+      setTransportSpeedMultiplier(1)
+      if (hasAudio && audio.isLoaded) {
+        audio.togglePlayback()
+      } else {
+        setIsTimerPlaying(true)
+      }
+      return
+    }
+
+    // Legacy path (F-0512-14 disabled): pre-fix behavior. Only toggles the
+    // primary transport; can leave JKL timer running in reverse.
     if (hasAudio && audioStore.isLoaded) {
-      // Audio-driven playback: toggle audio, video follows via clock sync
       audioStore.togglePlayback()
     } else {
-      // Silent video: use timer-based playback (existing behavior)
       setIsTimerPlaying((prev) => !prev)
     }
   }, [hasAudio, audioStore])
   handlePlayPauseRef.current = handlePlayPause
 
   const handleStop = useCallback(() => {
+    const ts = useTimelineStore.getState()
+    if (FF.F_0512_16_ESCAPE_LOOP) {
+      // F-0512-16: if transport is already at rest at frame 0 AND a loop region
+      // is set, treat the next Stop / Escape press as "clear the loop region"
+      // so users who accidentally set one can dismiss it without hunting for
+      // a button. First press: stop + return to 0 (existing behaviour). Second
+      // press while already stopped: clear loop region overlay.
+      //
+      // F-0512-16 follow-up (validator 2026-05-13): the original gate used
+      // strict `playheadTime === 0` plus `!isTimerPlayingRef.current` — neither
+      // Escape×2 nor k×2 from a ruler-clicked "0" cleared the loop in UAT. See
+      // shouldClearLoopOnStop() for the relaxed predicate and rationale.
+      const audioPlaying = hasAudio && audioStore.isLoaded && audioStore.isPlaying
+      if (shouldClearLoopOnStop(ts.playheadTime, audioPlaying, ts.loopRegion)) {
+        ts.clearLoopRegion()
+        return
+      }
+    }
+
     if (hasAudio && audioStore.isLoaded) {
       if (audioStore.isPlaying) audioStore.togglePlayback()
       audioStore.seek(0)
     }
     setIsTimerPlaying(false)
     setCurrentFrame(0)
-    useTimelineStore.getState().setPlayheadTime(0)
+    ts.setPlayheadTime(0)
   }, [hasAudio, audioStore, setCurrentFrame])
 
   // Escape key stop — listens for custom event dispatched from keydown handler
@@ -1378,17 +1531,31 @@ function AppInner() {
         const framesToAdvance = Math.max(1, Math.floor(elapsed / frameDuration))
         lastFrameTime = now - (elapsed % frameDuration)
         const current = useProjectStore.getState().currentFrame
+        const isLooping = useTimelineStore.getState().isLooping
         let nextFrame: number
+        let reachedEnd = false
         if (isReverse) {
           nextFrame = current - framesToAdvance
-          if (nextFrame < 0) nextFrame = 0
+          if (nextFrame < 0) {
+            if (isLooping) nextFrame = totalFrames - 1
+            else { nextFrame = 0; reachedEnd = true }
+          }
         } else {
-          nextFrame = (current + framesToAdvance) % totalFrames
+          const raw = current + framesToAdvance
+          if (raw >= totalFrames) {
+            if (isLooping) nextFrame = raw % totalFrames
+            else { nextFrame = totalFrames - 1; reachedEnd = true }
+          } else {
+            nextFrame = raw
+          }
         }
         setCurrentFrame(nextFrame)
-        // Sync timeline playhead for silent/image playback (audio path does this in clock sync)
         if (activeFps > 0) {
           useTimelineStore.getState().setPlayheadTime(nextFrame / activeFps)
+        }
+        if (reachedEnd) {
+          setIsTimerPlaying(false)
+          return
         }
       }
       playbackRafRef.current = requestAnimationFrame(tick)
@@ -1405,7 +1572,28 @@ function AppInner() {
 
   const handleExport = useCallback(
     async (settings: ExportSettings) => {
-      if (!window.entropic || !activeAssetPath.current) return
+      if (!window.entropic) {
+        console.error('[export] window.entropic bridge missing')
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'Export unavailable',
+          source: 'export',
+          details: 'IPC bridge to backend is missing. Restart the app.',
+        })
+        setShowExportDialog(false)
+        return
+      }
+      if (!activeAssetPath.current) {
+        console.error('[export] no active asset loaded — cannot export')
+        useToastStore.getState().addToast({
+          level: 'error',
+          message: 'No asset loaded',
+          source: 'export',
+          details: 'Load a video or image before exporting.',
+        })
+        setShowExportDialog(false)
+        return
+      }
 
       setShowExportDialog(false)
       setIsExporting(true)
@@ -1460,13 +1648,19 @@ function AppInner() {
 
       if (res.ok) {
         setExportJobId(res.job_id as string)
+        useToastStore.getState().addToast({
+          level: 'info',
+          message: 'Export started',
+          source: 'export-start',
+          details: settings.outputPath,
+        })
       } else {
         setExportError(res.error as string)
         setIsExporting(false)
         useToastStore.getState().addToast({
           level: 'error',
-          message: 'Export failed',
-          source: 'export',
+          message: 'Export failed to start',
+          source: 'export-error',
           details: res.error as string,
         })
       }
@@ -1606,6 +1800,7 @@ function AppInner() {
 
   // Derive selected text clip via Zustand selector (reactive — re-renders on change)
   const loopRegion = useTimelineStore((s) => s.loopRegion)
+  const isLooping = useTimelineStore((s) => s.isLooping)
   const projectBpm = useProjectStore((s) => s.bpm)
   const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
   const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
@@ -1667,6 +1862,13 @@ function AppInner() {
           </button>
           <button className="app__transport-btn" onClick={handleStop} title="Stop">
             ⏹
+          </button>
+          <button
+            className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
+            onClick={() => useTimelineStore.getState().toggleLooping()}
+            title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
+          >
+            ⟳
           </button>
         </div>
         <span className="app__transport-timecode">
@@ -2012,7 +2214,13 @@ function AppInner() {
           )}
           {hasAssets && frameWidth > 0 && (
             <span className="status-bar__metrics">
-              <span className="status-bar__metric">{frameWidth >= 3840 ? '4K' : frameWidth >= 1920 ? '1080p' : frameWidth >= 1280 ? '720p' : `${frameWidth}p`}</span>
+              {/* F-0512-17: read resolution from the project canvas (stable),
+                  not the most-recent rendered frame width (flips between
+                  source dims and canvas dims across user actions). */}
+              {(() => {
+                const w = FF.F_0512_17_STATUS_BAR_CANVAS ? canvasResolution[0] : frameWidth
+                return <span className="status-bar__metric">{w >= 3840 ? '4K' : w >= 1920 ? '1080p' : w >= 1280 ? '720p' : `${w}p`}</span>
+              })()}
               <span className="status-bar__metric">{activeFps}fps</span>
               {lastFrameMs !== undefined && (
                 <span
@@ -2048,6 +2256,7 @@ function AppInner() {
       <Preferences
         isOpen={showPreferences}
         onClose={() => setShowPreferences(false)}
+        initialTab={preferencesInitialTab}
       />
       <AboutDialog
         isOpen={showAbout}
@@ -2063,7 +2272,7 @@ function AppInner() {
         onDecision={handleConsentDecision}
       />
 
-      {startupChecked && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
+      {startupChecked && (!FF.F_0512_1_WELCOME_MODAL || !welcomeDismissed) && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
         <CrashRecoveryDialog
           isOpen={true}
           crashCount={crashReports.length}
@@ -2151,8 +2360,8 @@ function AppInner() {
         isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
         onNewProject={() => { handleNewProject(); setWelcomeDismissed(true) }}
-        onOpenProject={() => { setWelcomeDismissed(true); loadProject() }}
-        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path) }}
+        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, () => initPreviewRef.current()) }}
+        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, () => initPreviewRef.current()) }}
       />
 
       <Toast />

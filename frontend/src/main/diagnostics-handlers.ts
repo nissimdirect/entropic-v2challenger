@@ -4,9 +4,10 @@
  */
 import { ipcMain, app } from 'electron'
 import { existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync, mkdirSync } from 'fs'
-import { join, resolve } from 'path'
+import { join, resolve, dirname } from 'path'
 import { homedir, platform, arch, totalmem, release } from 'os'
 import { logger } from './logger'
+import { grantPath } from './file-handlers'
 
 const ENTROPIC_DIR = join(homedir(), '.entropic')
 const CONSENT_FILE = join(ENTROPIC_DIR, 'telemetry_consent')
@@ -166,6 +167,16 @@ export function registerDiagnosticsHandlers(): void {
       const content = readFileSync(recentPath, 'utf8')
       const parsed = JSON.parse(content)
       if (!Array.isArray(parsed)) return []
+      // Re-grant paths from prior dialog picks so file:read succeeds when the
+      // user clicks an entry on the Welcome screen (the recent list is itself
+      // user-curated: each entry was added after an explicit dialog pick).
+      // Grant both the file and its directory so sibling assets load too.
+      for (const entry of parsed) {
+        if (entry && typeof entry.path === 'string' && existsSync(entry.path)) {
+          grantPath(entry.path)
+          grantPath(dirname(entry.path))
+        }
+      }
       return parsed
     } catch {
       return []

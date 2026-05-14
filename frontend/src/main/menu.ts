@@ -95,7 +95,7 @@ export function buildMenu(mainWindow: BrowserWindow): void {
       { type: 'separator' },
       { label: 'HSL Adjust', click: () => sendAction(mainWindow, 'add-effect:util.hsl_adjust') },
       { label: 'Color Balance', click: () => sendAction(mainWindow, 'add-effect:util.color_balance') },
-      { label: 'Color Temperature', click: () => sendAction(mainWindow, 'add-effect:util.color_temperature') },
+      { label: 'Color Temperature', click: () => sendAction(mainWindow, 'add-effect:fx.color_temperature') },
       { type: 'separator' },
       { label: 'Brightness / Exposure', click: () => sendAction(mainWindow, 'add-effect:fx.brightness_exposure') },
       { label: 'Contrast Crush', click: () => sendAction(mainWindow, 'add-effect:fx.contrast_crush') },

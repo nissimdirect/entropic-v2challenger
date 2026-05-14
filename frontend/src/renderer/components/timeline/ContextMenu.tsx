@@ -5,6 +5,9 @@ export interface MenuItem {
   action: () => void
   disabled?: boolean
   separator?: boolean
+  /** Optional keyboard shortcut hint shown right-aligned in the item (e.g.
+   * '⌘K'). Display-only; the actual binding is owned by shortcutRegistry. */
+  shortcut?: string
 }
 
 interface ContextMenuProps {
@@ -44,6 +47,8 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
       ref={ref}
       className="context-menu"
       style={{ left: `${clampedX}px`, top: `${clampedY}px` }}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       {items.map((item, i) =>
         item.separator ? (
@@ -52,7 +57,15 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
           <button
             key={i}
             className={`context-menu__item${item.disabled ? ' context-menu__item--disabled' : ''}`}
-            onClick={() => {
+            onClick={(e) => {
+              // F-0512-9: stop propagation so the click on a menu item doesn't
+              // bubble to the TrackLane underneath and re-seek the playhead.
+              // Pre-fix: right-click → Split at Playhead landed the split at
+              // the correct playhead time, but the click event then bubbled to
+              // TrackLane.handleLaneClick → setPlayheadTime(menu_click_x), which
+              // moved the playhead to the menu item's x-coordinate in screen
+              // space (~0.2s past the split point at the typical menu position).
+              e.stopPropagation()
               if (!item.disabled) {
                 item.action()
                 onClose()
@@ -61,6 +74,9 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
             disabled={item.disabled}
           >
             {item.label}
+            {item.shortcut && (
+              <span className="context-menu__shortcut">{item.shortcut}</span>
+            )}
           </button>
         ),
       )}

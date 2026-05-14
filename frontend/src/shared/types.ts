@@ -49,6 +49,9 @@ export interface Timeline {
   tracks: Track[];
   markers: Marker[];
   loopRegion: { in: number; out: number } | null;
+  /** Pixels per second on the timeline ruler. Optional for backward compat
+   * with .glitch files saved before F-0512-25. */
+  zoom?: number;
 }
 
 export interface Track {

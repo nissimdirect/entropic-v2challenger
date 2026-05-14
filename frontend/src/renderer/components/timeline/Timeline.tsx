@@ -7,6 +7,7 @@ import { TrackHeader, TrackLane } from './Track'
 import { AudioTrackHeader, AudioTrackLane } from './AudioTrack'
 import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
+import { FF } from '../../../shared/feature-flags'
 
 interface TimelineProps {
   onSeek: (time: number) => void
@@ -151,7 +152,9 @@ export default function Timeline({
         <div className={`timeline__drop-highlight ${isDragOver ? 'timeline__drop-highlight--active' : ''}`} />
         <div className="timeline__empty">
           <div className="timeline__empty-hint">
-            Drag media here, press <kbd>&#8984;I</kbd>, or use File &rarr; Import
+            Drag media here, press {FF.F_0512_2_CMD_I_HINT
+              ? <><kbd>Cmd</kbd>+<kbd>I</kbd></>
+              : <kbd>&#8984;I</kbd>}, or use File &rarr; Import
           </div>
           <button className="timeline__add-track-btn" onClick={handleAddTrack}>
             + Add Track

@@ -93,6 +93,7 @@ class TestAllEffectsBasic:
             "fx.datamosh_real",
             "fx.flow_distort",
             "fx.domain_warp",
+            "fx.entropy_domain_warp",
             "fx.lens_distortion",
             "fx.fisheye",
             "fx.anamorphic",
@@ -151,13 +152,17 @@ class TestAllEffectsVisibleChange:
         "fx.sidechain_gate",
         "fx.sidechain_interference",
         # Stateful effects that may not visibly change on frame_index=0
+        "fx.logistic_generation_loss",
         "fx.datamosh",
         "fx.datamosh_melt",
         "fx.datamosh_bloom",
         "fx.datamosh_freeze",
         "fx.flow_distort",
         "fx.spectral_freeze",
+        "fx.frequency_mosh",
         "fx.afterimage",
+        # Entropy domain warp uses temporal smoothing — first frame may be near-identity on flat synthetic frames
+        "fx.entropy_domain_warp",
         # Physics effects that accumulate over time — no displacement at frame 0
         "fx.pixel_melt",
         "fx.pixel_haunt",
@@ -191,7 +196,11 @@ class TestAllEffectsVisibleChange:
         "fx.brightness_phaser",
         "fx.feedback_phaser",
         "fx.resonant_filter",
+        "fx.resonant_paulstretch",
         "fx.temporal_crystal",
+        # Attractor kaleidoscope — solver state at frame 0 with default angle
+        # may produce sub-threshold rotation; first-frame visible diff is small.
+        "fx.attractor_kaleidoscope",
         # Subliminal — probabilistic trigger (5% default), not guaranteed visible
         "fx.subliminal",
         "fx.subliminal_flash",

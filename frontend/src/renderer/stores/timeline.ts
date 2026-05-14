@@ -13,6 +13,7 @@ interface TimelineState {
   duration: number
   markers: Marker[]
   loopRegion: { in: number; out: number } | null
+  isLooping: boolean
   zoom: number
   scrollX: number
   selectedTrackId: string | null
@@ -67,6 +68,8 @@ interface TimelineState {
   // Loop
   setLoopRegion: (inTime: number, outTime: number) => void
   clearLoopRegion: () => void
+  setLooping: (on: boolean) => void
+  toggleLooping: () => void
 
   // View
   setZoom: (pxPerSec: number) => void
@@ -203,6 +206,7 @@ const INITIAL_STATE = {
   duration: 0,
   markers: [] as Marker[],
   loopRegion: null as { in: number; out: number } | null,
+  isLooping: false,
   zoom: 50,
   scrollX: 0,
   selectedTrackId: null as string | null,
@@ -967,6 +971,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       () => set({ loopRegion: oldRegion }),
     )
   },
+
+  setLooping: (on) => set({ isLooping: on }),
+  toggleLooping: () => set((s) => ({ isLooping: !s.isLooping })),
 
   // --- View (NOT undoable — UI state) ---
 

@@ -12,7 +12,10 @@
 }
 
 .context-menu__item {
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   width: 100%;
   background: none;
   border: none;
@@ -27,6 +30,20 @@
 .context-menu__item:hover {
   background: #4ade80;
   color: #1a1a1a;
+}
+
+/* Right-aligned shortcut hint (display-only; binding owned by shortcutRegistry).
+ * Muted by default; inverts on hover to stay legible against the green accent. */
+.context-menu__shortcut {
+  color: #888;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.context-menu__item:hover .context-menu__shortcut {
+  color: #1a1a1a;
+  opacity: 0.65;
 }
 
 .context-menu__item--disabled {
@@ -703,11 +720,21 @@
   opacity: 0.7;
 }
 
+/* F-0512-8: thumbs are intrinsic-width images, so without flex sizing they
+   packed left-to-right and ran out before the clip end. Stretch evenly across
+   the clip width regardless of how many were generated. */
 .clip__thumb {
   height: 100%;
-  width: auto;
-  flex-shrink: 0;
+  width: 0;
+  flex: 1 1 0;
+  min-width: 0;
   object-fit: cover;
+}
+
+/* F-0512-8 disable override (flag off): restore intrinsic-width packing. */
+body[data-disable-f-0512-8] .clip__thumb {
+  width: auto;
+  flex: 0 0 auto;
 }
 
 /* --- Clip Waveform --- */

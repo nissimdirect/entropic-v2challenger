@@ -385,7 +385,18 @@ class ExportManager:
             logger.exception("Export failed")
             with job._lock:
                 job.status = ExportStatus.ERROR
-                job.error = f"Export failed: {type(e).__name__}"
+                # F-0512-22: drop the "Export failed:" prefix — callers
+                # (CLI, toast, inline UI) all prepend their own. Include the
+                # exception message so users see *what* went wrong, not just
+                # the class name. Set ENTROPIC_DISABLE_F_0512_22=1 to revert
+                # to the legacy "Export failed: <Type>" format.
+                if os.environ.get("ENTROPIC_DISABLE_F_0512_22") == "1":
+                    job.error = f"Export failed: {type(e).__name__}"
+                else:
+                    msg = str(e).strip()
+                    job.error = (
+                        f"{type(e).__name__}: {msg}" if msg else type(e).__name__
+                    )
         finally:
             if writer is not None:
                 writer.close()
@@ -604,13 +615,13 @@ class ExportManager:
         try:
             out = av.open(tmp_path, "w")
 
-            # Copy video stream
+            # Copy video stream (PyAV 16+: template= kwarg removed, use add_stream_from_template)
             video_in = exported.streams.video[0]
-            video_out = out.add_stream(template=video_in)
+            video_out = out.add_stream_from_template(video_in)
 
             # Copy audio stream
             audio_in = src.streams.audio[0]
-            audio_out = out.add_stream(template=audio_in)
+            audio_out = out.add_stream_from_template(audio_in)
 
             # Mux video packets
             for packet in exported.demux(video_in):

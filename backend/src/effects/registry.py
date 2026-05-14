@@ -70,6 +70,7 @@ def _auto_register():
         solarize,
         duotone,
         emboss,
+        torn_edges,
         median_filter,
         false_color,
         histogram_eq,
@@ -121,11 +122,14 @@ def _auto_register():
     # --- Phase 8: New effects (64 files) ---
     from effects.fx import (
         # Wave 1 — R&D
+        attractor_kaleidoscope,
         compression_oracle,
         logistic_cascade,
+        logistic_generation_loss,
         reaction_diffusion,
         domain_warp,
         entropy_map,
+        entropy_domain_warp,
         dct_transform,
         generation_loss,
         surveillance_sim,
@@ -191,6 +195,7 @@ def _auto_register():
         temporal_crystal,
         spectral_analysis,
         sonification_feedback,
+        resonant_paulstretch,
     )
 
     # Original effects list
@@ -223,6 +228,7 @@ def _auto_register():
         solarize,
         duotone,
         emboss,
+        torn_edges,
         median_filter,
         false_color,
         histogram_eq,
@@ -266,11 +272,14 @@ def _auto_register():
 
     # Phase 8 effects (non-consolidated — register directly)
     phase8_mods = [
+        attractor_kaleidoscope,
         compression_oracle,
         logistic_cascade,
+        logistic_generation_loss,
         reaction_diffusion,
         domain_warp,
         entropy_map,
+        entropy_domain_warp,
         generation_loss,
         pixel_explode,
         pixel_superfluid,
@@ -314,6 +323,7 @@ def _auto_register():
         moire,
         temporal_crystal,
         sonification_feedback,
+        resonant_paulstretch,
     ]
 
     # Phase 8 consolidated effects (register base + variant aliases)
@@ -338,10 +348,40 @@ def _auto_register():
         spectral_analysis,
     ]
 
-    # --- Phase 12: Subliminal effect ---
-    from effects.fx import subliminal
+    # --- Phase 12: newer effects ---
+    # CONVENTION (added 2026-05-06 after the Frankenstein batch): when adding
+    # a new fx-style effect, append to `phase12_mods` (or open a `phase13_mods`
+    # if a new release-phase boundary is needed). Do NOT invent ad-hoc names
+    # like `frankenstein_mods` — those are caught by
+    # tests/test_effects/test_registry.py::test_no_orphan_module_lists.
+    # See docs/plans/2026-05-06-refactor-registry-consolidation.md for context.
+    # phase12_mods is the canonical home for new fx-style effects per
+    # test_no_orphan_module_lists. Folds in: subliminal (original), ascii_phantom
+    # (Frankenstein bench), and the 2026-05 batch of 7 effects that landed
+    # individually and collided on the registry list.
+    from effects.fx import (
+        ascii_phantom,
+        cellular_chroma,
+        cellular_pixel_sort,
+        edge_pixel_wind,
+        frequency_mosh,
+        histogram_attractor,
+        reaction_mosh,
+        subliminal,
+        temporal_dispersion,
+    )
 
-    phase12_mods = [subliminal]
+    phase12_mods = [
+        subliminal,
+        ascii_phantom,
+        cellular_chroma,
+        cellular_pixel_sort,
+        edge_pixel_wind,
+        frequency_mosh,
+        histogram_attractor,
+        reaction_mosh,
+        temporal_dispersion,
+    ]
 
     # Dev-only effects (UAT crash testing)
     if os.environ.get("APP_ENV") == "development":

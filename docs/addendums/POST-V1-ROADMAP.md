@@ -13,6 +13,33 @@ These items are explicitly NOT in Phases 0A-11. They are future work that extend
 
 ---
 
+## v1.1: Cross-Modal Release (planned 2026-05)
+
+The first post-v1 release. Four small features that exploit existing infrastructure to deliver MIDI-driven, motion-driven, macro-driven, and chord-driven control over effect chains. Architecturally distinct from later phases: every feature uses the existing `applyCCModulations` pure-function pattern — no operator remount, no new IPC, no new backend modules except one optional `video_analyzer.py` extension.
+
+| Feature | Description | Reuses | Status |
+|---------|-------------|--------|--------|
+| F1 — Datamosh Sequencer | 16-step MIDI-driven grid for `intensity` + `corruption` on `datamosh.py` and `datamosh_real.py` | `stores/midi.ts` MIDI Learn pipeline; `applyCCModulations.ts` pattern | planned |
+| F2 — Optical Motion Angle | Extends `video_analyzer.py:analyze_motion` from scalar pixel-delta to (magnitude, angle, centroid_x, centroid_y) via Farneback at 64×64 proxy | existing VideoAnalyzer operator | planned |
+| F3 — Live Macro Device | One knob → N mapped effect params via `applyMacroModulations.ts` mirroring `applyCCModulations` | `MacroMapping` type, `MacroKnob.tsx`, persistence shape in Presets and DeviceGroups | planned |
+| F4 — Chord-to-Param Modulator | Frontend chord parser → `chord_root` + `chord_quality_index` mod values via `applyChordModulations.ts` | `stores/midi.ts` Web MIDI input; `applyCCModulations.ts` pattern | planned |
+
+Foundation work (cross-cutting, completed during planning):
+
+| PR | Description | Status |
+|----|-------------|--------|
+| #36 | Cross-modal features release plan v3 (canonical plan doc) | open |
+| #37 | `feat/modulation-toposort` — fixes silent-zero bug where Fusion operators read 0.0 from sources declared later in operator list | open, 12 new tests + 5327 backend smoke green |
+| #38 | `feat/project-load-hardening` — depth-bomb / proto-pollution / key-bomb / forward-version validator before `validateProject` runs | open, 19 new tests + 50 existing persistence green |
+
+Estimate: ~1.5–2 sprints total for F1–F4 after foundations land. Plan doc: `docs/plans/2026-05-04-cross-modal-features-plan.md`.
+
+**Gated on:** v1 ship per state-of-union §Tier 0. Operator rack stays unmounted; this release uses the chain-transform pattern instead.
+
+**NOT in scope:** OSC sender, mode-brightness chord inference, hand-drawn macro curves, backend MIDI plumbing, schema migration framework, mod source registry, DAG cycle detection — all rejected as solving non-problems against the actual codebase per the parallel review pass on PR #36.
+
+---
+
 ## Phase 12: Tempo + Musical Time
 
 | Feature | Description | Source |

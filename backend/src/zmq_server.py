@@ -79,6 +79,14 @@ class ZMQServer:
         # Signal engine for operator modulation (Phase 6A)
         self._signal_engine = None
         self._signal_state: dict = {}
+        # Per-effect state cache for preview render path. Mirrors how
+        # export.py threads the `states` dict frame-by-frame so stateful
+        # effects (datamosh, reaction_mosh, frame_drop, generation_loss,
+        # temporal_dispersion, etc.) actually accumulate across frames.
+        # Reset on path change or non-monotonic frame jump (seek/scrub).
+        self._render_states: dict[str, dict | None] = {}
+        # (path, last_frame_index) — used to detect discontinuities.
+        self._render_state_key: tuple[str | None, int] = (None, -1)
 
     def reset_state(self):
         """Clear accumulated state without closing sockets/context.
@@ -118,6 +126,10 @@ class ZMQServer:
         # Reset signal engine state
         self._signal_state = {}
 
+        # Reset per-effect render-state cache
+        self._render_states = {}
+        self._render_state_key = (None, -1)
+
         # Reset freeze caches
         self.freeze_manager.reset()
 
@@ -125,6 +137,33 @@ class ZMQServer:
         if self.shm_writer is None:
             self.shm_writer = SharedMemoryWriter()
         return self.shm_writer
+
+    def _get_render_states(self, path: str, frame_index: int) -> dict[str, dict | None]:
+        """Return the per-effect state dict for a preview render call.
+
+        Resets to an empty dict when:
+          - the source path changes (different video/image), or
+          - frame_index is not monotonically the next frame after the
+            previous render call (seek, scrub, replay).
+
+        This mirrors export.py's frame-by-frame state threading and is the
+        contract `apply_chain` expects (see engine/pipeline.py docstring).
+        """
+        last_path, last_index = self._render_state_key
+        is_continuous = path == last_path and frame_index == last_index + 1
+        if not is_continuous:
+            self._render_states = {}
+        return self._render_states
+
+    def _store_render_states(
+        self,
+        path: str,
+        frame_index: int,
+        new_states: dict[str, dict | None],
+    ) -> None:
+        """Persist post-frame states for the next monotonic call."""
+        self._render_states = new_states
+        self._render_state_key = (path, frame_index)
 
     def _validate_token(self, message: dict) -> str | None:
         """Validate auth token. Returns error message or None if valid."""
@@ -469,8 +508,14 @@ class ZMQServer:
             if transform and isinstance(transform, dict):
                 frame = self._apply_clip_transform(frame, transform, resolution)
 
-            # Use pipeline engine
-            output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
+            # Use pipeline engine — thread per-effect state across frames so
+            # stateful effects (datamosh, reaction_mosh, frame_drop, etc.)
+            # accumulate. Resets on path change or seek; see _get_render_states.
+            states_in = self._get_render_states(path, frame_index)
+            output, states_out = apply_chain(
+                frame, chain, project_seed, frame_index, resolution, states_in
+            )
+            self._store_render_states(path, frame_index, states_out)
 
             # Encode once for base64 transport (skip mmap — Electron uses base64)
             jpeg_bytes = encode_mjpeg(output)
@@ -538,7 +583,12 @@ class ZMQServer:
             frame = reader.decode_frame(frame_index)
             resolution = (reader.width, reader.height)
 
-            output, _ = apply_chain(frame, chain, project_seed, frame_index, resolution)
+            # Thread per-effect state for stateful effects (see _handle_render_frame).
+            states_in = self._get_render_states(path, frame_index)
+            output, states_out = apply_chain(
+                frame, chain, project_seed, frame_index, resolution, states_in
+            )
+            self._store_render_states(path, frame_index, states_out)
 
             shm = self._ensure_shm()
             shm.write_frame(output)
@@ -552,6 +602,44 @@ class ZMQServer:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Apply chain handler error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _get_composite_states(
+        self, layer_signature: tuple, frame_index: int
+    ) -> dict[str, dict]:
+        """Return per-layer state cache for composite rendering.
+
+        Mirrors `_get_render_states` (PR #51) but for the multi-layer composite
+        path. Keyed by (layer_signature, last_frame_index) so it resets when:
+        - layer set changes (add/remove/reorder by asset_path)
+        - frame_index is non-monotonic (scrub jump)
+
+        Stateful effects (datamosh, reaction_mosh, frame_drop, etc.) need this
+        for correct multi-frame preview output. Without it every preview frame
+        starts cold and stateful effects silently no-op.
+
+        Returns the layer_states dict to pass into `render_composite`. After the
+        render the caller should write the returned `new_states` back via
+        `_save_composite_states`.
+        """
+        # Lazy init — keeps __init__ untouched and avoids merge conflicts with
+        # PR #51 which adds parallel `_render_states` for the single-frame path.
+        if not hasattr(self, "_composite_states"):
+            self._composite_states: dict[str, dict] = {}
+            self._composite_state_key: tuple | None = None
+
+        expected_key = (layer_signature, frame_index - 1)
+        if self._composite_state_key != expected_key:
+            self._composite_states = {}
+        return self._composite_states
+
+    def _save_composite_states(
+        self,
+        new_layer_states: dict[str, dict],
+        layer_signature: tuple,
+        frame_index: int,
+    ) -> None:
+        self._composite_states = new_layer_states
+        self._composite_state_key = (layer_signature, frame_index)
 
     def _handle_render_composite(self, message: dict, msg_id: str | None) -> dict:
         raw_layers = message.get("layers", [])
@@ -609,6 +697,13 @@ class ZMQServer:
                             frame, layer_transform, resolution
                         )
 
+                # Stable per-layer key for state cache. asset_path for video/image,
+                # synthesized for text. Reorder/swap → new signature → cache resets.
+                if layer_type == "text":
+                    layer_id = f"text:{layer_info.get('text_config', {}).get('id', len(layers))}"
+                else:
+                    layer_id = f"asset:{layer_info.get('asset_path', '')}"
+
                 layers.append(
                     {
                         "frame": frame,
@@ -616,11 +711,25 @@ class ZMQServer:
                         "opacity": opacity,
                         "blend_mode": blend_mode,
                         "frame_index": frame_index,
+                        "layer_id": layer_id,
                     }
                 )
 
+            # Build a layer signature from ordered layer_ids — invalidates cache
+            # on add/remove/reorder. Use the smallest frame_index across layers
+            # as the monotonic-iteration anchor (composite renders per project,
+            # not per layer, so they all advance together in normal playback).
+            layer_signature = tuple(layer.get("layer_id", "") for layer in layers)
+            anchor_frame = min(
+                (layer.get("frame_index", 0) for layer in layers), default=0
+            )
+            layer_states = self._get_composite_states(layer_signature, anchor_frame)
+
             t0 = time.time()
-            output = render_composite(layers, resolution, project_seed)
+            output, new_layer_states = render_composite(
+                layers, resolution, project_seed, layer_states=layer_states
+            )
+            self._save_composite_states(new_layer_states, layer_signature, anchor_frame)
 
             jpeg_bytes = encode_mjpeg(output)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")

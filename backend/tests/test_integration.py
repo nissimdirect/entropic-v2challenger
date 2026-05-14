@@ -107,6 +107,42 @@ def test_registry_has_core_effects():
     assert len(effects) >= 62, f"Expected >= 62 effects, got {len(effects)}"
 
 
+def test_adjustments_menu_effect_ids_are_registered():
+    """F-0512-39: Every effect ID surfaced in the renderer Adjustments menu must
+    resolve to a registered effect in the backend, or the menu item silently
+    no-ops when clicked (Color Temperature was wired to `util.color_temperature`
+    while the effect is registered as `fx.color_temperature`)."""
+    from effects.registry import list_all
+
+    registered = {e["id"] for e in list_all()}
+    # Mirror of frontend/src/main/menu.ts Adjustments submenu.
+    # Update this list whenever the menu adds/removes an Adjustments item.
+    menu_effect_ids = {
+        "util.curves",
+        "util.levels",
+        "util.auto_levels",
+        "util.hsl_adjust",
+        "util.color_balance",
+        "fx.color_temperature",
+        "fx.brightness_exposure",
+        "fx.contrast_crush",
+        "fx.saturation_warp",
+        "fx.color_invert",
+        "fx.color_filter",
+        "fx.posterize",
+        "fx.duotone",
+        "fx.false_color",
+        "fx.cyanotype",
+        "fx.infrared",
+        "fx.tape_saturation",
+    }
+    missing = menu_effect_ids - registered
+    assert not missing, (
+        f"Adjustments menu sends IDs not in registry: {sorted(missing)}. "
+        f"Either rename the menu action or add the effect."
+    )
+
+
 def test_all_effects_process_without_crash():
     """Smoke test: every registered effect can process a small frame without error."""
     from effects.registry import list_all, get

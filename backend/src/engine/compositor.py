@@ -83,7 +83,8 @@ def render_composite(
     layers: list[dict],
     resolution: tuple[int, int],
     project_seed: int = 0,
-) -> np.ndarray:
+    layer_states: dict[str, dict] | None = None,
+) -> np.ndarray | tuple[np.ndarray, dict[str, dict]]:
     """Composite multiple layers into a single output frame.
 
     Args:
@@ -94,33 +95,54 @@ def render_composite(
                 "opacity": float (0-1),
                 "blend_mode": str,
                 "frame_index": int,
+                "layer_id": str,  # OPTIONAL — required only when layer_states is passed
             }
         resolution: (width, height) of the output.
         project_seed: For deterministic effects.
+        layer_states: Per-layer state dicts keyed by `layer_id`. When provided,
+            each layer's effect chain receives `state_in=layer_states.get(layer_id)`
+            and the updated state is captured into the returned dict. Stateful
+            effects (datamosh, reaction_mosh, frame_drop, etc.) require this for
+            correct preview output across consecutive frames. See zmq_server's
+            `_get_composite_states` for the standard caching pattern.
 
     Returns:
-        Composited RGBA frame as uint8 (H, W, 4).
+        Composited RGBA frame as uint8 (H, W, 4) when `layer_states` is None
+        (legacy 1-tuple return). When `layer_states` is provided, returns
+        `(frame, new_layer_states)` so callers can write the updated states
+        back into their cache.
     """
     width, height = resolution
 
+    propagate_state = layer_states is not None
+    new_states: dict[str, dict] = {}
+
     if not layers:
-        return np.zeros((height, width, 4), dtype=np.uint8)
+        empty = np.zeros((height, width, 4), dtype=np.uint8)
+        return (empty, new_states) if propagate_state else empty
 
     # Start with transparent black canvas
     canvas = np.zeros((height, width, 4), dtype=np.float32)
 
-    for layer_info in layers:
+    for idx, layer_info in enumerate(layers):
         frame = layer_info["frame"]
         chain = layer_info.get("chain", [])
         opacity = float(layer_info.get("opacity", 1.0))
         blend_mode = layer_info.get("blend_mode", "normal")
         frame_index = layer_info.get("frame_index", 0)
+        # When layer_states is passed but the caller didn't tag a layer_id,
+        # fall back to positional index. Position-based keys silently invalidate
+        # state on any layer add/remove/reorder — that's acceptable safety.
+        layer_id = str(layer_info.get("layer_id", f"_pos_{idx}"))
 
-        # Apply per-layer effect chain
+        # Apply per-layer effect chain (with optional state propagation)
         if chain:
-            processed, _ = apply_chain(
-                frame, chain, project_seed, frame_index, resolution
+            state_in = layer_states.get(layer_id) if propagate_state else None
+            processed, state_out = apply_chain(
+                frame, chain, project_seed, frame_index, resolution, state_in
             )
+            if propagate_state:
+                new_states[layer_id] = state_out
         else:
             processed = frame
 
@@ -144,4 +166,5 @@ def render_composite(
         canvas = blend_fn(canvas, layer_f, opacity)
 
     # Clip and convert back to uint8
-    return np.clip(canvas, 0, 255).astype(np.uint8)
+    out = np.clip(canvas, 0, 255).astype(np.uint8)
+    return (out, new_states) if propagate_state else out

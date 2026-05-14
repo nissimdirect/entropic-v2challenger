@@ -1078,6 +1078,22 @@ body {
   line-height: 1;
 }
 
+.preview-canvas__fps {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  color: #4ade80;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  z-index: 10;
+  line-height: 1;
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
 .preview-canvas__popout-btn:hover {
   color: #fff;
   background: rgba(0, 0, 0, 0.8);
@@ -1088,6 +1104,20 @@ body {
 .transform-panel {
   padding: 8px;
   border-top: 1px solid #333;
+  /* F-0512-36: cap the panel's height so it does not push the Effects
+     search + browser out of the visible sidebar when a clip is selected.
+     User can scroll within the panel; search stays in view. Flag-off
+     override below restores unbounded height. */
+  max-height: 35vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+/* F-0512-36 disable override: revert to unbounded height. */
+body[data-disable-f-0512-36] .transform-panel {
+  max-height: none;
+  overflow-y: visible;
+  flex-shrink: 1;
 }
 
 .transform-panel__header {
