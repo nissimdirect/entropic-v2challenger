@@ -48,6 +48,7 @@
   "fx.dsp_phaser": "temporal",
   "fx.duotone": "symbolic",
   "fx.edge_detect": "filter",
+  "fx.torn_edges": "filter",
   "fx.emboss": "filter",
   "fx.entropy_map": "composite",
   "fx.erosion_sim": "temporal",
