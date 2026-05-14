@@ -91,6 +91,9 @@ class TestParameterSweep:
         ("fx.luma_key", "threshold"),  # Same — alpha-only effect
         ("fx.luma_key", "softness"),  # Same — alpha-only effect
         ("fx.luma_key", "mode"),  # Same — alpha-only effect
+        # torn_edges intentionally gates noise re-seed on (osc_rate>0 AND osc_depth>0)
+        # to prevent off-axis strobe; osc_rate alone is a no-op by design (HT-1+HT-2).
+        ("fx.torn_edges", "osc_rate"),
         (
             "fx.braille_art",
             "threshold",
