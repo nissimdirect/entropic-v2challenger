@@ -133,6 +133,7 @@ export function buildMenu(mainWindow: BrowserWindow): void {
     submenu: [
       { label: 'Keyboard Shortcuts', click: () => sendAction(mainWindow, 'show-shortcuts') },
       { label: 'Send Feedback\tCmdOrCtrl+Shift+F', click: () => sendAction(mainWindow, 'show-feedback') },
+      { label: 'Generate Support Bundle\tCmdOrCtrl+Shift+D', click: () => sendAction(mainWindow, 'support-bundle') },
     ],
   }
 

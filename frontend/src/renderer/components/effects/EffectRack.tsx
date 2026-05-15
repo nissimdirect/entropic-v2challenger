@@ -4,7 +4,10 @@ import EffectCard from './EffectCard'
 import FreezeOverlay from './FreezeOverlay'
 import Tooltip from '../common/Tooltip'
 import { useFreezeStore } from '../../stores/freeze'
-import { useStableListener } from '../../hooks/useStableListener'
+import ContextMenu from '../timeline/ContextMenu'
+import type { MenuItem } from '../timeline/ContextMenu'
+import { shortcutRegistry } from '../../utils/shortcuts'
+import { prettyShortcut } from '../../utils/pretty-shortcut'
 
 interface EffectRackProps {
   chain: EffectInstance[]
@@ -59,27 +62,47 @@ export default function EffectRack({
 
   const handleContextMenu = useCallback((e: React.MouseEvent, index: number) => {
     e.preventDefault()
-    // Clamp to viewport so menu doesn't extend off-screen
-    const menuWidth = 170
-    const menuHeight = 140
-    const x = Math.min(e.clientX, window.innerWidth - menuWidth)
-    const y = Math.min(e.clientY, window.innerHeight - menuHeight)
-    setContextMenu({ x, y, index })
+    // Shared ContextMenu clamps to viewport internally — pass raw coords.
+    setContextMenu({ x: e.clientX, y: e.clientY, index })
   }, [])
 
   const closeContextMenu = useCallback(() => {
     setContextMenu(null)
   }, [])
 
-  // Dismiss context menu on Escape or click outside
-  useStableListener(window, 'keydown', (e: Event) => {
-    if ((e as KeyboardEvent).key === 'Escape') {
-      e.preventDefault()
-      setContextMenu(null)
+  /** Build context-menu items for the right-clicked effect at `index`. */
+  const buildContextItems = useCallback((index: number): MenuItem[] => {
+    const items: MenuItem[] = []
+    if (onFreezeUpTo) {
+      items.push({
+        label: 'Freeze up to here',
+        action: () => { onFreezeUpTo(index) },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('freeze_up_to')),
+      })
     }
-  }, contextMenu !== null)
-
-  useStableListener(window, 'click', () => setContextMenu(null), contextMenu !== null)
+    if (onUnfreeze && checkFrozen(index)) {
+      items.push({
+        label: 'Unfreeze',
+        action: () => { onUnfreeze() },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('unfreeze_effects')),
+      })
+    }
+    if (onFlatten && checkFrozen(index)) {
+      items.push({
+        label: 'Flatten to video',
+        action: () => { onFlatten() },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('flatten_to_video')),
+      })
+    }
+    if (onSaveEffectPreset) {
+      items.push({
+        label: 'Save effect as preset',
+        action: () => { onSaveEffectPreset(chain[index].id) },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('save_effect_preset')),
+      })
+    }
+    return items
+  }, [onFreezeUpTo, onUnfreeze, onFlatten, onSaveEffectPreset, chain])
 
   if (chain.length === 0) {
     return (
@@ -149,58 +172,18 @@ export default function EffectRack({
         ))}
       </div>
 
-      {contextMenu && (
-        <div
-          className="effect-rack__context-menu"
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {onFreezeUpTo && (
-            <button
-              className="effect-rack__context-item"
-              onClick={() => {
-                onFreezeUpTo(contextMenu.index)
-                closeContextMenu()
-              }}
-            >
-              Freeze up to here
-            </button>
-          )}
-          {onUnfreeze && checkFrozen(contextMenu.index) && (
-            <button
-              className="effect-rack__context-item"
-              onClick={() => {
-                onUnfreeze()
-                closeContextMenu()
-              }}
-            >
-              Unfreeze
-            </button>
-          )}
-          {onFlatten && checkFrozen(contextMenu.index) && (
-            <button
-              className="effect-rack__context-item"
-              onClick={() => {
-                onFlatten()
-                closeContextMenu()
-              }}
-            >
-              Flatten to video
-            </button>
-          )}
-          {onSaveEffectPreset && (
-            <button
-              className="effect-rack__context-item"
-              onClick={() => {
-                onSaveEffectPreset(chain[contextMenu.index].id)
-                closeContextMenu()
-              }}
-            >
-              Save effect as preset
-            </button>
-          )}
-        </div>
-      )}
+      {contextMenu && (() => {
+        const items = buildContextItems(contextMenu.index)
+        if (items.length === 0) return null
+        return (
+          <ContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            items={items}
+            onClose={closeContextMenu}
+          />
+        )
+      })()}
     </div>
   )
 }
