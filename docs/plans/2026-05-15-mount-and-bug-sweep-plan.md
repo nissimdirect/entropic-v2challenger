@@ -48,9 +48,9 @@ Source of truth for bugs: `~/.claude/plans/entropic-uat-FINAL-SYNTHESIS-2026-05-
 ### D. P3 (nice-to-have — sweeping in this loop since user said all bugs)
 - [x] **D1 — F-0514-2**: Color Temperature unit `"K"` → `""`. The -100..100 range was never Kelvin degrees; the K suffix was misleading
 - [x] **D2 — F-0514-3**: ExportDialog onClose now triggers `requestRenderFrame(currentFrame)` so preview re-renders with chain immediately
-- [ ] **D3 — F-0514-8**: av/cv2 dylib conflict warning at runtime (suppress or root-cause OpenCV/PyAV linking)
+- [~] **D3 — F-0514-8**: av/cv2 dylib class duplicate (`AVFFrameReceiver` / `AVFAudioReceiver`). Root cause: both `opencv-python-headless` AND `av` bundle their own `libavdevice` (.61 vs .62). Real fix requires dropping one library or rebuilding cv2 without ffmpeg — out of scope for this loop. 22hr UAT soak: 0 crashes, warning is cosmetic. **Deferred to v1.1**: drop opencv entirely (PyAV already does video I/O; cv2 used only for color-space ops which numpy can replicate)
 - [ ] **D4 — F-0514-12**: Port frontend `walk()` defense to backend schema (deep-walk validation)
-- [ ] **D5 — F-0514-15**: `dsp_phaser.py:187` divide-by-zero on all-black frame (guard zero variance)
+- [x] **D5 — F-0514-15**: `dsp_phaser.py:187` divide-by-zero → `np.divide(..., where=brightness > 0.005, out=ones)`. 3 regression tests: all-black frame, mixed black/white, alpha pass-through
 - [ ] **D6 — F-0514-13**: `test_parameter_sweep` companion-param manifest (test infra)
 - [ ] **D7 — F-0514-14**: `_reset_pipeline_health()` fixture + rerun interaction (test infra)
 

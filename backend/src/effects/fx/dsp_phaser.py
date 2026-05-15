@@ -184,6 +184,16 @@ def _brightness_phaser(
         mask = np.exp(-((brightness - center) ** 2) / (2 * band_width**2))
         transfer = transfer * (1.0 - mask * 0.8) + (1.0 - brightness) * mask * 0.8
 
-    scale = np.where(brightness > 0.005, transfer / brightness, 1.0)
+    # F-0514-15: np.where evaluates BOTH branches, so `transfer / brightness`
+    # produced runtime warnings (divide by zero / invalid value) on all-black
+    # frames even though the where-mask masked them out. np.divide with the
+    # `where=` clause skips the dangerous slots entirely and seeds them from
+    # `out=`, eliminating both the warning AND any latent NaN/Inf leaks.
+    scale = np.divide(
+        transfer,
+        brightness,
+        out=np.ones_like(transfer),
+        where=brightness > 0.005,
+    )
     out_rgb = np.clip(f * scale, 0, 255).astype(np.uint8)
     return np.concatenate([out_rgb, alpha], axis=2), None
