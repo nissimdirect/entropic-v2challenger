@@ -47,7 +47,9 @@ import { applyCCModulations } from './components/performance/applyCCModulations'
 import { useMIDIStore } from './stores/midi'
 import { useMIDI } from './hooks/useMIDI'
 import { handlePadTrigger, releasePadWithCapture } from './components/performance/padActions'
-// Operators removed from UI (Sprint 2) — components stay in codebase for future re-enable
+// Operators re-mounted 2026-05-15 (post-UAT synthesis). Backend already wires
+// serialized operators (see requestRenderFrame). UI panel toggle: Cmd+Shift+O.
+import OperatorRack from './components/operators/OperatorRack'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { resolveGhostValues } from './utils/resolveGhostValues'
@@ -182,6 +184,8 @@ function AppInner() {
   const isTimerPlayingRef = useRef(false)
   const [transportSpeedMultiplier, setTransportSpeedMultiplier] = useState(1)
   const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
+  // Operators panel: re-mounted 2026-05-15 as floating overlay. Toggle with Cmd+Shift+O.
+  const [showOperators, setShowOperators] = useState(false)
 
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
@@ -348,6 +352,9 @@ function AppInner() {
     shortcutRegistry.register('toggle_perform', () => {
       const perfStore = usePerformanceStore.getState()
       perfStore.setPerformMode(!perfStore.isPerformMode)
+    })
+    shortcutRegistry.register('toggle_operators', () => {
+      setShowOperators((v) => !v)
     })
     shortcutRegistry.register('loop_in', () => {
       const timeline = useTimelineStore.getState()
@@ -2219,6 +2226,45 @@ function AppInner() {
             setEditingPadId(id)
             usePerformanceStore.getState().setPadEditorOpen(true)
           }} />
+        </div>
+      )}
+
+      {/* Operators panel: re-mounted 2026-05-15. Floating overlay so it doesn't
+          push the timeline. Backend already serializes operators in requestRenderFrame. */}
+      {showOperators && (
+        <div
+          className="app__operators-overlay"
+          style={{
+            position: 'fixed',
+            top: 60,
+            right: 16,
+            width: 360,
+            maxHeight: 'calc(100vh - 200px)',
+            overflowY: 'auto',
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #333',
+            borderRadius: 6,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            padding: 12,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button
+              onClick={() => setShowOperators(false)}
+              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 18 }}
+              aria-label="Close operators panel"
+              title="Close (Cmd+Shift+O)"
+            >
+              ×
+            </button>
+          </div>
+          <OperatorRack
+            effectChain={effectChain}
+            registry={registry}
+            operatorValues={operatorValues}
+            hasAudio={hasAudio}
+          />
         </div>
       )}
 
