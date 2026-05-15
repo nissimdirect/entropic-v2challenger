@@ -1,5 +1,15 @@
 import { create } from 'zustand'
 
+/**
+ * Synthetic trackId used by v2's project-level chain. The freeze store
+ * was designed for per-track chains; v2 collapsed effectChain onto the
+ * project store (one chain applied to whatever is rendering). UI call
+ * sites use this constant; the store shape stays track-keyed to keep
+ * the existing test suite passing while project-level usage stays
+ * unambiguous. F-0514-16 (2026-05-15): re-wire after Phase 13C orphan.
+ */
+export const MASTER_TRACK_ID = 'master'
+
 interface FreezeInfo {
   cacheId: string
   cutIndex: number

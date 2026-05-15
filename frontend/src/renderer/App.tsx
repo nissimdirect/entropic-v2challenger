@@ -62,7 +62,7 @@ import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
 import PresetSaveDialog from './components/library/PresetSaveDialog'
 import { useLibraryStore } from './stores/library'
-import { useFreezeStore } from './stores/freeze'
+import { useFreezeStore, MASTER_TRACK_ID } from './stores/freeze'
 import { useToastStore } from './stores/toast'
 import { useLayoutStore } from './stores/layout'
 import Toast from './components/common/Toast'
@@ -1399,6 +1399,71 @@ function AppInner() {
     requestRenderFrame(currentFrame, [])
   }, [currentFrame, requestRenderFrame])
 
+  // F-0514-16: Freeze / Unfreeze / Flatten handlers (re-wired after Phase 13C).
+  // The freezeStore was designed for per-track chains; v2 has a project-level
+  // effectChain, so we use the synthetic MASTER_TRACK_ID. The handlers below
+  // are passed to DeviceChain's context menu (the new home for what used to be
+  // the EffectRack right-click). All gated on activeAssetPath so freezing
+  // without a loaded video produces a friendly toast instead of an IPC error.
+  const handleFreezeUpTo = useCallback(
+    async (cutIndex: number) => {
+      if (!activeAssetPath.current) {
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: 'Load a video before freezing the chain.',
+          source: 'freeze',
+        })
+        return
+      }
+      if (cutIndex < 0 || cutIndex >= effectChain.length) return
+      const prefix = effectChain.slice(0, cutIndex + 1).map((e) => ({
+        effect_id: e.effectId,
+        params: e.parameters,
+        enabled: e.isEnabled,
+      }))
+      await useFreezeStore.getState().freezePrefix(
+        MASTER_TRACK_ID,
+        cutIndex,
+        activeAssetPath.current,
+        prefix,
+        Date.now() % 2147483647,
+        totalFrames,
+        [frameWidth || 1920, frameHeight || 1080],
+      )
+      requestRenderFrame(currentFrame)
+    },
+    [effectChain, totalFrames, frameWidth, frameHeight, currentFrame, requestRenderFrame],
+  )
+
+  const handleUnfreeze = useCallback(async () => {
+    await useFreezeStore.getState().unfreezePrefix(MASTER_TRACK_ID)
+    requestRenderFrame(currentFrame)
+  }, [currentFrame, requestRenderFrame])
+
+  const handleFlatten = useCallback(async () => {
+    if (!window.entropic?.selectSavePath) return
+    const outputPath = await window.entropic.selectSavePath('flattened.mp4')
+    if (!outputPath) return
+    const result = await useFreezeStore.getState().flattenPrefix(
+      MASTER_TRACK_ID,
+      outputPath,
+      activeFps,
+    )
+    if (result) {
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: `Flattened to ${result}`,
+        source: 'freeze',
+      })
+    } else {
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: 'Flatten failed — see logs.',
+        source: 'freeze',
+      })
+    }
+  }, [activeFps])
+
   const handleSeek = useCallback(
     (frame: number) => {
       setCurrentFrame(frame)
@@ -2348,7 +2413,11 @@ function AppInner() {
 
       {/* Phase 13: Ableton-style Device Chain */}
       <div className="app__device-chain">
-        <DeviceChain />
+        <DeviceChain
+          onFreezeUpTo={handleFreezeUpTo}
+          onUnfreeze={handleUnfreeze}
+          onFlatten={handleFlatten}
+        />
       </div>
 
       <div className="status-bar">

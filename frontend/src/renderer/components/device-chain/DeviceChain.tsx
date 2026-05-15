@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import { useProjectStore } from '../../stores/project'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
+import { useFreezeStore, MASTER_TRACK_ID } from '../../stores/freeze'
 import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import ContextMenu from '../timeline/ContextMenu'
@@ -11,14 +12,27 @@ import { prettyShortcut } from '../../utils/pretty-shortcut'
 
 interface DeviceChainProps {
   modulatedValues?: Record<string, Record<string, number>>
+  /** F-0514-16: Freeze effects 0..index (inclusive) into a cached prefix. */
+  onFreezeUpTo?: (cutIndex: number) => void | Promise<void>
+  /** F-0514-16: Remove the frozen prefix and re-render live chain. */
+  onUnfreeze?: () => void | Promise<void>
+  /** F-0514-16: Render the frozen prefix to a new video file (user picks path). */
+  onFlatten?: () => void | Promise<void>
 }
 
-export default function DeviceChain({ modulatedValues }: DeviceChainProps) {
+export default function DeviceChain({
+  modulatedValues,
+  onFreezeUpTo,
+  onUnfreeze,
+  onFlatten,
+}: DeviceChainProps) {
   const effectChain = useProjectStore((s) => s.effectChain)
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
   const deviceGroups = useProjectStore((s) => s.deviceGroups)
   const registry = useEffectsStore((s) => s.registry)
   const lastFrameMs = useEngineStore((s) => s.lastFrameMs) ?? 0
+  const isFrozenAt = useFreezeStore((s) => s.isFrozen)
+  const freezeOpState = useFreezeStore((s) => s.operationState)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; effectId: string; index: number } | null>(null)
 
   const handleSelect = useCallback((id: string) => {
@@ -92,8 +106,43 @@ export default function DeviceChain({ modulatedValues }: DeviceChainProps) {
       })
     }
 
+    // F-0514-16: Freeze / Unfreeze / Flatten — only shown when the parent
+    // wired the handlers. Disabled during in-flight freeze ops to prevent
+    // races (freezeStore.operationState gates concurrent invocations too,
+    // but disabling the menu is the user-visible signal).
+    const indexIsFrozen = isFrozenAt(MASTER_TRACK_ID, index)
+    const busy = freezeOpState !== 'idle'
+
+    if (onFreezeUpTo && !indexIsFrozen) {
+      items.push({
+        label: `Freeze up to here (${index + 1} effect${index === 0 ? '' : 's'})`,
+        disabled: busy,
+        action: () => {
+          void onFreezeUpTo(index)
+        },
+      })
+    }
+    if (onUnfreeze && indexIsFrozen) {
+      items.push({
+        label: 'Unfreeze',
+        disabled: busy,
+        action: () => {
+          void onUnfreeze()
+        },
+      })
+    }
+    if (onFlatten && indexIsFrozen) {
+      items.push({
+        label: 'Flatten to file…',
+        disabled: busy,
+        action: () => {
+          void onFlatten()
+        },
+      })
+    }
+
     return items
-  }, [effectChain, findGroupForEffect])
+  }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, isFrozenAt, freezeOpState])
 
   const chainTimeColor = lastFrameMs < 50 ? '#4ade80' : lastFrameMs < 100 ? '#f59e0b' : '#ef4444'
 
