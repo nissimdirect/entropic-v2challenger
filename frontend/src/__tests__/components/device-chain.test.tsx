@@ -2,7 +2,7 @@
  * DeviceChain + DeviceCard component tests (Phase 13A).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, cleanup } from '@testing-library/react'
+import { render, cleanup, fireEvent } from '@testing-library/react'
 import { useProjectStore } from '../../renderer/stores/project'
 import { useEffectsStore } from '../../renderer/stores/effects'
 import { useEngineStore } from '../../renderer/stores/engine'
@@ -89,6 +89,63 @@ describe('DeviceChain', () => {
     const arrows = container.querySelectorAll('.device-chain__arrow')
     expect(arrows).toHaveLength(1)
     unmount()
+  })
+
+  // F-0514-16: Freeze / Unfreeze / Flatten context menu wiring.
+  // The freezeStore is project-level via MASTER_TRACK_ID; menu items only
+  // appear when the parent (App.tsx) hands down the handlers.
+  describe('Freeze context menu (F-0514-16)', () => {
+    it('shows "Freeze up to here" when handler is wired and chain has effects', () => {
+      useProjectStore.setState({
+        effectChain: [MOCK_EFFECT, { ...MOCK_EFFECT, id: 'fx-2' }],
+      })
+      const { container, unmount } = render(
+        <DeviceChain
+          onFreezeUpTo={vi.fn()}
+          onUnfreeze={vi.fn()}
+          onFlatten={vi.fn()}
+        />,
+      )
+      const firstCard = container.querySelectorAll('[data-testid="device-card"]')[0] as HTMLElement
+      fireEvent.contextMenu(firstCard, { clientX: 10, clientY: 10 })
+      expect(container.textContent).toContain('Freeze up to here')
+      unmount()
+    })
+
+    it('omits Freeze entries when handlers are NOT passed', () => {
+      useProjectStore.setState({ effectChain: [MOCK_EFFECT] })
+      const { container, unmount } = render(<DeviceChain />)
+      const firstCard = container.querySelector('[data-testid="device-card"]') as HTMLElement
+      fireEvent.contextMenu(firstCard, { clientX: 5, clientY: 5 })
+      expect(container.textContent ?? '').not.toContain('Freeze up to here')
+      unmount()
+    })
+
+    it('forwards correct cutIndex to onFreezeUpTo (clicked-effect index)', () => {
+      useProjectStore.setState({
+        effectChain: [
+          MOCK_EFFECT,
+          { ...MOCK_EFFECT, id: 'fx-2' },
+          { ...MOCK_EFFECT, id: 'fx-3' },
+        ],
+      })
+      const onFreezeUpTo = vi.fn()
+      const { container, unmount } = render(
+        <DeviceChain
+          onFreezeUpTo={onFreezeUpTo}
+          onUnfreeze={vi.fn()}
+          onFlatten={vi.fn()}
+        />,
+      )
+      const cards = container.querySelectorAll('[data-testid="device-card"]')
+      fireEvent.contextMenu(cards[1], { clientX: 10, clientY: 10 })
+      const buttons = container.querySelectorAll('button')
+      const freezeBtn = Array.from(buttons).find((b) => /Freeze up to here/.test(b.textContent ?? ''))
+      expect(freezeBtn).toBeTruthy()
+      fireEvent.click(freezeBtn!)
+      expect(onFreezeUpTo).toHaveBeenCalledWith(1)
+      unmount()
+    })
   })
 })
 
