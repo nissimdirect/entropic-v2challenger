@@ -5,14 +5,22 @@ declare global {
     entropicPopOut?: {
       onFrameUpdate: (callback: (dataUrl: string) => void) => void
       onClose: (callback: () => void) => void
+      onPing?: (callback: () => void) => void
+      getLastPingAt?: () => number
     }
   }
 }
 
+// F-0514-6: liveness is now driven by a main-process ping, not frame arrival.
+// Pausing playback no longer flashes "Disconnected" because the main process
+// keeps sending heartbeats whether or not new frames are produced. The window
+// is grace-larger than the ~1s ping cadence to absorb GC pauses + scheduler jitter.
+const DISCONNECT_THRESHOLD_MS = 3500
+
 export default function PopOutPreview() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const imgRef = useRef<HTMLImageElement | null>(null)
-  const lastFrameTimeRef = useRef<number>(Date.now())
+  const lastPingRef = useRef<number>(0)
   const [disconnected, setDisconnected] = useState(false)
 
   useEffect(() => {
@@ -20,9 +28,6 @@ export default function PopOutPreview() {
     if (!api) return
 
     const drawFrame = (dataUrl: string) => {
-      lastFrameTimeRef.current = Date.now()
-      setDisconnected(false)
-
       const canvas = canvasRef.current
       if (!canvas) return
 
@@ -44,8 +49,20 @@ export default function PopOutPreview() {
       window.close()
     })
 
+    // F-0514-6: use main-process ping as liveness signal. The first ping fires
+    // synchronously from preload when did-finish-load resolves, so the initial
+    // lastPingRef seed below is replaced before the interval first checks.
+    const initialPing = api.getLastPingAt?.() ?? 0
+    lastPingRef.current = initialPing > 0 ? initialPing : Date.now()
+    setDisconnected(false)
+
+    api.onPing?.(() => {
+      lastPingRef.current = Date.now()
+      setDisconnected(false)
+    })
+
     const interval = setInterval(() => {
-      if (Date.now() - lastFrameTimeRef.current > 2000) {
+      if (Date.now() - lastPingRef.current > DISCONNECT_THRESHOLD_MS) {
         setDisconnected(true)
       }
     }, 1000)

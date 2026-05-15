@@ -73,28 +73,38 @@ afterEach(() => {
 
 describe('pop-out window — F-0512-47 first-frame buffering', () => {
   it('buffers frames while loading, flushes on did-finish-load, then sends direct', async () => {
-    const mod = await import('../../main/pop-out-window')
-    mod.createPopOutWindow()
+    // F-0514-6: did-finish-load now also seeds the heartbeat. Use fake timers
+    // so the 1Hz ping interval can't tick and pollute assertions.
+    vi.useFakeTimers()
+    try {
+      const mod = await import('../../main/pop-out-window')
+      mod.createPopOutWindow()
 
-    // ---- Phase A: window still loading; frame must be buffered, not sent.
-    mod.sendFrameToPopOut('data:image/jpeg;base64,FIRST')
-    expect(sendMock).not.toHaveBeenCalled()
+      // ---- Phase A: window still loading; frame must be buffered, not sent.
+      mod.sendFrameToPopOut('data:image/jpeg;base64,FIRST')
+      expect(sendMock).not.toHaveBeenCalled()
 
-    // Multiple buffered sends — only the latest survives (no replay storm).
-    mod.sendFrameToPopOut('data:image/jpeg;base64,SECOND')
-    expect(sendMock).not.toHaveBeenCalled()
+      // Multiple buffered sends — only the latest survives (no replay storm).
+      mod.sendFrameToPopOut('data:image/jpeg;base64,SECOND')
+      expect(sendMock).not.toHaveBeenCalled()
 
-    // ---- Phase B: did-finish-load flushes the most-recent buffered frame.
-    expect(handlers['did-finish-load']).toBeDefined()
-    handlers['did-finish-load']()
-    expect(sendMock).toHaveBeenCalledTimes(1)
-    expect(sendMock).toHaveBeenCalledWith('pop-out:frame', 'data:image/jpeg;base64,SECOND')
+      // ---- Phase B: did-finish-load flushes the most-recent buffered frame
+      // AND seeds the heartbeat with one immediate ping.
+      expect(handlers['did-finish-load']).toBeDefined()
+      handlers['did-finish-load']()
+      expect(sendMock).toHaveBeenCalledTimes(2)
+      expect(sendMock).toHaveBeenCalledWith('pop-out:frame', 'data:image/jpeg;base64,SECOND')
+      expect(sendMock).toHaveBeenCalledWith('pop-out:ping')
 
-    // ---- Phase C: subsequent frames go through directly.
-    isLoadingMock.mockReturnValue(false)
-    sendMock.mockClear()
-    mod.sendFrameToPopOut('data:image/jpeg;base64,POST')
-    expect(sendMock).toHaveBeenCalledTimes(1)
-    expect(sendMock).toHaveBeenCalledWith('pop-out:frame', 'data:image/jpeg;base64,POST')
+      // ---- Phase C: subsequent frames go through directly.
+      isLoadingMock.mockReturnValue(false)
+      sendMock.mockClear()
+      mod.sendFrameToPopOut('data:image/jpeg;base64,POST')
+      expect(sendMock).toHaveBeenCalledTimes(1)
+      expect(sendMock).toHaveBeenCalledWith('pop-out:frame', 'data:image/jpeg;base64,POST')
+    } finally {
+      vi.useRealTimers()
+    }
   })
+
 })

@@ -18,7 +18,9 @@ import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
 import SpeedDialog from './components/timeline/SpeedDialog'
-// Phase 13C: HistoryPanel removed from sidebar
+// Phase 13C: HistoryPanel removed from sidebar.
+// F-0514-18 (2026-05-15): re-surfaced via Edit → Undo History menu (see menu.ts).
+import HistoryPanel from './components/layout/HistoryPanel'
 import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
@@ -47,7 +49,11 @@ import { applyCCModulations } from './components/performance/applyCCModulations'
 import { useMIDIStore } from './stores/midi'
 import { useMIDI } from './hooks/useMIDI'
 import { handlePadTrigger, releasePadWithCapture } from './components/performance/padActions'
-// Operators removed from UI (Sprint 2) — components stay in codebase for future re-enable
+// Operators re-mounted 2026-05-15 (post-UAT synthesis). Backend already wires
+// serialized operators (see requestRenderFrame). UI panel toggle: Cmd+Shift+O.
+import OperatorRack from './components/operators/OperatorRack'
+import ModulationMatrix from './components/operators/ModulationMatrix'
+import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { resolveGhostValues } from './utils/resolveGhostValues'
@@ -182,6 +188,13 @@ function AppInner() {
   const isTimerPlayingRef = useRef(false)
   const [transportSpeedMultiplier, setTransportSpeedMultiplier] = useState(1)
   const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
+  // Operators panel: re-mounted 2026-05-15 as floating overlay. Toggle with Cmd+Shift+O.
+  const [showOperators, setShowOperators] = useState(false)
+  // F-0514-18: HistoryPanel re-surfaced via Edit → Undo History.
+  const [showHistory, setShowHistory] = useState(false)
+  // F-0514-17: discard-changes prompt before destructive nav (Cmd+O / Cmd+N).
+  // Pre-fix, Cmd+O silently overwrote unsaved work — real data-loss risk.
+  const [pendingNav, setPendingNav] = useState<null | { kind: 'open' | 'new' }>(null)
 
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
@@ -348,6 +361,9 @@ function AppInner() {
     shortcutRegistry.register('toggle_perform', () => {
       const perfStore = usePerformanceStore.getState()
       perfStore.setPerformMode(!perfStore.isPerformMode)
+    })
+    shortcutRegistry.register('toggle_operators', () => {
+      setShowOperators((v) => !v)
     })
     shortcutRegistry.register('loop_in', () => {
       const timeline = useTimelineStore.getState()
@@ -546,10 +562,19 @@ function AppInner() {
         return
       }
 
-      // Escape in normal mode → stop (reset playhead to 0)
-      // Dispatches custom event — handled by a separate useEffect with proper deps
+      // Escape in normal mode →
+      //   1) F-0514-5: if a clip is selected, clear selection (removes
+      //      TransformPanel from sidebar + lifts bounding-box handles).
+      //      Escape was bound only to transport-stop previously, leaving
+      //      no keyboard way to lose the clip selection.
+      //   2) Otherwise: dispatch the stop event (reset playhead).
       if (e.code === 'Escape') {
         e.preventDefault()
+        const ts = useTimelineStore.getState()
+        if (ts.selectedClipIds.length > 0) {
+          ts.clearSelection()
+          return
+        }
         window.dispatchEvent(new Event('entropic:stop'))
         return
       }
@@ -860,14 +885,12 @@ function AppInner() {
           }
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
-          useToastStore.getState().addToast({
-            level: 'error',
-            message: 'Frame render failed',
-            source: 'render',
-            details: res.error as string,
-          })
 
-          // Auto-retry once with empty chain to at least show raw frame
+          // F-0514-1: Auto-retry with empty chain handles the common
+          // import-race case where the sidecar isn't ready for the chain
+          // yet. Toast on EVERY first failure was producing a transient
+          // "Frame render failed" banner during normal import. Only toast
+          // when the auto-retry path is unavailable (already empty chain).
           if (chain.length > 0) {
             console.warn('[Render] retrying frame', frame, 'with empty chain')
             isRenderingRef.current = false
@@ -875,7 +898,13 @@ function AppInner() {
             return
           }
 
-          // Empty chain also failed — show error state
+          // Empty chain also failed — show error state AND toast (real failure).
+          useToastStore.getState().addToast({
+            level: 'error',
+            message: 'Frame render failed',
+            source: 'render',
+            details: res.error as string,
+          })
           setRenderError((res.error as string) ?? 'Render failed')
           setPreviewState('error')
         }
@@ -1203,8 +1232,17 @@ function AppInner() {
       switch (action) {
         case 'import-media': handleImportMedia(); break
         case 'add-text-track': handleAddTextTrack(); break
-        case 'new-project': handleNewProject(); break
-        case 'open-project': loadProject(undefined, () => initPreviewRef.current()); break
+        case 'new-project': {
+          // F-0514-17: gate destructive nav on isDirty.
+          if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'new' })
+          else handleNewProject()
+          break
+        }
+        case 'open-project': {
+          if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'open' })
+          else loadProject(undefined, () => initPreviewRef.current())
+          break
+        }
         case 'save': saveProject(); break
         case 'save-as': saveProject(); break
         case 'export': setShowExportDialog(true); break
@@ -1300,6 +1338,7 @@ function AppInner() {
           useTimelineStore.getState().setZoom(Math.max(0.5, (window.innerWidth * 0.6) / Math.max(1, dur)))
           break
         }
+        case 'show-history': setShowHistory(true); break
         case 'show-shortcuts':
           // F-0512-37: Help → Keyboard Shortcuts opens Preferences on the
           // Shortcuts tab instead of the default General tab.
@@ -2222,6 +2261,91 @@ function AppInner() {
         </div>
       )}
 
+      {/* Operators panel: re-mounted 2026-05-15. Floating overlay so it doesn't
+          push the timeline. Backend already serializes operators in requestRenderFrame. */}
+      {showOperators && (
+        <div
+          className="app__operators-overlay"
+          style={{
+            position: 'fixed',
+            top: 60,
+            right: 16,
+            width: 360,
+            maxHeight: 'calc(100vh - 200px)',
+            overflowY: 'auto',
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #333',
+            borderRadius: 6,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            padding: 12,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+            <button
+              onClick={() => setShowOperators(false)}
+              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 18 }}
+              aria-label="Close operators panel"
+              title="Close (Cmd+Shift+O)"
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ position: 'relative' }}>
+            <RoutingLines operatorValues={operatorValues} />
+            <OperatorRack
+              effectChain={effectChain}
+              registry={registry}
+              operatorValues={operatorValues}
+              hasAudio={hasAudio}
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <ModulationMatrix
+              effectChain={effectChain}
+              registry={registry}
+              operatorValues={operatorValues}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* F-0514-18: HistoryPanel floating overlay (Edit → Undo History). */}
+      {showHistory && (
+        <div
+          className="app__history-overlay"
+          style={{
+            position: 'fixed',
+            top: 60,
+            left: 16,
+            width: 320,
+            maxHeight: 'calc(100vh - 200px)',
+            overflowY: 'auto',
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #333',
+            borderRadius: 6,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            padding: 12,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ color: '#aaa', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Undo History
+            </span>
+            <button
+              onClick={() => setShowHistory(false)}
+              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 18 }}
+              aria-label="Close history panel"
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
+          <HistoryPanel />
+        </div>
+      )}
+
       {/* Phase 13: Ableton-style Device Chain */}
       <div className="app__device-chain">
         <DeviceChain />
@@ -2275,7 +2399,12 @@ function AppInner() {
         loopIn={null}
         loopOut={null}
         onExport={handleExport}
-        onClose={() => setShowExportDialog(false)}
+        onClose={() => {
+          setShowExportDialog(false)
+          // F-0514-3: re-render the current frame so the preview doesn't
+          // momentarily show an un-effected frame during the dialog teardown.
+          requestRenderFrame(currentFrame)
+        }}
       />
 
       <Preferences
@@ -2363,6 +2492,58 @@ function AppInner() {
                 }}
               >
                 Save &amp; Quit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* F-0514-17: discard-changes prompt before Open / New Project. */}
+      {pendingNav && (
+        <div className="dialog-overlay">
+          <div className="dialog">
+            <div className="dialog__header">Unsaved Changes</div>
+            <p className="dialog__body">
+              You have unsaved changes. {pendingNav.kind === 'open' ? 'Opening another project' : 'Starting a new project'} will discard them.
+            </p>
+            <div className="dialog__actions">
+              <button
+                className="dialog__btn dialog__btn--secondary"
+                onClick={() => setPendingNav(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="dialog__btn dialog__btn--danger"
+                onClick={() => {
+                  const kind = pendingNav.kind
+                  setPendingNav(null)
+                  if (kind === 'open') {
+                    loadProject(undefined, () => initPreviewRef.current())
+                  } else {
+                    handleNewProject()
+                  }
+                }}
+              >
+                Discard Changes
+              </button>
+              <button
+                className="dialog__btn dialog__btn--primary"
+                onClick={async () => {
+                  const kind = pendingNav.kind
+                  const saved = await saveProject()
+                  // saveProject returns falsy if the user cancelled the save dialog —
+                  // in that case keep the prompt up so unsaved work doesn't vanish.
+                  if (!saved) return
+                  setPendingNav(null)
+                  if (kind === 'open') {
+                    loadProject(undefined, () => initPreviewRef.current())
+                  } else {
+                    handleNewProject()
+                  }
+                }}
+              >
+                Save &amp; Continue
               </button>
             </div>
           </div>

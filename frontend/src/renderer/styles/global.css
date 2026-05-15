@@ -496,6 +496,14 @@ body {
   overflow: hidden;
 }
 
+/* F-0514-4: guarantee the effect browser keeps a usable scroll window even
+   when the TransformPanel + asset-info combo would otherwise crowd the
+   sidebar. Without this floor, the browser body collapsed to zero rows on
+   shorter displays once a clip was selected. */
+.app__sidebar > .effect-browser {
+  min-height: 200px;
+}
+
 .effect-browser--loading {
   padding: 16px 12px;
   font-size: 12px;
@@ -1104,13 +1112,15 @@ body {
 .transform-panel {
   padding: 8px;
   border-top: 1px solid #333;
-  /* F-0512-36: cap the panel's height so it does not push the Effects
-     search + browser out of the visible sidebar when a clip is selected.
-     User can scroll within the panel; search stays in view. Flag-off
-     override below restores unbounded height. */
-  max-height: 35vh;
+  /* F-0512-36 + F-0514-4: cap the panel's height so it does not collapse
+     the Effects browser when a clip is selected. UAT 2026-05-14 found that
+     35vh was still too tall on shorter displays — the browser body got
+     clipped to zero rows once asset-info + transform-panel exceeded
+     sidebar height. Tightened to 28vh w/ 320px ceiling and made the panel
+     shrinkable so the browser keeps room. */
+  max-height: min(28vh, 320px);
   overflow-y: auto;
-  flex-shrink: 0;
+  flex-shrink: 1;
 }
 
 /* F-0512-36 disable override: revert to unbounded height. */

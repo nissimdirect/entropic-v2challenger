@@ -15,6 +15,12 @@ interface PopOutBounds {
 
 let popOutWindow: BrowserWindow | null = null
 let saveTimeout: ReturnType<typeof setTimeout> | null = null
+// F-0514-6: heartbeat keeps pop-out's disconnect-detection honest. The old
+// approach used frame arrival as a proxy for liveness, which produced a false
+// "Disconnected" overlay every time the main app paused (no new frames → 2s
+// timeout → false alarm). A dedicated ping decouples liveness from playback.
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+const HEARTBEAT_INTERVAL_MS = 1000
 
 function loadPopOutBounds(): PopOutBounds | null {
   try {
@@ -112,6 +118,10 @@ export function createPopOutWindow(): BrowserWindow {
 
   popOutWindow.on('closed', () => {
     if (saveTimeout) clearTimeout(saveTimeout)
+    if (heartbeatTimer) {
+      clearInterval(heartbeatTimer)
+      heartbeatTimer = null
+    }
     popOutWindow = null
     pendingFirstFrame = null
   })
@@ -124,6 +134,21 @@ export function createPopOutWindow(): BrowserWindow {
     if (pendingFirstFrame && popOutWindow && !popOutWindow.isDestroyed()) {
       popOutWindow.webContents.send('pop-out:frame', pendingFirstFrame)
       pendingFirstFrame = null
+    }
+    // F-0514-6: start the heartbeat once the preload is wired. Fire one
+    // immediate ping so the renderer doesn't flash Disconnected before the
+    // first interval tick.
+    if (popOutWindow && !popOutWindow.isDestroyed()) {
+      popOutWindow.webContents.send('pop-out:ping')
+      if (heartbeatTimer) clearInterval(heartbeatTimer)
+      heartbeatTimer = setInterval(() => {
+        if (!popOutWindow || popOutWindow.isDestroyed()) {
+          if (heartbeatTimer) clearInterval(heartbeatTimer)
+          heartbeatTimer = null
+          return
+        }
+        popOutWindow.webContents.send('pop-out:ping')
+      }, HEARTBEAT_INTERVAL_MS)
     }
   })
 

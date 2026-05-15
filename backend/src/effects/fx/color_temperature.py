@@ -14,7 +14,7 @@ PARAMS: dict = {
         "default": 30.0,
         "label": "Temperature",
         "curve": "linear",
-        "unit": "K",
+        "unit": "",
         "description": "Color temp (-100 cool/blue to +100 warm/orange)",
     },
 }
