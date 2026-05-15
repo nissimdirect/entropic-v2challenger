@@ -38,6 +38,18 @@ SEED_MIN = 0
 SEED_MAX = 2**31 - 1
 VALID_SAMPLE_RATES = {8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000}
 
+# F-0514-12: structural hardening — mirrors the frontend validateProjectStructure
+# walk(). Project files are user-supplied data and routinely shared (collab,
+# presets, social), so deserialize is an attacker-controlled boundary. The
+# frontend defends with a depth/array/forbidden-key walk; the backend was
+# trusting the data after type-check only. These limits MUST stay consistent
+# with the corresponding constants in `frontend/src/renderer/project-persistence.ts`.
+MAX_JSON_DEPTH = 32
+MAX_KEYS_PER_NODE = 1024
+MAX_ARRAY_LENGTH = 10_000
+MAX_VERSION_STRING_LENGTH = 16
+FORBIDDEN_KEYS = frozenset({"__proto__", "constructor", "prototype"})
+
 
 def new_project(
     author: str = "", resolution: tuple[int, int] = (1920, 1080), fps: int = 30
@@ -67,9 +79,55 @@ def new_project(
     }
 
 
+def _walk_structure(node: object, depth: int, path: str) -> str | None:
+    """Recursive defense-in-depth walk. Returns the first violation or None.
+
+    Mirrors `walk` in frontend project-persistence.ts. Catches:
+    - excessive nesting (RecursionError risk)
+    - huge arrays (memory exhaustion)
+    - object-key bloat (memory + downstream key-lookup pathologies)
+    - forbidden keys (`__proto__`, `constructor`, `prototype`) — same surface
+      JS prototype-pollution defends; harmless but a signal of weaponized file
+    """
+    if depth > MAX_JSON_DEPTH:
+        return f"JSON nesting depth exceeds {MAX_JSON_DEPTH} at {path}"
+    if isinstance(node, list):
+        if len(node) > MAX_ARRAY_LENGTH:
+            return f"Array length {len(node)} exceeds {MAX_ARRAY_LENGTH} at {path}"
+        for i, item in enumerate(node):
+            reason = _walk_structure(item, depth + 1, f"{path}[{i}]")
+            if reason is not None:
+                return reason
+        return None
+    if isinstance(node, dict):
+        if len(node) > MAX_KEYS_PER_NODE:
+            return f"Object key count {len(node)} exceeds {MAX_KEYS_PER_NODE} at {path}"
+        for key in node:
+            if key in FORBIDDEN_KEYS:
+                return f"Forbidden key {key!r} at {path}"
+        for key, value in node.items():
+            reason = _walk_structure(value, depth + 1, f"{path}.{key}")
+            if reason is not None:
+                return reason
+    return None
+
+
 def validate(project: dict) -> list[str]:
     """Validate a project dict. Returns list of error strings (empty = valid)."""
     errors = []
+
+    # F-0514-12: structural defense BEFORE type-checks. A hostile file with
+    # huge arrays or deep nesting would crash later checks before reaching
+    # the user-facing error message.
+    version = project.get("version") if isinstance(project, dict) else None
+    if isinstance(version, str) and len(version) > MAX_VERSION_STRING_LENGTH:
+        errors.append(f"'version' field exceeds {MAX_VERSION_STRING_LENGTH} chars")
+        return errors
+
+    structure_error = _walk_structure(project, 0, "$")
+    if structure_error is not None:
+        errors.append(structure_error)
+        return errors
 
     missing = REQUIRED_KEYS - set(project.keys())
     if missing:

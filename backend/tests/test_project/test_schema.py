@@ -147,3 +147,78 @@ def test_deserialize_rejects_malformed_settings_with_clear_message():
     bad_json = serialize(p)
     with pytest.raises(ValueError, match=r"frameRate.*240"):
         deserialize(bad_json)
+
+
+# F-0514-12: structural defense — port of frontend walk() validation.
+
+
+def test_validate_rejects_deeply_nested_json():
+    """Hostile file with >32 levels of nesting must be rejected before type checks."""
+    p: dict = new_project()
+    cursor: dict = p
+    for _ in range(40):
+        cursor["nest"] = {}
+        cursor = cursor["nest"]
+    errors = validate(p)
+    assert any("nesting depth" in e.lower() for e in errors)
+
+
+def test_validate_rejects_huge_arrays():
+    """Arrays larger than 10_000 entries must be rejected."""
+    p = new_project()
+    p["timeline"]["markers"] = list(range(10_001))
+    errors = validate(p)
+    assert any("array length" in e.lower() for e in errors)
+
+
+def test_validate_rejects_forbidden_keys_proto():
+    """`__proto__` is a prototype-pollution signal; must be rejected."""
+    p = new_project()
+    p["assets"]["__proto__"] = {"id": "a", "path": "x", "meta": {}}
+    errors = validate(p)
+    assert any("__proto__" in e for e in errors)
+
+
+def test_validate_rejects_forbidden_keys_constructor():
+    p = new_project()
+    p["timeline"]["constructor"] = {"id": "x"}
+    errors = validate(p)
+    assert any("constructor" in e for e in errors)
+
+
+def test_validate_rejects_forbidden_keys_prototype_nested():
+    p = new_project()
+    p["timeline"]["tracks"] = [
+        {"id": "t1", "name": "t", "clips": [], "prototype": "evil"}
+    ]
+    errors = validate(p)
+    assert any("prototype" in e for e in errors)
+
+
+def test_validate_rejects_object_key_explosion():
+    """Objects with more than 1024 keys must be rejected (memory DoS guard)."""
+    p = new_project()
+    huge_assets = {
+        f"a{i}": {"id": f"a{i}", "path": "x", "meta": {}} for i in range(1025)
+    }
+    p["assets"] = huge_assets
+    errors = validate(p)
+    assert any("key count" in e.lower() for e in errors)
+
+
+def test_validate_rejects_overlong_version_string():
+    """Version strings longer than 16 chars indicate hostile input."""
+    p = new_project()
+    p["version"] = "9.9.9-" + "x" * 50
+    errors = validate(p)
+    assert any("version" in e.lower() for e in errors)
+
+
+def test_validate_accepts_normal_nesting_and_arrays():
+    """Sanity: real-world depth + reasonable array sizes pass."""
+    p = new_project()
+    p["timeline"]["markers"] = list(range(100))
+    p["timeline"]["tracks"] = [
+        {"id": f"t{i}", "name": f"Track {i}", "clips": []} for i in range(50)
+    ]
+    assert validate(p) == []

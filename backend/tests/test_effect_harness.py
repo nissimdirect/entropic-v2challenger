@@ -164,9 +164,24 @@ class TestEffectDeterminism:
         out2, _ = effect_info["fn"](
             frame.copy(), {}, None, frame_index=5, seed=42, resolution=resolution
         )
-        np.testing.assert_array_equal(
-            out1, out2, err_msg=f"Effect {effect_id} is not deterministic"
+        # F-0514-14 root cause: numpy 2.2.6's `np.testing.assert_array_equal`
+        # has a reporting bug on certain uint8 (H, W, 4) arrays — it formats
+        # one operand as an empty array even when the underlying data is
+        # equal. `np.array_equal`, `==`.all(), and `np.allclose` all agree
+        # the arrays match; only `assert_array_equal`'s diff path falters.
+        # Workaround: use `np.array_equal` and emit shape + first-mismatch
+        # diagnostics ourselves so future regressions still surface clearly.
+        assert out1.shape == out2.shape, (
+            f"Effect {effect_id} non-deterministic shapes: {out1.shape} vs {out2.shape}"
         )
+        if not np.array_equal(out1, out2):
+            diff = out1.astype(np.int16) - out2.astype(np.int16)
+            mismatch_idx = np.argwhere(diff != 0)[:5]
+            raise AssertionError(
+                f"Effect {effect_id} is not deterministic — "
+                f"max abs diff={np.max(np.abs(diff))}, "
+                f"first 5 mismatch indices: {mismatch_idx.tolist()}"
+            )
 
 
 @pytest.mark.smoke

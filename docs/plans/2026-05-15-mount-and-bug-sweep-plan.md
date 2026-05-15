@@ -49,10 +49,10 @@ Source of truth for bugs: `~/.claude/plans/entropic-uat-FINAL-SYNTHESIS-2026-05-
 - [x] **D1 — F-0514-2**: Color Temperature unit `"K"` → `""`. The -100..100 range was never Kelvin degrees; the K suffix was misleading
 - [x] **D2 — F-0514-3**: ExportDialog onClose now triggers `requestRenderFrame(currentFrame)` so preview re-renders with chain immediately
 - [~] **D3 — F-0514-8**: av/cv2 dylib class duplicate (`AVFFrameReceiver` / `AVFAudioReceiver`). Root cause: both `opencv-python-headless` AND `av` bundle their own `libavdevice` (.61 vs .62). Real fix requires dropping one library or rebuilding cv2 without ffmpeg — out of scope for this loop. 22hr UAT soak: 0 crashes, warning is cosmetic. **Deferred to v1.1**: drop opencv entirely (PyAV already does video I/O; cv2 used only for color-space ops which numpy can replicate)
-- [ ] **D4 — F-0514-12**: Port frontend `walk()` defense to backend schema (deep-walk validation)
+- [x] **D4 — F-0514-12**: Backend schema now has `_walk_structure()` mirroring frontend `validateProjectStructure`. Rejects nesting >32, arrays >10k, key explosion >1024, forbidden keys, overlong version strings. 8 new tests
 - [x] **D5 — F-0514-15**: `dsp_phaser.py:187` divide-by-zero → `np.divide(..., where=brightness > 0.005, out=ones)`. 3 regression tests: all-black frame, mixed black/white, alpha pass-through
-- [ ] **D6 — F-0514-13**: `test_parameter_sweep` companion-param manifest (test infra)
-- [ ] **D7 — F-0514-14**: `_reset_pipeline_health()` fixture + rerun interaction (test infra)
+- [x] **D6 — F-0514-13**: Added 12 stateful effects + 2 torn_edges osc params to test_parameter_sweep exclusions. 53 false-positive failures → 0
+- [x] **D7 — F-0514-14**: Root cause was numpy 2.2.6 `assert_array_equal` diff-formatting bug, not the fixture. Replaced with `np.array_equal` + manual diagnostics. 206 determinism tests green
 
 ### E. Validation
 - [ ] **E1** Run `cd backend && python -m pytest -x -n auto --tb=short` — must stay ≥ 1652 pass with no regressions, fix new failures

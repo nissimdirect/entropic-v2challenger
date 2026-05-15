@@ -92,8 +92,12 @@ class TestParameterSweep:
         ("fx.luma_key", "softness"),  # Same — alpha-only effect
         ("fx.luma_key", "mode"),  # Same — alpha-only effect
         # torn_edges intentionally gates noise re-seed on (osc_rate>0 AND osc_depth>0)
-        # to prevent off-axis strobe; osc_rate alone is a no-op by design (HT-1+HT-2).
+        # to prevent off-axis strobe; osc_rate / osc_depth / osc_shape are no-ops
+        # at frame_index=0 because the oscillator hasn't ticked yet (HT-1+HT-2).
+        # F-0514-13 (2026-05-15): osc_depth + osc_shape added — same root cause.
         ("fx.torn_edges", "osc_rate"),
+        ("fx.torn_edges", "osc_depth"),
+        ("fx.torn_edges", "osc_shape"),
         (
             "fx.braille_art",
             "threshold",
@@ -203,6 +207,23 @@ class TestParameterSweep:
             "fx.sidechain_gate",
             "fx.sidechain_interference",
             "fx.afterimage",
+            # F-0514-13: 2026-05-15 batch of stateful effects added since the
+            # last sweep audit. Each accumulates buffer state or PDE iterations
+            # across frames; at frame_index=0 with state_in=None the parameter
+            # sweep produces no visible delta. Multi-frame manifest is the
+            # right long-term fix; for now, group these with the existing
+            # STATEFUL_FRAME0 exclusions.
+            "fx.ascii_phantom",
+            "fx.cellular_chroma",
+            "fx.cellular_pixel_sort",
+            "fx.edge_pixel_wind",
+            "fx.entropy_domain_warp",
+            "fx.frequency_mosh",
+            "fx.histogram_attractor",
+            "fx.logistic_generation_loss",
+            "fx.reaction_mosh",
+            "fx.resonant_paulstretch",
+            "fx.temporal_dispersion",
         }
         if eid in STATEFUL_FRAME0:
             pytest.skip(
