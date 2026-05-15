@@ -42,6 +42,10 @@ export function buildMenu(mainWindow: BrowserWindow): void {
       { role: 'undo' },
       { role: 'redo' },
       { type: 'separator' },
+      // F-0514-18: surface the existing HistoryPanel (was orphaned in Phase 13C
+      // when EffectRack→DeviceChain refactor removed its sidebar mount).
+      { label: 'Undo History', click: () => sendAction(mainWindow, 'show-history') },
+      { type: 'separator' },
       { role: 'cut' },
       { role: 'copy' },
       { role: 'paste' },

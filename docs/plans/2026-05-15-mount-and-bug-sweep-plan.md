@@ -107,3 +107,15 @@ Total estimate: ~4 hours
 - Full operator-to-effect modulation runtime (already wired backend-side; UI is for editing config only)
 - New effects, new themes, new export codecs
 - Refactoring beyond what's needed for the fixes
+
+## Findings filed after this branch started (Loops 18-21)
+
+The parallel UAT session appended 4 new entries to the synthesis file between
+2026-05-15 14:16 and 16:41 (while my branch was already in-flight). Picked up
+in this PR where possible:
+
+- [ ] **F-0514-16 (P2)** — Freeze/Flatten orphaned in Phase 13C. `stores/freeze.ts` + `FreezeOverlay.tsx` + handlers all intact. EffectRack right-click was the only UI entry, removed when DeviceChain replaced it. **Deferred** — re-wiring needs API alignment between project-level `effectChain` and `freezeStore`'s per-track API (synthesis suggests architectural decision before re-mount). Tracked for a follow-up branch.
+- [x] **F-0514-17 (P2)** — Cmd+O / Cmd+N now check `isDirty` and present a 3-option "Unsaved Changes" prompt (Cancel / Discard Changes / Save & Continue). Save & Continue gates on `saveProject()` success so an aborted save dialog keeps the prompt up.
+- [x] **F-0514-18 (P3)** — Edit menu now has "Undo History" entry. HistoryPanel renders as a floating overlay (top-left, mirrors operators overlay layout) with × close affordance.
+- [x] **F-0514-2 reclassified P3 → P4** — synthesis notes "K" suffix is a unit label, not a Kelvin range claim. My earlier `unit: ""` change still stands (clearer than misleading "K").
+- [x] **Section 13 PerformancePanel correction** — synthesis confirms Performance Mode IS mounted (PERFORM dot → 16-pad grid). My A6 verification was correct; memory was wrong.

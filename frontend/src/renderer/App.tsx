@@ -18,7 +18,9 @@ import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
 import SpeedDialog from './components/timeline/SpeedDialog'
-// Phase 13C: HistoryPanel removed from sidebar
+// Phase 13C: HistoryPanel removed from sidebar.
+// F-0514-18 (2026-05-15): re-surfaced via Edit → Undo History menu (see menu.ts).
+import HistoryPanel from './components/layout/HistoryPanel'
 import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
@@ -188,6 +190,11 @@ function AppInner() {
   const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
   // Operators panel: re-mounted 2026-05-15 as floating overlay. Toggle with Cmd+Shift+O.
   const [showOperators, setShowOperators] = useState(false)
+  // F-0514-18: HistoryPanel re-surfaced via Edit → Undo History.
+  const [showHistory, setShowHistory] = useState(false)
+  // F-0514-17: discard-changes prompt before destructive nav (Cmd+O / Cmd+N).
+  // Pre-fix, Cmd+O silently overwrote unsaved work — real data-loss risk.
+  const [pendingNav, setPendingNav] = useState<null | { kind: 'open' | 'new' }>(null)
 
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
@@ -1225,8 +1232,17 @@ function AppInner() {
       switch (action) {
         case 'import-media': handleImportMedia(); break
         case 'add-text-track': handleAddTextTrack(); break
-        case 'new-project': handleNewProject(); break
-        case 'open-project': loadProject(undefined, () => initPreviewRef.current()); break
+        case 'new-project': {
+          // F-0514-17: gate destructive nav on isDirty.
+          if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'new' })
+          else handleNewProject()
+          break
+        }
+        case 'open-project': {
+          if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'open' })
+          else loadProject(undefined, () => initPreviewRef.current())
+          break
+        }
         case 'save': saveProject(); break
         case 'save-as': saveProject(); break
         case 'export': setShowExportDialog(true); break
@@ -1322,6 +1338,7 @@ function AppInner() {
           useTimelineStore.getState().setZoom(Math.max(0.5, (window.innerWidth * 0.6) / Math.max(1, dur)))
           break
         }
+        case 'show-history': setShowHistory(true); break
         case 'show-shortcuts':
           // F-0512-37: Help → Keyboard Shortcuts opens Preferences on the
           // Shortcuts tab instead of the default General tab.
@@ -2293,6 +2310,42 @@ function AppInner() {
         </div>
       )}
 
+      {/* F-0514-18: HistoryPanel floating overlay (Edit → Undo History). */}
+      {showHistory && (
+        <div
+          className="app__history-overlay"
+          style={{
+            position: 'fixed',
+            top: 60,
+            left: 16,
+            width: 320,
+            maxHeight: 'calc(100vh - 200px)',
+            overflowY: 'auto',
+            backgroundColor: '#1a1a1a',
+            border: '1px solid #333',
+            borderRadius: 6,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
+            zIndex: 1000,
+            padding: 12,
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <span style={{ color: '#aaa', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+              Undo History
+            </span>
+            <button
+              onClick={() => setShowHistory(false)}
+              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 18 }}
+              aria-label="Close history panel"
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
+          <HistoryPanel />
+        </div>
+      )}
+
       {/* Phase 13: Ableton-style Device Chain */}
       <div className="app__device-chain">
         <DeviceChain />
@@ -2439,6 +2492,58 @@ function AppInner() {
                 }}
               >
                 Save &amp; Quit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* F-0514-17: discard-changes prompt before Open / New Project. */}
+      {pendingNav && (
+        <div className="dialog-overlay">
+          <div className="dialog">
+            <div className="dialog__header">Unsaved Changes</div>
+            <p className="dialog__body">
+              You have unsaved changes. {pendingNav.kind === 'open' ? 'Opening another project' : 'Starting a new project'} will discard them.
+            </p>
+            <div className="dialog__actions">
+              <button
+                className="dialog__btn dialog__btn--secondary"
+                onClick={() => setPendingNav(null)}
+              >
+                Cancel
+              </button>
+              <button
+                className="dialog__btn dialog__btn--danger"
+                onClick={() => {
+                  const kind = pendingNav.kind
+                  setPendingNav(null)
+                  if (kind === 'open') {
+                    loadProject(undefined, () => initPreviewRef.current())
+                  } else {
+                    handleNewProject()
+                  }
+                }}
+              >
+                Discard Changes
+              </button>
+              <button
+                className="dialog__btn dialog__btn--primary"
+                onClick={async () => {
+                  const kind = pendingNav.kind
+                  const saved = await saveProject()
+                  // saveProject returns falsy if the user cancelled the save dialog —
+                  // in that case keep the prompt up so unsaved work doesn't vanish.
+                  if (!saved) return
+                  setPendingNav(null)
+                  if (kind === 'open') {
+                    loadProject(undefined, () => initPreviewRef.current())
+                  } else {
+                    handleNewProject()
+                  }
+                }}
+              >
+                Save &amp; Continue
               </button>
             </div>
           </div>
