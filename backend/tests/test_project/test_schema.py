@@ -54,3 +54,96 @@ def test_deserialize_invalid_json():
 def test_deserialize_missing_fields():
     with pytest.raises(ValueError, match="Invalid project"):
         deserialize('{"version": "2.0.0"}')
+
+
+# F-0514-10 + F-0514-11: numeric range validation at the project boundary.
+
+
+@pytest.mark.parametrize(
+    "bad_fps",
+    [0, -1, 241, 1000, float("nan"), float("inf"), float("-inf"), "30", None, True],
+)
+def test_validate_rejects_out_of_range_frame_rate(bad_fps):
+    p = new_project()
+    p["settings"]["frameRate"] = bad_fps
+    errors = validate(p)
+    assert any("frameRate" in e for e in errors), (
+        f"expected frameRate error for {bad_fps!r}, got {errors}"
+    )
+
+
+@pytest.mark.parametrize("good_fps", [1, 24, 30, 60, 120, 240, 29.97])
+def test_validate_accepts_in_range_frame_rate(good_fps):
+    p = new_project()
+    p["settings"]["frameRate"] = good_fps
+    assert validate(p) == []
+
+
+@pytest.mark.parametrize(
+    "bad_sr",
+    [0, 12345, -48000, 48000.5, "48000", None, True, float("nan")],
+)
+def test_validate_rejects_invalid_audio_sample_rate(bad_sr):
+    p = new_project()
+    p["settings"]["audioSampleRate"] = bad_sr
+    errors = validate(p)
+    assert any("audioSampleRate" in e for e in errors)
+
+
+@pytest.mark.parametrize("good_sr", [8000, 22050, 44100, 48000, 96000])
+def test_validate_accepts_standard_audio_sample_rates(good_sr):
+    p = new_project()
+    p["settings"]["audioSampleRate"] = good_sr
+    assert validate(p) == []
+
+
+@pytest.mark.parametrize(
+    "bad_volume",
+    [-0.1, 2.01, 10, float("nan"), float("inf"), "1.0", None, True],
+)
+def test_validate_rejects_invalid_master_volume(bad_volume):
+    p = new_project()
+    p["settings"]["masterVolume"] = bad_volume
+    errors = validate(p)
+    assert any("masterVolume" in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    "bad_seed",
+    [-1, 2**31, 2**63, 1.5, "0", None, True, float("nan")],
+)
+def test_validate_rejects_invalid_seed(bad_seed):
+    p = new_project()
+    p["settings"]["seed"] = bad_seed
+    errors = validate(p)
+    assert any("seed" in e for e in errors)
+
+
+@pytest.mark.parametrize(
+    "bad_resolution",
+    [
+        [0, 1080],
+        [1920, 0],
+        [-1, 1080],
+        [9000, 1080],
+        [1920],
+        [1920, 1080, 30],
+        "1920x1080",
+        None,
+        [1920.5, 1080],
+    ],
+)
+def test_validate_rejects_invalid_resolution(bad_resolution):
+    p = new_project()
+    p["settings"]["resolution"] = bad_resolution
+    errors = validate(p)
+    assert any("resolution" in e.lower() for e in errors)
+
+
+def test_deserialize_rejects_malformed_settings_with_clear_message():
+    """User-facing: deserialize should raise with a clear error pointing at the bad field."""
+    p = new_project()
+    p["settings"]["frameRate"] = 99999
+    bad_json = serialize(p)
+    with pytest.raises(ValueError, match=r"frameRate.*240"):
+        deserialize(bad_json)

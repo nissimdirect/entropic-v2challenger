@@ -22,6 +22,28 @@ const PROJECT_VERSION = '2.0.0'
 const PROJECT_VERSION_MAJOR = 2
 const MAX_RECENT_PROJECTS = 20
 
+// F-0514-10 + F-0514-11: numeric range guards mirrored from backend schema.py.
+// Type-only checks let pathological values through; UAT 2026-05-14 confirmed only
+// `clock_set_fps`'s guard_positive() caught fps<=0, so a malformed project loaded
+// successfully and crashed audio/render downstream.
+const FRAMERATE_MIN = 1
+const FRAMERATE_MAX = 240
+const RESOLUTION_MIN = 1
+const RESOLUTION_MAX = 8192
+const MASTER_VOLUME_MIN = 0
+const MASTER_VOLUME_MAX = 2
+const SEED_MIN = 0
+const SEED_MAX = 2 ** 31 - 1
+const VALID_SAMPLE_RATES = new Set([8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000])
+
+function isFiniteNumberInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+}
+
+function isIntegerInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max
+}
+
 // Project-file load hardening — defends against weaponized .glitch files.
 // Project files are routinely shared (collab, presets, social posts), so the
 // JSON.parse(readFile()) → validateProject path is an attacker-controlled boundary.
@@ -164,11 +186,19 @@ function validateProject(data: unknown): data is Project {
   if (typeof obj.created !== 'number') return false
   if (typeof obj.modified !== 'number') return false
 
-  // Settings validation
+  // Settings validation — type + range. Mirrors backend schema._validate_settings_ranges.
   const settings = obj.settings as Record<string, unknown>
   if (typeof settings !== 'object' || settings === null) return false
   if (!Array.isArray(settings.resolution) || settings.resolution.length !== 2) return false
-  if (typeof settings.frameRate !== 'number') return false
+  if (!isIntegerInRange(settings.resolution[0], RESOLUTION_MIN, RESOLUTION_MAX)) return false
+  if (!isIntegerInRange(settings.resolution[1], RESOLUTION_MIN, RESOLUTION_MAX)) return false
+  if (!isFiniteNumberInRange(settings.frameRate, FRAMERATE_MIN, FRAMERATE_MAX)) return false
+  if (settings.audioSampleRate !== undefined &&
+      !(typeof settings.audioSampleRate === 'number' && VALID_SAMPLE_RATES.has(settings.audioSampleRate))) return false
+  if (settings.masterVolume !== undefined &&
+      !isFiniteNumberInRange(settings.masterVolume, MASTER_VOLUME_MIN, MASTER_VOLUME_MAX)) return false
+  if (settings.seed !== undefined &&
+      !isIntegerInRange(settings.seed, SEED_MIN, SEED_MAX)) return false
 
   // Timeline validation
   const timeline = obj.timeline as Record<string, unknown>
