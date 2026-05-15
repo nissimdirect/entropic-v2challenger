@@ -43,11 +43,11 @@ Source of truth for bugs: `~/.claude/plans/entropic-uat-FINAL-SYNTHESIS-2026-05-
   - F-0514-5: Escape now calls `clearSelection()` before stop (App.tsx keydown handler)
   - F-0514-4: TransformPanel max-height tightened to `min(28vh, 320px)` + `flex-shrink: 1`; `.app__sidebar > .effect-browser` floored at `min-height: 200px`
   - F-0514-7: P4 downgrade per synthesis (single-click workaround exists). Drag-add deferred to v1.1 — not blocking ship
-- [ ] **C3 — F-0514-1**: delay-show "Frame render failed" toast by 200ms on import (race; auto-dismisses now, but flashes)
+- [x] **C3 — F-0514-1**: hide "Frame render failed" toast on first failure (auto-retry handles import-race). Toast only fires when empty-chain retry also fails — i.e. real failure
 
 ### D. P3 (nice-to-have — sweeping in this loop since user said all bugs)
-- [ ] **D1 — F-0514-2**: Color Temperature knob shows `30.00K` (Kelvin formatting — needs custom unit suffix)
-- [ ] **D2 — F-0514-3**: Preview shows un-effected frame briefly after Export dialog closes (re-render race)
+- [x] **D1 — F-0514-2**: Color Temperature unit `"K"` → `""`. The -100..100 range was never Kelvin degrees; the K suffix was misleading
+- [x] **D2 — F-0514-3**: ExportDialog onClose now triggers `requestRenderFrame(currentFrame)` so preview re-renders with chain immediately
 - [ ] **D3 — F-0514-8**: av/cv2 dylib conflict warning at runtime (suppress or root-cause OpenCV/PyAV linking)
 - [ ] **D4 — F-0514-12**: Port frontend `walk()` defense to backend schema (deep-walk validation)
 - [ ] **D5 — F-0514-15**: `dsp_phaser.py:187` divide-by-zero on all-black frame (guard zero variance)

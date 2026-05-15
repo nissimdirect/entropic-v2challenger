@@ -878,14 +878,12 @@ function AppInner() {
           }
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
-          useToastStore.getState().addToast({
-            level: 'error',
-            message: 'Frame render failed',
-            source: 'render',
-            details: res.error as string,
-          })
 
-          // Auto-retry once with empty chain to at least show raw frame
+          // F-0514-1: Auto-retry with empty chain handles the common
+          // import-race case where the sidecar isn't ready for the chain
+          // yet. Toast on EVERY first failure was producing a transient
+          // "Frame render failed" banner during normal import. Only toast
+          // when the auto-retry path is unavailable (already empty chain).
           if (chain.length > 0) {
             console.warn('[Render] retrying frame', frame, 'with empty chain')
             isRenderingRef.current = false
@@ -893,7 +891,13 @@ function AppInner() {
             return
           }
 
-          // Empty chain also failed — show error state
+          // Empty chain also failed — show error state AND toast (real failure).
+          useToastStore.getState().addToast({
+            level: 'error',
+            message: 'Frame render failed',
+            source: 'render',
+            details: res.error as string,
+          })
           setRenderError((res.error as string) ?? 'Render failed')
           setPreviewState('error')
         }
@@ -2342,7 +2346,12 @@ function AppInner() {
         loopIn={null}
         loopOut={null}
         onExport={handleExport}
-        onClose={() => setShowExportDialog(false)}
+        onClose={() => {
+          setShowExportDialog(false)
+          // F-0514-3: re-render the current frame so the preview doesn't
+          // momentarily show an un-effected frame during the dialog teardown.
+          requestRenderFrame(currentFrame)
+        }}
       />
 
       <Preferences
