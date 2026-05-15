@@ -39,9 +39,10 @@ Source of truth for bugs: `~/.claude/plans/entropic-uat-FINAL-SYNTHESIS-2026-05-
 ### C. P2 (before v1.1 — addressing in same PR since scope says "all bugs squashed")
 - [x] **C1 — F-0514-11**: range-check `seed` / `masterVolume` / `audioSampleRate` at project load
   - Same files as B1; clamp seed (0 ≤ x ≤ 2^31-1), masterVolume (0..2), audioSampleRate ∈ {8000,11025,16000,22050,32000,44100,48000,88200,96000}
-- [ ] **C2 — F-0514-4/5/7 cluster**: decouple clip-selection from sidebar layout
-  - Three findings filed as one root cause; single refactor PR per synthesis recommendation
-  - Investigate `useLayoutStore` ↔ clip-selection state link
+- [x] **C2 — F-0514-4/5/7 cluster**:
+  - F-0514-5: Escape now calls `clearSelection()` before stop (App.tsx keydown handler)
+  - F-0514-4: TransformPanel max-height tightened to `min(28vh, 320px)` + `flex-shrink: 1`; `.app__sidebar > .effect-browser` floored at `min-height: 200px`
+  - F-0514-7: P4 downgrade per synthesis (single-click workaround exists). Drag-add deferred to v1.1 — not blocking ship
 - [ ] **C3 — F-0514-1**: delay-show "Frame render failed" toast by 200ms on import (race; auto-dismisses now, but flashes)
 
 ### D. P3 (nice-to-have — sweeping in this loop since user said all bugs)

@@ -555,10 +555,19 @@ function AppInner() {
         return
       }
 
-      // Escape in normal mode → stop (reset playhead to 0)
-      // Dispatches custom event — handled by a separate useEffect with proper deps
+      // Escape in normal mode →
+      //   1) F-0514-5: if a clip is selected, clear selection (removes
+      //      TransformPanel from sidebar + lifts bounding-box handles).
+      //      Escape was bound only to transport-stop previously, leaving
+      //      no keyboard way to lose the clip selection.
+      //   2) Otherwise: dispatch the stop event (reset playhead).
       if (e.code === 'Escape') {
         e.preventDefault()
+        const ts = useTimelineStore.getState()
+        if (ts.selectedClipIds.length > 0) {
+          ts.clearSelection()
+          return
+        }
         window.dispatchEvent(new Event('entropic:stop'))
         return
       }
