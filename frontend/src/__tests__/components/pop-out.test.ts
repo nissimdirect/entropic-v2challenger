@@ -8,19 +8,20 @@ import { useLayoutStore } from '../../renderer/stores/layout'
 // --- Pop-out preload security tests ---
 
 describe('pop-out preload contract', () => {
-  it('exposes only onFrameUpdate and onClose (no invoke/send)', () => {
-    // The pop-out preload module exposes exactly two methods.
-    // This test documents the security contract — the pop-out window
-    // MUST NOT have access to ipcRenderer.invoke() or ipcRenderer.send().
-    const allowedKeys = ['onFrameUpdate', 'onClose']
-    // Since we can't import the preload in a renderer test context,
-    // we validate the contract shape that the pop-out window expects.
+  it('exposes only read-only API surfaces (no invoke/send)', () => {
+    // The pop-out preload module exposes exactly the read-only signal
+    // surfaces. RT-1 contract: the pop-out window MUST NOT have access to
+    // ipcRenderer.invoke() or ipcRenderer.send().
+    // F-0514-6 added onPing + getLastPingAt for heartbeat-based liveness.
+    const allowedKeys = ['onFrameUpdate', 'onClose', 'onPing', 'getLastPingAt']
     const popOutApi = {
       onFrameUpdate: (_cb: (dataUrl: string) => void) => {},
       onClose: (_cb: () => void) => {},
+      onPing: (_cb: () => void) => {},
+      getLastPingAt: (): number => 0,
     }
     const keys = Object.keys(popOutApi)
-    expect(keys).toEqual(allowedKeys)
+    expect(keys.sort()).toEqual([...allowedKeys].sort())
     expect(keys).not.toContain('invoke')
     expect(keys).not.toContain('send')
     expect(keys).not.toContain('sendCommand')
@@ -28,10 +29,11 @@ describe('pop-out preload contract', () => {
 
   it('does not expose sendCommand', () => {
     // RT-1: The pop-out preload must NOT expose sendCommand or invoke.
-    // This verifies the entropicPopOut shape has no command-sending capability.
     const popOutApi: Record<string, unknown> = {
       onFrameUpdate: () => {},
       onClose: () => {},
+      onPing: () => {},
+      getLastPingAt: () => 0,
     }
     expect('sendCommand' in popOutApi).toBe(false)
     expect('invoke' in popOutApi).toBe(false)

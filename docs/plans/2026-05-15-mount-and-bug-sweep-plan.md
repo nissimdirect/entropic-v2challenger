@@ -31,10 +31,10 @@ Source of truth for bugs: `~/.claude/plans/entropic-uat-FINAL-SYNTHESIS-2026-05-
   - Backend `backend/src/project/schema.py:56-86`: add `if not (1 <= settings["frameRate"] <= 240): errors.append(...)`
   - Frontend `frontend/src/renderer/project-persistence.ts:171`: range-check after type check
   - 2 tests: out-of-range fps rejected, edge cases (0, 241, NaN, -1)
-- [ ] **B2 — F-0514-6**: pop-out preview window "Disconnected" overlay regression
-  - Root-cause: PR #29 left IPC bridge un-re-established after pop-out window load
-  - Fix: ensure preload bridge fires on `did-finish-load` for child BrowserWindow
-  - Add 1 E2E: open pop-out → wait for connected state → not "Disconnected"
+- [x] **B2 — F-0514-6**: pop-out "Disconnected" false-positive
+  - Real root cause: the 2s disconnect timer used frame arrival as liveness proxy → pause = "Disconnected"
+  - Fix: main process sends `pop-out:ping` every 1s; preload exposes `onPing` + `getLastPingAt`; component shows Disconnected only when pings stop for >3.5s
+  - 5 new heartbeat tests + extended contract test (14 pop-out tests pass)
 
 ### C. P2 (before v1.1 — addressing in same PR since scope says "all bugs squashed")
 - [x] **C1 — F-0514-11**: range-check `seed` / `masterVolume` / `audioSampleRate` at project load
