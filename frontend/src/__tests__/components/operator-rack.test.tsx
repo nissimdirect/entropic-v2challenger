@@ -23,6 +23,8 @@ import { render, fireEvent, cleanup } from '@testing-library/react'
 }
 
 import OperatorRack from '../../renderer/components/operators/OperatorRack'
+import ModulationMatrix from '../../renderer/components/operators/ModulationMatrix'
+import RoutingLines from '../../renderer/components/operators/RoutingLines'
 import { useOperatorStore } from '../../renderer/stores/operators'
 import { useUndoStore } from '../../renderer/stores/undo'
 
@@ -70,5 +72,57 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
     const { container } = render(<OperatorRack {...baseProps} />)
     const card = container.querySelector('.operator-card')
     expect(card).not.toBeNull()
+  })
+})
+
+describe('ModulationMatrix mount (re-enabled 2026-05-15)', () => {
+  beforeEach(resetStores)
+  afterEach(cleanup)
+
+  it('shows empty-state hint when no operators or no effect targets', () => {
+    const { getByText } = render(
+      <ModulationMatrix effectChain={[]} registry={[]} operatorValues={{}} />,
+    )
+    expect(getByText(/add operators and effects/i)).toBeTruthy()
+  })
+
+  it('renders matrix header when both operators and effect targets exist', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const fakeRegistry = [
+      {
+        id: 'fx.test',
+        name: 'Test Effect',
+        category: 'test',
+        params: {
+          intensity: { type: 'float', label: 'Intensity', default: 0.5, min: 0, max: 1 },
+        },
+      } as any,
+    ]
+    const fakeChain = [{ id: 'inst-1', effectId: 'fx.test' }]
+    const { getByText } = render(
+      <ModulationMatrix
+        effectChain={fakeChain}
+        registry={fakeRegistry}
+        operatorValues={{}}
+      />,
+    )
+    expect(getByText('Modulation Matrix')).toBeTruthy()
+  })
+})
+
+describe('RoutingLines mount (re-enabled 2026-05-15)', () => {
+  beforeEach(resetStores)
+  afterEach(cleanup)
+
+  it('renders without crash when no operators exist', () => {
+    const { container } = render(<RoutingLines operatorValues={{}} />)
+    // It's an SVG overlay; rendering without throwing is the smoke check.
+    expect(container).toBeTruthy()
+  })
+
+  it('renders without crash when operators exist but have no mappings', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const { container } = render(<RoutingLines operatorValues={{ 'op-1': 0.5 }} />)
+    expect(container).toBeTruthy()
   })
 })

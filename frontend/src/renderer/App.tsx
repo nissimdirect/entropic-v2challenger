@@ -50,6 +50,8 @@ import { handlePadTrigger, releasePadWithCapture } from './components/performanc
 // Operators re-mounted 2026-05-15 (post-UAT synthesis). Backend already wires
 // serialized operators (see requestRenderFrame). UI panel toggle: Cmd+Shift+O.
 import OperatorRack from './components/operators/OperatorRack'
+import ModulationMatrix from './components/operators/ModulationMatrix'
+import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { resolveGhostValues } from './utils/resolveGhostValues'
@@ -2259,12 +2261,22 @@ function AppInner() {
               ×
             </button>
           </div>
-          <OperatorRack
-            effectChain={effectChain}
-            registry={registry}
-            operatorValues={operatorValues}
-            hasAudio={hasAudio}
-          />
+          <div style={{ position: 'relative' }}>
+            <RoutingLines operatorValues={operatorValues} />
+            <OperatorRack
+              effectChain={effectChain}
+              registry={registry}
+              operatorValues={operatorValues}
+              hasAudio={hasAudio}
+            />
+          </div>
+          <div style={{ marginTop: 12 }}>
+            <ModulationMatrix
+              effectChain={effectChain}
+              registry={registry}
+              operatorValues={operatorValues}
+            />
+          </div>
         </div>
       )}
 

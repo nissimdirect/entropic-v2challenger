@@ -20,9 +20,9 @@ Source of truth for bugs: `~/.claude/plans/entropic-uat-FINAL-SYNTHESIS-2026-05-
 - [x] **A1** Mount `OperatorRack` panel in App.tsx — mounted as floating overlay (not flag-gated; backend already serializes)
 - [x] **A2** Wire `OperatorRack` props from current state (effectChain, registry, operatorValues, hasAudio)
 - [x] **A3** Add `Cmd+Shift+O` shortcut + floating panel slot
-- [ ] **A4** Mount `ModulationMatrix` (drag-routing operator → effect-param)
-- [ ] **A5** Mount `RoutingLines` (visual mapping overlay)
-- [ ] **A6** Verify `PerformancePanel` toggle still works (`P` key, already mounted at App.tsx:2217)
+- [x] **A4** Mount `ModulationMatrix` (renders inside operators overlay, below OperatorRack)
+- [x] **A5** Mount `RoutingLines` (SVG overlay wrapping OperatorRack inside relative-positioned wrapper)
+- [x] **A6** Verify `PerformancePanel` toggle: import App.tsx:42, mount App.tsx:2227, toggle App.tsx:348 via `p` key — code intact
 - [x] **A7** Add 1 Vitest smoke: OperatorRack renders with empty operators array, addOperator triggers operator card (4 tests pass)
 - [ ] **A8** Add 1 Playwright E2E: open app → press feature-flag → toggle operators panel → add LFO → see card
 
