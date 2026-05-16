@@ -195,6 +195,13 @@ function AppInner() {
   // F-0514-17: discard-changes prompt before destructive nav (Cmd+O / Cmd+N).
   // Pre-fix, Cmd+O silently overwrote unsaved work — real data-loss risk.
   const [pendingNav, setPendingNav] = useState<null | { kind: 'open' | 'new' }>(null)
+  // RT-1: tracks an in-flight Save-and-Continue. Pre-lock, a user clicking
+  // Discard during the saveProject await could clobber the freshly-loaded
+  // project's projectPath/projectName/isDirty with the OLD project's metadata
+  // (the await write resolves AFTER loadProject hydrated the new stores, and
+  // saveProject finalizes the OLD path's bookkeeping onto whatever state is
+  // currently mounted). Locking all 3 buttons during the await closes the race.
+  const [isNavSaving, setIsNavSaving] = useState(false)
 
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
@@ -2576,7 +2583,9 @@ function AppInner() {
         </div>
       )}
 
-      {/* F-0514-17: discard-changes prompt before Open / New Project. */}
+      {/* F-0514-17: discard-changes prompt before Open / New Project.
+          RT-1: all three buttons are locked during a Save-and-Continue await
+          to close the data-clobber race surfaced in qa-redteam review. */}
       {pendingNav && (
         <div className="dialog-overlay">
           <div className="dialog">
@@ -2587,13 +2596,16 @@ function AppInner() {
             <div className="dialog__actions">
               <button
                 className="dialog__btn dialog__btn--secondary"
+                disabled={isNavSaving}
                 onClick={() => setPendingNav(null)}
               >
                 Cancel
               </button>
               <button
                 className="dialog__btn dialog__btn--danger"
+                disabled={isNavSaving}
                 onClick={() => {
+                  if (isNavSaving) return
                   const kind = pendingNav.kind
                   setPendingNav(null)
                   if (kind === 'open') {
@@ -2607,21 +2619,28 @@ function AppInner() {
               </button>
               <button
                 className="dialog__btn dialog__btn--primary"
+                disabled={isNavSaving}
                 onClick={async () => {
+                  if (isNavSaving) return
                   const kind = pendingNav.kind
-                  const saved = await saveProject()
-                  // saveProject returns falsy if the user cancelled the save dialog —
-                  // in that case keep the prompt up so unsaved work doesn't vanish.
-                  if (!saved) return
-                  setPendingNav(null)
-                  if (kind === 'open') {
-                    loadProject(undefined, () => initPreviewRef.current())
-                  } else {
-                    handleNewProject()
+                  setIsNavSaving(true)
+                  try {
+                    const saved = await saveProject()
+                    // saveProject returns falsy if the user cancelled the save
+                    // dialog — keep the prompt up so unsaved work doesn't vanish.
+                    if (!saved) return
+                    setPendingNav(null)
+                    if (kind === 'open') {
+                      loadProject(undefined, () => initPreviewRef.current())
+                    } else {
+                      handleNewProject()
+                    }
+                  } finally {
+                    setIsNavSaving(false)
                   }
                 }}
               >
-                Save &amp; Continue
+                {isNavSaving ? 'Saving…' : 'Save & Continue'}
               </button>
             </div>
           </div>
