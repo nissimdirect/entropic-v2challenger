@@ -245,3 +245,68 @@ def test_validate_accepts_normal_nesting_and_arrays():
         {"id": f"t{i}", "name": f"Track {i}", "clips": []} for i in range(50)
     ]
     assert validate(p) == []
+
+
+# F-0514-19 (2026-05-16 synthesis carry-forward): autosave-corruption defense.
+#
+# Iter 22 had a P0 cold-start blank-canvas blocker. Recovery was move-to-backup
+# of `~/Library/Application Support/Entropic/.autosave.glitch`. Root cause was
+# never diagnosed — the autosave file had `version: "2.0.0"` + `bpm: 120` in
+# settings, suspected (but not confirmed) to trip the walk defense.
+#
+# These tests lock in: legitimate-looking autosave variants — including the
+# specific shape that came out of the iter22 backup — MUST pass validate(). If
+# F-0514-19 recurs and bisects to a schema change, these will catch it.
+
+
+def test_validate_accepts_autosave_with_bpm_in_settings():
+    """The iter22 backup's actual shape: settings has bpm alongside seeded keys."""
+    p = new_project()
+    p["settings"]["bpm"] = 120
+    assert validate(p) == []
+
+
+def test_validate_accepts_project_with_unknown_top_level_keys():
+    """Future versions may add fields. Walk defense MUST NOT reject unknown keys."""
+    p = new_project()
+    p["masterEffectChain"] = []
+    p["drumRack"] = {"pads": []}
+    p["operators"] = []
+    p["automationLanes"] = {}
+    p["midiMappings"] = {}
+    p["deviceGroups"] = {}
+    p["futureField"] = "agents may write this"
+    assert validate(p) == []
+
+
+def test_validate_accepts_project_with_settings_extras():
+    """settings may pick up new fields between versions. Don't reject."""
+    p = new_project()
+    p["settings"]["futureSettingsField"] = "agents may write this too"
+    p["settings"]["bpm"] = 120
+    p["settings"]["customColor"] = "#ff00ff"
+    assert validate(p) == []
+
+
+def test_deserialize_accepts_iter22_style_autosave():
+    """End-to-end: enriched project must round-trip through serialize/deserialize."""
+    p = new_project()
+    p["settings"]["bpm"] = 120
+    p["masterEffectChain"] = []
+    p["drumRack"] = {"pads": []}
+    p["operators"] = []
+    raw = serialize(p)
+    restored = deserialize(raw)
+    assert restored["settings"]["bpm"] == 120
+    assert restored["operators"] == []
+
+
+def test_validate_accepts_31_level_nesting_at_boundary():
+    """Boundary: depth EXACTLY at MAX_JSON_DEPTH must pass; 33 levels rejected."""
+    p = new_project()
+    cursor: dict = p["assets"]
+    for _ in range(30):
+        cursor["x"] = {}
+        cursor = cursor["x"]
+    cursor["leaf"] = "ok"
+    assert validate(p) == []

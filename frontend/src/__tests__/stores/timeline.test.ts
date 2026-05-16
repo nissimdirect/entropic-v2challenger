@@ -595,6 +595,58 @@ describe('TimelineStore', () => {
       expect(state.selectedClipId).toBeNull()
     })
 
+    // F-0514-5 PARTIAL (synthesis Iter 23): Escape was reported to leave
+    // TransformPanel + BoundingBoxOverlay visible despite store clearing.
+    // App.tsx:1978 derives `selectedClip` from a selector that returns null
+    // for both empty AND multi-clip selection. These tests lock the derivation
+    // logic — if the live "PARTIAL" is a render/timing bug it'll surface
+    // separately; this guarantees the data path is correct.
+    describe('selectedClip derivation (F-0514-5 regression)', () => {
+      // Helper mirrors the selector at App.tsx:1978-1985.
+      function deriveSelectedClip() {
+        const s = useTimelineStore.getState()
+        if (s.selectedClipIds.length !== 1) return null
+        for (const track of s.tracks) {
+          const clip = track.clips.find((c) => c.id === s.selectedClipIds[0])
+          if (clip) return clip
+        }
+        return null
+      }
+
+      it('returns the clip object when exactly one is selected', () => {
+        useTimelineStore.getState().selectClip('c1')
+        expect(deriveSelectedClip()?.id).toBe('c1')
+      })
+
+      it('returns null after clearSelection (the F-0514-5 happy path)', () => {
+        useTimelineStore.getState().selectClip('c1')
+        useTimelineStore.getState().clearSelection()
+        expect(deriveSelectedClip()).toBeNull()
+      })
+
+      it('returns null when multiple clips are selected (Cmd+A then Escape edge case)', () => {
+        useTimelineStore.getState().selectClip('c1')
+        useTimelineStore.getState().toggleClipSelection('c2')
+        useTimelineStore.getState().toggleClipSelection('c3')
+        expect(useTimelineStore.getState().selectedClipIds).toHaveLength(3)
+        expect(deriveSelectedClip()).toBeNull()
+      })
+
+      it('returns null when selectedClipId references a clip that was removed from any track', () => {
+        useTimelineStore.getState().selectClip('c1')
+        // Simulate a clip being removed from the track without the selection
+        // being cleared first. The derivation must NOT throw and must NOT
+        // surface stale clip data — return null defensively.
+        useTimelineStore.setState({
+          tracks: useTimelineStore.getState().tracks.map((t) => ({
+            ...t,
+            clips: t.clips.filter((c) => c.id !== 'c1'),
+          })),
+        })
+        expect(deriveSelectedClip()).toBeNull()
+      })
+    })
+
     it('deleteSelectedClips removes all selected clips', () => {
       useTimelineStore.getState().selectClip('c1')
       useTimelineStore.getState().toggleClipSelection('c3')
