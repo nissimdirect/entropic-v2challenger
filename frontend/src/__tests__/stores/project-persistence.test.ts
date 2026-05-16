@@ -25,6 +25,8 @@ const mockEntropic = {
 import { useProjectStore } from '../../renderer/stores/project'
 import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useUndoStore } from '../../renderer/stores/undo'
+import { useOperatorStore } from '../../renderer/stores/operators'
+import { useAutomationStore } from '../../renderer/stores/automation'
 import {
   serializeProject,
   validateProject,
@@ -461,6 +463,214 @@ describe('hydrateStores', () => {
     hydrateStores(project as any)
 
     expect(useTimelineStore.getState().duration).toBe(120.5)
+  })
+})
+
+// Loop 52 — operators + automation roundtrip
+// Synthesis Iter 28/29 named this loop for Playwright; this covers the data
+// layer (serialize → hydrate) in vitest. Frame-diff visuals remain Playwright work.
+describe('Loop 52: operators + automation roundtrip via serialize → hydrate', () => {
+  beforeEach(() => {
+    useProjectStore.getState().resetProject()
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    useOperatorStore.getState().resetOperators()
+    useAutomationStore.getState().resetAutomation()
+    resetMocks()
+  })
+
+  it('serializeProject includes operators[] from the operator store', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    useOperatorStore.getState().addOperator('envelope')
+
+    const json = serializeProject()
+    const parsed = JSON.parse(json)
+
+    expect(Array.isArray(parsed.operators)).toBe(true)
+    expect(parsed.operators).toHaveLength(2)
+    expect(parsed.operators[0].type).toBe('lfo')
+    expect(parsed.operators[1].type).toBe('envelope')
+  })
+
+  it('hydrateStores restores operators with id + type + parameters preserved', () => {
+    const operatorPayload = [
+      {
+        id: 'lfo-roundtrip',
+        type: 'lfo',
+        label: 'Test LFO',
+        isEnabled: true,
+        parameters: { waveform: 'square', rate_hz: 2.5, phase_offset: 0.25 },
+        processing: [],
+        mappings: [],
+      },
+    ]
+    const project = makeValidProject({ operators: operatorPayload })
+
+    hydrateStores(project as any)
+
+    const restored = useOperatorStore.getState().operators
+    expect(restored).toHaveLength(1)
+    expect(restored[0].id).toBe('lfo-roundtrip')
+    expect(restored[0].type).toBe('lfo')
+    expect(restored[0].parameters.waveform).toBe('square')
+    expect(restored[0].parameters.rate_hz).toBe(2.5)
+  })
+
+  it('serialize → parse → hydrate restores operators round-trip', () => {
+    useOperatorStore.getState().addOperator('step_sequencer')
+    const before = useOperatorStore.getState().operators
+    expect(before).toHaveLength(1)
+    const originalId = before[0].id
+
+    const json = serializeProject()
+
+    useOperatorStore.getState().resetOperators()
+    expect(useOperatorStore.getState().operators).toHaveLength(0)
+
+    hydrateStores(JSON.parse(json))
+
+    const after = useOperatorStore.getState().operators
+    expect(after).toHaveLength(1)
+    expect(after[0].id).toBe(originalId)
+    expect(after[0].type).toBe('step_sequencer')
+  })
+
+  it('hydrateStores filters out malformed operators (missing required fields)', () => {
+    const operatorPayload = [
+      {
+        id: 'good',
+        type: 'lfo',
+        isEnabled: true,
+        parameters: {},
+        processing: [],
+        mappings: [],
+      },
+      { type: 'lfo', isEnabled: true, parameters: {}, processing: [], mappings: [] },
+      { id: 'bad-proc', type: 'lfo', isEnabled: true, parameters: {}, processing: null, mappings: [] },
+    ]
+    const project = makeValidProject({ operators: operatorPayload })
+
+    hydrateStores(project as any)
+
+    const restored = useOperatorStore.getState().operators
+    expect(restored).toHaveLength(1)
+    expect(restored[0].id).toBe('good')
+  })
+
+  it('serializeProject includes automationLanes keyed by trackId', () => {
+    useAutomationStore.setState({
+      lanes: {
+        'track-1': [
+          {
+            id: 'lane-1',
+            paramPath: 'effects.0.parameters.amount',
+            points: [
+              { time: 0, value: 0, curve: 0 },
+              { time: 5, value: 1, curve: 0 },
+            ],
+            isEnabled: true,
+            isTrigger: false,
+          },
+        ],
+      },
+    })
+
+    const json = serializeProject()
+    const parsed = JSON.parse(json)
+
+    expect(parsed.automationLanes).toBeDefined()
+    expect(parsed.automationLanes['track-1']).toHaveLength(1)
+    expect(parsed.automationLanes['track-1'][0].paramPath).toBe('effects.0.parameters.amount')
+    expect(parsed.automationLanes['track-1'][0].points).toHaveLength(2)
+  })
+
+  it('hydrateStores restores automation lanes with points sorted by time', () => {
+    const automationPayload = {
+      'track-X': [
+        {
+          id: 'lane-out-of-order',
+          paramPath: 'master.volume',
+          points: [
+            { time: 10, value: 0.5 },
+            { time: 0, value: 0.0 },
+            { time: 5, value: 1.0 },
+          ],
+          isEnabled: true,
+          isTrigger: false,
+        },
+      ],
+    }
+    const project = makeValidProject({ automationLanes: automationPayload })
+
+    hydrateStores(project as any)
+
+    const lanes = useAutomationStore.getState().lanes['track-X']
+    expect(lanes).toBeDefined()
+    expect(lanes).toHaveLength(1)
+    expect(lanes[0].points.map((p) => p.time)).toEqual([0, 5, 10])
+  })
+
+  it('hydrateStores filters out non-finite automation points (trust boundary)', () => {
+    const automationPayload = {
+      'track-Y': [
+        {
+          id: 'lane-mixed',
+          paramPath: 'master.volume',
+          points: [
+            { time: 0, value: 0.5 },
+            { time: Infinity, value: 0.8 },
+            { time: 5, value: NaN },
+            { time: 10, value: 1.0 },
+          ],
+          isEnabled: true,
+          isTrigger: false,
+        },
+      ],
+    }
+    const project = makeValidProject({ automationLanes: automationPayload })
+
+    hydrateStores(project as any)
+
+    const points = useAutomationStore.getState().lanes['track-Y'][0].points
+    expect(points).toHaveLength(2)
+    expect(points.map((p) => p.time)).toEqual([0, 10])
+  })
+
+  it('full roundtrip: operators + automation survive serialize → parse → hydrate together', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    useAutomationStore.setState({
+      lanes: {
+        'track-A': [
+          {
+            id: 'auto-1',
+            paramPath: 'effects.0.parameters.amount',
+            points: [
+              { time: 0, value: 0, curve: 0 },
+              { time: 2, value: 1, curve: 0 },
+            ],
+            isEnabled: true,
+            isTrigger: false,
+          },
+        ],
+      },
+    })
+
+    const json = serializeProject()
+    useOperatorStore.getState().resetOperators()
+    useAutomationStore.getState().resetAutomation()
+    hydrateStores(JSON.parse(json))
+
+    expect(useOperatorStore.getState().operators).toHaveLength(1)
+    expect(useAutomationStore.getState().lanes['track-A']).toBeDefined()
+    expect(useAutomationStore.getState().lanes['track-A']).toHaveLength(1)
+  })
+
+  it('legacy project without operators/automation fields hydrates without crash', () => {
+    const project = makeValidProject() // no operators / automationLanes fields
+
+    expect(() => hydrateStores(project as any)).not.toThrow()
+    expect(useOperatorStore.getState().operators).toEqual([])
+    expect(useAutomationStore.getState().lanes).toEqual({})
   })
 })
 
