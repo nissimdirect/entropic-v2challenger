@@ -16,11 +16,21 @@ export default function ModulationMatrix({
   const removeMapping = useOperatorStore((s) => s.removeMapping)
   const updateMapping = useOperatorStore((s) => s.updateMapping)
 
-  // Build list of all target params across chain
+  // Build list of all target params across chain.
+  // F-0516-9: prepend synthetic `_mix` target per effect so the dry/wet
+  // container mix is modulatable from the matrix. Backend routing.py reads
+  // `params._mix` and pipeline.py defers via setdefault so a routing-set
+  // value survives. Range is hard-coded [0,1] in routing._get_param_bounds.
   const targets: { effectId: string; effectName: string; paramKey: string; paramLabel: string }[] = []
   for (const fx of effectChain) {
     const info = registry.find((r) => r.id === fx.effectId)
     if (!info) continue
+    targets.push({
+      effectId: fx.id,
+      effectName: info.name,
+      paramKey: '_mix',
+      paramLabel: 'Mix',
+    })
     for (const [key, def] of Object.entries(info.params)) {
       if (def.type !== 'float' && def.type !== 'int') continue
       targets.push({

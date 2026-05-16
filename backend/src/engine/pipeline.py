@@ -175,9 +175,12 @@ def apply_chain(
                 level="warning",
             )
 
-        # Inject top-level mix into params as _mix for EffectContainer
+        # Inject top-level mix into params as _mix for EffectContainer.
+        # F-0516-9: setdefault preserves any routing-modulated _mix value so
+        # operator modulation of mix is honored. If routing did not set it,
+        # we fall back to the effect's base mix value.
         if "mix" in effect_instance:
-            params["_mix"] = effect_instance["mix"]
+            params.setdefault("_mix", effect_instance["mix"])
 
         effect_info = registry.get(effect_id)
         if effect_info is None:

@@ -81,7 +81,10 @@ describe('ModulationMatrix — empty states', () => {
     expect(container.querySelector('.mod-matrix--empty')).toBeTruthy()
   })
 
-  it('renders empty hint when only non-numeric params exist', () => {
+  it('still renders Mix column when effect has only non-numeric params (F-0516-9)', () => {
+    // Before F-0516-9 this case rendered the empty hint. Now every effect
+    // contributes a synthetic Mix target, so the matrix is non-empty even
+    // when the effect has only enum / choice params.
     useOperatorStore.getState().addOperator('lfo')
     const enumOnly: EffectInfo[] = [
       {
@@ -93,14 +96,15 @@ describe('ModulationMatrix — empty states', () => {
         },
       } as unknown as EffectInfo,
     ]
-    const { container } = render(
+    const { container, getByText } = render(
       <ModulationMatrix
         effectChain={[{ id: 'fx1', effectId: 'fx.invert' }]}
         registry={enumOnly}
         operatorValues={{}}
       />,
     )
-    expect(container.querySelector('.mod-matrix--empty')).toBeTruthy()
+    expect(container.querySelector('.mod-matrix--empty')).toBeNull()
+    expect(getByText('Mix')).toBeTruthy()
   })
 })
 
@@ -119,7 +123,7 @@ describe('ModulationMatrix — grid structure', () => {
     expect(container.querySelectorAll('tbody tr')).toHaveLength(2)
   })
 
-  it('renders one column per numeric param across the chain', () => {
+  it('renders one column per numeric param across the chain plus _mix per effect', () => {
     useOperatorStore.getState().addOperator('lfo')
     const { container } = render(
       <ModulationMatrix
@@ -131,9 +135,9 @@ describe('ModulationMatrix — grid structure', () => {
         operatorValues={{}}
       />,
     )
-    // Invert: amount (1) + Glitch: intensity, seed (2) = 3 numeric cols.
-    // Note: 'mode' is enum and filtered out.
-    expect(container.querySelectorAll('.mod-matrix__col-header')).toHaveLength(3)
+    // F-0516-9: Invert (mix + amount = 2) + Glitch (mix + intensity + seed = 3) = 5.
+    // 'mode' is enum/choice and filtered out.
+    expect(container.querySelectorAll('.mod-matrix__col-header')).toHaveLength(5)
   })
 
   it('disabled operators with no mappings are excluded; with mappings they appear', () => {
@@ -290,5 +294,94 @@ describe('ModulationMatrix — signal bar', () => {
     )
     const bar = container.querySelector('.mod-matrix__signal-bar') as HTMLElement
     expect(bar.style.width).toBe('0%')
+  })
+})
+
+describe('ModulationMatrix — F-0516-9 _mix synthetic target', () => {
+  it('first column per effect is the Mix target', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[{ id: 'fx1', effectId: 'fx.invert' }]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+      />,
+    )
+    const headers = container.querySelectorAll('.mod-matrix__col-header')
+    // Invert has 1 numeric param + 1 mix col = 2 headers. First should be "Mix".
+    expect(headers).toHaveLength(2)
+    const firstParamLabel = headers[0].querySelector('.mod-matrix__param-name')?.textContent
+    expect(firstParamLabel).toBe('Mix')
+  })
+
+  it('Mix target is per-effect (chain of 2 effects → 2 mix cols)', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[
+          { id: 'fx1', effectId: 'fx.invert' },
+          { id: 'fx2', effectId: 'fx.glitch' },
+        ]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+      />,
+    )
+    const mixLabels = Array.from(
+      container.querySelectorAll('.mod-matrix__param-name'),
+    ).filter((el) => el.textContent === 'Mix')
+    expect(mixLabels).toHaveLength(2)
+  })
+
+  it('clicking the Mix cell creates an operator mapping with paramKey=_mix', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const op = useOperatorStore.getState().operators[0]
+    // Simulate the mapping being created (the click handler is in cell — we
+    // assert routing endpoint rather than the click flow which depends on
+    // OperatorRack's "+ Add" gesture).
+    useOperatorStore.getState().addMapping(op.id, {
+      targetEffectId: 'fx1',
+      targetParamKey: '_mix',
+      depth: 1.0,
+      min: 0,
+      max: 1,
+      curve: 'linear',
+    })
+
+    const { container, getByText } = render(
+      <ModulationMatrix
+        effectChain={[{ id: 'fx1', effectId: 'fx.invert' }]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+      />,
+    )
+    expect(container.querySelector('.mod-matrix__cell--active')).toBeTruthy()
+    expect(getByText('100%')).toBeTruthy()
+  })
+
+  it('removing the mix mapping deactivates the cell', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const op = useOperatorStore.getState().operators[0]
+    useOperatorStore.getState().addMapping(op.id, {
+      targetEffectId: 'fx1',
+      targetParamKey: '_mix',
+      depth: 0.5,
+      min: 0,
+      max: 1,
+      curve: 'linear',
+    })
+
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[{ id: 'fx1', effectId: 'fx.invert' }]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+      />,
+    )
+    fireEvent.click(container.querySelector('.mod-matrix__remove-btn') as HTMLElement)
+    expect(
+      useOperatorStore
+        .getState()
+        .operators[0].mappings.filter((m) => m.targetParamKey === '_mix'),
+    ).toHaveLength(0)
   })
 })
