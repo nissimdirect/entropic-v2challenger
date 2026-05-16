@@ -718,7 +718,7 @@ Scenario: Rename [PARTIAL] [BUG-11]
 
 ```gherkin
 Scenario: Add marker [IMPL]
-  When Cmd+M pressed at 1.5s
+  When M pressed at 1.5s
   Then green triangle appears on ruler
 
 Scenario: Navigate [IMPL]
@@ -1437,7 +1437,7 @@ Scenario: Undo history list [TODO — not tested]
 | Cmd+E | export | `[IMPL]` |
 | Cmd+T | add_text_track | `[IMPL]` |
 | Cmd+K | split_at_playhead | `[IMPL]` |
-| Cmd+M | add_marker | `[IMPL]` |
+| M | add_marker | `[IMPL]` |
 | Cmd+=/- /0 | zoom in/out/fit | `[IMPL]` |
 | I/O | loop in/out | `[IMPL]` |
 | Cmd+B | toggle_sidebar | `[IMPL]` |

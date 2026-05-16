@@ -23,7 +23,7 @@
 11. "New Project" clears everything
 12. Autosave every 60 seconds (non-blocking)
 13. Loop region (set in/out, playback loops)
-14. Markers (Cmd+M to add at playhead)
+14. Markers (M to add at playhead)
 15. Security: project file validation on load (SEC-12)
 
 ---

@@ -97,3 +97,52 @@ describe('ShortcutRegistry', () => {
     expect(callback).not.toHaveBeenCalled()
   })
 })
+
+// F-0516-8: Cmd+M is reserved by macOS Window→Minimize. The add_marker binding
+// is bare 'm' to avoid that conflict (DaVinci / Premiere / Final Cut convention).
+describe('F-0516-8: add_marker binding does not conflict with macOS Cmd+M', () => {
+  it('add_marker effective key is bare m', () => {
+    expect(shortcutRegistry.getEffectiveKey('add_marker')).toBe('m')
+  })
+
+  it('bare m keypress dispatches to add_marker handler', () => {
+    const callback = vi.fn()
+    shortcutRegistry.register('add_marker', callback)
+
+    const e = new KeyboardEvent('keydown', { key: 'm' })
+    shortcutRegistry.handleKeyEvent(e)
+
+    expect(callback).toHaveBeenCalledOnce()
+    shortcutRegistry.unregister('add_marker')
+  })
+
+  it('meta+m no longer dispatches to add_marker (lets macOS minimize through)', () => {
+    const callback = vi.fn()
+    shortcutRegistry.register('add_marker', callback)
+
+    const e = new KeyboardEvent('keydown', { key: 'm', metaKey: true })
+    shortcutRegistry.handleKeyEvent(e)
+
+    expect(callback).not.toHaveBeenCalled()
+    shortcutRegistry.unregister('add_marker')
+  })
+
+  it('m keypress in text-input context is skipped (does not add marker mid-typing)', () => {
+    const callback = vi.fn()
+    shortcutRegistry.register('add_marker', callback)
+
+    const e = new KeyboardEvent('keydown', { key: 'm' })
+    Object.defineProperty(e, 'target', {
+      value: { tagName: 'INPUT', isContentEditable: false },
+    })
+    shortcutRegistry.handleKeyEvent(e)
+
+    expect(callback).not.toHaveBeenCalled()
+    shortcutRegistry.unregister('add_marker')
+  })
+
+  it('m does not collide with another shortcut in the defaults', () => {
+    // getConflicts excluding add_marker should return empty for 'm'
+    expect(shortcutRegistry.getConflicts('m', 'add_marker')).toEqual([])
+  })
+})

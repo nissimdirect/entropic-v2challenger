@@ -77,7 +77,7 @@ If it's not stable, it doesn't ship. If it's not intuitive, it gets redesigned. 
 - **Track controls:** Opacity, blend mode (9 modes), mute, solo
 - **Per-track effect chain:** Independent effect rack per track
 - **Loop region:** Set in/out points, playback loops
-- **Markers:** Cmd+M to add, color-coded
+- **Markers:** M to add, color-coded
 - **Phase:** 4
 
 ### 2.6 Modulation System
