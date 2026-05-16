@@ -21,8 +21,17 @@
 .welcome-screen__recent-item {
   padding: 8px 12px; border-radius: 4px; cursor: pointer; display: flex; justify-content: space-between;
   color: #e0e0e0; font-size: 13px;
+  /* F-0516-4: <button> element needs explicit reset or it inherits native
+     macOS white background, making the #e0e0e0 text unreadable. */
+  background: transparent; border: 1px solid transparent; text-align: left;
+  width: 100%; font-family: inherit;
 }
-.welcome-screen__recent-item:hover { background: #333; }
-.welcome-screen__recent-name { font-weight: 500; }
-.welcome-screen__recent-time { color: #888; font-size: 12px; }
+.welcome-screen__recent-item:hover { background: #333; border-color: #555; }
+.welcome-screen__recent-name { font-weight: 500; color: #e0e0e0; flex: 0 0 auto; }
+.welcome-screen__recent-path {
+  /* F-0516-4: was undeclared, inherited from button default. */
+  color: #888; font-size: 11px; flex: 1 1 auto; margin: 0 12px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left;
+}
+.welcome-screen__recent-time { color: #888; font-size: 12px; flex: 0 0 auto; }
 .welcome-screen__empty { color: #555; font-size: 13px; }
