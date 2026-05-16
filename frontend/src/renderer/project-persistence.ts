@@ -52,7 +52,10 @@ const MAX_JSON_DEPTH = 32
 const MAX_KEYS_PER_NODE = 1024
 const MAX_ARRAY_LENGTH = 10_000
 const MAX_VERSION_STRING_LENGTH = 16
-const FORBIDDEN_KEYS = new Set(['__proto__', 'constructor', 'prototype'])
+// RT-4: case-INsensitive match so a weaponized .glitch with `__PROTO__`,
+// `Constructor`, etc. cannot bypass the prototype-pollution defense. Mirrors
+// backend schema.py's FORBIDDEN_KEY_PATTERN.
+const FORBIDDEN_KEY_PATTERN = /^(__proto__|constructor|prototype)$/i
 
 interface StructureCheckResult {
   valid: boolean
@@ -96,7 +99,7 @@ export function validateProjectStructure(data: unknown): StructureCheckResult {
         return `Object key count ${keys.length} exceeds ${MAX_KEYS_PER_NODE} at ${path}`
       }
       for (const key of keys) {
-        if (FORBIDDEN_KEYS.has(key)) {
+        if (FORBIDDEN_KEY_PATTERN.test(key)) {
           return `Forbidden key "${key}" at ${path}`
         }
       }

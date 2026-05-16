@@ -14,5 +14,12 @@
     "resolveJsonModule": true,
     "lib": ["ESNext", "DOM", "DOM.Iterable"]
   },
-  "include": ["src/renderer/**/*", "src/shared/**/*", "src/shared/**/*.json", "src/__tests__/**/*"]
+  "include": [
+    "src/renderer/**/*",
+    "src/shared/**/*",
+    "src/shared/**/*.json",
+    "src/__tests__/**/*",
+    "src/preload/**/*",
+    "src/main/**/*"
+  ]
 }

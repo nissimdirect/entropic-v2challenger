@@ -62,7 +62,8 @@ import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
 import PresetSaveDialog from './components/library/PresetSaveDialog'
 import { useLibraryStore } from './stores/library'
-import { useFreezeStore, MASTER_TRACK_ID } from './stores/freeze'
+import { useFreezeStore } from './stores/freeze'
+import { MASTER_TRACK_ID } from '../shared/limits'
 import { useToastStore } from './stores/toast'
 import { useLayoutStore } from './stores/layout'
 import Toast from './components/common/Toast'
@@ -73,6 +74,7 @@ import './styles/transport.css'
 import './styles/timeline.css'
 import './styles/performance.css'
 import './styles/operators.css'
+import './styles/floating-panel.css'
 import './styles/automation.css'
 import './styles/library.css'
 import './styles/toast.css'
@@ -2343,29 +2345,14 @@ function AppInner() {
       )}
 
       {/* Operators panel: re-mounted 2026-05-15. Floating overlay so it doesn't
-          push the timeline. Backend already serializes operators in requestRenderFrame. */}
+          push the timeline. Backend already serializes operators in requestRenderFrame.
+          V1 (2026-05-16): inline styles → `.floating-panel--right` BEM block. */}
       {showOperators && (
-        <div
-          className="app__operators-overlay"
-          style={{
-            position: 'fixed',
-            top: 60,
-            right: 16,
-            width: 360,
-            maxHeight: 'calc(100vh - 200px)',
-            overflowY: 'auto',
-            backgroundColor: '#1a1a1a',
-            border: '1px solid #333',
-            borderRadius: 6,
-            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-            zIndex: 1000,
-            padding: 12,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
+        <div className="floating-panel floating-panel--right">
+          <div className="floating-panel__header" style={{ justifyContent: 'flex-end' }}>
             <button
+              className="floating-panel__close-btn"
               onClick={() => setShowOperators(false)}
-              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 18 }}
               aria-label="Close operators panel"
               title="Close (Cmd+Shift+O)"
             >
@@ -2391,34 +2378,17 @@ function AppInner() {
         </div>
       )}
 
-      {/* F-0514-18: HistoryPanel floating overlay (Edit → Undo History). */}
+      {/* F-0514-18: HistoryPanel floating overlay (Edit → Undo History).
+          V1 (2026-05-16): inline styles → `.floating-panel--left` BEM block. */}
       {showHistory && (
-        <div
-          className="app__history-overlay"
-          style={{
-            position: 'fixed',
-            top: 60,
-            left: 16,
-            width: 320,
-            maxHeight: 'calc(100vh - 200px)',
-            overflowY: 'auto',
-            backgroundColor: '#1a1a1a',
-            border: '1px solid #333',
-            borderRadius: 6,
-            boxShadow: '0 4px 24px rgba(0,0,0,0.5)',
-            zIndex: 1000,
-            padding: 12,
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-            <span style={{ color: '#aaa', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-              Undo History
-            </span>
+        <div className="floating-panel floating-panel--left">
+          <div className="floating-panel__header">
+            <span className="floating-panel__title">Undo History</span>
             <button
+              className="floating-panel__close-btn"
               onClick={() => setShowHistory(false)}
-              style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', fontSize: 18 }}
               aria-label="Close history panel"
-              title="Close"
+              title="Close (Edit → Undo History)"
             >
               ×
             </button>

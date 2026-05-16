@@ -75,6 +75,34 @@ describe('validateProjectStructure', () => {
     expect(result.reason).toMatch(/prototype/)
   })
 
+  // RT-4 (2026-05-16 red-team): FORBIDDEN_KEY_PATTERN matches case-insensitively
+  // so a .glitch with `__PROTO__` / `Constructor` / `PROTOTYPE` can't bypass.
+  it.each([
+    '__PROTO__',
+    '__Proto__',
+    'Constructor',
+    'CONSTRUCTOR',
+    'Prototype',
+    'PROTOTYPE',
+  ])('rejects forbidden key with mixed case: %s', (badKey) => {
+    const data = JSON.parse(`{"version":"2.0.0","payload":{"${badKey}":"evil"}}`)
+    const result = validateProjectStructure(data)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toMatch(new RegExp(badKey))
+  })
+
+  it('does NOT reject keys that merely contain forbidden substrings (over-rejection guard)', () => {
+    const data = {
+      version: '2.0.0',
+      payload: {
+        my__proto__field: 'safe',
+        constructor_helper: 'also safe',
+        prototype_label: 'also safe',
+      },
+    }
+    expect(validateProjectStructure(data).valid).toBe(true)
+  })
+
   it('rejects arrays larger than 10000', () => {
     const huge = new Array(10_001).fill(0)
     const data = { version: '2.0.0', huge }

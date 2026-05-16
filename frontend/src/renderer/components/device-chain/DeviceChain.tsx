@@ -2,8 +2,8 @@ import { useCallback, useState } from 'react'
 import { useProjectStore } from '../../stores/project'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
-import { useFreezeStore, MASTER_TRACK_ID } from '../../stores/freeze'
-import { LIMITS } from '../../../shared/limits'
+import { useFreezeStore } from '../../stores/freeze'
+import { LIMITS, MASTER_TRACK_ID } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import ContextMenu from '../timeline/ContextMenu'
 import type { MenuItem } from '../timeline/ContextMenu'
@@ -74,7 +74,11 @@ export default function DeviceChain({
       e.preventDefault()
       setIsDragOver(false)
       const effectId = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
-      if (!effectId) return
+      // RT-3: cap defensively at 64 chars. Real effect IDs are <32 chars; an
+      // XSS-in-renderer (or future hostile drag source) writing a multi-MB
+      // string into dataTransfer would otherwise force a full registry scan
+      // on an obviously bogus payload.
+      if (!effectId || effectId.length > 64) return
       if (effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return
       const info = registry.find((r) => r.id === effectId)
       if (!info) return

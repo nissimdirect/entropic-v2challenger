@@ -11,3 +11,15 @@ export const LIMITS = {
   MAX_COMPOSITOR_LAYERS: 32,
   MAX_EFFECTS_PER_CHAIN: 10,
 } as const
+
+/**
+ * Synthetic trackId for the v2 project-level effect chain. The freeze store
+ * was designed for per-track chains; v2 collapsed effectChain onto the
+ * project store (one chain applied to whatever is rendering). UI call sites
+ * use this constant; the freeze store's `frozenPrefixes: Record<trackId, ...>`
+ * shape stays track-keyed so the existing test suite keeps passing and a
+ * future per-track architecture can slot in without re-plumbing. V3 from the
+ * 2026-05-15 red-team review: hoisted from `stores/freeze.ts` to break the
+ * "constant defined in a store file" coupling.
+ */
+export const MASTER_TRACK_ID = 'master'

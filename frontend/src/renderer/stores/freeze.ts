@@ -1,14 +1,10 @@
 import { create } from 'zustand'
 
-/**
- * Synthetic trackId used by v2's project-level chain. The freeze store
- * was designed for per-track chains; v2 collapsed effectChain onto the
- * project store (one chain applied to whatever is rendering). UI call
- * sites use this constant; the store shape stays track-keyed to keep
- * the existing test suite passing while project-level usage stays
- * unambiguous. F-0514-16 (2026-05-15): re-wire after Phase 13C orphan.
- */
-export const MASTER_TRACK_ID = 'master'
+// V3 (2026-05-16 red-team review): MASTER_TRACK_ID moved to shared/limits.ts
+// to break the "constant defined in a store file" coupling. Re-exported here
+// for backward compatibility with consumers that may have imported it via
+// this file in flight.
+export { MASTER_TRACK_ID } from '../../shared/limits'
 
 interface FreezeInfo {
   cacheId: string

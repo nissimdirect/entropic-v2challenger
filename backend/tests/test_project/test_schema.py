@@ -195,6 +195,29 @@ def test_validate_rejects_forbidden_keys_prototype_nested():
     assert any("prototype" in e for e in errors)
 
 
+# RT-4 (2026-05-16): FORBIDDEN_KEY_PATTERN is case-INsensitive — a malicious
+# .glitch can't bypass the prototype-pollution defense with mixed casing.
+@pytest.mark.parametrize(
+    "bad_key",
+    ["__PROTO__", "__Proto__", "Constructor", "CONSTRUCTOR", "Prototype", "PROTOTYPE"],
+)
+def test_validate_rejects_forbidden_keys_case_insensitive(bad_key):
+    p = new_project()
+    p["assets"][bad_key] = {"id": "x", "path": "x", "meta": {}}
+    errors = validate(p)
+    assert any(bad_key in e for e in errors), (
+        f"expected {bad_key} to be rejected, got {errors}"
+    )
+
+
+def test_validate_accepts_keys_that_only_contain_forbidden_substrings():
+    """Lookalikes that AREN'T exact forbidden names should pass — substring match would over-reject."""
+    p = new_project()
+    p["assets"]["my__proto__field"] = {"id": "ok", "path": "x", "meta": {}}
+    p["assets"]["constructor_helper"] = {"id": "ok2", "path": "x", "meta": {}}
+    assert validate(p) == []
+
+
 def test_validate_rejects_object_key_explosion():
     """Objects with more than 1024 keys must be rejected (memory DoS guard)."""
     p = new_project()
