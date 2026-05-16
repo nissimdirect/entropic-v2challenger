@@ -200,3 +200,47 @@ describe('useProjectStore — BPM', () => {
     expect(useProjectStore.getState().bpm).toBe(120) // unchanged
   })
 })
+
+// HT-4 (2026-05-16): project-level seed for deterministic renders + freeze caches.
+describe('useProjectStore — seed (HT-4)', () => {
+  beforeEach(() => {
+    useProjectStore.setState({ seed: 0 })
+  })
+
+  it('defaults to 0', () => {
+    expect(useProjectStore.getState().seed).toBe(0)
+  })
+
+  it('setSeed accepts valid integers in [0, 2^31-1]', () => {
+    useProjectStore.getState().setSeed(42)
+    expect(useProjectStore.getState().seed).toBe(42)
+    useProjectStore.getState().setSeed(2147483647)
+    expect(useProjectStore.getState().seed).toBe(2147483647)
+    useProjectStore.getState().setSeed(0)
+    expect(useProjectStore.getState().seed).toBe(0)
+  })
+
+  it('setSeed rejects out-of-range values', () => {
+    useProjectStore.setState({ seed: 100 })
+    useProjectStore.getState().setSeed(-1)
+    expect(useProjectStore.getState().seed).toBe(100) // unchanged
+    useProjectStore.getState().setSeed(2147483648)
+    expect(useProjectStore.getState().seed).toBe(100) // unchanged
+  })
+
+  it('setSeed rejects non-integers', () => {
+    useProjectStore.setState({ seed: 100 })
+    useProjectStore.getState().setSeed(3.14)
+    expect(useProjectStore.getState().seed).toBe(100)
+    useProjectStore.getState().setSeed(NaN)
+    expect(useProjectStore.getState().seed).toBe(100)
+    useProjectStore.getState().setSeed(Infinity)
+    expect(useProjectStore.getState().seed).toBe(100)
+  })
+
+  it('resetProject restores seed to default 0', () => {
+    useProjectStore.getState().setSeed(999)
+    useProjectStore.getState().resetProject()
+    expect(useProjectStore.getState().seed).toBe(0)
+  })
+})

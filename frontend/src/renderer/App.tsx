@@ -41,6 +41,7 @@ import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
 import CrashRecoveryDialog from './components/dialogs/CrashRecoveryDialog'
 import FeedbackDialog from './components/dialogs/FeedbackDialog'
+import UnsavedChangesDialog from './components/dialogs/UnsavedChangesDialog'
 import PerformancePanel from './components/performance/PerformancePanel'
 import PadEditor from './components/performance/PadEditor'
 import { usePerformanceStore } from './stores/performance'
@@ -125,6 +126,10 @@ const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.fla
 
 function AppInner() {
   const { status, uptime } = useEngineStore()
+  // HT-4: project-level seed (reactive). Replaces 3 sites that previously used
+  // `Date.now() % 2147483647` — those produced non-deterministic renders and
+  // freeze cache-ids that could collide across re-freezes.
+  const projectSeed = useProjectStore((s) => s.seed)
   const {
     assets,
     effectChain,
@@ -849,7 +854,7 @@ function AppInner() {
             cmd: 'render_composite',
             layers,
             resolution: [canvasW || frameWidth || 1920, canvasH || frameHeight || 1080],
-            project_seed: Date.now() % 2147483647,
+            project_seed: projectSeed,
           })
         } else {
           // Single video clip — use fast render_frame path
@@ -866,7 +871,7 @@ function AppInner() {
             path: singleAssetPath || activeAssetPath.current,
             frame_index: clipFrame,
             chain: serializeEffectChain(chain),
-            project_seed: Date.now() % 2147483647,
+            project_seed: projectSeed,
             ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
             ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
@@ -1444,7 +1449,7 @@ function AppInner() {
         cutIndex,
         activeAssetPath.current,
         prefix,
-        Date.now() % 2147483647,
+        projectSeed,
         totalFrames,
         [frameWidth || 1920, frameHeight || 1080],
       )
@@ -2537,105 +2542,66 @@ function AppInner() {
         )
       })()}
 
-      {showCloseDialog && (
-        <div className="dialog-overlay">
-          <div className="dialog">
-            <div className="dialog__header">Unsaved Changes</div>
-            <p className="dialog__body">You have unsaved changes. What would you like to do?</p>
-            <div className="dialog__actions">
-              <button
-                className="dialog__btn dialog__btn--secondary"
-                onClick={() => setShowCloseDialog(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="dialog__btn dialog__btn--danger"
-                onClick={() => {
-                  setShowCloseDialog(false)
-                  window.entropic.confirmClose()
-                }}
-              >
-                Don&apos;t Save
-              </button>
-              <button
-                className="dialog__btn dialog__btn--primary"
-                onClick={async () => {
-                  await saveProject()
-                  setShowCloseDialog(false)
-                  window.entropic.confirmClose()
-                }}
-              >
-                Save &amp; Quit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Consolidated 2026-05-16: both "Unsaved Changes" gates use
+          UnsavedChangesDialog — was previously two near-identical inline
+          dialogs (close-app vs pendingNav). */}
+      <UnsavedChangesDialog
+        open={showCloseDialog}
+        body="You have unsaved changes. What would you like to do?"
+        saveLabel="Save & Quit"
+        onCancel={() => setShowCloseDialog(false)}
+        onDiscard={() => {
+          setShowCloseDialog(false)
+          window.entropic.confirmClose()
+        }}
+        onSaveAndContinue={async () => {
+          await saveProject()
+          setShowCloseDialog(false)
+          window.entropic.confirmClose()
+        }}
+      />
 
-      {/* F-0514-17: discard-changes prompt before Open / New Project.
-          RT-1: all three buttons are locked during a Save-and-Continue await
-          to close the data-clobber race surfaced in qa-redteam review. */}
-      {pendingNav && (
-        <div className="dialog-overlay">
-          <div className="dialog">
-            <div className="dialog__header">Unsaved Changes</div>
-            <p className="dialog__body">
-              You have unsaved changes. {pendingNav.kind === 'open' ? 'Opening another project' : 'Starting a new project'} will discard them.
-            </p>
-            <div className="dialog__actions">
-              <button
-                className="dialog__btn dialog__btn--secondary"
-                disabled={isNavSaving}
-                onClick={() => setPendingNav(null)}
-              >
-                Cancel
-              </button>
-              <button
-                className="dialog__btn dialog__btn--danger"
-                disabled={isNavSaving}
-                onClick={() => {
-                  if (isNavSaving) return
-                  const kind = pendingNav.kind
-                  setPendingNav(null)
-                  if (kind === 'open') {
-                    loadProject(undefined, () => initPreviewRef.current())
-                  } else {
-                    handleNewProject()
-                  }
-                }}
-              >
-                Discard Changes
-              </button>
-              <button
-                className="dialog__btn dialog__btn--primary"
-                disabled={isNavSaving}
-                onClick={async () => {
-                  if (isNavSaving) return
-                  const kind = pendingNav.kind
-                  setIsNavSaving(true)
-                  try {
-                    const saved = await saveProject()
-                    // saveProject returns falsy if the user cancelled the save
-                    // dialog — keep the prompt up so unsaved work doesn't vanish.
-                    if (!saved) return
-                    setPendingNav(null)
-                    if (kind === 'open') {
-                      loadProject(undefined, () => initPreviewRef.current())
-                    } else {
-                      handleNewProject()
-                    }
-                  } finally {
-                    setIsNavSaving(false)
-                  }
-                }}
-              >
-                {isNavSaving ? 'Saving…' : 'Save & Continue'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* F-0514-17 + RT-1: discard prompt before Open / New Project; buttons
+          locked during the Save-and-Continue await. */}
+      <UnsavedChangesDialog
+        open={pendingNav !== null}
+        body={
+          pendingNav
+            ? `You have unsaved changes. ${pendingNav.kind === 'open' ? 'Opening another project' : 'Starting a new project'} will discard them.`
+            : null
+        }
+        isWorking={isNavSaving}
+        onCancel={() => setPendingNav(null)}
+        onDiscard={() => {
+          if (isNavSaving || !pendingNav) return
+          const kind = pendingNav.kind
+          setPendingNav(null)
+          if (kind === 'open') {
+            loadProject(undefined, () => initPreviewRef.current())
+          } else {
+            handleNewProject()
+          }
+        }}
+        onSaveAndContinue={async () => {
+          if (isNavSaving || !pendingNav) return
+          const kind = pendingNav.kind
+          setIsNavSaving(true)
+          try {
+            const saved = await saveProject()
+            // saveProject returns falsy if the user cancelled the save
+            // dialog — keep the prompt up so unsaved work doesn't vanish.
+            if (!saved) return
+            setPendingNav(null)
+            if (kind === 'open') {
+              loadProject(undefined, () => initPreviewRef.current())
+            } else {
+              handleNewProject()
+            }
+          } finally {
+            setIsNavSaving(false)
+          }
+        }}
+      />
 
       {editingPadId && (
         <PadEditor

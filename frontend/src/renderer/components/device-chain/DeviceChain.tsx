@@ -223,15 +223,20 @@ export default function DeviceChain({
 
   const chainTimeColor = lastFrameMs < 50 ? '#4ade80' : lastFrameMs < 100 ? '#f59e0b' : '#ef4444'
 
+  // V5 (2026-05-16): pulled the drag-target props above the empty/populated
+  // branch so a future third branch (e.g. error state) silently inherits the
+  // drag affordance instead of having to remember to re-wire onDragOver/Drop.
+  const rootProps = {
+    className: `device-chain${isDragOver ? ' device-chain--drag-over' : ''}`,
+    'data-testid': 'device-chain',
+    onDragOver: handleDragOver,
+    onDragLeave: handleDragLeave,
+    onDrop: handleDrop,
+  } as const
+
   if (effectChain.length === 0) {
     return (
-      <div
-        className={`device-chain${isDragOver ? ' device-chain--drag-over' : ''}`}
-        data-testid="device-chain"
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
+      <div {...rootProps}>
         <div className="device-chain__header">
           <span className="device-chain__title">Device Chain</span>
         </div>
@@ -243,13 +248,7 @@ export default function DeviceChain({
   }
 
   return (
-    <div
-      className={`device-chain${isDragOver ? ' device-chain--drag-over' : ''}`}
-      data-testid="device-chain"
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
+    <div {...rootProps}>
       <div className="device-chain__header">
         <span className="device-chain__title">Device Chain</span>
         <span className="device-chain__info">
