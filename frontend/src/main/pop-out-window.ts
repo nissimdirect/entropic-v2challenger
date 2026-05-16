@@ -22,6 +22,44 @@ let saveTimeout: ReturnType<typeof setTimeout> | null = null
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null
 const HEARTBEAT_INTERVAL_MS = 1000
 
+/**
+ * Send to the pop-out window without leaking webContents-disposed errors.
+ *
+ * The pop-out close sequence flips state in this order:
+ *   close → renderer disposed → 'closed' event → popOutWindow.isDestroyed()
+ *
+ * Our setInterval and async send paths can fire in the window between
+ * "renderer disposed" and "isDestroyed flips true," so even with an
+ * isDestroyed guard the send call still throws "Render frame was disposed
+ * before WebFrameMain could be accessed". Both checks AND the try/catch are
+ * required — the first eliminates the common case, the second covers the race.
+ *
+ * RT-2 (qa-redteam follow-up): the catch is NARROWED to renderer-disposed
+ * messages. Any other throw (channel typo, non-serializable arg, future
+ * Electron internal) routes to `console.warn` so future regressions surface
+ * instead of silently killing the heartbeat.
+ */
+const DISPOSED_ERROR_PATTERN = /disposed|destroyed|invalid|Render frame|WebFrameMain/i
+
+function safeSend(win: BrowserWindow, channel: string, ...args: unknown[]): void {
+  if (win.isDestroyed()) return
+  try {
+    if (win.webContents.isDestroyed()) return
+    win.webContents.send(channel, ...args)
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    if (!DISPOSED_ERROR_PATTERN.test(message)) {
+      console.warn(`[pop-out] safeSend(${channel}) unexpected error:`, err)
+    }
+    // Expected dispose race: silently drop — the 'closed' handler will clear
+    // timers and null the ref shortly.
+  }
+}
+
+function safeSendPing(win: BrowserWindow): void {
+  safeSend(win, 'pop-out:ping')
+}
+
 function loadPopOutBounds(): PopOutBounds | null {
   try {
     if (!existsSync(POP_OUT_STATE_PATH)) return null
@@ -132,14 +170,14 @@ export function createPopOutWindow(): BrowserWindow {
   // latest frame for the React mount that follows.
   popOutWindow.webContents.once('did-finish-load', () => {
     if (pendingFirstFrame && popOutWindow && !popOutWindow.isDestroyed()) {
-      popOutWindow.webContents.send('pop-out:frame', pendingFirstFrame)
+      safeSend(popOutWindow, 'pop-out:frame', pendingFirstFrame)
       pendingFirstFrame = null
     }
     // F-0514-6: start the heartbeat once the preload is wired. Fire one
     // immediate ping so the renderer doesn't flash Disconnected before the
     // first interval tick.
     if (popOutWindow && !popOutWindow.isDestroyed()) {
-      popOutWindow.webContents.send('pop-out:ping')
+      safeSendPing(popOutWindow)
       if (heartbeatTimer) clearInterval(heartbeatTimer)
       heartbeatTimer = setInterval(() => {
         if (!popOutWindow || popOutWindow.isDestroyed()) {
@@ -147,7 +185,7 @@ export function createPopOutWindow(): BrowserWindow {
           heartbeatTimer = null
           return
         }
-        popOutWindow.webContents.send('pop-out:ping')
+        safeSendPing(popOutWindow)
       }, HEARTBEAT_INTERVAL_MS)
     }
   })
@@ -224,7 +262,7 @@ export function sendFrameToPopOut(dataUrl: string): void {
   if (popOutRelayCount <= 3 || popOutRelayCount % 30 === 0) {
     console.log(`[pop-out-relay] forward #${popOutRelayCount} len=${dataUrl.length}`)
   }
-  popOutWindow.webContents.send('pop-out:frame', dataUrl)
+  safeSend(popOutWindow, 'pop-out:frame', dataUrl)
 }
 
 export function isPopOutOpen(): boolean {

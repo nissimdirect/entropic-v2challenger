@@ -14,33 +14,28 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
+// Shared closures the electron mock factory references. Re-pointed to fresh
+// vi.fn() in beforeEach so call history can't bleed across tests.
 const sendMock = vi.fn()
 const isLoadingMock = vi.fn(() => true)
 const isDestroyedMock = vi.fn(() => false)
-
 const handlers: Record<string, ((...args: unknown[]) => void)> = {}
-
-function makeWebContentsStub() {
-  return {
-    send: sendMock,
-    isLoading: isLoadingMock,
-    isDestroyed: vi.fn(() => false),
-    once: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
-      handlers[event] = handler
-    }),
-    on: vi.fn(),
-    session: {
-      webRequest: { onHeadersReceived: vi.fn() },
-    },
-  }
-}
-
 const popOutEvents: Record<string, () => void> = {}
-const popOutWebContents = makeWebContentsStub()
 
 vi.mock('electron', () => ({
   BrowserWindow: vi.fn().mockImplementation(() => ({
-    webContents: popOutWebContents,
+    webContents: {
+      send: sendMock,
+      isLoading: isLoadingMock,
+      isDestroyed: vi.fn(() => false),
+      once: vi.fn((event: string, handler: (...args: unknown[]) => void) => {
+        handlers[event] = handler
+      }),
+      on: vi.fn(),
+      session: {
+        webRequest: { onHeadersReceived: vi.fn() },
+      },
+    },
     on: vi.fn((event: string, handler: () => void) => {
       popOutEvents[event] = handler
     }),
@@ -60,15 +55,22 @@ vi.mock('electron', () => ({
 }))
 
 beforeEach(() => {
-  vi.clearAllMocks()
-  isLoadingMock.mockReturnValue(true)
-  isDestroyedMock.mockReturnValue(false)
+  // The module under test holds top-level singletons (popOutWindow,
+  // heartbeatTimer, etc.). Reset modules first so each test gets a fresh
+  // import. Reset call history on the shared mocks; do NOT touch
+  // mockImplementation so the electron-mock factory wiring survives.
+  vi.resetModules()
+  sendMock.mockReset()
+  isLoadingMock.mockReset().mockReturnValue(true)
+  isDestroyedMock.mockReset().mockReturnValue(false)
   for (const k of Object.keys(handlers)) delete handlers[k]
   for (const k of Object.keys(popOutEvents)) delete popOutEvents[k]
 })
 
 afterEach(() => {
-  vi.restoreAllMocks()
+  // Intentionally NOT calling vi.restoreAllMocks() — it strips the
+  // BrowserWindow mockImplementation that the electron mock factory set
+  // at hoist time, making subsequent tests see an empty BrowserWindow.
 })
 
 describe('pop-out window — F-0512-47 first-frame buffering', () => {
@@ -107,4 +109,47 @@ describe('pop-out window — F-0512-47 first-frame buffering', () => {
     }
   })
 
+})
+
+describe('pop-out safeSend — RT-2 narrow-catch semantics', () => {
+  it('silently drops Render-frame-disposed errors (the expected race)', async () => {
+    vi.useFakeTimers()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    sendMock.mockImplementationOnce(() => {
+      throw new Error('Render frame was disposed before WebFrameMain could be accessed')
+    })
+    try {
+      const mod = await import('../../main/pop-out-window')
+      mod.createPopOutWindow()
+      handlers['did-finish-load']()
+      // The first send (the buffered frame, or the immediate ping) hit the
+      // throwing mock. console.warn must NOT fire — this is the expected race.
+      expect(warnSpy).not.toHaveBeenCalled()
+    } finally {
+      warnSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('emits console.warn on non-race throw (channel typo, non-serializable arg, etc.)', async () => {
+    vi.useFakeTimers()
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    sendMock.mockImplementation(() => {
+      throw new Error('TypeError: object could not be cloned')
+    })
+    try {
+      const mod = await import('../../main/pop-out-window')
+      mod.createPopOutWindow()
+      handlers['did-finish-load']()
+      // At least one safeSend call hit the throwing mock with a non-race
+      // message. console.warn MUST surface it so future regressions don't
+      // hide behind the heartbeat catch.
+      expect(warnSpy).toHaveBeenCalled()
+      const firstCall = warnSpy.mock.calls[0]
+      expect(String(firstCall[0])).toMatch(/safeSend.*unexpected error/)
+    } finally {
+      warnSpy.mockRestore()
+      vi.useRealTimers()
+    }
+  })
 })
