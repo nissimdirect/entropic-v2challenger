@@ -334,8 +334,17 @@ function AppInner() {
       useTimelineStore.getState().setZoom(Math.max(0.5, viewportWidth / Math.max(1, dur)))
     })
     shortcutRegistry.register('save', () => saveProject())
-    shortcutRegistry.register('open', () => loadProject(undefined, () => initPreviewRef.current()))
-    shortcutRegistry.register('new_project', () => handleNewProject())
+    // F-0514-17 follow-up: BOTH the keyboard shortcut AND the menu action must
+    // pass through the discard-changes gate. Pre-fix, Cmd+O bypassed the prompt
+    // entirely and opened the file picker on a dirty project — silent data loss.
+    shortcutRegistry.register('open', () => {
+      if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'open' })
+      else loadProject(undefined, () => initPreviewRef.current())
+    })
+    shortcutRegistry.register('new_project', () => {
+      if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'new' })
+      else handleNewProject()
+    })
     shortcutRegistry.register('split_clip', () => {
       const timeline = useTimelineStore.getState()
       if (timeline.selectedClipId) {
