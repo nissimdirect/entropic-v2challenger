@@ -120,6 +120,9 @@ function SpeedDialogHost() {
   )
 }
 
+const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
+const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
+
 function AppInner() {
   const { status, uptime } = useEngineStore()
   const {
@@ -1209,14 +1212,10 @@ function AppInner() {
   )
 
   // --- Menu / shortcut action handlers ---
-  const handleImportMedia = useCallback(async () => {
-    if (!window.entropic || isIngesting) return
-    const path = await window.entropic.showOpenDialog({
-      title: 'Import Media',
-      filters: [{ name: 'Media Files', extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv', 'mxf', 'ts', 'png', 'jpg', 'jpeg', 'tiff', 'tif', 'webp', 'bmp', 'heic', 'heif', 'wav', 'mp3', 'm4a', 'aif', 'aiff', 'ogg', 'flac'] }],
-    })
-    if (path) handleFileIngest(path)
-  }, [isIngesting, handleFileIngest])
+  // handleImportMedia is defined later (after handleAudioIngest) to avoid TDZ
+  // when its useCallback dep array references handleAudioIngest.
+  const handleImportMediaRef = useRef<() => Promise<void>>(async () => {})
+  const handleImportMedia = useCallback(() => handleImportMediaRef.current(), [])
 
   const handleNewProject = useCallback(() => {
     newProject()
@@ -1364,6 +1363,7 @@ function AppInner() {
           setShowPreferences(true)
           break
         case 'show-feedback': setShowFeedbackDialog(true); break
+        case 'about': setShowAbout(true); break
         case 'support-bundle':
           if (window.entropic) {
             window.entropic.generateSupportBundle().then((path) => {
@@ -1826,8 +1826,7 @@ function AppInner() {
   }, [exportJobId])
 
   // Global window drop handler — accepts video + image + audio drops anywhere
-  const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
-  const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
+  // (ALLOWED_EXTENSIONS + AUDIO_EXTENSIONS hoisted to module scope so handleImportMedia can branch.)
 
   const handleAudioIngest = useCallback(
     async (path: string) => {
@@ -1875,6 +1874,25 @@ function AppInner() {
     },
     [],
   )
+
+  // Wire handleImportMedia now that handleAudioIngest is defined.
+  // F-0516-2: Cmd+I previously routed every path through handleFileIngest,
+  // erroring "No video stream found" for audio files even though the picker
+  // filter accepts audio extensions. Branch on extension to mirror drag-drop.
+  handleImportMediaRef.current = async () => {
+    if (!window.entropic || isIngesting) return
+    const path = await window.entropic.showOpenDialog({
+      title: 'Import Media',
+      filters: [{ name: 'Media Files', extensions: ['mp4', 'mov', 'avi', 'webm', 'mkv', 'mxf', 'ts', 'png', 'jpg', 'jpeg', 'tiff', 'tif', 'webp', 'bmp', 'heic', 'heif', 'wav', 'mp3', 'm4a', 'aif', 'aiff', 'ogg', 'flac'] }],
+    })
+    if (!path) return
+    const ext = path.slice(path.lastIndexOf('.')).toLowerCase()
+    if (AUDIO_EXTENSIONS.includes(ext)) {
+      handleAudioIngest(path)
+    } else {
+      handleFileIngest(path)
+    }
+  }
 
   const dragCountRef = useRef(0)
 
@@ -2403,6 +2421,8 @@ function AppInner() {
           onFreezeUpTo={handleFreezeUpTo}
           onUnfreeze={handleUnfreeze}
           onFlatten={handleFlatten}
+          onSaveAsPreset={(instanceId) => setShowPresetSave({ mode: 'single_effect', instanceId })}
+          onSaveChainAsPreset={() => setShowPresetSave({ mode: 'effect_chain' })}
         />
       </div>
 
