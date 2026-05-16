@@ -18,6 +18,12 @@ interface ProjectState {
   ingestError: string | null
   projectPath: string | null
   projectName: string
+  // HT-4 (2026-05-16 red-team): project-level deterministic seed. Used by
+  // every render + freeze call so cached frames are reproducible. Pre-fix,
+  // call sites used `Date.now() % 2147483647` which made freeze cache-ids
+  // non-deterministic across re-freezes.
+  seed: number
+  setSeed: (seed: number) => void
 
   addAsset: (asset: Asset) => void
   removeAsset: (id: string) => void
@@ -62,6 +68,9 @@ const PROJECT_DEFAULTS = {
   ingestError: null as string | null,
   projectPath: null as string | null,
   projectName: 'Untitled',
+  // HT-4: deterministic project seed. 0 is a valid default (matches new_project()
+  // in backend schema.py); hydrate overrides on load.
+  seed: 0,
   bpm: 120,
   canvasResolution: [1920, 1080] as [number, number],
   deviceGroups: {} as Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>,
@@ -263,6 +272,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setIngestError: (error) => set({ ingestError: error }),
   setProjectPath: (path) => set({ projectPath: path }),
   setProjectName: (name) => set({ projectName: name }),
+  // HT-4: seed clamp matches backend schema.py SEED_MIN/MAX (0..2^31-1).
+  // Out-of-range or non-integer input is silently dropped — the load path
+  // already validates the value before it reaches the store.
+  setSeed: (seed: number) => {
+    if (!Number.isInteger(seed) || seed < 0 || seed > 2147483647) return
+    set({ seed })
+  },
   canvasResolution: PROJECT_DEFAULTS.canvasResolution,
   setCanvasResolution: (width: number, height: number) => {
     if (!Number.isFinite(width) || !Number.isFinite(height)) return

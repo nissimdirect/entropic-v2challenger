@@ -160,7 +160,14 @@ function serializeProject(): string {
     created: Date.now(),
     modified: Date.now(),
     author: '',
-    settings: { ...defaultSettings(), resolution: projectStore.canvasResolution },
+    settings: {
+      ...defaultSettings(),
+      resolution: projectStore.canvasResolution,
+      // HT-4: persist project-level seed so freeze caches are reproducible
+      // across reloads. defaultSettings() supplies a random seed for brand-new
+      // projects; the store seed wins once loaded.
+      seed: projectStore.seed,
+    },
     assets: projectStore.assets,
     timeline,
     masterEffectChain: projectStore.effectChain,
@@ -300,6 +307,12 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
+
+  // HT-4: hydrate project-level seed for deterministic renders + freeze caches.
+  // Validation already clamped it to [0, 2^31-1] in validateProject().
+  if (project.settings && typeof project.settings.seed === 'number') {
+    projectStore.setSeed(project.settings.seed)
+  }
 
   // Hydrate assets
   for (const asset of Object.values(project.assets)) {
@@ -449,6 +462,7 @@ export async function saveProject(): Promise<boolean> {
 export async function loadProject(
   filePath?: string,
   onHydrated?: () => void | Promise<void>,
+  options?: { bypassRecents?: boolean },
 ): Promise<boolean> {
   if (!window.entropic) return false
 
@@ -499,8 +513,12 @@ export async function loadProject(
     useProjectStore.getState().setProjectPath(path)
     useProjectStore.getState().setProjectName(name)
 
-    // Track as recent project
-    addRecentProject({ path: path, name, lastModified: Date.now() })
+    // Track as recent project. Agent-native rec from 2026-05-16 review:
+    // headless agent runs can pass { bypassRecents: true } so automated
+    // loads don't pollute the user's recents list.
+    if (!options?.bypassRecents) {
+      addRecentProject({ path: path, name, lastModified: Date.now() })
+    }
 
     // Post-hydrate: App.tsx wires preview refs/totalFrames from the hydrated
     // project. See PLAY-010 — preview state is shadow-duplicated in App.tsx
