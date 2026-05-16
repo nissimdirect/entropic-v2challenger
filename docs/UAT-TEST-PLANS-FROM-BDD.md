@@ -385,7 +385,7 @@
 ### TP-Z5-20: Add marker
 **Steps:**
 1. Click ruler at 1.5s
-2. Press Cmd+M
+2. Press M
 3. Observe ruler at 1.5s
 
 **Pass:** Green triangle marker appears
@@ -616,7 +616,7 @@
 | 8 | Cmd+E | Export | Export dialog opens |
 | 9 | Cmd+T | Add Text Track | "Text 1" track appears |
 | 10 | Cmd+K | Split at Playhead | Clip splits |
-| 11 | Cmd+M | Add Marker | Green triangle on ruler |
+| 11 | M | Add Marker | Green triangle on ruler |
 | 12 | Cmd+= | Zoom In | Ruler scale increases |
 | 13 | Cmd+- | Zoom Out | Ruler scale decreases |
 | 14 | Cmd+0 | Zoom Fit | Full timeline visible |

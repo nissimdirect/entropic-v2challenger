@@ -431,7 +431,7 @@ If `npm run start` fails:
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
-| 145 | Add marker | Place playhead, add marker (Cmd+M or marker button) | Marker flag appears on the time ruler | [ ] |
+| 145 | Add marker | Place playhead, add marker (M or marker button) | Marker flag appears on the time ruler | [ ] |
 | 146 | Multiple markers | Add markers at different positions | All markers visible on ruler | [ ] |
 | 147 | Click marker | Click a marker flag | Playhead jumps to marker position | [ ] |
 | 148 | Delete marker | Right-click or delete a marker | Marker is removed | [ ] |
@@ -1019,7 +1019,7 @@ If `npm run start` fails:
 | 249 | Cmd+Shift+K split clip | Select a clip, position playhead over it, press Cmd+Shift+K | Clip splits at playhead position | [ ] |
 | 250 | I key loop-in | Press I with playhead at 2 seconds | Loop region in-point set to 2 seconds | [ ] |
 | 251 | O key loop-out | Press O with playhead at 5 seconds | Loop region out-point set to 5 seconds | [ ] |
-| 252 | Cmd+M add marker | Press Cmd+M at current playhead position | Marker appears on ruler at that position | [ ] |
+| 252 | M add marker | Press M at current playhead position | Marker appears on ruler at that position | [ ] |
 | 253 | Shortcuts in text input | Click into a number input field, then press Space | Space types into the field (does NOT trigger play/pause) | [ ] |
 
 ### 19.3 Waveform & Timeline Interactions

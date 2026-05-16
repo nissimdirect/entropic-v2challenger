@@ -209,7 +209,7 @@ Real-time display (updates every 500ms):
   - Draw: freehand paint automation points
 
 ### 6.5 Markers
-- Cmd+M → add marker at playhead
+- M → add marker at playhead
 - Click marker to jump
 - Right-click → rename, change color, delete
 
@@ -309,7 +309,7 @@ Separate from Effect Rack — displayed below or alongside it.
 | Delete clip | Delete |
 | New video track | Cmd+T |
 | New performance track | Cmd+Shift+T |
-| Add marker | Cmd+M |
+| Add marker | M |
 | Toggle automation | A |
 
 ### 9.3 Edit

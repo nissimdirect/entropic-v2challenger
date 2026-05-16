@@ -19,7 +19,9 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
 
   // --- Timeline ---
   { action: 'split_clip',        keys: 'meta+shift+k',   category: 'timeline',  label: 'Split Clip',          context: 'normal' },
-  { action: 'add_marker',        keys: 'meta+m',         category: 'timeline',  label: 'Add Marker',          context: 'normal' },
+  // F-0516-8: bare 'm' instead of meta+m — Cmd+M is reserved by macOS Window→Minimize and
+  // doesn't reliably reach Electron. Matches DaVinci Resolve / Premiere / Final Cut convention.
+  { action: 'add_marker',        keys: 'm',              category: 'timeline',  label: 'Add Marker',          context: 'normal' },
   { action: 'loop_in',           keys: 'i',              category: 'timeline',  label: 'Set Loop In',         context: 'normal' },
   { action: 'loop_out',          keys: 'o',              category: 'timeline',  label: 'Set Loop Out',        context: 'normal' },
 

@@ -116,7 +116,7 @@ const DEFAULT_SHORTCUTS: Record<string, string> = {
   'delete_clip': 'Delete',
   'new_video_track': 'Cmd+T',
   'new_perf_track': 'Cmd+Shift+T',
-  'add_marker': 'Cmd+M',
+  'add_marker': 'M',
 
   // Edit
   'undo': 'Cmd+Z',

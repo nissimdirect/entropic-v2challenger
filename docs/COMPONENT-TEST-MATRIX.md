@@ -108,7 +108,7 @@
 | TL12 | Zoom in (Cmd+=) | Shortcut | Timeline zooms in | YES | PASS |
 | TL13 | Zoom out (Cmd+-) | Shortcut | Timeline zooms out | YES | PASS |
 | TL14 | Zoom to fit (Cmd+0) | Shortcut | Full timeline fits in view | YES | PASS |
-| TL15 | Add marker (Cmd+M) | Shortcut | Green triangle on ruler | YES | PASS |
+| TL15 | Add marker (M) | Shortcut | Green triangle on ruler | YES | PASS |
 | TL16 | Empty timeline hint | Text | "Drag media here, press ⌘I..." | YES | PASS |
 | TL17 | Track context menu | Right-click | Duplicate, Rename, Move Up/Down, Delete | YES | PASS |
 | TL18 | Clip context menu | Right-click | Split, Duplicate, Delete, Speed/Duration, Reverse, Enable | YES | PASS |
@@ -235,7 +235,7 @@
 | K19 | Cmd+- | Zoom Out | YES | PASS |
 | K20 | Cmd+0 | Zoom to Fit | YES | PASS |
 | K21 | Cmd+A | Select All | YES | PASS |
-| K22 | Cmd+M | Add Marker | YES | PASS |
+| K22 | M | Add Marker | YES | PASS |
 | K23 | I | Set Loop In | YES | INCONCLUSIVE (no visual) |
 | K24 | O | Set Loop Out | YES | INCONCLUSIVE (no visual) |
 | K25 | J | Reverse | YES | FAIL (BUG-12) |
