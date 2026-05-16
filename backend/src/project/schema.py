@@ -1,6 +1,7 @@
 """Project file schema — serialize/deserialize .glitch project files."""
 
 import json
+import re
 import time
 import uuid
 from typing import TypeGuard
@@ -48,7 +49,14 @@ MAX_JSON_DEPTH = 32
 MAX_KEYS_PER_NODE = 1024
 MAX_ARRAY_LENGTH = 10_000
 MAX_VERSION_STRING_LENGTH = 16
-FORBIDDEN_KEYS = frozenset({"__proto__", "constructor", "prototype"})
+# RT-4: case-INsensitive match so weaponized `.glitch` files can't bypass
+# the prototype-pollution defense with `__PROTO__`, `Constructor`, etc.
+# Python dicts don't have prototype pollution themselves, but if this data
+# ever flows through a JS-side `lodash.merge` or `Object.assign` recursive
+# helper, mixed-case bypass becomes a live risk. Cost is one line.
+FORBIDDEN_KEY_PATTERN = re.compile(
+    r"^(__proto__|constructor|prototype)$", re.IGNORECASE
+)
 
 
 def new_project(
@@ -103,7 +111,7 @@ def _walk_structure(node: object, depth: int, path: str) -> str | None:
         if len(node) > MAX_KEYS_PER_NODE:
             return f"Object key count {len(node)} exceeds {MAX_KEYS_PER_NODE} at {path}"
         for key in node:
-            if key in FORBIDDEN_KEYS:
+            if isinstance(key, str) and FORBIDDEN_KEY_PATTERN.match(key):
                 return f"Forbidden key {key!r} at {path}"
         for key, value in node.items():
             reason = _walk_structure(value, depth + 1, f"{path}.{key}")

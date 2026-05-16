@@ -1,0 +1,62 @@
+/* --- Floating Panel (V1 — 2026-05-16 red-team sweep) ---
+ *
+ * Shared BEM block for the operators rack overlay (Cmd+Shift+O) and the
+ * undo history panel (Edit → Undo History). Each used to inline ~12 style
+ * properties (hard-coded #1a1a1a, z-index:1000, etc.). The third "Unsaved
+ * Changes" prompt in the same PR correctly used the existing `.dialog`
+ * BEM family — this rule pulls the other two into the same idiom.
+ *
+ * Z-index matches `.dialog-overlay` (200) so stacking is predictable when
+ * a dialog opens while an overlay is visible.
+ */
+.floating-panel {
+  position: fixed;
+  top: 60px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  padding: 12px;
+}
+
+.floating-panel--right {
+  right: 16px;
+  width: 360px;
+}
+
+.floating-panel--left {
+  left: 16px;
+  width: 320px;
+}
+
+.floating-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.floating-panel__title {
+  color: #aaa;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.floating-panel__close-btn {
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 0;
+  line-height: 1;
+}
+
+.floating-panel__close-btn:hover {
+  color: #e0e0e0;
+}

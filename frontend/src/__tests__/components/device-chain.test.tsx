@@ -183,6 +183,16 @@ describe('DeviceChain', () => {
       unmount()
     })
 
+    it('rejects drops whose effectId exceeds 64 chars (RT-3 length cap)', () => {
+      const { container, unmount } = render(<DeviceChain />)
+      const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+      const huge = 'a'.repeat(10_000)
+      const dt = mockDataTransfer({ 'application/x-entropic-effect-id': huge })
+      fireEvent.drop(root, { dataTransfer: dt })
+      expect(useProjectStore.getState().effectChain).toHaveLength(0)
+      unmount()
+    })
+
     it('rejects drops when chain is at MAX_EFFECTS_PER_CHAIN', () => {
       // Fill the chain to capacity.
       useProjectStore.setState({
