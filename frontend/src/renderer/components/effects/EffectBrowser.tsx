@@ -4,6 +4,14 @@ import type { EffectInfo, EffectInstance } from '../../../shared/types'
 import { LIMITS } from '../../../shared/limits'
 import EffectSearch from './EffectSearch'
 
+/**
+ * MIME-style identifier used to ferry an effect ID from the browser to the
+ * DeviceChain drop target via the HTML5 drag-and-drop dataTransfer payload.
+ * Custom type (not text/plain) so accidental drags from outside the app
+ * cannot inject a fake effect into the chain. F-0514-7.
+ */
+export const EFFECT_DRAG_TYPE = 'application/x-entropic-effect-id'
+
 interface EffectBrowserProps {
   registry: EffectInfo[]
   isLoading: boolean
@@ -146,6 +154,22 @@ export default function EffectBrowser({
     onAddEffect(instance)
   }
 
+  // F-0514-7: drag-add. Source-side ferry uses our custom MIME type so the
+  // DeviceChain drop target can ignore drags from outside the app.
+  const handleDragStart = (e: React.DragEvent<HTMLButtonElement>, info: EffectInfo) => {
+    if (chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN) {
+      // Suppress drag init when chain is full so the user gets the same
+      // disabled-button feel they get for click-add.
+      e.preventDefault()
+      return
+    }
+    e.dataTransfer.effectAllowed = 'copy'
+    e.dataTransfer.setData(EFFECT_DRAG_TYPE, info.id)
+    // text/plain fallback so a user dragging into a text editor sees something
+    // sensible rather than a binary blob.
+    e.dataTransfer.setData('text/plain', info.name)
+  }
+
   const toggleCategory = (cat: string) => {
     // First toggle marks "user has expressed intent" — prevents async-catchup from clobbering.
     hasStoredRef.current = true
@@ -181,6 +205,8 @@ export default function EffectBrowser({
                 key={info.id}
                 className="effect-browser__item"
                 onClick={() => handleAdd(info)}
+                draggable={chainLength < LIMITS.MAX_EFFECTS_PER_CHAIN}
+                onDragStart={(e) => handleDragStart(e, info)}
                 disabled={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN}
                 title={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN ? `Max ${LIMITS.MAX_EFFECTS_PER_CHAIN} effects` : `Add ${info.name}`}
               >

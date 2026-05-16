@@ -9,6 +9,9 @@ import ContextMenu from '../timeline/ContextMenu'
 import type { MenuItem } from '../timeline/ContextMenu'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
+import { EFFECT_DRAG_TYPE } from '../effects/EffectBrowser'
+import { randomUUID } from '../../utils'
+import type { EffectInstance } from '../../../shared/types'
 
 interface DeviceChainProps {
   modulatedValues?: Record<string, Record<string, number>>
@@ -46,6 +49,51 @@ export default function DeviceChain({
   const handleRemove = useCallback((id: string) => {
     useProjectStore.getState().removeEffect(id)
   }, [])
+
+  // F-0514-7: drag-add from EffectBrowser. Accepts only our custom MIME type
+  // so drags from outside the app (files, browser links, other apps) are
+  // silently ignored. Read effect-id → look up registry entry → build
+  // EffectInstance with defaults → addEffect (mirrors EffectBrowser.handleAdd).
+  const [isDragOver, setIsDragOver] = useState(false)
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!Array.from(e.dataTransfer.types).includes(EFFECT_DRAG_TYPE)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    // Only clear the highlight when the cursor leaves the outermost target —
+    // dragleave fires on every child transition too.
+    if (e.currentTarget === e.target) setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      setIsDragOver(false)
+      const effectId = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
+      if (!effectId) return
+      if (effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return
+      const info = registry.find((r) => r.id === effectId)
+      if (!info) return
+      const instance: EffectInstance = {
+        id: randomUUID(),
+        effectId: info.id,
+        isEnabled: true,
+        isFrozen: false,
+        parameters: Object.fromEntries(
+          Object.entries(info.params).map(([key, def]) => [key, def.default]),
+        ),
+        modulations: {},
+        mix: 1.0,
+        mask: null,
+      }
+      useProjectStore.getState().addEffect(instance)
+    },
+    [effectChain.length, registry],
+  )
 
   const handleUpdateParam = useCallback(
     (effectId: string, paramName: string, value: number | string | boolean) => {
@@ -148,19 +196,31 @@ export default function DeviceChain({
 
   if (effectChain.length === 0) {
     return (
-      <div className="device-chain" data-testid="device-chain">
+      <div
+        className={`device-chain${isDragOver ? ' device-chain--drag-over' : ''}`}
+        data-testid="device-chain"
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <div className="device-chain__header">
           <span className="device-chain__title">Device Chain</span>
         </div>
         <div className="device-chain__empty">
-          <span>Add effects from the browser</span>
+          <span>{isDragOver ? 'Release to add effect' : 'Add effects from the browser (click or drag)'}</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="device-chain" data-testid="device-chain">
+    <div
+      className={`device-chain${isDragOver ? ' device-chain--drag-over' : ''}`}
+      data-testid="device-chain"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="device-chain__header">
         <span className="device-chain__title">Device Chain</span>
         <span className="device-chain__info">
