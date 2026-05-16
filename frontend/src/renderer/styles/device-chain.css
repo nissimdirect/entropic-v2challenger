@@ -10,6 +10,14 @@
   overflow: hidden;
 }
 
+/* F-0514-7: drag-target affordance. Tinted background + accent border tell the
+   user the drop will land here. Brief enough to feel like a state, not a flash. */
+.device-chain--drag-over {
+  background: #1f1f2a;
+  outline: 2px dashed #4ade80;
+  outline-offset: -4px;
+}
+
 .device-chain__header {
   display: flex;
   align-items: center;

@@ -54,7 +54,8 @@ describe('DeviceChain', () => {
 
   it('renders empty state when no effects', () => {
     const { getByText } = render(<DeviceChain />)
-    expect(getByText('Add effects from the browser')).toBeTruthy()
+    // F-0514-7 updated copy to advertise both click and drag.
+    expect(getByText(/Add effects from the browser/i)).toBeTruthy()
   })
 
   it('renders device cards for each effect in chain', () => {
@@ -144,6 +145,67 @@ describe('DeviceChain', () => {
       expect(freezeBtn).toBeTruthy()
       fireEvent.click(freezeBtn!)
       expect(onFreezeUpTo).toHaveBeenCalledWith(1)
+      unmount()
+    })
+  })
+
+  // F-0514-7: drag-add from EffectBrowser → DeviceChain.
+  describe('drag-add drop target (F-0514-7)', () => {
+    // jsdom doesn't implement DataTransfer; spy on getData / types instead.
+    function mockDataTransfer(payload: Record<string, string>): DataTransfer {
+      return {
+        types: Object.keys(payload),
+        getData: (type: string) => payload[type] ?? '',
+        setData: () => {},
+        dropEffect: 'copy',
+        effectAllowed: 'copy',
+      } as unknown as DataTransfer
+    }
+
+    it('adds an effect when a valid EFFECT_DRAG_TYPE drop lands', () => {
+      const { container, unmount } = render(<DeviceChain />)
+      const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+      const dt = mockDataTransfer({ 'application/x-entropic-effect-id': 'pixelsort' })
+      fireEvent.drop(root, { dataTransfer: dt })
+      const chain = useProjectStore.getState().effectChain
+      expect(chain).toHaveLength(1)
+      expect(chain[0].effectId).toBe('pixelsort')
+      expect(chain[0].parameters.threshold).toBe(0.5) // default from MOCK_INFO
+      unmount()
+    })
+
+    it('ignores drops without EFFECT_DRAG_TYPE (e.g. files from outside)', () => {
+      const { container, unmount } = render(<DeviceChain />)
+      const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+      const dt = mockDataTransfer({ 'text/plain': 'not-an-effect' })
+      fireEvent.drop(root, { dataTransfer: dt })
+      expect(useProjectStore.getState().effectChain).toHaveLength(0)
+      unmount()
+    })
+
+    it('rejects drops when chain is at MAX_EFFECTS_PER_CHAIN', () => {
+      // Fill the chain to capacity.
+      useProjectStore.setState({
+        effectChain: Array.from({ length: 10 }, (_, i) => ({
+          ...MOCK_EFFECT,
+          id: `fx-fill-${i}`,
+        })),
+      })
+      const { container, unmount } = render(<DeviceChain />)
+      const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+      const dt = mockDataTransfer({ 'application/x-entropic-effect-id': 'pixelsort' })
+      fireEvent.drop(root, { dataTransfer: dt })
+      // Still 10 — drop was rejected.
+      expect(useProjectStore.getState().effectChain).toHaveLength(10)
+      unmount()
+    })
+
+    it('ignores drops with an unknown effect id (registry miss)', () => {
+      const { container, unmount } = render(<DeviceChain />)
+      const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+      const dt = mockDataTransfer({ 'application/x-entropic-effect-id': 'fx.does_not_exist' })
+      fireEvent.drop(root, { dataTransfer: dt })
+      expect(useProjectStore.getState().effectChain).toHaveLength(0)
       unmount()
     })
   })
