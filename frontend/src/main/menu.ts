@@ -144,7 +144,7 @@ export function buildMenu(mainWindow: BrowserWindow): void {
   const appMenu: MenuItemConstructorOptions = {
     label: 'Entropic',
     submenu: [
-      { role: 'about', label: 'About Entropic' },
+      { label: 'About Entropic', click: () => sendAction(mainWindow, 'about') },
       { type: 'separator' },
       { role: 'services' },
       { type: 'separator' },

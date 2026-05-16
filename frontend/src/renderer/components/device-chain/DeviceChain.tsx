@@ -21,6 +21,10 @@ interface DeviceChainProps {
   onUnfreeze?: () => void | Promise<void>
   /** F-0514-16: Render the frozen prefix to a new video file (user picks path). */
   onFlatten?: () => void | Promise<void>
+  /** F-0516-1: Open the PresetSaveDialog in single-effect mode for the given instance. */
+  onSaveAsPreset?: (instanceId: string) => void
+  /** F-0516-1: Open the PresetSaveDialog in effect_chain mode for the entire chain. */
+  onSaveChainAsPreset?: () => void
 }
 
 export default function DeviceChain({
@@ -28,6 +32,8 @@ export default function DeviceChain({
   onFreezeUpTo,
   onUnfreeze,
   onFlatten,
+  onSaveAsPreset,
+  onSaveChainAsPreset,
 }: DeviceChainProps) {
   const effectChain = useProjectStore((s) => s.effectChain)
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
@@ -189,8 +195,27 @@ export default function DeviceChain({
       })
     }
 
+    // F-0516-1: Save the right-clicked effect as a single-effect preset.
+    if (onSaveAsPreset) {
+      items.push({
+        label: 'Save as Preset…',
+        action: () => {
+          onSaveAsPreset(effectId)
+        },
+      })
+    }
+    // F-0516-1: Save the entire chain (incl. mappings) as a chain preset.
+    if (onSaveChainAsPreset && effectChain.length > 0) {
+      items.push({
+        label: 'Save Chain as Preset…',
+        action: () => {
+          onSaveChainAsPreset()
+        },
+      })
+    }
+
     return items
-  }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, isFrozenAt, freezeOpState])
+  }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, onSaveAsPreset, onSaveChainAsPreset, isFrozenAt, freezeOpState])
 
   const chainTimeColor = lastFrameMs < 50 ? '#4ade80' : lastFrameMs < 100 ? '#f59e0b' : '#ef4444'
 
