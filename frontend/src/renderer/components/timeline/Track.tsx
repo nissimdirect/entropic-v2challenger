@@ -258,8 +258,9 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
             className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
             onClick={handleArmToggle}
             title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+            aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
           >
-            A
+            R
           </button>
           {(showExtras || isNonDefault) && (
             <>
