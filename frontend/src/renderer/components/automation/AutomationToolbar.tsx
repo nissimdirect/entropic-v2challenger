@@ -134,7 +134,7 @@ export default function AutomationToolbar() {
         className="auto-toolbar__btn"
         onClick={handleAddLane}
         title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the A button on a track header'
+          ? 'Arm a track first — click the R button on a track header'
           : 'Add automation lane to armed track'}
         disabled={!armedTrackId}
         data-testid="add-lane-btn"
@@ -145,7 +145,7 @@ export default function AutomationToolbar() {
         className="auto-toolbar__btn"
         onClick={handleAddTrigger}
         title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the A button on a track header'
+          ? 'Arm a track first — click the R button on a track header'
           : 'Add trigger automation lane (0/1 toggle) to armed track'}
         disabled={!armedTrackId}
         data-testid="add-trigger-btn"
@@ -156,7 +156,7 @@ export default function AutomationToolbar() {
         className="auto-toolbar__btn"
         onClick={handleSimplify}
         title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the A button on a track header'
+          ? 'Arm a track first — click the R button on a track header'
           : 'Simplify curves (RDP)'}
         disabled={!armedTrackId}
       >
@@ -166,7 +166,7 @@ export default function AutomationToolbar() {
         className="auto-toolbar__btn auto-toolbar__btn--danger"
         onClick={handleClear}
         title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the A button on a track header'
+          ? 'Arm a track first — click the R button on a track header'
           : 'Clear all automation on armed track'}
         disabled={!armedTrackId}
       >
@@ -174,7 +174,7 @@ export default function AutomationToolbar() {
       </button>
       {FF.F_0512_34_ARM_HINT && !armedTrackId && (
         <span className="auto-toolbar__hint">
-          Click <kbd>A</kbd> on a track to arm
+          Click <kbd>R</kbd> on a track to arm
         </span>
       )}
       {armedTrack && (
