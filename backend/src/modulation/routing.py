@@ -23,12 +23,19 @@ def resolve_routings(
     """
     modulated = copy.deepcopy(chain)
 
-    # Build effect lookup by id
+    # Build effect lookup by id.
+    # F-0516-9: inject top-level `mix` into params as `_mix` so it can be a
+    # modulation target. The container later pops `_mix` back out and uses it
+    # for blend. pipeline.py defers to whatever value is already in params,
+    # so routing-set `_mix` survives.
     effect_map: dict[str, dict] = {}
     for effect in modulated:
         eid = effect.get("effect_id", "")
         if eid:
             effect_map[eid] = effect
+        params = effect.setdefault("params", {})
+        if "_mix" not in params and "mix" in effect:
+            params["_mix"] = effect["mix"]
 
     # Accumulate deltas per (effect_id, param_key)
     # Each entry: list of (value, depth, min, max, blend_mode)
@@ -131,6 +138,10 @@ def _get_param_bounds(
     effect_id: str, param_key: str, registry_fn=None
 ) -> tuple[float, float]:
     """Get min/max bounds for an effect parameter."""
+    # F-0516-9: _mix is a synthetic param that lives on the EffectInstance,
+    # not in info.params. Hard-code its [0.0, 1.0] range.
+    if param_key == "_mix":
+        return 0.0, 1.0
     if registry_fn:
         info = registry_fn(effect_id)
         if info and "params" in info:

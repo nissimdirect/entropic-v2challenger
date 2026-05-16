@@ -150,3 +150,124 @@ class TestDAGCycleDetection:
     def test_self_loop(self):
         """A→A is a cycle."""
         assert check_cycle([], ("A", "A")) is True
+
+
+class TestMixTarget:
+    """F-0516-9: container dry/wet mix (_mix) must be a modulation target.
+
+    Before this fix, ModulationMatrix did not list mix as a target, and
+    routing.resolve_routings would short-circuit at base_value lookup
+    because `_mix` was injected later by pipeline.py (after routing ran).
+    Fix: routing injects `_mix` from effect.mix at the top of the loop;
+    pipeline setdefault's its own injection so routing wins.
+    """
+
+    def test_routing_injects_mix_into_params(self):
+        """resolve_routings seeds _mix from effect.mix before resolution."""
+        chain = _make_chain(("hue_shift", {"amount": 0.5}))
+        assert "_mix" not in chain[0]["params"]
+        assert chain[0]["mix"] == 1.0
+
+        result = resolve_routings({}, [], chain)
+        # No operators, no modulation — _mix is still seeded for the pipeline.
+        assert result[0]["params"]["_mix"] == 1.0
+
+    def test_routing_respects_pre_existing_mix_param(self):
+        """If params already has _mix, routing must NOT overwrite from effect.mix."""
+        chain = [
+            {
+                "effect_id": "fx",
+                "enabled": True,
+                "params": {"amount": 0.5, "_mix": 0.42},
+                "mix": 1.0,
+            }
+        ]
+        result = resolve_routings({}, [], chain)
+        assert result[0]["params"]["_mix"] == 0.42
+
+    def test_lfo_modulates_mix(self):
+        """LFO at signal=0.5 with depth 1 should add 0.5 to base mix of 0.0."""
+        chain = [
+            {
+                "effect_id": "fx",
+                "enabled": True,
+                "params": {"amount": 0.5},
+                "mix": 0.0,  # start fully dry
+            }
+        ]
+        ops = [_make_operator("lfo1", [_make_mapping("fx", "_mix")])]
+        values = {"lfo1": 0.5}
+
+        result = resolve_routings(values, ops, chain)
+        # base 0.0 + signal*range (0.5 * 1) = 0.5
+        assert result[0]["params"]["_mix"] == 0.5
+
+    def test_mix_modulation_clamped_to_unit_range(self):
+        """_mix bounds are [0, 1] — values exceeding 1 are clamped."""
+        chain = [
+            {
+                "effect_id": "fx",
+                "enabled": True,
+                "params": {"amount": 0.5},
+                "mix": 0.8,
+            }
+        ]
+        ops = [_make_operator("lfo1", [_make_mapping("fx", "_mix")])]
+        values = {"lfo1": 1.0}  # would add 1.0 → total 1.8 → clamp to 1.0
+
+        result = resolve_routings(values, ops, chain)
+        assert result[0]["params"]["_mix"] == 1.0
+
+    def test_mix_modulation_clamped_to_zero(self):
+        """_mix never goes below 0 (full-dry boundary)."""
+        chain = [
+            {
+                "effect_id": "fx",
+                "enabled": True,
+                "params": {"amount": 0.5},
+                "mix": 0.2,
+            }
+        ]
+        # Inverted mapping: signal=0 → mapped=-1 → modDelta -1 → 0.2-1 = -0.8 → 0
+        ops = [
+            _make_operator(
+                "lfo1",
+                [_make_mapping("fx", "_mix", m_min=-1.0, m_max=0.0)],
+            )
+        ]
+        values = {"lfo1": 0.0}
+
+        result = resolve_routings(values, ops, chain)
+        assert result[0]["params"]["_mix"] == 0.0
+
+    def test_mix_modulation_with_other_param_in_chain(self):
+        """Modulating both _mix and a regular param in the same chain works."""
+        chain = [
+            {
+                "effect_id": "fx",
+                "enabled": True,
+                "params": {"amount": 0.0},
+                "mix": 0.0,
+            }
+        ]
+        ops = [
+            _make_operator(
+                "lfo1",
+                [
+                    _make_mapping("fx", "amount"),
+                    _make_mapping("fx", "_mix"),
+                ],
+            )
+        ]
+        values = {"lfo1": 0.5}
+
+        result = resolve_routings(
+            values,
+            ops,
+            chain,
+            effect_registry_fn=lambda eid: {
+                "params": {"amount": {"min": 0.0, "max": 1.0}}
+            },
+        )
+        assert result[0]["params"]["amount"] == 0.5
+        assert result[0]["params"]["_mix"] == 0.5
