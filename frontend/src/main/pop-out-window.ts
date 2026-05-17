@@ -39,7 +39,12 @@ const HEARTBEAT_INTERVAL_MS = 1000
  * Electron internal) routes to `console.warn` so future regressions surface
  * instead of silently killing the heartbeat.
  */
-const DISPOSED_ERROR_PATTERN = /disposed|destroyed|invalid|Render frame|WebFrameMain/i
+// Narrowed to the actual Electron disposal error strings. The previous
+// pattern matched `invalid` and `destroyed` as bare substrings, which would
+// silently swallow any future Electron error containing those words (e.g.
+// "invalid argument" on a channel rename, or "Render process destroyed" on
+// an unrelated crash). Now only renderer-disposed races are silenced.
+const DISPOSED_ERROR_PATTERN = /Render frame was disposed|WebFrameMain|webContents.*disposed/i
 
 function safeSend(win: BrowserWindow, channel: string, ...args: unknown[]): void {
   if (win.isDestroyed()) return
@@ -54,10 +59,6 @@ function safeSend(win: BrowserWindow, channel: string, ...args: unknown[]): void
     // Expected dispose race: silently drop — the 'closed' handler will clear
     // timers and null the ref shortly.
   }
-}
-
-function safeSendPing(win: BrowserWindow): void {
-  safeSend(win, 'pop-out:ping')
 }
 
 function loadPopOutBounds(): PopOutBounds | null {
@@ -177,7 +178,7 @@ export function createPopOutWindow(): BrowserWindow {
     // immediate ping so the renderer doesn't flash Disconnected before the
     // first interval tick.
     if (popOutWindow && !popOutWindow.isDestroyed()) {
-      safeSendPing(popOutWindow)
+      safeSend(popOutWindow, 'pop-out:ping')
       if (heartbeatTimer) clearInterval(heartbeatTimer)
       heartbeatTimer = setInterval(() => {
         if (!popOutWindow || popOutWindow.isDestroyed()) {
@@ -185,7 +186,7 @@ export function createPopOutWindow(): BrowserWindow {
           heartbeatTimer = null
           return
         }
-        safeSendPing(popOutWindow)
+        safeSend(popOutWindow, 'pop-out:ping')
       }, HEARTBEAT_INTERVAL_MS)
     }
   })
