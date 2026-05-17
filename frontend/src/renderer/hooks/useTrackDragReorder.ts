@@ -3,15 +3,16 @@
  * track header to reorder it within the timeline. Mounted by both TrackHeader
  * (video / text) and AudioTrackHeader so reorder works across track types.
  *
+ * Live drag: as the cursor crosses each adjacent track's bounding rect the
+ * source track reorders in place via `useTimelineStore.reorderTrack`, so the
+ * UI rearranges in real time (DAW convention). The full sequence of moves
+ * is wrapped in an undo transaction so Cmd+Z reverses the entire drag, not
+ * each intermediate step.
+ *
  * Plays well with existing single-click selection, double-click rename, and
  * right-click context menu: a 4 px movement threshold must be crossed before
  * the gesture is treated as a drag. Below the threshold the pointerup is a
  * no-op and the header's own onClick handler still fires.
- *
- * Drag state (fromIdx, dropTargetIdx) is written into useTrackDragStore so
- * every track header — not just the source — can render the indicator. Each
- * header reads {fromIdx, dropTargetIdx} from the store and derives its own
- * --dragging / --drop-target classes.
  *
  * Target detection walks every `.track-header[data-track-idx]` in document
  * order — matches the lane-detection pattern used by Clip.tsx so the same
@@ -20,6 +21,7 @@
 import { useCallback, useRef } from 'react'
 import { useTimelineStore } from '../stores/timeline'
 import { useTrackDragStore } from '../stores/trackDrag'
+import { useUndoStore } from '../stores/undo'
 
 const REORDER_DRAG_THRESHOLD_PX = 4
 
@@ -42,7 +44,7 @@ export function useTrackDragReorder({
   isRenaming,
 }: UseTrackDragReorderArgs): UseTrackDragReorderResult {
   const ownIdx = useTimelineStore((s) => s.tracks.findIndex((t) => t.id === trackId))
-  const dragStateRef = useRef<{ startY: number; fromIdx: number; armed: boolean } | null>(null)
+  const dragStateRef = useRef<{ startY: number; armed: boolean } | null>(null)
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -57,51 +59,72 @@ export function useTrackDragReorder({
       const fromIdx = tracks.findIndex((t) => t.id === trackId)
       if (fromIdx < 0) return
 
-      dragStateRef.current = { startY: e.clientY, fromIdx, armed: false }
+      dragStateRef.current = { startY: e.clientY, armed: false }
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
     },
     [trackId, isRenaming],
   )
 
-  const onPointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-    const state = dragStateRef.current
-    if (!state) return
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const state = dragStateRef.current
+      if (!state) return
 
-    if (!state.armed) {
-      if (Math.abs(e.clientY - state.startY) < REORDER_DRAG_THRESHOLD_PX) return
-      state.armed = true
-      useTrackDragStore.getState().setDrag(state.fromIdx, null)
-    }
+      // Look up the source track's CURRENT index — it shifts as live reorders
+      // fire during the drag, so we can't rely on a stored fromIdx.
+      const tracks = useTimelineStore.getState().tracks
+      const currentIdx = tracks.findIndex((t) => t.id === trackId)
+      if (currentIdx < 0) return
 
-    const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
-    let targetIdx = state.fromIdx
-    for (const header of headers) {
-      const rect = header.getBoundingClientRect()
-      if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-        const parsed = parseInt(header.dataset.trackIdx ?? '', 10)
-        if (Number.isFinite(parsed)) targetIdx = parsed
+      if (!state.armed) {
+        if (Math.abs(e.clientY - state.startY) < REORDER_DRAG_THRESHOLD_PX) return
+        state.armed = true
+        // Open an undo transaction once the gesture is actually a drag. Every
+        // reorder fired below buffers into this transaction so Cmd+Z reverses
+        // the whole move in one keypress.
+        useUndoStore.getState().beginTransaction('Reorder tracks')
+        useTrackDragStore.getState().setDrag(currentIdx, null)
       }
-    }
-    const dropTarget = targetIdx === state.fromIdx ? null : targetIdx
-    useTrackDragStore.getState().setDrag(state.fromIdx, dropTarget)
-  }, [])
+
+      const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
+      let targetIdx = currentIdx
+      for (const header of headers) {
+        const rect = header.getBoundingClientRect()
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          const parsed = parseInt(header.dataset.trackIdx ?? '', 10)
+          if (Number.isFinite(parsed)) targetIdx = parsed
+        }
+      }
+
+      if (targetIdx !== currentIdx) {
+        useTimelineStore.getState().reorderTrack(currentIdx, targetIdx)
+        // Source track has moved — re-publish for the --dragging highlight.
+        useTrackDragStore.getState().setDrag(targetIdx, null)
+      }
+    },
+    [trackId],
+  )
 
   const onPointerUp = useCallback(() => {
     const state = dragStateRef.current
     dragStateRef.current = null
 
     if (state && state.armed) {
-      const { dropTargetIdx } = useTrackDragStore.getState()
-      if (dropTargetIdx !== null && dropTargetIdx !== state.fromIdx) {
-        useTimelineStore.getState().reorderTrack(state.fromIdx, dropTargetIdx)
-      }
+      useUndoStore.getState().commitTransaction()
     }
 
     useTrackDragStore.getState().clearDrag()
   }, [])
 
   const onPointerCancel = useCallback(() => {
+    const state = dragStateRef.current
     dragStateRef.current = null
+
+    if (state && state.armed) {
+      // Abort rewinds every buffered reorder, restoring the original order.
+      useUndoStore.getState().abortTransaction()
+    }
+
     useTrackDragStore.getState().clearDrag()
   }, [])
 

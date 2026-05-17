@@ -73,15 +73,11 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
   const gainDb = track.gainDb ?? 0
 
   const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
-  const dragDropTargetIdx = useTrackDragStore((s) => s.dropTargetIdx)
   const headerClasses = [
     'track-header',
     'audio-track-header',
     isSelected ? 'track-header--selected' : '',
-    dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
-    dragDropTargetIdx !== null && dragDropTargetIdx === drag.ownIdx
-      ? 'track-header--drop-target'
-      : '',
+    dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
   ].filter(Boolean).join(' ')
 
   return (

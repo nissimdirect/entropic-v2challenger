@@ -209,14 +209,10 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const isNonDefault = track.opacity !== 1 || track.blendMode !== 'normal'
 
   const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
-  const dragDropTargetIdx = useTrackDragStore((s) => s.dropTargetIdx)
   const headerClasses = [
     'track-header',
     isSelected ? 'track-header--selected' : '',
-    dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
-    dragDropTargetIdx !== null && dragDropTargetIdx === drag.ownIdx
-      ? 'track-header--drop-target'
-      : '',
+    dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
   ].filter(Boolean).join(' ')
 
   return (
