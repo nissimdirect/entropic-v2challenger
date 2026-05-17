@@ -35,9 +35,19 @@ def sanitize_params(params: dict) -> dict:
     return clean
 
 
-def clamp_finite(value: float, lo: float, hi: float, fallback: float) -> float:
-    """Clamp to [lo, hi], returning fallback if NaN/Inf."""
-    if not math.isfinite(value):
+def clamp_finite(value, lo: float, hi: float, fallback: float) -> float:
+    """Clamp to [lo, hi], returning fallback for NaN, Inf, or non-numeric input.
+
+    Trust-boundary hardening: any caller may pass attacker-controlled data
+    (e.g. a `.glitch` file with `effect.mix: "string"`). math.isfinite()
+    raises TypeError on non-numeric input, which would crash the render
+    pipeline on every frame. We catch that and fall back gracefully.
+    """
+    try:
+        if not math.isfinite(value):
+            return fallback
+    except TypeError:
+        # Non-numeric input (str, None, list, dict, etc.) → drop to fallback.
         return fallback
     return max(lo, min(hi, value))
 
