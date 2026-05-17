@@ -12,6 +12,7 @@ import ClipComponent from './Clip'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
 import { FF } from '../../../shared/feature-flags'
+import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
 
 interface TrackHeaderProps {
   track: TrackType
@@ -26,6 +27,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const [renameText, setRenameText] = useState(track.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const [showExtras, setShowExtras] = useState(false)
+  const drag = useTrackDragReorder({ trackId: track.id, isRenaming })
 
   // Auto-focus and select text when rename input appears.
   useEffect(() => {
@@ -205,12 +207,26 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
 
   const isNonDefault = track.opacity !== 1 || track.blendMode !== 'normal'
 
+  const headerClasses = [
+    'track-header',
+    isSelected ? 'track-header--selected' : '',
+    drag.isDragging ? 'track-header--dragging' : '',
+    drag.dropTargetIdx !== null && drag.dropTargetIdx === drag.ownIdx
+      ? 'track-header--drop-target'
+      : '',
+  ].filter(Boolean).join(' ')
+
   return (
     <>
       <div
-        className={`track-header${isSelected ? ' track-header--selected' : ''}`}
+        className={headerClasses}
+        data-track-idx={drag.ownIdx}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
+        onPointerDown={drag.onPointerDown}
+        onPointerMove={drag.onPointerMove}
+        onPointerUp={drag.onPointerUp}
+        onPointerCancel={drag.onPointerCancel}
         onMouseEnter={() => setShowExtras(true)}
         onMouseLeave={() => setShowExtras(false)}
       >

@@ -265,6 +265,16 @@ export default function Timeline({
                 ),
               )}
               <Playhead time={playheadTime} zoom={zoom} scrollX={scrollX} onSeek={onSeek} />
+              {/* New-track drop zone: shown via CSS only while body.clip-dragging.
+                  Spans the lane area so users have a forgiving release target
+                  for "drop below tracks → create new track". */}
+              <div
+                className="timeline__new-track-zone"
+                data-drop-zone="new-track"
+                aria-hidden="true"
+              >
+                <span className="timeline__new-track-zone-label">Release to add new track</span>
+              </div>
             </div>
           </div>
         </div>
