@@ -100,9 +100,13 @@ export function useTrackDragReorder({
       const pointerId = e.pointerId
       const startY = e.clientY
 
+      let moveCount = 0
+      let swapCount = 0
       const moveHandler = (ev: PointerEvent) => {
         const drag = activeRef.current
         if (!drag || ev.pointerId !== drag.pointerId) return
+
+        moveCount++
 
         // Source track's CURRENT index — it shifts as live reorders fire,
         // so we re-read it on every move instead of trusting a captured value.
@@ -122,6 +126,7 @@ export function useTrackDragReorder({
           // while reordering; without this Chromium starts a selection on the
           // first move and steals subsequent pointer events.
           document.body.classList.add('track-reorder-active')
+          console.warn('[track-drag] ARMED at y=' + ev.clientY + ' fromIdx=' + currentIdx)
         }
 
         const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
@@ -134,16 +139,32 @@ export function useTrackDragReorder({
           }
         }
 
+        if (moveCount <= 8 || moveCount % 20 === 0) {
+          console.warn(
+            `[track-drag] move#${moveCount} y=${ev.clientY} cur=${currentIdx} tgt=${targetIdx} headers=${headers.length}`,
+          )
+        }
+
         if (targetIdx !== currentIdx) {
           useTimelineStore.getState().reorderTrack(currentIdx, targetIdx)
           // Source has moved — re-publish so the --dragging highlight follows.
           useTrackDragStore.getState().setDrag(targetIdx, null)
+          swapCount++
+          console.warn(`[track-drag] SWAP#${swapCount} ${currentIdx}→${targetIdx}`)
         }
       }
+      // Expose counters so the upHandler can log a final summary.
+      ;(activeRef as { current: ActiveDrag | null & { _stats?: { moves: number; swaps: number } } }).current
+      const getStats = () => ({ moves: moveCount, swaps: swapCount })
+      ;(moveHandler as unknown as { _getStats: () => { moves: number; swaps: number } })._getStats = getStats
 
       const upHandler = (ev: PointerEvent) => {
         const drag = activeRef.current
         if (!drag || ev.pointerId !== drag.pointerId) return
+        const stats = (moveHandler as unknown as { _getStats: () => { moves: number; swaps: number } })._getStats()
+        console.warn(
+          `[track-drag] UP armed=${drag.armed} moves=${stats.moves} swaps=${stats.swaps}`,
+        )
         if (drag.armed) {
           useUndoStore.getState().commitTransaction()
         }
