@@ -97,6 +97,30 @@ class TestClampFinite:
     def test_at_upper_boundary(self):
         assert clamp_finite(10.0, 0.0, 10.0, 5.0) == 10.0
 
+    # Trust-boundary defense: any non-numeric input must NOT raise.
+    # Before this fix, math.isfinite("string") raised TypeError, crashing
+    # the render pipeline on every frame for a malicious .glitch file
+    # containing { "mix": "x" } or { "mix": null }.
+    def test_string_returns_fallback(self):
+        assert clamp_finite("bad-string", 0.0, 1.0, 1.0) == 1.0
+
+    def test_none_returns_fallback(self):
+        assert clamp_finite(None, 0.0, 1.0, 0.5) == 0.5
+
+    def test_list_returns_fallback(self):
+        assert clamp_finite([1, 2, 3], 0.0, 1.0, 0.7) == 0.7
+
+    def test_dict_returns_fallback(self):
+        assert clamp_finite({"a": 1}, 0.0, 1.0, 0.3) == 0.3
+
+    def test_bool_true_clamps_as_one(self):
+        # Python: math.isfinite(True) is True (bool is subclass of int).
+        # The expected behavior is to clamp the integer value, not crash.
+        assert clamp_finite(True, 0.0, 1.0, 0.0) == 1.0
+
+    def test_bool_false_clamps_as_zero(self):
+        assert clamp_finite(False, 0.0, 1.0, 0.5) == 0.0
+
 
 class TestGuardPositive:
     def test_valid_returns_value(self):
