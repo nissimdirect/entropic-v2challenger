@@ -838,8 +838,8 @@ If `npm run start` fails:
 
 | # | Test | Steps | Expected | Result |
 |---|------|-------|----------|--------|
-| 387 | Arm button on track | Click "A" button on track header | Button highlights, track is armed for automation recording | [ ] |
-| 388 | Disarm track | Click "A" again | Button de-highlights, track disarmed | [ ] |
+| 387 | Arm button on track | Click "R" button on track header | Button highlights, track is armed for automation recording | [ ] |
+| 388 | Disarm track | Click "R" again | Button de-highlights, track disarmed | [ ] |
 | 389 | Only one armed | Arm Track 1, then arm Track 2 | Track 1 disarms, only Track 2 armed | [ ] |
 
 ### 16.6 Latch Mode Recording
