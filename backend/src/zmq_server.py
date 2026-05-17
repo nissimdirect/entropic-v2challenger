@@ -338,6 +338,8 @@ class ZMQServer:
             return self._handle_audio_volume(message, msg_id)
         elif cmd == "audio_position":
             return self._handle_audio_position(msg_id)
+        elif cmd == "audio_meter":
+            return self._handle_audio_meter(message, msg_id)
         elif cmd == "audio_stop":
             return self._handle_audio_stop(msg_id)
         elif cmd == "project_clock_play":
@@ -995,6 +997,61 @@ class ZMQServer:
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error("Audio stop error: %s", type(e).__name__)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_audio_meter(self, message: dict, msg_id: str | None) -> dict:
+        """F-0516-6 phase 2: meter reading for current playback position.
+
+        Returns {rms_db, peak_db, clipped} computed from a 1024-sample
+        window centered on current position. Caller polls at ~30Hz
+        from the frontend GainMeter component.
+
+        Returns floor reading (silence) if audio is not loaded or not
+        playing — callers can render the bar at minimum without special-
+        casing the no-audio state.
+        """
+        from audio.meter import METER_FLOOR_DB, compute_meter
+
+        try:
+            if not self.audio_player.loaded or self.audio_player._samples is None:
+                return {
+                    "id": msg_id,
+                    "ok": True,
+                    "rms_db": METER_FLOOR_DB,
+                    "peak_db": METER_FLOOR_DB,
+                    "clipped": False,
+                }
+
+            # Take a small window centered on the current playback position.
+            samples = self.audio_player._samples
+            sample_rate = self.audio_player._sample_rate or 48000
+            pos = self.audio_player.position  # samples
+            window = 1024  # ~21ms at 48kHz — fast meter response
+
+            start = max(0, pos - window // 2)
+            end = min(samples.shape[0], start + window)
+            if end <= start:
+                return {
+                    "id": msg_id,
+                    "ok": True,
+                    "rms_db": METER_FLOOR_DB,
+                    "peak_db": METER_FLOOR_DB,
+                    "clipped": False,
+                }
+
+            chunk = samples[start:end]
+            # Multichannel → meter aggregates across channels (in compute_meter).
+            reading = compute_meter(chunk)
+            return {
+                "id": msg_id,
+                "ok": True,
+                "rms_db": reading["rms_db"],
+                "peak_db": reading["peak_db"],
+                "clipped": reading["clipped"],
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error("Audio meter error: %s", type(e).__name__)
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     # --- ProjectClock handlers (flag ON path) ---

@@ -2,7 +2,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Track as TrackType } from '../../../shared/types'
 import { AUDIO_LIMITS } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
+import { useAudioStore } from '../../stores/audio'
 import Knob from '../common/Knob'
+import GainMeter from '../audio/GainMeter'
 import AudioClipView from './AudioClipView'
 
 interface AudioTrackHeaderProps {
@@ -125,7 +127,27 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
             onChange={handleGainChange}
           />
         </div>
+        <AudioTrackMeter />
       </div>
+    </div>
+  )
+}
+
+// F-0516-6 phase 2: live meter strip beside the gain knob.
+// Reads from useAudioStore; the meter is driven by useAudioMeterPoll mounted
+// at the App level. v1 shows a single master meter on every audio track —
+// there's only one audio player in the v1 stack. Per-track metering follows
+// the audio-tracks feature flag rollout.
+function AudioTrackMeter() {
+  const meter = useAudioStore((s) => s.meter)
+  return (
+    <div className="audio-track-header__meter" onClick={(e) => e.stopPropagation()}>
+      <GainMeter
+        rmsDb={meter.rmsDb}
+        peakDb={meter.peakDb}
+        clipped={meter.clipped}
+        orientation="horizontal"
+      />
     </div>
   )
 }
