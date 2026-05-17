@@ -223,9 +223,6 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onPointerDown={drag.onPointerDown}
-        onPointerMove={drag.onPointerMove}
-        onPointerUp={drag.onPointerUp}
-        onPointerCancel={drag.onPointerCancel}
         onMouseEnter={() => setShowExtras(true)}
         onMouseLeave={() => setShowExtras(false)}
       >
