@@ -2039,7 +2039,7 @@ function AppInner() {
   // (ALLOWED_EXTENSIONS + AUDIO_EXTENSIONS hoisted to module scope so handleImportMedia can branch.)
 
   const handleAudioIngest = useCallback(
-    async (path: string) => {
+    async (path: string, opts?: { forceNewTrack?: boolean }) => {
       if (!window.entropic) return
       // Probe duration via audio_decode (metadata only — backend also enforces
       // safety guards: validate_upload, realpath, magic-byte, decode timeout).
@@ -2065,7 +2065,12 @@ function AppInner() {
         return
       }
       const timeline = useTimelineStore.getState()
-      let audioTrackId = timeline.tracks.find((t) => t.type === 'audio')?.id
+      // forceNewTrack short-circuits the "find existing audio track" branch so
+      // drops in the empty space below lanes get their own fresh track — matches
+      // how video ingest already behaves and what the new-track drop zone implies.
+      let audioTrackId = opts?.forceNewTrack
+        ? undefined
+        : timeline.tracks.find((t) => t.type === 'audio')?.id
       if (!audioTrackId) {
         audioTrackId = timeline.addAudioTrack()
         if (!audioTrackId) return
@@ -2140,6 +2145,17 @@ function AppInner() {
       return
     }
 
+    // Drop position vs. existing lanes — used to force audio ingest onto a
+    // fresh track when the user drops into the empty area below all tracks
+    // (so the gesture parallels video-file behavior, which always creates one).
+    const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+    let maxBottom = -Infinity
+    for (const lane of lanes) {
+      const rect = lane.getBoundingClientRect()
+      if (rect.bottom > maxBottom) maxBottom = rect.bottom
+    }
+    const droppedBelowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
+
     const getPath = window.entropic?.getPathForFile
     let hadError = false
 
@@ -2158,7 +2174,7 @@ function AppInner() {
         continue
       }
       if (AUDIO_EXTENSIONS.includes(ext)) {
-        handleAudioIngest(filePath)
+        handleAudioIngest(filePath, { forceNewTrack: droppedBelowAllTracks })
       } else {
         handleFileIngest(filePath)
       }
