@@ -60,6 +60,8 @@ function makePointerDown(clientY: number, button = 0): React.PointerEvent<HTMLDi
     pointerId: 1,
     target,
     currentTarget,
+    preventDefault: () => undefined,
+    stopPropagation: () => undefined,
   } as unknown as React.PointerEvent<HTMLDivElement>
 }
 

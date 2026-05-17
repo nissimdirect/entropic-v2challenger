@@ -496,6 +496,13 @@
   background: rgba(74, 222, 128, 0.12);
 }
 
+body.track-reorder-active,
+body.track-reorder-active * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grabbing !important;
+}
+
 .timeline__new-track-zone {
   display: none;
   width: 100%;

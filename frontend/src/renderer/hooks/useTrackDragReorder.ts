@@ -88,6 +88,15 @@ export function useTrackDragReorder({
       const fromIdx = tracks.findIndex((t) => t.id === trackId)
       if (fromIdx < 0) return
 
+      // Without preventDefault, Electron / Chromium may start a native drag
+      // session (text selection or HTML5 drag-and-drop) on the next move and
+      // tear down the pointer sequence — letter-perfect repro for the
+      // "only one slot at a time" bug: the first swap fires from the very
+      // first pointermove, then native drag kicks in and our document
+      // listeners stop receiving pointermove events.
+      e.preventDefault()
+      e.stopPropagation()
+
       const pointerId = e.pointerId
       const startY = e.clientY
 
@@ -108,6 +117,11 @@ export function useTrackDragReorder({
           // the whole move in one keypress.
           useUndoStore.getState().beginTransaction('Reorder tracks')
           useTrackDragStore.getState().setDrag(currentIdx, null)
+          // Suppress text selection across the document for the duration of
+          // the drag. The cursor passes over track names / labels constantly
+          // while reordering; without this Chromium starts a selection on the
+          // first move and steals subsequent pointer events.
+          document.body.classList.add('track-reorder-active')
         }
 
         const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
@@ -134,6 +148,7 @@ export function useTrackDragReorder({
           useUndoStore.getState().commitTransaction()
         }
         useTrackDragStore.getState().clearDrag()
+        document.body.classList.remove('track-reorder-active')
         detach()
       }
 
@@ -145,6 +160,7 @@ export function useTrackDragReorder({
           useUndoStore.getState().abortTransaction()
         }
         useTrackDragStore.getState().clearDrag()
+        document.body.classList.remove('track-reorder-active')
         detach()
       }
 
