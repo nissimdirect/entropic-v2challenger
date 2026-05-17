@@ -4,6 +4,23 @@ import type {
   ClockSyncResponse,
 } from '../../shared/ipc-types'
 
+// F-0516-6 phase 2: live meter reading. Polled by useAudioMeterPoll at ~30Hz
+// while playing. METER_FLOOR_DB (-120) means silence — always finite, never
+// -Infinity, to avoid downstream NaN/format-string crashes in the renderer.
+export interface MeterReading {
+  rmsDb: number
+  peakDb: number
+  clipped: boolean
+}
+
+export const METER_FLOOR_DB = -120
+
+const METER_FLOOR_READING: MeterReading = {
+  rmsDb: METER_FLOOR_DB,
+  peakDb: METER_FLOOR_DB,
+  clipped: false,
+}
+
 interface AudioState {
   // State
   isLoaded: boolean
@@ -18,6 +35,7 @@ interface AudioState {
   fps: number
   targetFrame: number
   totalFrames: number
+  meter: MeterReading
 
   // Actions
   loadAudio: (path: string) => Promise<boolean>
@@ -31,6 +49,9 @@ interface AudioState {
   setFps: (fps: number) => Promise<void>
   syncClock: () => Promise<void>
   reset: () => void
+  setMeter: (reading: MeterReading) => void
+  /** Fetch one meter reading from the backend. Returns false on error. */
+  pollMeter: () => Promise<boolean>
 }
 
 function sendCommand(cmd: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -58,6 +79,32 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   fps: 30,
   targetFrame: 0,
   totalFrames: 0,
+  meter: METER_FLOOR_READING,
+
+  setMeter: (reading: MeterReading) => {
+    set({ meter: reading })
+  },
+
+  pollMeter: async () => {
+    const resp = await sendCommand({ cmd: 'audio_meter', id: nextId() })
+    if (!resp.ok) {
+      // Don't clobber the existing reading on a transient IPC failure —
+      // the meter UI would flash to silence on every dropped poll.
+      return false
+    }
+    const rmsDb = typeof resp.rms_db === 'number' ? resp.rms_db : METER_FLOOR_DB
+    const peakDb = typeof resp.peak_db === 'number' ? resp.peak_db : METER_FLOOR_DB
+    const clipped = resp.clipped === true
+    // Trust-boundary clamp: defend against NaN/Inf reaching the renderer.
+    set({
+      meter: {
+        rmsDb: Number.isFinite(rmsDb) ? rmsDb : METER_FLOOR_DB,
+        peakDb: Number.isFinite(peakDb) ? peakDb : METER_FLOOR_DB,
+        clipped,
+      },
+    })
+    return true
+  },
 
   loadAudio: async (path: string) => {
     const resp = (await sendCommand({
@@ -178,6 +225,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
       fps: 30,
       targetFrame: 0,
       totalFrames: 0,
+      meter: METER_FLOOR_READING,
     })
   },
 }))

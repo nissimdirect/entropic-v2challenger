@@ -116,6 +116,7 @@ describe('IPC Contract', () => {
       'apply_chain',
       'audio_decode',
       'audio_load',
+      'audio_meter',
       'audio_pause',
       'audio_play',
       'audio_position',
