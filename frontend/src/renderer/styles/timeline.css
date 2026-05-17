@@ -482,6 +482,26 @@
   transition: background 0.15s;
 }
 
+.track-header--video {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  height: auto;
+  min-height: 76px;
+  padding: 6px 8px;
+}
+
+.track-header__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.track-header__row--bottom {
+  padding-left: 8px;
+}
+
 .track-header:hover {
   background: #2a2a2a;
 }

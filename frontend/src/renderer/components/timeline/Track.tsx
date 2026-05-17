@@ -27,7 +27,6 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameText, setRenameText] = useState(track.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
-  const [showExtras, setShowExtras] = useState(false)
   const drag = useTrackDragReorder({ trackId: track.id, isRenaming })
 
   // Auto-focus and select text when rename input appears.
@@ -206,11 +205,10 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     { value: 'lighten', label: 'Ltn' },
   ]
 
-  const isNonDefault = track.opacity !== 1 || track.blendMode !== 'normal'
-
   const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
   const headerClasses = [
     'track-header',
+    'track-header--video',
     isSelected ? 'track-header--selected' : '',
     dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
   ].filter(Boolean).join(' ')
@@ -223,88 +221,86 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onPointerDown={drag.onPointerDown}
-        onMouseEnter={() => setShowExtras(true)}
-        onMouseLeave={() => setShowExtras(false)}
       >
-        <div className="track-header__color" style={{ background: track.color }} />
-        <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>
-          {isRenaming ? (
-            <input
-              ref={renameInputRef}
-              className="track-header__rename-input"
-              type="text"
-              value={renameText}
-              onChange={(e) => setRenameText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') confirmRename()
-                else if (e.key === 'Escape') cancelRename()
-                e.stopPropagation()
-              }}
-              onBlur={confirmRename}
-              onClick={(e) => e.stopPropagation()}
-            />
-          ) : (
-            <div className="track-header__name">
-              {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
-              {' '}{track.name}
-            </div>
-          )}
-          <LaneBadges trackId={track.id} />
-        </div>
-        <div className="track-header__controls">
-          <button
-            className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
-            onClick={handleMute}
-            title="Mute"
-          >
-            M
-          </button>
-          <button
-            className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
-            onClick={handleSolo}
-            title="Solo"
-          >
-            S
-          </button>
-          <button
-            className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-            onClick={handleArmToggle}
-            title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-            aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
-          >
-            R
-          </button>
-          {(showExtras || isNonDefault) && (
-            <>
-              <div className="track-header__opacity" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="range"
-                  min={0}
-                  max={1}
-                  step={0.01}
-                  value={track.opacity}
-                  onChange={handleOpacityChange}
-                  title={FF.F_0512_21_OPACITY_LABELS
-                    ? `Track opacity: ${Math.round(track.opacity * 100)}% (multiplies with clip opacity)`
-                    : `Opacity: ${Math.round(track.opacity * 100)}%`}
-                />
-                <span className="track-header__opacity-label">
-                  {Math.round(track.opacity * 100)}%
-                </span>
-              </div>
-              <select
-                className="track-header__blend"
-                value={track.blendMode}
-                onChange={handleBlendModeChange}
+        <div className="track-header__row track-header__row--top">
+          <div className="track-header__color" style={{ background: track.color }} />
+          <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>
+            {isRenaming ? (
+              <input
+                ref={renameInputRef}
+                className="track-header__rename-input"
+                type="text"
+                value={renameText}
+                onChange={(e) => setRenameText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') confirmRename()
+                  else if (e.key === 'Escape') cancelRename()
+                  e.stopPropagation()
+                }}
+                onBlur={confirmRename}
                 onClick={(e) => e.stopPropagation()}
-                title="Blend mode"
-              >
-                {BLEND_MODES.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
-            </>
-          )}
+              />
+            ) : (
+              <div className="track-header__name">
+                {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
+                {' '}{track.name}
+              </div>
+            )}
+            <LaneBadges trackId={track.id} />
+          </div>
+          <div className="track-header__controls">
+            <button
+              className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
+              onClick={handleMute}
+              title="Mute"
+            >
+              M
+            </button>
+            <button
+              className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
+              onClick={handleSolo}
+              title="Solo"
+            >
+              S
+            </button>
+            <button
+              className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
+              onClick={handleArmToggle}
+              title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+              aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
+            >
+              R
+            </button>
+          </div>
+        </div>
+        <div className="track-header__row track-header__row--bottom">
+          <div className="track-header__opacity" onClick={(e) => e.stopPropagation()}>
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={track.opacity}
+              onChange={handleOpacityChange}
+              title={FF.F_0512_21_OPACITY_LABELS
+                ? `Track opacity: ${Math.round(track.opacity * 100)}% (multiplies with clip opacity)`
+                : `Opacity: ${Math.round(track.opacity * 100)}%`}
+            />
+            <span className="track-header__opacity-label">
+              {Math.round(track.opacity * 100)}%
+            </span>
+          </div>
+          <select
+            className="track-header__blend"
+            value={track.blendMode}
+            onChange={handleBlendModeChange}
+            onClick={(e) => e.stopPropagation()}
+            title="Blend mode"
+          >
+            {BLEND_MODES.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
         </div>
       </div>
       {ctxMenu && (
