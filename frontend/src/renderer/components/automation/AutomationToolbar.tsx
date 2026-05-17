@@ -129,7 +129,8 @@ export default function AutomationToolbar() {
       </div>
       {/* F-0512-34: when no track is armed, the tooltips tell users HOW to
           arm — previously they only mentioned the precondition and the user
-          had no way to discover the "A" button on the track header. */}
+          had no way to discover the "R" button on the track header
+          (formerly "A" before F-0516-10 relabel). */}
       <button
         className="auto-toolbar__btn"
         onClick={handleAddLane}
