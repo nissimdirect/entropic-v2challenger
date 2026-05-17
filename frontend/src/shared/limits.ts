@@ -38,6 +38,6 @@ export const MASTER_TRACK_ID = 'master'
 export const ZERO_DEFAULT_EFFECT_IDS = new Set<string>([
   'util.curves',
   'util.levels',
-  'util.hsl',
+  'util.hsl_adjust',
   'util.color_balance',
 ])
