@@ -23,3 +23,21 @@ export const LIMITS = {
  * "constant defined in a store file" coupling.
  */
 export const MASTER_TRACK_ID = 'master'
+
+/**
+ * Effects whose stock parameter defaults produce visually identical output
+ * to input (zero adjustment). Adding one to a chain looks like nothing
+ * happened until the user drags a param, which mimics a broken effect.
+ *
+ * F-0516-7 (filed via UAT 2026-05-16): the user reported "dry/wet doesn't
+ * work" — a 206-effect sweep proved 0 in-place mutation bugs; the actual
+ * cause for ~half the surprise effects was zero-default util plugins
+ * looking like no-op until adjusted. Fix: one-time toast per effect_id
+ * on first add to set expectations.
+ */
+export const ZERO_DEFAULT_EFFECT_IDS = new Set<string>([
+  'util.curves',
+  'util.levels',
+  'util.hsl',
+  'util.color_balance',
+])
