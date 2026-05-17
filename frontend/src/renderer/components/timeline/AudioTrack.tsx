@@ -6,6 +6,8 @@ import { useAudioStore } from '../../stores/audio'
 import Knob from '../common/Knob'
 import GainMeter from '../audio/GainMeter'
 import AudioClipView from './AudioClipView'
+import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
+import { useTrackDragStore } from '../../stores/trackDrag'
 
 interface AudioTrackHeaderProps {
   track: TrackType
@@ -20,6 +22,7 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
   const [isRenaming, setIsRenaming] = useState(false)
   const [renameText, setRenameText] = useState(track.name)
   const renameInputRef = useRef<HTMLInputElement>(null)
+  const drag = useTrackDragReorder({ trackId: track.id, isRenaming })
 
   useEffect(() => {
     if (isRenaming) renameInputRef.current?.select()
@@ -69,10 +72,20 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
 
   const gainDb = track.gainDb ?? 0
 
+  const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
+  const headerClasses = [
+    'track-header',
+    'audio-track-header',
+    isSelected ? 'track-header--selected' : '',
+    dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
+  ].filter(Boolean).join(' ')
+
   return (
     <div
-      className={`track-header audio-track-header${isSelected ? ' track-header--selected' : ''}`}
+      className={headerClasses}
+      data-track-idx={drag.ownIdx}
       onClick={handleClick}
+      onPointerDown={drag.onPointerDown}
     >
       <div className="track-header__color" style={{ background: track.color }} />
       <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>

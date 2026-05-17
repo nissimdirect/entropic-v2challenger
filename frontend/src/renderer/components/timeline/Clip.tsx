@@ -160,6 +160,9 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       dragStartX.current = e.clientX
       dragStartPos.current = clip.position
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+      // Reveal the new-track drop zone in Timeline.tsx via a body class.
+      // Avoids a store round-trip for transient drag-only UI state.
+      document.body.classList.add('clip-dragging')
 
       const store = useTimelineStore.getState()
       if (e.metaKey || e.ctrlKey) {
@@ -203,10 +206,15 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent) => {
+      document.body.classList.remove('clip-dragging')
       if (!isDragging.current) {
         return
       }
-      // Compute belowAllTracks from the pointer-UP position, not a latched move sample.
+      // Generous "below all tracks" detection: either pointer is past every
+      // lane's bottom edge, OR pointer is over the explicit new-track drop
+      // zone. The drop zone gives users a reliable, visible hit target —
+      // the bare clientY check failed in practice when the timeline scroll
+      // container ended flush with the last lane.
       const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
       let maxBottom = -Infinity
       for (const lane of lanes) {
@@ -215,7 +223,15 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       }
       const belowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
 
-      if (belowAllTracks) {
+      // Drop-zone hit: walk up from elementFromPoint since pointer capture
+      // on the clip would otherwise mask the underlying drop-zone element.
+      let overDropZone = false
+      const hit = document.elementFromPoint(e.clientX, e.clientY)
+      if (hit && hit.closest('[data-drop-zone="new-track"]')) {
+        overDropZone = true
+      }
+
+      if (belowAllTracks || overDropZone) {
         const store = useTimelineStore.getState()
         const current = store.tracks.find((t) => t.clips.some((c) => c.id === clip.id))
         const currentClip = current?.clips.find((c) => c.id === clip.id)
@@ -238,6 +254,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   // pointercancel (OS interrupt, context menu, window focus loss) must reset state
   // without creating a track — we can't trust the event's position in that case.
   const handlePointerCancel = useCallback(() => {
+    document.body.classList.remove('clip-dragging')
     isDragging.current = false
   }, [])
 
