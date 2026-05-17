@@ -13,6 +13,7 @@ import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
 import { FF } from '../../../shared/feature-flags'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
+import { useTrackDragStore } from '../../stores/trackDrag'
 
 interface TrackHeaderProps {
   track: TrackType
@@ -207,11 +208,13 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
 
   const isNonDefault = track.opacity !== 1 || track.blendMode !== 'normal'
 
+  const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
+  const dragDropTargetIdx = useTrackDragStore((s) => s.dropTargetIdx)
   const headerClasses = [
     'track-header',
     isSelected ? 'track-header--selected' : '',
-    drag.isDragging ? 'track-header--dragging' : '',
-    drag.dropTargetIdx !== null && drag.dropTargetIdx === drag.ownIdx
+    dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
+    dragDropTargetIdx !== null && dragDropTargetIdx === drag.ownIdx
       ? 'track-header--drop-target'
       : '',
   ].filter(Boolean).join(' ')

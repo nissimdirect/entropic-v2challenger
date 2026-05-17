@@ -9,6 +9,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useTimelineStore } from '../../renderer/stores/timeline'
+import { useTrackDragStore } from '../../renderer/stores/trackDrag'
 import { useTrackDragReorder } from '../../renderer/hooks/useTrackDragReorder'
 
 interface FakeHeader {
@@ -53,6 +54,7 @@ function makePointerEvent(clientY: number, button = 0): React.PointerEvent<HTMLD
 
 beforeEach(() => {
   document.body.innerHTML = ''
+  useTrackDragStore.getState().clearDrag()
   useTimelineStore.setState({
     tracks: [
       { id: 't1', name: 'A', color: '#fff', clips: [], opacity: 1, blendMode: 'normal', isMuted: false, isSoloed: false, effectChain: [], automationLanes: [], type: 'video' as const },
@@ -83,6 +85,27 @@ describe('useTrackDragReorder', () => {
     act(() => result.current.onPointerUp())
 
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t2', 't3', 't1'])
+  })
+
+  it('publishes dropTargetIdx changes to the shared store as the pointer moves across intermediate tracks', () => {
+    setupHeaders([{ top: 0, bottom: 30 }, { top: 30, bottom: 60 }, { top: 60, bottom: 90 }])
+    const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
+
+    act(() => result.current.onPointerDown(makePointerEvent(10)))
+    // Cross into intermediate track (idx 1)
+    act(() => result.current.onPointerMove(makePointerEvent(45)))
+    expect(useTrackDragStore.getState().fromIdx).toBe(0)
+    expect(useTrackDragStore.getState().dropTargetIdx).toBe(1)
+    // Continue into the third track (idx 2) — drop target must update, not lock.
+    act(() => result.current.onPointerMove(makePointerEvent(75)))
+    expect(useTrackDragStore.getState().dropTargetIdx).toBe(2)
+    // Move back over the source track — drop target collapses to null.
+    act(() => result.current.onPointerMove(makePointerEvent(15)))
+    expect(useTrackDragStore.getState().dropTargetIdx).toBeNull()
+    // Release without a valid target → no reorder.
+    act(() => result.current.onPointerUp())
+    expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t1', 't2', 't3'])
+    expect(useTrackDragStore.getState().fromIdx).toBeNull()
   })
 
   it('is a no-op when target equals source', () => {
