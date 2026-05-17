@@ -441,7 +441,7 @@ Scenario: Hover tooltip [IMPL]
 ```gherkin
 Scenario: Add text track [IMPL]
   When user clicks "+ Add Text Track"
-  Then "Text 1" track appears with purple T icon, M/S/A buttons
+  Then "Text 1" track appears with purple T icon, M/S/R buttons
 
 Scenario: Undo
   When user presses Cmd+Z
@@ -596,7 +596,7 @@ Scenario: Drag scrub [PARTIAL — click-to-seek only, no drag confirmed]
 
 ```gherkin
 Scenario: Track header [IMPL]
-  Then shows: color indicator, name, M/S/A buttons
+  Then shows: color indicator, name, M/S/R buttons
 
 Scenario: Mute [IMPL]
   When user clicks M

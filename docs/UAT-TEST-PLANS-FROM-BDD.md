@@ -207,7 +207,7 @@
 **Steps:**
 1. Click "+ Add Text Track"
 
-**Pass:** "Text 1" track appears with purple T icon, M/S/A buttons
+**Pass:** "Text 1" track appears with purple T icon, M/S/R buttons
 
 ### TP-Z3-13: Sidebar collapse/expand
 **Steps:**
@@ -272,7 +272,7 @@
 1. Import video
 2. Read track header
 
-**Pass:** Shows: red color bar, "Track 1", M, S, A buttons
+**Pass:** Shows: red color bar, "Track 1", M, S, R buttons
 
 ### TP-Z5-03: Mute track
 **Steps:**

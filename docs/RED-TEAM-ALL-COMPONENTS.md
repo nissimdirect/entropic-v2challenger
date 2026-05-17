@@ -223,7 +223,7 @@
 | Drag playhead during export | Export unaffected, playhead free to move | 🟠 |
 | Drag playhead past timeline bounds | Clamp to 0..duration | 🟠 |
 
-### Z5-03: Track (M/S/A)
+### Z5-03: Track (M/S/R)
 | Attack | Expected | Severity |
 |--------|----------|----------|
 | Mute all tracks then play | Silent/black preview, no crash | 🟠 |
