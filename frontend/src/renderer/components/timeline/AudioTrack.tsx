@@ -7,6 +7,7 @@ import Knob from '../common/Knob'
 import GainMeter from '../audio/GainMeter'
 import AudioClipView from './AudioClipView'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
+import { useTrackDragStore } from '../../stores/trackDrag'
 
 interface AudioTrackHeaderProps {
   track: TrackType
@@ -71,12 +72,14 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
 
   const gainDb = track.gainDb ?? 0
 
+  const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
+  const dragDropTargetIdx = useTrackDragStore((s) => s.dropTargetIdx)
   const headerClasses = [
     'track-header',
     'audio-track-header',
     isSelected ? 'track-header--selected' : '',
-    drag.isDragging ? 'track-header--dragging' : '',
-    drag.dropTargetIdx !== null && drag.dropTargetIdx === drag.ownIdx
+    dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
+    dragDropTargetIdx !== null && dragDropTargetIdx === drag.ownIdx
       ? 'track-header--drop-target'
       : '',
   ].filter(Boolean).join(' ')

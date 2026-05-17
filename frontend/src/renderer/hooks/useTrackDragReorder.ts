@@ -8,12 +8,18 @@
  * the gesture is treated as a drag. Below the threshold the pointerup is a
  * no-op and the header's own onClick handler still fires.
  *
+ * Drag state (fromIdx, dropTargetIdx) is written into useTrackDragStore so
+ * every track header — not just the source — can render the indicator. Each
+ * header reads {fromIdx, dropTargetIdx} from the store and derives its own
+ * --dragging / --drop-target classes.
+ *
  * Target detection walks every `.track-header[data-track-idx]` in document
  * order — matches the lane-detection pattern used by Clip.tsx so the same
  * mental model applies across drag interactions in this codebase.
  */
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef } from 'react'
 import { useTimelineStore } from '../stores/timeline'
+import { useTrackDragStore } from '../stores/trackDrag'
 
 const REORDER_DRAG_THRESHOLD_PX = 4
 
@@ -25,8 +31,6 @@ interface UseTrackDragReorderArgs {
 
 interface UseTrackDragReorderResult {
   ownIdx: number
-  isDragging: boolean
-  dropTargetIdx: number | null
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
   onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void
   onPointerUp: () => void
@@ -38,9 +42,6 @@ export function useTrackDragReorder({
   isRenaming,
 }: UseTrackDragReorderArgs): UseTrackDragReorderResult {
   const ownIdx = useTimelineStore((s) => s.tracks.findIndex((t) => t.id === trackId))
-
-  const [isDragging, setIsDragging] = useState(false)
-  const [dropTargetIdx, setDropTargetIdx] = useState<number | null>(null)
   const dragStateRef = useRef<{ startY: number; fromIdx: number; armed: boolean } | null>(null)
 
   const onPointerDown = useCallback(
@@ -69,7 +70,7 @@ export function useTrackDragReorder({
     if (!state.armed) {
       if (Math.abs(e.clientY - state.startY) < REORDER_DRAG_THRESHOLD_PX) return
       state.armed = true
-      setIsDragging(true)
+      useTrackDragStore.getState().setDrag(state.fromIdx, null)
     }
 
     const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
@@ -81,31 +82,31 @@ export function useTrackDragReorder({
         if (Number.isFinite(parsed)) targetIdx = parsed
       }
     }
-    setDropTargetIdx(targetIdx === state.fromIdx ? null : targetIdx)
+    const dropTarget = targetIdx === state.fromIdx ? null : targetIdx
+    useTrackDragStore.getState().setDrag(state.fromIdx, dropTarget)
   }, [])
 
   const onPointerUp = useCallback(() => {
     const state = dragStateRef.current
     dragStateRef.current = null
 
-    if (state && state.armed && dropTargetIdx !== null && dropTargetIdx !== state.fromIdx) {
-      useTimelineStore.getState().reorderTrack(state.fromIdx, dropTargetIdx)
+    if (state && state.armed) {
+      const { dropTargetIdx } = useTrackDragStore.getState()
+      if (dropTargetIdx !== null && dropTargetIdx !== state.fromIdx) {
+        useTimelineStore.getState().reorderTrack(state.fromIdx, dropTargetIdx)
+      }
     }
 
-    setIsDragging(false)
-    setDropTargetIdx(null)
-  }, [dropTargetIdx])
+    useTrackDragStore.getState().clearDrag()
+  }, [])
 
   const onPointerCancel = useCallback(() => {
     dragStateRef.current = null
-    setIsDragging(false)
-    setDropTargetIdx(null)
+    useTrackDragStore.getState().clearDrag()
   }, [])
 
   return {
     ownIdx,
-    isDragging,
-    dropTargetIdx,
     onPointerDown,
     onPointerMove,
     onPointerUp,
