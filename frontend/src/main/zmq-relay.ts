@@ -60,6 +60,13 @@ let currentToken = ''
 let persistentSocket: InstanceType<typeof Request> | null = null
 let exportPollTimer: ReturnType<typeof setInterval> | null = null
 
+// Promise-chain mutex that serializes send/receive against the shared ZMQ REQ
+// socket. ZMQ REQ enforces strict send→receive alternation; concurrent async
+// callers (clock_sync RAF, render_frame, audio_meter poll) racing on the same
+// socket left replies stranded until receiveTimeout fired — every clock_sync
+// saw a 10s roundtrip while Python had replied in 0ms.
+let pending: Promise<unknown> = Promise.resolve()
+
 export function setRelayPort(port: number, token: string): void {
   // Close existing socket if port changes
   if (currentPort !== port) {
@@ -105,11 +112,20 @@ function getOrCreateSocket(): InstanceType<typeof Request> {
   return persistentSocket
 }
 
-async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<string, unknown>> {
+function sendZmqCommand(command: Record<string, unknown>): Promise<Record<string, unknown>> {
   if (currentPort === 0 || !currentToken) {
-    return { id: command.id as string, ok: false, error: 'Engine not connected' }
+    return Promise.resolve({ id: command.id as string, ok: false, error: 'Engine not connected' })
   }
 
+  // Append this call to the serialization chain so it can't race a sibling
+  // send/receive on the shared REQ socket. `.catch` on the tail prevents one
+  // failure from poisoning every subsequent caller.
+  const myTurn = pending.then(() => doSendReceive(command))
+  pending = myTurn.catch(() => undefined)
+  return myTurn
+}
+
+async function doSendReceive(command: Record<string, unknown>): Promise<Record<string, unknown>> {
   const isRender = RENDER_COMMANDS.has(command.cmd as string)
   if (isRender) {
     setRenderInFlight(true)
