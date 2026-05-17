@@ -462,7 +462,6 @@ export async function saveProject(): Promise<boolean> {
 export async function loadProject(
   filePath?: string,
   onHydrated?: () => void | Promise<void>,
-  options?: { bypassRecents?: boolean },
 ): Promise<boolean> {
   if (!window.entropic) return false
 
@@ -513,12 +512,8 @@ export async function loadProject(
     useProjectStore.getState().setProjectPath(path)
     useProjectStore.getState().setProjectName(name)
 
-    // Track as recent project. Agent-native rec from 2026-05-16 review:
-    // headless agent runs can pass { bypassRecents: true } so automated
-    // loads don't pollute the user's recents list.
-    if (!options?.bypassRecents) {
-      addRecentProject({ path: path, name, lastModified: Date.now() })
-    }
+    // Track as recent project.
+    addRecentProject({ path: path, name, lastModified: Date.now() })
 
     // Post-hydrate: App.tsx wires preview refs/totalFrames from the hydrated
     // project. See PLAY-010 — preview state is shadow-duplicated in App.tsx
