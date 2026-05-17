@@ -564,6 +564,14 @@ function AppInner() {
       if (perfStore.isPerformMode && !(e.metaKey || e.ctrlKey)) {
         if (e.code === 'Escape') {
           e.preventDefault()
+          // F-0514-5 (perform-mode case): clear visual selection BEFORE panicking.
+          // Without this, Escape in perform mode short-circuits to panic, leaving
+          // any selected clip + its TransformPanel + bounding-box handles stuck.
+          const ts = useTimelineStore.getState()
+          if (ts.selectedClipIds.length > 0) {
+            ts.clearSelection()
+            return
+          }
           perfStore.panicAll()
           return
         }
