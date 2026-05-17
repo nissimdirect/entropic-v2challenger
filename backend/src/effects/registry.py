@@ -7,9 +7,37 @@ EffectFn = Callable[..., tuple[Any, dict | None]]
 
 _REGISTRY: dict[str, dict] = {}
 
+# Container plumbing reserves the `_*` namespace for synthetic param keys
+# injected before the effect fn sees them and popped back out after. Current
+# synthetic keys (see backend/src/engine/container.py + pipeline.py +
+# modulation/routing.py): `_mix`, `_mask`. User-registered effects MUST NOT
+# declare params under this prefix — a collision silently overwrites the
+# container plumbing at runtime.
+#
+# This guard hard-errors at registration time so new authors get an
+# immediate, actionable failure instead of a silent runtime collision.
+RESERVED_PARAM_PREFIX = "_"
+KNOWN_SYNTHETIC_KEYS = frozenset({"_mix", "_mask"})
+
+
+def _validate_params(effect_id: str, params: dict) -> None:
+    """Raise ValueError if params declare any reserved-namespace key."""
+    reserved = [
+        k for k in params if isinstance(k, str) and k.startswith(RESERVED_PARAM_PREFIX)
+    ]
+    if reserved:
+        raise ValueError(
+            f"Effect {effect_id!r} declared reserved param key(s) {reserved}: "
+            f"the `{RESERVED_PARAM_PREFIX}*` namespace is reserved for "
+            f"container plumbing (current synthetic keys: "
+            f"{sorted(KNOWN_SYNTHETIC_KEYS)}). Rename the param without the "
+            f"leading underscore."
+        )
+
 
 def register(effect_id: str, fn: EffectFn, params: dict, name: str, category: str):
     """Register an effect."""
+    _validate_params(effect_id, params)
     _REGISTRY[effect_id] = {
         "fn": fn,
         "params": params,

@@ -2,7 +2,13 @@
 
 import pytest
 
-from effects.registry import get, list_all
+from effects.registry import (
+    KNOWN_SYNTHETIC_KEYS,
+    RESERVED_PARAM_PREFIX,
+    get,
+    list_all,
+    register,
+)
 
 pytestmark = pytest.mark.smoke
 
@@ -80,3 +86,66 @@ def test_no_orphan_module_lists():
         f"Forbidden module list names re-introduced: {sorted(forbidden_seen)}. "
         f"These were named ad-hoc and must be folded into a canonical phase list."
     )
+
+
+# Architecture-review follow-up: lock the synthetic-param namespace convention.
+# Before this guard, an effect author could declare `params["_internal"]` and
+# silently overwrite the container's `_mix` / `_mask` plumbing at runtime.
+class TestReservedParamNamespace:
+    def _noop(self, frame, params, state):
+        return frame, state
+
+    def test_constants_exposed(self):
+        assert RESERVED_PARAM_PREFIX == "_"
+        assert "_mix" in KNOWN_SYNTHETIC_KEYS
+        assert "_mask" in KNOWN_SYNTHETIC_KEYS
+
+    def test_register_rejects_underscore_prefix_param(self):
+        with pytest.raises(ValueError, match="reserved param key"):
+            register(
+                "fx.bad_underscore",
+                self._noop,
+                {"_internal": {"type": "float", "default": 0.0}},
+                "Bad",
+                "fx",
+            )
+
+    def test_register_rejects_synthetic_key_collision(self):
+        # Even known synthetic keys must NOT be re-declared — they belong to
+        # container plumbing, not effect param surface.
+        with pytest.raises(ValueError, match="reserved param key"):
+            register(
+                "fx.bad_mix",
+                self._noop,
+                {"_mix": {"type": "float", "default": 1.0}},
+                "Bad",
+                "fx",
+            )
+
+    def test_register_allows_normal_param_keys(self):
+        # Sanity check: registration with normal keys still works.
+        # Use a unique effect_id so we don't collide with the real registry.
+        register(
+            "test._reserved_namespace_ok",
+            self._noop,
+            {"amount": {"type": "float", "default": 0.5}},
+            "Test OK",
+            "test",
+        )
+        info = get("test._reserved_namespace_ok")
+        assert info is not None
+        assert "amount" in info["params"]
+        assert "_mix" not in info["params"]  # container injects, not registry
+
+    def test_no_registered_effect_currently_declares_reserved_key(self):
+        """Regression guard: scan the full registry for any reserved key."""
+        for effect in list_all():
+            reserved = [
+                k
+                for k in effect["params"]
+                if isinstance(k, str) and k.startswith(RESERVED_PARAM_PREFIX)
+            ]
+            assert not reserved, (
+                f"Effect {effect['id']!r} declares reserved param key(s): "
+                f"{reserved}. Rename without leading underscore."
+            )
