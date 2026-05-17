@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { Asset, EffectInstance } from '../../shared/types'
 import { randomUUID } from '../utils'
-import { LIMITS } from '../../shared/limits'
+import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
 import { undoable } from './undo'
 import { useToastStore } from './toast'
 import { useOperatorStore } from './operators'
@@ -94,6 +94,26 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (get().effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) {
       useToastStore.getState().addToast({ level: 'warning', message: `Effect chain limit (${LIMITS.MAX_EFFECTS_PER_CHAIN}) reached`, source: 'project' })
       return
+    }
+
+    // F-0516-7: surface zero-adjustment effects with a one-time info toast.
+    // Util effects (curves, levels, hsl, color_balance) start neutral by
+    // design — without a hint, they look identical to "no effect" and the
+    // user reports the chain as broken.
+    if (ZERO_DEFAULT_EFFECT_IDS.has(effect.effectId)) {
+      const lsKey = `entropic.toast.zeroDefault.shown.${effect.effectId}`
+      try {
+        if (!localStorage.getItem(lsKey)) {
+          useToastStore.getState().addToast({
+            level: 'info',
+            message: `${effect.effectId.split('.').pop()} starts neutral — drag params to see changes.`,
+            source: `zero-default:${effect.effectId}`,
+          })
+          localStorage.setItem(lsKey, '1')
+        }
+      } catch {
+        // localStorage unavailable (e.g. SSR) — skip gating, toast every time.
+      }
     }
 
     undoable(
