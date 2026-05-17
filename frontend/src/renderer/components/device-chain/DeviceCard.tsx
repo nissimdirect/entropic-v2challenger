@@ -81,6 +81,15 @@ export default function DeviceCard({
   const otherParams = paramEntries.filter(([, def]) => def.type !== 'float' && def.type !== 'int')
   const mixPercent = Math.round(effect.mix * 100)
 
+  // F-0516-7: util.* effects (Curves/Levels/HSL/Color Balance/etc.) default every
+  // adjustment param to 0 — so a fresh-added util effect is a visual no-op until
+  // the user moves a knob. Users mistake this for "the MIX slider is broken."
+  // Surface a small hint when every numeric param still equals its default AND
+  // the effect is in the util category.
+  const isUtilAtDefault = effectInfo.id.startsWith('util.') && numericParams.every(
+    ([key, def]) => (effect.parameters[key] ?? def.default) === def.default,
+  )
+
   return (
     <div
       className={`device-card${isSelected ? ' device-card--selected' : ''}${!effect.isEnabled ? ' device-card--disabled' : ''}`}
@@ -117,6 +126,15 @@ export default function DeviceCard({
 
       {/* Params */}
       <div className="device-card__params" data-testid="device-params">
+        {isUtilAtDefault && (
+          <div
+            className="device-card__default-hint"
+            data-testid="device-card-default-hint"
+            title="Adjustment effects do nothing at their default values"
+          >
+            Tweak a knob to apply
+          </div>
+        )}
         {numericParams.map(([key, def]) => {
           const value = effect.parameters[key] ?? def.default
           const ghostValue = modulatedValues?.[key] ?? (value as number)
