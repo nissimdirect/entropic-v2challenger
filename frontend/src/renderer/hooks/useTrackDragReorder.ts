@@ -9,6 +9,14 @@
  * is wrapped in an undo transaction so Cmd+Z reverses the entire drag, not
  * each intermediate step.
  *
+ * Why document-level listeners instead of setPointerCapture: React reorders
+ * the track headers in the DOM as live swaps fire (insertBefore moves the
+ * source element). In Electron this releases pointer capture, so subsequent
+ * pointermove events route to whichever sibling is under the cursor — not
+ * the source — and the drag silently dies after the first swap. Attaching
+ * pointermove/up to `document` sidesteps capture entirely; the listeners
+ * keep firing regardless of how the tree shuffles underneath.
+ *
  * Plays well with existing single-click selection, double-click rename, and
  * right-click context menu: a 4 px movement threshold must be crossed before
  * the gesture is treated as a drag. Below the threshold the pointerup is a
@@ -18,7 +26,7 @@
  * order — matches the lane-detection pattern used by Clip.tsx so the same
  * mental model applies across drag interactions in this codebase.
  */
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTimelineStore } from '../stores/timeline'
 import { useTrackDragStore } from '../stores/trackDrag'
 import { useUndoStore } from '../stores/undo'
@@ -34,9 +42,15 @@ interface UseTrackDragReorderArgs {
 interface UseTrackDragReorderResult {
   ownIdx: number
   onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
-  onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void
-  onPointerUp: () => void
-  onPointerCancel: () => void
+}
+
+interface ActiveDrag {
+  pointerId: number
+  startY: number
+  armed: boolean
+  moveHandler: (ev: PointerEvent) => void
+  upHandler: (ev: PointerEvent) => void
+  cancelHandler: (ev: PointerEvent) => void
 }
 
 export function useTrackDragReorder({
@@ -44,7 +58,20 @@ export function useTrackDragReorder({
   isRenaming,
 }: UseTrackDragReorderArgs): UseTrackDragReorderResult {
   const ownIdx = useTimelineStore((s) => s.tracks.findIndex((t) => t.id === trackId))
-  const dragStateRef = useRef<{ startY: number; armed: boolean } | null>(null)
+  const activeRef = useRef<ActiveDrag | null>(null)
+
+  const detach = useCallback(() => {
+    const drag = activeRef.current
+    if (!drag) return
+    document.removeEventListener('pointermove', drag.moveHandler)
+    document.removeEventListener('pointerup', drag.upHandler)
+    document.removeEventListener('pointercancel', drag.cancelHandler)
+    activeRef.current = null
+  }, [])
+
+  // Tear down document listeners if the component unmounts mid-drag — otherwise
+  // they would leak past the lifecycle of the source track.
+  useEffect(() => detach, [detach])
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -54,85 +81,91 @@ export function useTrackDragReorder({
         return
       }
       if (isRenaming) return
+      // Already dragging this pointer — guard against a stray pointerdown.
+      if (activeRef.current) return
 
       const tracks = useTimelineStore.getState().tracks
       const fromIdx = tracks.findIndex((t) => t.id === trackId)
       if (fromIdx < 0) return
 
-      dragStateRef.current = { startY: e.clientY, armed: false }
-      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    },
-    [trackId, isRenaming],
-  )
+      const pointerId = e.pointerId
+      const startY = e.clientY
 
-  const onPointerMove = useCallback(
-    (e: React.PointerEvent<HTMLDivElement>) => {
-      const state = dragStateRef.current
-      if (!state) return
+      const moveHandler = (ev: PointerEvent) => {
+        const drag = activeRef.current
+        if (!drag || ev.pointerId !== drag.pointerId) return
 
-      // Look up the source track's CURRENT index — it shifts as live reorders
-      // fire during the drag, so we can't rely on a stored fromIdx.
-      const tracks = useTimelineStore.getState().tracks
-      const currentIdx = tracks.findIndex((t) => t.id === trackId)
-      if (currentIdx < 0) return
+        // Source track's CURRENT index — it shifts as live reorders fire,
+        // so we re-read it on every move instead of trusting a captured value.
+        const currentIdx = useTimelineStore.getState().tracks.findIndex((t) => t.id === trackId)
+        if (currentIdx < 0) return
 
-      if (!state.armed) {
-        if (Math.abs(e.clientY - state.startY) < REORDER_DRAG_THRESHOLD_PX) return
-        state.armed = true
-        // Open an undo transaction once the gesture is actually a drag. Every
-        // reorder fired below buffers into this transaction so Cmd+Z reverses
-        // the whole move in one keypress.
-        useUndoStore.getState().beginTransaction('Reorder tracks')
-        useTrackDragStore.getState().setDrag(currentIdx, null)
-      }
+        if (!drag.armed) {
+          if (Math.abs(ev.clientY - drag.startY) < REORDER_DRAG_THRESHOLD_PX) return
+          drag.armed = true
+          // Open an undo transaction once the gesture is actually a drag. Every
+          // reorder fired below buffers into this transaction so Cmd+Z reverses
+          // the whole move in one keypress.
+          useUndoStore.getState().beginTransaction('Reorder tracks')
+          useTrackDragStore.getState().setDrag(currentIdx, null)
+        }
 
-      const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
-      let targetIdx = currentIdx
-      for (const header of headers) {
-        const rect = header.getBoundingClientRect()
-        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          const parsed = parseInt(header.dataset.trackIdx ?? '', 10)
-          if (Number.isFinite(parsed)) targetIdx = parsed
+        const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
+        let targetIdx = currentIdx
+        for (const header of headers) {
+          const rect = header.getBoundingClientRect()
+          if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
+            const parsed = parseInt(header.dataset.trackIdx ?? '', 10)
+            if (Number.isFinite(parsed)) targetIdx = parsed
+          }
+        }
+
+        if (targetIdx !== currentIdx) {
+          useTimelineStore.getState().reorderTrack(currentIdx, targetIdx)
+          // Source has moved — re-publish so the --dragging highlight follows.
+          useTrackDragStore.getState().setDrag(targetIdx, null)
         }
       }
 
-      if (targetIdx !== currentIdx) {
-        useTimelineStore.getState().reorderTrack(currentIdx, targetIdx)
-        // Source track has moved — re-publish for the --dragging highlight.
-        useTrackDragStore.getState().setDrag(targetIdx, null)
+      const upHandler = (ev: PointerEvent) => {
+        const drag = activeRef.current
+        if (!drag || ev.pointerId !== drag.pointerId) return
+        if (drag.armed) {
+          useUndoStore.getState().commitTransaction()
+        }
+        useTrackDragStore.getState().clearDrag()
+        detach()
       }
+
+      const cancelHandler = (ev: PointerEvent) => {
+        const drag = activeRef.current
+        if (!drag || ev.pointerId !== drag.pointerId) return
+        if (drag.armed) {
+          // Abort rewinds every buffered reorder, restoring the original order.
+          useUndoStore.getState().abortTransaction()
+        }
+        useTrackDragStore.getState().clearDrag()
+        detach()
+      }
+
+      activeRef.current = {
+        pointerId,
+        startY,
+        armed: false,
+        moveHandler,
+        upHandler,
+        cancelHandler,
+      }
+
+      document.addEventListener('pointermove', moveHandler)
+      document.addEventListener('pointerup', upHandler)
+      document.addEventListener('pointercancel', cancelHandler)
     },
-    [trackId],
+    [trackId, isRenaming, detach],
   )
-
-  const onPointerUp = useCallback(() => {
-    const state = dragStateRef.current
-    dragStateRef.current = null
-
-    if (state && state.armed) {
-      useUndoStore.getState().commitTransaction()
-    }
-
-    useTrackDragStore.getState().clearDrag()
-  }, [])
-
-  const onPointerCancel = useCallback(() => {
-    const state = dragStateRef.current
-    dragStateRef.current = null
-
-    if (state && state.armed) {
-      // Abort rewinds every buffered reorder, restoring the original order.
-      useUndoStore.getState().abortTransaction()
-    }
-
-    useTrackDragStore.getState().clearDrag()
-  }, [])
 
   return {
     ownIdx,
     onPointerDown,
-    onPointerMove,
-    onPointerUp,
-    onPointerCancel,
   }
 }

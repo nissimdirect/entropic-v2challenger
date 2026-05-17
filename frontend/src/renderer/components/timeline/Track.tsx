@@ -227,9 +227,6 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onPointerDown={drag.onPointerDown}
-        onPointerMove={drag.onPointerMove}
-        onPointerUp={drag.onPointerUp}
-        onPointerCancel={drag.onPointerCancel}
         onMouseEnter={() => setShowExtras(true)}
         onMouseLeave={() => setShowExtras(false)}
         // B2: accept an instrument dragged from the Instruments browser (drag is the

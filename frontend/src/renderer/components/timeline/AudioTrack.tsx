@@ -86,9 +86,6 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
       data-track-idx={drag.ownIdx}
       onClick={handleClick}
       onPointerDown={drag.onPointerDown}
-      onPointerMove={drag.onPointerMove}
-      onPointerUp={drag.onPointerUp}
-      onPointerCancel={drag.onPointerCancel}
     >
       <div className="track-header__color" style={{ background: track.color }} />
       <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>

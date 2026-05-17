@@ -1,12 +1,13 @@
 /**
  * useTrackDragReorder — pointer-driven LIVE track reorder.
  *
- * Covers the contract: threshold gate distinguishes click from drag, the
- * source track moves in real time as the cursor crosses adjacent track
- * rects, the full drag collapses into one undo transaction, and
- * pointercancel aborts the transaction (restoring the original order).
+ * Covers the contract: pointermove/up listen on `document` (so DOM reorders
+ * by React don't break the drag), threshold gate distinguishes click from
+ * drag, the source track moves in real time as the cursor crosses adjacent
+ * track rects, the full drag collapses into one undo transaction, and
+ * pointercancel aborts the transaction.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useTrackDragStore } from '../../renderer/stores/trackDrag'
@@ -15,7 +16,6 @@ import { useTrackDragReorder } from '../../renderer/hooks/useTrackDragReorder'
 
 interface FakeHeader {
   el: HTMLDivElement
-  rect: { top: number; bottom: number; left: number; right: number }
 }
 
 function setupHeaders(
@@ -40,24 +40,19 @@ function setupHeaders(
       toJSON() { return rect },
     })
     document.body.appendChild(el)
-    headers.push({ el, rect })
+    headers.push({ el })
   })
   return headers
 }
 
-/**
- * Mirror the timeline-store tracks into the fake DOM so target detection
- * walks the current order whenever a live reorder fires.
- */
 function syncFakeHeaders(rects: Array<{ top: number; bottom: number }>) {
   const tracks = useTimelineStore.getState().tracks
   setupHeaders(tracks.map((t) => t.id), rects)
 }
 
-function makePointerEvent(clientY: number, button = 0): React.PointerEvent<HTMLDivElement> {
+function makePointerDown(clientY: number, button = 0): React.PointerEvent<HTMLDivElement> {
   const target = document.createElement('div')
   const currentTarget = document.createElement('div')
-  currentTarget.setPointerCapture = vi.fn()
   return {
     button,
     clientY,
@@ -66,6 +61,27 @@ function makePointerEvent(clientY: number, button = 0): React.PointerEvent<HTMLD
     target,
     currentTarget,
   } as unknown as React.PointerEvent<HTMLDivElement>
+}
+
+function dispatchDocPointerMove(clientY: number, pointerId = 1) {
+  // PointerEvent isn't fully implemented in jsdom; synthesize what the hook needs.
+  const ev = new Event('pointermove') as Event & { pointerId: number; clientY: number; clientX: number }
+  Object.defineProperty(ev, 'pointerId', { value: pointerId })
+  Object.defineProperty(ev, 'clientY', { value: clientY })
+  Object.defineProperty(ev, 'clientX', { value: 100 })
+  document.dispatchEvent(ev)
+}
+
+function dispatchDocPointerUp(pointerId = 1) {
+  const ev = new Event('pointerup') as Event & { pointerId: number }
+  Object.defineProperty(ev, 'pointerId', { value: pointerId })
+  document.dispatchEvent(ev)
+}
+
+function dispatchDocPointerCancel(pointerId = 1) {
+  const ev = new Event('pointercancel') as Event & { pointerId: number }
+  Object.defineProperty(ev, 'pointerId', { value: pointerId })
+  document.dispatchEvent(ev)
 }
 
 const ROWS = [
@@ -92,9 +108,9 @@ describe('useTrackDragReorder', () => {
     setupHeaders(['t1', 't2', 't3'], ROWS)
     const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
 
-    act(() => result.current.onPointerDown(makePointerEvent(10)))
-    act(() => result.current.onPointerMove(makePointerEvent(12)))
-    act(() => result.current.onPointerUp())
+    act(() => result.current.onPointerDown(makePointerDown(10)))
+    act(() => dispatchDocPointerMove(12))
+    act(() => dispatchDocPointerUp())
 
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t1', 't2', 't3'])
   })
@@ -103,36 +119,52 @@ describe('useTrackDragReorder', () => {
     setupHeaders(['t1', 't2', 't3'], ROWS)
     const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
 
-    act(() => result.current.onPointerDown(makePointerEvent(10)))
-
-    // Cross into middle track → t1 swaps with t2.
-    act(() => result.current.onPointerMove(makePointerEvent(45)))
+    act(() => result.current.onPointerDown(makePointerDown(10)))
+    act(() => dispatchDocPointerMove(45))
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t2', 't1', 't3'])
-    // Refresh the DOM mirror so the next move targets the new order.
     syncFakeHeaders(ROWS)
 
-    // Cross into bottom track → t1 reaches the end.
-    act(() => result.current.onPointerMove(makePointerEvent(75)))
+    act(() => dispatchDocPointerMove(75))
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t2', 't3', 't1'])
 
-    act(() => result.current.onPointerUp())
+    act(() => dispatchDocPointerUp())
+  })
+
+  it('keeps firing reorders after the source has moved (no pointer-capture loss)', () => {
+    // Regression: with setPointerCapture + React DOM reordering, subsequent
+    // pointermoves routed to siblings, killing the drag after the first swap.
+    setupHeaders(['t1', 't2', 't3'], ROWS)
+    const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
+
+    act(() => result.current.onPointerDown(makePointerDown(10)))
+
+    // Three consecutive crossings, each triggered while the source is at a
+    // different index than the previous step.
+    act(() => dispatchDocPointerMove(45))
+    syncFakeHeaders(ROWS)
+    act(() => dispatchDocPointerMove(75))
+    syncFakeHeaders(ROWS)
+    // Drag back up — source at idx 2 should swap with the middle (now t3).
+    act(() => dispatchDocPointerMove(45))
+
+    expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t2', 't1', 't3'])
+
+    act(() => dispatchDocPointerUp())
   })
 
   it('collapses the full drag into a single undo entry', () => {
     setupHeaders(['t1', 't2', 't3'], ROWS)
     const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
 
-    act(() => result.current.onPointerDown(makePointerEvent(10)))
-    act(() => result.current.onPointerMove(makePointerEvent(45)))
+    act(() => result.current.onPointerDown(makePointerDown(10)))
+    act(() => dispatchDocPointerMove(45))
     syncFakeHeaders(ROWS)
-    act(() => result.current.onPointerMove(makePointerEvent(75)))
-    act(() => result.current.onPointerUp())
+    act(() => dispatchDocPointerMove(75))
+    act(() => dispatchDocPointerUp())
 
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t2', 't3', 't1'])
-    // One undo entry covers the whole drag.
     expect(useUndoStore.getState().past).toHaveLength(1)
 
-    // Single Cmd+Z restores the original order.
     act(() => {
       useUndoStore.getState().undo()
     })
@@ -143,11 +175,11 @@ describe('useTrackDragReorder', () => {
     setupHeaders(['t1', 't2', 't3'], ROWS)
     const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
 
-    act(() => result.current.onPointerDown(makePointerEvent(10)))
-    act(() => result.current.onPointerMove(makePointerEvent(45)))
+    act(() => result.current.onPointerDown(makePointerDown(10)))
+    act(() => dispatchDocPointerMove(45))
     syncFakeHeaders(ROWS)
-    act(() => result.current.onPointerMove(makePointerEvent(75)))
-    act(() => result.current.onPointerCancel())
+    act(() => dispatchDocPointerMove(75))
+    act(() => dispatchDocPointerCancel())
 
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t1', 't2', 't3'])
     expect(useUndoStore.getState().past).toHaveLength(0)
@@ -157,9 +189,9 @@ describe('useTrackDragReorder', () => {
     setupHeaders(['t1', 't2', 't3'], ROWS)
     const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
 
-    act(() => result.current.onPointerDown(makePointerEvent(10, 2)))
-    act(() => result.current.onPointerMove(makePointerEvent(70)))
-    act(() => result.current.onPointerUp())
+    act(() => result.current.onPointerDown(makePointerDown(10, 2)))
+    act(() => dispatchDocPointerMove(70))
+    act(() => dispatchDocPointerUp())
 
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t1', 't2', 't3'])
   })
@@ -168,13 +200,13 @@ describe('useTrackDragReorder', () => {
     setupHeaders(['t1', 't2', 't3'], ROWS)
     const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
 
-    const ev = makePointerEvent(10)
+    const ev = makePointerDown(10)
     const button = document.createElement('button')
     ;(ev as unknown as { target: HTMLElement }).target = button
 
     act(() => result.current.onPointerDown(ev))
-    act(() => result.current.onPointerMove(makePointerEvent(70)))
-    act(() => result.current.onPointerUp())
+    act(() => dispatchDocPointerMove(70))
+    act(() => dispatchDocPointerUp())
 
     expect(useTimelineStore.getState().tracks.map((t) => t.id)).toEqual(['t1', 't2', 't3'])
   })
@@ -183,10 +215,10 @@ describe('useTrackDragReorder', () => {
     setupHeaders(['t1', 't2', 't3'], ROWS)
     const { result } = renderHook(() => useTrackDragReorder({ trackId: 't1' }))
 
-    act(() => result.current.onPointerDown(makePointerEvent(10)))
-    act(() => result.current.onPointerMove(makePointerEvent(45)))
-    expect(useTrackDragStore.getState().fromIdx).toBe(1) // t1 moved to idx 1
-    act(() => result.current.onPointerUp())
+    act(() => result.current.onPointerDown(makePointerDown(10)))
+    act(() => dispatchDocPointerMove(45))
+    expect(useTrackDragStore.getState().fromIdx).toBe(1)
+    act(() => dispatchDocPointerUp())
     expect(useTrackDragStore.getState().fromIdx).toBeNull()
   })
 })
