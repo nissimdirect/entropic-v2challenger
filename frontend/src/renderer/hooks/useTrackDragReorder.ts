@@ -129,20 +129,31 @@ export function useTrackDragReorder({
           console.warn(`%c[track-drag] ARMED y=${ev.clientY} fromIdx=${currentIdx}`, 'color:#4ade80;font-weight:bold')
         }
 
-        const headers = document.querySelectorAll<HTMLElement>('.track-header[data-track-idx]')
+        // Position-based target detection: anchor on the first header's bounding
+        // rect + per-row height, then compute targetIdx = floor((y - top) / row).
+        // Why: between fast pointermove events React hasn't committed the post-
+        // swap render yet, so the divs' data-track-idx attributes lag behind
+        // the store. Reading them yields stale targets that often equal the
+        // already-updated currentIdx → false no-op → drag appears stuck after
+        // the first swap. Anchoring on layout geometry instead of DOM attributes
+        // is robust to that staleness because the visible row positions update
+        // synchronously via React's reconciler.
+        const totalTracks = useTimelineStore.getState().tracks.length
+        const firstHeader = document.querySelector<HTMLElement>('.track-header[data-track-idx]')
         let targetIdx = currentIdx
-        for (const header of headers) {
-          const rect = header.getBoundingClientRect()
-          if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
-            const parsed = parseInt(header.dataset.trackIdx ?? '', 10)
-            if (Number.isFinite(parsed)) targetIdx = parsed
+        if (firstHeader && totalTracks > 0) {
+          const firstRect = firstHeader.getBoundingClientRect()
+          if (firstRect.height > 0) {
+            const relY = ev.clientY - firstRect.top
+            const raw = Math.floor(relY / firstRect.height)
+            targetIdx = Math.max(0, Math.min(totalTracks - 1, raw))
           }
         }
 
         if (moveCount <= 6 || moveCount % 15 === 0 || targetIdx !== currentIdx) {
           // eslint-disable-next-line no-console
           console.warn(
-            `%c[track-drag] move#${moveCount} y=${ev.clientY} cur=${currentIdx} tgt=${targetIdx} headers=${headers.length}`,
+            `%c[track-drag] move#${moveCount} y=${ev.clientY} cur=${currentIdx} tgt=${targetIdx} tracks=${totalTracks}`,
             'color:#888',
           )
         }
