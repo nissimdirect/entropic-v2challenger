@@ -93,8 +93,16 @@ export default function Timeline({
     if (id) useTimelineStore.getState().selectTrack(id)
   }, [tracks])
 
+  // Track-headers column needs to follow the lanes' vertical scroll so the
+  // left/right halves of each row stay aligned when the user has more tracks
+  // than fit in the visible area.
+  const headersRef = useRef<HTMLDivElement | null>(null)
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     useTimelineStore.getState().setScrollX(e.currentTarget.scrollLeft)
+    const headers = headersRef.current
+    if (headers && headers.scrollTop !== e.currentTarget.scrollTop) {
+      headers.scrollTop = e.currentTarget.scrollTop
+    }
   }, [])
 
   const handleDeleteMarker = useCallback((id: string) => {
@@ -196,7 +204,18 @@ export default function Timeline({
               +M
             </button>
           </div>
-          <div className="timeline__track-headers">
+          <div
+            className="timeline__track-headers"
+            ref={headersRef}
+            onScroll={(e) => {
+              // Reverse direction: user wheel-scrolls the headers column →
+              // keep the lanes in sync so each row's left + right stay matched.
+              const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+              if (lanes && lanes.scrollTop !== e.currentTarget.scrollTop) {
+                lanes.scrollTop = e.currentTarget.scrollTop
+              }
+            }}
+          >
             {tracks.map((track) =>
               track.type === 'audio' ? (
                 <AudioTrackHeader
