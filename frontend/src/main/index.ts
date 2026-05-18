@@ -216,6 +216,13 @@ function createWindow(): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }
 
+  // Auto-open DevTools in dev mode so console output is visible without a
+  // menu binding (the app's custom menu omits the default View → Toggle
+  // Developer Tools entry).
+  if (process.env.ELECTRON_RENDERER_URL) {
+    win.webContents.openDevTools({ mode: 'right' })
+  }
+
   return win
 }
 
