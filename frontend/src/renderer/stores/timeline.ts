@@ -583,6 +583,55 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const oldTrackId = oldClip.trackId
     const oldPosition = oldClip.position
 
+    // Overlap snap: don't let the moved clip occupy the same time range as
+    // any other clip on the target track. If newPosition would overlap, snap
+    // to the closest free position (either right after the overlapping clip
+    // or right before it, whichever is closer to the requested newPosition).
+    const targetTrack = get().tracks.find((t) => t.id === newTrackId)
+    if (targetTrack) {
+      const myDuration = oldClip.duration
+      const siblings = targetTrack.clips
+        .filter((c) => c.id !== clipId)
+        .map((c) => ({ start: c.position, end: c.position + c.duration }))
+        .sort((a, b) => a.start - b.start)
+
+      const overlaps = (start: number) =>
+        siblings.some((s) => start < s.end && start + myDuration > s.start)
+
+      if (overlaps(newPosition)) {
+        // Build the set of free intervals between siblings on the target track.
+        const free: Array<[number, number]> = []
+        let cursor = 0
+        for (const s of siblings) {
+          if (s.start - cursor >= myDuration) free.push([cursor, s.start])
+          cursor = Math.max(cursor, s.end)
+        }
+        free.push([cursor, Infinity])
+
+        // Pick the free interval whose nearest valid start is closest to
+        // the requested newPosition. Tie-break by preferring the interval
+        // that contains newPosition's neighborhood.
+        let best = newPosition
+        let bestDist = Infinity
+        for (const [a, b] of free) {
+          const cand = Math.max(a, Math.min(b - myDuration, newPosition))
+          if (cand + myDuration > b) continue // doesn't fit
+          const dist = Math.abs(cand - newPosition)
+          if (dist < bestDist) {
+            bestDist = dist
+            best = cand
+          }
+        }
+        newPosition = best
+      }
+    }
+
+    // No-op fast path: if the snap produced the same track + position, skip
+    // the undoable so a held drag-on-overlap doesn't spam undo entries.
+    if (oldTrackId === newTrackId && Math.abs(oldPosition - newPosition) < 1e-6) {
+      return
+    }
+
     undoable(
       'Move clip',
       () => {
