@@ -63,6 +63,8 @@ export function useTrackDragReorder({
   const detach = useCallback(() => {
     const drag = activeRef.current
     if (!drag) return
+    // eslint-disable-next-line no-console
+    console.warn('%c[track-drag] DETACH listeners removed', 'color:#ef4444;font-weight:bold')
     document.removeEventListener('pointermove', drag.moveHandler)
     document.removeEventListener('pointerup', drag.upHandler)
     document.removeEventListener('pointercancel', drag.cancelHandler)
@@ -104,7 +106,16 @@ export function useTrackDragReorder({
       let swapCount = 0
       const moveHandler = (ev: PointerEvent) => {
         const drag = activeRef.current
-        if (!drag || ev.pointerId !== drag.pointerId) return
+        if (!drag) {
+          // eslint-disable-next-line no-console
+          console.warn('%c[track-drag] move BAIL — activeRef was cleared', 'color:#ef4444')
+          return
+        }
+        if (ev.pointerId !== drag.pointerId) {
+          // eslint-disable-next-line no-console
+          console.warn(`%c[track-drag] move BAIL — pointerId mismatch ${ev.pointerId} vs ${drag.pointerId}`, 'color:#ef4444')
+          return
+        }
         moveCount++
 
         // Source track's CURRENT index — it shifts as live reorders fire,
@@ -175,7 +186,14 @@ export function useTrackDragReorder({
 
       const upHandler = (ev: PointerEvent) => {
         const drag = activeRef.current
-        if (!drag || ev.pointerId !== drag.pointerId) return
+        if (!drag || ev.pointerId !== drag.pointerId) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `%c[track-drag] UP IGNORED — pointerId=${ev.pointerId} drag=${drag ? drag.pointerId : 'null'}`,
+            'color:#ef4444',
+          )
+          return
+        }
         const stats = (moveHandler as unknown as { _getStats: () => { moves: number; swaps: number } })._getStats()
         // eslint-disable-next-line no-console
         console.warn(
@@ -193,6 +211,11 @@ export function useTrackDragReorder({
       const cancelHandler = (ev: PointerEvent) => {
         const drag = activeRef.current
         if (!drag || ev.pointerId !== drag.pointerId) return
+        // eslint-disable-next-line no-console
+        console.warn(
+          `%c[track-drag] CANCEL fired — armed=${drag.armed} — drag aborted by browser`,
+          'color:#ef4444;font-weight:bold',
+        )
         if (drag.armed) {
           // Abort rewinds every buffered reorder, restoring the original order.
           useUndoStore.getState().abortTransaction()
