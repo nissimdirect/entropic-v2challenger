@@ -476,7 +476,7 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  height: 48px;
+  height: 76px;
   border-bottom: 1px solid #333;
   cursor: pointer;
   transition: background 0.15s;
@@ -690,7 +690,7 @@ body.clip-dragging .timeline__new-track-zone {
 /* --- Track Lane --- */
 
 .track-lane {
-  height: 48px;
+  height: 76px;
   border-bottom: 1px solid #333;
   position: relative;
   background: #1e1e1e;
@@ -705,7 +705,7 @@ body.clip-dragging .timeline__new-track-zone {
 .clip {
   position: absolute;
   top: 4px;
-  height: 40px;
+  height: 68px;
   background: #2a3a2e;
   border: 1px solid #3a5a40;
   border-radius: 3px;

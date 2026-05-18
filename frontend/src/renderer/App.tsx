@@ -785,9 +785,15 @@ function AppInner() {
             c.textConfig && c.isEnabled !== false && currentTime >= c.position && currentTime < c.position + c.duration,
           ))
 
-        // Active video clips across ALL unmuted video tracks (multi-track compositing)
+        // Active video clips across ALL unmuted video tracks (multi-track compositing).
+        // Iterated in REVERSE store order so the topmost track in the UI ends up
+        // LAST in the layer list — backend composites bottom-to-top so the last
+        // entry lands on top. Result: NLE convention (Premiere / Final Cut /
+        // Resolve / After Effects) — drag a track up in the timeline to bring it
+        // to the front of the composite.
         const activeVideoClips: { clip: typeof timelineState.tracks[0]['clips'][0]; track: typeof timelineState.tracks[0]; assetPath: string }[] = []
-        for (const track of timelineState.tracks) {
+        for (let i = timelineState.tracks.length - 1; i >= 0; i--) {
+          const track = timelineState.tracks[i]
           if (track.type !== 'video' || track.isMuted) continue
           for (const clip of track.clips) {
             if (clip.isEnabled === false) continue
