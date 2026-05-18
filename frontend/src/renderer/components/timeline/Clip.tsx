@@ -171,7 +171,37 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const pointerId = e.pointerId
       const zoomAtStart = zoom
       let active = true
+      let lastClientY = e.clientY
+      let autoScrollRaf: number | null = null
       document.body.classList.add('clip-dragging')
+
+      // Edge-scroll loop: while the cursor sits in the top/bottom 40 px of the
+      // lanes scroll container, push scrollTop in that direction so the user
+      // can drag onto rows that started off-screen. Speed ramps with how
+      // deeply the cursor penetrates the edge zone (sigmoid-ish via linear
+      // scaling clamped to ±20 px/frame).
+      const tickAutoScroll = () => {
+        if (!active) return
+        const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+        if (lanes) {
+          const rect = lanes.getBoundingClientRect()
+          const EDGE = 40
+          let dy = 0
+          if (lastClientY < rect.top + EDGE) {
+            dy = -Math.min(20, (rect.top + EDGE - lastClientY) * 0.5)
+          } else if (lastClientY > rect.bottom - EDGE) {
+            dy = Math.min(20, (lastClientY - (rect.bottom - EDGE)) * 0.5)
+          }
+          if (dy !== 0) {
+            lanes.scrollTop = Math.max(
+              0,
+              Math.min(lanes.scrollHeight - lanes.clientHeight, lanes.scrollTop + dy),
+            )
+          }
+        }
+        autoScrollRaf = requestAnimationFrame(tickAutoScroll)
+      }
+      autoScrollRaf = requestAnimationFrame(tickAutoScroll)
 
       const store = useTimelineStore.getState()
       if (e.metaKey || e.ctrlKey) {
@@ -185,6 +215,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
 
       const moveHandler = (ev: PointerEvent) => {
         if (!active || ev.pointerId !== pointerId) return
+        lastClientY = ev.clientY
         const dx = ev.clientX - startX
         const dt = dx / zoomAtStart
         const newPos = Math.max(0, startPos + dt)
@@ -218,6 +249,10 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
 
       const teardown = () => {
         active = false
+        if (autoScrollRaf !== null) {
+          cancelAnimationFrame(autoScrollRaf)
+          autoScrollRaf = null
+        }
         document.body.classList.remove('clip-dragging')
         document.removeEventListener('pointermove', moveHandler)
         document.removeEventListener('pointerup', upHandler)
