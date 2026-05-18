@@ -33,9 +33,6 @@ interface ClipProps {
 }
 
 export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
-  const isDragging = useRef(false)
-  const dragStartX = useRef(0)
-  const dragStartPos = useRef(0)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
 
   // Mini waveform canvas
@@ -149,114 +146,142 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
 
+  // Document-level drag: when moveClip transfers the clip to a different
+  // track, React unmounts this clip's component from the old track and mounts
+  // a NEW one in the new track (because key={clip.id} lives inside each
+  // track's clips.map). Pointer capture on this element would be lost, and
+  // React handlers on the new instance start fresh with isDragging.current=false
+  // → drag dies after one track crossing, leaving the visible "overlap" mess.
+  // Attaching pointermove/up to `document` instead survives the re-mount —
+  // the closure stays alive (the document listeners hold the reference) and
+  // keeps moving the clip via clipId regardless of which component instance
+  // is mounted at any moment.
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       // Don't start drag from trim handles
       if ((e.target as HTMLElement).classList.contains('clip__trim-handle')) return
+      if (e.button !== 0) return
 
       e.preventDefault()
       e.stopPropagation()
-      isDragging.current = true
-      dragStartX.current = e.clientX
-      dragStartPos.current = clip.position
-      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-      // Reveal the new-track drop zone in Timeline.tsx via a body class.
-      // Avoids a store round-trip for transient drag-only UI state.
+
+      const clipId = clip.id
+      const startX = e.clientX
+      const startPos = clip.position
+      const pointerId = e.pointerId
+      const zoomAtStart = zoom
+      let active = true
       document.body.classList.add('clip-dragging')
 
       const store = useTimelineStore.getState()
       if (e.metaKey || e.ctrlKey) {
-        store.toggleClipSelection(clip.id)
+        store.toggleClipSelection(clipId)
       } else if (e.shiftKey && store.selectedClipIds.length > 0) {
         const lastSelected = store.selectedClipIds[store.selectedClipIds.length - 1]
-        store.rangeSelectClips(lastSelected, clip.id)
+        store.rangeSelectClips(lastSelected, clipId)
       } else {
-        store.selectClip(clip.id)
+        store.selectClip(clipId)
       }
-    },
-    [clip.id, clip.position],
-  )
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isDragging.current) return
-      const dx = e.clientX - dragStartX.current
-      const dt = dx / zoom
-      const newPos = Math.max(0, dragStartPos.current + dt)
-      const snapped = snapToGrid(newPos, e.metaKey)
+      const moveHandler = (ev: PointerEvent) => {
+        if (!active || ev.pointerId !== pointerId) return
+        const dx = ev.clientX - startX
+        const dt = dx / zoomAtStart
+        const newPos = Math.max(0, startPos + dt)
+        const snapped = snapToGrid(newPos, ev.metaKey)
 
-      // Detect target track by Y. Iterate visible track lanes and check bounding rects.
-      // Do NOT latch pendingNewTrack from transient move samples — OS interrupts or window
-      // exits can leave a false latch. Re-check belowAllTracks at pointerup instead.
-      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
-      let targetTrackId = clip.trackId
-
-      for (const lane of lanes) {
-        const rect = lane.getBoundingClientRect()
-        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          const id = lane.dataset.trackId
-          if (id) targetTrackId = id
+        // Look up the clip's CURRENT track in the store (it migrates as we
+        // call moveClip below — using the captured clip.trackId would lock
+        // the fallback to the starting lane and cause re-targeting glitches).
+        const tracks = useTimelineStore.getState().tracks
+        let currentTrackId: string | null = null
+        for (const t of tracks) {
+          if (t.clips.some((c) => c.id === clipId)) {
+            currentTrackId = t.id
+            break
+          }
         }
-      }
+        if (!currentTrackId) return
 
-      useTimelineStore.getState().moveClip(clip.id, targetTrackId, snapped)
-    },
-    [clip.id, clip.trackId, zoom],
-  )
-
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      document.body.classList.remove('clip-dragging')
-      if (!isDragging.current) {
-        return
-      }
-      // Generous "below all tracks" detection: either pointer is past every
-      // lane's bottom edge, OR pointer is over the explicit new-track drop
-      // zone. The drop zone gives users a reliable, visible hit target —
-      // the bare clientY check failed in practice when the timeline scroll
-      // container ended flush with the last lane.
-      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
-      let maxBottom = -Infinity
-      for (const lane of lanes) {
-        const rect = lane.getBoundingClientRect()
-        if (rect.bottom > maxBottom) maxBottom = rect.bottom
-      }
-      const belowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
-
-      // Drop-zone hit: walk up from elementFromPoint since pointer capture
-      // on the clip would otherwise mask the underlying drop-zone element.
-      let overDropZone = false
-      const hit = document.elementFromPoint(e.clientX, e.clientY)
-      if (hit && hit.closest('[data-drop-zone="new-track"]')) {
-        overDropZone = true
-      }
-
-      if (belowAllTracks || overDropZone) {
-        const store = useTimelineStore.getState()
-        const current = store.tracks.find((t) => t.clips.some((c) => c.id === clip.id))
-        const currentClip = current?.clips.find((c) => c.id === clip.id)
-        const newTrackId = store.addTrack(`Track ${store.tracks.length + 1}`, '#4ade80', 'video')
-        if (newTrackId && currentClip) {
-          store.moveClip(clip.id, newTrackId, currentClip.position)
-        } else if (!newTrackId) {
-          useToastStore.getState().addToast({
-            level: 'warning',
-            message: 'Could not create new track — limit reached.',
-            source: 'clip-drag-new-track',
-          })
+        const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+        let targetTrackId = currentTrackId
+        for (const lane of lanes) {
+          const rect = lane.getBoundingClientRect()
+          if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
+            const id = lane.dataset.trackId
+            if (id) targetTrackId = id
+          }
         }
+
+        useTimelineStore.getState().moveClip(clipId, targetTrackId, snapped)
       }
-      isDragging.current = false
+
+      const teardown = () => {
+        active = false
+        document.body.classList.remove('clip-dragging')
+        document.removeEventListener('pointermove', moveHandler)
+        document.removeEventListener('pointerup', upHandler)
+        document.removeEventListener('pointercancel', cancelHandler)
+      }
+
+      const upHandler = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return
+
+        // Generous "below all tracks" detection: either pointer is past every
+        // lane's bottom edge, OR pointer is over the explicit new-track drop
+        // zone. The drop zone gives users a reliable, visible hit target —
+        // the bare clientY check failed in practice when the timeline scroll
+        // container ended flush with the last lane.
+        const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+        let maxBottom = -Infinity
+        for (const lane of lanes) {
+          const rect = lane.getBoundingClientRect()
+          if (rect.bottom > maxBottom) maxBottom = rect.bottom
+        }
+        const belowAllTracks = maxBottom !== -Infinity && ev.clientY > maxBottom
+
+        // Drop-zone hit: walk up from elementFromPoint to find the new-track zone.
+        let overDropZone = false
+        const hit = document.elementFromPoint(ev.clientX, ev.clientY)
+        if (hit && hit.closest('[data-drop-zone="new-track"]')) {
+          overDropZone = true
+        }
+
+        if (belowAllTracks || overDropZone) {
+          const s = useTimelineStore.getState()
+          const current = s.tracks.find((t) => t.clips.some((c) => c.id === clipId))
+          const currentClip = current?.clips.find((c) => c.id === clipId)
+          const newTrackId = s.addTrack(`Track ${s.tracks.length + 1}`, '#4ade80', 'video')
+          if (newTrackId && currentClip) {
+            s.moveClip(clipId, newTrackId, currentClip.position)
+          } else if (!newTrackId) {
+            useToastStore.getState().addToast({
+              level: 'warning',
+              message: 'Could not create new track — limit reached.',
+              source: 'clip-drag-new-track',
+            })
+          }
+        }
+        teardown()
+      }
+
+      const cancelHandler = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return
+        teardown()
+      }
+
+      document.addEventListener('pointermove', moveHandler)
+      document.addEventListener('pointerup', upHandler)
+      document.addEventListener('pointercancel', cancelHandler)
     },
-    [clip.id],
+    [clip.id, clip.position, zoom],
   )
 
-  // pointercancel (OS interrupt, context menu, window focus loss) must reset state
-  // without creating a track — we can't trust the event's position in that case.
-  const handlePointerCancel = useCallback(() => {
-    document.body.classList.remove('clip-dragging')
-    isDragging.current = false
-  }, [])
+  // Stubs kept on the element so React's event delegation doesn't warn —
+  // the actual logic now lives in document listeners attached in onPointerDown.
+  const handlePointerMove = useCallback(() => undefined, [])
+  const handlePointerUp = useCallback(() => undefined, [])
+  const handlePointerCancel = useCallback(() => undefined, [])
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
