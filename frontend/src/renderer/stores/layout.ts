@@ -12,6 +12,7 @@ interface LayoutState {
   sidebarCollapsed: boolean
   timelineCollapsed: boolean
   timelineHeight: number
+  deviceChainHeight: number
   isPopOutOpen: boolean
   popOutBounds: PopOutBounds | null
   quantizeEnabled: boolean
@@ -19,6 +20,7 @@ interface LayoutState {
   toggleSidebar: () => void
   toggleTimeline: () => void
   setTimelineHeight: (h: number) => void
+  setDeviceChainHeight: (h: number) => void
   toggleFocusMode: () => void
   setPopOutOpen: (open: boolean) => void
   setPopOutBounds: (bounds: PopOutBounds | null) => void
@@ -32,6 +34,7 @@ interface PersistedLayout {
   sidebarCollapsed: boolean
   timelineCollapsed: boolean
   timelineHeight: number
+  deviceChainHeight: number
 }
 
 function loadPersistedLayout(): Partial<PersistedLayout> {
@@ -45,6 +48,9 @@ function loadPersistedLayout(): Partial<PersistedLayout> {
     if (typeof parsed.timelineCollapsed === 'boolean') result.timelineCollapsed = parsed.timelineCollapsed
     if (typeof parsed.timelineHeight === 'number' && parsed.timelineHeight >= 120 && parsed.timelineHeight <= 800) {
       result.timelineHeight = parsed.timelineHeight
+    }
+    if (typeof parsed.deviceChainHeight === 'number' && parsed.deviceChainHeight >= 100 && parsed.deviceChainHeight <= 600) {
+      result.deviceChainHeight = parsed.deviceChainHeight
     }
     return result
   } catch {
@@ -66,6 +72,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   sidebarCollapsed: persisted.sidebarCollapsed ?? false,
   timelineCollapsed: persisted.timelineCollapsed ?? false,
   timelineHeight: persisted.timelineHeight ?? 200,
+  deviceChainHeight: persisted.deviceChainHeight ?? 180,
   isPopOutOpen: false,
   popOutBounds: null,
   quantizeEnabled: false,
@@ -87,6 +94,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const clamped = clampFinite(h, 100, 800, 250)
     set({ timelineHeight: clamped })
     persistLayout({ ...get(), timelineHeight: clamped })
+  },
+
+  setDeviceChainHeight: (h: number) => {
+    const clamped = clampFinite(h, 100, 600, 180)
+    set({ deviceChainHeight: clamped })
+    persistLayout({ ...get(), deviceChainHeight: clamped })
   },
 
   toggleFocusMode: () => {
