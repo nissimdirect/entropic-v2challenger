@@ -1793,6 +1793,18 @@ function AppInner() {
         setShowExportDialog(false)
         return
       }
+      // Epic 4 (D1): guard — no active video track means the chain is unavailable.
+      if (getActiveTrackId() === null) {
+        console.error('[export] no active video track — cannot export')
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: 'Add a video track before exporting',
+          source: 'export',
+          details: 'Export requires at least one video track.',
+        })
+        setShowExportDialog(false)
+        return
+      }
 
       setShowExportDialog(false)
       setIsExporting(true)
@@ -1817,11 +1829,19 @@ function AppInner() {
           })),
         )
 
+      // Epic 4 (D1): source the active track's chain (not the global effectChain, which is
+      // stale/empty after Epic 1 moved chains into per-track storage).
+      // NOTE: Export remains single-video-source + text overlays — it processes the active
+      // track's source with the active track's chain. Multi-track composite export parity
+      // (rendering all video tracks like the preview does) is a separate follow-up feature
+      // and is explicitly out of scope for this change.
+      const activeExportChain = getActiveEffectChain()
+
       const res = await window.entropic.sendCommand({
         cmd: 'export_start',
         input_path: activeAssetPath.current,
         output_path: settings.outputPath,
-        chain: serializeEffectChain(effectChain),
+        chain: serializeEffectChain(activeExportChain),
         project_seed: 42,
         ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
         settings: {
@@ -1864,7 +1884,7 @@ function AppInner() {
         })
       }
     },
-    [effectChain, totalFrames],
+    [totalFrames],
   )
 
   const handleExportCancel = useCallback(async () => {
