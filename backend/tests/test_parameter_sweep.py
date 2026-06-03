@@ -118,6 +118,19 @@ class TestParameterSweep:
             "fx.tremolo",
             "rate",
         ),  # Rate scales frame_index via sin(); at frame_index=0, sin(0)=0 for all rates
+        # Grid Moire (generator): per-mesh angle min/max are 0°/360° = identical
+        # rotation; rotate/scroll/liquify_speed scale frame_index → inert at
+        # frame_index=0. All are exercised at non-zero frames by test_grid_moire_real.py.
+        ("fx.grid_moire", "a_angle"),
+        ("fx.grid_moire", "b_angle"),
+        ("fx.grid_moire", "a_rotate"),
+        ("fx.grid_moire", "b_rotate"),
+        ("fx.grid_moire", "a_scroll_x"),
+        ("fx.grid_moire", "a_scroll_y"),
+        ("fx.grid_moire", "b_scroll_x"),
+        ("fx.grid_moire", "b_scroll_y"),
+        ("fx.grid_moire", "a_liquify_speed"),
+        ("fx.grid_moire", "b_liquify_speed"),
     }
 
     # Stateful physics effects that accumulate displacement over time.
