@@ -102,10 +102,30 @@ def test_mock_different_seed_different_output(run_q7, tmp_path):
 
 
 @pytest.mark.smoke
-def test_measure_without_mock_errors(run_q7, tmp_path):
-    """Sanity: --measure without backend support should error (not crash)."""
-    rc, _, stderr = run_q7("--measure", "--out", str(tmp_path / "r.json"))
-    assert rc != 0, "expected non-zero exit"
+def test_measure_without_mock_completes_or_errors_gracefully(run_q7, tmp_path):
+    """Sanity: --measure should not crash. Exit code depends on what's lit.
+
+    PR #6 lit DINOv2 so on a torch-installed host --measure now produces a
+    valid report (DINOv2 succeeds; CLIP/CLAP still BACKEND_NOT_LIT). On a
+    torch-free host all heads error → non-zero exit. Either is fine; just
+    not a crash.
+    """
+    rc, stdout, stderr = run_q7(
+        "--measure",
+        "--skip-under-load",
+        "--n-iterations",
+        "3",
+        "--saturation-window",
+        "0.3",
+        "--saturation-threads",
+        "1",
+        "--out",
+        str(tmp_path / "r.json"),
+    )
+    # Two acceptable outcomes:
+    # 1. rc == 0: valid report produced (DINOv2 head succeeded, CLIP/CLAP errored)
+    # 2. rc != 0: every head BACKEND_NOT_LIT (no torch installed)
+    assert rc in (0, 1), f"unexpected exit {rc}; stderr={stderr}"
 
 
 @pytest.mark.smoke

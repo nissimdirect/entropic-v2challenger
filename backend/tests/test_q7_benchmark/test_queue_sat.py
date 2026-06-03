@@ -61,8 +61,11 @@ def test_saturation_rejects_zero_window():
 
 @pytest.mark.smoke
 def test_saturation_real_backend_stub_reports_error():
-    loader = make_loader("dinov2", backend="cpu")
-    result = measure_saturation(loader, _frame_factory, n_threads=2, window_seconds=0.3)
+    """PR #6 lights up DINOv2; CLIP still a stub so we test the error path against it."""
+    loader = make_loader("clip", backend="cpu")
+    result = measure_saturation(
+        loader, lambda: {"text": "x"}, n_threads=2, window_seconds=0.3
+    )
     assert result.error is not None
     assert "BACKEND_NOT_LIT" in result.error
 

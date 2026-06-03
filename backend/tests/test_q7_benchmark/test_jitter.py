@@ -126,7 +126,10 @@ def test_measure_jitter_too_few_frames_raises():
 
 @pytest.mark.smoke
 def test_measure_jitter_backend_not_lit_reports_error():
-    loader = make_loader("dinov2", backend="mps")  # stub raises NotImplementedError
+    """PR #6 lit DINOv2; CLIP (still a stub) reproduces the error path."""
+    loader = make_loader(
+        "clip", backend="cpu"
+    )  # CLIP.encode raises NotImplementedError
     result = measure_jitter_at_sparsity(loader, sparsity=8, n_frames=64)
     assert result.error is not None
     assert "BACKEND_NOT_LIT" in result.error
