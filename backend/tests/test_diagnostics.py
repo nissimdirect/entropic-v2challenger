@@ -56,7 +56,7 @@ def test_excepthook_writes_crash_json(crash_dir):
                     original_expand = os.path.expanduser
 
                     def mock_expand(p):
-                        if "crash_reports" in p or ".entropic" in p:
+                        if "crash_reports" in p or ".creatrix" in p:
                             return str(crash_dir)
                         return original_expand(p)
 
@@ -182,14 +182,14 @@ def test_log_file_rotation(log_dir):
 
 
 def test_app_log_dir_outside_entropic_rejected():
-    """APP_LOG_DIR outside ~/.entropic/ is rejected."""
+    """APP_LOG_DIR outside ~/.creatrix/ is rejected."""
     result = _validate_log_dir("/tmp/evil/logs")
-    expected_default = os.path.expanduser("~/.entropic/logs")
+    expected_default = os.path.expanduser("~/.creatrix/logs")
     assert result == expected_default
 
 
 def test_app_log_dir_inside_entropic_accepted():
-    """APP_LOG_DIR inside ~/.entropic/ is accepted."""
-    test_dir = os.path.expanduser("~/.entropic/custom-logs")
+    """APP_LOG_DIR inside ~/.creatrix/ is accepted."""
+    test_dir = os.path.expanduser("~/.creatrix/custom-logs")
     result = _validate_log_dir(test_dir)
     assert result == os.path.realpath(test_dir)

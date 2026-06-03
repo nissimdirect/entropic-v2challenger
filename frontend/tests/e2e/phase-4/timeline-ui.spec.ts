@@ -104,10 +104,10 @@ test.describe('Phase 4 — History Panel', () => {
 })
 
 test.describe('Phase 4 — Window Title', () => {
-  test('window title shows "Untitled — Entropic" on launch', async ({ window }) => {
+  test('window title shows "Untitled — Creatrix" on launch', async ({ window }) => {
     const title = await window.title()
     expect(title).toContain('Untitled')
-    expect(title).toContain('Entropic')
+    expect(title).toContain('Creatrix')
   })
 })
 

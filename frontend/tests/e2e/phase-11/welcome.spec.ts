@@ -17,7 +17,7 @@ test.describe('Phase 11 — Welcome Screen', () => {
     const welcomeScreen = await window.locator('.welcome-screen').count()
     // If welcome screen is wired into App.tsx:
     if (welcomeScreen > 0) {
-      expect(await window.locator('.welcome-screen__logo').textContent()).toContain('ENTROPIC')
+      expect(await window.locator('.welcome-screen__logo').textContent()).toContain('CREATRIX')
 
       // New Project button exists
       const newBtn = window.locator('.welcome-screen__btn--primary')

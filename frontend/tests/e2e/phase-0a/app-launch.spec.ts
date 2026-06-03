@@ -26,10 +26,10 @@ test.describe('Phase 0A — App Launch', () => {
     expect(height).toBeGreaterThanOrEqual(500)
   })
 
-  test('2. window title contains "Entropic"', async ({ window }) => {
+  test('2. window title contains "Creatrix"', async ({ window }) => {
     const title = await window.title()
-    // Phase 4: title format is now "{projectName} — Entropic"
-    expect(title).toContain('Entropic')
+    // Phase 4: title format is now "{projectName} — Creatrix"
+    expect(title).toContain('Creatrix')
     expect(title).toContain('Untitled')
   })
 

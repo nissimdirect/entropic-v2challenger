@@ -26,7 +26,7 @@ test.describe('UAT Section 1: App Launch & Infrastructure', () => {
 
     // #2: Window title
     const title = await window.title()
-    expect(title).toContain('Entropic')
+    expect(title).toContain('Creatrix')
     expect(title).toContain('Untitled')
 
     // #3: Not blank
