@@ -4,10 +4,8 @@ import { randomUUID } from '../utils'
 import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
 import { undoable } from './undo'
 import { useToastStore } from './toast'
-import { useOperatorStore } from './operators'
-import { useAutomationStore } from './automation'
-import { useMIDIStore } from './midi'
 import { useTimelineStore } from './timeline'
+import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
 
 // Stable empty array for the no-selection case (avoid re-render churn). (design D4)
 const EMPTY: EffectInstance[] = []
@@ -164,18 +162,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const removed = { ...chain[idx] }
     const prevId = idx > 0 ? chain[idx - 1].id : null
 
-    // Snapshot cross-store state for undo restoration
-    const opStore = useOperatorStore.getState()
-    const savedOperators = opStore.operators.map((op) => ({
-      ...op,
-      mappings: [...op.mappings],
-    }))
-    const autoStore = useAutomationStore.getState()
-    const savedLanes = JSON.parse(JSON.stringify(autoStore.lanes))
-    const midiStore = useMIDIStore.getState()
-    const savedCCMappings = [...midiStore.ccMappings]
-    // Phase 14B: deviceGroups may reference this effect — snapshot for restore
-    const savedDeviceGroups = JSON.parse(JSON.stringify(get().deviceGroups))
+    // Closure var: populated by pruneEffectDependents in forward, consumed by inverse.
+    // eslint-disable-next-line prefer-const
+    let snap: ReturnType<typeof pruneEffectDependents> | undefined
 
     undoable(
       'Remove effect',
@@ -184,38 +173,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         setTrackChain(trackId, (prev) => prev.filter((e) => e.id !== id))
         if (get().selectedEffectId === id) set({ selectedEffectId: null })
 
-        // 2. Cross-store cleanup: operator mappings targeting this effect
-        const ops = useOperatorStore.getState().operators
-        const cleanedOps = ops.map((op) => ({
-          ...op,
-          mappings: op.mappings.filter((m) => m.targetEffectId !== id),
-        }))
-        useOperatorStore.setState({ operators: cleanedOps })
-
-        // 3. Automation lanes for this effect (paramPath starts with effectId.)
-        const lanes = { ...useAutomationStore.getState().lanes }
-        for (const trkId of Object.keys(lanes)) {
-          lanes[trkId] = lanes[trkId].filter((l) => !l.paramPath.startsWith(`${id}.`))
-          if (lanes[trkId].length === 0) delete lanes[trkId]
-        }
-        useAutomationStore.setState({ lanes })
-
-        // 4. CC mappings targeting this effect
-        const ccMappings = useMIDIStore.getState().ccMappings.filter((m) => m.effectId !== id)
-        useMIDIStore.setState({ ccMappings })
-
-        // 5. Device groups: remove this id from any group's effectIds.
-        // If pruning drops a group below 2 members, delete the group (mirrors
-        // the minimum-size rule enforced in groupEffects).
-        const nextGroups: typeof savedDeviceGroups = {}
-        for (const [gid, group] of Object.entries(get().deviceGroups)) {
-          const pruned = (group as { effectIds: string[] }).effectIds.filter((eid) => eid !== id)
-          if (pruned.length >= 2) {
-            nextGroups[gid] = { ...(group as object), effectIds: pruned }
-          }
-          // else: group drops below minimum → omit (delete)
-        }
-        set({ deviceGroups: nextGroups })
+        // 2. Cross-store cleanup via shared helper (D2: behavior-preserving extraction)
+        snap = pruneEffectDependents([id])
       },
       () => {
         // Restore effect at original position in the track chain
@@ -225,11 +184,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           chain.splice(insertIdx, 0, removed)
           return chain
         })
-        // Restore cross-store state
-        useOperatorStore.setState({ operators: savedOperators })
-        useAutomationStore.setState({ lanes: savedLanes })
-        useMIDIStore.setState({ ccMappings: savedCCMappings })
-        set({ deviceGroups: savedDeviceGroups })
+        // Restore cross-store state from snapshot
+        if (snap) restoreEffectDependents(snap)
       },
     )
   },

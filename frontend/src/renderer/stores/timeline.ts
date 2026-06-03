@@ -5,6 +5,23 @@ import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
 import { undoable, useUndoStore } from './undo'
 import { useToastStore } from './toast'
+import { useAutomationStore } from './automation'
+import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
+import type { PruneSnapshot } from './crossStoreCleanup'
+
+/**
+ * D4/D5 helper: swap a leading `${oldId}.` prefix with `${newId}.` for any
+ * oldId present in idMap. If no prefix matches, return paramPath unchanged
+ * (e.g. mixer/project-targeted paths like `master.volume`).
+ */
+function rekeyPath(paramPath: string, idMap: Map<string, string>): string {
+  for (const [oldId, newId] of idMap.entries()) {
+    if (paramPath.startsWith(`${oldId}.`)) {
+      return `${newId}.${paramPath.slice(oldId.length + 1)}`
+    }
+  }
+  return paramPath
+}
 
 interface TimelineState {
   // State
@@ -356,6 +373,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       return idx > 0 ? get().tracks[idx - 1].id : null
     })()
 
+    // Closure var: populated by pruneEffectDependents in forward, consumed by inverse. (D3)
+    let pruneSnap: PruneSnapshot | undefined
+
     undoable(
       `Remove track "${track.name}"`,
       () => {
@@ -366,12 +386,19 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         const selectedClipIds = state.selectedClipIds.filter((cid) => !trackClipIds.has(cid))
         const selectedClipId = selectedClipIds[0] ?? null
         set({ tracks, selectedTrackId, selectedClipId, selectedClipIds, duration: recalcDuration(tracks) })
+        // D3: prune all cross-store dependents for this track's effect chain + its lane bucket
+        pruneSnap = pruneEffectDependents(
+          removedTrack.effectChain.map((e) => e.id),
+          { dropTrackLanes: id },
+        )
       },
       () => {
         const tracks = [...get().tracks]
         const insertIdx = prevId !== null ? tracks.findIndex((t) => t.id === prevId) + 1 : 0
         tracks.splice(insertIdx, 0, removedTrack)
         set({ tracks, duration: recalcDuration(tracks) })
+        // D3: restore all cross-store state from snapshot
+        if (pruneSnap) restoreEffectDependents(pruneSnap)
       },
     )
   },
@@ -886,10 +913,39 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   duplicateTrack: (trackId) => {
+    /**
+     * D4 + D5: duplicateTrack copies the source track's automation lanes (canonical
+     * state in useAutomationStore) to the new track id, re-keying paramPaths so
+     * effect-id prefixes point at the duplicate's NEW effect ids.
+     *
+     * Operator and CC mappings are deliberately NOT duplicated: the duplicate's
+     * new effects start unmapped, which is valid (no dangling reference is created).
+     * The source track's existing mappings continue to point validly at the source.
+     * Re-mapping modulation is a future user action, not a correctness fix.
+     */
     const source = get().tracks.find((t) => t.id === trackId)
     if (!source) return
 
     const newTrackId = randomUUID()
+
+    // D4: build oldEffectId -> newEffectId map while cloning the chain
+    const idMap = new Map<string, string>()
+    const newChain = source.effectChain.map((e) => {
+      const nid = randomUUID()
+      idMap.set(e.id, nid)
+      return { ...e, id: nid, parameters: { ...e.parameters } }
+    })
+
+    // D4: copy canonical store lanes for the source track, re-keyed through idMap
+    const srcLanes = useAutomationStore.getState().lanes[trackId] ?? []
+    const newStoreLanes = srcLanes.map((l) => ({
+      ...l,
+      id: randomUUID(),
+      paramPath: rekeyPath(l.paramPath, idMap),
+      points: l.points.map((p) => ({ ...p })),
+    }))
+
+    // D4: also re-key the vestigial Track.automationLanes paramPaths for consistency
     const newTrack: Track = {
       ...source,
       id: newTrackId,
@@ -901,8 +957,13 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         ...(c.transform ? { transform: { ...c.transform } } : {}),
         ...(c.textConfig ? { textConfig: { ...c.textConfig } } : {}),
       })),
-      effectChain: source.effectChain.map((e) => ({ ...e, id: randomUUID(), parameters: { ...e.parameters } })),
-      automationLanes: source.automationLanes.map((l) => ({ ...l, id: randomUUID(), points: l.points.map((p) => ({ ...p })) })),
+      effectChain: newChain,
+      automationLanes: source.automationLanes.map((l) => ({
+        ...l,
+        id: randomUUID(),
+        paramPath: rekeyPath(l.paramPath, idMap),
+        points: l.points.map((p) => ({ ...p })),
+      })),
     }
     const idx = get().tracks.findIndex((t) => t.id === trackId)
     const insertIdx = idx >= 0 ? idx + 1 : get().tracks.length
@@ -913,8 +974,20 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         const tracks = [...get().tracks]
         tracks.splice(insertIdx, 0, newTrack)
         set({ tracks })
+        // D4: write canonical store lanes for the duplicate (via lazy getState)
+        if (newStoreLanes.length > 0) {
+          const currentLanes = { ...useAutomationStore.getState().lanes }
+          currentLanes[newTrackId] = newStoreLanes
+          useAutomationStore.setState({ lanes: currentLanes })
+        }
       },
-      () => set({ tracks: get().tracks.filter((t) => t.id !== newTrackId) }),
+      () => {
+        set({ tracks: get().tracks.filter((t) => t.id !== newTrackId) })
+        // D4: remove the duplicate's store lanes on undo
+        const currentLanes = { ...useAutomationStore.getState().lanes }
+        delete currentLanes[newTrackId]
+        useAutomationStore.setState({ lanes: currentLanes })
+      },
     )
   },
 
