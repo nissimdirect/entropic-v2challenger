@@ -477,12 +477,9 @@ describe('RED TEAM: Double-action conflicts', () => {
     useProjectStore.getState().addEffect(V1_TRACK_ID, fx2)
     useUndoStore.getState().clear()
 
-    // groupEffects reads from get().effectChain (global, not yet migrated)
-    // Seed the global field for groupEffects to validate against
-    useProjectStore.setState({ effectChain: [...getV1Chain()] })
-
+    // D5 (Epic 02): groupEffects now validates against the track chain directly.
     // Group
-    const groupId = useProjectStore.getState().groupEffects(['fx-g1', 'fx-g2'], 'Test Group')
+    const groupId = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-g1', 'fx-g2'], 'Test Group')
     expect(groupId).not.toBeNull()
     expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(1)
 
@@ -639,11 +636,10 @@ describe('RED TEAM: Empty state operations', () => {
 
   it('groupEffects with fewer than 2 IDs — rejected with toast', () => {
     useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('fx-solo'))
-    // Seed global chain for groupEffects validation
-    useProjectStore.setState({ effectChain: [...getV1Chain()] })
     useToastStore.getState().clearAll()
 
-    const result = useProjectStore.getState().groupEffects(['fx-solo'])
+    // D5 (Epic 02): groupEffects now validates against the track chain directly.
+    const result = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-solo'])
     expect(result).toBeNull()
 
     const toasts = useToastStore.getState().toasts

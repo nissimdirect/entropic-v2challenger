@@ -428,6 +428,17 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   if (project.settings?.resolution && Array.isArray(project.settings.resolution) && project.settings.resolution.length === 2) {
     useProjectStore.getState().setCanvasResolution(project.settings.resolution[0], project.settings.resolution[1])
   }
+
+  // D1 (Epic 02): after all tracks load, if no track is selected, select the first video track.
+  // addTrack auto-selects when none was selected, but reset() + replay through addTrack
+  // means the first addTrack will select, but subsequent hydrate may not. Ensure it's explicit.
+  const finalTl = useTimelineStore.getState()
+  if (!finalTl.selectedTrackId) {
+    const firstVideoTrack = finalTl.tracks.find((t) => t.type === 'video')
+    if (firstVideoTrack) {
+      finalTl.selectTrack(firstVideoTrack.id)
+    }
+  }
 }
 
 export async function saveProject(): Promise<boolean> {

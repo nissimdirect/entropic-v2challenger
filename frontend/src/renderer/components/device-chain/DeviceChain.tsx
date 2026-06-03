@@ -1,6 +1,5 @@
 import { useCallback, useState } from 'react'
-import { useProjectStore } from '../../stores/project'
-import { useTimelineStore } from '../../stores/timeline'
+import { useProjectStore, useActiveEffectChain, getActiveTrackId } from '../../stores/project'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
@@ -36,7 +35,8 @@ export default function DeviceChain({
   onSaveAsPreset,
   onSaveChainAsPreset,
 }: DeviceChainProps) {
-  const effectChain = useProjectStore((s) => s.effectChain)
+  // D2 (Epic 02): display the ACTIVE track's chain via the active-track rule (D1).
+  const effectChain = useActiveEffectChain()
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
   const deviceGroups = useProjectStore((s) => s.deviceGroups)
   const registry = useEffectsStore((s) => s.registry)
@@ -50,15 +50,15 @@ export default function DeviceChain({
   }, [])
 
   const handleToggle = useCallback((id: string) => {
-    // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
-    const trackId = useTimelineStore.getState().selectedTrackId
-    useProjectStore.getState().toggleEffect(trackId ?? '', id)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().toggleEffect(trackId, id)
   }, [])
 
   const handleRemove = useCallback((id: string) => {
-    // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
-    const trackId = useTimelineStore.getState().selectedTrackId
-    useProjectStore.getState().removeEffect(trackId ?? '', id)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().removeEffect(trackId, id)
   }, [])
 
   // F-0514-7: drag-add from EffectBrowser. Accepts only our custom MIME type
@@ -93,6 +93,8 @@ export default function DeviceChain({
       if (effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return
       const info = registry.find((r) => r.id === effectId)
       if (!info) return
+      const trackId = getActiveTrackId()
+      if (!trackId) return
       const instance: EffectInstance = {
         id: randomUUID(),
         effectId: info.id,
@@ -105,26 +107,24 @@ export default function DeviceChain({
         mix: 1.0,
         mask: null,
       }
-      // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
-      const trackId = useTimelineStore.getState().selectedTrackId
-      useProjectStore.getState().addEffect(trackId ?? '', instance)
+      useProjectStore.getState().addEffect(trackId, instance)
     },
     [effectChain.length, registry],
   )
 
   const handleUpdateParam = useCallback(
     (effectId: string, paramName: string, value: number | string | boolean) => {
-      // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
-      const trackId = useTimelineStore.getState().selectedTrackId
-      useProjectStore.getState().updateParam(trackId ?? '', effectId, paramName, value)
+      const trackId = getActiveTrackId()
+      if (!trackId) return
+      useProjectStore.getState().updateParam(trackId, effectId, paramName, value)
     },
     [],
   )
 
   const handleSetMix = useCallback((effectId: string, mix: number) => {
-    // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
-    const trackId = useTimelineStore.getState().selectedTrackId
-    useProjectStore.getState().setMix(trackId ?? '', effectId, mix)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().setMix(trackId, effectId, mix)
   }, [])
 
   const handleContextMenu = useCallback((e: React.MouseEvent, effectId: string, index: number) => {
@@ -158,7 +158,9 @@ export default function DeviceChain({
         label: 'Group with Previous',
         disabled: alreadyGrouped,
         action: () => {
-          useProjectStore.getState().groupEffects([prevEffect.id, effectId])
+          const activeTrackId = getActiveTrackId()
+          if (!activeTrackId) return
+          useProjectStore.getState().groupEffects(activeTrackId, [prevEffect.id, effectId])
         },
         shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('group_with_previous')),
       })

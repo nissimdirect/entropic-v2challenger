@@ -36,6 +36,7 @@ import { transportForward, transportReverse, transportStop, getTransportDirectio
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
+import { getActiveTrackId } from './stores/project'
 import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
@@ -89,6 +90,25 @@ import AboutDialog from './components/layout/AboutDialog'
 import RenderQueue from './components/export/RenderQueue'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
+
+/**
+ * D4 (Epic 02): Pure helper — apply pad + CC modulation to ANY chain at a given frame.
+ * Called per-track in the render path so each track's chain is independently modulated.
+ * CC/pad modulations target a specific effectId; applying this to each track's chain
+ * only mutates matching effects — equivalent to the old single-chain behaviour.
+ */
+function modulateChain(chain: EffectInstance[], frame: number): EffectInstance[] {
+  const perf = usePerformanceStore.getState()
+  const env = perf.getEnvelopeValues(frame)
+  let out: EffectInstance[] = Object.keys(env).length > 0
+    ? applyPadModulations(chain, perf.drumRack.pads, env)
+    : chain
+  const midi = useMIDIStore.getState()
+  if (midi.ccMappings.length > 0 && Object.keys(midi.ccValues).length > 0) {
+    out = applyCCModulations(out, midi.ccMappings, midi.ccValues)
+  }
+  return out
+}
 
 function SpeedDialogHost() {
   const speedDialog = useTimelineStore((s) => s.speedDialog)
@@ -156,15 +176,17 @@ function AppInner() {
     setIngestError,
   } = useProjectStore()
 
-  // TODO(Epic02): use active track — D8 stubs for Epic 01 compatibility.
-  // All call sites below get trackId from the current selection.
+  // D3 (Epic 02): use active-track rule (D1) — getActiveTrackId() resolves selectedTrackId
+  // if valid, else first video track, else null. Early-return if null (safe no-op).
   const addEffect = useCallback((effect: EffectInstance) => {
-    const trackId = useTimelineStore.getState().selectedTrackId // TODO(Epic02): use active track
-    addEffectRaw(trackId ?? '', effect)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    addEffectRaw(trackId, effect)
   }, [addEffectRaw])
   const removeEffect = useCallback((id: string) => {
-    const trackId = useTimelineStore.getState().selectedTrackId // TODO(Epic02): use active track
-    removeEffectRaw(trackId ?? '', id)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    removeEffectRaw(trackId, id)
   }, [removeEffectRaw])
 
   const isDirty = useUndoStore((s) => s.isDirty)
@@ -544,7 +566,8 @@ function AppInner() {
       } else {
         const ps = useProjectStore.getState()
         if (ps.selectedEffectId) {
-          ps.removeEffect(ps.selectedEffectId)
+          const trackId = getActiveTrackId()
+          if (trackId) ps.removeEffect(trackId, ps.selectedEffectId)
         }
       }
     })
@@ -553,7 +576,11 @@ function AppInner() {
     shortcutRegistry.register('duplicate_effect', () => {
       const ps = useProjectStore.getState()
       if (!ps.selectedEffectId) return
-      const source = ps.effectChain.find((e) => e.id === ps.selectedEffectId)
+      const trackId = getActiveTrackId()
+      if (!trackId) return
+      // Read chain from the active track (not the global effectChain)
+      const chain = useTimelineStore.getState().tracks.find((t) => t.id === trackId)?.effectChain ?? []
+      const source = chain.find((e) => e.id === ps.selectedEffectId)
       if (!source) return
       const clone = {
         ...source,
@@ -561,7 +588,7 @@ function AppInner() {
         parameters: { ...source.parameters },
         modulations: { ...source.modulations },
       }
-      ps.addEffect(clone)
+      ps.addEffect(trackId, clone)
       ps.selectEffect(clone.id)
     })
 
@@ -637,7 +664,10 @@ function AppInner() {
           ts.deleteSelectedClips()
         } else {
           const ps = useProjectStore.getState()
-          if (ps.selectedEffectId) ps.removeEffect(ps.selectedEffectId)
+          if (ps.selectedEffectId) {
+            const trackId = getActiveTrackId()
+            if (trackId) ps.removeEffect(trackId, ps.selectedEffectId)
+          }
         }
       }
     }
@@ -753,24 +783,11 @@ function AppInner() {
       // sliders, etc.) picks up the latest chain — not whichever one was bound
       // when the function was created. Legacy path (flag off) reads from
       // closure, which produces stale-frame previews after rapid undo.
-      let chain = chainOverride ?? (FF.F_0512_6_UNDO_RERENDER
+      // D4 (Epic 02): `chain` is used only by chainOverride and the F_0512_6
+      // legacy fallback branch. Per-track live paths call modulateChain() instead.
+      const chain = chainOverride ?? (FF.F_0512_6_UNDO_RERENDER
         ? useProjectStore.getState().effectChain
         : effectChain)
-
-      // Apply pad modulations to the chain before sending to backend
-      if (!chainOverride) {
-        const perfStore = usePerformanceStore.getState()
-        const envelopeValues = perfStore.getEnvelopeValues(frame)
-        if (Object.keys(envelopeValues).length > 0) {
-          chain = applyPadModulations(chain, perfStore.drumRack.pads, envelopeValues)
-        }
-
-        // Apply MIDI CC modulations (absolute set, after pad ADSR)
-        const midiStore = useMIDIStore.getState()
-        if (midiStore.ccMappings.length > 0 && Object.keys(midiStore.ccValues).length > 0) {
-          chain = applyCCModulations(chain, midiStore.ccMappings, midiStore.ccValues)
-        }
-      }
 
       try {
         // Include operators in render request for backend modulation
@@ -827,7 +844,10 @@ function AppInner() {
               layer_type: 'video',
               asset_path: assetPath,
               frame_index: clipFrame,
-              chain: serializeEffectChain(track.effectChain ?? chain),
+              // D4 (Epic 02): per-track chain with per-track modulation. Drop `?? chain` global fallback.
+              chain: chainOverride
+                ? serializeEffectChain(chainOverride)
+                : serializeEffectChain(modulateChain(track.effectChain, frame)),
               opacity: trackOpacity * clipOpacity,
               blend_mode: track.blendMode ?? 'normal',
               ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
@@ -850,13 +870,13 @@ function AppInner() {
             }
           })
 
-          // Fallback: if no video clips, add a single layer from activeAssetPath
+          // D4 (Epic 02): no-clip fallback layer — empty chain (no global chain read).
           if (videoLayers.length === 0 && activeAssetPath.current) {
             videoLayers.push({
               layer_type: 'video',
               asset_path: activeAssetPath.current,
               frame_index: frame,
-              chain: serializeEffectChain(chain),
+              chain: [],
               opacity: 1.0,
               blend_mode: 'normal',
             })
@@ -871,7 +891,7 @@ function AppInner() {
           })
         } else {
           // Single video clip — use fast render_frame path
-          const { clip: singleClip, assetPath: singleAssetPath } = activeVideoClips[0]
+          const { clip: singleClip, track: singleTrack, assetPath: singleAssetPath } = activeVideoClips[0]
           const ct = singleClip.transform
           // Speed-adjusted source frame; reverse flips local time across clip duration
           const localTime = currentTime - singleClip.position
@@ -879,11 +899,16 @@ function AppInner() {
           const clipFrame = Math.max(0, Math.round(
             (srcTime * (singleClip.speed || 1) + singleClip.inPoint) * activeFps,
           ))
+          // D4 (Epic 02): source chain from the track, apply per-track modulation.
+          // chainOverride (freeze re-render) still bypasses per-track sourcing.
+          const singleTrackChain = chainOverride
+            ? chainOverride
+            : modulateChain(singleTrack.effectChain, frame)
           res = await window.entropic.sendCommand({
             cmd: 'render_frame',
             path: singleAssetPath || activeAssetPath.current,
             frame_index: clipFrame,
-            chain: serializeEffectChain(chain),
+            chain: serializeEffectChain(singleTrackChain),
             project_seed: projectSeed,
             ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),

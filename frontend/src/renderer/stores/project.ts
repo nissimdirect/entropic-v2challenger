@@ -56,7 +56,8 @@ interface ProjectState {
 
   // Phase 14B: Device Groups (metadata-only, undoable)
   deviceGroups: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>
-  groupEffects: (effectIds: string[], groupName?: string) => string | null
+  /** D5 (Epic 02): trackId scopes validation — ids validated against that track's chain. */
+  groupEffects: (trackId: string, effectIds: string[], groupName?: string) => string | null
   ungroupEffects: (groupId: string) => void
 }
 
@@ -389,7 +390,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   // Phase 14B: Device Groups
-  groupEffects: (effectIds, groupName) => {
+  // D5 (Epic 02): trackId scopes validation — ids validated against that track's chain.
+  groupEffects: (trackId, effectIds, groupName) => {
     if (effectIds.length < 2) {
       useToastStore.getState().addToast({
         level: 'warning',
@@ -399,7 +401,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return null
     }
 
-    const chain = get().effectChain
+    // D5: validate against the track's chain (not the global effectChain)
+    const chain = getTrackChain(trackId)
     const validIds = effectIds.filter((id) => chain.some((e) => e.id === id))
 
     if (validIds.length < 2) return null
@@ -450,24 +453,55 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 }))
 
-// ─── Epic 01: Active-chain selectors (design D4) ─────────────────────────────
+// ─── Epic 02: Active-track resolution (design D1) ────────────────────────────
+
+/**
+ * Non-reactive: returns the active track id.
+ * Resolution order: selectedTrackId (if valid) → first video track → null.
+ * Call in event handlers and non-hook contexts.
+ */
+export const getActiveTrackId = (): string | null => {
+  const tl = useTimelineStore.getState()
+  if (tl.selectedTrackId && tl.tracks.some((t) => t.id === tl.selectedTrackId)) return tl.selectedTrackId
+  const firstVideo = tl.tracks.find((t) => t.type === 'video')
+  return firstVideo?.id ?? null
+}
+
+/**
+ * Reactive hook: returns the active track id.
+ * Resolution order: selectedTrackId (if valid) → first video track → null.
+ */
+export const useActiveTrackId = () =>
+  useTimelineStore((s) =>
+    (s.selectedTrackId && s.tracks.some((t) => t.id === s.selectedTrackId))
+      ? s.selectedTrackId
+      : (s.tracks.find((t) => t.type === 'video')?.id ?? null),
+  )
+
+// ─── Epic 01/02: Active-chain selectors ──────────────────────────────────────
 
 /**
  * Returns the effect chain of the currently selected track, or [] when no
  * track is selected. Non-reactive — call in event handlers / non-hook contexts.
+ * Epic 02: resolves through the active-track rule (D1) so display and mutation agree.
  */
 export const getActiveEffectChain = (): EffectInstance[] => {
-  const tid = useTimelineStore.getState().selectedTrackId
+  const tid = getActiveTrackId()
   if (!tid) return EMPTY
   return useTimelineStore.getState().tracks.find((t) => t.id === tid)?.effectChain ?? EMPTY
 }
 
 /**
- * Reactive hook: returns the effect chain of the currently selected track, or
- * a stable empty array when no track is selected (no re-render churn).
+ * Reactive hook: returns the effect chain of the active track (selected if valid,
+ * else first video track), or a stable empty array when no active track exists.
+ * Epic 02: resolves through the active-track rule (D1).
  */
 export const useActiveEffectChain = () =>
   useTimelineStore((s) => {
-    const t = s.tracks.find((trk) => trk.id === s.selectedTrackId)
+    // D1 resolution: selectedTrackId if valid, else first video track, else null
+    const activeId = (s.selectedTrackId && s.tracks.some((t) => t.id === s.selectedTrackId))
+      ? s.selectedTrackId
+      : (s.tracks.find((t) => t.type === 'video')?.id ?? null)
+    const t = activeId ? s.tracks.find((trk) => trk.id === activeId) : null
     return t?.effectChain ?? EMPTY
   })

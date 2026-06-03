@@ -11,7 +11,7 @@ import DeviceChain from '../../renderer/components/device-chain/DeviceChain'
 import DeviceCard from '../../renderer/components/device-chain/DeviceCard'
 import type { EffectInstance, EffectInfo } from '../../shared/types'
 
-// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+// D2 (Epic 02): V1_TRACK_ID is the active track that DeviceChain displays.
 let V1_TRACK_ID: string
 
 const MOCK_EFFECT: EffectInstance = {
@@ -50,10 +50,9 @@ function resetStores() {
   })
   useEffectsStore.setState({ registry: [MOCK_INFO], isLoading: false })
   useEngineStore.setState({ status: 'connected', lastFrameMs: 12 })
-  // Epic 01: create V1 track and select it so drag-add has a target.
-  // TODO(Epic02): use active track.
+  // Epic 02: create V1 track. Auto-select fires via addTrack's D1 logic
+  // (no prior selection → new track becomes selected/active).
   V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
-  useTimelineStore.getState().selectTrack(V1_TRACK_ID)
 }
 
 afterEach(cleanup)
@@ -68,23 +67,23 @@ describe('DeviceChain', () => {
   })
 
   it('renders device cards for each effect in chain', () => {
-    useProjectStore.setState({
-      effectChain: [MOCK_EFFECT, { ...MOCK_EFFECT, id: 'fx-2', effectId: 'pixelsort' }],
-    })
+    // D2 (Epic 02): DeviceChain reads the active track's chain via useActiveEffectChain().
+    // Seed the V1 track chain (not the global effectChain).
+    useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT, { ...MOCK_EFFECT, id: 'fx-2', effectId: 'pixelsort' }])
     const { getAllByTestId, unmount } = render(<DeviceChain />)
     expect(getAllByTestId('device-card')).toHaveLength(2)
     unmount()
   })
 
   it('shows chain depth indicator', () => {
-    useProjectStore.setState({ effectChain: [MOCK_EFFECT] })
+    useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT])
     const { container, unmount } = render(<DeviceChain />)
     expect(container.textContent).toContain('1 / 10')
     unmount()
   })
 
   it('shows chain timing', () => {
-    useProjectStore.setState({ effectChain: [MOCK_EFFECT] })
+    useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT])
     useEngineStore.setState({ lastFrameMs: 42 })
     const { container, unmount } = render(<DeviceChain />)
     expect(container.textContent).toContain('42ms')
@@ -92,9 +91,7 @@ describe('DeviceChain', () => {
   })
 
   it('renders arrows between devices', () => {
-    useProjectStore.setState({
-      effectChain: [MOCK_EFFECT, { ...MOCK_EFFECT, id: 'fx-2' }],
-    })
+    useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT, { ...MOCK_EFFECT, id: 'fx-2' }])
     const { container, unmount } = render(<DeviceChain />)
     const arrows = container.querySelectorAll('.device-chain__arrow')
     expect(arrows).toHaveLength(1)
@@ -106,9 +103,7 @@ describe('DeviceChain', () => {
   // appear when the parent (App.tsx) hands down the handlers.
   describe('Freeze context menu (F-0514-16)', () => {
     it('shows "Freeze up to here" when handler is wired and chain has effects', () => {
-      useProjectStore.setState({
-        effectChain: [MOCK_EFFECT, { ...MOCK_EFFECT, id: 'fx-2' }],
-      })
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT, { ...MOCK_EFFECT, id: 'fx-2' }])
       const { container, unmount } = render(
         <DeviceChain
           onFreezeUpTo={vi.fn()}
@@ -123,7 +118,7 @@ describe('DeviceChain', () => {
     })
 
     it('omits Freeze entries when handlers are NOT passed', () => {
-      useProjectStore.setState({ effectChain: [MOCK_EFFECT] })
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT])
       const { container, unmount } = render(<DeviceChain />)
       const firstCard = container.querySelector('[data-testid="device-card"]') as HTMLElement
       fireEvent.contextMenu(firstCard, { clientX: 5, clientY: 5 })
@@ -132,13 +127,11 @@ describe('DeviceChain', () => {
     })
 
     it('forwards correct cutIndex to onFreezeUpTo (clicked-effect index)', () => {
-      useProjectStore.setState({
-        effectChain: [
-          MOCK_EFFECT,
-          { ...MOCK_EFFECT, id: 'fx-2' },
-          { ...MOCK_EFFECT, id: 'fx-3' },
-        ],
-      })
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [
+        MOCK_EFFECT,
+        { ...MOCK_EFFECT, id: 'fx-2' },
+        { ...MOCK_EFFECT, id: 'fx-3' },
+      ])
       const onFreezeUpTo = vi.fn()
       const { container, unmount } = render(
         <DeviceChain
@@ -190,7 +183,9 @@ describe('DeviceChain', () => {
       const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
       const dt = mockDataTransfer({ 'text/plain': 'not-an-effect' })
       fireEvent.drop(root, { dataTransfer: dt })
-      expect(useProjectStore.getState().effectChain).toHaveLength(0)
+      // D2 (Epic 02): effects land on track chain, not global effectChain.
+      const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
+      expect(chain).toHaveLength(0)
       unmount()
     })
 
@@ -200,24 +195,26 @@ describe('DeviceChain', () => {
       const huge = 'a'.repeat(10_000)
       const dt = mockDataTransfer({ 'application/x-entropic-effect-id': huge })
       fireEvent.drop(root, { dataTransfer: dt })
-      expect(useProjectStore.getState().effectChain).toHaveLength(0)
+      const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
+      expect(chain).toHaveLength(0)
       unmount()
     })
 
     it('rejects drops when chain is at MAX_EFFECTS_PER_CHAIN', () => {
-      // Fill the chain to capacity.
-      useProjectStore.setState({
-        effectChain: Array.from({ length: 10 }, (_, i) => ({
+      // Fill the V1 track chain to capacity.
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () =>
+        Array.from({ length: 10 }, (_, i) => ({
           ...MOCK_EFFECT,
           id: `fx-fill-${i}`,
         })),
-      })
+      )
       const { container, unmount } = render(<DeviceChain />)
       const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
       const dt = mockDataTransfer({ 'application/x-entropic-effect-id': 'pixelsort' })
       fireEvent.drop(root, { dataTransfer: dt })
       // Still 10 — drop was rejected.
-      expect(useProjectStore.getState().effectChain).toHaveLength(10)
+      const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
+      expect(chain).toHaveLength(10)
       unmount()
     })
 
@@ -226,7 +223,8 @@ describe('DeviceChain', () => {
       const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
       const dt = mockDataTransfer({ 'application/x-entropic-effect-id': 'fx.does_not_exist' })
       fireEvent.drop(root, { dataTransfer: dt })
-      expect(useProjectStore.getState().effectChain).toHaveLength(0)
+      const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
+      expect(chain).toHaveLength(0)
       unmount()
     })
   })

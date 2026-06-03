@@ -257,16 +257,22 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       return undefined
     }
     const trackId = randomUUID()
+    // D1: capture prior selectedTrackId for undo inverse
+    const prevSelectedTrackId = get().selectedTrackId
 
     undoable(
       'Add track',
       () => {
         const track = makeEmptyTrack(name, color, trackId, type ?? 'video')
         set({ tracks: [...get().tracks, track] })
+        // D1: auto-select the new track when none was selected
+        if (!get().selectedTrackId) {
+          set({ selectedTrackId: trackId })
+        }
       },
       () => {
         const tracks = get().tracks.filter((t) => t.id !== trackId)
-        set({ tracks, duration: recalcDuration(tracks) })
+        set({ tracks, duration: recalcDuration(tracks), selectedTrackId: prevSelectedTrackId })
       },
     )
     return trackId
