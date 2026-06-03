@@ -15,6 +15,8 @@ import threading
 import av
 import numpy as np
 
+from video.codec_timeout import av_open_timeout
+
 PROJECT_SAMPLE_RATE = 48000
 PROJECT_CHANNELS = 2  # stereo output
 
@@ -52,7 +54,7 @@ class StreamingDecoder:
         with self._lock:
             if self._container is not None:
                 return
-            self._container = av.open(self._path)
+            self._container = av_open_timeout(self._path)
             streams = self._container.streams.audio
             if not streams:
                 self._container.close()

@@ -3,10 +3,12 @@
 import av
 import numpy as np
 
+from video.codec_timeout import av_open_timeout
+
 
 class VideoReader:
     def __init__(self, path: str):
-        self.container = av.open(path)
+        self.container = av_open_timeout(path)
         self.stream = self.container.streams.video[0]
         self.stream.thread_type = "AUTO"
         self.fps = float(self.stream.average_rate) if self.stream.average_rate else 30.0
