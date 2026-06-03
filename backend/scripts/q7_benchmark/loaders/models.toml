@@ -1,0 +1,40 @@
+# Q7 backbone model registry (DEC-Q7-005).
+#
+# `revision` PINS the HuggingFace commit SHA so weight files cannot be rotated
+# under us. PLACEHOLDER_SHA_PR3 means "use HF default branch" until PR #4
+# captures the real SHA on first --measure run. After PR #4, edits to revision
+# require bumping the cache subdir + re-running the verification cycle.
+#
+# Editing rule: ONE pin per model, no parallel revisions. To upgrade:
+#   1. Replace `revision` with the new commit SHA
+#   2. Delete the old cache subdir: rm -rf ~/.entropic/models/q7/<name>/<old_sha>/
+#   3. Run `make q7-measure` to download + populate verified.json
+#   4. Commit the bump
+
+[dinov2]
+hf_repo = "facebook/dinov2-small"
+revision = "PLACEHOLDER_SHA_PR3"
+embed_dim = 384
+modality = "vision"
+input_resolution = 224
+size_mb_estimate = 22
+license = "Apache-2.0"
+
+[clip]
+hf_repo = "openai/clip-vit-base-patch32"
+revision = "PLACEHOLDER_SHA_PR3"
+embed_dim = 512
+modality = "vision_text"
+input_resolution = 224
+size_mb_estimate = 150
+license = "MIT"
+
+[clap]
+hf_repo = "laion/clap-htsat-unfused"
+revision = "PLACEHOLDER_SHA_PR3"
+embed_dim = 512
+modality = "audio_text"
+input_sample_rate = 48000
+input_min_duration_s = 3.0
+size_mb_estimate = 300
+license = "CC-BY-4.0"
