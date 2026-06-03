@@ -4,13 +4,14 @@ import { randomUUID } from '../utils'
 import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
 import { undoable } from './undo'
 import { useToastStore } from './toast'
-import { useOperatorStore } from './operators'
-import { useAutomationStore } from './automation'
-import { useMIDIStore } from './midi'
+import { useTimelineStore } from './timeline'
+import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
+
+// Stable empty array for the no-selection case (avoid re-render churn). (design D4)
+const EMPTY: EffectInstance[] = []
 
 interface ProjectState {
   assets: Record<string, Asset>
-  effectChain: EffectInstance[]
   selectedEffectId: string | null
   currentFrame: number
   totalFrames: number
@@ -27,12 +28,12 @@ interface ProjectState {
 
   addAsset: (asset: Asset) => void
   removeAsset: (id: string) => void
-  addEffect: (effect: EffectInstance) => void
-  removeEffect: (id: string) => void
-  reorderEffect: (fromIndex: number, toIndex: number) => void
-  updateParam: (effectId: string, paramName: string, value: number | string | boolean) => void
-  setMix: (effectId: string, mix: number) => void
-  toggleEffect: (effectId: string) => void
+  addEffect: (trackId: string, effect: EffectInstance) => void
+  removeEffect: (trackId: string, id: string) => void
+  reorderEffect: (trackId: string, fromIndex: number, toIndex: number) => void
+  updateParam: (trackId: string, effectId: string, paramName: string, value: number | string | boolean) => void
+  setMix: (trackId: string, effectId: string, mix: number) => void
+  toggleEffect: (trackId: string, effectId: string) => void
   selectEffect: (id: string | null) => void
   setCurrentFrame: (frame: number) => void
   setTotalFrames: (total: number) => void
@@ -47,20 +48,20 @@ interface ProjectState {
   resetProject: () => void
 
   // Phase 14A: A/B switching (NOT undoable — comparison tool)
-  activateAB: (effectId: string) => void
-  toggleAB: (effectId: string) => void
-  copyToInactiveAB: (effectId: string) => void
-  deactivateAB: (effectId: string) => void
+  activateAB: (trackId: string, effectId: string) => void
+  toggleAB: (trackId: string, effectId: string) => void
+  copyToInactiveAB: (trackId: string, effectId: string) => void
+  deactivateAB: (trackId: string, effectId: string) => void
 
   // Phase 14B: Device Groups (metadata-only, undoable)
   deviceGroups: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>
-  groupEffects: (effectIds: string[], groupName?: string) => string | null
+  /** D5 (Epic 02): trackId scopes validation — ids validated against that track's chain. */
+  groupEffects: (trackId: string, effectIds: string[], groupName?: string) => string | null
   ungroupEffects: (groupId: string) => void
 }
 
 const PROJECT_DEFAULTS = {
   assets: {} as Record<string, Asset>,
-  effectChain: [] as EffectInstance[],
   selectedEffectId: null as string | null,
   currentFrame: 0,
   totalFrames: 0,
@@ -74,6 +75,25 @@ const PROJECT_DEFAULTS = {
   bpm: 120,
   canvasResolution: [1920, 1080] as [number, number],
   deviceGroups: {} as Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>,
+}
+
+/** Helper: read a track's effectChain from the timeline store. */
+function getTrackChain(trackId: string): EffectInstance[] {
+  return useTimelineStore.getState().tracks.find((t) => t.id === trackId)?.effectChain ?? []
+}
+
+/** Helper: write a track's effectChain via the timeline store primitive. */
+function setTrackChain(trackId: string, updater: (chain: EffectInstance[]) => EffectInstance[]): void {
+  useTimelineStore.getState().updateTrackEffectChain(trackId, updater)
+}
+
+/** Dev-mode loud no-op guard. (design D8, task 7b) */
+function warnNoTrack(trackId: string): boolean {
+  const exists = useTimelineStore.getState().tracks.some((t) => t.id === trackId)
+  if (!exists && process.env.NODE_ENV !== 'test') {
+    console.warn(`[effect-chain] no track for trackId=${JSON.stringify(trackId)}; mutation skipped`)
+  }
+  return !exists
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -90,8 +110,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return { assets: rest }
     }),
 
-  addEffect: (effect) => {
-    if (get().effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) {
+  addEffect: (trackId, effect) => {
+    // Guard: no-op if track doesn't exist (D8 loud no-op)
+    if (warnNoTrack(trackId)) return
+
+    const chain = getTrackChain(trackId)
+    if (chain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) {
       useToastStore.getState().addToast({ level: 'warning', message: `Effect chain limit (${LIMITS.MAX_EFFECTS_PER_CHAIN}) reached`, source: 'project' })
       return
     }
@@ -118,92 +142,59 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
     undoable(
       'Add effect',
-      () => set({ effectChain: [...get().effectChain, effect] }),
-      () => set({
-        effectChain: get().effectChain.filter((e) => e.id !== effect.id),
-        selectedEffectId: get().selectedEffectId === effect.id ? null : get().selectedEffectId,
-      }),
+      () => setTrackChain(trackId, (prev) => [...prev, effect]),
+      () => {
+        setTrackChain(trackId, (prev) => prev.filter((e) => e.id !== effect.id))
+        if (get().selectedEffectId === effect.id) set({ selectedEffectId: null })
+      },
     )
   },
 
-  removeEffect: (id) => {
-    const chain = get().effectChain
+  removeEffect: (trackId, id) => {
+    // Guard: no-op if track doesn't exist (D8 loud no-op)
+    if (warnNoTrack(trackId)) return
+
+    // Snapshot PRE-undoable reads from the track chain (CTO finding #3)
+    const chain = getTrackChain(trackId)
     const idx = chain.findIndex((e) => e.id === id)
     if (idx === -1) return
     const removed = { ...chain[idx] }
     const prevId = idx > 0 ? chain[idx - 1].id : null
 
-    // Snapshot cross-store state for undo restoration
-    const opStore = useOperatorStore.getState()
-    const savedOperators = opStore.operators.map((op) => ({
-      ...op,
-      mappings: [...op.mappings],
-    }))
-    const autoStore = useAutomationStore.getState()
-    const savedLanes = JSON.parse(JSON.stringify(autoStore.lanes))
-    const midiStore = useMIDIStore.getState()
-    const savedCCMappings = [...midiStore.ccMappings]
-    // Phase 14B: deviceGroups may reference this effect — snapshot for restore
-    const savedDeviceGroups = JSON.parse(JSON.stringify(get().deviceGroups))
+    // Closure var: populated by pruneEffectDependents in forward, consumed by inverse.
+    // eslint-disable-next-line prefer-const
+    let snap: ReturnType<typeof pruneEffectDependents> | undefined
 
     undoable(
       'Remove effect',
       () => {
-        // 1. Remove the effect
-        set({
-          effectChain: get().effectChain.filter((e) => e.id !== id),
-          selectedEffectId: get().selectedEffectId === id ? null : get().selectedEffectId,
-        })
-        // 2. Cross-store cleanup: operator mappings targeting this effect
-        const ops = useOperatorStore.getState().operators
-        const cleanedOps = ops.map((op) => ({
-          ...op,
-          mappings: op.mappings.filter((m) => m.targetEffectId !== id),
-        }))
-        useOperatorStore.setState({ operators: cleanedOps })
+        // 1. Remove the effect from the track chain
+        setTrackChain(trackId, (prev) => prev.filter((e) => e.id !== id))
+        if (get().selectedEffectId === id) set({ selectedEffectId: null })
 
-        // 3. Automation lanes for this effect (paramPath starts with effectId.)
-        const lanes = { ...useAutomationStore.getState().lanes }
-        for (const trackId of Object.keys(lanes)) {
-          lanes[trackId] = lanes[trackId].filter((l) => !l.paramPath.startsWith(`${id}.`))
-          if (lanes[trackId].length === 0) delete lanes[trackId]
-        }
-        useAutomationStore.setState({ lanes })
-
-        // 4. CC mappings targeting this effect
-        const ccMappings = useMIDIStore.getState().ccMappings.filter((m) => m.effectId !== id)
-        useMIDIStore.setState({ ccMappings })
-
-        // 5. Device groups: remove this id from any group's effectIds.
-        // If pruning drops a group below 2 members, delete the group (mirrors
-        // the minimum-size rule enforced in groupEffects).
-        const nextGroups: typeof savedDeviceGroups = {}
-        for (const [gid, group] of Object.entries(get().deviceGroups)) {
-          const pruned = group.effectIds.filter((eid) => eid !== id)
-          if (pruned.length >= 2) {
-            nextGroups[gid] = { ...group, effectIds: pruned }
-          }
-          // else: group drops below minimum → omit (delete)
-        }
-        set({ deviceGroups: nextGroups })
+        // 2. Cross-store cleanup via shared helper (D2: behavior-preserving extraction)
+        snap = pruneEffectDependents([id])
       },
       () => {
-        // Restore effect
-        const chain = [...get().effectChain]
-        const insertIdx = prevId !== null ? chain.findIndex((e) => e.id === prevId) + 1 : 0
-        chain.splice(insertIdx, 0, removed)
-        set({ effectChain: chain })
-        // Restore cross-store state
-        useOperatorStore.setState({ operators: savedOperators })
-        useAutomationStore.setState({ lanes: savedLanes })
-        useMIDIStore.setState({ ccMappings: savedCCMappings })
-        set({ deviceGroups: savedDeviceGroups })
+        // Restore effect at original position in the track chain
+        setTrackChain(trackId, (prev) => {
+          const chain = [...prev]
+          const insertIdx = prevId !== null ? chain.findIndex((e) => e.id === prevId) + 1 : 0
+          chain.splice(insertIdx, 0, removed)
+          return chain
+        })
+        // Restore cross-store state from snapshot
+        if (snap) restoreEffectDependents(snap)
       },
     )
   },
 
-  reorderEffect: (fromIndex, toIndex) => {
-    const chain = get().effectChain
+  reorderEffect: (trackId, fromIndex, toIndex) => {
+    // Guard: no-op if track doesn't exist (D8 loud no-op)
+    if (warnNoTrack(trackId)) return
+
+    // Snapshot PRE-undoable reads from the track chain (CTO finding #3)
+    const chain = getTrackChain(trackId)
     if (fromIndex < 0 || fromIndex >= chain.length) return
     if (toIndex < 0 || toIndex >= chain.length) return
     if (fromIndex === toIndex) return
@@ -212,71 +203,88 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     undoable(
       'Reorder effects',
       () => {
-        const current = [...get().effectChain]
-        const [moved] = current.splice(fromIndex, 1)
-        current.splice(toIndex, 0, moved)
-        set({ effectChain: current })
+        setTrackChain(trackId, (prev) => {
+          const current = [...prev]
+          const [moved] = current.splice(fromIndex, 1)
+          current.splice(toIndex, 0, moved)
+          return current
+        })
       },
       () => {
-        const current = get().effectChain
-        const restored = oldOrder
-          .map((id) => current.find((e) => e.id === id))
-          .filter((e): e is EffectInstance => e !== undefined)
-        set({ effectChain: restored })
+        setTrackChain(trackId, (prev) => {
+          return oldOrder
+            .map((id) => prev.find((e) => e.id === id))
+            .filter((e): e is EffectInstance => e !== undefined)
+        })
       },
     )
   },
 
-  updateParam: (effectId, paramName, value) => {
-    const effect = get().effectChain.find((e) => e.id === effectId)
+  updateParam: (trackId, effectId, paramName, value) => {
+    // Guard: no-op if track doesn't exist (D8 loud no-op)
+    if (warnNoTrack(trackId)) return
+
+    // Snapshot PRE-undoable read from the track chain (CTO finding #3)
+    const chain = getTrackChain(trackId)
+    const effect = chain.find((e) => e.id === effectId)
     if (!effect) return
     const oldValue = effect.parameters[paramName]
 
     undoable(
       `Update ${paramName}`,
-      () => set({
-        effectChain: get().effectChain.map((e) =>
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) =>
           e.id === effectId ? { ...e, parameters: { ...e.parameters, [paramName]: value } } : e,
         ),
-      }),
-      () => set({
-        effectChain: get().effectChain.map((e) =>
+      ),
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) =>
           e.id === effectId ? { ...e, parameters: { ...e.parameters, [paramName]: oldValue } } : e,
         ),
-      }),
+      ),
     )
   },
 
-  setMix: (effectId, mix) => {
-    const effect = get().effectChain.find((e) => e.id === effectId)
+  setMix: (trackId, effectId, mix) => {
+    // Guard: no-op if track doesn't exist (D8 loud no-op)
+    if (warnNoTrack(trackId)) return
+
+    // Snapshot PRE-undoable read from the track chain (CTO finding #3)
+    const chain = getTrackChain(trackId)
+    const effect = chain.find((e) => e.id === effectId)
     if (!effect) return
     const oldMix = effect.mix
     const clamped = Math.max(0, Math.min(1, mix))
 
     undoable(
       'Set effect mix',
-      () => set({
-        effectChain: get().effectChain.map((e) => (e.id === effectId ? { ...e, mix: clamped } : e)),
-      }),
-      () => set({
-        effectChain: get().effectChain.map((e) => (e.id === effectId ? { ...e, mix: oldMix } : e)),
-      }),
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) => (e.id === effectId ? { ...e, mix: clamped } : e)),
+      ),
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) => (e.id === effectId ? { ...e, mix: oldMix } : e)),
+      ),
     )
   },
 
-  toggleEffect: (effectId) => {
-    const effect = get().effectChain.find((e) => e.id === effectId)
+  toggleEffect: (trackId, effectId) => {
+    // Guard: no-op if track doesn't exist (D8 loud no-op)
+    if (warnNoTrack(trackId)) return
+
+    // Snapshot PRE-undoable read from the track chain (CTO finding #3)
+    const chain = getTrackChain(trackId)
+    const effect = chain.find((e) => e.id === effectId)
     if (!effect) return
     const wasEnabled = effect.isEnabled
 
     undoable(
       `${wasEnabled ? 'Disable' : 'Enable'} effect`,
-      () => set({
-        effectChain: get().effectChain.map((e) => (e.id === effectId ? { ...e, isEnabled: !wasEnabled } : e)),
-      }),
-      () => set({
-        effectChain: get().effectChain.map((e) => (e.id === effectId ? { ...e, isEnabled: wasEnabled } : e)),
-      }),
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) => (e.id === effectId ? { ...e, isEnabled: !wasEnabled } : e)),
+      ),
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) => (e.id === effectId ? { ...e, isEnabled: wasEnabled } : e)),
+      ),
     )
   },
 
@@ -309,9 +317,11 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   resetProject: () => set(PROJECT_DEFAULTS),
 
   // Phase 14A: A/B switching — NOT undoable (comparison tool)
-  activateAB: (effectId) => {
-    set((state) => ({
-      effectChain: state.effectChain.map((e) => {
+  // CTO finding #6: these are non-undoable; use set() directly, NOT undoable().
+  activateAB: (trackId, effectId) => {
+    if (warnNoTrack(trackId)) return
+    setTrackChain(trackId, (prev) =>
+      prev.map((e) => {
         if (e.id !== effectId) return e
         if (e.abState) return e // already active
         return {
@@ -323,12 +333,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           },
         }
       }),
-    }))
+    )
   },
 
-  toggleAB: (effectId) => {
-    set((state) => ({
-      effectChain: state.effectChain.map((e) => {
+  toggleAB: (trackId, effectId) => {
+    if (warnNoTrack(trackId)) return
+    setTrackChain(trackId, (prev) =>
+      prev.map((e) => {
         if (e.id !== effectId || !e.abState) return e
         const { a, b, active } = e.abState
         const nextActive = active === 'a' ? 'b' : 'a'
@@ -345,12 +356,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           },
         }
       }),
-    }))
+    )
   },
 
-  copyToInactiveAB: (effectId) => {
-    set((state) => ({
-      effectChain: state.effectChain.map((e) => {
+  copyToInactiveAB: (trackId, effectId) => {
+    if (warnNoTrack(trackId)) return
+    setTrackChain(trackId, (prev) =>
+      prev.map((e) => {
         if (e.id !== effectId || !e.abState) return e
         const current = { ...e.parameters }
         return {
@@ -362,20 +374,22 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           },
         }
       }),
-    }))
+    )
   },
 
-  deactivateAB: (effectId) => {
-    set((state) => ({
-      effectChain: state.effectChain.map((e) => {
+  deactivateAB: (trackId, effectId) => {
+    if (warnNoTrack(trackId)) return
+    setTrackChain(trackId, (prev) =>
+      prev.map((e) => {
         if (e.id !== effectId) return e
         return { ...e, abState: null }
       }),
-    }))
+    )
   },
 
   // Phase 14B: Device Groups
-  groupEffects: (effectIds, groupName) => {
+  // D5 (Epic 02): trackId scopes validation — ids validated against that track's chain.
+  groupEffects: (trackId, effectIds, groupName) => {
     if (effectIds.length < 2) {
       useToastStore.getState().addToast({
         level: 'warning',
@@ -385,7 +399,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       return null
     }
 
-    const chain = get().effectChain
+    // D5: validate against the track's chain (not the global effectChain)
+    const chain = getTrackChain(trackId)
     const validIds = effectIds.filter((id) => chain.some((e) => e.id === id))
 
     if (validIds.length < 2) return null
@@ -435,3 +450,56 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     undoable('Ungroup effects', forward, inverse)
   },
 }))
+
+// ─── Epic 02: Active-track resolution (design D1) ────────────────────────────
+
+/**
+ * Non-reactive: returns the active track id.
+ * Resolution order: selectedTrackId (if valid) → first video track → null.
+ * Call in event handlers and non-hook contexts.
+ */
+export const getActiveTrackId = (): string | null => {
+  const tl = useTimelineStore.getState()
+  if (tl.selectedTrackId && tl.tracks.some((t) => t.id === tl.selectedTrackId)) return tl.selectedTrackId
+  const firstVideo = tl.tracks.find((t) => t.type === 'video')
+  return firstVideo?.id ?? null
+}
+
+/**
+ * Reactive hook: returns the active track id.
+ * Resolution order: selectedTrackId (if valid) → first video track → null.
+ */
+export const useActiveTrackId = () =>
+  useTimelineStore((s) =>
+    (s.selectedTrackId && s.tracks.some((t) => t.id === s.selectedTrackId))
+      ? s.selectedTrackId
+      : (s.tracks.find((t) => t.type === 'video')?.id ?? null),
+  )
+
+// ─── Epic 01/02: Active-chain selectors ──────────────────────────────────────
+
+/**
+ * Returns the effect chain of the currently selected track, or [] when no
+ * track is selected. Non-reactive — call in event handlers / non-hook contexts.
+ * Epic 02: resolves through the active-track rule (D1) so display and mutation agree.
+ */
+export const getActiveEffectChain = (): EffectInstance[] => {
+  const tid = getActiveTrackId()
+  if (!tid) return EMPTY
+  return useTimelineStore.getState().tracks.find((t) => t.id === tid)?.effectChain ?? EMPTY
+}
+
+/**
+ * Reactive hook: returns the effect chain of the active track (selected if valid,
+ * else first video track), or a stable empty array when no active track exists.
+ * Epic 02: resolves through the active-track rule (D1).
+ */
+export const useActiveEffectChain = () =>
+  useTimelineStore((s) => {
+    // D1 resolution: selectedTrackId if valid, else first video track, else null
+    const activeId = (s.selectedTrackId && s.tracks.some((t) => t.id === s.selectedTrackId))
+      ? s.selectedTrackId
+      : (s.tracks.find((t) => t.type === 'video')?.id ?? null)
+    const t = activeId ? s.tracks.find((trk) => trk.id === activeId) : null
+    return t?.effectChain ?? EMPTY
+  })

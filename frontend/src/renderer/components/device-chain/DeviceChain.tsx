@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
-import { useProjectStore } from '../../stores/project'
+import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId } from '../../stores/project'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
-import { LIMITS, MASTER_TRACK_ID } from '../../../shared/limits'
+import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import ContextMenu from '../timeline/ContextMenu'
 import type { MenuItem } from '../timeline/ContextMenu'
@@ -35,7 +35,10 @@ export default function DeviceChain({
   onSaveAsPreset,
   onSaveChainAsPreset,
 }: DeviceChainProps) {
-  const effectChain = useProjectStore((s) => s.effectChain)
+  // D2 (Epic 02): display the ACTIVE track's chain via the active-track rule (D1).
+  const effectChain = useActiveEffectChain()
+  // Epic 3 (D3): read active trackId reactively so isFrozenAt queries the correct per-track state.
+  const activeTrackId = useActiveTrackId()
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
   const deviceGroups = useProjectStore((s) => s.deviceGroups)
   const registry = useEffectsStore((s) => s.registry)
@@ -49,11 +52,15 @@ export default function DeviceChain({
   }, [])
 
   const handleToggle = useCallback((id: string) => {
-    useProjectStore.getState().toggleEffect(id)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().toggleEffect(trackId, id)
   }, [])
 
   const handleRemove = useCallback((id: string) => {
-    useProjectStore.getState().removeEffect(id)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().removeEffect(trackId, id)
   }, [])
 
   // F-0514-7: drag-add from EffectBrowser. Accepts only our custom MIME type
@@ -88,6 +95,8 @@ export default function DeviceChain({
       if (effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return
       const info = registry.find((r) => r.id === effectId)
       if (!info) return
+      const trackId = getActiveTrackId()
+      if (!trackId) return
       const instance: EffectInstance = {
         id: randomUUID(),
         effectId: info.id,
@@ -100,20 +109,24 @@ export default function DeviceChain({
         mix: 1.0,
         mask: null,
       }
-      useProjectStore.getState().addEffect(instance)
+      useProjectStore.getState().addEffect(trackId, instance)
     },
     [effectChain.length, registry],
   )
 
   const handleUpdateParam = useCallback(
     (effectId: string, paramName: string, value: number | string | boolean) => {
-      useProjectStore.getState().updateParam(effectId, paramName, value)
+      const trackId = getActiveTrackId()
+      if (!trackId) return
+      useProjectStore.getState().updateParam(trackId, effectId, paramName, value)
     },
     [],
   )
 
   const handleSetMix = useCallback((effectId: string, mix: number) => {
-    useProjectStore.getState().setMix(effectId, mix)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().setMix(trackId, effectId, mix)
   }, [])
 
   const handleContextMenu = useCallback((e: React.MouseEvent, effectId: string, index: number) => {
@@ -147,7 +160,9 @@ export default function DeviceChain({
         label: 'Group with Previous',
         disabled: alreadyGrouped,
         action: () => {
-          useProjectStore.getState().groupEffects([prevEffect.id, effectId])
+          const activeTrackId = getActiveTrackId()
+          if (!activeTrackId) return
+          useProjectStore.getState().groupEffects(activeTrackId, [prevEffect.id, effectId])
         },
         shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('group_with_previous')),
       })
@@ -164,11 +179,9 @@ export default function DeviceChain({
       })
     }
 
-    // F-0514-16: Freeze / Unfreeze / Flatten — only shown when the parent
-    // wired the handlers. Disabled during in-flight freeze ops to prevent
-    // races (freezeStore.operationState gates concurrent invocations too,
-    // but disabling the menu is the user-visible signal).
-    const indexIsFrozen = isFrozenAt(MASTER_TRACK_ID, index)
+    // Epic 3 (D3): use activeTrackId so per-track freeze state is queried correctly.
+    // Empty string → isFrozen returns false (safe no-op when no active track).
+    const indexIsFrozen = isFrozenAt(activeTrackId ?? '', index)
     const busy = freezeOpState !== 'idle'
 
     if (onFreezeUpTo && !indexIsFrozen) {
@@ -219,7 +232,7 @@ export default function DeviceChain({
     }
 
     return items
-  }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, onSaveAsPreset, onSaveChainAsPreset, isFrozenAt, freezeOpState])
+  }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, onSaveAsPreset, onSaveChainAsPreset, isFrozenAt, freezeOpState, activeTrackId])
 
   const chainTimeColor = lastFrameMs < 50 ? '#4ade80' : lastFrameMs < 100 ? '#f59e0b' : '#ef4444'
 

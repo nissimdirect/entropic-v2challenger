@@ -1,10 +1,6 @@
 import { create } from 'zustand'
 
-// V3 (2026-05-16 red-team review): MASTER_TRACK_ID moved to shared/limits.ts
-// to break the "constant defined in a store file" coupling. Re-exported here
-// for backward compatibility with consumers that may have imported it via
-// this file in flight.
-export { MASTER_TRACK_ID } from '../../shared/limits'
+// Epic 05 D6: MASTER_TRACK_ID deleted — no live users remain (zero non-test imports).
 
 interface FreezeInfo {
   cacheId: string

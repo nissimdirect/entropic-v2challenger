@@ -36,6 +36,13 @@ import {
 } from '../renderer/utils/transport-speed'
 import type { Clip, EffectInstance } from '../shared/types'
 
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
+
+function getV1Chain(): EffectInstance[] {
+  return useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
+}
+
 function makeClip(overrides: Partial<Clip> = {}): Clip {
   return {
     id: overrides.id ?? `clip-${Math.random().toString(36).slice(2, 8)}`,
@@ -138,32 +145,33 @@ describe('setClipSpeed', () => {
 
 describe('duplicate effect handler', () => {
   beforeEach(() => {
-    useProjectStore.setState({
-      effectChain: [],
-      selectedEffectId: null,
-    })
+    useTimelineStore.getState().reset()
+    useProjectStore.setState({ effectChain: [], selectedEffectId: null })
+    useUndoStore.getState().clear()
+    // Epic 01: create V1 track for effect chain operations
+    // TODO(Epic02): use active track
+    V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
     useUndoStore.getState().clear()
   })
 
   it('creates a deep clone with new ID', () => {
     const ps = useProjectStore.getState()
     const original = makeEffect('orig-1')
-    ps.addEffect(original)
+    ps.addEffect(V1_TRACK_ID, original)
     ps.selectEffect('orig-1')
 
     // Simulate the duplicate handler from App.tsx:390-403
-    const state = useProjectStore.getState()
-    const source = state.effectChain.find((e) => e.id === state.selectedEffectId)!
+    const source = getV1Chain().find((e) => e.id === useProjectStore.getState().selectedEffectId)!
     const clone = {
       ...source,
       id: 'clone-1', // In real code this is crypto.randomUUID()
       parameters: { ...source.parameters },
       modulations: { ...source.modulations },
     }
-    ps.addEffect(clone)
+    ps.addEffect(V1_TRACK_ID, clone)
     ps.selectEffect(clone.id)
 
-    const chain = useProjectStore.getState().effectChain
+    const chain = getV1Chain()
     expect(chain).toHaveLength(2)
     expect(chain[1].id).toBe('clone-1')
     expect(chain[1].id).not.toBe(chain[0].id)
@@ -173,18 +181,18 @@ describe('duplicate effect handler', () => {
     const ps = useProjectStore.getState()
     const original = makeEffect('orig-2')
     original.parameters = { amount: 0.75, decay: 200 }
-    ps.addEffect(original)
+    ps.addEffect(V1_TRACK_ID, original)
 
-    const source = useProjectStore.getState().effectChain[0]
+    const source = getV1Chain()[0]
     const clone = {
       ...source,
       id: 'clone-2',
       parameters: { ...source.parameters },
       modulations: { ...source.modulations },
     }
-    ps.addEffect(clone)
+    ps.addEffect(V1_TRACK_ID, clone)
 
-    const chain = useProjectStore.getState().effectChain
+    const chain = getV1Chain()
     expect(chain[1].parameters).toEqual({ amount: 0.75, decay: 200 })
   })
 
@@ -192,9 +200,9 @@ describe('duplicate effect handler', () => {
     const ps = useProjectStore.getState()
     const original = makeEffect('orig-3')
     original.parameters = { amount: 0.5 }
-    ps.addEffect(original)
+    ps.addEffect(V1_TRACK_ID, original)
 
-    const source = useProjectStore.getState().effectChain[0]
+    const source = getV1Chain()[0]
     const cloneParams = { ...source.parameters }
     cloneParams.amount = 0.9 // modify clone params
 
@@ -204,34 +212,34 @@ describe('duplicate effect handler', () => {
   it('copies modulations from source', () => {
     const ps = useProjectStore.getState()
     const original = makeEffect('orig-4')
-    ps.addEffect(original)
+    ps.addEffect(V1_TRACK_ID, original)
 
-    const source = useProjectStore.getState().effectChain[0]
+    const source = getV1Chain()[0]
     const clone = {
       ...source,
       id: 'clone-4',
       parameters: { ...source.parameters },
       modulations: { ...source.modulations },
     }
-    ps.addEffect(clone)
+    ps.addEffect(V1_TRACK_ID, clone)
 
-    const chain = useProjectStore.getState().effectChain
+    const chain = getV1Chain()
     expect(chain[1].modulations).toEqual(original.modulations)
   })
 
   it('selects the new clone after duplication', () => {
     const ps = useProjectStore.getState()
-    ps.addEffect(makeEffect('orig-5'))
+    ps.addEffect(V1_TRACK_ID, makeEffect('orig-5'))
     ps.selectEffect('orig-5')
 
-    const source = useProjectStore.getState().effectChain[0]
+    const source = getV1Chain()[0]
     const clone = {
       ...source,
       id: 'clone-5',
       parameters: { ...source.parameters },
       modulations: { ...source.modulations },
     }
-    ps.addEffect(clone)
+    ps.addEffect(V1_TRACK_ID, clone)
     ps.selectEffect(clone.id)
 
     expect(useProjectStore.getState().selectedEffectId).toBe('clone-5')
@@ -239,7 +247,7 @@ describe('duplicate effect handler', () => {
 
   it('no-ops when no effect is selected', () => {
     const ps = useProjectStore.getState()
-    ps.addEffect(makeEffect('orig-6'))
+    ps.addEffect(V1_TRACK_ID, makeEffect('orig-6'))
     // Don't select anything
 
     const state = useProjectStore.getState()
@@ -247,7 +255,7 @@ describe('duplicate effect handler', () => {
     // Handler should return early — chain stays at 1
     if (!state.selectedEffectId) {
       // This is the guard from App.tsx:392
-      expect(state.effectChain).toHaveLength(1)
+      expect(getV1Chain()).toHaveLength(1)
     }
   })
 })
@@ -257,10 +265,11 @@ describe('duplicate effect handler', () => {
 describe('delete_selected routing', () => {
   beforeEach(() => {
     useTimelineStore.getState().reset()
-    useProjectStore.setState({
-      effectChain: [],
-      selectedEffectId: null,
-    })
+    useProjectStore.setState({ effectChain: [], selectedEffectId: null })
+    useUndoStore.getState().clear()
+    // Epic 01: create V1 track for effect chain operations
+    // TODO(Epic02): use active track
+    V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
     useUndoStore.getState().clear()
   })
 
@@ -277,14 +286,15 @@ describe('delete_selected routing', () => {
       state.deleteSelectedClips()
     }
 
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
-    expect(useTimelineStore.getState().tracks[0].clips[0].id).toBe('del2')
+    const clips = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips
+    expect(clips).toHaveLength(1)
+    expect(clips[0].id).toBe('del2')
   })
 
   it('falls back to deleting selected effect when no clips selected', () => {
     const ps = useProjectStore.getState()
-    ps.addEffect(makeEffect('fx-del1'))
-    ps.addEffect(makeEffect('fx-del2'))
+    ps.addEffect(V1_TRACK_ID, makeEffect('fx-del1'))
+    ps.addEffect(V1_TRACK_ID, makeEffect('fx-del2'))
     ps.selectEffect('fx-del1')
 
     // Simulate the handler from App.tsx:377-387
@@ -294,11 +304,11 @@ describe('delete_selected routing', () => {
     } else {
       const projState = useProjectStore.getState()
       if (projState.selectedEffectId) {
-        projState.removeEffect(projState.selectedEffectId)
+        projState.removeEffect(V1_TRACK_ID, projState.selectedEffectId)
       }
     }
 
-    const chain = useProjectStore.getState().effectChain
+    const chain = getV1Chain()
     expect(chain).toHaveLength(1)
     expect(chain[0].id).toBe('fx-del2')
   })
@@ -308,7 +318,7 @@ describe('delete_selected routing', () => {
     ts.addTrack('Track 1', '#f00')
 
     const ps = useProjectStore.getState()
-    ps.addEffect(makeEffect('fx-noop'))
+    ps.addEffect(V1_TRACK_ID, makeEffect('fx-noop'))
     // Neither clips nor effects selected
 
     // Simulate the handler
@@ -318,12 +328,12 @@ describe('delete_selected routing', () => {
     } else {
       const projState = useProjectStore.getState()
       if (projState.selectedEffectId) {
-        projState.removeEffect(projState.selectedEffectId)
+        projState.removeEffect(V1_TRACK_ID, projState.selectedEffectId)
       }
     }
 
     // Nothing should have been deleted
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    expect(getV1Chain()).toHaveLength(1)
   })
 
   it('prioritizes clips over effects when both are selected', () => {
@@ -333,7 +343,7 @@ describe('delete_selected routing', () => {
     ts.selectClip('both1')
 
     const ps = useProjectStore.getState()
-    ps.addEffect(makeEffect('fx-both'))
+    ps.addEffect(V1_TRACK_ID, makeEffect('fx-both'))
     ps.selectEffect('fx-both')
 
     // Simulate handler — clips take priority
@@ -343,13 +353,14 @@ describe('delete_selected routing', () => {
     } else {
       const projState = useProjectStore.getState()
       if (projState.selectedEffectId) {
-        projState.removeEffect(projState.selectedEffectId)
+        projState.removeEffect(V1_TRACK_ID, projState.selectedEffectId)
       }
     }
 
     // Clip deleted, effect still there
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    const clips = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips
+    expect(clips).toHaveLength(0)
+    expect(getV1Chain()).toHaveLength(1)
   })
 })
 

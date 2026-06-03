@@ -20,8 +20,12 @@ import { describe, it, expect, beforeEach } from 'vitest'
 }
 
 import { useProjectStore } from '../renderer/stores/project'
+import { useTimelineStore } from '../renderer/stores/timeline'
 import { useUndoStore } from '../renderer/stores/undo'
 import type { EffectInstance } from '../shared/types'
+
+// D5 (Epic 02): groupEffects now requires a trackId as first arg.
+let V1_TRACK_ID: string
 
 const FX1: EffectInstance = {
   id: 'fx-1', effectId: 'pixelsort', isEnabled: true, isFrozen: false,
@@ -41,8 +45,9 @@ const FX4: EffectInstance = {
 }
 
 function reset() {
+  useTimelineStore.getState().reset()
   useProjectStore.setState({
-    effectChain: [{ ...FX1 }, { ...FX2 }, { ...FX3 }, { ...FX4 }],
+    effectChain: [],
     deviceGroups: {},
     selectedEffectId: null,
     assets: {},
@@ -53,6 +58,10 @@ function reset() {
     projectPath: null,
     projectName: 'Test',
   })
+  useUndoStore.getState().clear()
+  // D5 (Epic 02): create V1 track and seed its chain for groupEffects validation.
+  V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+  useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [{ ...FX1 }, { ...FX2 }, { ...FX3 }, { ...FX4 }])
   useUndoStore.getState().clear()
 }
 
@@ -65,11 +74,11 @@ describe('Group with Previous (context menu action)', () => {
 
   it('groups effect with previous effect', () => {
     // User right-clicks fx-2 (index 1) and selects "Group with Previous"
-    const chain = useProjectStore.getState().effectChain
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)!.effectChain
     const prevId = chain[0].id // fx-1
     const currentId = chain[1].id // fx-2
 
-    const groupId = useProjectStore.getState().groupEffects([prevId, currentId])
+    const groupId = useProjectStore.getState().groupEffects(V1_TRACK_ID, [prevId, currentId])
     expect(groupId).toBeTruthy()
 
     const groups = useProjectStore.getState().deviceGroups
@@ -77,11 +86,11 @@ describe('Group with Previous (context menu action)', () => {
   })
 
   it('groups last effect with its predecessor', () => {
-    const chain = useProjectStore.getState().effectChain
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)!.effectChain
     const prevId = chain[2].id // fx-3
     const currentId = chain[3].id // fx-4
 
-    const groupId = useProjectStore.getState().groupEffects([prevId, currentId])
+    const groupId = useProjectStore.getState().groupEffects(V1_TRACK_ID, [prevId, currentId])
     expect(groupId).toBeTruthy()
 
     const groups = useProjectStore.getState().deviceGroups
@@ -89,13 +98,13 @@ describe('Group with Previous (context menu action)', () => {
   })
 
   it('chain order is unchanged after grouping', () => {
-    useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])
-    const chain = useProjectStore.getState().effectChain
+    useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-1', 'fx-2'])
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)!.effectChain
     expect(chain.map((e) => e.id)).toEqual(['fx-1', 'fx-2', 'fx-3', 'fx-4'])
   })
 
   it('is undoable', () => {
-    useProjectStore.getState().groupEffects(['fx-2', 'fx-3'])
+    useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-2', 'fx-3'])
     expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(1)
 
     useUndoStore.getState().undo()
@@ -111,7 +120,7 @@ describe('Ungroup (context menu action)', () => {
   beforeEach(reset)
 
   it('removes group when user selects Ungroup', () => {
-    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    const groupId = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-1', 'fx-2'])!
     expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(1)
 
     useProjectStore.getState().ungroupEffects(groupId)
@@ -119,7 +128,7 @@ describe('Ungroup (context menu action)', () => {
   })
 
   it('ungroup is undoable', () => {
-    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    const groupId = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-1', 'fx-2'])!
     useProjectStore.getState().ungroupEffects(groupId)
     expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
 
@@ -133,10 +142,10 @@ describe('Ungroup (context menu action)', () => {
   })
 
   it('chain order preserved after ungroup', () => {
-    const groupId = useProjectStore.getState().groupEffects(['fx-2', 'fx-3'])!
+    const groupId = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-2', 'fx-3'])!
     useProjectStore.getState().ungroupEffects(groupId)
 
-    const chain = useProjectStore.getState().effectChain
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)!.effectChain
     expect(chain.map((e) => e.id)).toEqual(['fx-1', 'fx-2', 'fx-3', 'fx-4'])
   })
 })
@@ -151,13 +160,13 @@ describe('Context menu visibility logic', () => {
   it('first effect has no "Group with Previous" (index 0)', () => {
     // The UI logic: index > 0 check means first effect never shows "Group with Previous"
     // Verify that trying to group only 1 effect is rejected
-    const result = useProjectStore.getState().groupEffects(['fx-1'])
+    const result = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-1'])
     expect(result).toBeNull()
   })
 
   it('effect already in same group as previous disables Group with Previous', () => {
     // Group fx-1 and fx-2
-    const groupId = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
+    const groupId = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-1', 'fx-2'])!
     const groups = useProjectStore.getState().deviceGroups
 
     // Both effects are in the same group — UI logic checks this and disables the item
@@ -176,8 +185,8 @@ describe('Context menu visibility logic', () => {
   })
 
   it('multiple groups can coexist', () => {
-    const g1 = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
-    const g2 = useProjectStore.getState().groupEffects(['fx-3', 'fx-4'])!
+    const g1 = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-1', 'fx-2'])!
+    const g2 = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-3', 'fx-4'])!
 
     const groups = useProjectStore.getState().deviceGroups
     expect(Object.keys(groups)).toHaveLength(2)
@@ -186,8 +195,8 @@ describe('Context menu visibility logic', () => {
   })
 
   it('ungrouping one group leaves other groups intact', () => {
-    const g1 = useProjectStore.getState().groupEffects(['fx-1', 'fx-2'])!
-    const g2 = useProjectStore.getState().groupEffects(['fx-3', 'fx-4'])!
+    const g1 = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-1', 'fx-2'])!
+    const g2 = useProjectStore.getState().groupEffects(V1_TRACK_ID, ['fx-3', 'fx-4'])!
 
     useProjectStore.getState().ungroupEffects(g1)
 

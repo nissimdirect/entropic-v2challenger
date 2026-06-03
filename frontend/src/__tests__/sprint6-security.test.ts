@@ -20,10 +20,14 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 import { useUndoStore } from '../renderer/stores/undo'
 import { useProjectStore } from '../renderer/stores/project'
+import { useTimelineStore } from '../renderer/stores/timeline'
 import { useAutomationStore } from '../renderer/stores/automation'
 import { useOperatorStore } from '../renderer/stores/operators'
 import { useMIDIStore } from '../renderer/stores/midi'
 import type { EffectInstance, UndoEntry } from '../shared/types'
+
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
 
 // --- Helpers ---
 
@@ -52,11 +56,15 @@ function makeEffect(overrides: Partial<EffectInstance> = {}): EffectInstance {
 }
 
 function resetAllStores() {
+  useTimelineStore.getState().reset()
   useUndoStore.getState().clear()
   useProjectStore.getState().resetProject()
   useOperatorStore.setState({ operators: [] })
   useAutomationStore.setState({ lanes: {} })
   useMIDIStore.setState({ ccMappings: [] })
+  // Epic 01: create V1 track for effect chain operations
+  V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+  useUndoStore.getState().clear()
 }
 
 // ==========================================================================
@@ -148,7 +156,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
 
   it('removeEffect deletes automation lanes targeting the effect', () => {
     const fx = makeEffect({ id: 'fx-cascade' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Set up automation lanes
     useAutomationStore.setState({
@@ -163,7 +171,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
       },
     })
 
-    useProjectStore.getState().removeEffect('fx-cascade')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-cascade')
 
     const lanes = useAutomationStore.getState().lanes
     // track-1 should only have lane-b (fx-other)
@@ -175,7 +183,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
 
   it('removeEffect + undo restores automation lanes', () => {
     const fx = makeEffect({ id: 'fx-restore' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     const automationData = {
       'track-1': [
@@ -185,7 +193,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
     useAutomationStore.setState({ lanes: JSON.parse(JSON.stringify(automationData)) })
 
     // Delete the effect
-    useProjectStore.getState().removeEffect('fx-restore')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-restore')
 
     // Automation should be gone
     expect(useAutomationStore.getState().lanes['track-1']).toBeUndefined()
@@ -202,7 +210,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
 
   it('removeEffect + undo + redo cycle is clean for automation', () => {
     const fx = makeEffect({ id: 'fx-cycle' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     useAutomationStore.setState({
       lanes: {
@@ -213,7 +221,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
     })
 
     // Delete
-    useProjectStore.getState().removeEffect('fx-cycle')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-cycle')
     expect(useAutomationStore.getState().lanes['track-1']).toBeUndefined()
 
     // Undo
@@ -232,7 +240,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
 
   it('removeEffect cascade also cleans operator mappings', () => {
     const fx = makeEffect({ id: 'fx-op' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     useOperatorStore.setState({
       operators: [{
@@ -245,7 +253,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
       }],
     })
 
-    useProjectStore.getState().removeEffect('fx-op')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-op')
 
     const ops = useOperatorStore.getState().operators
     expect(ops[0].mappings).toHaveLength(1)
@@ -254,7 +262,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
 
   it('removeEffect cascade also cleans CC mappings', () => {
     const fx = makeEffect({ id: 'fx-cc' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     useMIDIStore.setState({
       ccMappings: [
@@ -263,7 +271,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
       ],
     })
 
-    useProjectStore.getState().removeEffect('fx-cc')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-cc')
 
     const mappings = useMIDIStore.getState().ccMappings
     expect(mappings).toHaveLength(1)
@@ -272,7 +280,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
 
   it('no orphan automation when effect with multiple params is removed', () => {
     const fx = makeEffect({ id: 'fx-multi' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     useAutomationStore.setState({
       lanes: {
@@ -285,7 +293,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
       },
     })
 
-    useProjectStore.getState().removeEffect('fx-multi')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-multi')
 
     const lanes = useAutomationStore.getState().lanes['track-1']
     expect(lanes).toHaveLength(1)

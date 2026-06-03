@@ -1,4 +1,4 @@
-import { useProjectStore } from '../../stores/project'
+import { useProjectStore, getActiveTrackId } from '../../stores/project'
 
 interface ABSwitchProps {
   effectId: string
@@ -9,20 +9,26 @@ interface ABSwitchProps {
 export default function ABSwitch({ effectId, isActive, activeSlot }: ABSwitchProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
+    // D2 (Epic 02): use active-track rule (D1) — early-return if null.
+    const trackId = getActiveTrackId()
+    if (!trackId) return
     const store = useProjectStore.getState()
     if (!isActive) {
-      store.activateAB(effectId)
+      store.activateAB(trackId, effectId)
     } else if (e.shiftKey) {
-      store.copyToInactiveAB(effectId)
+      store.copyToInactiveAB(trackId, effectId)
     } else {
-      store.toggleAB(effectId)
+      store.toggleAB(trackId, effectId)
     }
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    useProjectStore.getState().deactivateAB(effectId)
+    // D2 (Epic 02): use active-track rule (D1) — early-return if null.
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().deactivateAB(trackId, effectId)
   }
 
   if (!isActive) {
