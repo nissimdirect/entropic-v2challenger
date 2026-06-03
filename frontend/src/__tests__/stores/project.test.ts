@@ -388,12 +388,12 @@ describe('useProjectStore — per-track effect chain (Epic 01)', () => {
   })
 
   // ── Scenario: Migrated actions do not write the global field ──────────────
-  it('[effect-chain/Migrated actions do not write the global field] addEffect leaves global effectChain empty', () => {
-    // Global field should be empty before
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+  it('[effect-chain/Migrated actions do not write the global field] addEffect writes track chain only (Epic 05: global field deleted)', () => {
+    // Epic 05 D3: global effectChain field deleted. Only the per-track chain exists.
+    expect((useProjectStore.getState() as any).effectChain).toBeUndefined()
     useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
-    // Global field stays empty (D6 design)
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    // Global field still absent
+    expect((useProjectStore.getState() as any).effectChain).toBeUndefined()
     // Track chain has the effect
     expect(getChain(V1)).toHaveLength(1)
   })
@@ -502,17 +502,17 @@ describe('useProjectStore — resetProject PC-B guard', () => {
     useUndoStore.getState().clear()
   })
 
-  it('[effect-chain/resetProject PC-B] resetProject resets global effectChain and keeps timeline reset semantics', () => {
-    // Set up a track with an effect
+  it('[effect-chain/resetProject PC-B] resetProject keeps timeline separate and does not reset tracks (Epic 05: global field deleted)', () => {
+    // Epic 05 D3: global effectChain field deleted. resetProject resets the project
+    // store only; the timeline store is separate.
     const V1 = useTimelineStore.getState().addTrack('V1', '#ff0000')!
     useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
     useUndoStore.getState().clear()
 
-    // Calling resetProject clears projectStore defaults (effectChain=[])
     useProjectStore.getState().resetProject()
 
-    // Global effectChain is reset
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    // Global effectChain field does not exist (Epic 05 D3)
+    expect((useProjectStore.getState() as any).effectChain).toBeUndefined()
     // Timeline is separate store — not reset by resetProject
     expect(useTimelineStore.getState().tracks).toHaveLength(1)
     expect(getChain(V1)).toHaveLength(1) // track chain still intact
@@ -522,13 +522,14 @@ describe('useProjectStore — resetProject PC-B guard', () => {
     expect(useTimelineStore.getState().tracks).toHaveLength(0)
   })
 
-  it('[effect-chain/resetProject PC-B] resetProject seed resets to 0 across consecutive resets', () => {
+  it('[effect-chain/resetProject PC-B] resetProject seed resets to 0 across consecutive resets (Epic 05: global field deleted)', () => {
     useProjectStore.getState().setSeed(12345)
     expect(useProjectStore.getState().seed).toBe(12345)
 
     useProjectStore.getState().resetProject()
     expect(useProjectStore.getState().seed).toBe(0)
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    // Epic 05 D3: global effectChain field deleted — no longer present on project store
+    expect((useProjectStore.getState() as any).effectChain).toBeUndefined()
     expect(useProjectStore.getState().deviceGroups).toEqual({})
   })
 

@@ -33,7 +33,7 @@ function getV1Chain(): EffectInstance[] {
 function reset() {
   useTimelineStore.getState().reset()
   useProjectStore.setState({
-    effectChain: [],
+    // Epic 05 D3: effectChain global field deleted — not set here.
     deviceGroups: {},
     selectedEffectId: null,
     assets: {},

@@ -36,7 +36,7 @@ import { transportForward, transportReverse, transportStop, getTransportDirectio
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
-import { getActiveTrackId, getActiveEffectChain } from './stores/project'
+import { getActiveTrackId, getActiveEffectChain, useActiveEffectChain } from './stores/project'
 import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
@@ -59,7 +59,6 @@ import ModulationMatrix from './components/operators/ModulationMatrix'
 import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
-import { resolveGhostValues } from './utils/resolveGhostValues'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
 import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
@@ -152,7 +151,6 @@ function AppInner() {
   const projectSeed = useProjectStore((s) => s.seed)
   const {
     assets,
-    effectChain,
     selectedEffectId,
     currentFrame,
     totalFrames,
@@ -163,17 +161,15 @@ function AppInner() {
     addAsset,
     removeAsset,
     addEffect: addEffectRaw,
-    removeEffect: removeEffectRaw,
-    reorderEffect: reorderEffectRaw,
-    updateParam: updateParamRaw,
-    setMix: setMixRaw,
-    toggleEffect: toggleEffectRaw,
-    selectEffect,
     setCurrentFrame,
     setTotalFrames,
     setIngesting,
     setIngestError,
   } = useProjectStore()
+
+  // Epic 05 D3/D4: effectChain sourced from the active track (not the deleted
+  // global effectChain field). Reactive via useActiveEffectChain hook.
+  const effectChain = useActiveEffectChain()
 
   // D3 (Epic 02): use active-track rule (D1) — getActiveTrackId() resolves selectedTrackId
   // if valid, else first video track, else null. Early-return if null (safe no-op).
@@ -182,11 +178,6 @@ function AppInner() {
     if (!trackId) return
     addEffectRaw(trackId, effect)
   }, [addEffectRaw])
-  const removeEffect = useCallback((id: string) => {
-    const trackId = getActiveTrackId()
-    if (!trackId) return
-    removeEffectRaw(trackId, id)
-  }, [removeEffectRaw])
 
   const isDirty = useUndoStore((s) => s.isDirty)
   const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
@@ -272,7 +263,6 @@ function AppInner() {
   const clockSyncRafRef = useRef<number | null>(null)
   const handlePlayPauseRef = useRef<() => void>(() => {})
   const initPreviewRef = useRef<() => Promise<void>>(async () => {})
-  const renderSeqRef = useRef(0)
   const lastDisabledEffectsRef = useRef<string>('')
 
   // Layout store for sidebar/timeline collapse
@@ -777,16 +767,12 @@ function AppInner() {
       pendingFrameRef.current = null
       setRenderError(null)
 
-      // F-0512-6: read the chain from the store instead of the closure so that
-      // a render queued during an in-flight render (rapid Cmd+Z, drag-reorder,
-      // sliders, etc.) picks up the latest chain — not whichever one was bound
-      // when the function was created. Legacy path (flag off) reads from
-      // closure, which produces stale-frame previews after rapid undo.
-      // D4 (Epic 02): `chain` is used only by chainOverride and the F_0512_6
-      // legacy fallback branch. Per-track live paths call modulateChain() instead.
-      const chain = chainOverride ?? (FF.F_0512_6_UNDO_RERENDER
-        ? useProjectStore.getState().effectChain
-        : effectChain)
+      // Epic 05 D4: removed dead global effectChain read. The `chain` var is now
+      // only used for the auto-retry length check below; route to the active
+      // track's chain (getActiveEffectChain) for that purpose. Per-track render
+      // paths use modulateChain(track.effectChain) directly — chainOverride
+      // (freeze re-render) bypasses them via the same parameter it always did.
+      const chain = chainOverride ?? getActiveEffectChain()
 
       try {
         // Include operators in render request for backend modulation

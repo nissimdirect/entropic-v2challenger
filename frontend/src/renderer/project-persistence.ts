@@ -154,7 +154,7 @@ function serializeProject(): string {
 
   const midiStore = useMIDIStore.getState()
 
-  const project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> } = {
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -170,7 +170,8 @@ function serializeProject(): string {
     },
     assets: projectStore.assets,
     timeline,
-    masterEffectChain: projectStore.effectChain,
+    // Epic 05 D2: masterEffectChain removed — per-track chains are now serialized
+    // inside timeline.tracks[].effectChain and restored by hydrateStores.
     drumRack: performanceStore.drumRack,
     operators: operatorStore.operators,
     automationLanes: automationStore.lanes,
@@ -319,14 +320,8 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     projectStore.addAsset(asset as Asset)
   }
 
-  // Hydrate master effect chain
-  // TODO(Epic05): rework to use per-track chain serialization.
-  // Epic 01 D8 stub: addEffect now requires trackId; pass empty string as a
-  // no-op until Epic 05 rewrites persistence. The global effectChain field is
-  // read by serializeProject (not yet migrated) so we still hydrate it via setState.
-  if (Array.isArray(project.masterEffectChain)) {
-    useProjectStore.setState({ effectChain: project.masterEffectChain as EffectInstance[] })
-  }
+  // Epic 05 D2: masterEffectChain hydrate stub removed. Per-track effectChains
+  // are now restored inside the track loop below via updateTrackEffectChain.
 
   // Hydrate device groups (metadata-only)
   if (project.deviceGroups && typeof project.deviceGroups === 'object') {
@@ -381,6 +376,18 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
           : { ...clip, trackId: addedTrackId }
         useTimelineStore.getState().addClip(addedTrackId, migratedClip)
       }
+    }
+
+    // Epic 05 D1: restore per-track effectChain after clips are added.
+    // Trust boundary: guard the saved chain is an array of objects with a string effectId;
+    // drop malformed entries. updateTrackEffectChain is a plain store write (NOT undoable).
+    const rawChain = Array.isArray((track as any).effectChain) ? (track as any).effectChain : []
+    const savedChain = (rawChain as unknown[]).filter(
+      (entry): entry is EffectInstance =>
+        typeof entry === 'object' && entry !== null && typeof (entry as Record<string, unknown>).effectId === 'string',
+    )
+    if (savedChain.length) {
+      useTimelineStore.getState().updateTrackEffectChain(addedTrackId, () => savedChain)
     }
   }
 

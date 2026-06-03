@@ -12,7 +12,6 @@ const EMPTY: EffectInstance[] = []
 
 interface ProjectState {
   assets: Record<string, Asset>
-  effectChain: EffectInstance[]
   selectedEffectId: string | null
   currentFrame: number
   totalFrames: number
@@ -63,7 +62,6 @@ interface ProjectState {
 
 const PROJECT_DEFAULTS = {
   assets: {} as Record<string, Asset>,
-  effectChain: [] as EffectInstance[],
   selectedEffectId: null as string | null,
   currentFrame: 0,
   totalFrames: 0,

@@ -131,29 +131,30 @@ describe('serializeProject', () => {
     expect(data.timeline.zoom).toBe(125)
   })
 
-  it('includes master effect chain', () => {
-    // Epic 01: addEffect no longer writes the global effectChain (D6).
-    // serializeProject reads from the global field (migrated in Epic 05).
-    // Inject directly into the global field to test serialization behavior.
-    // TODO(Epic05): update to use per-track chain serialization.
-    useProjectStore.setState({
-      effectChain: [{
-        id: 'fx-1',
-        effectId: 'pixel_sort',
-        isEnabled: true,
-        isFrozen: false,
-        parameters: { threshold: 0.5 },
-        modulations: {},
-        mix: 1.0,
-        mask: null,
-      }],
-    })
+  it('serializes per-track effect chains (Epic 05: no global masterEffectChain)', () => {
+    // Epic 05 D2: masterEffectChain removed. Per-track chains are serialized
+    // inside timeline.tracks[].effectChain.
+    const trackId = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    useTimelineStore.getState().updateTrackEffectChain(trackId, () => [{
+      id: 'fx-1',
+      effectId: 'pixel_sort',
+      isEnabled: true,
+      isFrozen: false,
+      parameters: { threshold: 0.5 },
+      modulations: {},
+      mix: 1.0,
+      mask: null,
+    }])
 
     const json = serializeProject()
     const data = JSON.parse(json)
 
-    expect(data.masterEffectChain).toHaveLength(1)
-    expect(data.masterEffectChain[0].effectId).toBe('pixel_sort')
+    // No global masterEffectChain in the output
+    expect(data.masterEffectChain).toBeUndefined()
+    // Per-track chain is serialized under timeline.tracks
+    expect(data.timeline.tracks).toHaveLength(1)
+    expect(data.timeline.tracks[0].effectChain).toHaveLength(1)
+    expect(data.timeline.tracks[0].effectChain[0].effectId).toBe('pixel_sort')
   })
 })
 
@@ -431,29 +432,52 @@ describe('hydrateStores', () => {
     expect(useTimelineStore.getState().zoom).toBe(50)
   })
 
-  it('hydrates master effect chain', () => {
-    const project = {
-      ...makeValidProject(),
-      masterEffectChain: [
-        {
-          id: 'fx-1',
-          effectId: 'datamosh',
-          isEnabled: true,
-          isFrozen: false,
-          parameters: {},
-          modulations: {},
-          mix: 0.75,
-          mask: null,
-        },
-      ],
-    }
+  it('hydrates per-track effect chain (Epic 05: no global masterEffectChain)', () => {
+    // Epic 05 D1: per-track effectChain restored during track hydration.
+    const project = makeValidProject({
+      timeline: {
+        duration: 0,
+        tracks: [
+          {
+            id: 't1',
+            type: 'video',
+            name: 'V1',
+            color: '#ef4444',
+            isMuted: false,
+            isSoloed: false,
+            opacity: 1,
+            blendMode: 'normal',
+            clips: [],
+            effectChain: [
+              {
+                id: 'fx-1',
+                effectId: 'datamosh',
+                isEnabled: true,
+                isFrozen: false,
+                parameters: {},
+                modulations: {},
+                mix: 0.75,
+                mask: null,
+              },
+            ],
+            automationLanes: [],
+          },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
 
     hydrateStores(project as any)
 
-    const chain = useProjectStore.getState().effectChain
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    const chain = tracks[0].effectChain
     expect(chain).toHaveLength(1)
     expect(chain[0].effectId).toBe('datamosh')
     expect(chain[0].mix).toBe(0.75)
+    // Global effectChain field no longer exists
+    expect((useProjectStore.getState() as any).effectChain).toBeUndefined()
   })
 
   it('hydrates duration', () => {
@@ -989,5 +1013,131 @@ describe('autosave', () => {
     await vi.advanceTimersByTimeAsync(120_000)
 
     expect(mockEntropic.writeFile).not.toHaveBeenCalled()
+  })
+})
+
+// Epic 05 — persistence round-trip gate (D7)
+// Two-track project: V1=[effect A], V2=[effect B] → serialize → hydrate → assert chains restored independently.
+// This test MUST FAIL before the hydrate fix and PASS after.
+describe('Epic 05: per-track effect chain round-trip (persistence spec)', () => {
+  const EFFECT_A: import('../../shared/types').EffectInstance = {
+    id: 'fx-a', effectId: 'pixel_sort', isEnabled: true, isFrozen: false,
+    parameters: { threshold: 0.5 }, modulations: {}, mix: 1.0, mask: null,
+  }
+  const EFFECT_B: import('../../shared/types').EffectInstance = {
+    id: 'fx-b', effectId: 'datamosh', isEnabled: true, isFrozen: false,
+    parameters: { entropy: 0.7 }, modulations: {}, mix: 0.8, mask: null,
+  }
+
+  beforeEach(() => {
+    useProjectStore.getState().resetProject()
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    resetMocks()
+  })
+
+  it('Scenario: Two-track chains restored independently (persistence spec)', () => {
+    // Build V1 track with effectChain = [EFFECT_A]
+    const v1Id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    useTimelineStore.getState().updateTrackEffectChain(v1Id, () => [{ ...EFFECT_A }])
+    // Build V2 track with effectChain = [EFFECT_B]
+    const v2Id = useTimelineStore.getState().addTrack('V2', '#0000ff')!
+    useTimelineStore.getState().updateTrackEffectChain(v2Id, () => [{ ...EFFECT_B }])
+
+    // Serialize
+    const json = serializeProject()
+    const serialized = JSON.parse(json)
+
+    // Scenario: saved shape has no global master chain (persistence spec)
+    expect(serialized.masterEffectChain).toBeUndefined()
+
+    // Hydrate into fresh stores
+    useProjectStore.getState().resetProject()
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    hydrateStores(serialized)
+
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(2)
+
+    const restoredV1 = tracks.find((t) => t.name === 'V1')
+    const restoredV2 = tracks.find((t) => t.name === 'V2')
+    expect(restoredV1).toBeDefined()
+    expect(restoredV2).toBeDefined()
+
+    // V1's chain == [EFFECT_A]
+    expect(restoredV1!.effectChain).toHaveLength(1)
+    expect(restoredV1!.effectChain[0].effectId).toBe('pixel_sort')
+    expect(restoredV1!.effectChain[0].id).toBe('fx-a')
+
+    // V2's chain == [EFFECT_B]
+    expect(restoredV2!.effectChain).toHaveLength(1)
+    expect(restoredV2!.effectChain[0].effectId).toBe('datamosh')
+    expect(restoredV2!.effectChain[0].id).toBe('fx-b')
+
+    // Neither track's chain leaked into the other
+    expect(restoredV1!.effectChain.some((e) => e.effectId === 'datamosh')).toBe(false)
+    expect(restoredV2!.effectChain.some((e) => e.effectId === 'pixel_sort')).toBe(false)
+  })
+
+  it('Scenario: Empty-chain track round-trips as empty (persistence spec)', () => {
+    useTimelineStore.getState().addTrack('EmptyTrack', '#00ff00')!
+
+    const json = serializeProject()
+    const serialized = JSON.parse(json)
+
+    useProjectStore.getState().resetProject()
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    hydrateStores(serialized)
+
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].effectChain).toHaveLength(0)
+  })
+
+  it('Scenario: Malformed saved chain is dropped safely (persistence spec)', () => {
+    // Build a project with a malformed effectChain entry (missing effectId)
+    const validProject = makeValidProject({
+      timeline: {
+        duration: 0,
+        tracks: [
+          {
+            id: 't1',
+            type: 'video',
+            name: 'TrackWithBadChain',
+            color: '#fff',
+            isMuted: false,
+            isSoloed: false,
+            opacity: 1,
+            blendMode: 'normal',
+            clips: [],
+            effectChain: [
+              // valid entry
+              { id: 'fx-good', effectId: 'blur', isEnabled: true, isFrozen: false, parameters: {}, modulations: {}, mix: 1.0, mask: null },
+              // malformed: no effectId
+              { id: 'fx-bad', isEnabled: true, isFrozen: false, parameters: {}, modulations: {}, mix: 1.0, mask: null },
+            ],
+            automationLanes: [],
+          },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+
+    // Should not throw
+    expect(() => hydrateStores(validProject as any)).not.toThrow()
+
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    // Malformed entry dropped, only the valid one survives
+    expect(tracks[0].effectChain).toHaveLength(1)
+    expect(tracks[0].effectChain[0].effectId).toBe('blur')
+  })
+
+  it('Scenario: Global effectChain field no longer exists on project store (persistence spec)', () => {
+    const state = useProjectStore.getState()
+    expect((state as any).effectChain).toBeUndefined()
   })
 })
