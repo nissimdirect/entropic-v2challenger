@@ -1,10 +1,8 @@
 """Deterministic mock backend — returns synthetic results from a seed.
 
-Schema 0.2.0 (PR #4) shape: matches `measurement` shape produced by the
-bench module on real loaders. Keeping the mock synthesized (rather than
-running real bench on mock loaders) preserves byte-determinism: `--seed N
---sparsity K` twice produces identical JSON. Real bench timings vary by
-system so we can't use them here.
+Schema 0.3.0 (PR #5) shape: matches `measurement` shape produced by the
+bench module on real loaders + verdict block. Keeping the mock synthesized
+(rather than running real bench on mock loaders) preserves byte-determinism.
 
 Determinism contract: identical seed + sparsity → byte-identical JSON.
 """
@@ -19,9 +17,11 @@ EMBED_DIMS = {
     "clap": 512,
 }
 
+SUPPORTED_SPARSITIES = (4, 8, 16, 32)
+CANONICAL_SPARSITY = 8
+
 
 def _synth_latency(rng: random.Random, base_ms: float) -> dict:
-    """Synthesize p50/p95/p99/min/max/mean/stddev for an encode operation."""
     p50 = round(rng.uniform(base_ms * 0.9, base_ms * 1.1), 4)
     p95 = round(p50 * rng.uniform(1.3, 1.8), 4)
     p99 = round(p95 * rng.uniform(1.1, 1.3), 4)
@@ -53,32 +53,51 @@ def _synth_head(rng: random.Random, name: str, base_ms: float) -> dict:
     }
 
 
+def _synth_sparsity_jitter(rng: random.Random, sparsity: int) -> dict:
+    """Synthesize jitter stats per sparsity. Lower sparsity = higher cost."""
+    base = 30.0 / max(sparsity / 4, 1.0)
+    p50 = round(rng.uniform(base * 0.8, base * 1.0), 4)
+    p95 = round(p50 * rng.uniform(1.2, 1.5), 4)
+    p99 = round(p95 * rng.uniform(1.1, 1.3), 4)
+    max_ms = round(p99 * rng.uniform(1.0, 1.3), 4)
+    stddev = round(p50 * rng.uniform(0.1, 0.2), 4)
+    return {
+        "sparsity": sparsity,
+        "jitter_p50_ms": p50,
+        "jitter_p95_ms": p95,
+        "jitter_p99_ms": p99,
+        "jitter_max_ms": max_ms,
+        "jitter_stddev_ms": stddev,
+        "n_frames": 256,
+        "error": None,
+    }
+
+
 def mock_measure(*, seed: int, sparsity: int) -> dict:
-    """Return a synthetic measurement dict shaped like a real run.
-
-    Shape MUST match what `bench.benchmark_loader().to_dict()` produces so
-    downstream report rendering only sees one shape.
-    """
     rng = random.Random(seed)
-
-    # Base latencies (ms) — plausible Apple silicon ranges per backbone
     base_latencies = {"dinov2": 8.0, "clip": 12.0, "clap": 18.0}
     heads = {
         name: _synth_head(rng, name, base_latencies[name])
         for name in ("dinov2", "clip", "clap")
     }
 
-    interpolation_jitter_ms = round(rng.uniform(15.0, 45.0), 4)
+    by_sparsity = {str(s): _synth_sparsity_jitter(rng, s) for s in SUPPORTED_SPARSITIES}
+    canonical = by_sparsity[str(CANONICAL_SPARSITY)]
+    canonical_p50 = canonical["jitter_p50_ms"]
+    canonical_p95 = canonical["jitter_p95_ms"]
+
     queue_throughput = round(rng.uniform(80.0, 140.0), 2)
-    queue_total = int(queue_throughput * 5.0)  # 5s window
+    queue_total = int(queue_throughput * 5.0)
 
     return {
         "heads": heads,
         "interpolation": {
+            "canonical_sparsity": CANONICAL_SPARSITY,
+            "by_sparsity": by_sparsity,
             "sparsity": sparsity,
-            "jitter_p50_ms": interpolation_jitter_ms,
-            "jitter_p95_ms": round(interpolation_jitter_ms * rng.uniform(1.4, 1.8), 4),
-            "below_threshold_50ms": interpolation_jitter_ms < 50.0,
+            "jitter_p50_ms": canonical_p50,
+            "jitter_p95_ms": canonical_p95,
+            "below_threshold_50ms": canonical_p95 < 50.0,
             "degradation_under_load": False,
         },
         "queue": {
