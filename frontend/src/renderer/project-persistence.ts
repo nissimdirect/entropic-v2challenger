@@ -15,6 +15,7 @@ import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
+import { LIMITS } from '../shared/limits'
 
 const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
@@ -381,11 +382,40 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     // Epic 05 D1: restore per-track effectChain after clips are added.
     // Trust boundary: guard the saved chain is an array of objects with a string effectId;
     // drop malformed entries. updateTrackEffectChain is a plain store write (NOT undoable).
+    // Review hardening (trust boundary): the saved chain is untrusted disk input that flows
+    // store -> IPC -> backend. (a) Require BOTH id (instance identity — ALL cross-store keys
+    // use it; a missing id orphans operator/automation/CC/group refs) AND effectId (effect type)
+    // as strings. (b) Finite-guard numeric params + clamp mix to [0,1] (numeric-trust-boundary rule).
+    // (c) Cap to the per-track chain limit (hydrate must not bypass MAX_EFFECTS_PER_CHAIN).
     const rawChain = Array.isArray((track as any).effectChain) ? (track as any).effectChain : []
-    const savedChain = (rawChain as unknown[]).filter(
-      (entry): entry is EffectInstance =>
-        typeof entry === 'object' && entry !== null && typeof (entry as Record<string, unknown>).effectId === 'string',
-    )
+    const sanitized = (rawChain as unknown[]).reduce<EffectInstance[]>((acc, raw) => {
+      if (typeof raw !== 'object' || raw === null) return acc
+      const e = raw as Record<string, unknown>
+      if (typeof e.id !== 'string' || typeof e.effectId !== 'string') return acc // missing identity -> drop (would orphan)
+      const parameters: Record<string, number | string | boolean> = {}
+      if (e.parameters && typeof e.parameters === 'object') {
+        for (const [k, v] of Object.entries(e.parameters as Record<string, unknown>)) {
+          if (typeof v === 'number') { if (Number.isFinite(v)) parameters[k] = v } // drop NaN/Inf
+          else if (typeof v === 'string' || typeof v === 'boolean') parameters[k] = v
+        }
+      }
+      acc.push({
+        id: e.id,
+        effectId: e.effectId,
+        isEnabled: typeof e.isEnabled === 'boolean' ? e.isEnabled : true,
+        isFrozen: typeof e.isFrozen === 'boolean' ? e.isFrozen : false,
+        parameters,
+        modulations: (e.modulations && typeof e.modulations === 'object' ? e.modulations : {}) as EffectInstance['modulations'],
+        mix: typeof e.mix === 'number' && Number.isFinite(e.mix) ? Math.max(0, Math.min(1, e.mix)) : 1,
+        mask: (e.mask && typeof e.mask === 'object' ? e.mask : null) as EffectInstance['mask'],
+        ...(e.abState && typeof e.abState === 'object' ? { abState: e.abState as EffectInstance['abState'] } : {}),
+      })
+      return acc
+    }, [])
+    const savedChain = sanitized.slice(0, LIMITS.MAX_EFFECTS_PER_CHAIN)
+    if (savedChain.length < sanitized.length) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}" effect chain truncated to ${LIMITS.MAX_EFFECTS_PER_CHAIN} on load`, source: 'project-load' })
+    }
     if (savedChain.length) {
       useTimelineStore.getState().updateTrackEffectChain(addedTrackId, () => savedChain)
     }
