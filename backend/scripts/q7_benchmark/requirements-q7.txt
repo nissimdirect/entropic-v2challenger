@@ -9,4 +9,6 @@
 #
 # Pinned exact versions — Q7 reproducibility requires it.
 
-# (intentionally empty for PR #1 — stdlib only)
+# PR #3+ — synthetic embedding generation + array shape contracts.
+# numpy 2.0+ matches backend/pyproject.toml floor.
+numpy>=2.0
