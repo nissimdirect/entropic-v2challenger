@@ -9,7 +9,7 @@ import { lstatSync, existsSync } from 'fs'
 import { resolve, dirname, basename, join } from 'path'
 import { homedir } from 'os'
 
-const ENTROPIC_DIR = resolve(join(homedir(), '.entropic'))
+const ENTROPIC_DIR = resolve(join(homedir(), '.creatrix'))
 
 /** Paths granted by user via native file dialogs during this session. */
 const grantedPaths = new Set<string>()
@@ -50,8 +50,8 @@ export function isPathAllowed(targetPath: string): boolean {
     return true
   }
 
-  // 2b. Under ~/Documents/Entropic/ (preset storage)
-  const docsDir = resolve(join(homedir(), 'Documents', 'Entropic'))
+  // 2b. Under ~/Documents/Creatrix/ (preset storage)
+  const docsDir = resolve(join(homedir(), 'Documents', 'Creatrix'))
   if (resolved === docsDir || resolved.startsWith(docsDir + '/')) {
     return true
   }

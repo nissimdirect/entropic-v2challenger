@@ -86,7 +86,7 @@ describe('serializeProject', () => {
     const json = serializeProject()
     const data = JSON.parse(json)
 
-    expect(data.version).toBe('2.0.0')
+    expect(data.version).toBe('3.0.0')
     expect(data.id).toBeDefined()
     expect(typeof data.created).toBe('number')
     expect(typeof data.modified).toBe('number')

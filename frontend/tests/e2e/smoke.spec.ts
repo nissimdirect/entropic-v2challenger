@@ -19,7 +19,7 @@ test.describe('Smoke Test', () => {
 
     // 2. Window title
     const title = await window.title()
-    expect(title).toContain('Entropic')
+    expect(title).toContain('Creatrix')
 
     // 3. Engine connects (Python sidecar started by main process)
     await waitForEngineConnected(window, 20_000)

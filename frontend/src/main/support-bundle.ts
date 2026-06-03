@@ -9,7 +9,7 @@ import { homedir, platform, arch, totalmem, release, userInfo } from 'os'
 import { gzipSync } from 'zlib'
 import { app, ipcMain } from 'electron'
 
-const ENTROPIC_DIR = join(homedir(), '.entropic')
+const ENTROPIC_DIR = join(homedir(), '.creatrix')
 const LOG_DIR = join(ENTROPIC_DIR, 'logs')
 const CRASH_DIR = join(ENTROPIC_DIR, 'crash_reports')
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB per file
@@ -153,7 +153,7 @@ export async function generateSupportBundle(): Promise<string> {
   if (!existsSync(desktopDir)) {
     throw new Error('Desktop directory not found')
   }
-  const outputPath = join(desktopDir, `entropic-support-${timestamp}.tar.gz`)
+  const outputPath = join(desktopDir, `creatrix-support-${timestamp}.tar.gz`)
 
   writeFileSync(outputPath, gzipped)
 

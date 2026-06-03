@@ -36,7 +36,7 @@ function stripPiiFromEvent<T extends Record<string, any>>(event: T): T {
 }
 
 // Consent-gated Sentry init (VULN-11)
-const consentPath = join(homedir(), '.entropic', 'telemetry_consent')
+const consentPath = join(homedir(), '.creatrix', 'telemetry_consent')
 let sentryDsn = ''
 try {
   if (existsSync(consentPath) && readFileSync(consentPath, 'utf8').trim() === 'yes') {
@@ -65,7 +65,7 @@ interface WindowState {
   isMaximized: boolean
 }
 
-const WINDOW_STATE_PATH = join(homedir(), '.entropic', 'window-state.json')
+const WINDOW_STATE_PATH = join(homedir(), '.creatrix', 'window-state.json')
 const DEFAULT_WIDTH = 1280
 const DEFAULT_HEIGHT = 800
 
@@ -104,7 +104,7 @@ function saveWindowState(win: BrowserWindow): void {
       height: bounds.height,
       isMaximized,
     }
-    const dir = join(homedir(), '.entropic')
+    const dir = join(homedir(), '.creatrix')
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     writeFileSync(WINDOW_STATE_PATH, JSON.stringify(state), 'utf8')
   } catch {
@@ -144,7 +144,7 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     ...winOpts,
     ...(winOpts.x === undefined ? { center: true } : {}),
-    title: 'Entropic v2 Challenger',
+    title: 'Creatrix',
     backgroundColor: '#1a1a1a',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
@@ -220,7 +220,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
-  app.setName('Entropic')
+  app.setName('Creatrix')
   registerDiagnosticsHandlers()
   registerSupportBundleHandler()
   registerRelayHandlers()

@@ -92,7 +92,7 @@ describe('AboutDialog', () => {
     render(<AboutDialog isOpen={true} onClose={vi.fn()} />)
     const dialog = document.querySelector('.about-dialog')
     expect(dialog).not.toBeNull()
-    expect(dialog!.textContent).toContain('ENTROPIC')
+    expect(dialog!.textContent).toContain('CREATRIX')
   })
 
   it('hidden when closed', () => {

@@ -23,7 +23,7 @@ interface LibraryState {
 async function getPresetDir(): Promise<string> {
   if (typeof window === 'undefined' || !window.entropic) return ''
   const docsPath = await window.entropic.getAppPath('documents')
-  return `${docsPath}/Entropic/Presets`
+  return `${docsPath}/Creatrix/Presets`
 }
 
 function validatePresetFields(parsed: Record<string, unknown>): boolean {

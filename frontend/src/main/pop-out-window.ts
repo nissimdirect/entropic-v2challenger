@@ -132,7 +132,7 @@ export function createPopOutWindow(): BrowserWindow {
   popOutWindow = new BrowserWindow({
     ...winOpts,
     ...(!validated ? { center: true } : {}),
-    title: 'Entropic — Preview',
+    title: 'Creatrix — Preview',
     backgroundColor: '#000000',
     autoHideMenuBar: true,
     webPreferences: {

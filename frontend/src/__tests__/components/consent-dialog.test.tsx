@@ -28,7 +28,7 @@ describe('TelemetryConsentDialog', () => {
     render(<TelemetryConsentDialog isOpen={true} onDecision={vi.fn()} />)
     expect(document.querySelector('.consent-dialog')).not.toBeNull()
     expect(document.querySelector('.consent-dialog__header')?.textContent).toContain(
-      'Help Improve Entropic',
+      'Help Improve Creatrix',
     )
   })
 

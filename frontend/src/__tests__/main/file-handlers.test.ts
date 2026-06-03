@@ -4,7 +4,7 @@ import { homedir } from 'os'
 
 // Use real homedir for path tests (module-level constants are computed at import time)
 const HOME = homedir()
-const ENTROPIC = join(HOME, '.entropic')
+const ENTROPIC = join(HOME, '.creatrix')
 
 // Hoisted mocks — shared references between mock factory and test code
 const fsMocks = vi.hoisted(() => ({
@@ -85,13 +85,13 @@ describe('file-handlers', () => {
   })
 
   describe('isPathAllowed', () => {
-    // 1. ~/.entropic/ paths are allowed
-    it('allows paths under ~/.entropic/', () => {
+    // 1. ~/.creatrix/ paths are allowed
+    it('allows paths under ~/.creatrix/', () => {
       expect(isPathAllowed(join(ENTROPIC, 'crash_reports', 'crash_001.json'))).toBe(true)
     })
 
-    // 2. Traversal out of ~/.entropic/ is denied
-    it('denies traversal out of ~/.entropic/', () => {
+    // 2. Traversal out of ~/.creatrix/ is denied
+    it('denies traversal out of ~/.creatrix/', () => {
       expect(isPathAllowed(join(ENTROPIC, '..', '.ssh', 'id_rsa'))).toBe(false)
     })
 

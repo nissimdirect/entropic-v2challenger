@@ -17,10 +17,10 @@ import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
 import { LIMITS } from '../shared/limits'
 
-const GLITCH_FILTERS = [{ name: 'Entropic Project', extensions: ['glitch'] }]
+const GLITCH_FILTERS = [{ name: 'Creatrix Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
-const PROJECT_VERSION = '2.0.0'
-const PROJECT_VERSION_MAJOR = 2
+const PROJECT_VERSION = '3.0.0'
+const PROJECT_VERSION_MAJOR = 3
 const MAX_RECENT_PROJECTS = 20
 
 // F-0514-10 + F-0514-11: numeric range guards mirrored from backend schema.py.
@@ -74,7 +74,7 @@ export function validateProjectStructure(data: unknown): StructureCheckResult {
       if (Number.isFinite(major) && major > PROJECT_VERSION_MAJOR) {
         return {
           valid: false,
-          reason: `Project saved by a newer Entropic version (v${major}). Update Entropic to open it.`,
+          reason: `Project saved by a newer Creatrix version (v${major}). Update Creatrix to open it.`,
         }
       }
     }
