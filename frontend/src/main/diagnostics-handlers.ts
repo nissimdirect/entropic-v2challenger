@@ -9,7 +9,7 @@ import { homedir, platform, arch, totalmem, release } from 'os'
 import { logger } from './logger'
 import { grantPath } from './file-handlers'
 
-const ENTROPIC_DIR = join(homedir(), '.entropic')
+const ENTROPIC_DIR = join(homedir(), '.creatrix')
 const CONSENT_FILE = join(ENTROPIC_DIR, 'telemetry_consent')
 const CRASH_DIR = join(ENTROPIC_DIR, 'crash_reports')
 

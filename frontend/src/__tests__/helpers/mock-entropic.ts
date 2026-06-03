@@ -90,7 +90,7 @@ export function createMockEntropic(
     clearCrashReports: vi.fn().mockResolvedValue(undefined),
     findAutosave: vi.fn().mockResolvedValue(null),
     getSystemInfo: vi.fn().mockResolvedValue({ os: 'darwin', arch: 'arm64' }),
-    generateSupportBundle: vi.fn().mockResolvedValue('/test/Desktop/entropic-support.tar.gz'),
+    generateSupportBundle: vi.fn().mockResolvedValue('/test/Desktop/creatrix-support.tar.gz'),
     submitFeedback: vi.fn().mockResolvedValue(undefined),
     readPreferences: vi.fn().mockResolvedValue({}),
     writePreferences: vi.fn().mockResolvedValue(undefined),

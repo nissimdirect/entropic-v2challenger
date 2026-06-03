@@ -33,8 +33,8 @@ export default function WelcomeScreen({
   return (
     <div className="welcome-screen">
       <div className="welcome-screen__content">
-        <div className="welcome-screen__logo">ENTROPIC</div>
-        <div className="welcome-screen__version">v2.0.0</div>
+        <div className="welcome-screen__logo">CREATRIX</div>
+        <div className="welcome-screen__version">v3.0.0</div>
 
         <div className="welcome-screen__actions">
           <button

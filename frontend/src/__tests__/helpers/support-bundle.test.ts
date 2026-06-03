@@ -96,7 +96,7 @@ describe('generateSupportBundle', () => {
     const path = await generateSupportBundle()
 
     expect(fsMocks.writeFileSync).toHaveBeenCalledOnce()
-    expect(path).toContain('entropic-support-')
+    expect(path).toContain('creatrix-support-')
     expect(path).toContain('.tar.gz')
 
     const tarBuffer = zlibMocks.gzipSync.mock.calls[0][0] as Buffer
@@ -211,7 +211,7 @@ describe('generateSupportBundle', () => {
     })
 
     const path = await generateSupportBundle()
-    expect(path).toContain('entropic-support-')
+    expect(path).toContain('creatrix-support-')
   })
 
   it('throws when Desktop directory is missing', async () => {
@@ -230,7 +230,7 @@ describe('generateSupportBundle', () => {
     const path = await generateSupportBundle()
 
     expect(path).toMatch(
-      /\/Users\/testuser\/Desktop\/entropic-support-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.tar\.gz/,
+      /\/Users\/testuser\/Desktop\/creatrix-support-\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}\.tar\.gz/,
     )
     expect(fsMocks.writeFileSync).toHaveBeenCalledWith(
       path,

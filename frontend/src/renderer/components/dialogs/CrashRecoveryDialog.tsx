@@ -29,10 +29,10 @@ export default function CrashRecoveryDialog({
   let message: string
   if (hasCrash && hasAutosave) {
     title = 'Unexpected Shutdown'
-    message = "Entropic didn't shut down properly. An autosave was found."
+    message = "Creatrix didn't shut down properly. An autosave was found."
   } else if (hasCrash) {
     title = 'Unexpected Shutdown'
-    message = "Entropic didn't shut down properly."
+    message = "Creatrix didn't shut down properly."
   } else {
     title = 'Unsaved Session Found'
     message = 'An unsaved session was found from a previous session.'

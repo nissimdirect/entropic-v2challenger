@@ -136,7 +136,7 @@ describe('validateProjectStructure', () => {
     const data = { version: '99.0.0', id: 'abc' }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
-    expect(result.reason).toMatch(/newer Entropic version/i)
+    expect(result.reason).toMatch(/newer Creatrix version/i)
   })
 
   it('accepts projects with same major version', () => {

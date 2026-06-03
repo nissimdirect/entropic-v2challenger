@@ -142,17 +142,17 @@ export function buildMenu(mainWindow: BrowserWindow): void {
   }
 
   const appMenu: MenuItemConstructorOptions = {
-    label: 'Entropic',
+    label: 'Creatrix',
     submenu: [
-      { label: 'About Entropic', click: () => sendAction(mainWindow, 'about') },
+      { label: 'About Creatrix', click: () => sendAction(mainWindow, 'about') },
       { type: 'separator' },
       { role: 'services' },
       { type: 'separator' },
-      { role: 'hide', label: 'Hide Entropic' },
+      { role: 'hide', label: 'Hide Creatrix' },
       { role: 'hideOthers' },
       { role: 'unhide' },
       { type: 'separator' },
-      { role: 'quit', label: 'Quit Entropic' },
+      { role: 'quit', label: 'Quit Creatrix' },
     ],
   }
 

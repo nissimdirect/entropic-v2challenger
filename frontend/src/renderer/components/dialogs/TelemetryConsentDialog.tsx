@@ -10,7 +10,7 @@ export default function TelemetryConsentDialog({ isOpen, onDecision }: Telemetry
     <div className="consent-dialog__overlay">
       <div className="consent-dialog" onClick={(e) => e.stopPropagation()}>
         <div className="consent-dialog__header">
-          <span>Help Improve Entropic</span>
+          <span>Help Improve Creatrix</span>
         </div>
         <div className="consent-dialog__body">
           <p className="consent-dialog__text">

@@ -11,14 +11,14 @@ from security import strip_pii
 from zmq_server import ZMQServer
 
 # Consent-gated Sentry init (VULN-11)
-_consent_path = os.path.expanduser("~/.entropic/telemetry_consent")
+_consent_path = os.path.expanduser("~/.creatrix/telemetry_consent")
 _dsn = ""
 if os.path.exists(_consent_path) and Path(_consent_path).read_text().strip() == "yes":
     _dsn = os.environ.get("SENTRY_DSN", "")
 
 sentry_sdk.init(
     dsn=_dsn,
-    release=f"entropic@{__version__}",
+    release=f"creatrix@{__version__}",
     environment=os.environ.get("SENTRY_ENV", "development"),
     traces_sample_rate=0.1,
     before_send=strip_pii,

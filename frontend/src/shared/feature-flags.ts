@@ -73,7 +73,7 @@ export const FF = {
   // ── P2 ─────────────────────────────────────────────────────────────────
   /** F-0512-1: handleNewProject clears autosave + crashReports + gate dialog on welcomeDismissed */
   F_0512_1_WELCOME_MODAL: isFixEnabled('f-0512-1'),
-  /** F-0512-3: title bar reads "Entropic" while WelcomeScreen is up */
+  /** F-0512-3: title bar reads "Creatrix" while WelcomeScreen is up */
   F_0512_3_TITLE_BAR: isFixEnabled('f-0512-3'),
   /** F-0512-7: select-save-path strips macOS's double-appended extension */
   F_0512_7_EXPORT_DOUBLE_EXT: isFixEnabled('f-0512-7'),

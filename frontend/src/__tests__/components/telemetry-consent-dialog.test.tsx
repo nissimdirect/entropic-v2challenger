@@ -24,7 +24,7 @@ describe('TelemetryConsentDialog', () => {
     const { getByText } = render(
       <TelemetryConsentDialog isOpen={true} onDecision={vi.fn()} />,
     )
-    expect(getByText('Help Improve Entropic')).toBeTruthy()
+    expect(getByText('Help Improve Creatrix')).toBeTruthy()
     expect(
       getByText(/We collect anonymous crash reports/i),
     ).toBeTruthy()

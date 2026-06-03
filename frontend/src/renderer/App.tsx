@@ -334,12 +334,12 @@ function AppInner() {
   // Window title — show project name + dirty indicator.
   useEffect(() => {
     // F-0512-3: while the welcome screen is still up (no project picked yet),
-    // show plain "Entropic" instead of the default "Untitled — Entropic".
+    // show plain "Creatrix" instead of the default "Untitled — Creatrix".
     if (FF.F_0512_3_TITLE_BAR && !welcomeDismissed) {
-      document.title = 'Entropic'
+      document.title = 'Creatrix'
       return
     }
-    document.title = isDirty ? `${projectName} * — Entropic` : `${projectName} — Entropic`
+    document.title = isDirty ? `${projectName} * — Creatrix` : `${projectName} — Creatrix`
   }, [projectName, isDirty, welcomeDismissed])
 
   // Start autosave on mount, stop on unmount

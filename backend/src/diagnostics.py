@@ -31,11 +31,11 @@ MAX_LOG_AGE_DAYS = 7
 
 
 def _validate_log_dir(env_dir: str) -> str:
-    """Validate APP_LOG_DIR is under ~/.entropic. Returns safe path."""
-    default = os.path.expanduser("~/.entropic/logs")
+    """Validate APP_LOG_DIR is under ~/.creatrix. Returns safe path."""
+    default = os.path.expanduser("~/.creatrix/logs")
     if env_dir:
         resolved = os.path.realpath(env_dir)
-        allowed = os.path.realpath(os.path.expanduser("~/.entropic"))
+        allowed = os.path.realpath(os.path.expanduser("~/.creatrix"))
         if not resolved.startswith(allowed + os.sep) and resolved != allowed:
             logger.warning("APP_LOG_DIR outside allowed prefix, using default")
             return default
@@ -92,7 +92,7 @@ def setup_structured_logging(log_dir: str | None = None):
     """Configure structured JSON logging with rotation.
 
     Args:
-        log_dir: Override log directory (validated against ~/.entropic prefix).
+        log_dir: Override log directory (validated against ~/.creatrix prefix).
     """
     resolved_dir = _validate_log_dir(log_dir or os.environ.get("APP_LOG_DIR", ""))
     os.makedirs(resolved_dir, mode=0o700, exist_ok=True)
@@ -135,7 +135,7 @@ def setup_faulthandler(log_dir: str):
 
 def setup_excepthook():
     """Install sys.excepthook that writes structured crash dumps."""
-    crash_dir = os.path.expanduser("~/.entropic/crash_reports")
+    crash_dir = os.path.expanduser("~/.creatrix/crash_reports")
 
     def _crash_excepthook(exc_type, exc_value, exc_tb):
         try:
