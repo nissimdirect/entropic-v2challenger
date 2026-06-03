@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-REPORT_SCHEMA_VERSION = "0.1.0"
+REPORT_SCHEMA_VERSION = "0.2.0"
 
 
 class ReportSchemaError(ValueError):
@@ -57,6 +57,35 @@ def validate_report(report: dict) -> None:
     missing_heads = required_heads - heads.keys()
     if missing_heads:
         raise ReportSchemaError(f"missing heads: {sorted(missing_heads)}")
+    # 0.2.0 shape: per-head + interpolation + queue extra fields
+    required_head_keys = {
+        "embed_dim",
+        "backend",
+        "cold_load_seconds",
+        "encode_latency",
+        "high_variance",
+        "warmup_iterations",
+        "error",
+    }
+    for hname, head in heads.items():
+        missing_h = required_head_keys - head.keys()
+        if missing_h:
+            raise ReportSchemaError(f"head {hname!r} missing keys: {sorted(missing_h)}")
+    interp = report["measurement"].get("interpolation", {})
+    if "degradation_under_load" not in interp:
+        raise ReportSchemaError(
+            "measurement.interpolation missing degradation_under_load"
+        )
+    queue = report["measurement"].get("queue", {})
+    for k in (
+        "n_threads",
+        "window_seconds",
+        "total_encodes",
+        "throughput_per_second",
+        "per_thread_counts",
+    ):
+        if k not in queue:
+            raise ReportSchemaError(f"measurement.queue missing {k!r}")
 
 
 def _build_parser() -> argparse.ArgumentParser:
