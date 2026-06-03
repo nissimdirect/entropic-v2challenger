@@ -5,6 +5,8 @@ import time
 import av
 import numpy as np
 
+from video.codec_timeout import CodecTimeoutError, av_open_timeout
+
 # Hard limits — enforced to prevent codec-bomb / memory-exhaustion DoS.
 # MAX_DURATION_SEC: max audio duration we will decode (1 hour).
 # MAX_SAMPLES: max total samples post-decode (1 hour stereo @ 48 kHz = 345.6M).
@@ -50,7 +52,9 @@ def decode_audio(
             error: str (only if ok=False)
     """
     try:
-        container = av.open(path)
+        container = av_open_timeout(path)
+    except CodecTimeoutError as e:
+        return {"ok": False, "error": f"Audio decode timeout: {e}"}
     except (av.error.FileNotFoundError, av.error.InvalidDataError) as e:
         return {"ok": False, "error": str(e)}
 

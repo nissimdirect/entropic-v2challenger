@@ -9,6 +9,8 @@ import av
 import cv2
 import numpy as np
 
+from video.codec_timeout import CodecTimeoutError, av_open_timeout
+
 logger = logging.getLogger(__name__)
 
 # Default duration for static images on the timeline (seconds)
@@ -18,7 +20,13 @@ IMAGE_DEFAULT_DURATION = 5.0
 def probe(path: str) -> dict:
     """Probe video file for metadata. Fast — reads only headers."""
     try:
-        container = av.open(path)
+        container = av_open_timeout(path)
+    except CodecTimeoutError as e:
+        logger.warning(f"Probe timeout for {Path(path).name}: {e}")
+        return {
+            "ok": False,
+            "error": f"Decode timeout (corrupt source?): {e.elapsed_s:.1f}s",
+        }
     except (av.error.FileNotFoundError, av.error.InvalidDataError) as e:
         logger.exception(f"Probe failed for {Path(path).name}")
         return {"ok": False, "error": f"Failed to open video: {type(e).__name__}"}
