@@ -14,7 +14,7 @@ import json
 import sys
 from pathlib import Path
 
-REPORT_SCHEMA_VERSION = "0.2.0"
+REPORT_SCHEMA_VERSION = "0.3.0"
 
 
 class ReportSchemaError(ValueError):
@@ -35,6 +35,7 @@ def validate_report(report: dict) -> None:
         "sparsity",
         "generated_at",
         "measurement",
+        "verdict",
     }
     missing = required_top - report.keys()
     if missing:
@@ -76,6 +77,23 @@ def validate_report(report: dict) -> None:
         raise ReportSchemaError(
             "measurement.interpolation missing degradation_under_load"
         )
+    # 0.3.0: canonical_sparsity + by_sparsity required
+    if "canonical_sparsity" not in interp:
+        raise ReportSchemaError(
+            "measurement.interpolation missing canonical_sparsity (0.3.0)"
+        )
+    if "by_sparsity" not in interp:
+        raise ReportSchemaError("measurement.interpolation missing by_sparsity (0.3.0)")
+    # Verdict shape
+    verdict = report["verdict"]
+    if not isinstance(verdict, dict):
+        raise ReportSchemaError("verdict must be a dict")
+    required_verdict_keys = {"state", "flags", "canonical_p95_ms", "note"}
+    missing_v = required_verdict_keys - verdict.keys()
+    if missing_v:
+        raise ReportSchemaError(f"verdict missing keys: {sorted(missing_v)}")
+    if verdict["state"] not in {"TIER_5_GO", "TIER_5_CONDITIONAL", "TIER_5_NO_GO"}:
+        raise ReportSchemaError(f"invalid verdict state: {verdict['state']!r}")
     queue = report["measurement"].get("queue", {})
     for k in (
         "n_threads",

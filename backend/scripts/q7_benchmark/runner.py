@@ -116,6 +116,9 @@ def _validate_args(args: argparse.Namespace) -> None:
 def _build_report(
     mode: str, backend_name: str, measurement: dict, sparsity: int
 ) -> dict:
+    from .verdict import verdict_from_measurement
+
+    verdict = verdict_from_measurement(measurement)
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
         "mode": mode,
@@ -123,6 +126,7 @@ def _build_report(
         "sparsity": sparsity,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "measurement": measurement,
+        "verdict": verdict.to_dict(),
     }
 
 
@@ -193,22 +197,24 @@ def _run_real_measurement(backend_name: str, args: argparse.Namespace) -> dict:
         )
         degradation_under_load = under.degradation_under_load
 
-    # Interpolation jitter lights up in PR #5; PR #4 uses canonical head's p95.
-    canonical_p95 = heads["dinov2"]["encode_latency"]["p95_ms"]
-    canonical_p50 = heads["dinov2"]["encode_latency"]["p50_ms"]
+    # PR #5: real jitter measurement across all four sparsities (DINOv2
+    # only — the jitter-relevant vision backbone). Returns 0.3.0 interp
+    # block with canonical_sparsity + by_sparsity.
+    from .jitter import jitter_dict_for_report, measure_jitter_all_sparsities
+
+    jitter_results = measure_jitter_all_sparsities(
+        canonical_loader, n_frames_per_sparsity=128
+    )
+    interp_block = jitter_dict_for_report(jitter_results)
+    interp_block["sparsity"] = args.sparsity  # legacy field for back-compat
+    interp_block["degradation_under_load"] = degradation_under_load
 
     return {
         "heads": heads,
-        "interpolation": {
-            "sparsity": args.sparsity,
-            "jitter_p50_ms": canonical_p50,
-            "jitter_p95_ms": canonical_p95,
-            "below_threshold_50ms": canonical_p95 < 50.0,
-            "degradation_under_load": degradation_under_load,
-        },
+        "interpolation": interp_block,
         "queue": queue_summary,
         "memory": {
-            # PR #6 wires psutil for real memory tracking; PR #4 stub.
+            # PR #6 wires psutil for real memory tracking; PR #5 stub.
             "resident_mb": 0.0,
             "peak_mb": 0.0,
         },

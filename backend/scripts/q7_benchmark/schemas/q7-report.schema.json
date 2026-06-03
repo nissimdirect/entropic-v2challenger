@@ -2,15 +2,25 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://entropic-v2challenger/schemas/q7-report.schema.json",
   "title": "Q7 benchmark report",
-  "description": "Schema for Q7 multi-headed L benchmark JSON reports. PR #1 enforces top-level shape only; PR #4+ may extend with full jsonschema validation once real measurements land.",
+  "description": "Schema 0.3.0 — Tier 5 verdict block + by_sparsity jitter measurements per DEC-Q7-007 + DEC-Q7-009.",
   "type": "object",
-  "required": ["schema_version", "mode", "backend", "sparsity", "generated_at", "measurement"],
+  "required": ["schema_version", "mode", "backend", "sparsity", "generated_at", "measurement", "verdict"],
   "properties": {
-    "schema_version": {"type": "string", "const": "0.1.0"},
+    "schema_version": {"type": "string", "const": "0.3.0"},
     "mode": {"type": "string", "enum": ["mock", "measure"]},
     "backend": {"type": "string"},
     "sparsity": {"type": "integer", "enum": [4, 8, 16, 32]},
     "generated_at": {"type": "string", "format": "date-time"},
+    "verdict": {
+      "type": "object",
+      "required": ["state", "flags", "canonical_p95_ms", "note"],
+      "properties": {
+        "state": {"type": "string", "enum": ["TIER_5_GO", "TIER_5_CONDITIONAL", "TIER_5_NO_GO"]},
+        "flags": {"type": "array", "items": {"type": "string"}},
+        "canonical_p95_ms": {"type": "number", "minimum": 0},
+        "note": {"type": "string"}
+      }
+    },
     "measurement": {
       "type": "object",
       "required": ["heads", "interpolation", "queue", "memory"],
@@ -20,49 +30,34 @@
           "required": ["dinov2", "clip", "clap"],
           "additionalProperties": {
             "type": "object",
-            "required": ["embed_dim", "encode_latency"],
-            "properties": {
-              "embed_dim": {"type": "integer", "minimum": 64},
-              "encode_latency": {
-                "type": "object",
-                "required": ["p50_ms", "p95_ms", "p99_ms", "max_ms", "stddev_ms", "n_samples"],
-                "properties": {
-                  "p50_ms": {"type": "number", "minimum": 0},
-                  "p95_ms": {"type": "number", "minimum": 0},
-                  "p99_ms": {"type": "number", "minimum": 0},
-                  "max_ms": {"type": "number", "minimum": 0},
-                  "stddev_ms": {"type": "number", "minimum": 0},
-                  "n_samples": {"type": "integer", "minimum": 1}
-                }
-              }
-            }
+            "required": ["embed_dim", "backend", "cold_load_seconds", "encode_latency", "high_variance", "warmup_iterations", "error"]
           }
         },
         "interpolation": {
           "type": "object",
-          "required": ["sparsity", "jitter_p50_ms", "jitter_p95_ms", "below_threshold_50ms"],
+          "required": ["canonical_sparsity", "by_sparsity", "jitter_p50_ms", "jitter_p95_ms", "below_threshold_50ms", "degradation_under_load"],
           "properties": {
-            "sparsity": {"type": "integer", "enum": [4, 8, 16, 32]},
+            "canonical_sparsity": {"type": "integer", "enum": [4, 8, 16, 32]},
+            "by_sparsity": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "required": ["sparsity", "jitter_p50_ms", "jitter_p95_ms"]
+              }
+            },
             "jitter_p50_ms": {"type": "number", "minimum": 0},
             "jitter_p95_ms": {"type": "number", "minimum": 0},
-            "below_threshold_50ms": {"type": "boolean"}
+            "below_threshold_50ms": {"type": "boolean"},
+            "degradation_under_load": {"type": "boolean"}
           }
         },
         "queue": {
           "type": "object",
-          "required": ["throughput_encodes_per_s", "saturation_test_n"],
-          "properties": {
-            "throughput_encodes_per_s": {"type": "number", "minimum": 0},
-            "saturation_test_n": {"type": "integer", "minimum": 1}
-          }
+          "required": ["n_threads", "window_seconds", "total_encodes", "throughput_per_second", "per_thread_counts"]
         },
         "memory": {
           "type": "object",
-          "required": ["resident_mb", "peak_mb"],
-          "properties": {
-            "resident_mb": {"type": "number", "minimum": 0},
-            "peak_mb": {"type": "number", "minimum": 0}
-          }
+          "required": ["resident_mb", "peak_mb"]
         }
       }
     }
