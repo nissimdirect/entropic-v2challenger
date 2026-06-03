@@ -38,6 +38,9 @@ import type { EffectInstance } from '../../shared/types'
 
 // --- Helpers ---
 
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
+
 let effectCounter = 0
 function makeEffect(overrides: Partial<EffectInstance> = {}): EffectInstance {
   effectCounter++
@@ -53,6 +56,10 @@ function makeEffect(overrides: Partial<EffectInstance> = {}): EffectInstance {
   }
 }
 
+function getV1Chain(): EffectInstance[] {
+  return useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
+}
+
 function resetAllStores() {
   useUndoStore.getState().clear()
   useProjectStore.getState().resetProject()
@@ -65,6 +72,9 @@ function resetAllStores() {
   useMIDIStore.setState({ ccMappings: [] })
   // Reset toast
   useToastStore.getState().clearAll?.() ?? useToastStore.setState({ toasts: [] })
+  // Epic 01: create V1 track for effect chain operations
+  V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+  useUndoStore.getState().clear()
 }
 
 // --- Tests ---
@@ -77,7 +87,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
 
   it('removeEffect cleans up operator mappings targeting deleted effect', () => {
     const fx = makeEffect({ id: 'fx-target' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Add operator with mapping to this effect
     useOperatorStore.setState({
@@ -98,7 +108,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
     })
 
     // Delete the effect
-    useProjectStore.getState().removeEffect('fx-target')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-target')
 
     // Operator should still exist but mapping to deleted effect should be gone
     const ops = useOperatorStore.getState().operators
@@ -109,7 +119,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
 
   it('removeEffect cleans up automation lanes targeting deleted effect', () => {
     const fx = makeEffect({ id: 'fx-auto' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Add automation lanes for this effect
     useAutomationStore.setState({
@@ -121,7 +131,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
       },
     })
 
-    useProjectStore.getState().removeEffect('fx-auto')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-auto')
 
     const lanes = useAutomationStore.getState().lanes
     expect(lanes['track-1']).toHaveLength(1)
@@ -130,7 +140,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
 
   it('removeEffect cleans up CC mappings targeting deleted effect', () => {
     const fx = makeEffect({ id: 'fx-midi' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Add CC mappings
     useMIDIStore.setState({
@@ -140,7 +150,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
       ],
     })
 
-    useProjectStore.getState().removeEffect('fx-midi')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-midi')
 
     const mappings = useMIDIStore.getState().ccMappings
     expect(mappings).toHaveLength(1)
@@ -149,7 +159,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
 
   it('removeEffect + undo restores ALL cross-store state', () => {
     const fx = makeEffect({ id: 'fx-undo' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Set up cross-store state
     useOperatorStore.setState({
@@ -175,10 +185,10 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
     })
 
     // Delete
-    useProjectStore.getState().removeEffect('fx-undo')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-undo')
 
     // Verify cleanup happened
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    expect(getV1Chain()).toHaveLength(0)
     expect(useOperatorStore.getState().operators[0].mappings).toHaveLength(0)
     expect(useAutomationStore.getState().lanes['track-1']).toBeUndefined()
     expect(useMIDIStore.getState().ccMappings).toHaveLength(0)
@@ -187,8 +197,8 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
     useUndoStore.getState().undo()
 
     // Everything should be restored
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
-    expect(useProjectStore.getState().effectChain[0].id).toBe('fx-undo')
+    expect(getV1Chain()).toHaveLength(1)
+    expect(getV1Chain()[0].id).toBe('fx-undo')
     expect(useOperatorStore.getState().operators[0].mappings).toHaveLength(1)
     expect(useOperatorStore.getState().operators[0].mappings[0].targetEffectId).toBe('fx-undo')
     expect(useAutomationStore.getState().lanes['track-1']).toHaveLength(1)
@@ -197,7 +207,7 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
 
   it('removeEffect + undo + redo cycle is clean', () => {
     const fx = makeEffect({ id: 'fx-cycle' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     useOperatorStore.setState({
       operators: [{
@@ -208,19 +218,19 @@ describe('Cross-Store Integration: Effect Deletion Cleanup', () => {
     })
 
     // Delete → undo → redo → undo (full cycle)
-    useProjectStore.getState().removeEffect('fx-cycle')
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-cycle')
+    expect(getV1Chain()).toHaveLength(0)
 
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    expect(getV1Chain()).toHaveLength(1)
     expect(useOperatorStore.getState().operators[0].mappings).toHaveLength(1)
 
     useUndoStore.getState().redo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    expect(getV1Chain()).toHaveLength(0)
     expect(useOperatorStore.getState().operators[0].mappings).toHaveLength(0)
 
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    expect(getV1Chain()).toHaveLength(1)
     expect(useOperatorStore.getState().operators[0].mappings).toHaveLength(1)
   })
 })
@@ -235,38 +245,38 @@ describe('Cross-Store Integration: Undo Uses IDs Not Indices', () => {
     const fx1 = makeEffect({ id: 'fx-a' })
     const fx2 = makeEffect({ id: 'fx-b' })
     const fx3 = makeEffect({ id: 'fx-c' })
-    useProjectStore.getState().addEffect(fx1)
-    useProjectStore.getState().addEffect(fx2)
-    useProjectStore.getState().addEffect(fx3)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx1)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx2)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx3)
 
     // Clear undo stack from addEffect calls
     useUndoStore.getState().clear()
 
     // Reorder: move fx-a (index 0) to index 2
-    useProjectStore.getState().reorderEffect(0, 2)
-    expect(useProjectStore.getState().effectChain.map((e) => e.id)).toEqual(['fx-b', 'fx-c', 'fx-a'])
+    useProjectStore.getState().reorderEffect(V1_TRACK_ID, 0, 2)
+    expect(getV1Chain().map((e) => e.id)).toEqual(['fx-b', 'fx-c', 'fx-a'])
 
     // Undo should restore original order
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain.map((e) => e.id)).toEqual(['fx-a', 'fx-b', 'fx-c'])
+    expect(getV1Chain().map((e) => e.id)).toEqual(['fx-a', 'fx-b', 'fx-c'])
   })
 
   it('removeEffect preserves insertion position on undo', () => {
     const fx1 = makeEffect({ id: 'fx-first' })
     const fx2 = makeEffect({ id: 'fx-middle' })
     const fx3 = makeEffect({ id: 'fx-last' })
-    useProjectStore.getState().addEffect(fx1)
-    useProjectStore.getState().addEffect(fx2)
-    useProjectStore.getState().addEffect(fx3)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx1)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx2)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx3)
     useUndoStore.getState().clear()
 
     // Remove middle effect
-    useProjectStore.getState().removeEffect('fx-middle')
-    expect(useProjectStore.getState().effectChain.map((e) => e.id)).toEqual(['fx-first', 'fx-last'])
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-middle')
+    expect(getV1Chain().map((e) => e.id)).toEqual(['fx-first', 'fx-last'])
 
     // Undo — should restore to correct position (after fx-first)
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain.map((e) => e.id)).toEqual(['fx-first', 'fx-middle', 'fx-last'])
+    expect(getV1Chain().map((e) => e.id)).toEqual(['fx-first', 'fx-middle', 'fx-last'])
   })
 })
 
@@ -277,8 +287,7 @@ describe('Cross-Store Integration: Derived State Recalculation', () => {
   })
 
   it('splitClip recalculates timeline duration', () => {
-    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
-    const trackId = useTimelineStore.getState().tracks[0].id
+    const trackId = useTimelineStore.getState().addTrack('Track 1', '#ff0000')!
     useUndoStore.getState().clear()
 
     const clip = {
@@ -301,32 +310,30 @@ describe('Cross-Store Integration: Derived State Recalculation', () => {
     expect(useTimelineStore.getState().duration).toBe(10)
 
     // Should have 2 clips now
-    const clips = useTimelineStore.getState().tracks[0].clips
+    const clips = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips
     expect(clips).toHaveLength(2)
   })
 
   it('removeTrack recalculates duration', () => {
-    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
-    useTimelineStore.getState().addTrack('Track 2', '#00ff00')
-    const tracks = useTimelineStore.getState().tracks
+    const t1Id = useTimelineStore.getState().addTrack('Track 1', '#ff0000')!
+    const t2Id = useTimelineStore.getState().addTrack('Track 2', '#00ff00')!
     useUndoStore.getState().clear()
 
-    // Add clip to track 2
+    // Add clip to Track 2
     const clip = {
-      id: 'clip-1', assetId: 'asset-1', trackId: tracks[1].id,
+      id: 'clip-1', assetId: 'asset-1', trackId: t2Id,
       position: 0, duration: 20, inPoint: 0, outPoint: 20, speed: 1.0,
     }
-    useTimelineStore.getState().addClip(tracks[1].id, clip)
+    useTimelineStore.getState().addClip(t2Id, clip)
     expect(useTimelineStore.getState().duration).toBe(20)
 
-    // Remove track 2 — duration should drop to 0
-    useTimelineStore.getState().removeTrack(tracks[1].id)
+    // Remove Track 2 — duration should drop to 0
+    useTimelineStore.getState().removeTrack(t2Id)
     expect(useTimelineStore.getState().duration).toBe(0)
   })
 
   it('deleteSelectedClips recalculates duration', () => {
-    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
-    const trackId = useTimelineStore.getState().tracks[0].id
+    const trackId = useTimelineStore.getState().addTrack('Track 1', '#ff0000')!
     useUndoStore.getState().clear()
 
     const clip1 = {
@@ -357,32 +364,32 @@ describe('Cross-Store Integration: Rapid Operations', () => {
   it('rapid add/remove/undo does not corrupt state', () => {
     // Add 5 effects rapidly
     for (let i = 0; i < 5; i++) {
-      useProjectStore.getState().addEffect(makeEffect({ id: `fx-rapid-${i}` }))
+      useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect({ id: `fx-rapid-${i}` }))
     }
-    expect(useProjectStore.getState().effectChain).toHaveLength(5)
+    expect(getV1Chain()).toHaveLength(5)
 
     // Remove effects 2 and 4
-    useProjectStore.getState().removeEffect('fx-rapid-2')
-    useProjectStore.getState().removeEffect('fx-rapid-4')
-    expect(useProjectStore.getState().effectChain).toHaveLength(3)
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-rapid-2')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-rapid-4')
+    expect(getV1Chain()).toHaveLength(3)
 
     // Undo twice — should restore both
     useUndoStore.getState().undo()
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(5)
+    expect(getV1Chain()).toHaveLength(5)
 
     // Verify all IDs are correct and in order
-    const ids = useProjectStore.getState().effectChain.map((e) => e.id)
+    const ids = getV1Chain().map((e) => e.id)
     expect(ids).toEqual(['fx-rapid-0', 'fx-rapid-1', 'fx-rapid-2', 'fx-rapid-3', 'fx-rapid-4'])
   })
 
   it('selectedEffectId cleared when selected effect is removed', () => {
     const fx = makeEffect({ id: 'fx-select' })
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
     useProjectStore.getState().selectEffect('fx-select')
     expect(useProjectStore.getState().selectedEffectId).toBe('fx-select')
 
-    useProjectStore.getState().removeEffect('fx-select')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-select')
     expect(useProjectStore.getState().selectedEffectId).toBeNull()
   })
 
@@ -391,11 +398,11 @@ describe('Cross-Store Integration: Rapid Operations', () => {
     const LIMIT = 10 // LIMITS.MAX_EFFECTS_PER_CHAIN
 
     for (let i = 0; i < LIMIT + 2; i++) {
-      useProjectStore.getState().addEffect(makeEffect({ id: `fx-limit-${i}` }))
+      useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect({ id: `fx-limit-${i}` }))
     }
 
     // Should be capped at limit
-    expect(useProjectStore.getState().effectChain.length).toBeLessThanOrEqual(LIMIT)
+    expect(getV1Chain().length).toBeLessThanOrEqual(LIMIT)
   })
 })
 
@@ -406,8 +413,7 @@ describe('Cross-Store Integration: Timeline Track + Clip Undo', () => {
   })
 
   it('removeTrack + undo restores track with all clips', () => {
-    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
-    const trackId = useTimelineStore.getState().tracks[0].id
+    const trackId = useTimelineStore.getState().addTrack('Track 1', '#ff0000')!
 
     const clip = {
       id: 'clip-restore', assetId: 'a', trackId, position: 0, duration: 10,
@@ -416,32 +422,34 @@ describe('Cross-Store Integration: Timeline Track + Clip Undo', () => {
     useTimelineStore.getState().addClip(trackId, clip)
     useUndoStore.getState().clear()
 
+    const countBefore = useTimelineStore.getState().tracks.length
+
     // Remove track
     useTimelineStore.getState().removeTrack(trackId)
-    expect(useTimelineStore.getState().tracks).toHaveLength(0)
+    expect(useTimelineStore.getState().tracks).toHaveLength(countBefore - 1)
 
     // Undo
     useUndoStore.getState().undo()
-    expect(useTimelineStore.getState().tracks).toHaveLength(1)
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
-    expect(useTimelineStore.getState().tracks[0].clips[0].id).toBe('clip-restore')
+    expect(useTimelineStore.getState().tracks).toHaveLength(countBefore)
+    const restored = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!
+    expect(restored.clips).toHaveLength(1)
+    expect(restored.clips[0].id).toBe('clip-restore')
   })
 
   it('deleteSelectedClips + undo restores all clips to correct tracks', () => {
-    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
-    useTimelineStore.getState().addTrack('Track 2', '#00ff00')
-    const tracks = useTimelineStore.getState().tracks
+    const t1Id = useTimelineStore.getState().addTrack('Track 1', '#ff0000')!
+    const t2Id = useTimelineStore.getState().addTrack('Track 2', '#00ff00')!
 
     const clip1 = {
-      id: 'c1', assetId: 'a', trackId: tracks[0].id, position: 0, duration: 5,
+      id: 'c1', assetId: 'a', trackId: t1Id, position: 0, duration: 5,
       inPoint: 0, outPoint: 5, speed: 1.0,
     }
     const clip2 = {
-      id: 'c2', assetId: 'b', trackId: tracks[1].id, position: 0, duration: 5,
+      id: 'c2', assetId: 'b', trackId: t2Id, position: 0, duration: 5,
       inPoint: 0, outPoint: 5, speed: 1.0,
     }
-    useTimelineStore.getState().addClip(tracks[0].id, clip1)
-    useTimelineStore.getState().addClip(tracks[1].id, clip2)
+    useTimelineStore.getState().addClip(t1Id, clip1)
+    useTimelineStore.getState().addClip(t2Id, clip2)
     useUndoStore.getState().clear()
 
     // Select both clips
@@ -449,14 +457,14 @@ describe('Cross-Store Integration: Timeline Track + Clip Undo', () => {
 
     // Delete
     useTimelineStore.getState().deleteSelectedClips()
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
-    expect(useTimelineStore.getState().tracks[1].clips).toHaveLength(0)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === t1Id)!.clips).toHaveLength(0)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === t2Id)!.clips).toHaveLength(0)
 
     // Undo
     useUndoStore.getState().undo()
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
-    expect(useTimelineStore.getState().tracks[1].clips).toHaveLength(1)
-    expect(useTimelineStore.getState().tracks[0].clips[0].id).toBe('c1')
-    expect(useTimelineStore.getState().tracks[1].clips[0].id).toBe('c2')
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === t1Id)!.clips).toHaveLength(1)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === t2Id)!.clips).toHaveLength(1)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === t1Id)!.clips[0].id).toBe('c1')
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === t2Id)!.clips[0].id).toBe('c2')
   })
 })

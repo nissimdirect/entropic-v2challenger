@@ -320,10 +320,12 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   }
 
   // Hydrate master effect chain
+  // TODO(Epic05): rework to use per-track chain serialization.
+  // Epic 01 D8 stub: addEffect now requires trackId; pass empty string as a
+  // no-op until Epic 05 rewrites persistence. The global effectChain field is
+  // read by serializeProject (not yet migrated) so we still hydrate it via setState.
   if (Array.isArray(project.masterEffectChain)) {
-    for (const effect of project.masterEffectChain) {
-      projectStore.addEffect(effect as EffectInstance)
-    }
+    useProjectStore.setState({ effectChain: project.masterEffectChain as EffectInstance[] })
   }
 
   // Hydrate device groups (metadata-only)

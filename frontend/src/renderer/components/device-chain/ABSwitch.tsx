@@ -1,4 +1,5 @@
 import { useProjectStore } from '../../stores/project'
+import { useTimelineStore } from '../../stores/timeline'
 
 interface ABSwitchProps {
   effectId: string
@@ -9,20 +10,26 @@ interface ABSwitchProps {
 export default function ABSwitch({ effectId, isActive, activeSlot }: ABSwitchProps) {
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation()
+    // TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+    const trackId = useTimelineStore.getState().selectedTrackId
+    if (!trackId) return
     const store = useProjectStore.getState()
     if (!isActive) {
-      store.activateAB(effectId)
+      store.activateAB(trackId, effectId)
     } else if (e.shiftKey) {
-      store.copyToInactiveAB(effectId)
+      store.copyToInactiveAB(trackId, effectId)
     } else {
-      store.toggleAB(effectId)
+      store.toggleAB(trackId, effectId)
     }
   }
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    useProjectStore.getState().deactivateAB(effectId)
+    // TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+    const trackId = useTimelineStore.getState().selectedTrackId
+    if (!trackId) return
+    useProjectStore.getState().deactivateAB(trackId, effectId)
   }
 
   if (!isActive) {

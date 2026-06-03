@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useProjectStore } from '../../stores/project'
+import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
@@ -49,11 +50,15 @@ export default function DeviceChain({
   }, [])
 
   const handleToggle = useCallback((id: string) => {
-    useProjectStore.getState().toggleEffect(id)
+    // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
+    const trackId = useTimelineStore.getState().selectedTrackId
+    useProjectStore.getState().toggleEffect(trackId ?? '', id)
   }, [])
 
   const handleRemove = useCallback((id: string) => {
-    useProjectStore.getState().removeEffect(id)
+    // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
+    const trackId = useTimelineStore.getState().selectedTrackId
+    useProjectStore.getState().removeEffect(trackId ?? '', id)
   }, [])
 
   // F-0514-7: drag-add from EffectBrowser. Accepts only our custom MIME type
@@ -100,20 +105,26 @@ export default function DeviceChain({
         mix: 1.0,
         mask: null,
       }
-      useProjectStore.getState().addEffect(instance)
+      // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
+      const trackId = useTimelineStore.getState().selectedTrackId
+      useProjectStore.getState().addEffect(trackId ?? '', instance)
     },
     [effectChain.length, registry],
   )
 
   const handleUpdateParam = useCallback(
     (effectId: string, paramName: string, value: number | string | boolean) => {
-      useProjectStore.getState().updateParam(effectId, paramName, value)
+      // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
+      const trackId = useTimelineStore.getState().selectedTrackId
+      useProjectStore.getState().updateParam(trackId ?? '', effectId, paramName, value)
     },
     [],
   )
 
   const handleSetMix = useCallback((effectId: string, mix: number) => {
-    useProjectStore.getState().setMix(effectId, mix)
+    // TODO(Epic02): use active track — D8 stub for Epic 01 compatibility.
+    const trackId = useTimelineStore.getState().selectedTrackId
+    useProjectStore.getState().setMix(trackId ?? '', effectId, mix)
   }, [])
 
   const handleContextMenu = useCallback((e: React.MouseEvent, effectId: string, index: number) => {

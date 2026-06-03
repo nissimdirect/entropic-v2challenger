@@ -52,10 +52,14 @@ function installMapBackedLocalStorage() {
 }
 
 import { useProjectStore } from '../../renderer/stores/project'
+import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useToastStore } from '../../renderer/stores/toast'
 import { useUndoStore } from '../../renderer/stores/undo'
 import { ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
 import type { EffectInstance } from '../../shared/types'
+
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
 
 function makeEffect(effectId: string): EffectInstance {
   return {
@@ -76,8 +80,13 @@ function zeroDefaultStorageKey(effectId: string): string {
 
 beforeEach(() => {
   installMapBackedLocalStorage()
+  useTimelineStore.getState().reset()
   useProjectStore.getState().resetProject()
   useToastStore.setState({ toasts: [] })
+  useUndoStore.getState().clear()
+  // Epic 01: create V1 track for effect chain operations.
+  // TODO(Epic02): use active track.
+  V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
   useUndoStore.getState().clear()
 })
 
@@ -87,7 +96,7 @@ afterEach(() => {
 
 describe('F-0516-7: zero-default effect toast', () => {
   it('addEffect fires a zero-default toast on first add of a util effect', () => {
-    useProjectStore.getState().addEffect(makeEffect('util.curves'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('util.curves'))
     const toasts = useToastStore.getState().toasts
     const hit = toasts.find((t) => t.source === 'zero-default:util.curves')
     expect(hit).toBeTruthy()
@@ -96,9 +105,9 @@ describe('F-0516-7: zero-default effect toast', () => {
   })
 
   it('second add of the same effect does NOT re-fire the toast', () => {
-    useProjectStore.getState().addEffect(makeEffect('util.curves'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('util.curves'))
     useToastStore.setState({ toasts: [] })
-    useProjectStore.getState().addEffect(makeEffect('util.curves'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('util.curves'))
     const toasts = useToastStore.getState().toasts
     expect(
       toasts.find((t) => t.source === 'zero-default:util.curves'),
@@ -106,12 +115,12 @@ describe('F-0516-7: zero-default effect toast', () => {
   })
 
   it('localStorage flag is set after first toast (cross-session persistence)', () => {
-    useProjectStore.getState().addEffect(makeEffect('util.levels'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('util.levels'))
     expect(localStorage.getItem(zeroDefaultStorageKey('util.levels'))).toBe('1')
   })
 
   it('non-zero-default effects (e.g. fx.invert) do NOT fire the toast', () => {
-    useProjectStore.getState().addEffect(makeEffect('fx.invert'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('fx.invert'))
     const toasts = useToastStore.getState().toasts
     expect(
       toasts.find((t) => (t.source ?? '').startsWith('zero-default:')),
@@ -120,7 +129,7 @@ describe('F-0516-7: zero-default effect toast', () => {
 
   it('each zero-default effect fires its own independent one-time toast', () => {
     for (const effectId of ZERO_DEFAULT_EFFECT_IDS) {
-      useProjectStore.getState().addEffect(makeEffect(effectId))
+      useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect(effectId))
     }
     const zeroDefaultToasts = useToastStore
       .getState()
@@ -136,13 +145,13 @@ describe('F-0516-7: zero-default effect toast', () => {
   it('preserves the existing chain-limit toast path (does not regress)', () => {
     // Fill the chain to limit
     for (let i = 0; i < 10; i++) {
-      useProjectStore.getState().addEffect(makeEffect('fx.invert'))
+      useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('fx.invert'))
     }
     useToastStore.setState({ toasts: [] })
     // 11th add — should toast about the limit, NOT the zero-default
-    useProjectStore.getState().addEffect(makeEffect('util.curves'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('util.curves'))
     const toasts = useToastStore.getState().toasts
     expect(toasts.find((t) => t.message.includes('chain limit'))).toBeTruthy()
-    expect(useProjectStore.getState().effectChain.length).toBe(10)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain.length).toBe(10)
   })
 })

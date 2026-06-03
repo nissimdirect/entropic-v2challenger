@@ -4,11 +4,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import { useProjectStore } from '../../renderer/stores/project'
+import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useEffectsStore } from '../../renderer/stores/effects'
 import { useEngineStore } from '../../renderer/stores/engine'
 import DeviceChain from '../../renderer/components/device-chain/DeviceChain'
 import DeviceCard from '../../renderer/components/device-chain/DeviceCard'
 import type { EffectInstance, EffectInfo } from '../../shared/types'
+
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
 
 const MOCK_EFFECT: EffectInstance = {
   id: 'fx-1',
@@ -32,6 +36,7 @@ const MOCK_INFO: EffectInfo = {
 }
 
 function resetStores() {
+  useTimelineStore.getState().reset()
   useProjectStore.setState({
     effectChain: [],
     selectedEffectId: null,
@@ -45,6 +50,10 @@ function resetStores() {
   })
   useEffectsStore.setState({ registry: [MOCK_INFO], isLoading: false })
   useEngineStore.setState({ status: 'connected', lastFrameMs: 12 })
+  // Epic 01: create V1 track and select it so drag-add has a target.
+  // TODO(Epic02): use active track.
+  V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+  useTimelineStore.getState().selectTrack(V1_TRACK_ID)
 }
 
 afterEach(cleanup)
@@ -167,7 +176,9 @@ describe('DeviceChain', () => {
       const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
       const dt = mockDataTransfer({ 'application/x-entropic-effect-id': 'pixelsort' })
       fireEvent.drop(root, { dataTransfer: dt })
-      const chain = useProjectStore.getState().effectChain
+      // Epic 01: addEffect now writes to track chain, not global effectChain.
+      // TODO(Epic02): use active track.
+      const chain = useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
       expect(chain).toHaveLength(1)
       expect(chain[0].effectId).toBe('pixelsort')
       expect(chain[0].parameters.threshold).toBe(0.5) // default from MOCK_INFO

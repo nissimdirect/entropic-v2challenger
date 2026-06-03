@@ -28,6 +28,9 @@ import { useUndoStore } from '../renderer/stores/undo'
 import { newProject } from '../renderer/project-persistence'
 import type { Clip, EffectInstance } from '../shared/types'
 
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
+
 function makeClip(overrides: Partial<Clip> = {}): Clip {
   return {
     id: overrides.id ?? `clip-${Math.random().toString(36).slice(2, 8)}`,
@@ -83,16 +86,22 @@ describe('newProject resets all stores', () => {
   })
 
   it('clears effect chain', () => {
-    useProjectStore.getState().addEffect(makeEffect('e1'))
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    // Epic 01: add track and use per-track chain. TODO(Epic02): use active track.
+    V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    useUndoStore.getState().clear()
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('e1'))
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain).toHaveLength(1)
 
     newProject()
 
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    // After newProject, timeline resets so V1_TRACK_ID track is gone — chain is empty
+    expect(useTimelineStore.getState().tracks).toHaveLength(0)
   })
 
   it('clears selected effect', () => {
-    useProjectStore.getState().addEffect(makeEffect('e2'))
+    V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    useUndoStore.getState().clear()
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('e2'))
     useProjectStore.getState().selectEffect('e2')
     expect(useProjectStore.getState().selectedEffectId).toBe('e2')
 

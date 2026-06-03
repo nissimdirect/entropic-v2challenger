@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, BlendMode, TextClipConfig, ClipTransform, AudioClip } from '../../shared/types'
+import type { Track, Clip, Marker, BlendMode, TextClipConfig, ClipTransform, AudioClip, EffectInstance } from '../../shared/types'
 import { AUDIO_LIMITS, clampGainDb, clampNonNegSec } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
@@ -27,6 +27,10 @@ interface TimelineState {
   removeTrack: (id: string) => void
   reorderTrack: (fromIdx: number, toIdx: number) => void
   setTrackOpacity: (id: string, opacity: number) => void
+  /** Functional update of one track's effectChain. Pure store write (NOT undoable here —
+   * callers in project.ts wrap with `undoable` so cross-store undo stays atomic).
+   * Unknown trackId → no-op (map matches nothing). (design D2) */
+  updateTrackEffectChain: (trackId: string, updater: (chain: EffectInstance[]) => EffectInstance[]) => void
   setTrackBlendMode: (id: string, mode: BlendMode) => void
   toggleMute: (id: string) => void
   toggleSolo: (id: string) => void
@@ -410,6 +414,16 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, opacity: oldOpacity } : t)) }),
     )
   },
+
+  // Epic 01: per-track effect chain primitive. Plain set (not undoable) —
+  // callers in project.ts wrap with `undoable` so cross-store undo is atomic.
+  // Unknown trackId → no-op. (design D2)
+  updateTrackEffectChain: (trackId, updater) =>
+    set((state) => ({
+      tracks: state.tracks.map((t) =>
+        t.id === trackId ? { ...t, effectChain: updater(t.effectChain) } : t,
+      ),
+    })),
 
   setTrackBlendMode: (id, mode) => {
     const track = get().tracks.find((t) => t.id === id)

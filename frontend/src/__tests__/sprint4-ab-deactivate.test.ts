@@ -8,6 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, fireEvent, cleanup } from '@testing-library/react'
 import { createElement } from 'react'
 import { useProjectStore } from '../renderer/stores/project'
+import { useTimelineStore } from '../renderer/stores/timeline'
 import { useUndoStore } from '../renderer/stores/undo'
 import ABSwitch from '../renderer/components/device-chain/ABSwitch'
 import type { EffectInstance } from '../shared/types'
@@ -23,9 +24,13 @@ const MOCK: EffectInstance = {
   mask: null,
 }
 
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
+
 function reset() {
+  useTimelineStore.getState().reset()
   useProjectStore.setState({
-    effectChain: [{ ...MOCK, parameters: { ...MOCK.parameters } }],
+    effectChain: [],
     selectedEffectId: null,
     assets: {},
     currentFrame: 0,
@@ -36,6 +41,15 @@ function reset() {
     projectName: 'Test',
   })
   useUndoStore.getState().clear()
+  // Add V1 track and seed its effectChain with MOCK
+  V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+  useTimelineStore.getState().selectTrack(V1_TRACK_ID)
+  useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [{ ...MOCK, parameters: { ...MOCK.parameters } }])
+  useUndoStore.getState().clear()
+}
+
+function getV1Chain(): EffectInstance[] {
+  return useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
 }
 
 afterEach(cleanup)
@@ -45,8 +59,8 @@ describe('ABSwitch deactivation (right-click)', () => {
 
   it('right-click on active AB switch calls deactivateAB and clears abState', () => {
     // Activate AB first
-    useProjectStore.getState().activateAB('fx-1')
-    expect(useProjectStore.getState().effectChain[0].abState).toBeDefined()
+    useProjectStore.getState().activateAB(V1_TRACK_ID, 'fx-1')
+    expect(getV1Chain()[0].abState).toBeDefined()
 
     const { getByTestId, unmount } = render(
       createElement(ABSwitch, { effectId: 'fx-1', isActive: true, activeSlot: 'a' }),
@@ -56,12 +70,12 @@ describe('ABSwitch deactivation (right-click)', () => {
     fireEvent.contextMenu(button)
 
     // abState should be null after deactivation
-    expect(useProjectStore.getState().effectChain[0].abState).toBeNull()
+    expect(getV1Chain()[0].abState).toBeNull()
     unmount()
   })
 
   it('tooltip on active AB switch mentions right-click to deactivate', () => {
-    useProjectStore.getState().activateAB('fx-1')
+    useProjectStore.getState().activateAB(V1_TRACK_ID, 'fx-1')
 
     const { getByTestId, unmount } = render(
       createElement(ABSwitch, { effectId: 'fx-1', isActive: true, activeSlot: 'a' }),

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 
 /**
  * Tests for the project Zustand store.
@@ -160,8 +160,14 @@ describe('ProjectStore', () => {
   })
 })
 
-// --- Real store BPM tests ---
-import { useProjectStore } from '../../renderer/stores/project'
+// --- Real store tests ---
+import { useProjectStore, getActiveEffectChain, useActiveEffectChain } from '../../renderer/stores/project'
+import { useTimelineStore } from '../../renderer/stores/timeline'
+import { useUndoStore } from '../../renderer/stores/undo'
+import { useOperatorStore } from '../../renderer/stores/operators'
+import { useAutomationStore } from '../../renderer/stores/automation'
+import { useMIDIStore } from '../../renderer/stores/midi'
+import { LIMITS } from '../../shared/limits'
 
 describe('useProjectStore — BPM', () => {
   beforeEach(() => {
@@ -243,4 +249,290 @@ describe('useProjectStore — seed (HT-4)', () => {
     useProjectStore.getState().resetProject()
     expect(useProjectStore.getState().seed).toBe(0)
   })
+})
+
+// ─── Epic 01: per-track chain store tests ────────────────────────────────────
+// Each test name maps to a spec scenario from specs/effect-chain/spec.md.
+
+function makeRealEffect(id: string, effectId = 'fx.invert'): EffectInstance {
+  return {
+    id,
+    effectId,
+    isEnabled: true,
+    isFrozen: false,
+    parameters: { amount: 0.5 },
+    modulations: {},
+    mix: 1.0,
+    mask: null,
+  }
+}
+
+function resetAll() {
+  useTimelineStore.getState().reset()
+  useProjectStore.getState().resetProject()
+  useUndoStore.getState().clear()
+  useOperatorStore.setState({ operators: [] })
+  useAutomationStore.setState({ lanes: {} })
+  useMIDIStore.setState({ ccMappings: [] })
+}
+
+function getChain(trackId: string): EffectInstance[] {
+  return useTimelineStore.getState().tracks.find((t) => t.id === trackId)?.effectChain ?? []
+}
+
+describe('useProjectStore — per-track effect chain (Epic 01)', () => {
+  let V1: string
+  let V2: string
+
+  beforeEach(() => {
+    resetAll()
+    V1 = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    V2 = useTimelineStore.getState().addTrack('V2', '#00ff00')!
+    useUndoStore.getState().clear()
+  })
+
+  // ── Scenario: Adding an effect targets one track ──────────────────────────
+  it('[effect-chain/Adding an effect targets one track] V1 gets effect, V2 stays empty', () => {
+    const effect = makeRealEffect('e1')
+    useProjectStore.getState().addEffect(V1, effect)
+
+    expect(getChain(V1)).toHaveLength(1)
+    expect(getChain(V1)[0].id).toBe('e1')
+    expect(getChain(V2)).toHaveLength(0)
+  })
+
+  // ── Scenario: Mutations on one track do not affect another ────────────────
+  it('[effect-chain/Mutations on one track do not affect another] removeEffect on V1 leaves V2 intact', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('ps', 'pixelsort'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm', 'datamosh'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().removeEffect(V1, 'ps')
+
+    expect(getChain(V1)).toHaveLength(0)
+    expect(getChain(V2)).toHaveLength(1)
+    expect(getChain(V2)[0].id).toBe('dm')
+  })
+
+  it('[effect-chain/Mutations on one track do not affect another] reorderEffect on V1 leaves V2 intact', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e2'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm', 'datamosh'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().reorderEffect(V1, 0, 1)
+
+    expect(getChain(V1).map((e) => e.id)).toEqual(['e2', 'e1'])
+    expect(getChain(V2)[0].id).toBe('dm')
+  })
+
+  it('[effect-chain/Mutations on one track do not affect another] updateParam on V1 leaves V2 intact', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().updateParam(V1, 'e1', 'amount', 0.99)
+
+    expect(getChain(V1)[0].parameters.amount).toBe(0.99)
+    expect(getChain(V2)[0].parameters.amount).toBe(0.5) // unchanged
+  })
+
+  it('[effect-chain/Mutations on one track do not affect another] setMix on V1 leaves V2 intact', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().setMix(V1, 'e1', 0.3)
+
+    expect(getChain(V1)[0].mix).toBe(0.3)
+    expect(getChain(V2)[0].mix).toBe(1.0) // unchanged
+  })
+
+  it('[effect-chain/Mutations on one track do not affect another] toggleEffect on V1 leaves V2 intact', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().toggleEffect(V1, 'e1')
+
+    expect(getChain(V1)[0].isEnabled).toBe(false)
+    expect(getChain(V2)[0].isEnabled).toBe(true) // unchanged
+  })
+
+  // ── Scenario: Per-track chain length limit ────────────────────────────────
+  it('[effect-chain/Per-track chain length limit] V1 at max rejects extra, V2 still accepts', () => {
+    for (let i = 0; i < LIMITS.MAX_EFFECTS_PER_CHAIN; i++) {
+      useProjectStore.getState().addEffect(V1, makeRealEffect(`v1-fx-${i}`))
+    }
+    // V1 is full
+    expect(getChain(V1)).toHaveLength(LIMITS.MAX_EFFECTS_PER_CHAIN)
+    // Extra to V1 is rejected
+    useProjectStore.getState().addEffect(V1, makeRealEffect('overflow'))
+    expect(getChain(V1)).toHaveLength(LIMITS.MAX_EFFECTS_PER_CHAIN)
+    // V2 can still accept
+    useProjectStore.getState().addEffect(V2, makeRealEffect('v2-fx'))
+    expect(getChain(V2)).toHaveLength(1)
+  })
+
+  // ── Scenario: Unknown track id is a no-op ─────────────────────────────────
+  it('[effect-chain/Unknown track id is a no-op] addEffect to ghost track does not throw', () => {
+    expect(() => useProjectStore.getState().addEffect('ghost', makeRealEffect('e'))).not.toThrow()
+    expect(getChain(V1)).toHaveLength(0)
+    expect(getChain(V2)).toHaveLength(0)
+  })
+
+  it('[effect-chain/Unknown track id is a no-op] removeEffect on ghost track is no-op', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    expect(() => useProjectStore.getState().removeEffect('ghost', 'e1')).not.toThrow()
+    expect(getChain(V1)).toHaveLength(1) // V1 untouched
+  })
+
+  // ── Scenario: Migrated actions do not write the global field ──────────────
+  it('[effect-chain/Migrated actions do not write the global field] addEffect leaves global effectChain empty', () => {
+    // Global field should be empty before
+    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    // Global field stays empty (D6 design)
+    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    // Track chain has the effect
+    expect(getChain(V1)).toHaveLength(1)
+  })
+
+  // ── Scenario: Undo of remove restores chain and dependents ────────────────
+  it('[effect-chain/Undo of remove restores chain and dependents] removeEffect + undo restores V1 chain', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e2'))
+    // Add cross-store state
+    useOperatorStore.setState({
+      operators: [{
+        id: 'op-1', type: 'lfo', label: 'LFO', isEnabled: true,
+        parameters: {}, processing: [],
+        mappings: [{ targetEffectId: 'e1', targetParamKey: 'amount', depth: 1, min: 0, max: 1, curve: 'linear' }],
+      }],
+    })
+    useAutomationStore.setState({
+      lanes: { 'trk': [{ id: 'ln', paramPath: 'e1.amount', color: '#f00', isVisible: true, points: [], isTrigger: false }] },
+    })
+    useMIDIStore.setState({ ccMappings: [{ cc: 1, effectId: 'e1', paramKey: 'amount' }] })
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().removeEffect(V1, 'e1')
+
+    expect(getChain(V1).map((e) => e.id)).toEqual(['e2'])
+    expect(useOperatorStore.getState().operators[0].mappings).toHaveLength(0)
+    expect(useAutomationStore.getState().lanes['trk']).toBeUndefined()
+    expect(useMIDIStore.getState().ccMappings).toHaveLength(0)
+
+    // Undo restores everything
+    useUndoStore.getState().undo()
+
+    const restored = getChain(V1)
+    expect(restored.map((e) => e.id)).toEqual(['e1', 'e2'])
+    expect(useOperatorStore.getState().operators[0].mappings).toHaveLength(1)
+    expect(useOperatorStore.getState().operators[0].mappings[0].targetEffectId).toBe('e1')
+    expect(useAutomationStore.getState().lanes['trk']).toHaveLength(1)
+    expect(useMIDIStore.getState().ccMappings).toHaveLength(1)
+  })
+
+  // ── Scenario: Active chain follows selection ──────────────────────────────
+  it('[effect-chain/Active chain follows selection] getActiveEffectChain returns chain of selected track', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('ps', 'pixelsort'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm', 'datamosh'))
+
+    useTimelineStore.getState().selectTrack(V1)
+    expect(getActiveEffectChain().map((e) => e.id)).toEqual(['ps'])
+
+    useTimelineStore.getState().selectTrack(V2)
+    expect(getActiveEffectChain().map((e) => e.id)).toEqual(['dm'])
+  })
+
+  it('[effect-chain/Active chain follows selection] getActiveEffectChain returns EMPTY when no selection', () => {
+    useTimelineStore.getState().selectTrack(null)
+    const chain = getActiveEffectChain()
+    expect(chain).toHaveLength(0)
+    // Returns stable reference (same object on repeated calls)
+    expect(getActiveEffectChain()).toBe(chain)
+  })
+
+  // ── Undo of addEffect targets V1 only ────────────────────────────────────
+  it('[effect-chain/Undo of addEffect restores V1 only] undo addEffect on V1 does not touch V2', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e2'))
+    expect(getChain(V1)).toHaveLength(2)
+    expect(getChain(V2)).toHaveLength(1)
+
+    useUndoStore.getState().undo()
+    expect(getChain(V1)).toHaveLength(1)
+    expect(getChain(V2)).toHaveLength(1) // V2 untouched
+  })
+
+  // ── 3-track mixed ─────────────────────────────────────────────────────────
+  it('[effect-chain/3-track mixed] different effect ids per track survive cross-track operations', () => {
+    const V3 = useTimelineStore.getState().addTrack('V3', '#0000ff')!
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().addEffect(V1, makeRealEffect('v1-fx'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('v2-fx'))
+    useProjectStore.getState().addEffect(V3, makeRealEffect('v3-fx'))
+
+    // Operate on V2 only
+    useProjectStore.getState().updateParam(V2, 'v2-fx', 'amount', 0.9)
+    useProjectStore.getState().toggleEffect(V2, 'v2-fx')
+
+    // V1 and V3 unaffected
+    expect(getChain(V1)[0].parameters.amount).toBe(0.5)
+    expect(getChain(V1)[0].isEnabled).toBe(true)
+    expect(getChain(V3)[0].parameters.amount).toBe(0.5)
+    expect(getChain(V3)[0].isEnabled).toBe(true)
+
+    // V2 changed
+    expect(getChain(V2)[0].parameters.amount).toBe(0.9)
+    expect(getChain(V2)[0].isEnabled).toBe(false)
+  })
+})
+
+// ── Task 10b: PC-B guard — resetProject leaves per-track chains consistent ───
+describe('useProjectStore — resetProject PC-B guard', () => {
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+    useProjectStore.getState().resetProject()
+    useUndoStore.getState().clear()
+  })
+
+  it('[effect-chain/resetProject PC-B] resetProject resets global effectChain and keeps timeline reset semantics', () => {
+    // Set up a track with an effect
+    const V1 = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useUndoStore.getState().clear()
+
+    // Calling resetProject clears projectStore defaults (effectChain=[])
+    useProjectStore.getState().resetProject()
+
+    // Global effectChain is reset
+    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    // Timeline is separate store — not reset by resetProject
+    expect(useTimelineStore.getState().tracks).toHaveLength(1)
+    expect(getChain(V1)).toHaveLength(1) // track chain still intact
+
+    // After timeline reset as well, everything is clean
+    useTimelineStore.getState().reset()
+    expect(useTimelineStore.getState().tracks).toHaveLength(0)
+  })
+
+  it('[effect-chain/resetProject PC-B] resetProject seed resets to 0 across consecutive resets', () => {
+    useProjectStore.getState().setSeed(12345)
+    expect(useProjectStore.getState().seed).toBe(12345)
+
+    useProjectStore.getState().resetProject()
+    expect(useProjectStore.getState().seed).toBe(0)
+    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    expect(useProjectStore.getState().deviceGroups).toEqual({})
+  })
+
+  function getChain(trackId: string): EffectInstance[] {
+    return useTimelineStore.getState().tracks.find((t) => t.id === trackId)?.effectChain ?? []
+  }
 })

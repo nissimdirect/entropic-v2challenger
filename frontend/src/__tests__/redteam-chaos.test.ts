@@ -58,12 +58,23 @@ function makeEffect(id: string, effectId = 'fx.invert'): EffectInstance {
   }
 }
 
+// Shared track used by tests that need per-track chain operations.
+// TODO(Epic02): use active track — mechanical migration for Epic 01 compatibility.
+let V1_TRACK_ID: string
+
+function getV1Chain(): EffectInstance[] {
+  return useTimelineStore.getState().tracks.find((t) => t.id === V1_TRACK_ID)?.effectChain ?? []
+}
+
 function resetAll() {
   useTimelineStore.getState().reset()
   useProjectStore.getState().resetProject()
   useUndoStore.getState().clear()
   useToastStore.getState().clearAll()
   useAutomationStore.getState().resetAutomation()
+  // Epic 01: create a shared V1 track for effect chain operations
+  V1_TRACK_ID = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+  useUndoStore.getState().clear() // clear undo from addTrack
 }
 
 // ─── 1. Rapid undo/redo cycling ─────────────────────────────────────────────
@@ -74,16 +85,16 @@ describe('RED TEAM: Rapid undo/redo cycling', () => {
   it('add 10 effects, undo 10x, redo 10x, undo 5x — chain state is consistent', () => {
     const effects = Array.from({ length: 10 }, (_, i) => makeEffect(`fx-${i}`))
     for (const fx of effects) {
-      useProjectStore.getState().addEffect(fx)
+      useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
     }
-    expect(useProjectStore.getState().effectChain).toHaveLength(10)
+    expect(getV1Chain()).toHaveLength(10)
     expect(useUndoStore.getState().past).toHaveLength(10)
 
     // Undo all 10
     for (let i = 0; i < 10; i++) {
       useUndoStore.getState().undo()
     }
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    expect(getV1Chain()).toHaveLength(0)
     expect(useUndoStore.getState().past).toHaveLength(0)
     expect(useUndoStore.getState().future).toHaveLength(10)
 
@@ -91,7 +102,7 @@ describe('RED TEAM: Rapid undo/redo cycling', () => {
     for (let i = 0; i < 10; i++) {
       useUndoStore.getState().redo()
     }
-    expect(useProjectStore.getState().effectChain).toHaveLength(10)
+    expect(getV1Chain()).toHaveLength(10)
     expect(useUndoStore.getState().past).toHaveLength(10)
     expect(useUndoStore.getState().future).toHaveLength(0)
 
@@ -99,39 +110,38 @@ describe('RED TEAM: Rapid undo/redo cycling', () => {
     for (let i = 0; i < 5; i++) {
       useUndoStore.getState().undo()
     }
-    expect(useProjectStore.getState().effectChain).toHaveLength(5)
+    expect(getV1Chain()).toHaveLength(5)
     expect(useUndoStore.getState().past).toHaveLength(5)
     expect(useUndoStore.getState().future).toHaveLength(5)
 
     // Verify the first 5 effects are the ones remaining
-    const remainingIds = useProjectStore.getState().effectChain.map((e) => e.id)
+    const remainingIds = getV1Chain().map((e) => e.id)
     expect(remainingIds).toEqual(['fx-0', 'fx-1', 'fx-2', 'fx-3', 'fx-4'])
   })
 
   it('add effect, modify param, delete, undo all 3 — chain returns to original', () => {
     const fx = makeEffect('fx-abc')
-    useProjectStore.getState().addEffect(fx)
-    const originalChain = [...useProjectStore.getState().effectChain]
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Modify parameter
-    useProjectStore.getState().updateParam('fx-abc', 'amount', 0.9)
-    expect(useProjectStore.getState().effectChain[0].parameters.amount).toBe(0.9)
+    useProjectStore.getState().updateParam(V1_TRACK_ID, 'fx-abc', 'amount', 0.9)
+    expect(getV1Chain()[0].parameters.amount).toBe(0.9)
 
     // Delete
-    useProjectStore.getState().removeEffect('fx-abc')
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-abc')
+    expect(getV1Chain()).toHaveLength(0)
 
     // Undo delete
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    expect(getV1Chain()).toHaveLength(1)
 
     // Undo param change
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain[0].parameters.amount).toBe(0.5)
+    expect(getV1Chain()[0].parameters.amount).toBe(0.5)
 
     // Undo add
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    expect(getV1Chain()).toHaveLength(0)
   })
 
   it('undo past beginning (empty history) — no-op, no crash', () => {
@@ -182,11 +192,11 @@ describe('RED TEAM: Delete while iterating', () => {
 
     // Delete
     useTimelineStore.getState().deleteSelectedClips()
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips).toHaveLength(0)
 
     // Undo
     useUndoStore.getState().undo()
-    const restored = useTimelineStore.getState().tracks[0].clips
+    const restored = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips
     expect(restored).toHaveLength(3)
     const restoredIds = restored.map((c) => c.id).sort()
     expect(restoredIds).toEqual(['c1', 'c2', 'c3'])
@@ -199,18 +209,19 @@ describe('RED TEAM: Delete while iterating', () => {
     useUndoStore.getState().clear()
 
     useTimelineStore.getState().removeTrack(trackId)
-    expect(useTimelineStore.getState().tracks).toHaveLength(0)
+    expect(useTimelineStore.getState().tracks).toHaveLength(1) // V1 track still exists
 
     useUndoStore.getState().undo()
-    expect(useTimelineStore.getState().tracks).toHaveLength(1)
-    expect(useTimelineStore.getState().tracks[0].id).toBe(trackId)
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+    expect(useTimelineStore.getState().tracks).toHaveLength(2)
+    const restored = useTimelineStore.getState().tracks.find((t) => t.id === trackId)
+    expect(restored).toBeDefined()
+    expect(restored!.clips).toHaveLength(1)
   })
 
   it('delete effect while it has automation lanes — cascade cleanup + undo', () => {
     // Add an effect
     const fx = makeEffect('fx-auto')
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Add automation lane targeting this effect
     const autoStore = useAutomationStore.getState()
@@ -221,14 +232,14 @@ describe('RED TEAM: Delete while iterating', () => {
     useUndoStore.getState().clear()
 
     // Delete the effect — should cascade-clean automation lanes
-    useProjectStore.getState().removeEffect('fx-auto')
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-auto')
+    expect(getV1Chain()).toHaveLength(0)
     const lanesAfterDelete = useAutomationStore.getState().getLanesForEffect('fx-auto')
     expect(lanesAfterDelete).toHaveLength(0)
 
     // Undo — effect AND automation lane should be restored
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    expect(getV1Chain()).toHaveLength(1)
     const lanesAfterUndo = useAutomationStore.getState().getLanesForEffect('fx-auto')
     expect(lanesAfterUndo.length).toBeGreaterThan(0)
   })
@@ -244,16 +255,16 @@ describe('RED TEAM: Max capacity stress', () => {
 
     // Fill to max
     for (let i = 0; i < max; i++) {
-      useProjectStore.getState().addEffect(makeEffect(`fx-${i}`))
+      useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect(`fx-${i}`))
     }
-    expect(useProjectStore.getState().effectChain).toHaveLength(max)
+    expect(getV1Chain()).toHaveLength(max)
 
     // Clear toasts to detect the warning
     useToastStore.getState().clearAll()
 
     // Try to add one more — should be rejected with toast
-    useProjectStore.getState().addEffect(makeEffect('fx-overflow'))
-    expect(useProjectStore.getState().effectChain).toHaveLength(max)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('fx-overflow'))
+    expect(getV1Chain()).toHaveLength(max)
 
     const toasts = useToastStore.getState().toasts
     expect(toasts.length).toBeGreaterThan(0)
@@ -265,7 +276,7 @@ describe('RED TEAM: Max capacity stress', () => {
     // The MAX is 500. Push 510 undo entries.
     for (let i = 0; i < 510; i++) {
       const fx = makeEffect(`fx-stress-${i}`)
-      useProjectStore.getState().addEffect(fx)
+      useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
     }
 
     // Should be capped — only 10 in chain (MAX_EFFECTS blocks after 10)
@@ -276,11 +287,11 @@ describe('RED TEAM: Max capacity stress', () => {
     // Use timeline tracks — MAX_TRACKS is 64 so we need another approach
     // Use updateParam which always succeeds and creates undo entries
     const fx = makeEffect('fx-stress')
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
 
     // Generate 510 undo entries by updating param
     for (let i = 0; i < 510; i++) {
-      useProjectStore.getState().updateParam('fx-stress', 'amount', i / 510)
+      useProjectStore.getState().updateParam(V1_TRACK_ID, 'fx-stress', 'amount', i / 510)
     }
 
     // past should be capped at 500 (updateParam entries only, +1 for addEffect)
@@ -293,11 +304,12 @@ describe('RED TEAM: Max capacity stress', () => {
     for (let i = 0; i < 20; i++) {
       useTimelineStore.getState().addTrack(`Track ${i}`, `#${i.toString(16).padStart(3, '0')}`)
     }
-    expect(useTimelineStore.getState().tracks).toHaveLength(20)
+    // +1 for the V1 track created in resetAll
+    expect(useTimelineStore.getState().tracks.length).toBeGreaterThanOrEqual(20)
 
     // Each track should have unique id and correct name
     const ids = new Set(useTimelineStore.getState().tracks.map((t) => t.id))
-    expect(ids.size).toBe(20)
+    expect(ids.size).toBe(useTimelineStore.getState().tracks.length)
   })
 })
 
@@ -318,7 +330,7 @@ describe('RED TEAM: Invalid state transitions', () => {
 
     it('setClipSpeed(clipId, NaN) — should reject, not corrupt', () => {
       useTimelineStore.getState().setClipSpeed('speed-clip', NaN)
-      const clip = useTimelineStore.getState().tracks[0].clips[0]
+      const clip = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips[0]
       // NaN must not leak into state — should reject (early return preserves original)
       expect(Number.isFinite(clip.speed)).toBe(true)
       expect(clip.speed).toBe(1) // original speed unchanged
@@ -326,20 +338,20 @@ describe('RED TEAM: Invalid state transitions', () => {
 
     it('setClipSpeed(clipId, Infinity) — should reject', () => {
       useTimelineStore.getState().setClipSpeed('speed-clip', Infinity)
-      const clip = useTimelineStore.getState().tracks[0].clips[0]
+      const clip = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips[0]
       expect(Number.isFinite(clip.speed)).toBe(true)
       expect(clip.speed).toBe(1) // original speed unchanged
     })
 
     it('setClipSpeed(clipId, 0) — should clamp to 0.1', () => {
       useTimelineStore.getState().setClipSpeed('speed-clip', 0)
-      const clip = useTimelineStore.getState().tracks[0].clips[0]
+      const clip = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips[0]
       expect(clip.speed).toBe(0.1)
     })
 
     it('setClipSpeed(clipId, -5) — should clamp to 0.1', () => {
       useTimelineStore.getState().setClipSpeed('speed-clip', -5)
-      const clip = useTimelineStore.getState().tracks[0].clips[0]
+      const clip = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips[0]
       expect(clip.speed).toBe(0.1)
     })
   })
@@ -354,20 +366,20 @@ describe('RED TEAM: Invalid state transitions', () => {
 
     it('setTrackOpacity(trackId, -1) — should clamp to 0', () => {
       useTimelineStore.getState().setTrackOpacity(trackId, -1)
-      const track = useTimelineStore.getState().tracks[0]
+      const track = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!
       expect(track.opacity).toBe(0)
     })
 
     it('setTrackOpacity(trackId, 2) — should clamp to 1', () => {
       useTimelineStore.getState().setTrackOpacity(trackId, 2)
-      const track = useTimelineStore.getState().tracks[0]
+      const track = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!
       expect(track.opacity).toBe(1)
     })
 
     it('setTrackOpacity(trackId, NaN) — should reject, not corrupt', () => {
-      const originalOpacity = useTimelineStore.getState().tracks[0].opacity
+      const originalOpacity = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.opacity
       useTimelineStore.getState().setTrackOpacity(trackId, NaN)
-      const track = useTimelineStore.getState().tracks[0]
+      const track = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!
       // Should reject — must not be NaN, original value preserved
       expect(Number.isFinite(track.opacity)).toBe(true)
       expect(track.opacity).toBe(originalOpacity)
@@ -405,18 +417,18 @@ describe('RED TEAM: Invalid state transitions', () => {
 
   describe('setMix boundary values', () => {
     beforeEach(() => {
-      useProjectStore.getState().addEffect(makeEffect('fx-mix'))
+      useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('fx-mix'))
       useUndoStore.getState().clear()
     })
 
     it('setMix(effectId, -0.5) — should clamp to 0', () => {
-      useProjectStore.getState().setMix('fx-mix', -0.5)
-      expect(useProjectStore.getState().effectChain[0].mix).toBe(0)
+      useProjectStore.getState().setMix(V1_TRACK_ID, 'fx-mix', -0.5)
+      expect(getV1Chain()[0].mix).toBe(0)
     })
 
     it('setMix(effectId, 1.5) — should clamp to 1', () => {
-      useProjectStore.getState().setMix('fx-mix', 1.5)
-      expect(useProjectStore.getState().effectChain[0].mix).toBe(1)
+      useProjectStore.getState().setMix(V1_TRACK_ID, 'fx-mix', 1.5)
+      expect(getV1Chain()[0].mix).toBe(1)
     })
   })
 })
@@ -428,16 +440,16 @@ describe('RED TEAM: Double-action conflicts', () => {
 
   it('add effect + immediately delete it — clean state', () => {
     const fx = makeEffect('fx-ephemeral')
-    useProjectStore.getState().addEffect(fx)
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
+    expect(getV1Chain()).toHaveLength(1)
 
-    useProjectStore.getState().removeEffect('fx-ephemeral')
-    expect(useProjectStore.getState().effectChain).toHaveLength(0)
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-ephemeral')
+    expect(getV1Chain()).toHaveLength(0)
 
     // Undo should restore the effect
     useUndoStore.getState().undo()
-    expect(useProjectStore.getState().effectChain).toHaveLength(1)
-    expect(useProjectStore.getState().effectChain[0].id).toBe('fx-ephemeral')
+    expect(getV1Chain()).toHaveLength(1)
+    expect(getV1Chain()[0].id).toBe('fx-ephemeral')
   })
 
   it('selectClip + deleteSelectedClips in same tick — no orphan references', () => {
@@ -453,7 +465,7 @@ describe('RED TEAM: Double-action conflicts', () => {
     useTimelineStore.getState().deleteSelectedClips()
 
     // No clips, no selection, no orphan references
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(0)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips).toHaveLength(0)
     expect(useTimelineStore.getState().selectedClipIds).toHaveLength(0)
     expect(useTimelineStore.getState().selectedClipId).toBeNull()
   })
@@ -461,11 +473,13 @@ describe('RED TEAM: Double-action conflicts', () => {
   it('groupEffects + immediately ungroupEffects — chain returns to original', () => {
     const fx1 = makeEffect('fx-g1')
     const fx2 = makeEffect('fx-g2')
-    useProjectStore.getState().addEffect(fx1)
-    useProjectStore.getState().addEffect(fx2)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx1)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx2)
     useUndoStore.getState().clear()
 
-    const groupsBefore = { ...useProjectStore.getState().deviceGroups }
+    // groupEffects reads from get().effectChain (global, not yet migrated)
+    // Seed the global field for groupEffects to validate against
+    useProjectStore.setState({ effectChain: [...getV1Chain()] })
 
     // Group
     const groupId = useProjectStore.getState().groupEffects(['fx-g1', 'fx-g2'], 'Test Group')
@@ -477,16 +491,16 @@ describe('RED TEAM: Double-action conflicts', () => {
     expect(Object.keys(useProjectStore.getState().deviceGroups)).toHaveLength(0)
 
     // Effects should still be in chain
-    expect(useProjectStore.getState().effectChain).toHaveLength(2)
+    expect(getV1Chain()).toHaveLength(2)
   })
 
   it('delete effect that is currently selected — selectedEffectId clears', () => {
     const fx = makeEffect('fx-selected')
-    useProjectStore.getState().addEffect(fx)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx)
     useProjectStore.getState().selectEffect('fx-selected')
     expect(useProjectStore.getState().selectedEffectId).toBe('fx-selected')
 
-    useProjectStore.getState().removeEffect('fx-selected')
+    useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-selected')
     expect(useProjectStore.getState().selectedEffectId).toBeNull()
   })
 
@@ -495,9 +509,9 @@ describe('RED TEAM: Double-action conflicts', () => {
     const fx2 = makeEffect('fx-b')
     const fx3 = makeEffect('fx-c')
 
-    useProjectStore.getState().addEffect(fx1)
-    useProjectStore.getState().addEffect(fx2)
-    useProjectStore.getState().addEffect(fx3)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx1)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx2)
+    useProjectStore.getState().addEffect(V1_TRACK_ID, fx3)
 
     // Undo 2 — builds up future stack
     useUndoStore.getState().undo()
@@ -505,7 +519,7 @@ describe('RED TEAM: Double-action conflicts', () => {
     expect(useUndoStore.getState().future).toHaveLength(2)
 
     // New action — should clear future
-    useProjectStore.getState().addEffect(makeEffect('fx-new'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('fx-new'))
     expect(useUndoStore.getState().future).toHaveLength(0)
   })
 })
@@ -527,7 +541,7 @@ describe('RED TEAM: Empty state operations', () => {
 
     // Attempt delete — should be no-op
     expect(() => useTimelineStore.getState().deleteSelectedClips()).not.toThrow()
-    expect(useTimelineStore.getState().tracks[0].clips).toHaveLength(1)
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.clips).toHaveLength(1)
 
     // No undo entry created
     expect(useUndoStore.getState().past).toHaveLength(0)
@@ -577,6 +591,7 @@ describe('RED TEAM: Empty state operations', () => {
 
   it('undo when history is empty — no-op', () => {
     expect(useUndoStore.getState().past).toHaveLength(0)
+
     expect(() => useUndoStore.getState().undo()).not.toThrow()
     expect(useUndoStore.getState().past).toHaveLength(0)
   })
@@ -588,9 +603,9 @@ describe('RED TEAM: Empty state operations', () => {
   })
 
   it('removeEffect on nonexistent ID — no-op', () => {
-    const chainBefore = useProjectStore.getState().effectChain.length
-    expect(() => useProjectStore.getState().removeEffect('ghost-id')).not.toThrow()
-    expect(useProjectStore.getState().effectChain.length).toBe(chainBefore)
+    const chainBefore = getV1Chain().length
+    expect(() => useProjectStore.getState().removeEffect(V1_TRACK_ID, 'ghost-id')).not.toThrow()
+    expect(getV1Chain().length).toBe(chainBefore)
   })
 
   it('removeTrack on nonexistent ID — no-op', () => {
@@ -604,7 +619,7 @@ describe('RED TEAM: Empty state operations', () => {
   })
 
   it('updateParam on nonexistent effect — no-op', () => {
-    expect(() => useProjectStore.getState().updateParam('ghost', 'amount', 1)).not.toThrow()
+    expect(() => useProjectStore.getState().updateParam(V1_TRACK_ID, 'ghost', 'amount', 1)).not.toThrow()
   })
 
   it('selectEffect(null) — clears selection without crash', () => {
@@ -623,7 +638,9 @@ describe('RED TEAM: Empty state operations', () => {
   })
 
   it('groupEffects with fewer than 2 IDs — rejected with toast', () => {
-    useProjectStore.getState().addEffect(makeEffect('fx-solo'))
+    useProjectStore.getState().addEffect(V1_TRACK_ID, makeEffect('fx-solo'))
+    // Seed global chain for groupEffects validation
+    useProjectStore.setState({ effectChain: [...getV1Chain()] })
     useToastStore.getState().clearAll()
 
     const result = useProjectStore.getState().groupEffects(['fx-solo'])

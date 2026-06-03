@@ -132,15 +132,21 @@ describe('serializeProject', () => {
   })
 
   it('includes master effect chain', () => {
-    useProjectStore.getState().addEffect({
-      id: 'fx-1',
-      effectId: 'pixel_sort',
-      isEnabled: true,
-      isFrozen: false,
-      parameters: { threshold: 0.5 },
-      modulations: {},
-      mix: 1.0,
-      mask: null,
+    // Epic 01: addEffect no longer writes the global effectChain (D6).
+    // serializeProject reads from the global field (migrated in Epic 05).
+    // Inject directly into the global field to test serialization behavior.
+    // TODO(Epic05): update to use per-track chain serialization.
+    useProjectStore.setState({
+      effectChain: [{
+        id: 'fx-1',
+        effectId: 'pixel_sort',
+        isEnabled: true,
+        isFrozen: false,
+        parameters: { threshold: 0.5 },
+        modulations: {},
+        mix: 1.0,
+        mask: null,
+      }],
     })
 
     const json = serializeProject()

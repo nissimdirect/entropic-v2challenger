@@ -143,18 +143,29 @@ function AppInner() {
     canvasResolution,
     addAsset,
     removeAsset,
-    addEffect,
-    removeEffect,
-    reorderEffect,
-    updateParam,
-    setMix,
-    toggleEffect,
+    addEffect: addEffectRaw,
+    removeEffect: removeEffectRaw,
+    reorderEffect: reorderEffectRaw,
+    updateParam: updateParamRaw,
+    setMix: setMixRaw,
+    toggleEffect: toggleEffectRaw,
     selectEffect,
     setCurrentFrame,
     setTotalFrames,
     setIngesting,
     setIngestError,
   } = useProjectStore()
+
+  // TODO(Epic02): use active track — D8 stubs for Epic 01 compatibility.
+  // All call sites below get trackId from the current selection.
+  const addEffect = useCallback((effect: EffectInstance) => {
+    const trackId = useTimelineStore.getState().selectedTrackId // TODO(Epic02): use active track
+    addEffectRaw(trackId ?? '', effect)
+  }, [addEffectRaw])
+  const removeEffect = useCallback((id: string) => {
+    const trackId = useTimelineStore.getState().selectedTrackId // TODO(Epic02): use active track
+    removeEffectRaw(trackId ?? '', id)
+  }, [removeEffectRaw])
 
   const isDirty = useUndoStore((s) => s.isDirty)
   const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
