@@ -1,133 +1,143 @@
-"""Q7 L-backbone worker — STUB entry-point.
+"""Q7 L-backbone worker (PR #9 real impl — replaces PR #4 stub).
 
-PR #4 scope: prove the separate-process topology from DEC-Q7-008 works.
-The worker binds a ZMQ REP socket on the chosen port, accepts {cmd, id,
-_token, payload} messages, and responds to:
+Spawned as a SEPARATE Python process from the main render sidecar per
+DEC-Q7-008. Binds a ZMQ REP socket on a configurable port. Accepts:
 
-  - cmd='ping'    → {ok: true, schema: 'q7-worker-stub', version: '0.0.1'}
-  - cmd='encode'  → {ok: true, embedding: <synthetic 384/512-dim vector>,
-                     embed_dim: <dim>, backend: 'stub'}
-  - cmd='shutdown' → {ok: true, message: 'shutting down'}, then exits
+  - {cmd: 'ping'}                                    → {ok: true, ...}
+  - {cmd: 'encode', payload: {model, image|text|audio, ...}} → embedding
+  - {cmd: 'stats'}                                   → encode/error counts
+  - {cmd: 'shutdown'}                                → reply then exit
 
-NO real models are loaded. PR #9 replaces this stub with the actual L
-backbone worker that lazy-loads DINOv2 + CLIP + CLAP, manages the
-shared queue, and obeys SG-3 / SG-4 / SG-8 contracts.
+Run via:
+    python3 -m q7_worker --port 6099 [--backend mps|cpu|mlx]
 """
 
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
+import time
 
 import zmq
 
 from . import __version__
+from .dispatcher import Dispatcher
 
-STUB_SCHEMA = "q7-worker-stub"
 DEFAULT_PORT = 6099
+SCHEMA_TAG = "q7-worker-v1"
+IDLE_LOG_INTERVAL_S = 60.0
+
+_SHUTDOWN_FLAG = {"requested": False}
 
 
-def _make_synth_embedding(name: str, dim: int) -> list[float]:
-    """Deterministic synthetic embedding based on model name + dim."""
-    import random
-
-    rng = random.Random(f"q7-worker-stub:{name}:{dim}")
-    vec = [rng.uniform(-1.0, 1.0) for _ in range(dim)]
-    # Don't bother L2-normalizing; the stub is for IPC shape, not real maths.
-    return vec
-
-
-def _handle_ping(req: dict) -> dict:
-    return {
-        "ok": True,
-        "id": req.get("id"),
-        "schema": STUB_SCHEMA,
-        "version": __version__,
-    }
-
-
-def _handle_encode(req: dict) -> dict:
-    payload = req.get("payload") or {}
-    model_name = str(payload.get("model", "dinov2"))
-    embed_dim = {"dinov2": 384, "clip": 512, "clap": 512}.get(model_name, 384)
-    return {
-        "ok": True,
-        "id": req.get("id"),
-        "embedding": _make_synth_embedding(model_name, embed_dim),
-        "embed_dim": embed_dim,
-        "backend": "stub",
-        "model": model_name,
-    }
-
-
-def _handle_shutdown(req: dict) -> dict:
-    return {
-        "ok": True,
-        "id": req.get("id"),
-        "message": "shutting down",
-    }
-
-
-DISPATCH = {
-    "ping": _handle_ping,
-    "encode": _handle_encode,
-    "shutdown": _handle_shutdown,
-}
+def _signal_handler(signum, _frame):  # noqa: ANN001
+    sys.stderr.write(f"q7_worker: signal {signum} received, shutting down\n")
+    sys.stderr.flush()
+    _SHUTDOWN_FLAG["requested"] = True
 
 
 def _build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="q7_worker",
-        description="Q7 L-backbone worker — STUB (PR #4). Real impl in PR #9.",
+        description="Q7 L-backbone worker (PR #9). Spawns the L inference subprocess.",
     )
     p.add_argument("--port", type=int, default=DEFAULT_PORT, help="ZMQ REP bind port")
     p.add_argument(
         "--bind",
         type=str,
         default="127.0.0.1",
-        help="ZMQ bind address (default: 127.0.0.1, localhost only)",
+        help="ZMQ bind address (default localhost)",
     )
     p.add_argument(
-        "--once",
-        action="store_true",
-        help="Process one request and exit (for tests)",
+        "--backend",
+        type=str,
+        choices=["mlx", "mps", "cpu"],
+        default="cpu",
+        help="Backend selection (DEC-Q7-004 cascade). 'cpu' is the safe default.",
+    )
+    p.add_argument(
+        "--once", action="store_true", help="Process one request and exit (for tests)."
     )
     return p
 
 
+def _handle_ping(req: dict) -> dict:
+    return {
+        "ok": True,
+        "id": req.get("id"),
+        "schema": SCHEMA_TAG,
+        "version": __version__,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
+
+    dispatcher = Dispatcher(backend=args.backend)
+
     ctx = zmq.Context()
     sock = ctx.socket(zmq.REP)
+    sock.setsockopt(zmq.LINGER, 0)
+    sock.setsockopt(zmq.RCVTIMEO, 1000)
     addr = f"tcp://{args.bind}:{args.port}"
     sock.bind(addr)
-    sys.stderr.write(f"q7_worker stub listening on {addr}\n")
+    sys.stderr.write(
+        f"q7_worker {__version__} listening on {addr} (backend={args.backend})\n"
+    )
     sys.stderr.flush()
 
+    last_activity = time.monotonic()
     try:
-        while True:
-            req = sock.recv_json()
+        while not _SHUTDOWN_FLAG["requested"]:
+            try:
+                req = sock.recv_json()
+            except zmq.Again:
+                now = time.monotonic()
+                if now - last_activity > IDLE_LOG_INTERVAL_S:
+                    sys.stderr.write(
+                        f"q7_worker: idle for {now - last_activity:.0f}s\n"
+                    )
+                    sys.stderr.flush()
+                    last_activity = now
+                continue
+            last_activity = time.monotonic()
+
             if not isinstance(req, dict):
                 sock.send_json({"ok": False, "error": "non-dict request"})
                 continue
+
             cmd = str(req.get("cmd", ""))
-            handler = DISPATCH.get(cmd)
-            if handler is None:
-                sock.send_json(
-                    {
-                        "ok": False,
-                        "id": req.get("id"),
-                        "error": f"unknown cmd: {cmd!r}",
-                    }
-                )
-                continue
-            resp = handler(req)
+            if cmd == "ping":
+                resp = _handle_ping(req)
+            elif cmd == "encode":
+                payload = req.get("payload") or {}
+                resp = dispatcher.handle_encode(payload)
+                resp.setdefault("id", req.get("id"))
+            elif cmd == "stats":
+                resp = dispatcher.handle_stats()
+                resp.setdefault("id", req.get("id"))
+            elif cmd == "shutdown":
+                resp = {"ok": True, "id": req.get("id"), "message": "shutting down"}
+                sock.send_json(resp)
+                break
+            else:
+                resp = {
+                    "ok": False,
+                    "id": req.get("id"),
+                    "error": f"unknown cmd: {cmd!r}",
+                }
             sock.send_json(resp)
-            if cmd == "shutdown" or args.once:
+            if args.once:
                 break
     finally:
         sock.close(linger=0)
         ctx.term()
+        sys.stderr.write("q7_worker: shut down cleanly\n")
+        sys.stderr.flush()
     return 0
 
 
