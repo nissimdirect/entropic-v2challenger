@@ -15,10 +15,16 @@ import sys
 import time
 from pathlib import Path
 
+import numpy as np
+
 from . import __version__
-from .backends import detect_backend, BackendUnavailableError
+from .backends import BackendUnavailableError, detect_backend
+from .bench import BenchPlan, benchmark_loader
+from .loaders import make_loader
 from .mock import mock_measure
+from .queue_sat import measure_saturation
 from .report import REPORT_SCHEMA_VERSION
+from .under_load import measure_under_load
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -61,6 +67,35 @@ def _build_parser() -> argparse.ArgumentParser:
         help="RNG seed (mock mode determinism).",
     )
     p.add_argument(
+        "--n-iterations",
+        type=int,
+        default=100,
+        help="Measured iterations per backbone (DEC-Q7-006 default 100).",
+    )
+    p.add_argument(
+        "--saturation-threads",
+        type=int,
+        default=4,
+        help="Queue saturation worker count (DEC-Q7-006 default 4).",
+    )
+    p.add_argument(
+        "--saturation-window",
+        type=float,
+        default=5.0,
+        help="Queue saturation wall-clock window in seconds (default 5.0).",
+    )
+    p.add_argument(
+        "--under-load-duration",
+        type=float,
+        default=30.0,
+        help="Latency-under-load duration (CTO R3, default 30s).",
+    )
+    p.add_argument(
+        "--skip-under-load",
+        action="store_true",
+        help="Skip the under-load measurement (faster for development).",
+    )
+    p.add_argument(
         "--version",
         action="version",
         version=f"q7-benchmark {__version__}",
@@ -91,6 +126,95 @@ def _build_report(
     }
 
 
+# Per-modality payload factories. Frame is 224x224 RGB; text is a short prompt;
+# audio is 3s @ 48kHz silence (CLAP minimum).
+_PAYLOAD_FACTORIES = {
+    "dinov2": lambda: np.zeros((224, 224, 3), dtype=np.uint8),
+    "clip": lambda: {"image": np.zeros((224, 224, 3), dtype=np.uint8)},
+    "clap": lambda: {
+        "audio": np.zeros(48000 * 3, dtype=np.float32),
+        "sample_rate": 48000,
+    },
+}
+
+
+def _run_real_measurement(backend_name: str, args: argparse.Namespace) -> dict:
+    """Wire the bench harness through real loaders.
+
+    In PR #4 the real loaders' encode() still raises NotImplementedError;
+    the harness catches and reports BACKEND_NOT_LIT per-head so the run
+    produces a valid 0.2.0 report even before encode is lit up.
+    """
+    heads = {}
+    queue_summary = {
+        "n_threads": args.saturation_threads,
+        "window_seconds": args.saturation_window,
+        "total_encodes": 0,
+        "throughput_per_second": 0.0,
+        "per_thread_counts": [0] * args.saturation_threads,
+    }
+
+    # Use dinov2 as the canonical jitter target until PR #5 wires the real
+    # interpolation pipeline.
+    canonical_loader = make_loader("dinov2", backend=backend_name)  # type: ignore[arg-type]
+
+    for name in ("dinov2", "clip", "clap"):
+        loader = make_loader(name, backend=backend_name)  # type: ignore[arg-type]
+        plan = BenchPlan(
+            loader=loader,
+            payload_factory=_PAYLOAD_FACTORIES[name],
+            iterations=args.n_iterations,
+        )
+        result = benchmark_loader(plan)
+        heads[name] = result.to_dict()
+
+        sat = measure_saturation(
+            loader,
+            _PAYLOAD_FACTORIES[name],
+            n_threads=args.saturation_threads,
+            window_seconds=args.saturation_window,
+        )
+        # Aggregate: pick the highest throughput head as the headline number.
+        if sat.throughput_per_second > queue_summary["throughput_per_second"]:
+            queue_summary = sat.to_dict()
+            # Drop the error field — schema 0.2.0 doesn't require it at the top
+            queue_summary.pop("error", None)
+
+    if args.skip_under_load:
+        degradation_under_load = False
+    else:
+        under = measure_under_load(
+            BenchPlan(
+                loader=canonical_loader,
+                payload_factory=_PAYLOAD_FACTORIES["dinov2"],
+                iterations=max(10, args.n_iterations // 10),
+            ),
+            duration_seconds=args.under_load_duration,
+        )
+        degradation_under_load = under.degradation_under_load
+
+    # Interpolation jitter lights up in PR #5; PR #4 uses canonical head's p95.
+    canonical_p95 = heads["dinov2"]["encode_latency"]["p95_ms"]
+    canonical_p50 = heads["dinov2"]["encode_latency"]["p50_ms"]
+
+    return {
+        "heads": heads,
+        "interpolation": {
+            "sparsity": args.sparsity,
+            "jitter_p50_ms": canonical_p50,
+            "jitter_p95_ms": canonical_p95,
+            "below_threshold_50ms": canonical_p95 < 50.0,
+            "degradation_under_load": degradation_under_load,
+        },
+        "queue": queue_summary,
+        "memory": {
+            # PR #6 wires psutil for real memory tracking; PR #4 stub.
+            "resident_mb": 0.0,
+            "peak_mb": 0.0,
+        },
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     _validate_args(args)
@@ -100,17 +224,24 @@ def main(argv: list[str] | None = None) -> int:
         measurement = mock_measure(seed=args.seed, sparsity=args.sparsity)
         mode = "mock"
     else:
-        # PR #3+: real backend detection + measurement
+        # PR #4: real backend detection + bench harness wired. Real model
+        # encode() raises NotImplementedError until PR #5+ lights it up;
+        # benchmark_loader catches and surfaces as BACKEND_NOT_LIT per-head.
         try:
             backend = detect_backend(allow_mock=False)
         except BackendUnavailableError as exc:
             raise SystemExit(f"error: {exc}")
-        raise SystemExit(
-            f"error: --measure not implemented yet (PR #3+ scope). "
-            f"Detected backend: {backend.name}. Use --mock for now."
-        )
+        backend_name = backend.name
+        measurement = _run_real_measurement(backend.name, args)
+        mode = "measure"
 
     report = _build_report(mode, backend_name, measurement, args.sparsity)
+
+    # In --measure mode, exit non-zero if every head failed (backend not
+    # lit). Mock mode always exits 0 because mock heads always succeed.
+    measure_total_failure = mode == "measure" and all(
+        h.get("error") is not None for h in measurement["heads"].values()
+    )
 
     if args.out is not None:
         args.out.parent.mkdir(parents=True, exist_ok=True)
@@ -118,6 +249,14 @@ def main(argv: list[str] | None = None) -> int:
     elif args.report:
         json.dump(report, sys.stdout, indent=2, sort_keys=True)
         sys.stdout.write("\n")
+
+    if measure_total_failure:
+        sys.stderr.write(
+            "error: --measure produced no real data — every backbone failed "
+            "(typically because real encode is not lit up; expected before "
+            "PR #5+).\n"
+        )
+        return 1
 
     return 0
 

@@ -1,0 +1,31 @@
+# Q7 benchmark dependencies for REAL measurement on Apple silicon.
+#
+# Install with:
+#   pip install -r backend/scripts/q7_benchmark/requirements-q7-measure.txt
+#
+# CI smoke does NOT install this — it uses mock loaders + requirements-q7.txt
+# (numpy only). The real heavy deps live here behind explicit user opt-in.
+#
+# Versions chosen for Python 3.12 (the Q7 floor per DEC-Q7-002).
+# MLX is Apple-silicon-only; the others work on macOS Intel + arm64 + Linux.
+
+# Smoke deps (re-included so this file is self-sufficient)
+numpy>=2.0
+
+# Vision + text + audio backbones
+torch>=2.5
+transformers>=4.45
+huggingface-hub>=0.26
+safetensors>=0.4
+Pillow>=11.0  # for image preprocessing (already in pyproject)
+
+# CLAP (laion-clap is the canonical wrapper around HTSAT)
+# Pinned cautiously since laion-clap pulls in heavyweight deps
+laion-clap==1.1.6
+
+# Apple silicon preferred path
+mlx>=0.20
+
+# Benchmark reporting
+matplotlib>=3.9
+psutil>=6.0
