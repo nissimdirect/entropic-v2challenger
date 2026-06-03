@@ -33,13 +33,19 @@ jobs:
       - name: Install Q7 deps
         run: pip install -r backend/scripts/q7_benchmark/requirements-q7.txt
 
-      - name: Install pytest + plugins required by pyproject addopts
-        run: pip install pytest pytest-rerunfailures pytest-xdist
+      - name: Install pytest
+        run: pip install pytest
 
       - name: Run mock benchmark + schema validation
         run: make q7-smoke
 
       - name: Run harness unit tests
+        # --confcutdir stops pytest from walking up to backend/tests/conftest.py
+        # (which imports numpy/zmq — heavy deps not needed for Q7 smoke).
+        # -o addopts="" overrides pyproject.toml's xdist/rerunfailures opts.
         run: |
           cd backend
-          PYTHONPATH=scripts pytest tests/test_q7_benchmark/ -m smoke -q
+          PYTHONPATH=scripts pytest tests/test_q7_benchmark/ \
+            -m smoke -q \
+            --confcutdir=tests/test_q7_benchmark \
+            -o addopts=""
