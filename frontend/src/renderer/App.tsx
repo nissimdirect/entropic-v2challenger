@@ -36,7 +36,7 @@ import { transportForward, transportReverse, transportStop, getTransportDirectio
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
-import { getActiveTrackId } from './stores/project'
+import { getActiveTrackId, getActiveEffectChain } from './stores/project'
 import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
@@ -66,7 +66,6 @@ import PresetBrowser from './components/library/PresetBrowser'
 import PresetSaveDialog from './components/library/PresetSaveDialog'
 import { useLibraryStore } from './stores/library'
 import { useFreezeStore } from './stores/freeze'
-import { MASTER_TRACK_ID } from '../shared/limits'
 import { useToastStore } from './stores/toast'
 import { useLayoutStore } from './stores/layout'
 import Toast from './components/common/Toast'
@@ -1460,12 +1459,11 @@ function AppInner() {
     requestRenderFrame(currentFrame, [])
   }, [currentFrame, requestRenderFrame])
 
-  // F-0514-16: Freeze / Unfreeze / Flatten handlers (re-wired after Phase 13C).
-  // The freezeStore was designed for per-track chains; v2 has a project-level
-  // effectChain, so we use the synthetic MASTER_TRACK_ID. The handlers below
-  // are passed to DeviceChain's context menu (the new home for what used to be
-  // the EffectRack right-click). All gated on activeAssetPath so freezing
-  // without a loaded video produces a friendly toast instead of an IPC error.
+  // F-0514-16 / Epic 3: Freeze / Unfreeze / Flatten handlers rewired to per-track.
+  // Each handler resolves the active trackId (D1) and operates on that track's
+  // chain (D2). The freezeStore was already trackId-keyed; Epic 3 only rewires
+  // the call sites. All gated on activeAssetPath (video loaded) and trackId (non-null)
+  // so freeze without a loaded video or without a video track is a friendly no-op.
   const handleFreezeUpTo = useCallback(
     async (cutIndex: number) => {
       if (!activeAssetPath.current) {
@@ -1476,14 +1474,19 @@ function AppInner() {
         })
         return
       }
-      if (cutIndex < 0 || cutIndex >= effectChain.length) return
-      const prefix = effectChain.slice(0, cutIndex + 1).map((e) => ({
+      // Epic 3 (D1): resolve the active track; guard null (no video track = no-op)
+      const trackId = getActiveTrackId()
+      if (!trackId) return
+      // Epic 3 (D2): build prefix from the active track's chain, not the global effectChain
+      const chain = getActiveEffectChain()
+      if (cutIndex < 0 || cutIndex >= chain.length) return
+      const prefix = chain.slice(0, cutIndex + 1).map((e) => ({
         effect_id: e.effectId,
         params: e.parameters,
         enabled: e.isEnabled,
       }))
       await useFreezeStore.getState().freezePrefix(
-        MASTER_TRACK_ID,
+        trackId,
         cutIndex,
         activeAssetPath.current,
         prefix,
@@ -1493,20 +1496,26 @@ function AppInner() {
       )
       requestRenderFrame(currentFrame)
     },
-    [effectChain, totalFrames, frameWidth, frameHeight, currentFrame, requestRenderFrame],
+    [totalFrames, frameWidth, frameHeight, currentFrame, requestRenderFrame],
   )
 
   const handleUnfreeze = useCallback(async () => {
-    await useFreezeStore.getState().unfreezePrefix(MASTER_TRACK_ID)
+    // Epic 3 (D1): resolve active track; guard null (no video track = no-op)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    await useFreezeStore.getState().unfreezePrefix(trackId)
     requestRenderFrame(currentFrame)
   }, [currentFrame, requestRenderFrame])
 
   const handleFlatten = useCallback(async () => {
+    // Epic 3 (D1): resolve active track; guard null (no video track = no-op)
+    const trackId = getActiveTrackId()
+    if (!trackId) return
     if (!window.entropic?.selectSavePath) return
     const outputPath = await window.entropic.selectSavePath('flattened.mp4')
     if (!outputPath) return
     const result = await useFreezeStore.getState().flattenPrefix(
-      MASTER_TRACK_ID,
+      trackId,
       outputPath,
       activeFps,
     )

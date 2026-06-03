@@ -1,9 +1,9 @@
 import { useCallback, useState } from 'react'
-import { useProjectStore, useActiveEffectChain, getActiveTrackId } from '../../stores/project'
+import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId } from '../../stores/project'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
-import { LIMITS, MASTER_TRACK_ID } from '../../../shared/limits'
+import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import ContextMenu from '../timeline/ContextMenu'
 import type { MenuItem } from '../timeline/ContextMenu'
@@ -37,6 +37,8 @@ export default function DeviceChain({
 }: DeviceChainProps) {
   // D2 (Epic 02): display the ACTIVE track's chain via the active-track rule (D1).
   const effectChain = useActiveEffectChain()
+  // Epic 3 (D3): read active trackId reactively so isFrozenAt queries the correct per-track state.
+  const activeTrackId = useActiveTrackId()
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
   const deviceGroups = useProjectStore((s) => s.deviceGroups)
   const registry = useEffectsStore((s) => s.registry)
@@ -177,11 +179,9 @@ export default function DeviceChain({
       })
     }
 
-    // F-0514-16: Freeze / Unfreeze / Flatten — only shown when the parent
-    // wired the handlers. Disabled during in-flight freeze ops to prevent
-    // races (freezeStore.operationState gates concurrent invocations too,
-    // but disabling the menu is the user-visible signal).
-    const indexIsFrozen = isFrozenAt(MASTER_TRACK_ID, index)
+    // Epic 3 (D3): use activeTrackId so per-track freeze state is queried correctly.
+    // Empty string → isFrozen returns false (safe no-op when no active track).
+    const indexIsFrozen = isFrozenAt(activeTrackId ?? '', index)
     const busy = freezeOpState !== 'idle'
 
     if (onFreezeUpTo && !indexIsFrozen) {
@@ -232,7 +232,7 @@ export default function DeviceChain({
     }
 
     return items
-  }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, onSaveAsPreset, onSaveChainAsPreset, isFrozenAt, freezeOpState])
+  }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, onSaveAsPreset, onSaveChainAsPreset, isFrozenAt, freezeOpState, activeTrackId])
 
   const chainTimeColor = lastFrameMs < 50 ? '#4ade80' : lastFrameMs < 100 ? '#f59e0b' : '#ef4444'
 
