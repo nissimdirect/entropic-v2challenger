@@ -16,3 +16,7 @@ numpy>=2.0
 # PR #4+ — pyzmq for the q7_worker stub + its IPC tests (DEC-Q7-008
 # separate-process topology). Already pinned in backend/pyproject.toml.
 pyzmq>=26.0
+
+# PR #6+ — Pillow used by DINOv2/CLIP preprocessors for resize + dtype norm.
+# Already in backend/pyproject.toml; pin here for the q7-smoke workflow.
+Pillow>=11.0
