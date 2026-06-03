@@ -12,3 +12,7 @@
 # PR #3+ — synthetic embedding generation + array shape contracts.
 # numpy 2.0+ matches backend/pyproject.toml floor.
 numpy>=2.0
+
+# PR #4+ — pyzmq for the q7_worker stub + its IPC tests (DEC-Q7-008
+# separate-process topology). Already pinned in backend/pyproject.toml.
+pyzmq>=26.0
