@@ -73,9 +73,12 @@ def test_bench_run_measured_returns_n_latencies():
 
 @pytest.mark.smoke
 def test_bench_real_backend_stub_reports_backend_not_lit():
-    """PR #3 real-backend stub raises NotImplementedError → bench reports error."""
-    loader = make_loader("dinov2", backend="mps")
-    plan = BenchPlan(loader=loader, payload_factory=_make_frame, iterations=10)
+    """Real-backend stub raises NotImplementedError → bench reports error.
+
+    PR #6 lit DINOv2; CLIP (still a stub) is used here to test the error path.
+    """
+    loader = make_loader("clip", backend="cpu")
+    plan = BenchPlan(loader=loader, payload_factory=_make_text_payload, iterations=10)
     result = benchmark_loader(plan)
     assert result.error is not None
     assert "BACKEND_NOT_LIT" in result.error

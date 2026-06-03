@@ -64,11 +64,14 @@ def test_under_load_to_dict_shape():
 
 @pytest.mark.smoke
 def test_under_load_baseline_failure_returns_zero_under_load():
-    """If baseline benchmark fails (e.g., backend not lit), under_load is 0.0."""
+    """If baseline benchmark fails (backend not lit), under_load is 0.0.
+
+    PR #6 lights up DINOv2 so we test against CLIP (still a stub).
+    """
     loader = make_loader(
-        "dinov2", backend="mps"
-    )  # real stub raises NotImplementedError
-    plan = BenchPlan(loader=loader, payload_factory=_frame_factory, iterations=5)
+        "clip", backend="cpu"
+    )  # real CLIP still raises NotImplementedError
+    plan = BenchPlan(loader=loader, payload_factory=lambda: {"text": "x"}, iterations=5)
     result = measure_under_load(
         plan, duration_seconds=0.2, threads=1, memory_pressure_mb=4
     )
