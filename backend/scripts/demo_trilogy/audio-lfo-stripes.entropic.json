@@ -1,0 +1,96 @@
+{
+  "_comment": "Demo 3 — Audio-LFO-Stripes. Skeleton for the audio-rate-LFO-as-spatial-banding demo. Requires source.mp4 (~10s plain dark gradient or solid color clip) + audio.wav (~10s dynamic instrumental: quiet intro, loud chorus, quiet outro). LFO operator running at 50Hz, modulated by audio RMS, bound to Y. Stripe density = LFO rate × frame timing.",
+  "version": "3.0.0",
+  "name": "Audio-LFO-Stripes",
+  "description": "Sound becomes vision. A 50Hz LFO bound to Y produces ~50 horizontal stripes per frame — packing tight when music gets loud.",
+  "demoOrder": 3,
+  "tracks": [
+    {
+      "id": "v1",
+      "type": "video",
+      "name": "source",
+      "clips": [
+        {
+          "id": "v1c1",
+          "assetPath": "demos/audio-lfo/source.mp4",
+          "startFrame": 0
+        }
+      ],
+      "effectChain": [
+        {
+          "id": "hue1",
+          "type": "hue_shift",
+          "params": {
+            "shift": { "scalar": 0 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a1",
+      "type": "audio",
+      "name": "loop",
+      "clips": [
+        {
+          "id": "a1c1",
+          "assetPath": "demos/audio-lfo/audio.wav",
+          "startFrame": 0
+        }
+      ]
+    }
+  ],
+  "operators": [
+    {
+      "id": "lfo1",
+      "type": "lfo",
+      "params": {
+        "rate": 50,
+        "_comment_rate": "50 Hz — high enough to produce ~50 stripes per 1080p frame at 60fps. LFO editor must allow audio-rate range (cap at 200 Hz). Bumping the cap is part of Creatrix PR-C.",
+        "shape": "sine",
+        "depth": 90
+      }
+    },
+    {
+      "id": "audio1",
+      "type": "audio_follower",
+      "params": {
+        "source": "a1",
+        "smoothing": 0.1
+      }
+    }
+  ],
+  "mod_edges": [
+    {
+      "id": "ME1",
+      "source_id": "audio1",
+      "src_axis": "t",
+      "target_param_path": "lfo1.rate",
+      "dst_axis": "t",
+      "binding_rule": "broadcast",
+      "depth": 0.7,
+      "_comment": "Audio RMS modulates LFO rate. Loud music → higher rate → tighter stripes. Quiet → wider stripes."
+    },
+    {
+      "id": "ME2",
+      "source_id": "lfo1",
+      "src_axis": "t",
+      "target_param_path": "hue1.shift",
+      "dst_axis": "y",
+      "binding_rule": "broadcast",
+      "depth": 1.0,
+      "_comment": "LFO output writes to hue.shift, bound to Y axis. The KEY paradigm unlock — LFO oscillation at audio rate becomes spatial banding because Y axis."
+    }
+  ],
+  "lanes": [],
+  "bpm": 120,
+  "transport": {
+    "loop": true,
+    "loopStart": 0,
+    "loopEnd": 300
+  },
+  "demoMetadata": {
+    "label": "Sound becomes vision. 50 Hz of LFO becomes 50 stripes per frame.",
+    "primitive": "audio-rate LFO + dst_axis='y'",
+    "viewingTimeSeconds": 30
+  }
+}
