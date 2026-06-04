@@ -17,15 +17,33 @@ logger = logging.getLogger(__name__)
 MAX_OPERATORS = 16
 
 
+class ModulationCycleError(Exception):
+    """Raised when the operator routing graph contains a cycle (INJ-2).
+
+    Previously the engine silently fell back to declaration order (stale 0.0
+    reads). Raising makes the cycle explicit so the caller can choose a policy
+    (today: graceful degrade to declaration order; SG-5: deterministic break).
+    B9 tensor routing + SG-5 depend on this being an explicit, typed failure.
+    """
+
+    def __init__(self, unresolved_ids: list[str]):
+        self.unresolved_ids = unresolved_ids
+        super().__init__(
+            "Modulation routing graph contains a cycle; unresolved operators: "
+            + ", ".join(str(x) for x in unresolved_ids)
+        )
+
+
 def _topological_sort(active_ops: list[dict]) -> list[dict]:
-    """Order operators so Fusion sources evaluate before Fusion consumers.
+    """Order operators so source operators evaluate before their consumers.
 
-    Fusion operators read other operators' values via `parameters.sources[].operator_id`.
-    The previous declaration-order loop returned 0.0 for any source declared after its
-    consumer (silent stale read, not a crash). This sort fixes that.
+    Any operator may read another operator's value via
+    `parameters.sources[].operator_id` (Fusion today; B9 tensor routing later) —
+    this walks ALL such operator-to-operator edges, not just Fusion (INJ-2).
 
-    Stable: preserves declaration order for operators with no fusion dependencies.
-    Cycle-safe: if a cycle is detected, falls back to declaration order with a warning.
+    Stable: preserves declaration order for operators with no dependencies.
+    Raises `ModulationCycleError` if the graph contains a cycle (INJ-2); the
+    caller decides the policy (graceful degrade today, SG-5 deterministic break).
     """
     n = len(active_ops)
     if n <= 1:
@@ -40,8 +58,8 @@ def _topological_sort(active_ops: list[dict]) -> list[dict]:
     # deps[i] = set of declaration indices that op i depends on
     deps: list[set[int]] = [set() for _ in range(n)]
     for i, op in enumerate(active_ops):
-        if op.get("type") != "fusion":
-            continue
+        # Walk operator-to-operator edges on ANY operator, not just Fusion —
+        # B9 tensor routing introduces non-Fusion cross-operator sources (INJ-2).
         params = op.get("parameters", op.get("params", {}))
         sources = params.get("sources", [])
         if not isinstance(sources, list):
@@ -73,11 +91,11 @@ def _topological_sort(active_ops: list[dict]) -> list[dict]:
                     ready.insert(pos, j)
 
     if len(ordered) < n:
-        logger.warning(
-            "Modulation graph contains a cycle in fusion sources; "
-            "falling back to declaration order. Some operators may read 0.0."
-        )
-        return active_ops
+        resolved = set(ordered)
+        unresolved = [
+            active_ops[i].get("id", f"<idx {i}>") for i in range(n) if i not in resolved
+        ]
+        raise ModulationCycleError(unresolved)
 
     return [active_ops[i] for i in ordered]
 
@@ -114,9 +132,17 @@ class SignalEngine:
 
         values: dict[str, float] = {}
 
-        # Cap at MAX_OPERATORS, then topo-sort so Fusion sources resolve before
-        # their consumers (otherwise Fusion reads 0.0 silently — see _topological_sort).
-        active_ops = _topological_sort(operators[:MAX_OPERATORS])
+        # Cap at MAX_OPERATORS, then topo-sort so source operators resolve before
+        # their consumers (otherwise consumers read 0.0 silently).
+        try:
+            active_ops = _topological_sort(operators[:MAX_OPERATORS])
+        except ModulationCycleError as exc:
+            # INJ-2: the sort now raises on a cycle. SG-5 will replace this with
+            # deterministic cycle-break ordering. Until then, degrade gracefully —
+            # keep declaration order so the render never crashes; affected
+            # consumers may read 0.0 (the prior silent behavior, now logged loud).
+            logger.warning("%s — falling back to declaration order", exc)
+            active_ops = operators[:MAX_OPERATORS]
 
         for op in active_ops:
             op_id = op.get("id", "")
