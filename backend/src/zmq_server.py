@@ -27,6 +27,7 @@ from security import (
     is_audio_magic,
     resolve_safe_path,
     validate_chain_depth,
+    validate_composite_layer_count,
     validate_frame_count,
     validate_output_directory,
     validate_output_path,
@@ -711,6 +712,12 @@ class ZMQServer:
         if not isinstance(raw_layers, list):
             return {"id": msg_id, "ok": False, "error": "layers must be a list"}
 
+        # INJ-3: backend-enforced layer cap BEFORE the decode loop (the 4-voice
+        # UX limit is not a security boundary; 50×4K layers would OOM-freeze).
+        layer_count_errors = validate_composite_layer_count(len(raw_layers))
+        if layer_count_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(layer_count_errors)}
+
         if not isinstance(raw_res, list) or len(raw_res) != 2:
             return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
         res_w: int = max(1, min(8192, int(raw_res[0])))
@@ -728,6 +735,15 @@ class ZMQServer:
                     return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
                 frame_index = int(layer_info.get("frame_index", 0))
+                # INJ-3: reject negative seek (mirrors _handle_render_frame:515).
+                # The composite path was unguarded — reader._decode_with_seek
+                # would negative-seek on a hand-edited / malformed project.
+                if frame_index < 0:
+                    return {
+                        "id": msg_id,
+                        "ok": False,
+                        "error": "layer frame_index must be non-negative",
+                    }
                 opacity = clamp_finite(
                     float(layer_info.get("opacity", 1.0)), 0.0, 1.0, 1.0
                 )
@@ -750,6 +766,16 @@ class ZMQServer:
                     if errors:
                         return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
                     reader = self._get_reader(asset_path)
+                    # INJ-3: clamp top with a 2-frame tail buffer (mirrors the
+                    # single-clip path; MKV/VP9 containers often can't decode the
+                    # last frames). The clamped value flows into the stored layer
+                    # dict + anchor_frame below.
+                    if (
+                        hasattr(reader, "frame_count")
+                        and reader.frame_count
+                        and frame_index >= reader.frame_count - 2
+                    ):
+                        frame_index = max(0, reader.frame_count - 3)
                     frame = reader.decode_frame(frame_index)
 
                     # Apply per-layer clip transform if present

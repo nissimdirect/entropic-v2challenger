@@ -41,6 +41,12 @@ MAX_FRAME_COUNT = 300_000
 # SEC-7: Chain depth cap
 MAX_CHAIN_DEPTH = 10
 
+# INJ-3: Composite layer count cap. The "4-voice" limit is a UX convention; the
+# security boundary must be backend-enforced — 50×4K RGBA layers ≈ 16 GB → an
+# OOM freeze on a 16 GB Mac. Rejected at _handle_render_composite BEFORE the
+# per-layer decode loop.
+MAX_COMPOSITE_LAYERS = 50
+
 
 def validate_upload(path: str) -> list[str]:
     """Validate an uploaded file path. Returns list of errors (empty = valid).
@@ -247,6 +253,17 @@ def validate_chain_depth(chain: list) -> list[str]:
     if len(chain) > MAX_CHAIN_DEPTH:
         errors.append(
             f"Chain depth {len(chain)} exceeds maximum {MAX_CHAIN_DEPTH} (SEC-7)"
+        )
+    return errors
+
+
+def validate_composite_layer_count(count: int) -> list[str]:
+    """Validate composite layer count against the INJ-3 cap. Returns errors."""
+    errors: list[str] = []
+    if count > MAX_COMPOSITE_LAYERS:
+        errors.append(
+            f"Composite layer count {count} exceeds maximum "
+            f"{MAX_COMPOSITE_LAYERS} (INJ-3)"
         )
     return errors
 
