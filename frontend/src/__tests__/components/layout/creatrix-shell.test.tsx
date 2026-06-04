@@ -31,7 +31,8 @@ describe('CreatrixShell', () => {
     useInstrumentsStore.getState().addSampler('clip-1')
     render(<CreatrixShell />)
     expect(screen.getByTestId('sampler-device')).toBeTruthy()
-    expect(screen.queryByTestId('creatrix-devicechain-slot')).toBeNull()
+    // the device-chain hint is replaced by the device
+    expect(screen.queryByText(/device chain — drag/)).toBeNull()
   })
 
   it('shows the instruments tab with a Sampler entry', () => {

@@ -4,13 +4,19 @@
  * stores. Flag-gated by F_CREATRIX_LAYOUT in App.tsx (old layout stays live
  * when off). "Shell + tabs first" pass — preview/inspector are minimal slots;
  * the live preview render + hover-help inspector are the next iteration.
+ *
+ * Drag-and-drop: browser entries are the drag source; the preview + device-chain
+ * regions are drop targets. The drop validates the session nonce (rejects
+ * external drags) + the payload shape, then routes through the same handleAdd as
+ * double-click.
  */
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import CreatrixLayout from './CreatrixLayout'
 import BrowserPanel from '../browser/BrowserPanel'
 import { useBrowserData } from '../browser/useBrowserData'
-import type { DragPayload } from '../browser/types'
+import { NONCE_MIME, type DragPayload } from '../browser/types'
+import { readDropPayload } from '../browser/dropPayload'
 import { SamplerDevice } from '../instruments'
 import { useInstrumentsStore } from '../../stores/instruments'
 import { useProjectStore, getActiveTrackId } from '../../stores/project'
@@ -27,6 +33,7 @@ export default function CreatrixShell() {
   const nonce = useRef<string>(randomUUID()).current
   const tracks = useTimelineStore((s) => s.tracks)
   const sampler = useInstrumentsStore((s) => s.instrument)
+  const [dragOver, setDragOver] = useState(false)
 
   const firstClip = useMemo(() => tracks.flatMap((t) => t.clips)[0], [tracks])
   const hasBaseClip = Boolean(firstClip)
@@ -38,6 +45,7 @@ export default function CreatrixShell() {
       if (payload.id === 'builtin:instr.sampler') {
         if (firstClip) {
           useInstrumentsStore.getState().addSampler(firstClip.id)
+          toast.addToast({ level: 'info', message: 'Sampler added.', source: 'creatrix-browser' })
         } else {
           toast.addToast({
             level: 'warning',
@@ -80,12 +88,14 @@ export default function CreatrixShell() {
         mix: 1.0,
         mask: null,
       })
+      toast.addToast({ level: 'info', message: `Added ${info.name}.`, source: 'creatrix-browser' })
       return
     }
 
     if (payload.kind === 'op') {
       const type = payload.id.replace(/^builtin:op\./, '') as OperatorType
       useOperatorStore.getState().addOperator(type)
+      toast.addToast({ level: 'info', message: `Added ${type} operator.`, source: 'creatrix-browser' })
       return
     }
 
@@ -97,22 +107,53 @@ export default function CreatrixShell() {
     })
   }
 
+  // Shared drop-target props for the preview + device-chain regions.
+  const dropProps = {
+    onDragOver: (e: React.DragEvent) => {
+      if (Array.from(e.dataTransfer.types).includes(NONCE_MIME)) {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        if (!dragOver) setDragOver(true)
+      }
+    },
+    onDragLeave: () => setDragOver(false),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault()
+      setDragOver(false)
+      const payload = readDropPayload(e.dataTransfer, nonce)
+      if (payload) handleAdd(payload)
+    },
+  }
+
+  const dropClass = (base: string) =>
+    `${base}${dragOver ? ' creatrix-dropzone--over' : ''} creatrix-dropzone`
+
   return (
     <CreatrixLayout
       left={<BrowserPanel tabs={tabs} onAdd={handleAdd} sessionNonce={nonce} />}
       preview={
-        <div className="creatrix-slot-placeholder" data-testid="creatrix-preview-slot">
-          preview
+        <div
+          className={dropClass('creatrix-slot-placeholder')}
+          data-testid="creatrix-preview-slot"
+          {...dropProps}
+        >
+          preview — drag fx / instruments here, or onto the device chain
         </div>
       }
       deviceChain={
-        sampler ? (
-          <SamplerDevice />
-        ) : (
-          <div className="creatrix-slot-placeholder" data-testid="creatrix-devicechain-slot">
-            device chain — drag an instrument or effect here
-          </div>
-        )
+        <div
+          className={dropClass('creatrix-devicechain')}
+          data-testid="creatrix-devicechain-slot"
+          {...dropProps}
+        >
+          {sampler ? (
+            <SamplerDevice />
+          ) : (
+            <span className="creatrix-slot-hint">
+              device chain — drag an instrument or effect here
+            </span>
+          )}
+        </div>
       }
       inspector={
         <div className="creatrix-slot-placeholder" data-testid="creatrix-inspector-slot">

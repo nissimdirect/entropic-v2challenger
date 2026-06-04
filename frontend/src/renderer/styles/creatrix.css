@@ -7,7 +7,7 @@
 
 :root {
   /* Creatrix layout dimensions (PLAN.md §3.2). Defaults; JS persists overrides. */
-  --left-col-w: 260px;
+  --left-col-w: 300px;
   --device-chain-h: 200px;
   --inspector-h: 150px;
 
@@ -223,25 +223,24 @@
 .creatrix-browser__tabs {
   display: flex;
   flex-direction: row;
-  gap: 2px;
-  padding: 0 4px;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  padding: 2px 4px;
   border-bottom: 1px solid var(--creatrix-border);
   flex: 0 0 auto;
 }
 
 .creatrix-browser__tab {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
   color: var(--creatrix-text-muted);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  padding: 6px 8px;
+  font-size: 12px;
+  padding: 5px 7px;
   cursor: pointer;
   white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
 }
 
 .creatrix-browser__tab:hover {
@@ -299,4 +298,27 @@
   color: var(--creatrix-text-muted);
   font-size: 11px;
   list-style: none;
+}
+
+/* --- drop zones + device chain (PR-A) --- */
+
+.creatrix-dropzone {
+  transition: background 0.1s ease, box-shadow 0.1s ease;
+}
+
+.creatrix-dropzone--over {
+  background: rgba(74, 222, 128, 0.1);
+  box-shadow: inset 0 0 0 2px var(--creatrix-accent);
+}
+
+.creatrix-devicechain {
+  height: 100%;
+  overflow: auto;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.creatrix-slot-hint {
+  color: var(--creatrix-text-muted);
+  font-size: 12px;
 }
