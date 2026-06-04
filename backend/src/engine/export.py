@@ -23,6 +23,7 @@ from engine.codecs import (
 )
 from engine.gif_export import export_gif_from_generator
 from engine.image_sequence import export_image_sequence_from_generator
+from video.codec_timeout import av_open_timeout
 from engine.pipeline import apply_chain
 from engine.text_renderer import render_text_frame
 from video.image_reader import ImageReader, is_image_file
@@ -656,7 +657,7 @@ class ExportManager:
         frame region. Replaces *video_path* atomically via os.replace.
         """
         try:
-            src = av.open(input_path)
+            src = av_open_timeout(input_path)
         except Exception:
             logger.debug("Cannot open input for audio mux: %s", input_path)
             return
@@ -666,7 +667,7 @@ class ExportManager:
             return
 
         try:
-            exported = av.open(video_path, "r")
+            exported = av_open_timeout(video_path, mode="r")
         except Exception:
             src.close()
             logger.warning("Cannot open exported video for audio mux: %s", video_path)
@@ -684,7 +685,7 @@ class ExportManager:
         os.close(fd)
 
         try:
-            out = av.open(tmp_path, "w")
+            out = av_open_timeout(tmp_path, mode="w")
 
             # Copy video stream (PyAV 16+: template= kwarg removed, use add_stream_from_template)
             video_in = exported.streams.video[0]
