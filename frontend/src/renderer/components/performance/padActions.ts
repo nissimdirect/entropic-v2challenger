@@ -27,7 +27,7 @@ export function triggerPadWithCapture(
     padId: pad.id,
     eventType: 'trigger',
     source,
-    mappings: pad.mappings,
+    modRoutes: pad.modRoutes,
   });
 }
 
@@ -47,7 +47,7 @@ export function releasePadWithCapture(
     padId: pad.id,
     eventType: 'release',
     source,
-    mappings: pad.mappings,
+    modRoutes: pad.modRoutes,
   });
 }
 

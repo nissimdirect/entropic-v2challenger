@@ -16,7 +16,7 @@ function makeTestPad(overrides: Partial<Pad> = {}): Pad {
     mode: 'toggle',
     chokeGroup: 3,
     envelope: { attack: 10, decay: 5, sustain: 0.8, release: 20 },
-    mappings: [{
+    modRoutes: [{
       sourceId: 'test-pad-1',
       depth: 0.75,
       min: 0,
@@ -67,16 +67,16 @@ describe('Performance Persistence', () => {
     expect(env.release).toBe(30);
   });
 
-  it('pad mappings preserved on load', () => {
+  it('pad modRoutes preserved on load', () => {
     const rack: DrumRack = { grid: '4x4', pads: [makeTestPad()] };
 
     usePerformanceStore.getState().loadDrumRack(rack);
-    const mappings = usePerformanceStore.getState().drumRack.pads[0].mappings;
+    const modRoutes = usePerformanceStore.getState().drumRack.pads[0].modRoutes;
 
-    expect(mappings).toHaveLength(1);
-    expect(mappings[0].effectId).toBe('effect-1');
-    expect(mappings[0].paramKey).toBe('amount');
-    expect(mappings[0].depth).toBe(0.75);
+    expect(modRoutes).toHaveLength(1);
+    expect(modRoutes[0].effectId).toBe('effect-1');
+    expect(modRoutes[0].paramKey).toBe('amount');
+    expect(modRoutes[0].depth).toBe(0.75);
   });
 
   it('choke groups preserved on load', () => {

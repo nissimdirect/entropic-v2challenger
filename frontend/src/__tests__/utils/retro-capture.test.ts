@@ -15,7 +15,7 @@ function makeEvent(overrides: Partial<CapturedEvent> = {}): CapturedEvent {
     padId: 'pad-1',
     eventType: 'trigger',
     source: 'keyboard',
-    mappings: [],
+    modRoutes: [],
     ...overrides,
   };
 }
@@ -102,7 +102,7 @@ describe('retro-capture buffer', () => {
   });
 
   it('captureToAutomation returns empty for fps <= 0', () => {
-    pushEvent(makeEvent({ mappings: [makeMapping('fx1', 'amount')] }));
+    pushEvent(makeEvent({ modRoutes: [makeMapping('fx1', 'amount')] }));
     expect(captureToAutomation(0, 10)).toEqual({});
     expect(captureToAutomation(-1, 10)).toEqual({});
   });
@@ -115,7 +115,7 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'trigger',
-      mappings: [makeMapping('fx1', 'amount'), makeMapping('fx2', 'intensity')],
+      modRoutes: [makeMapping('fx1', 'amount'), makeMapping('fx2', 'intensity')],
     }));
 
     const result = captureToAutomation(30, 10);
@@ -132,7 +132,7 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'trigger',
-      mappings: [makeMapping('fx1', 'amount', 0.7)],
+      modRoutes: [makeMapping('fx1', 'amount', 0.7)],
     }));
 
     const result = captureToAutomation(30, 10);
@@ -149,7 +149,7 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'release',
-      mappings: [makeMapping('fx1', 'amount', 0.7)],
+      modRoutes: [makeMapping('fx1', 'amount', 0.7)],
     }));
 
     const result = captureToAutomation(30, 10);
@@ -165,17 +165,17 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now - 2000, // 2s ago
       eventType: 'trigger',
-      mappings: [makeMapping('fx1', 'amount')],
+      modRoutes: [makeMapping('fx1', 'amount')],
     }));
     pushEvent(makeEvent({
       timestamp: now - 1000, // 1s ago
       eventType: 'release',
-      mappings: [makeMapping('fx1', 'amount')],
+      modRoutes: [makeMapping('fx1', 'amount')],
     }));
     pushEvent(makeEvent({
       timestamp: now, // now
       eventType: 'trigger',
-      mappings: [makeMapping('fx1', 'amount')],
+      modRoutes: [makeMapping('fx1', 'amount')],
     }));
 
     const result = captureToAutomation(30, 10);
@@ -195,7 +195,7 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now - 2000,
       eventType: 'trigger',
-      mappings: [makeMapping('fx1', 'amount')],
+      modRoutes: [makeMapping('fx1', 'amount')],
     }));
 
     // referenceTime = 10 seconds into the timeline
@@ -219,7 +219,7 @@ describe('retro-capture buffer', () => {
     expect(getBuffer()[0].padId).toBe('new');
   });
 
-  it('captureToAutomation skips mappings without effectId or paramKey', () => {
+  it('captureToAutomation skips modRoutes without effectId or paramKey', () => {
     const spy = vi.spyOn(performance, 'now');
     const now = 100_000;
     spy.mockReturnValue(now);
@@ -227,7 +227,7 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'trigger',
-      mappings: [
+      modRoutes: [
         { sourceId: 'pad-1', depth: 0.5, min: 0, max: 1, curve: 'linear' as const },
         makeMapping('fx1', 'amount'),
       ],

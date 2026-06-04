@@ -10,7 +10,7 @@ export interface CapturedEvent {
   padId: string;
   eventType: 'trigger' | 'release';
   source: 'keyboard' | 'midi';
-  mappings: ModulationRoute[];  // snapshot of pad mappings at capture time
+  modRoutes: ModulationRoute[];  // snapshot of pad modRoutes at capture time
 }
 
 const MAX_EVENTS = 10_000;
@@ -71,7 +71,7 @@ export function captureToAutomation(
     const ageSec = ageMs / 1000;
     const timelineTime = Math.max(0, referenceTime - ageSec);
 
-    for (const mapping of event.mappings) {
+    for (const mapping of event.modRoutes) {
       if (!mapping.effectId || !mapping.paramKey) continue;
 
       const paramPath = `${mapping.effectId}.${mapping.paramKey}`;

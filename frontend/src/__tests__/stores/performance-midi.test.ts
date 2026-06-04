@@ -64,7 +64,7 @@ describe('Performance Store — midiNote field', () => {
         mode: 'gate' as PadMode,
         chokeGroup: null,
         envelope: { ...DEFAULT_ADSR },
-        mappings: [],
+        modRoutes: [],
         color: '#4ade80',
       }],
     };
@@ -87,7 +87,7 @@ describe('Performance Store — midiNote field', () => {
         mode: 'gate' as PadMode,
         chokeGroup: null,
         envelope: { ...DEFAULT_ADSR },
-        mappings: [],
+        modRoutes: [],
         color: '#4ade80',
         // no midiNote field
       }],

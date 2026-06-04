@@ -18,7 +18,7 @@ export default function PadCell({ pad, runtimeState, onTrigger, onRelease, onEdi
 
   const isActive = phase === 'attack' || phase === 'decay' || phase === 'sustain';
   const isReleasing = phase === 'release';
-  const hasMapping = pad.mappings.length > 0;
+  const hasMapping = pad.modRoutes.length > 0;
 
   let className = 'pad-cell';
   if (isActive) className += ' pad-cell--active';
