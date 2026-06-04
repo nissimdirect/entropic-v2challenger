@@ -226,12 +226,12 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                 + Add
               </button>
             </div>
-            {pad.mappings.length === 0 && (
+            {pad.modRoutes.length === 0 && (
               <div style={{ fontSize: 11, color: '#666', textAlign: 'center', padding: 8 }}>
-                No mappings — add one to connect this pad to an effect parameter
+                No modRoutes — add one to connect this pad to an effect parameter
               </div>
             )}
-            {pad.mappings.map((mapping, idx) => {
+            {pad.modRoutes.map((mapping, idx) => {
               const isBroken = mapping.effectId && !isEffectInChain(mapping.effectId);
               const effect = effectChain.find((e) => e.id === mapping.effectId);
               const effectInfo = effect ? registry.find((r) => r.id === effect.effectId) : null;
@@ -254,9 +254,9 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                     style={{ flex: 1, fontSize: 10 }}
                     value={mapping.effectId ?? ''}
                     onChange={(e) => {
-                      const newMappings = [...pad.mappings];
+                      const newMappings = [...pad.modRoutes];
                       newMappings[idx] = { ...mapping, effectId: e.target.value };
-                      updatePad(padId, { mappings: newMappings });
+                      updatePad(padId, { modRoutes: newMappings });
                     }}
                   >
                     <option value="">Effect...</option>
@@ -274,9 +274,9 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                     style={{ flex: 1, fontSize: 10 }}
                     value={mapping.paramKey ?? ''}
                     onChange={(e) => {
-                      const newMappings = [...pad.mappings];
+                      const newMappings = [...pad.modRoutes];
                       newMappings[idx] = { ...mapping, paramKey: e.target.value };
-                      updatePad(padId, { mappings: newMappings });
+                      updatePad(padId, { modRoutes: newMappings });
                     }}
                   >
                     <option value="">Param...</option>
@@ -296,9 +296,9 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                     value={mapping.depth}
                     title={`Depth: ${mapping.depth.toFixed(2)}`}
                     onChange={(e) => {
-                      const newMappings = [...pad.mappings];
+                      const newMappings = [...pad.modRoutes];
                       newMappings[idx] = { ...mapping, depth: parseFloat(e.target.value) };
-                      updatePad(padId, { mappings: newMappings });
+                      updatePad(padId, { modRoutes: newMappings });
                     }}
                   />
                   <button

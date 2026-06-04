@@ -15,7 +15,7 @@ export default function PadGrid({ onEditPad }: PadGridProps) {
   const releasePad = usePerformanceStore((s) => s.releasePad);
   const currentFrame = useProjectStore((s) => s.currentFrame);
 
-  const hasMappings = drumRack.pads.some((p) => p.mappings.length > 0);
+  const hasMappings = drumRack.pads.some((p) => p.modRoutes.length > 0);
 
   return (
     <div className="pad-grid">
@@ -31,7 +31,7 @@ export default function PadGrid({ onEditPad }: PadGridProps) {
       ))}
       {isPerformMode && !hasMappings && (
         <div className="pad-grid__hint">
-          No pad mappings configured — double-click a pad to add one
+          No pad modRoutes configured — double-click a pad to add one
         </div>
       )}
     </div>

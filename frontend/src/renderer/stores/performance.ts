@@ -34,7 +34,7 @@ function createDefaultPads(): Pad[] {
     mode: 'gate' as PadMode,
     chokeGroup: null,
     envelope: { ...DEFAULT_ADSR },
-    mappings: [],
+    modRoutes: [],
     color: '#4ade80',
   }));
 }
@@ -185,20 +185,20 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     const pad = get().drumRack.pads.find((p) => p.id === padId);
     if (!pad) return;
 
-    const oldMappings = [...pad.mappings];
+    const oldMappings = [...pad.modRoutes];
     const newMappings = [...oldMappings, mapping];
 
     const forward = () => {
       const { drumRack: current } = get();
       set({ drumRack: { ...current, pads: current.pads.map((p) =>
-        p.id === padId ? { ...p, mappings: newMappings } : p,
+        p.id === padId ? { ...p, modRoutes: newMappings } : p,
       ) } });
     };
 
     const inverse = () => {
       const { drumRack: current } = get();
       set({ drumRack: { ...current, pads: current.pads.map((p) =>
-        p.id === padId ? { ...p, mappings: oldMappings } : p,
+        p.id === padId ? { ...p, modRoutes: oldMappings } : p,
       ) } });
     };
 
@@ -209,21 +209,21 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     const pad = get().drumRack.pads.find((p) => p.id === padId);
     if (!pad) return;
 
-    const oldMappings = [...pad.mappings];
+    const oldMappings = [...pad.modRoutes];
     if (index < 0 || index >= oldMappings.length) return;
     const newMappings = oldMappings.filter((_, i) => i !== index);
 
     const forward = () => {
       const { drumRack: current } = get();
       set({ drumRack: { ...current, pads: current.pads.map((p) =>
-        p.id === padId ? { ...p, mappings: newMappings } : p,
+        p.id === padId ? { ...p, modRoutes: newMappings } : p,
       ) } });
     };
 
     const inverse = () => {
       const { drumRack: current } = get();
       set({ drumRack: { ...current, pads: current.pads.map((p) =>
-        p.id === padId ? { ...p, mappings: oldMappings } : p,
+        p.id === padId ? { ...p, modRoutes: oldMappings } : p,
       ) } });
     };
 

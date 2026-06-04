@@ -341,7 +341,7 @@ export interface Pad {
   mode: PadMode;
   chokeGroup: number | null;
   envelope: ADSREnvelope;
-  mappings: ModulationRoute[];
+  modRoutes: ModulationRoute[];
   color: string;
 }
 
