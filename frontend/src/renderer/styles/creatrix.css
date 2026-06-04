@@ -1,0 +1,302 @@
+/**
+ * Creatrix layout shell + 5-tab browser (PLAN.md §3.2 / §3.3 / §3.5) — PR-A.
+ *
+ * Vanilla BEM CSS, dark theme cohesive with global.css.
+ * Tokens: bg #1a1a1a, accent/green #4ade80, error/red #ef4444, JetBrains Mono.
+ */
+
+:root {
+  /* Creatrix layout dimensions (PLAN.md §3.2). Defaults; JS persists overrides. */
+  --left-col-w: 260px;
+  --device-chain-h: 200px;
+  --inspector-h: 150px;
+
+  /* Creatrix-local palette aliases (kept local so global.css stays canonical). */
+  --creatrix-bg: #1a1a1a;
+  --creatrix-panel-bg: #1e1e1e;
+  --creatrix-border: #2a2a2a;
+  --creatrix-accent: #4ade80;
+  --creatrix-error: #ef4444;
+  --creatrix-text: #e0e0e0;
+  --creatrix-text-muted: #777;
+  --creatrix-hover-bg: #262626;
+
+  /* Resize handle metrics (PLAN.md §3.3 — 6px visible bar, 16px hit zone). */
+  --creatrix-handle-bar: 6px;
+  --creatrix-handle-hit-overhang: 5px;
+}
+
+/* ===========================================================================
+ * Layout shell — CSS grid (PLAN.md §3.2)
+ * Left browser column spans full height; right side stacks
+ * preview (1fr) / device-chain / inspector.
+ * ========================================================================= */
+
+.creatrix-layout {
+  display: grid;
+  grid-template-columns: var(--left-col-w, 260px) 1fr;
+  grid-template-rows: 1fr var(--device-chain-h, 200px) var(--inspector-h, 150px);
+  grid-template-areas:
+    'left preview'
+    'left device-chain'
+    'left inspector';
+  height: 100%;
+  min-height: 100vh;
+  width: 100%;
+  overflow: hidden;
+  background: var(--creatrix-bg);
+  color: var(--creatrix-text);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.creatrix-layout__left {
+  grid-area: left;
+  position: relative;
+  border-right: 1px solid var(--creatrix-border);
+  overflow: hidden; /* inner browser list owns its own scroll */
+  background: var(--creatrix-panel-bg);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.creatrix-layout__preview {
+  grid-area: preview;
+  position: relative;
+  border-bottom: 1px solid var(--creatrix-border);
+  overflow: hidden;
+  background: #141414;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+}
+
+.creatrix-layout__device-chain {
+  grid-area: device-chain;
+  position: relative;
+  border-bottom: 1px solid var(--creatrix-border);
+  overflow: auto;
+  padding: 8px;
+  background: var(--creatrix-panel-bg);
+  min-width: 0;
+  min-height: 0;
+}
+
+.creatrix-layout__inspector {
+  grid-area: inspector;
+  position: relative;
+  overflow: auto;
+  padding: 8px 12px;
+  background: var(--creatrix-bg);
+  min-width: 0;
+  min-height: 0;
+}
+
+/* ===========================================================================
+ * Resize handles — fat-target (PLAN.md §3.3)
+ * Visible bar = 6px; hit zone extends 5px each side via ::before pseudo-element
+ * (so the grabbable area is 16px while the painted divider stays slim).
+ * ========================================================================= */
+
+.creatrix-resize-handle {
+  position: absolute;
+  z-index: 20;
+  background: transparent;
+  user-select: none;
+  touch-action: none;
+}
+
+/* Fat invisible hit zone — extends beyond the visible bar on both sides. */
+.creatrix-resize-handle::before {
+  content: '';
+  position: absolute;
+  pointer-events: auto;
+}
+
+/* Painted bar highlights on hover/drag. */
+.creatrix-resize-handle:hover,
+.creatrix-resize-handle--active {
+  background: var(--creatrix-accent);
+}
+
+/* Vertical divider — between left column and right side. */
+.creatrix-resize-handle--col {
+  top: 0;
+  bottom: 0;
+  width: var(--creatrix-handle-bar);
+  cursor: col-resize;
+}
+
+.creatrix-resize-handle--col::before {
+  top: 0;
+  bottom: 0;
+  left: calc(var(--creatrix-handle-hit-overhang) * -1);
+  right: calc(var(--creatrix-handle-hit-overhang) * -1);
+}
+
+/* Horizontal divider — between stacked right-side regions. */
+.creatrix-resize-handle--row {
+  left: 0;
+  right: 0;
+  height: var(--creatrix-handle-bar);
+  cursor: row-resize;
+}
+
+.creatrix-resize-handle--row::before {
+  left: 0;
+  right: 0;
+  top: calc(var(--creatrix-handle-hit-overhang) * -1);
+  bottom: calc(var(--creatrix-handle-hit-overhang) * -1);
+}
+
+/* ===========================================================================
+ * Browser — 5-tab (BrowserPanel.tsx)
+ * ========================================================================= */
+
+.creatrix-browser {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+}
+
+/* --- search row --- */
+
+.creatrix-browser__search {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--creatrix-border);
+  flex: 0 0 auto;
+}
+
+.creatrix-browser__search-input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  background: #141414;
+  border: 1px solid var(--creatrix-border);
+  border-radius: 3px;
+  color: var(--creatrix-text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.creatrix-browser__search-input::placeholder {
+  color: var(--creatrix-text-muted);
+}
+
+.creatrix-browser__search-input:focus {
+  border-color: var(--creatrix-accent);
+}
+
+.creatrix-browser__search-clear {
+  flex: 0 0 auto;
+  background: transparent;
+  border: 1px solid var(--creatrix-border);
+  border-radius: 3px;
+  color: var(--creatrix-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1;
+  width: 22px;
+  height: 24px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.creatrix-browser__search-clear:hover {
+  color: var(--creatrix-text);
+  border-color: var(--creatrix-accent);
+}
+
+/* --- tab row --- */
+
+.creatrix-browser__tabs {
+  display: flex;
+  flex-direction: row;
+  gap: 2px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--creatrix-border);
+  flex: 0 0 auto;
+}
+
+.creatrix-browser__tab {
+  flex: 0 1 auto;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--creatrix-text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  padding: 6px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+.creatrix-browser__tab:hover {
+  color: var(--creatrix-text);
+}
+
+.creatrix-browser__tab--active {
+  color: var(--creatrix-accent);
+  border-bottom-color: var(--creatrix-accent);
+}
+
+/* --- entry list --- */
+
+.creatrix-browser__list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+}
+
+.creatrix-browser__entry {
+  display: flex;
+  align-items: center;
+  padding: 5px 10px;
+  color: var(--creatrix-text);
+  cursor: grab;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+}
+
+.creatrix-browser__entry:hover {
+  background: var(--creatrix-hover-bg);
+}
+
+.creatrix-browser__entry:active {
+  cursor: grabbing;
+}
+
+.creatrix-browser__entry--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.creatrix-browser__entry--disabled:hover {
+  background: transparent;
+}
+
+.creatrix-browser__empty {
+  padding: 24px 10px;
+  text-align: center;
+  color: var(--creatrix-text-muted);
+  font-size: 11px;
+  list-style: none;
+}

@@ -5,6 +5,8 @@ import { useEffectsStore } from './stores/effects'
 import { useAudioStore } from './stores/audio'
 import { useUndoStore } from './stores/undo'
 import { useTimelineStore } from './stores/timeline'
+import { F_CREATRIX_LAYOUT } from '../shared/flags'
+import CreatrixShell from './components/layout/CreatrixShell'
 import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
 import EffectBrowser from './components/effects/EffectBrowser'
@@ -2061,6 +2063,10 @@ function AppInner() {
     disconnected: 'Engine: Disconnected',
     restarting: 'Engine: Restarting...',
   }
+
+  // PR-A: flag-gated Creatrix layout. All hooks/effects above still run (IPC,
+  // render loop, keyboard); only the rendered shell swaps. Flag off → old layout.
+  if (F_CREATRIX_LAYOUT) return <CreatrixShell />
 
   return (
     <div
