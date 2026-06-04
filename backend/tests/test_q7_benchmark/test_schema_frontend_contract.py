@@ -19,8 +19,6 @@ guard). Reconciliation guidance: `~/.claude/plans/entropic-P2-schema-fork-findin
 
 from __future__ import annotations
 
-import pytest
-
 from modulation.schema import BindingRule, LaneDomain
 
 # Canonical strings as serialized by frontend/src/shared/axis-binding.ts.
@@ -42,14 +40,11 @@ def test_lane_domain_values_match_frontend() -> None:
     assert {d.value for d in LaneDomain} == FRONTEND_AXES
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "SCHEMA FORK (P2 finding): backend BindingRule is snake_case + 5 members; "
-        "frontend canonical is camelCase + 8. Reconcile in PR-B before .dna locks. "
-        "See entropic-P2-schema-fork-finding.md"
-    ),
-)
 def test_binding_rule_values_match_frontend_canonical() -> None:
-    """Backend BindingRule string values MUST equal the frontend canonical set."""
+    """Backend BindingRule string values MUST equal the frontend canonical set.
+
+    RECONCILED 2026-06-04 (P2 option 1): backend adopted camelCase + 8 members to
+    match frontend `shared/axis-binding.ts`. The former xfail guard is removed now
+    that both sides agree — if they drift again, this test fails loud.
+    """
     assert {r.value for r in BindingRule} == FRONTEND_BINDING_RULES

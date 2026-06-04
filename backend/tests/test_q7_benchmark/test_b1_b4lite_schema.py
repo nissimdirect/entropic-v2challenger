@@ -42,14 +42,18 @@ def test_lane_domain_has_six_axes():
 
 
 @pytest.mark.smoke
-def test_binding_rule_has_five_rules():
-    """Vision §7: five binding rules — broadcast / sample_at / scan_over / integrate / painted."""
+def test_binding_rule_has_eight_canonical_rules():
+    """Vision §7 + P2 reconciliation: eight binding rules, CANONICAL camelCase
+    values identical to frontend shared/axis-binding.ts."""
     assert {r.value for r in BindingRule} == {
         "broadcast",
-        "sample_at",
-        "scan_over",
+        "sampleAt",
+        "scanOver",
         "integrate",
         "painted",
+        "hilbert",
+        "polar",
+        "learned",
     }
 
 
@@ -195,7 +199,7 @@ def test_validate_error_message_includes_edge_context():
     msg = str(exc.value)
     assert "lfo7" in msg
     assert "fx-blur.radius" in msg
-    assert "scan_over" in msg
+    assert "scanOver" in msg
 
 
 # ---- ParamAutomation (B1 universal coverage primitive) ----

@@ -7,9 +7,10 @@ Vision §6 B4-lite: mod-edge schema (src, src_axis, dst, dst_axis, binding_rule,
 ships in full. Only `broadcast` is implemented in Tier 1. Writer-side validator
 REJECTS non-broadcast values on save to prevent schema-vs-implementation drift.
 
-Forward-compat: future tiers add sample_at / scan_over / integrate / painted without
-schema migration; reader accepts unknown future binding_rules and preserves them
-in round-trip but writer must downconvert or refuse.
+Forward-compat: future tiers add sampleAt / scanOver / integrate / painted (+ the
+research rules hilbert / polar / learned) without schema migration; reader accepts
+unknown future binding_rules and preserves them in round-trip but writer must
+downconvert or refuse. Values are CANONICAL camelCase, identical to the frontend.
 """
 
 from __future__ import annotations
@@ -31,17 +32,24 @@ class LaneDomain(str, Enum):
 
 
 class BindingRule(str, Enum):
-    """The five binding rules (Vision §7).
+    """The eight binding rules (Vision §7) — CANONICAL camelCase wire values,
+    matching frontend `shared/axis-binding.ts` (P2 schema-fork reconciliation,
+    2026-06-04). Backend + frontend now serialize identical strings, so `.dna`
+    patches round-trip across both sides.
 
-    Tier 1 ships ONLY `broadcast`. Future tiers add the rest without schema
-    migration; reader preserves unknown rules on round-trip.
+    Tier 1 ships ONLY `broadcast`. The other seven are accepted by the schema
+    but rejected by the writer-side validator until their tier lands; the reader
+    preserves unknown future rules on round-trip.
     """
 
     BROADCAST = "broadcast"
-    SAMPLE_AT = "sample_at"
-    SCAN_OVER = "scan_over"
+    SAMPLE_AT = "sampleAt"
+    SCAN_OVER = "scanOver"
     INTEGRATE = "integrate"
     PAINTED = "painted"
+    HILBERT = "hilbert"
+    POLAR = "polar"
+    LEARNED = "learned"
 
 
 class InterpMode(str, Enum):
