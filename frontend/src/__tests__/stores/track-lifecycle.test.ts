@@ -49,7 +49,7 @@ function fx(id: string): EffectInstance {
 }
 
 function lane(id: string, paramPath: string): AutomationLane {
-  return { id, paramPath, color: '#4ade80', isVisible: true, points: [], isTrigger: false }
+  return { id, paramPath, color: '#4ade80', isVisible: true, points: [], mode: 'smooth' }
 }
 
 function resetAll() {

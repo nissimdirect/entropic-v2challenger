@@ -1,4 +1,12 @@
-import type { AutomationLane, AutomationPoint } from '../../shared/types'
+import type { AutomationLane, AutomationPoint, InterpolationMode } from '../../shared/types'
+
+/**
+ * PR-B Commit-1: a lane is a "trigger" lane iff its mode fires events
+ * (gate/oneShot). Replaces the old `isTrigger` boolean check everywhere.
+ */
+export function isTriggerLane(lane: { mode: InterpolationMode }): boolean {
+  return lane.mode === 'gate' || lane.mode === 'oneShot'
+}
 
 /**
  * Apply easing curve to a normalized t value (0-1).
@@ -39,6 +47,9 @@ export function evaluateAutomation(lane: AutomationLane, time: number): number |
 
   const a: AutomationPoint = points[lo]
   const b: AutomationPoint = points[hi]
+
+  // PR-B Commit-1: 'step' mode holds the left point's value (no interpolation).
+  if (lane.mode === 'step') return a.value
 
   // Zero-duration segment — return first point's value
   const duration = b.time - a.time

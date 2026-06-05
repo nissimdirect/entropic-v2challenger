@@ -1,16 +1,38 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateAutomation, applyEasing, denormalize } from '../../renderer/utils/automation-evaluate'
-import type { AutomationLane } from '../../shared/types'
+import { evaluateAutomation, applyEasing, denormalize, isTriggerLane } from '../../renderer/utils/automation-evaluate'
+import type { AutomationLane, InterpolationMode } from '../../shared/types'
 
-function makeLane(points: Array<{ time: number; value: number; curve?: number }>): AutomationLane {
+function makeLane(points: Array<{ time: number; value: number; curve?: number }>, mode: InterpolationMode = 'smooth'): AutomationLane {
   return {
     id: 'test-lane',
     paramPath: 'fx-1.amount',
     color: '#4ade80',
     isVisible: true,
+    mode,
     points: points.map(p => ({ time: p.time, value: p.value, curve: p.curve ?? 0 })),
   }
 }
+
+describe('PR-B Commit-1: InterpolationMode', () => {
+  it("'step' mode holds the left point's value (no interpolation)", () => {
+    const lane = makeLane([{ time: 0, value: 0 }, { time: 10, value: 1 }], 'step')
+    expect(evaluateAutomation(lane, 5)).toBe(0) // smooth would give 0.5
+    expect(evaluateAutomation(lane, 9.999)).toBe(0)
+    expect(evaluateAutomation(lane, 10)).toBe(1)
+  })
+
+  it("'smooth' mode still interpolates linearly", () => {
+    const lane = makeLane([{ time: 0, value: 0 }, { time: 10, value: 1 }], 'smooth')
+    expect(evaluateAutomation(lane, 5)).toBeCloseTo(0.5)
+  })
+
+  it('isTriggerLane is true only for gate/oneShot', () => {
+    expect(isTriggerLane({ mode: 'gate' })).toBe(true)
+    expect(isTriggerLane({ mode: 'oneShot' })).toBe(true)
+    expect(isTriggerLane({ mode: 'smooth' })).toBe(false)
+    expect(isTriggerLane({ mode: 'step' })).toBe(false)
+  })
+})
 
 describe('evaluateAutomation', () => {
   it('returns null for empty lane', () => {
