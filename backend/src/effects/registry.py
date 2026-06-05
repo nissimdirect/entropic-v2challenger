@@ -440,9 +440,29 @@ def _auto_register():
         spectral_inversion,
     ]
 
+    # --- Spectral family extension: A5 granulator + C4 band-isolated ---
+    # SPEC-7 §A5 + §C4. Both reuse the A4 RGBA-bridge adapter idiom and the A4
+    # primitive dispatch; CPU-only (no GPU/SG-1). Kept off the `*_mods` naming
+    # so test_no_orphan_module_lists stays green. Additive — A4's
+    # `spectral_warpers` above is untouched.
+    from effects.spectral import (
+        spectral_granulator,
+        band_isolated,
+    )
+
+    spectral_family_ext = [
+        spectral_granulator,
+        band_isolated,
+    ]
+
     # Register all simple effects
     for mod in (
-        mods + phase8_mods + phase8_consolidated + phase12_mods + spectral_warpers
+        mods
+        + phase8_mods
+        + phase8_consolidated
+        + phase12_mods
+        + spectral_warpers
+        + spectral_family_ext
     ):
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
