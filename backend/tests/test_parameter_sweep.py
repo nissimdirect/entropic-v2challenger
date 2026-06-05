@@ -118,6 +118,13 @@ class TestParameterSweep:
             "fx.tremolo",
             "rate",
         ),  # Rate scales frame_index via sin(); at frame_index=0, sin(0)=0 for all rates
+        # A4 spectral_shift rolls the DCT spectrum by ±N bins along each axis.
+        # On the 64-bin sweep frame, the param range endpoints are ±32, and
+        # np.roll by ±N/2 on an N-length axis lands on identical wrapped
+        # positions — so the -32 -> +32 sweep is a true no-op by symmetry.
+        # (Same wraparound class as fx.invert_bands::offset above.)
+        ("fx.spectral_shift", "dy"),
+        ("fx.spectral_shift", "dx"),
     }
 
     # Stateful physics effects that accumulate displacement over time.
