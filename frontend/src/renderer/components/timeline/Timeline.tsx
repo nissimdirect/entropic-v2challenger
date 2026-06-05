@@ -85,6 +85,14 @@ export default function Timeline({
     useTimelineStore.getState().addTrack(`Track ${tracks.length + 1}`, color)
   }, [tracks.length])
 
+  // B2: create a Performance/MIDI track (electric blue) and select it, so the
+  // Instruments browser can drop/double-click a Sampler onto it.
+  const handleAddMidiTrack = useCallback(() => {
+    const n = tracks.filter((t) => t.type === 'performance').length + 1
+    const id = useTimelineStore.getState().addTrack(`MIDI ${n}`, '#3b82f6', 'performance')
+    if (id) useTimelineStore.getState().selectTrack(id)
+  }, [tracks])
+
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     useTimelineStore.getState().setScrollX(e.currentTarget.scrollLeft)
   }, [])
@@ -159,6 +167,9 @@ export default function Timeline({
           <button className="timeline__add-track-btn" onClick={handleAddTrack}>
             + Add Track
           </button>
+          <button className="timeline__add-track-btn" onClick={handleAddMidiTrack}>
+            + MIDI Track
+          </button>
         </div>
       </div>
     )
@@ -180,6 +191,9 @@ export default function Timeline({
           <div className="timeline__headers-spacer">
             <button className="timeline__add-track-btn" onClick={handleAddTrack} title="Add video track">
               +
+            </button>
+            <button className="timeline__add-track-btn" onClick={handleAddMidiTrack} title="Add MIDI track">
+              +M
             </button>
           </div>
           <div className="timeline__track-headers">

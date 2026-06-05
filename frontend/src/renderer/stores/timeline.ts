@@ -40,7 +40,7 @@ interface TimelineState {
   speedDialog: { clipId: string; anchor: { x: number; y: number } } | null
 
   // Track actions
-  addTrack: (name: string, color: string, type?: 'video' | 'text') => string | undefined
+  addTrack: (name: string, color: string, type?: 'video' | 'text' | 'performance') => string | undefined
   removeTrack: (id: string) => void
   reorderTrack: (fromIdx: number, toIdx: number) => void
   setTrackOpacity: (id: string, opacity: number) => void
