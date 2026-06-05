@@ -24,6 +24,11 @@ import HistoryPanel from './components/layout/HistoryPanel'
 import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
+// B1 mount: 1-voice sampler (instruments tab + render-path layer).
+import InstrumentsPanel from './components/instruments/InstrumentsPanel'
+import { buildSamplerLayer } from './components/instruments/buildSamplerLayer'
+import { useInstrumentsStore } from './stores/instruments'
+import './styles/instruments.css'
 import type { Asset, EffectInstance } from '../shared/types'
 import { IDENTITY_TRANSFORM } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
@@ -250,7 +255,9 @@ function AppInner() {
   const [startupChecked, setStartupChecked] = useState(false)
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
   const [editingPadId, setEditingPadId] = useState<string | null>(null)
-  const [sidebarTab, setSidebarTab] = useState<'effects' | 'presets'>('effects')
+  const [sidebarTab, setSidebarTab] = useState<'effects' | 'presets' | 'instruments'>('effects')
+  // B1 mount: reactive subscription so sampler edits trigger a re-render (effect below).
+  const instrument = useInstrumentsStore((s) => s.instrument)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
 
@@ -812,7 +819,17 @@ function AppInner() {
         }
 
         let res
-        const hasMultipleLayers = activeVideoClips.length > 1 || activeTextClips.length > 0
+        // B1 mount: resolve the single sampler instrument into a composite layer.
+        // When present it forces the composite path (the single-clip render_frame
+        // fast path can't carry an extra layer) and is appended on top.
+        const samplerLayer = buildSamplerLayer(
+          useInstrumentsStore.getState().instrument,
+          projectAssets,
+          frame,
+          activeFps,
+        )
+        const hasMultipleLayers =
+          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayer !== null
 
         if (hasMultipleLayers || activeVideoClips.length === 0) {
           // Use render_composite for multi-layer rendering
@@ -867,7 +884,11 @@ function AppInner() {
             })
           }
 
-          const layers = [...videoLayers, ...textLayers]
+          const layers = [
+            ...videoLayers,
+            ...textLayers,
+            ...(samplerLayer ? [samplerLayer as unknown as Record<string, unknown>] : []),
+          ]
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',
             layers,
@@ -1008,6 +1029,13 @@ function AppInner() {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
   }, [previewState, currentFrame, requestRenderFrame])
+
+  // B1 mount: re-render when the sampler instrument is added/edited/removed.
+  // Without this, SamplerDevice writes to the store but the preview never repaints.
+  useEffect(() => {
+    if (!activeAssetPath.current) return
+    requestRenderFrame(currentFrame)
+  }, [instrument, currentFrame, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
@@ -2215,6 +2243,12 @@ function AppInner() {
           >
             Presets
           </button>
+          <button
+            className={`sidebar-tabs__btn ${sidebarTab === 'instruments' ? 'sidebar-tabs__btn--active' : ''}`}
+            onClick={() => setSidebarTab('instruments')}
+          >
+            Instruments
+          </button>
         </div>
         {sidebarTab === 'effects' ? (
           <EffectBrowser
@@ -2224,6 +2258,8 @@ function AppInner() {
             chainLength={effectChain.length}
             onAddTextTrack={handleAddTextTrack}
           />
+        ) : sidebarTab === 'instruments' ? (
+          <InstrumentsPanel />
         ) : (
           <PresetBrowser
             onApplyPreset={(preset: Preset) => {
