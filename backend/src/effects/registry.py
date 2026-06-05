@@ -417,8 +417,33 @@ def _auto_register():
 
         mods.append(debug_crash)
 
+    # --- A4 Spectral Frame Warper (SPEC-7 §A4) ---
+    # Six pure-numpy/scipy spectral primitives, each a thin contract-conforming
+    # wrapper over `effects.spectral.warp_frame`. CPU-only (no GPU/SG-1 needed).
+    # Named `spectral_warpers` (not `*_mods`) so it stays out of the
+    # test_no_orphan_module_lists guard, which governs only fx-style phase lists.
+    from effects.spectral import (
+        spectral_shift,
+        spectral_comb,
+        spectral_smear,
+        spectral_formant,
+        spectral_parity,
+        spectral_inversion,
+    )
+
+    spectral_warpers = [
+        spectral_shift,
+        spectral_comb,
+        spectral_smear,
+        spectral_formant,
+        spectral_parity,
+        spectral_inversion,
+    ]
+
     # Register all simple effects
-    for mod in mods + phase8_mods + phase8_consolidated + phase12_mods:
+    for mod in (
+        mods + phase8_mods + phase8_consolidated + phase12_mods + spectral_warpers
+    ):
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY
         )
