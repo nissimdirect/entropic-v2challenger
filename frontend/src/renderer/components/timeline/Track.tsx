@@ -6,6 +6,9 @@ import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
 import { useAutomationStore } from '../../stores/automation'
 import { useEffectsStore } from '../../stores/effects'
+import { useInstrumentsStore } from '../../stores/instruments'
+import { useToastStore } from '../../stores/toast'
+import { INSTRUMENT_DRAG_TYPE } from '../instruments/InstrumentsBrowser'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
 import ClipComponent from './Clip'
@@ -213,6 +216,27 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         onContextMenu={handleContextMenu}
         onMouseEnter={() => setShowExtras(true)}
         onMouseLeave={() => setShowExtras(false)}
+        // B2: accept an instrument dragged from the Instruments browser (drag is the
+        // primary gesture per DECISIONS.md:43) — only onto a Performance/MIDI track.
+        onDragOver={(e) => {
+          if (track.type === 'performance' && e.dataTransfer.types.includes(INSTRUMENT_DRAG_TYPE)) {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'copy'
+          }
+        }}
+        onDrop={(e) => {
+          const id = e.dataTransfer.getData(INSTRUMENT_DRAG_TYPE)
+          if (!id) return
+          e.preventDefault()
+          if (track.type !== 'performance') {
+            useToastStore.getState().addToast({ level: 'warning', message: 'Instruments can only be dropped on a MIDI track', source: 'instruments' })
+            return
+          }
+          if (id === 'sampler') {
+            useInstrumentsStore.getState().addSampler(track.id)
+            useTimelineStore.getState().selectTrack(track.id)
+          }
+        }}
       >
         <div className="track-header__color" style={{ background: track.color }} />
         <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>

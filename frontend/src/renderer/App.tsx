@@ -24,8 +24,9 @@ import HistoryPanel from './components/layout/HistoryPanel'
 import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
-// B1 mount: 1-voice sampler (instruments tab + render-path layer).
-import InstrumentsPanel from './components/instruments/InstrumentsPanel'
+// B2: track-bound samplers (instruments browser + performance-track device + render).
+import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
+import SamplerDevice from './components/instruments/SamplerDevice'
 import { buildSamplerLayer } from './components/instruments/buildSamplerLayer'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
@@ -256,8 +257,9 @@ function AppInner() {
   const [showFeedbackDialog, setShowFeedbackDialog] = useState(false)
   const [editingPadId, setEditingPadId] = useState<string | null>(null)
   const [sidebarTab, setSidebarTab] = useState<'effects' | 'presets' | 'instruments'>('effects')
-  // B1 mount: reactive subscription so sampler edits trigger a re-render (effect below).
-  const instrument = useInstrumentsStore((s) => s.instrument)
+  // B2: reactive subscription so sampler add/edit/source/remove triggers a re-render (effect below).
+  const instruments = useInstrumentsStore((s) => s.instruments)
+  const selectedTrackId = useTimelineStore((s) => s.selectedTrackId)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
 
@@ -819,20 +821,20 @@ function AppInner() {
         }
 
         let res
-        // B1 mount: resolve the single sampler instrument into a composite layer.
-        // When present it forces the composite path (the single-clip render_frame
-        // fast path can't carry an extra layer) and is appended on top.
-        // Imperative getState() read is deliberate: requestRenderFrame's deps are
-        // [effectChain], so a coalesced/queued render must re-read the instrument at
-        // exec time rather than capture a stale value from the closure.
-        const samplerLayer = buildSamplerLayer(
-          useInstrumentsStore.getState().instrument,
-          projectAssets,
-          frame,
-          activeFps,
+        // B2: resolve each performance-track Sampler into a composite layer. Only
+        // render samplers whose track still exists, is a performance track, and isn't
+        // muted (drops orphans left by a deleted track). Imperative getState() read is
+        // deliberate: requestRenderFrame's deps are [effectChain], so a coalesced/queued
+        // render must re-read instruments at exec time rather than capture a stale value.
+        const perfTrackIds = new Set(
+          timelineState.tracks.filter((t) => t.type === 'performance' && !t.isMuted).map((t) => t.id),
         )
+        const samplerLayers = Object.entries(useInstrumentsStore.getState().instruments)
+          .filter(([trackId]) => perfTrackIds.has(trackId))
+          .map(([, inst]) => buildSamplerLayer(inst, projectAssets, frame, activeFps))
+          .filter((l): l is NonNullable<typeof l> => l !== null)
         const hasMultipleLayers =
-          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayer !== null
+          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0
 
         if (hasMultipleLayers || activeVideoClips.length === 0) {
           // Use render_composite for multi-layer rendering
@@ -890,7 +892,7 @@ function AppInner() {
           const layers = [
             ...videoLayers,
             ...textLayers,
-            ...(samplerLayer ? [{ ...samplerLayer }] : []),
+            ...samplerLayers.map((l) => ({ ...l })),
           ]
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',
@@ -1033,13 +1035,13 @@ function AppInner() {
     requestRenderFrame(currentFrame)
   }, [previewState, currentFrame, requestRenderFrame])
 
-  // B1 mount: re-render when the sampler instrument is added/edited/removed.
+  // B2: re-render when any track's sampler is added/edited/sourced/removed.
   // Without this, SamplerDevice writes to the store but the preview never repaints.
-  // activeFps is a dep so a project fps change re-resolves the sampler's frameCount.
+  // activeFps is a dep so a project fps change re-resolves sampler frameCounts.
   useEffect(() => {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
-  }, [instrument, currentFrame, activeFps, requestRenderFrame])
+  }, [instruments, currentFrame, activeFps, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
@@ -2263,7 +2265,7 @@ function AppInner() {
             onAddTextTrack={handleAddTextTrack}
           />
         ) : sidebarTab === 'instruments' ? (
-          <InstrumentsPanel />
+          <InstrumentsBrowser />
         ) : (
           <PresetBrowser
             onApplyPreset={(preset: Preset) => {
@@ -2515,6 +2517,12 @@ function AppInner() {
 
       {/* Phase 13: Ableton-style Device Chain */}
       <div className="app__device-chain">
+        {/* B2: a selected Performance track shows its Sampler instrument here,
+            mirroring how a video track shows its effect chain (INSTRUMENTS.md:77). */}
+        {selectedTrackId && instruments[selectedTrackId]
+          && tracks.find((t) => t.id === selectedTrackId)?.type === 'performance' && (
+          <SamplerDevice trackId={selectedTrackId} />
+        )}
         <DeviceChain
           onFreezeUpTo={handleFreezeUpTo}
           onUnfreeze={handleUnfreeze}

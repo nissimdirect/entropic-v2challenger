@@ -13,6 +13,10 @@ import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
+import { useInstrumentsStore } from './stores/instruments'
+import type { SamplerInstrumentV1 } from './components/instruments/types'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX } from './components/instruments/types'
+import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
 import { LIMITS } from '../shared/limits'
@@ -155,7 +159,7 @@ function serializeProject(): string {
 
   const midiStore = useMIDIStore.getState()
 
-  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> } = {
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -176,6 +180,8 @@ function serializeProject(): string {
     drumRack: performanceStore.drumRack,
     operators: operatorStore.operators,
     automationLanes: automationStore.lanes,
+    // B2: per-Performance-track samplers, keyed by trackId (remapped on load).
+    instruments: useInstrumentsStore.getState().instruments,
     midiMappings: midiStore.getMIDIPersistData(),
     deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
   }
@@ -296,7 +302,7 @@ function validateProject(data: unknown): data is Project {
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1> }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -309,6 +315,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
+  useInstrumentsStore.setState({ instruments: {} })
+
+  // B2: saved trackId → freshly-created trackId (tracks get new ids on load).
+  // Used to re-key the per-track samplers after the track loop.
+  const trackIdMap: Record<string, string> = {}
 
   // HT-4: hydrate project-level seed for deterministic renders + freeze caches.
   // Validation already clamped it to [0, 2^31-1] in validateProject().
@@ -337,11 +348,14 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     if (isAudio) {
       addedTrackId = tls.addAudioTrack(track.name, track.color)
     } else {
-      tls.addTrack(track.name, track.color, track.type === 'text' ? 'text' : undefined)
+      // B2: preserve performance/text type on reload (was collapsing → video).
+      const addType = track.type === 'text' ? 'text' : track.type === 'performance' ? 'performance' : undefined
+      tls.addTrack(track.name, track.color, addType)
       const freshTracks = useTimelineStore.getState().tracks
       addedTrackId = freshTracks[freshTracks.length - 1]?.id
     }
     if (!addedTrackId) continue
+    trackIdMap[track.id] = addedTrackId
     // Set shared track properties
     if (track.isMuted) useTimelineStore.getState().toggleMute(addedTrackId)
     if (track.isSoloed) useTimelineStore.getState().toggleSolo(addedTrackId)
@@ -459,6 +473,24 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate MIDI mappings (backward compat: missing = empty)
   if (project.midiMappings && typeof project.midiMappings === 'object') {
     useMIDIStore.getState().loadMIDIMappings(project.midiMappings)
+  }
+
+  // B2: restore per-track samplers, re-keyed to the new trackIds + clamped at the
+  // deserialization trust boundary. Samplers whose track didn't survive are dropped.
+  if (project.instruments && typeof project.instruments === 'object') {
+    const instr = useInstrumentsStore.getState()
+    for (const [oldId, raw] of Object.entries(project.instruments)) {
+      const newId = trackIdMap[oldId]
+      if (!newId || !raw || typeof raw !== 'object' || (raw as SamplerInstrumentV1).type !== 'sampler') continue
+      const s = raw as SamplerInstrumentV1
+      instr.addSampler(newId, typeof s.clipId === 'string' ? s.clipId : '')
+      instr.updateSampler(newId, {
+        startFrame: Math.round(clampFinite(Number(s.startFrame), 0, 1_000_000, 0)),
+        speed: clampFinite(Number(s.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
+        opacity: clampFinite(Number(s.opacity), 0, 1, 1),
+        blendMode: s.blendMode,
+      })
+    }
   }
 
   // Hydrate canvas resolution from project settings (backward compat: default 1920x1080)

@@ -1,11 +1,14 @@
 /**
- * B1 — minimal instruments store (single sampler).
+ * B2 — track-bound instruments store.
  *
- * B1 holds ONE sampler instrument (no polyphony, no FSM — that's B2). The
- * render effect in App.tsx subscribes to `instrument` and appends
- * computeSamplerVoice(...) to the render_composite layers when it's non-null
- * and a base clip exists. B2 generalizes this to a Performance-Track-bound
- * collection.
+ * Each Performance/MIDI track owns at most one Sampler instrument, keyed by
+ * trackId. Instantiated by dragging "Sampler" from the Instruments browser onto
+ * a performance track (clipId starts empty); a source clip is set by dropping a
+ * video onto the track's Sampler. The render effect in App.tsx iterates these
+ * per-track samplers and appends each as a composite layer.
+ *
+ * (B1 was a single global sampler; this generalizes it per INSTRUMENTS.md §5 +
+ * B1-1VOICE-SAMPLER-PLAN.md "B2 generalizes to a Performance-Track-bound collection".)
  */
 import { create } from 'zustand'
 
@@ -18,34 +21,63 @@ function nextId(): string {
 }
 
 interface InstrumentsState {
-  instrument: SamplerInstrumentV1 | null
-  addSampler: (clipId: string) => void
-  updateSampler: (patch: Partial<Omit<SamplerInstrumentV1, 'id' | 'type'>>) => void
-  removeSampler: () => void
+  /** trackId → its Sampler. A track with no entry has no instrument. */
+  instruments: Record<string, SamplerInstrumentV1>
+  /** Instantiate a Sampler on a track (no-op if it already has one). clipId '' = unsourced. */
+  addSampler: (trackId: string, clipId?: string) => void
+  /** Set/replace the source clip (called when a video is dropped on the sampler). */
+  setSource: (trackId: string, clipId: string) => void
+  /** Patch start/speed/opacity/blend for a track's sampler. */
+  updateSampler: (trackId: string, patch: Partial<Omit<SamplerInstrumentV1, 'id' | 'type'>>) => void
+  /** Remove a track's sampler (also called on track delete for cleanup). */
+  removeSampler: (trackId: string) => void
+  getSampler: (trackId: string) => SamplerInstrumentV1 | undefined
 }
 
-export const useInstrumentsStore = create<InstrumentsState>((set) => ({
-  instrument: null,
+export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
+  instruments: {},
 
-  addSampler: (clipId) =>
-    set({
-      instrument: {
-        id: nextId(),
-        type: 'sampler',
-        clipId,
-        startFrame: 0,
-        speed: 1,
-        opacity: 1,
-        blendMode: 'normal',
-      },
-    }),
-
-  updateSampler: (patch) =>
+  addSampler: (trackId, clipId = '') =>
     set((state) =>
-      state.instrument
-        ? { instrument: { ...state.instrument, ...patch } }
+      state.instruments[trackId]
+        ? state
+        : {
+            instruments: {
+              ...state.instruments,
+              [trackId]: {
+                id: nextId(),
+                type: 'sampler',
+                clipId,
+                startFrame: 0,
+                speed: 1,
+                opacity: 1,
+                blendMode: 'normal',
+              },
+            },
+          },
+    ),
+
+  setSource: (trackId, clipId) =>
+    set((state) =>
+      state.instruments[trackId]
+        ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], clipId } } }
         : state,
     ),
 
-  removeSampler: () => set({ instrument: null }),
+  updateSampler: (trackId, patch) =>
+    set((state) =>
+      state.instruments[trackId]
+        ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], ...patch } } }
+        : state,
+    ),
+
+  removeSampler: (trackId) =>
+    set((state) => {
+      if (!state.instruments[trackId]) return state
+      const next = { ...state.instruments }
+      delete next[trackId]
+      return { instruments: next }
+    }),
+
+  getSampler: (trackId) => get().instruments[trackId],
 }))
