@@ -16,7 +16,6 @@ it protects against; the test itself runs in pure-Python.
 from __future__ import annotations
 
 import ast
-import sys
 from pathlib import Path
 
 import pytest
