@@ -822,6 +822,9 @@ function AppInner() {
         // B1 mount: resolve the single sampler instrument into a composite layer.
         // When present it forces the composite path (the single-clip render_frame
         // fast path can't carry an extra layer) and is appended on top.
+        // Imperative getState() read is deliberate: requestRenderFrame's deps are
+        // [effectChain], so a coalesced/queued render must re-read the instrument at
+        // exec time rather than capture a stale value from the closure.
         const samplerLayer = buildSamplerLayer(
           useInstrumentsStore.getState().instrument,
           projectAssets,
@@ -887,7 +890,7 @@ function AppInner() {
           const layers = [
             ...videoLayers,
             ...textLayers,
-            ...(samplerLayer ? [samplerLayer as unknown as Record<string, unknown>] : []),
+            ...(samplerLayer ? [{ ...samplerLayer }] : []),
           ]
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',
@@ -1032,10 +1035,11 @@ function AppInner() {
 
   // B1 mount: re-render when the sampler instrument is added/edited/removed.
   // Without this, SamplerDevice writes to the store but the preview never repaints.
+  // activeFps is a dep so a project fps change re-resolves the sampler's frameCount.
   useEffect(() => {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
-  }, [instrument, currentFrame, requestRenderFrame])
+  }, [instrument, currentFrame, activeFps, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
