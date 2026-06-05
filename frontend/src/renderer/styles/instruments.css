@@ -1,0 +1,89 @@
+/* B1 mount — Instruments tab + sampler device. BEM, dark theme. */
+
+.instruments-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.instruments-panel__add {
+  width: 100%;
+  padding: 10px;
+  background: #232323;
+  color: #4ade80;
+  border: 1px dashed #4ade80;
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.instruments-panel__add:hover:not(:disabled) {
+  background: #2a2a2a;
+}
+
+.instruments-panel__add:disabled {
+  color: #666;
+  border-color: #444;
+  cursor: not-allowed;
+}
+
+.instruments-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.instruments-panel__title {
+  color: #4ade80;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.instruments-panel__remove {
+  background: transparent;
+  color: #ef4444;
+  border: 1px solid #ef4444;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.instruments-panel__remove:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.sampler-device {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #1f1f1f;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.sampler-device__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: #ccc;
+}
+
+.sampler-device__row input,
+.sampler-device__row select {
+  background: #2a2a2a;
+  color: #eee;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  max-width: 120px;
+}
