@@ -1,6 +1,6 @@
 # Creatrix Documentation Index — Canonical Map
 
-**Created:** 2026-06-11. This directory (`docs/roadmap/`) is the consolidated home for all Creatrix planning documentation that previously lived scattered across `~/.claude/plans/` and `~/Development/entropic-layout-mockup/`. Files here were **copied** (not moved) on 2026-06-11; if a parallel session has since updated a local working copy, the local copy wins until that session closes — then sync here.
+**Created:** 2026-06-11. This directory (`docs/roadmap/`) is the consolidated home for all Creatrix planning documentation that previously lived scattered across `~/.claude/plans/` and `~/Development/entropic-layout-mockup/`. Files here were **copied** (not moved) on 2026-06-11. **This repo copy is CANONICAL.** Local originals (`~/.claude/plans/`, `~/Development/entropic-layout-mockup/`) become pointer stubs at next session-close; until then the orchestration tick preamble (ROADMAP.md §3 rule 1) runs `diff -q` against them and HALTS on divergence — divergence is resolved by a human-visible resync commit, never silently.
 
 ## Authority order (when docs disagree)
 

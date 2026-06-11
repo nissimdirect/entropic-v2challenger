@@ -11,8 +11,8 @@
 - **main:** `d821ae8` = [PR #166](https://github.com/nissimdirect/entropic-v2challenger/pull/166), merged 2026-06-05. **No merges in the last 6 days.**
 - **Identity:** `package.json` → `creatrix` / `Creatrix` / **v3.0.0** (rename shipped as [PR #120](https://github.com/nissimdirect/entropic-v2challenger/pull/120)).
 - **Scale:** ~214 effects (206 at the 2026-05-15 GO verdict, +8 spectral since), 1,814/1,818 vitest, 12K+ backend tests, 25h engine soak clean.
-- **Merged since 2026-05-05:** ~75 PRs — May UAT/hardening campaign (#55–#107), PR-zero per-track chains ([#116](https://github.com/nissimdirect/entropic-v2challenger/pull/116)), rebrand ([#120](https://github.com/nissimdirect/entropic-v2challenger/pull/120)), INJ-1/2/3 ([#152](https://github.com/nissimdirect/entropic-v2challenger/pull/152)/[#150](https://github.com/nissimdirect/entropic-v2challenger/pull/150)/[#151](https://github.com/nissimdirect/entropic-v2challenger/pull/151)), Tier-1 schema de-stack ([#148](https://github.com/nissimdirect/entropic-v2challenger/pull/148)), B1 sampler ([#153](https://github.com/nissimdirect/entropic-v2challenger/pull/153)+[#155](https://github.com/nissimdirect/entropic-v2challenger/pull/155)), automation unification ([#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157) *merged per plan docs; listed open on GH — verify*), safety gates SG-7/4/8/1 ([#149](https://github.com/nissimdirect/entropic-v2challenger/pull/149)/[#159](https://github.com/nissimdirect/entropic-v2challenger/pull/159)/[#161](https://github.com/nissimdirect/entropic-v2challenger/pull/161)/[#163](https://github.com/nissimdirect/entropic-v2challenger/pull/163)), spectral family A4/C4/A5 ([#162](https://github.com/nissimdirect/entropic-v2challenger/pull/162)/[#165](https://github.com/nissimdirect/entropic-v2challenger/pull/165)).
-- **Open:** 39 PRs = 7 active (June) + 22 parked q7 drafts + 5 stale (May) + docs [#67](https://github.com/nissimdirect/entropic-v2challenger/pull/67).
+- **Merged since 2026-05-05:** ~75 PRs — May UAT/hardening campaign (#55–#107), PR-zero per-track chains ([#116](https://github.com/nissimdirect/entropic-v2challenger/pull/116)), rebrand ([#120](https://github.com/nissimdirect/entropic-v2challenger/pull/120)), INJ-1/2/3 ([#152](https://github.com/nissimdirect/entropic-v2challenger/pull/152)/[#150](https://github.com/nissimdirect/entropic-v2challenger/pull/150)/[#151](https://github.com/nissimdirect/entropic-v2challenger/pull/151)), Tier-1 schema de-stack ([#148](https://github.com/nissimdirect/entropic-v2challenger/pull/148)), B1 sampler ([#153](https://github.com/nissimdirect/entropic-v2challenger/pull/153)+[#155](https://github.com/nissimdirect/entropic-v2challenger/pull/155)) (note: #157 automation-unify is OPEN despite plan docs claiming merged — verified via gh 2026-06-11; it merges in Phase 1), safety gates SG-7/4/8/1 ([#149](https://github.com/nissimdirect/entropic-v2challenger/pull/149)/[#159](https://github.com/nissimdirect/entropic-v2challenger/pull/159)/[#161](https://github.com/nissimdirect/entropic-v2challenger/pull/161)/[#163](https://github.com/nissimdirect/entropic-v2challenger/pull/163)), spectral family A4/C4/A5 ([#162](https://github.com/nissimdirect/entropic-v2challenger/pull/162)/[#165](https://github.com/nissimdirect/entropic-v2challenger/pull/165)).
+- **Open:** 39 PRs = 7 active (June: #146/#156/#157/#158/#160/#164/#167) + **26 parked q7 drafts** (#117–#145; ~6 of these already had their content cherry-picked to main via #149/#159/#161/#162/#163/#165) + 4 stale May (#101/#103/#108/#109) + docs [#67](https://github.com/nissimdirect/entropic-v2challenger/pull/67) + this consolidation's #168.
 - **Feature flags:** exactly one — `EXPERIMENTAL_AUDIO_TRACKS` (`backend/src/zmq_server.py:52`), **default OFF** even though the full audio chain merged ([#30](https://github.com/nissimdirect/entropic-v2challenger/pull/30)+[#66](https://github.com/nissimdirect/entropic-v2challenger/pull/66)).
 
 **Canonical plan sources** (source-of-truth order per master sequence):
@@ -27,8 +27,8 @@
 
 ## 1. What "feature complete" means (two targets)
 
-- **FC-v3 — "Playable instrument paradigm"** = Tiers 0–4 done: PR-A/B/C sweep, demo trilogy in-app, instrument ladder B1–B10, inspector surfaces, plus v2 debt cleared. **≈ 150–250h** of build remaining.
-- **FC-vision — full synth-paradigm** = FC-v3 + Tiers 5–7 (latent L-axis features, `.dna` ecosystem, Genoscope, plugin SDK). **≈ +250–400h**, with Tier 5 hard-gated on the Q7 REAL benchmark verdict.
+- **FC-v3 — "Playable instrument paradigm"** = Tiers 0–4 done: PR-A/B/C sweep, demo trilogy in-app, instrument ladder B1–B10, inspector surfaces, plus v2 debt cleared. **≈ 160–320h** of build remaining (itemized: PR-B 8–14 + PR-A 9–12 + PR-C 14–18 + instruments 131–199, before inspector surfaces, demo drawer, and v2 debt — CTO-reviewed sums).
+- **FC-vision — full synth-paradigm** = FC-v3 + Tiers 5–7 (latent L-axis features, `.dna` ecosystem, Genoscope, plugin SDK). **order-of-magnitude only: +250h floor** (Tier 6/7 items are unsized research-class), with Tier 5 hard-gated on the Q7 REAL benchmark verdict. CTO recommendation: treat FC-v3 as the real ship target; gate Tier 7 (plugin SDK/quotas/signing) on "a second user exists", not just tier order — building plugin signing for an audience of one repeats the over-build the project rejected when it dropped migrations. Decision is the user's.
 
 ---
 
@@ -105,25 +105,41 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 
 ---
 
-## 3. Phased roadmap
+## 3. Campaign safety protocol (MANDATORY for autonomous orchestration)
+
+Adopted from the 2026-06-11 /review pass (CTO: CONDITIONAL GO · Red Team: 9 tigers). These are mechanical gates, not advice — the orchestrator executes them.
+
+1. **Tick preamble (step 0 of EVERY orchestration cycle):** re-read the user's original ask + this section; run `gh pr list --repo nissimdirect/entropic-v2challenger --state open --json number,title` and `git log origin/main --oneline -10`; `diff -q` each repo `docs/roadmap/` file against its local original (`~/.claude/plans/`, `~/Development/entropic-layout-mockup/`) — divergence → STOP and resync before building. The §0 snapshot is advisory; never build from it without re-derivation.
+2. **Exit criteria are artifacts:** every packet/phase completion = a named artifact with a measurable property (file exists, test passes with named behavior, UI renders). Never "N PRs opened" (Q7-incident rule, `feedback_verb-ask-deliverable-is-the-result.md`).
+3. **Main always releasable:** a phase may stop ONLY at green, shippable main. That is the safe-stop definition for every phase.
+4. **Q7 gate is a file-property test:** Tier 5 opens iff `~/.entropic/q7-report.json` exists, contains NO `"mock"` key, and verdict == TIER_5_GO. The mock was renamed `q7-report.MOCK.json` with `mock:true` embedded (2026-06-11) — an agent finding only the MOCK file must treat the gate as CLOSED.
+5. **One agent = one fresh worktree**, pruned after merge. Existing-worktree pruning requires the 6-check audit first.
+6. **PR-A constraint travels with the task** — every PR-A packet embeds verbatim: "Modify EffectBrowser.tsx and existing components IN PLACE. Creating a new parallel shell/browser/panel component is an automatic FAIL (PR #154 precedent)."
+7. **Audio un-flag requires bake evidence:** no agent flips `EXPERIMENTAL_AUDIO_TRACKS` default without the 1-week user-facing bake being documented.
+8. **Ledger correction protocol:** any agent that finds this doc wrong (vs live GitHub/repo) fixes the doc in the same PR as its work and notes the correction in the PR body.
+9. **Model routing (work savvier, not harder):** Fable = orchestration, packet generation, RISK:HIGH packets, adversarial merge review only. Sonnet = default packet executor. Haiku = mechanical packets (renames, doc syncs, test-only packets, worktree hygiene). Batch text work (classifying findings, summarizing logs, format conversion) → `mcp__llm-router__llm_delegate` / Gemini, never a frontier model. Every packet carries its model tier; executors may escalate one tier with a one-line justification, never silently.
+
+## 4. Phased roadmap
 
 ### Phase 1 — Drain the frontier (≈1–2 sessions)
 The 7 active PRs are the live edge; nothing has merged since June 5.
 - Merge the PR-B slice stack: [#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157) (automation unify) → [#158](https://github.com/nissimdirect/entropic-v2challenger/pull/158) (B4-lite axis binding = INJ-5 wiring) → [#160](https://github.com/nissimdirect/entropic-v2challenger/pull/160) (export determinism 3a)
 - [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) B1 sampler persistence (coordinate with B2-lite breaking change), [#164](https://github.com/nissimdirect/entropic-v2challenger/pull/164) BPM persistence fix, [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) B2-lite performance track, [#146](https://github.com/nissimdirect/entropic-v2challenger/pull/146) Grid Moire v2
 - Disposition the 5 stale May PRs: [#101](https://github.com/nissimdirect/entropic-v2challenger/pull/101) (Escape-deselect bug fix — real open bug), [#103](https://github.com/nissimdirect/entropic-v2challenger/pull/103) (zero-default hint; check reverted files), [#108](https://github.com/nissimdirect/entropic-v2challenger/pull/108) (ZMQ REQ mutex), [#109](https://github.com/nissimdirect/entropic-v2challenger/pull/109) (timeline drag-reorder), [#67](https://github.com/nissimdirect/entropic-v2challenger/pull/67) (docs)
-- Hygiene: prune ~15 stale post-squash worktrees + 4 empty scaffold worktrees (`effectgenome`, `apply-chain-state`, `pde-extract`, `seed-field-extract`); confirm cron `b3c47f1c` is dead.
+- **Binary-green baseline:** fix or skip-with-comment the 4 failing vitest tests so the campaign starts from green; record the exact command + expected count in this doc.
+- **Canonical checkout:** return `~/Development/entropic-v2challenger` to `main` (currently parked on `docs/torn-edges-solutions` — the multi-session branch-switch hazard).
+- Hygiene: live worktree count is **58** (not ~19) — prune only with the per-worktree 6-check no-source-declared-dead audit; confirm cron `b3c47f1c` is dead.
 
 ### Phase 2 — Finish PR-B (≈8–14h remaining)
-Per `~/.claude/plans/entropic-PR-B-plan-2026-06-05.md`: 3a ✅ (#160 once merged) · **3b BPM split** (`bpm` vs `effectiveBpm`, fixes BPM-never-hydrated) · **3c Composite-as-effect** — the 36-file v3 data-model break (terminal-effect validator, removes `Track.opacity`/`blendMode`; plan says fresh session + `/qa-redteam` required) · **3d full export parity** (operators/automation/sampler/multi-track in export).
+Per `~/.claude/plans/entropic-PR-B-plan-2026-06-05.md`: 3a ✅ (#160 once merged) · **3b BPM split** (`bpm` vs `effectiveBpm`, fixes BPM-never-hydrated) · **3c Composite-as-effect** — the 36-file v3 data-model break (terminal-effect validator, removes `Track.opacity`/`blendMode`; plan says fresh session + `/qa-redteam` required; **must land as ONE atomic PR including a legacy-project load test** — no half-landed state may persist on main) · **3d full export parity** (operators/automation/sampler/multi-track in export).
 
 ### Phase 3 — PR-A layout redesign (9–12h plan estimate; the big unopened one)
 `~/Development/entropic-layout-mockup/PLAN.md` §3. Approach reset after [#154](https://github.com/nissimdirect/entropic-v2challenger/pull/154) was closed as waste — **evolve `EffectBrowser.tsx` in place**, no parallel shell. Contents: CSS-grid layout shell + 4 drag handles, 5-tab browser (fx/op/composite/tool/instruments), polymorphic inspector (8 states), hover-help (WCAG 1.4.13, <8ms@200 targets gate), Ableton-style hotkeys, **INJ-4** (Sampler entry in instruments tab). Unlocks: Demos Drawer + first-launch onboarding (demo trilogy MP4s already rendered to `~/.entropic/demos/`, spec `~/.claude/plans/entropic-spec-4-demo-trilogy.md`), I3 inline-probe frontend, B2-lite drag UX. Also closes legacy UX debt F-0512-11 + effects-panel-height (`docs/plans/2026-05-14-upcoming-ux-items.md`).
 
 ### Phase 4 — PR-C operators (14–18h)
-`PLAN.md` §5: operators surfaced in browser, `kentaroCluster | sidechain | gate | midiEnvStutter`, Kentaro 8-LFO cluster with react-xyflow topology graph (60fps@32-paths gate, bare-SVG fallback). Reference: `memory/reference_kentaro-suzuki-m4l.md`. Blocks B9.
+`PLAN.md` §5: operators surfaced in browser, `kentaroCluster | sidechain | gate | midiEnvStutter`, Kentaro 8-LFO cluster with react-xyflow topology graph (60fps@32-paths gate, bare-SVG fallback). Reference: `memory/reference_kentaro-suzuki-m4l.md`. Blocks B9 only — CTO note: PR-C may slide to just-before-B9 (with the SG-5 cherry-pick) to deliver B2–B8 value ~2 sessions sooner.
 
-### Phase 5 — Instrument ladder Tier 4 (≈90–150h, the bulk of FC-v3)
+### Phase 5 — Instrument ladder Tier 4 (≈131–199h itemized, the bulk of FC-v3)
 `~/Development/entropic-layout-mockup/INSTRUMENTS-BUILD-PLAN.md`. B1 ✅ core+mount; B2-lite in flight (#167).
 **B2** voice spine/polyphony/FSM (10–14h, needs PR-B) → **B3** full sampler: loop/scrub/slice/melodic (8–10h) → **B4** sample rack + 8 macros (12–16h) → **B5** grouping/composite-tree (10–14h) → **B6** Frame-Bank wavetable (12–18h; SG-8 ✅ lib but needs live wiring) → **B7** RIFE optical-flow morph (15–25h; SG-1 ✅ but real Metal binding deferred) → **B8** Granulator — the headline (40–70h; needs **SG-3, unmerged**) → **B9** tensor mod-routing + Y-as-time (14–18h; needs PR-C + **SG-5, unmerged**) → **B10** live performance affordances (10–14h). Namespace footgun: vision-B4 (binding rules) ≠ Creatrix-B4 (sample rack).
 
@@ -149,7 +165,7 @@ User must run the benchmark on their M-series Mac (`backend/scripts/q7_benchmark
 
 ---
 
-## 4. Gap register
+## 5. Gap register
 
 | # | Gap | Severity | Evidence |
 |---|---|---|---|
@@ -157,7 +173,7 @@ User must run the benchmark on their M-series Mac (`backend/scripts/q7_benchmark
 | **G2** | **PR-A never opened.** One attempt (#154) closed as waste; "evolve EffectBrowser in place" direction set but no execution since. Blocks INJ-4, B1/B2-lite UX, demo Drawer, onboarding, I3 frontend. | 🔴 blocks Tiers 1/4 UX | `PLAN.md` §3; `memory/feedback_read-existing-component-before-parallel-build.md` |
 | **G3** | **SG-3 (NaN sentinel) + SG-5 (dynamic cycle detection) unmerged** — drafts [#133](https://github.com/nissimdirect/entropic-v2challenger/pull/133)/[#144](https://github.com/nissimdirect/entropic-v2challenger/pull/144); block B8 Granulator (the headline instrument) and B9 tensor routing. SG-1 Metal binding + SG-8 live wiring also deferred. SG-6/SG-9/SG-H1-3 not started. | 🟠 | `entropic-spec-3-safety-gates.md`; INSTRUMENTS-BUILD-PLAN §5 |
 | **G4** | **PR-B half-done**: 3b BPM split, 3c composite-as-effect (36-file break), 3d export parity remain; the per-scanline `domain='y'` render unlock was deferred out of #158 to C2/C3 — so Tier-1 "paradigm becomes felt" is schema-true but not yet *visible* in renders beyond the demo MP4s. | 🟠 | `entropic-PR-B-plan-2026-06-05.md` |
-| **G5** | **22 parked q7 draft PRs** ([#117–#145](https://github.com/nissimdirect/entropic-v2challenger/pulls)) must each be cherry-picked when their tier opens; raw merge falsely reverts merged work. Unextracted: SG-3, SG-5, .dna, I1/I2/I3, CLIP/CLAP/L-worker/bench chain, download UX, E5, demo-trilogy runner. | 🟠 process hazard | `memory/feedback_cherry-pick-stale-scaffold-branches.md`; master sequence §13 |
+| **G5** | **26 parked q7 draft PRs** ([#117–#145](https://github.com/nissimdirect/entropic-v2challenger/pulls)) are **reference implementations, not turnkey payloads** — main has absorbed schema changes (#148/#152, spectral family) they predate. Re-derive against current main; run a viability probe (merge-base distance + conflict count) before scheduling; raw merge falsely reverts merged work. Unextracted: SG-3, SG-5, .dna, I1/I2/I3, CLIP/CLAP/L-worker/bench chain, download UX, E5, demo-trilogy runner. | 🟠 process hazard | `memory/feedback_cherry-pick-stale-scaffold-branches.md`; master sequence §13 |
 | **G6** | **Two roadmaps never reconciled**: Cross-Modal v1.1 plan (F1 datamosh sequencer, F2 motion angle, F3 macro device, F4 chord modulator — merged plan [PR #36](https://github.com/nissimdirect/entropic-v2challenger/pull/36), never built) and `docs/addendums/POST-V1-ROADMAP.md` (Phases 12–19) both predate the synth-paradigm master sequence and are absent from it. Decide: fold in (F3 ≈ vision B2/macros; Phase 14 ≈ C7/B2), or formally supersede. | 🟠 scope ambiguity | `memory/entropic-cross-modal.md`; `docs/addendums/POST-V1-ROADMAP.md` |
 | **G7** | **Audio tracks shipped but dark**: full chain merged (#30+#66) yet flag default-OFF, bake never started, PR-4 (un-flag + audio auto-extract) unscheduled. | 🟠 | `memory/entropic-audio-tracks.md`; `zmq_server.py:52` |
 | **G8** | **Open bugs**: F-0514-5 Escape-deselect (fix waiting in open [#101](https://github.com/nissimdirect/entropic-v2challenger/pull/101)), F-0516-7 hint badge ([#103](https://github.com/nissimdirect/entropic-v2challenger/pull/103), files may have been reverted — rebase check), ZMQ REQ mutex ([#108](https://github.com/nissimdirect/entropic-v2challenger/pull/108)), F-0514-8 dylib warning, F-16. | 🟡 | `memory/entropic-uat-may14.md` |
@@ -165,11 +181,12 @@ User must run the benchmark on their M-series Mac (`backend/scripts/q7_benchmark
 | **G10** | **B2-lite supersedes #155 button UX** per user correction (drag sampler → MIDI track → drag video); #156 persistence must coordinate with #167's breaking change. | 🟡 | `entropic-B2-performance-track-sampler-2026-06-05.md` |
 | **G11** | **External user-testing resolved "NONE"** (sole-tester) — contradicts vision §9/§11 founder-bias mitigation. Standing tension; revisit at Tier 4 milestone. | 🟡 strategic | master sequence §11 vs vision §11(f) |
 | **G12** | **History-buffer polish**: Gap-2 description-string convention + Gap-3 500-entry memory smoke outstanding; Gap-1/Gap-4 deliberately deferred. | 🟢 | `~/.claude/plans/entropic-history-buffer-validation.md` |
-| **G13** | **Hygiene**: ~19 prunable worktrees; cron `b3c47f1c` status unverified; effect-count drift across docs (treat 214 as live); `docs/decisions/q7/` has only 4 of ~17 DEC-Q7 records on main. | 🟢 | repo-state sweep |
+| **G13** | **Hygiene**: **58 worktrees live** (prune only with per-worktree 6-check audit); cron `b3c47f1c` status unverified; effect-count drift across docs (treat 214 as live); `docs/decisions/q7/` has only 4 of ~17 DEC-Q7 records on main. | 🟢 | repo-state sweep |
+| **G14** | **Unnamed prerequisites**: Tier-5 total model disk/download budget unquantified (CLIP+CLAP+DINOv2 = multi-GB; only Q7's 500MB counted); B7 RIFE model weights acquisition/licensing unaddressed; PR-A hover-help <8ms@200 gate needs a perf harness that does not exist yet; CI capacity for re-derived draft branches. | 🟡 | CTO review 2026-06-11 |
 
 ---
 
-## 5. Suggested execution order (next 5 moves)
+## 6. Suggested execution order (next 5 moves)
 
 1. **User runs Q7 REAL** (~30 min of user time, unblocks the single biggest gate) — can happen in parallel with everything.
 2. **Phase 1 frontier drain** — merge the 7 active PRs, disposition the 5 stale ones.
