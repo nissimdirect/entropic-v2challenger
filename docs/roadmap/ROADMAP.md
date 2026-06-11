@@ -105,6 +105,14 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 
 ---
 
+## 2.5 Locked decisions (user-approved 2026-06-11)
+
+1. **Cross-modal F1–F4 (resolves G6/PD.9):** F1 datamosh sequencer + F4 chord modulator SUPERSEDED by B8/B9 (do not build; F1 may be revived as a standalone demo only on explicit user ask). F2 motion-angle mod source FOLDS INTO Phase 4 (operator family). F3 macro device FOLDS INTO Tier 3 (vision-B2/B4-full).
+2. **53 transitions (resolves PD.13):** SCHEDULED post-B5 as a content sprint (own packet file; first 3 establish the pattern, remainder = batch Haiku/Sonnet work).
+3. **Tier 7 DEMOTED to if-ever**, gated on "a second user exists." `.dna` (Tier 6) survives but SIMPLIFIED: JSON + schema lints only; Ed25519 signing + SG-9 quotas dropped until distribution is real.
+4. **Q7 stays parked** (user: "benchmark run is later"). Tier 5 mechanically closed via the G-CHECK.
+5. **PR #168 merges before campaign start** (done). PUX-before-PR-A ordering CONFIRMED (tokens land first, visual change is early). 3c no-migration CONFIRMED — no existing project files matter.
+
 ## 3. Campaign safety protocol (MANDATORY for autonomous orchestration)
 
 Adopted from the 2026-06-11 /review pass (CTO: CONDITIONAL GO · Red Team: 9 tigers). These are mechanical gates, not advice — the orchestrator executes them.

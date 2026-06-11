@@ -1,3 +1,5 @@
+# [LOCKED DECISION 2026-06-11: Tier 7 (P9.*) demoted to IF-EVER, gated on a second user existing. .dna simplified — JSON + schema lints; signing/SG-9 quotas dropped. P8.6/P8.7 signing packets and P9.3/P9.4 are SUSPENDED.]
+
 # Work Packets — Phase 8 (Tier 6: `.dna`/E2 + SG-2 + SG-6 + A2 Genoscope + E8) and Phase 9 (Tier 7: SG-9 + E7 Plugin SDK)
 
 **Authored:** 2026-06-11 · **Base for all packets:** `origin/main` @ `d821ae8` (verified). If `origin/main` has moved when you pick a packet up, re-run that packet's PRECONDITIONS — they are the contract, not the SHA.

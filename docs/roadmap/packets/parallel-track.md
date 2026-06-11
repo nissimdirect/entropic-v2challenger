@@ -184,7 +184,7 @@
 - **EVIDENCE:** PR + screenshots of ≥2 menus showing shortcuts + updated plan doc.
 - **Effort:** ~3h.
 
-## PD.9 — Cross-modal v1.1 F1–F4 DECISION packet (Gap G6)
+## PD.9 [DECISION RECORDED 2026-06-11: F1/F4 superseded by B8/B9 · F2 → Phase 4 operators · F3 → Tier 3 — packet now = write the supersession notes into the plan docs] — Cross-modal v1.1 F1–F4 DECISION packet (Gap G6)
 
 - **ID:** PD.9 · **branch:** `docs/dec-crossmodal-disposition` · **base:** `origin/main`
 - **depends-on:** none — **USER decision required; this packet prepares + records it, it does not make it**
@@ -265,7 +265,7 @@
 - **EVIDENCE:** PR + vitest output with the measured heap delta number.
 - **Effort:** ~2h.
 
-## PD.13 — DECISION packet: 53 layer transitions — schedule or formally defer (closes the "designed, on no tier" gap)
+## PD.13 [DECISION RECORDED 2026-06-11: schedule post-B5 as content sprint — packet now = apply disposition + author the transitions packet file] — DECISION packet: 53 layer transitions — schedule or formally defer (closes the "designed, on no tier" gap)
 
 - **ID:** PD.13 · **branch:** `docs/dec-transitions-disposition` · **base:** `origin/main`
 - **depends-on:** none — **USER decision required; this packet prepares + records it**
@@ -331,7 +331,7 @@
 - **EVIDENCE:** PR + caller maps + test output + updated §3.
 - **Effort:** ~4h. · **Model:** Sonnet.
 
-## PD.16 — DECISION packet (extends PD.9 / Gap G6): POST-V1-ROADMAP Phases 12–19 fold-in vs supersede
+## PD.16 [Per locked decision 3, POST-V1 items map: transitions→PD.13 sprint, audio-reactive mods→C7/B2-vision, rest supersede] — DECISION packet (extends PD.9 / Gap G6): POST-V1-ROADMAP Phases 12–19 fold-in vs supersede
 
 - **ID:** PD.16 · **branch:** `docs/dec-postv1-roadmap-disposition` · **base:** `origin/main`
 - **depends-on:** PD.9 recommended first (same G6 reconciliation muscle; PD.9 settles Cross-Modal F1–F4, this settles the OTHER stale roadmap) — not blocking
