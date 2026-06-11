@@ -73,6 +73,10 @@ Backend markers (verified in `backend/pyproject.toml`): `perf`, `smoke`, `oracle
 
 ---
 
+**Contract amendments from P1.0 live execution (2026-06-11):**
+- **Rule 10 — worktree bootstrap:** frontend-touching packets MUST run `npm install --prefer-offline` in the fresh worktree BEFORE preconditions (worktrees do not inherit node_modules — this was a silent precondition that forced executor improvisation).
+- **Rule 11 — monotonic gates:** acceptance gates must not pin rot-prone absolute counts ("exactly 1,818 tests"); phrase as monotonic invariants ("count must not decrease", ">= baseline recorded in ROADMAP s0"). When a packet says "record and close", "close" = complete the packet's evidence + PR steps with minimal scope; never skip the PR.
+
 ## 2. Phase 1 — Drain the frontier (merge/verify packets)
 
 These are verification packets, not build packets: rebase, test, verify the claimed behavior, merge.
