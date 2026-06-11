@@ -38,14 +38,15 @@ All values OKLCH-derived (hue 285 cast in the neutrals — CRT undertone, percep
 |---|---|---|
 | `--cx-text-1` | `#E7E7EC` | body+ on surface-1..4 (13.9:1 on s-1) |
 | `--cx-text-2` | `#9A9AA6` | labels on s-1..3 (5.6:1) |
-| `--cx-text-3` | `#62626E` | disabled/hint only — never load-bearing copy |
+| `--cx-text-3` | `#80808E` | hint/placeholder text (4.8:1 on s-1 — AA) |
+| `--cx-text-disabled` | `#62626E` | disabled states ONLY (WCAG-exempt; never hints) |
 
 ### Accents
 | Family | Core | Hover | Pressed | Wash (10–12% α) | On-color text |
 |---|---|---|---|---|---|
 | ACID | `#C8F321` | `#D9FF4D` | `#A4C916` | `rgba(200,243,33,.10)` | `#0B0B10` |
 | MOD | `#8F7DFF` | `#A693FF` | `#7361D6` | `rgba(143,125,255,.12)` | `#0B0B10` |
-| RED | `#E5484D` | `#F2555A` | `#B53A3E` | `rgba(229,72,77,.12)` | `#FFFFFF` |
+| RED | `#E5484D` (text/icons) · **fill `#C13B40`** | `#F2555A` / `#D24449` | `#B53A3E` | `rgba(229,72,77,.12)` | `#FFFFFF` (5.3:1 on fill — AA; never 12px white on #E5484D, 3.9:1 FAIL) |
 | AMBER | `#D9A23C` | `#E8B453` | `#B28430` | `rgba(217,162,60,.12)` | `#0B0B10` |
 
 Success = ACID (no separate green). Info/links/selection = MOD. No magenta, no cyan, no second green — if a new semantic appears, it must displace one of these, not join them.
@@ -97,3 +98,37 @@ Kills the all-caps-mono shout; mono stays where mono earns it (alignment, instru
 - Three tiers: primitives above → semantic (`--cx-action`, `--cx-selection`, `--cx-danger`, `--cx-meter`…) → component (`--cx-knob-arc`, `--cx-clip-border`…). Components may only reference semantic; semantic only primitives. CI hex-ratchet from `packets/ux-audit.md` §4 enforces (866 hexes → ramp down per PR).
 - Migration map (PUX.1): `#1a1a1a`→`surface-1/2` by role · `#4ade80`(×125)→ACID where it means *life/activity*, `text-2`/MOD where decorative · UX-SPEC `#a855f7`→MOD · pure grays(×~520)→nearest neutral-ladder step. Pop Chaos `tokens.py` stays for *effect palettes inside the video* (nuclear/phosphor presets are content, not chrome) — chrome and content palettes are now formally separate.
 - A11y floors are part of the token definition (pairings in §2 tables); contrast-check is a PUX.6 live-pass gate.
+
+## 8. Competitive bar — Ableton density × Teenage Engineering precision
+
+**From Ableton (information density, calm flatness):**
+- **Every pixel is data.** Density metrics become tokens: `--cx-row-h: 24px` (track/browser rows), `--cx-panel-header: 28px`, `--cx-device-param-h: 18px`. Device params render as **flat slider-bars with inline label + value** (the Live device idiom) — knobs are reserved for macro/performance contexts.
+- **Slider interaction standard:** drag anywhere on the bar, ⇧-drag = fine (10×), double-click = default, click-value = type-in. These are spec, not suggestions.
+- **User-assignable clip/track colors** — the ONE sanctioned decorative color channel (Ableton's move). 8-swatch equal-luminance muted palette (≈oklch 0.65 0.09): terracotta `#C07A6A` · ochre `#B99655` · olive `#97A659` · sage `#6FA98A` · teal `#5FA8A8` · slate `#6E93BE` · lavender `#9B86C9` · mauve `#B878A8`. Equal luminance keeps the timeline calm; ties to missing-functions item #8 (clip rename + color).
+- **Theme discipline:** dark-only today, but every color flows through tokens so a light theme is a token swap, never a code change.
+
+**From Teenage Engineering (industrial precision, playful exactness):**
+- **The TE knob:** 270° travel, hairline tick, and a **colored cap-dot** that announces assignment (acid = macro-mapped, violet = modulated, none = free). Physical-metaphor honesty: a knob with a dot looks ownable.
+- **Schematic iconography:** 1.5px-stroke geometric line icons, no filled glyphs; the I2 routing canvas adopts exploded-diagram language (nodes as outlined modules, wires as 1px polylines).
+- **Dot-grid texture** (`radial-gradient` dots at ~4% alpha, 8px pitch) on empty states and drop zones — tactile industrial surface instead of blank void.
+- **Lowercase mono device voice:** device and param labels render lowercase mono (`pixel_sort`, `rate`, `depth`) — matching the codebase's underscore convention; dialogs/menus stay sentence-case Plex Sans. Two voices, now with two cases, each earned.
+- **Boot line:** one typed mono line on launch (`creatrix v3.0.0 — 214 effects loaded`) as the TE-style identity beat; respects reduced-motion.
+
+## 9. Accessibility audit (2026-06-11, computed WCAG 2.1 AA)
+
+| Pair | Ratio | Verdict |
+|---|---|---|
+| text-1 on surface-1 | 15.1:1 | AAA |
+| text-2 on surface-2 / surface-4 | 6.4 / 5.2 | AA |
+| text-3 hint `#80808E` on surface-1 | 4.8:1 | AA (was `#62626E` @ 3.1 — FIXED, old value demoted to disabled-only) |
+| ACID text/icons on surfaces | 14.5:1 | AAA |
+| MOD text on surface-2 | 5.5:1 | AA |
+| RED text `#E5484D` on surface-2 | 4.53:1 | AA |
+| White on RED **fill** `#C13B40` | 5.3:1 | AA (was white-on-`#E5484D` @ 3.9 — FIXED via fill token) |
+| AMBER text on surface-2 | 7.7:1 | AA |
+| Focus ring (non-text ≥3:1) | 14.5:1 | pass |
+| Meters under CVD | luminance-coded (0.76/0.41/0.22) + position-primary | pass |
+| Selection | border + wash (never color-alone) | pass |
+| Type floor | 11px everywhere (style-guide 10.5px labels FIXED) | pass |
+
+Caveats: computed, not assistive-tech-tested — live screen-reader/keyboard pass remains PUX.6's gate. Dialog Escape/focus-trap/aria-modal ships in PUX.2; this spec defines the targets.

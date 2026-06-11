@@ -9,12 +9,12 @@
   --cx-surface-0:#0B0B10; --cx-surface-1:#121218; --cx-surface-2:#18181F;
   --cx-surface-3:#20202A; --cx-surface-4:#282834;
   --cx-line-1:#2E2E3A; --cx-line-2:#3C3C4C;
-  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#62626E;
+  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#80808E; --cx-text-disabled:#62626E;
   --cx-acid:#C8F321; --cx-acid-hover:#D9FF4D; --cx-acid-press:#A4C916;
   --cx-acid-wash:rgba(200,243,33,.10); --cx-on-acid:#0B0B10;
   --cx-mod:#8F7DFF; --cx-mod-hover:#A693FF; --cx-mod-press:#7361D6;
   --cx-mod-wash:rgba(143,125,255,.12);
-  --cx-red:#E5484D; --cx-red-hover:#F2555A; --cx-red-press:#B53A3E;
+  --cx-red:#E5484D; --cx-red-fill:#C13B40; --cx-red-hover:#F2555A; --cx-red-press:#B53A3E;
   --cx-red-wash:rgba(229,72,77,.12);
   --cx-amber:#D9A23C; --cx-amber-wash:rgba(217,162,60,.12);
   /* semantic (tier 2) */
@@ -36,7 +36,7 @@ h2{font:550 13px/1.3 var(--cx-font-ui);color:var(--cx-text-2);margin:40px 0 12px
 .sub{color:var(--cx-text-2);margin-bottom:8px}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 .chip{width:120px;border-radius:var(--cx-r-card);border:1px solid var(--cx-line-1);overflow:hidden}
-.chip .sw{height:48px}.chip .lab{padding:6px 8px;font:450 10.5px var(--cx-font-data);color:var(--cx-text-2)}
+.chip .sw{height:48px}.chip .lab{padding:6px 8px;font:450 11px var(--cx-font-data);color:var(--cx-text-2)}
 button{font:550 12px var(--cx-font-ui);border-radius:var(--cx-r-ctl);border:1px solid transparent;
   padding:7px 14px;cursor:pointer;transition:background var(--cx-t-fb) var(--cx-ease)}
 button:focus-visible{outline:2px solid var(--cx-acid);outline-offset:1px}
@@ -44,7 +44,7 @@ button:focus-visible{outline:2px solid var(--cx-acid);outline-offset:1px}
 .btn-primary:hover{background:var(--cx-acid-hover)}.btn-primary:active{background:var(--cx-acid-press)}
 .btn-quiet{background:var(--cx-surface-3);color:var(--cx-text-1);border-color:var(--cx-line-1)}
 .btn-quiet:hover{background:var(--cx-surface-4)}
-.btn-danger{background:var(--cx-red);color:#fff}.btn-danger:hover{background:var(--cx-red-hover)}
+.btn-danger{background:var(--cx-red-fill);color:#fff}.btn-danger:hover{background:var(--cx-red-hover)}
 .btn-ghost{background:transparent;color:var(--cx-text-2)}.btn-ghost:hover{background:var(--cx-surface-3);color:var(--cx-text-1)}
 .device{width:200px;background:var(--cx-surface-3);border:1px solid var(--cx-line-1);
   border-radius:var(--cx-r-card);position:relative;padding:10px 12px 12px 15px}
@@ -85,11 +85,37 @@ code{font:450 11px var(--cx-font-data);background:var(--cx-surface-2);padding:1p
 .canvas{background:var(--cx-surface-0);border:1px solid var(--cx-line-1);border-radius:var(--cx-r-card);
   height:110px;display:flex;align-items:center;justify-content:center;color:var(--cx-text-3);
   font:450 11px var(--cx-font-data);letter-spacing:.06em}
+
+/* v1.1 — Ableton-density flat param sliders */
+.param{display:flex;align-items:center;gap:8px;height:18px;width:230px;font:450 11px var(--cx-font-data)}
+.param .pn{width:70px;color:var(--cx-text-2);text-transform:lowercase}
+.param .bar{flex:1;height:14px;background:var(--cx-surface-2);border-radius:2px;position:relative;overflow:hidden}
+.param .bar i{position:absolute;left:0;top:0;bottom:0;background:var(--cx-acid);opacity:.85}
+.param .bar.m i{background:var(--cx-mod)}
+.param .pv{width:44px;text-align:right;color:var(--cx-text-1);font-variant-numeric:tabular-nums}
+/* TE knob with cap dot */
+.teknob{width:44px;height:44px;border-radius:50%;background:var(--cx-surface-3);border:1px solid var(--cx-line-2);position:relative;margin:0 auto}
+.teknob::after{content:"";position:absolute;left:50%;top:4px;width:2px;height:10px;background:var(--cx-text-1);transform:translateX(-50%)}
+.teknob .cap{position:absolute;right:2px;bottom:2px;width:9px;height:9px;border-radius:50%;border:1.5px solid var(--cx-surface-1)}
+/* clip color swatches */
+.clip{width:74px;height:30px;border-radius:3px;display:flex;align-items:flex-end;padding:3px 6px;font:450 11px var(--cx-font-data);color:rgba(0,0,0,.75)}
+/* dot grid drop zone */
+.dotzone{height:84px;border:1px dashed var(--cx-line-2);border-radius:4px;display:flex;align-items:center;justify-content:center;
+  color:var(--cx-text-3);font:450 11px var(--cx-font-data);
+  background-image:radial-gradient(rgba(231,231,236,.05) 1px, transparent 1px);background-size:8px 8px}
+/* segmented LED meter */
+.led{display:flex;gap:2px}
+.led i{width:9px;height:14px;border-radius:1px;background:var(--cx-surface-3)}
+.led i.on{background:var(--cx-acid)}.led i.on.w{background:var(--cx-amber)}.led i.on.c{background:var(--cx-red)}
+table.a11y{border-collapse:collapse;font-size:11.5px}
+table.a11y td,table.a11y th{border:1px solid var(--cx-line-1);padding:5px 10px;text-align:left}
+table.a11y th{color:var(--cx-text-2);font-weight:550}
+.pass{color:var(--cx-acid)}.fixed{color:var(--cx-amber)}
 </style>
 </head>
 <body>
 <h1>Creatrix_DL_v1</h1>
-<div class="sub">"Live Signal" — instrument, not costume. The video is the only loud thing by default. · <span style="color:var(--cx-text-3)">supersedes Pop Chaos v1.0 chrome · see DESIGN-SPEC.md</span></div>
+<div class="sub">"Live Signal" v1.1 — instrument, not costume. Ableton density × TE precision. The video is the only loud thing by default. · <span style="color:var(--cx-text-3)">supersedes Pop Chaos v1.0 chrome · see DESIGN-SPEC.md</span></div>
 
 <h2>Surfaces — elevation is lightness, not shadow</h2>
 <div class="row">
@@ -159,6 +185,45 @@ code{font:450 11px var(--cx-font-data);background:var(--cx-surface-2);padding:1p
   <div class="row" style="justify-content:flex-end"><button class="btn-ghost">Cancel</button><button class="btn-danger">Delete</button></div>
 </div>
 
+<h2>Device params — Ableton-density flat sliders (24px rows · drag bar · ⇧ fine · dbl-click reset · click value = type)</h2>
+<div style="display:flex;flex-direction:column;gap:5px;background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:4px;padding:10px 12px;width:260px">
+  <div class="param"><span class="pn">rate</span><div class="bar"><i style="width:62%"></i></div><span class="pv">0.62</span></div>
+  <div class="param"><span class="pn">depth</span><div class="bar m"><i style="width:38%"></i></div><span class="pv">0.38</span></div>
+  <div class="param"><span class="pn">smear</span><div class="bar"><i style="width:81%"></i></div><span class="pv">8.10</span></div>
+</div>
+
+<h2>TE knob — cap dot announces assignment (acid = macro · violet = modulated · none = free)</h2>
+<div class="row" style="gap:28px;text-align:center">
+  <div><div class="teknob"><div class="cap" style="background:var(--cx-acid)"></div></div><div class="kval">macro_1</div></div>
+  <div><div class="teknob" style="transform:rotate(40deg)"><div class="cap" style="background:var(--cx-mod);transform:rotate(-40deg)"></div></div><div class="kval">scrub</div></div>
+  <div><div class="teknob" style="transform:rotate(-50deg)"></div><div class="kval">drive</div></div>
+</div>
+
+<h2>Clip colors — the one decorative channel (user-assigned, equal-luminance)</h2>
+<div class="row">
+  <div class="clip" style="background:#C07A6A">intro</div><div class="clip" style="background:#B99655">verse</div>
+  <div class="clip" style="background:#97A659">hook</div><div class="clip" style="background:#6FA98A">drop</div>
+  <div class="clip" style="background:#5FA8A8">brk</div><div class="clip" style="background:#6E93BE">outro</div>
+  <div class="clip" style="background:#9B86C9">fx</div><div class="clip" style="background:#B878A8">alt</div>
+</div>
+
+<h2>Drop zone — TE dot-grid · Segmented LED meter</h2>
+<div class="row" style="align-items:center;gap:24px">
+  <div class="dotzone" style="flex:1">drop video here — or double-click to browse</div>
+  <div class="led"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on w"></i><i class="on w"></i><i class="c on"></i><i></i><i></i></div>
+</div>
+
+<h2>Accessibility — computed WCAG 2.1 AA (full table in DESIGN-SPEC §9)</h2>
+<table class="a11y">
+<tr><th>Pair</th><th>Ratio</th><th>Verdict</th></tr>
+<tr><td>text-1 / surface-1</td><td>15.1:1</td><td class="pass">AAA</td></tr>
+<tr><td>text-2 / surface-2 · surface-4</td><td>6.4 · 5.2</td><td class="pass">AA</td></tr>
+<tr><td>hint text-3 #80808E / surface-1</td><td>4.8:1</td><td class="fixed">AA — FIXED (was #62626E @ 3.1)</td></tr>
+<tr><td>ACID on surfaces · MOD on s-2 · AMBER on s-2</td><td>14.5 · 5.5 · 7.7</td><td class="pass">AA+</td></tr>
+<tr><td>white / RED-fill #C13B40 (danger btn)</td><td>5.3:1</td><td class="fixed">AA — FIXED (was on #E5484D @ 3.9)</td></tr>
+<tr><td>focus ring · meters under CVD · selection not color-alone · 11px floor</td><td>—</td><td class="pass">pass</td></tr>
+</table>
+
 <h2>Rules that make it a system</h2>
 <div class="donts">
   <b>Chroma budget:</b> ≤1 saturated element per region at rest; only meters + live mod-rings stay saturated. ·
@@ -166,7 +231,7 @@ code{font:450 11px var(--cx-font-data);background:var(--cx-surface-2);padding:1p
   <b>Success = ACID</b> (no second green). <b>No cyan/magenta fills</b> — muted cyan exists only as the color-category 3px tick. ·
   <b>Focus:</b> 2px acid outline, offset 1px, everywhere. <b>Handles visible at rest</b> (≥6px painted). ·
   <b>Motion:</b> 120/180/140ms, <code>cubic-bezier(.2,0,0,1)</code>, transform/opacity only; one sanctioned RGB-split flicker (≤120ms) on render-complete / destructive-confirm. ·
-  <b>Governance:</b> components → semantic → primitives; hardcoded hex = CI ratchet failure.
+  <b>Governance:</b> components → semantic → primitives; hardcoded hex = CI ratchet failure. · <b>Density:</b> 24px rows, 28px panel headers, 18px param rows — every pixel is data. · <b>Device voice:</b> lowercase mono (<code>pixel_sort</code>); dialogs stay sentence-case Sans. · <b>Boot line:</b> one typed mono line on launch, reduced-motion safe.
 </div>
 </body>
 </html>
