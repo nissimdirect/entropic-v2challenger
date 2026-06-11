@@ -11,6 +11,8 @@ repo: ~/Development/entropic-v2challenger (nissimdirect/entropic-v2challenger)
 
 > **Packet contract:** every packet is one-shottable in ≤4h, bases on `origin/main`, and STOPS
 > if any PRECONDITION grep mismatches (the codebase moved — re-verify before writing code).
+> Every packet carries **Est** and **Model** lines — **Sonnet** by default; **RISK:HIGH packets
+> run on Opus/Fable** (safety protocol: high-blast-radius work gets the stronger model).
 > Universal OUT-gates (all packets): tests green at the right layer; every numeric crossing IPC
 > clamped + finite-guarded; no backend cap left as a frontend-only convention; determinism gates
 > run the EXPORT path, never the live preview path.
@@ -52,8 +54,28 @@ P5a.1 and P5a.2 are independent of each other and can run in parallel worktrees.
 
 ## P5a.1 — Trigger-event schema + pure voice FSM (frontend, no wiring)
 
-- **ID:** P5a.1 · **branch:** `feat/p5a1-voice-fsm` · **base:** `origin/main` · **depends-on:** none (pure module; PR #167 NOT required)
+- **ID:** P5a.1 · **branch:** `feat/p5a1-voice-fsm` · **base:** `origin/main` · **depends-on:** none (pure module; PR #167 NOT required) · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** Ship the deterministic voice-lifecycle FSM (idle→attack→sustain→release→idle, 4-voice oldest-steal, choke, panic) as a pure, event-driven module plus the capture-event schema that replaces `performance.now()`/embedded-`modRoutes` events.
+
+### Voice FSM — canonical state machine (executors implement THIS table, no improvisation)
+
+States: `idle` (= the voice is ABSENT from the voices array — idle is non-membership, not a stored phase), `attack`, `sustain`, `release`. The ADSR `decay` segment (`shared/types.ts:329-334` — attack/decay/release in FRAMES; sustain is a 0–1 LEVEL, not frames) is evaluated INSIDE `envelopeValue` as the 1→sustainLevel ramp of the attack→sustain span — decay is an envelope segment, NOT an FSM state. (The legacy 5-member `ADSRPhase` at `types.ts:327` stays untouched for `PadRuntimeState`.)
+
+| # | From | Event / condition | To | Behavior |
+|---|---|---|---|---|
+| T1 | idle | `trigger`, active voices < voiceCap | attack | new Voice appended; `voiceId = voice:{instrumentId}:{triggerFrame}:{eventIndex}` |
+| T2 | idle | `trigger`, active voices == voiceCap | attack | steal victim per policy below (T7), THEN T1 — net count stays == cap |
+| T3 | attack | elapsed ≥ attack + decay frames | sustain | envelopeValue: 0→1 over `attack` frames, 1→sustainLevel over `decay` frames |
+| T4 | attack | `release` event for this voice | release | release ramps from the CURRENT envelope value, not from sustainLevel |
+| T5 | sustain | `release` event for this voice | release | ramp sustainLevel→0 over `release` frames |
+| T6 | release | elapsed ≥ release frames | idle | voice removed from array |
+| T7 | attack/sustain/release | stolen (a T2 trigger picked this voice) | idle | immediate removal, NO release tail |
+| T8 | attack/sustain/release | `choke` (sibling trigger in same chokeGroup) | idle | atomic — all group siblings idle in the SAME frameIndex |
+| T9 | attack/sustain/release | `panic` event kind | idle | all voices of all instruments |
+
+**Illegal transitions (MUST be dropped silently, never thrown — each gets a negative test):** idle→sustain; idle→release (a `release` whose target matches no active voice is a no-op); release→attack and release→sustain (retriggering a releasing voice allocates a NEW voice via T1/T2 — never resurrects the old one); sustain→attack.
+
+**Steal policy (fully deterministic, zero RNG):** victim = active voice with the LOWEST `triggerFrame`; tie-break = LOWEST `eventIndex`. `eventIndex` is unique and monotonic per capture buffer, so the pair `(triggerFrame, eventIndex)` totally orders voices — there is no third tie-break and no nondeterminism anywhere in the FSM.
 
 ### PRECONDITIONS (mismatch → STOP)
 ```bash
@@ -97,10 +119,11 @@ npx --no vitest run src/__tests__/components/instruments/voiceFSM.test.ts
 npx --no vitest run   # full suite — no regressions
 ```
 Named new tests (behavior keywords in `it()` titles):
-- `voiceFSM.test.ts`: "fifth trigger steals the oldest voice at cap=4" · "steal tie-breaks by eventIndex when triggerFrames equal" · "z-order is ascending triggerFrame (newest on top)" · "choke group idles siblings atomically" · "panic idles all voices" · "same events + same frameIndex → identical voices (determinism)" · "evaluation is pure: calling twice does not mutate inputs" · "release transitions sustain→release→idle by ADSR frames" · "malformed event (NaN frameIndex / negative velocity) is dropped, not thrown"
+- `voiceFSM.test.ts`: "fifth trigger steals the oldest voice at cap=4" · "steal tie-breaks by eventIndex when triggerFrames equal" · "z-order is ascending triggerFrame (newest on top)" · "choke group idles siblings atomically" · "panic idles all voices" · "same events + same frameIndex → identical voices (determinism)" · "evaluation is pure: calling twice does not mutate inputs" · "release transitions sustain→release→idle by ADSR frames" · "malformed event (NaN frameIndex / negative velocity) is dropped, not thrown" · "release for an unknown/idle voiceId is a no-op (illegal transition dropped, negative)" · "retrigger during release allocates a NEW voice, never resurrects (release→attack forbidden, negative)" · "transition-table conformance: every legal row T1–T9 exercised; every listed illegal pair dropped"
 
 ### ACCEPTANCE GATES
 - `evaluateVoices` is referentially transparent (property test: two calls, deep-equal output, inputs unmutated).
+- Replay determinism quantified: a 50-event log evaluated 100 times → 100 deep-equal voice arrays.
 - No `performance.now()` remains in any **replayable** event payload: `git grep -n "performance.now" frontend/src/renderer/components/performance/ frontend/src/renderer/utils/retro-capture.ts` shows only the buffer-trim usage with a comment marking it non-replay.
 - Full vitest suite green.
 
@@ -115,7 +138,7 @@ Pure-add + 2-file event-shape change: `git revert <merge-sha>` is clean. No pers
 
 ## P5a.2 — Backend voiceId state keying + per-voice cleanup + voice caps · **RISK:HIGH**
 
-- **ID:** P5a.2 · **branch:** `feat/p5a2-voiceid-state-keying` · **base:** `origin/main` · **depends-on:** none (backward-compatible backend change; parallel-safe with P5a.1)
+- **ID:** P5a.2 · **branch:** `feat/p5a2-voiceid-state-keying` · **base:** `origin/main` · **depends-on:** none (backward-compatible backend change; parallel-safe with P5a.1) · **Est:** ~4h · **Model:** Opus/Fable (RISK:HIGH)
 - **Goal:** Re-key the composite per-layer state cache from `asset:{path}` to `voice:{voiceId}` (when provided), make stolen-voice cleanup surgical (survivors keep their state), and land `MAX_TOTAL_VOICES_PER_RENDER` + voiceId validation in `security.py` — INSTRUMENTS.md §10 P1-1, the top review fix.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -156,7 +179,7 @@ python -m pytest tests/test_voice_state_keying.py -x --tb=short
 python -m pytest -x -n auto --tb=short   # full backend — no regressions
 ```
 Named new tests:
-- "two voices on the same clip do not cross-contaminate stateful effect state (datamosh)" · "stealing one voice drops only that voice's cache entry, survivors keep state" · "layer set without voice_id keys by asset path (back-compat)" · "non-monotonic frame jump resets all state (scrub)" · "fifth voice_id layer rejected before decode (MAX_TOTAL_VOICES_PER_RENDER)" · "malformed voice_id (path traversal chars / 4KB string / non-string) rejected" · "duplicate voice_id in one render rejected"
+- "two voices on the same clip do not cross-contaminate stateful effect state (datamosh)" · "stealing one voice drops only that voice's cache entry, survivors keep state" · "layer set without voice_id keys by asset path (back-compat)" · "non-monotonic frame jump resets all state (scrub)" · "fifth voice_id layer rejected before decode (MAX_TOTAL_VOICES_PER_RENDER)" · "malformed voice_id (path traversal chars / 4KB string / non-string) rejected" · "duplicate voice_id in one render rejected" · "voice-steal under load: 100 sequential trigger/steal render cycles leave ≤ MAX_TOTAL_VOICES_PER_RENDER voice-keyed cache entries (no unbounded state growth, negative)"
 
 ### ACCEPTANCE GATES
 - All existing composite tests pass UNCHANGED (back-compat is the gate — `git grep -l "render_composite" backend/tests/` files all green).
@@ -174,7 +197,7 @@ Single revert. The `voice_id` field is optional on the wire — no frontend send
 
 ## P5a.3 — Wire FSM into the render path + retire `isPerformMode` (extends PR #167)
 
-- **ID:** P5a.3 · **branch:** `feat/p5a3-performance-track-voices` · **base:** `origin/main` **after PR #167 merges** · **depends-on:** PR #167 (merged), P5a.1, P5a.2
+- **ID:** P5a.3 · **branch:** `feat/p5a3-performance-track-voices` · **base:** `origin/main` **after PR #167 merges** · **depends-on:** PR #167 (merged), P5a.1, P5a.2 · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** Performance-track pad triggers flow through `evaluateVoices` into multi-voice composite layers (`voice_id` per layer, per-voice ADSR opacity, newest-on-top), and the modal `isPerformMode` flag is retired in favor of track-bound performance state.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -213,7 +236,7 @@ git grep -c "isPerformMode" frontend/src/renderer/App.tsx
 2. `buildVoiceLayers` + types.
 3. App.tsx wiring (events → voices → layers; layers ordered ascending triggerFrame after the track's base layers).
 4. Mechanical `isPerformMode` retirement across the 6 App refs + 2 components + CSS + 4 test files.
-5. Full suite; manual smoke per `feedback_verify-canonical-project-path` (live runtime check before claiming ready).
+5. Full suite; **live-runtime step (Gate 18):** launch the app from the SAME worktree you edited; `ps aux | grep -i electron` must show that path (canonical: `~/Development/entropic-v2challenger/`; sync `entropic-v2-uat/` separately if the user runs from it — `feedback_verify-canonical-project-path`); kill + relaunch, not HMR (store-shape change — `feedback_zustand-hmr-needs-restart`); then hold 2 overlapping pads and watch 2 voices composite before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -224,7 +247,8 @@ npx --no vitest run   # full
 ```
 Named new tests:
 - `buildVoiceLayers.test.ts`: "one composite layer per active voice with distinct voice_id" · "per-voice opacity follows ADSR envelope value at frameIndex" · "layers ordered ascending triggerFrame so newest composites on top" · "voice cap 4: five triggers yield four layers, oldest stolen" · "unsourced sampler (empty clipId) yields zero layers"
-- `performance.test.ts` additions: "pad trigger appends a TriggerEvent to the owning track's event log" · "pads are armed when a performance track is selected (no modal flag)" · "panicAll clears all tracks' active voices"
+- `performance.test.ts` additions: "pad trigger appends a TriggerEvent to the owning track's event log" · "pads are armed when a performance track is selected (no modal flag)" · "panicAll clears all tracks' active voices" · "trigger with non-finite frameIndex is dropped at the store boundary (negative)"
+- Full-chain integration (named, mock IPC): `buildVoiceLayers.test.ts` "full chain: pad keydown → store TriggerEvent → evaluateVoices → composite payload carries one voice_id-bearing layer per active voice (asserts the exact layer dicts handed to the render IPC)"
 
 ### ACCEPTANCE GATES
 - `git grep -c "isPerformMode" frontend/src/` → 0.
@@ -241,7 +265,7 @@ Revert the merge commit. Persistence is additive (`trackEvents` optional on load
 
 ## P5a.4 — Deterministic backend export replay of performance voices · **RISK:HIGH**
 
-- **ID:** P5a.4 · **branch:** `feat/p5a4-export-voice-replay` · **base:** `origin/main` · **depends-on:** P5a.2, P5a.3, **P5a.4a (composite-export design decision merged — amended 2026-06-11)**
+- **ID:** P5a.4 · **branch:** `feat/p5a4-export-voice-replay` · **base:** `origin/main` · **depends-on:** P5a.2, P5a.3, **P5a.4a (composite-export design decision merged — amended 2026-06-11)** · **Est:** ~4h (hard split at P5a.4b if exceeded) · **Model:** Opus/Fable (RISK:HIGH)
 - **Goal:** Exports replay the voice FSM backend-side from the serialized event list, so rendered output is byte-identical across runs and survives edit-after-capture — INSTRUMENTS.md §10 P1-2 condition (3).
 
 > **Scope honesty:** `ExportManager` is single-input today (`start(input_path, chain, …)`) — there is
@@ -271,7 +295,7 @@ grep -q "^## Recommendation" docs/decisions/composite-export-design.md || { echo
 ### Scope (verified paths)
 - [ ] NEW `backend/src/engine/voice_replay.py` — `evaluate_voices(events: list[dict], frame_index: int, opts) -> list[dict]`: line-for-line port of `voiceFSM.ts` semantics (steal/choke/age/ADSR from `(frameIndex, eventIndex)`; same voiceId derivation). Docstring cross-references `frontend/src/renderer/components/instruments/voiceFSM.ts` and states: **the two implementations must be mutated together** (add a lint-greppable marker `# MIRROR: voiceFSM.ts`).
 - [ ] `backend/src/engine/export.py` — `start(...)` accepts optional `performance: {events, instruments, assets}` payload; when present `_run_export` builds per-frame layer dicts via `evaluate_voices` + `render_composite` (with per-voice `layer_states` threading, keyed `voice:{voiceId}` — same keying as P5a.2) and encodes the composited frames.
-- [ ] `backend/src/zmq_server.py` `_handle_export_start` (~:1359) — pass-through + validation of the new payload (`validate_voice_layers` per frame budget; event-list size cap `MAX_CAPTURE_EVENTS` added to `security.py`).
+- [ ] `backend/src/zmq_server.py` `_handle_export_start` (~:1359) — pass-through + validation of the new payload (`validate_voice_layers` per frame budget; event-list size cap `MAX_CAPTURE_EVENTS = 10_000` added to `security.py` — ~48 B/event ≈ 480 KB JSON worst case, comfortably one ZMQ message; over-cap = REJECT the export with a clear error, never truncate).
 - [ ] `backend/src/project/schema.py` — `validate()` gains event-list rules: every event has finite int `frameIndex ≥ 0`, int `eventIndex ≥ 0`, `note 0-127`, `velocity 0-127`, known `kind`; referenced `instrumentId` exists (referential integrity on FILE LOAD, §10 P1-2).
 - [ ] `frontend/src/renderer/stores/export.ts` — include the performance payload in `export_start` for projects with performance tracks.
 - [ ] NEW `backend/tests/test_voice_replay.py`, additions to the export tests (`git grep -l "export_start" backend/tests/`).
@@ -294,7 +318,7 @@ python -m pytest -x -n auto --tb=short
 cd ../frontend && npx --no vitest run src/__tests__/components/instruments/voiceFSM.test.ts
 ```
 Named new tests:
-- `test_voice_replay.py`: "python replay matches TS golden vectors exactly" · "export twice produces byte-identical files (sha256)" · "edit-after-capture: changing pad modRoutes after capture does not change export output" · "malformed event list rejected at export start (fuzz: NaN frameIndex, velocity 999, unknown kind)" · "oldest-steal at cap reproduces identically across replays" · "stateful effect per-voice state threads across exported frames"
+- `test_voice_replay.py`: "python replay matches TS golden vectors exactly" · "export twice produces byte-identical files (sha256)" · "edit-after-capture: changing pad modRoutes after capture does not change export output" · "malformed event list rejected at export start (fuzz: NaN frameIndex, velocity 999, unknown kind)" · "oldest-steal at cap reproduces identically across replays" · "stateful effect per-voice state threads across exported frames" · "event list of 10,001 events rejected at export start (MAX_CAPTURE_EVENTS, negative)"
 - schema: "project load rejects event referencing unknown instrumentId"
 
 ### ACCEPTANCE GATES
@@ -312,7 +336,7 @@ Revert; `performance` export payload is optional — old clients export unchange
 
 ## P5a.4a — Composite-export design spike (docs-only; the missing foundation under P5a.4) · appended 2026-06-11
 
-- **ID:** P5a.4a · **branch:** `docs/p5a4a-composite-export-design` · **base:** `origin/main` · **depends-on:** none (read-only spike; runs in parallel with P5a.1–P5a.3; gates P5a.4)
+- **ID:** P5a.4a · **branch:** `docs/p5a4a-composite-export-design` · **base:** `origin/main` · **depends-on:** none (read-only spike; runs in parallel with P5a.1–P5a.3; gates P5a.4) · **Est:** ~3h · **Model:** Opus/Fable (not RISK:HIGH itself, but it is the design authority a RISK:HIGH packet implements — use the stronger model)
 - **Goal:** P5a.4 is RISK:HIGH precisely because `backend/src/engine/export.py` is **single-input only** (VERIFIED on main: `ExportManager.start(input_path, output_path, chain, project_seed, settings, text_layers)` at :169; `_run_export` :311; `_export_gif` :532; `_export_image_sequence` :590; `_mux_audio` :647 — every consumer assumes ONE source clip) and NO composite export exists. This spike produces the decision record P5a.4 implements, so the ~4h implementation packet doesn't improvise architecture under time pressure.
 - **Deliverable:** ONE new file — `docs/decisions/composite-export-design.md` (first non-q7 record in `docs/decisions/`; the q7 DEC pattern is the precedent).
 
@@ -351,6 +375,8 @@ for h in "## Context" "## Options" "## Recommendation" "## Render-path reuse vs 
 done; echo "sections OK"
 test "$(grep -c '^### O[0-9]' docs/decisions/composite-export-design.md)" -ge 3 || { echo "STOP: fewer than 3 enumerated options"; exit 1; }
 test "$(grep -c '^## Recommendation' docs/decisions/composite-export-design.md)" -eq 1 || { echo "STOP: exactly one Recommendation required"; exit 1; }
+# Negative self-test (proves the gate CAN fail — run once before trusting any green result):
+empty=$(mktemp); if grep -q "^## Context" "$empty"; then echo "BROKEN GATE: matched on empty file"; exit 1; else echo "negative self-test OK (gate fails on empty doc)"; fi; rm "$empty"
 ```
 
 ### ACCEPTANCE GATES
@@ -370,7 +396,7 @@ Revert — single doc file, zero code coupling.
 
 ## P5a.5 — Loop engine: in/out points, direction, ping-pong + loop crossfade
 
-- **ID:** P5a.5 · **branch:** `feat/p5a5-sampler-loop` · **base:** `origin/main` · **depends-on:** P5a.3 (voice layers; loop math itself only needs B1 files — if #167/P5a.3 unmerged, STOP)
+- **ID:** P5a.5 · **branch:** `feat/p5a5-sampler-loop` · **base:** `origin/main` · **depends-on:** P5a.3 (voice layers; loop math itself only needs B1 files — if #167/P5a.3 unmerged, STOP) · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** Sampler gains `endFrame`, `loop {enabled, in, out, dir: fwd|rev|pingpong}`, and a seam crossfade (frame-blend across the loop point), all pure in `computeSamplerVoice`.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -398,7 +424,7 @@ git grep -n "buildVoiceLayers" frontend/src/renderer/components/instruments/buil
 ### Implementation steps
 1. Types + pure math + exhaustive unit tests (fwd wrap, rev wrap, pingpong reflection, degenerate `in==out`, crossfade weight curve sums to 1).
 2. Two-layer seam blend in `buildVoiceLayers` (seam layer carries `voice_id: voiceId + ':seam'` — within the same voice budget? NO: seam layers are exempt from the 4-voice count but NOT from `MAX_COMPOSITE_LAYERS`; document this in the test).
-3. UI + persistence + clamps.
+3. UI + persistence + clamps; **live-runtime check (Gate 18):** scrub across the loop seam in the running app launched from the edited worktree (`ps aux | grep -i electron` path check) before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -406,7 +432,7 @@ cd ~/Development/entropic-v2challenger/frontend
 npx --no vitest run src/__tests__/components/instruments/computeSamplerVoice.test.ts
 npx --no vitest run
 ```
-Named new tests: "loop fwd wraps footage position back to loop in point" · "loop rev plays out→in and wraps" · "pingpong reflects direction at both loop boundaries without double-counting the endpoint frame" · "crossfade emits seam layer whose weight ramps 0→1 across crossfadeFrames and complements primary" · "loop in==out degenerates to freeze frame, no NaN" · "loop bounds outside clip clamp to [0,frameCount-1] on load" · "sampler without loop field behaves exactly as before (regression)"
+Named new tests: "loop fwd wraps footage position back to loop in point" · "loop rev plays out→in and wraps" · "pingpong reflects direction at both loop boundaries without double-counting the endpoint frame" · "crossfade emits seam layer whose weight ramps 0→1 across crossfadeFrames and complements primary (weights sum to 1 ± 1e-6 at every seam frame)" · "loop in==out degenerates to freeze frame, no NaN" · "loop bounds outside clip clamp to [0,frameCount-1] on load" · "sampler without loop field behaves exactly as before (regression)" · "1-frame clip (frameCount=1): loop + crossfade degrade to frame 0, no NaN, no divide-by-zero (negative)" · "full chain: loop params set via SamplerDevice → store → buildVoiceLayers layer dict's frame_index folds into [in,out] (mock IPC, asserts the payload)"
 
 ### ACCEPTANCE GATES
 - Per-param visual-diff principle (BUG-PREVENTION P2): each new param has at least one test where changing ONLY that param changes the computed layer output (kills dead params).
@@ -422,7 +448,7 @@ Revert; optional fields mean old code ignores them and old saves never had them.
 
 ## P5a.6 — Scrub-as-mod-destination + position/speed glide
 
-- **ID:** P5a.6 · **branch:** `feat/p5a6-scrub-mod-glide` · **base:** `origin/main` · **depends-on:** P5a.5
+- **ID:** P5a.6 · **branch:** `feat/p5a6-scrub-mod-glide` · **base:** `origin/main` · **depends-on:** P5a.5 · **Est:** ~3.5h · **Model:** Sonnet
 - **Goal:** Sampler playhead position becomes a modulation *destination* (drivable by MIDI CC/LFO/velocity) and retriggers glide (portamento) position/speed instead of jumping.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -451,7 +477,7 @@ git grep -n "loop" frontend/src/renderer/components/instruments/types.ts
 ### Implementation steps
 1. Pure modulation fn + tests (unknown destination ignored; NaN source dropped; out-of-range clamped).
 2. Deterministic glide math (closed-form, function of elapsed frames since trigger) + tests.
-3. Wire + UI.
+3. Wire + UI; **live-runtime check (Gate 18):** sweep a CC source in the running app launched from the edited worktree and watch the playhead scrub before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -476,7 +502,7 @@ Revert; all fields optional, no wire/schema change.
 
 ## P5a.7 — Per-channel RGB offset (C-axis) + axis-binding field (T/Y/X)
 
-- **ID:** P5a.7 · **branch:** `feat/p5a7-channel-offset-axis` · **base:** `origin/main` · **depends-on:** P5a.3 (voice layers carry chains); parallel-safe with P5a.5/P5a.6 except shared `types.ts` (rebase order: after whichever lands first)
+- **ID:** P5a.7 · **branch:** `feat/p5a7-channel-offset-axis` · **base:** `origin/main` · **depends-on:** P5a.3 (voice layers carry chains); parallel-safe with P5a.5/P5a.6 except shared `types.ts` (rebase order: after whichever lands first) · **Est:** ~3.5h · **Model:** Sonnet
 - **Goal:** Sampler gets a per-channel RGB temporal offset rendered via the existing `channelshift` effect on the per-voice chain, plus the `timeAxis: 't'|'y'|'x'` field (lowercase canon, INSTRUMENTS.md P1-A) — stored + validated now, `'y'/'x'` rendering deferred to B9.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -506,7 +532,7 @@ Also read `backend/src/effects/fx/channelshift.py` param names BEFORE coding —
 ### Implementation steps
 1. Read `channelshift.py`; decide representation; comment the citation.
 2. Types + layer construction + clamps.
-3. UI + persistence + schema.
+3. UI + persistence + schema; **live-runtime check (Gate 18):** nudge each channel offset in the running app launched from the edited worktree and see the RGB split before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -531,7 +557,7 @@ Revert; optional fields.
 
 ## P5a.8 — Melodic mode (note → startFrame / speed) + trigger modes on the sampler
 
-- **ID:** P5a.8 · **branch:** `feat/p5a8-melodic-trigger-modes` · **base:** `origin/main` · **depends-on:** P5a.3
+- **ID:** P5a.8 · **branch:** `feat/p5a8-melodic-trigger-modes` · **base:** `origin/main` · **depends-on:** P5a.3 · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** A performance-track sampler plays chromatically — incoming note number maps to `startFrame` offset (default, "chromatic scrub", resolved decision §6.2) or `speed` (per-instrument option) — and gate/one-shot/toggle trigger modes drive the voice FSM.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -559,7 +585,7 @@ git grep -rn "noteMap\|melodic" frontend/src/renderer/components/instruments/
 ### Implementation steps
 1. Pure mapping math + tests (both modes, clamping, root edge cases note 0/127).
 2. FSM trigger-mode handling (gate releases on key-up; one-shot ignores key-up, releases at end; toggle flips).
-3. MIDI wiring + UI + persistence.
+3. MIDI wiring + UI + persistence; **live-runtime check (Gate 18):** play a chord on a connected/virtual MIDI keyboard against the running app launched from the edited worktree before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -568,7 +594,7 @@ npx --no vitest run src/__tests__/components/instruments/melodic-mapping.test.ts
 npx --no vitest run src/__tests__/components/instruments/voiceFSM.test.ts
 npx --no vitest run
 ```
-Named new tests: "note above root offsets startFrame by framesPerSemitone per semitone" · "note-to-speed mode scales speed by equal-temperament ratio and clamps at ±8" · "melodic offset clamps to clip bounds at extreme notes (0, 127)" · "one-shot voice ignores release event and auto-releases at clip end" · "gate voice releases on key-up" · "toggle trigger alternates voice on/off per press" · "two simultaneous notes produce two voices with distinct startFrames (chord)"
+Named new tests: "note above root offsets startFrame by framesPerSemitone per semitone" · "note-to-speed mode scales speed by equal-temperament ratio and clamps at ±8" · "melodic offset clamps to clip bounds at extreme notes (0, 127)" · "one-shot voice ignores release event and auto-releases at clip end" · "gate voice releases on key-up" · "toggle trigger alternates voice on/off per press" · "two simultaneous notes produce two voices with distinct startFrames (chord)" · "out-of-range note (-1, 128) and NaN velocity dropped at the MIDI boundary (negative)" · "full chain: MIDI noteOn → midi store → TriggerEvent on the selected performance track → buildVoiceLayers emits a layer whose frame_index reflects the melodic offset (mock IPC)"
 
 ### ACCEPTANCE GATES
 - Chord test proves polyphony × melodic interaction (2 notes, 2 voices, distinct frames, within cap).
@@ -586,7 +612,7 @@ Revert; optional fields, additive MIDI path.
 
 ## P5a.9 — RackNode leaf + track-bound Sample Rack host
 
-- **ID:** P5a.9 · **branch:** `feat/p5a9-rack-host` · **base:** `origin/main` · **depends-on:** P5a.3 (track-bound instruments + armed pads), P5a.8 (trigger modes reused per pad)
+- **ID:** P5a.9 · **branch:** `feat/p5a9-rack-host` · **base:** `origin/main` · **depends-on:** P5a.3 (track-bound instruments + armed pads), P5a.8 (trigger modes reused per pad) · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** A performance track can host a Sample Rack: pad grid where each pad holds a `RackNode` leaf (`{instrument, chain, sends}`), replacing the single global `DrumRack` for that track.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -620,7 +646,7 @@ gh pr view 167 --repo nissimdirect/entropic-v2challenger --json state -q .state
 1. Types + store union + guards (+ store tests first).
 2. Browser enablement + drop handler (mirror #167's sampler drop exactly).
 3. RackDevice UI reusing PadGrid; pad trigger routes through the SAME `TriggerEvent` path with `instrumentId = padId`-scoped ids.
-4. Render wiring + persistence.
+4. Render wiring + persistence; **live-runtime check (Gate 18):** drop a rack and trigger 2 pads in the running app launched from the edited worktree before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -629,7 +655,7 @@ npx --no vitest run src/__tests__/stores/rack-host.test.ts
 npx --no vitest run src/__tests__/components/instruments/rack-device.test.tsx
 npx --no vitest run
 ```
-Named new tests: "dragging Drum Rack onto a performance track instantiates an empty SampleRack" · "a track holds either a sampler or a rack, never both" · "pad with a leaf sampler triggers voices attributed to that pad's instrumentId" · "two pads triggered together yield layers from both leaves within the global voice cap" · "rack persists and rehydrates with pads, leaves and empty returns/macros" · "removing the track removes its rack (no orphan)" · "legacy global drumRack still triggers (regression)"
+Named new tests: "dragging Drum Rack onto a performance track instantiates an empty SampleRack" · "a track holds either a sampler or a rack, never both" · "pad with a leaf sampler triggers voices attributed to that pad's instrumentId" · "two pads triggered together yield layers from both leaves within the global voice cap" · "rack persists and rehydrates with pads, leaves and empty returns/macros" · "removing the track removes its rack (no orphan)" · "legacy global drumRack still triggers (regression)" · "dropping a rack onto a non-performance track is rejected with zero store mutation (negative)" · "full chain: rack drop → store → pad trigger → composite payload contains that pad's voice layer (mock IPC)"
 
 ### ACCEPTANCE GATES
 - Wiring Check (Gate 14): every RackDevice callback proven by a test (pad select, param edit, trigger).
@@ -645,7 +671,7 @@ Revert; rack is a new union arm — saves without racks unaffected. Persisted ra
 
 ## P5a.10 — Ableton-style channels: per-pad chain + sends/returns, summed rack output
 
-- **ID:** P5a.10 · **branch:** `feat/p5a10-rack-sends-returns` · **base:** `origin/main` · **depends-on:** P5a.9 · **RISK:HIGH**
+- **ID:** P5a.10 · **branch:** `feat/p5a10-rack-sends-returns` · **base:** `origin/main` · **depends-on:** P5a.9 · **RISK:HIGH** · **Est:** ~4h · **Model:** Opus/Fable (RISK:HIGH)
 - **Goal:** Each pad is a channel (own effect chain), pads send to shared return busses (return = chain applied to a composite of its senders), and everything sums to ONE rack output layer-set on the track.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -663,6 +689,7 @@ git grep -n "MAX_CHAIN_DEPTH" backend/src/security.py
 - [ ] `frontend/src/renderer/components/instruments/buildVoiceLayers.ts` (or successor) — pad voices carry the pad's `chain` on their layer dicts (backend `_handle_render_composite` already applies per-layer chains + validates depth — zero backend change for channels).
 - [ ] Returns: NEW `frontend/src/renderer/components/instruments/buildRackLayers.ts` — pure: `(rack, voicesByPad, assets, frame) → layers[]`; for each `ReturnBus` with ≥1 nonzero send, emit ADDITIONAL layers = sender voices' layers re-emitted with the return's chain and `opacity *= send.amount`, `voice_id = voiceId + ':ret:' + returnId`. (Send = re-render through the return chain; true single-pass bus mixing needs a backend tree — that is B5's traversal, NOT here. Document this approximation in the module docstring.)
 - [ ] Per-pad mixer fields on the leaf: `opacity`, `blendMode`, `mute`, `solo` — applied in `buildRackLayers`.
+- [ ] Fan-out caps (quantified, enforced at BOTH layers): `MAX_SENDS_PER_PAD = 4` and `MAX_RETURNS_PER_RACK = 4` — constants in `backend/src/security.py`, rejected at file load in `backend/src/project/schema.py` (same P1-5 enforcement point P5a.11 uses), mirror-clamped with toast in the frontend store. Worst-case layer math (state it in the test): 4 voices + 4 seam layers + (4 voices × 4 returns = 16) return layers = 24 ≤ `MAX_COMPOSITE_LAYERS` (50).
 - [ ] Layer-budget guard: total emitted layers (voices + seams + returns) ≤ `MAX_COMPOSITE_LAYERS` — clamp by dropping return layers first, toast once (`stores/toast.ts` source-keyed dedup).
 - [ ] `RackDevice.tsx` — per-pad chain editor (reuse the track effect-chain UI pattern — find via `git grep -n "effectChain" frontend/src/renderer/components/ | head`), sends knobs, return strip, M/S.
 - [ ] Tests: NEW `__tests__/components/instruments/buildRackLayers.test.ts` + RackDevice additions.
@@ -673,8 +700,8 @@ git grep -n "MAX_CHAIN_DEPTH" backend/src/security.py
 
 ### Implementation steps
 1. `buildRackLayers` pure + tests FIRST (this is the load-bearing logic).
-2. Mixer fields + budget guard + toast.
-3. UI editors.
+2. Mixer fields + fan-out caps + budget guard + toast.
+3. UI editors; **live-runtime check (Gate 18):** two pads + one return visibly compositing in the running app launched from the edited worktree before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -682,7 +709,7 @@ cd ~/Development/entropic-v2challenger/frontend
 npx --no vitest run src/__tests__/components/instruments/buildRackLayers.test.ts
 npx --no vitest run
 ```
-Named new tests: "pad chain rides on that pad's voice layers only" · "send amount 0 emits no return layer" · "two pads sending to one return each get a return layer with the return chain" · "return layer opacity scales by send amount" · "muted pad emits no layers; soloed pad silences siblings" · "layer budget: return layers dropped first when exceeding MAX_COMPOSITE_LAYERS, with one deduped toast" · "send/return determinism: same inputs → identical layer array"
+Named new tests: "pad chain rides on that pad's voice layers only" · "send amount 0 emits no return layer" · "two pads sending to one return each get a return layer with the return chain" · "return layer opacity scales by send amount" · "muted pad emits no layers; soloed pad silences siblings" · "layer budget: return layers dropped first when exceeding MAX_COMPOSITE_LAYERS, with one deduped toast" · "send/return determinism: same inputs → identical layer array" · "fifth send on one pad refused (MAX_SENDS_PER_PAD=4, negative)" · "fifth return bus refused (MAX_RETURNS_PER_RACK=4, negative)" · "project file exceeding either fan-out cap rejected at load (backend, negative)"
 
 ### ACCEPTANCE GATES
 - Budget test proves the frontend NEVER sends > `MAX_COMPOSITE_LAYERS` (the backend would reject the whole render — user-visible black frame; this is the RISK:HIGH edge).
@@ -698,7 +725,7 @@ Revert; sends/returns are additive fields defaulting to silent/empty.
 
 ## P5a.11 — 8 macros + fan-out caps + rack choke groups
 
-- **ID:** P5a.11 · **branch:** `feat/p5a11-rack-macros-choke` · **base:** `origin/main` · **depends-on:** P5a.10
+- **ID:** P5a.11 · **branch:** `feat/p5a11-rack-macros-choke` · **base:** `origin/main` · **depends-on:** P5a.10 · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** Each rack gets 8 macro knobs fanning out to one-or-many param destinations (capped server-side), and choke groups force-idle sibling pads atomically.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -715,7 +742,7 @@ git grep -n "applyChoke" frontend/src/renderer/components/instruments/voiceFSM.t
 ```
 
 ### Scope (verified paths)
-- [ ] `frontend/src/shared/types.ts` — `Macro {id, label, value: number /*0..1*/, routes: MacroRoute[]}`; `MacroRoute {padId, target: 'instrument' | 'chain', paramPath, min, max}`.
+- [ ] `frontend/src/shared/types.ts` — `Macro {id, label, value: number /*0..1*/, routes: MacroRoute[]}`; `MacroRoute {padId, target: 'instrument' | 'chain', paramPath, min, max, curve?: 'linear' | 'exp' | 'log' /*default 'linear'; applied to the 0..1 macro value BEFORE min/max scaling*/}`.
 - [ ] NEW `frontend/src/renderer/components/instruments/applyMacros.ts` — pure, clones-not-mutates (the `applyCCModulations` pattern: finite-guard, min/max scale); applied in `buildRackLayers` before chain attachment.
 - [ ] `backend/src/security.py` — `MAX_MODROUTES_PER_MACRO = 16`, `MAX_MACRO_EDGES_TOTAL = 256` (macro-route edge cap; the mod-routing edge cap `MAX_MOD_EDGES_TOTAL` is P5b.21's, a different constant); `backend/src/project/schema.py` — reject racks exceeding caps on FILE LOAD (the §10 P1-5 enforcement point; macros never cross IPC individually, so load-time is the trust boundary).
 - [ ] Frontend mirror-clamp: `addMacroRoute` refuses past-cap with toast (UX convention; backend is the boundary).
@@ -730,7 +757,7 @@ git grep -n "applyChoke" frontend/src/renderer/components/instruments/voiceFSM.t
 1. security constants + schema validation + pytest.
 2. `applyMacros` pure + vitest.
 3. Choke wiring through the FSM event stream.
-4. UI.
+4. UI; **live-runtime check (Gate 18):** one macro knob sweep visibly modulating two destinations in the running app launched from the edited worktree before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -739,7 +766,7 @@ npx --no vitest run src/__tests__/components/instruments/applyMacros.test.ts
 npx --no vitest run
 cd ../backend && python -m pytest -x -n auto --tb=short
 ```
-Named new tests: "one macro drives many destinations scaled to each route's min/max" · "macro route past MAX_MODROUTES_PER_MACRO refused with toast" · "project file exceeding MAX_MACRO_EDGES_TOTAL rejected at load (backend)" · "macro write is clone-not-mutate (input chain unmutated)" · "trigger in choke group idles same-group sibling voices in the same frame" · "choke across different groups does not interact" · "pad delete removes its macro routes and choke membership (cleanup symmetry)"
+Named new tests: "one macro drives many destinations scaled to each route's min/max" · "macro route past MAX_MODROUTES_PER_MACRO refused with toast" · "project file exceeding MAX_MACRO_EDGES_TOTAL rejected at load (backend)" · "macro write is clone-not-mutate (input chain unmutated)" · "trigger in choke group idles same-group sibling voices in the same frame" · "choke across different groups does not interact" · "pad delete removes its macro routes and choke membership (cleanup symmetry)" · "macro-curve value-range: for EACH curve (linear/exp/log), value 0 maps EXACTLY to route min, 1 EXACTLY to max, and every sampled value in between (0.1 steps) stays within [min,max]" · "inverted route (min > max) maps monotonically decreasing and stays within [max,min]" · "macro value outside [0,1] is clamped BEFORE the curve applies (negative)" · "NaN macro value leaves every destination at its unmodulated value (negative)" · "unknown curve string coerces to 'linear' on load (negative)"
 
 ### ACCEPTANCE GATES
 - Caps enforced in `schema.py` (backend test), not only UI.
@@ -755,7 +782,7 @@ Revert; macros default empty, schema rules only reject NEW over-cap content.
 
 ## P5a.12 — Slicing (transient/grid/manual) → slice-to-rack round trip
 
-- **ID:** P5a.12 · **branch:** `feat/p5a12-slice-to-rack` · **base:** `origin/main` · **depends-on:** P5a.9 (rack to emit into); P5a.8 (per-pad startFrame mapping)
+- **ID:** P5a.12 · **branch:** `feat/p5a12-slice-to-rack` · **base:** `origin/main` · **depends-on:** P5a.9 (rack to emit into); P5a.8 (per-pad startFrame mapping) · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** Slice a sampler's source (scene-change "transient", fixed grid, or manual markers) and emit a Sample Rack with one pad per slice, each leaf a sampler windowed `[sliceStart, sliceEnd)`.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -770,7 +797,7 @@ git grep -rn "slice" frontend/src/renderer/components/instruments/
 ```
 
 ### Scope (verified paths)
-- [ ] Backend NEW cmd `detect_slices` in `backend/src/zmq_server.py` (+ impl in `backend/src/video/` or reused scene-detect per precondition): `{asset_path, mode: 'transient', threshold} → {slice_frames: int[]}`; frame-diff threshold detector is sufficient (mean abs luma diff > threshold); cap result count to 64; `validate_upload` the path (SEC-5 mirror).
+- [ ] Backend NEW cmd `detect_slices` in `backend/src/zmq_server.py` (+ impl in `backend/src/video/` or reused scene-detect per precondition): `{asset_path, mode: 'transient', threshold} → {slice_frames: int[]}`; frame-diff threshold detector is sufficient (mean abs luma diff > threshold; threshold clamped finite to (0, 1], default 0.3); cap result count to 64; `validate_upload` the path (SEC-5 mirror).
 - [ ] Frontend NEW `frontend/src/renderer/components/instruments/computeSlices.ts` — pure for grid/manual modes: `grid(frameCount, divisions) → frames[]`, `manual(markers) → frames[]`; transient calls the backend cmd.
 - [ ] `sliceToRack(trackId, sliceFrames)` store action: builds a `SampleRack`, pad i = leaf sampler `{clipId, startFrame: slice[i], endFrame: slice[i+1]-1, triggerMode: 'oneShot'}`, ≤16 pads per rack page (Ableton 4x4 parity — `DrumRack.grid: '4x4'` precedent); surplus slices: cap at 16, toast the surplus count.
 - [ ] `SamplerDevice.tsx` — "Slice" section: mode select, threshold/divisions input, preview slice count, "Slice to Rack" button (replaces the track's sampler with the rack after confirm).
@@ -782,7 +809,7 @@ git grep -rn "slice" frontend/src/renderer/components/instruments/
 ### Implementation steps
 1. Backend detector + pytest (incl. path validation + count cap).
 2. Pure slice math + vitest.
-3. Store action + confirm-replace flow + UI.
+3. Store action + confirm-replace flow + UI; **live-runtime check (Gate 18):** slice a real clip and trigger 3 pads in the running app launched from the edited worktree before claiming ready.
 
 ### TEST PLAN
 ```bash
@@ -792,7 +819,7 @@ cd ../frontend
 npx --no vitest run src/__tests__/components/instruments/computeSlices.test.ts
 npx --no vitest run
 ```
-Named new tests: "grid mode yields exactly N equal slices covering the clip" · "manual markers pass through sorted and deduped" · "slice count equals detected transient count (synthetic 3-cut fixture)" · "slice to rack creates one pad per slice with contiguous start/end windows" · "17+ slices clamp to 16 pads with a toast naming the surplus" · "slice-to-rack round trip: triggering pad k renders the frame at slice k's start" · "detect_slices rejects traversal path before decode (backend)"
+Named new tests: "grid mode yields exactly N equal slices covering the clip" · "manual markers pass through sorted and deduped" · "slice count equals detected transient count (synthetic 3-cut fixture)" · "slice to rack creates one pad per slice with contiguous start/end windows" · "17+ slices clamp to 16 pads with a toast naming the surplus" · "slice-to-rack round trip: triggering pad k renders the frame at slice k's start" · "detect_slices rejects traversal path before decode (backend)" · "slicing a 1-frame clip yields exactly one slice [0]; grid divisions > frameCount clamp to frameCount slices, no empty window (negative)" · "threshold NaN / 0 / -1 / 2 rejected-or-clamped to (0,1] before decode (backend, negative)"
 
 ### ACCEPTANCE GATES
 - Round-trip gate (B4 OUT-gate): pad k's first rendered frame == slice k start (integration test through `buildVoiceLayers`).
@@ -810,7 +837,7 @@ Revert; `detect_slices` is a new cmd (no caller after revert = dead but harmless
 
 ## P5a.13 — RackNode branch schema + depth caps + recursive pad reconciliation
 
-- **ID:** P5a.13 · **branch:** `feat/p5a13-rack-branch-schema` · **base:** `origin/main` · **depends-on:** P5a.11
+- **ID:** P5a.13 · **branch:** `feat/p5a13-rack-branch-schema` · **base:** `origin/main` · **depends-on:** P5a.11 · **Est:** ~4h · **Model:** Sonnet
 - **Goal:** `RackNode` becomes recursive (`branch = {children, chain, composite:{opacity,mode}, chokeGroups, voiceCap, macros}`), with `MAX_BRANCH_DEPTH` enforced at load + IPC, and rack-loading reconciliation recursing into branch children (fixes the flat `rack.pads.map` orphan bug, §10 P2-2).
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -827,7 +854,7 @@ git grep -n "RackNodeLeaf" frontend/src/shared/types.ts
 ### Scope (verified paths)
 - [ ] `frontend/src/shared/types.ts` — `RackNode = RackNodeLeaf | RackNodeBranch`; `RackNodeBranch {kind: 'branch'; children: RackNode[]; chain: EffectInstance[]; composite: {opacity: number; mode: BlendMode}; chokeGroups: number[]; voiceCap: number; macros: Macro[]}`; a pad may hold a branch (`SampleRack.nodes: Record<padId, RackNode>`).
 - [ ] NEW `frontend/src/renderer/components/instruments/rackTree.ts` — pure helpers: `walkRack(node, visit)` (post-order), `rackDepth(node)`, `collectPads(node)` (recursive pad enumeration), `validateRack(node) → string[]` (depth ≤ cap, voiceCap ≥ 1, finite composite opacity).
-- [ ] `backend/src/security.py` — `MAX_BRANCH_DEPTH = 4`; `backend/src/project/schema.py` — recursive rack validation on load (depth, caps, finite numerics, known kinds; reuse `_walk_structure`'s depth-guard idiom at :90).
+- [ ] `backend/src/security.py` — `MAX_BRANCH_DEPTH = 4` and `MAX_RACK_NODES_TOTAL = 64` (both caps quantified: nesting ≤ 4 deep, ≤ 64 total nodes per rack); `backend/src/project/schema.py` — recursive rack validation on load (depth, node count, caps, finite numerics, known kinds; reuse `_walk_structure`'s depth-guard idiom at :90 — the validator itself MUST be depth-guarded so a hostile file can never drive it into `RecursionError`).
 - [ ] `frontend/src/renderer/stores/performance.ts` `loadDrumRack` (and the rack-store equivalent from P5a.9) — reconciliation uses `collectPads` so nested pads keep MIDI notes + undo invalidation correct (today flat `rack.pads.map` orphans nested pads).
 - [ ] Persistence round-trip for nested racks.
 - [ ] Tests: NEW `__tests__/components/instruments/rackTree.test.ts`, backend schema tests, store reconciliation tests.
@@ -848,7 +875,7 @@ npx --no vitest run src/__tests__/components/instruments/rackTree.test.ts
 npx --no vitest run
 cd ../backend && python -m pytest -x -n auto --tb=short
 ```
-Named new tests: "walkRack visits children before parents (post-order)" · "rackDepth counts nesting and validateRack rejects depth > MAX_BRANCH_DEPTH" · "collectPads enumerates pads inside nested branches" · "loading a nested rack reconciles MIDI notes for nested pads (no orphans)" · "loading a nested rack clears undo exactly once" · "project file with depth-5 rack rejected at load (backend)" · "branch node renders nothing pre-P5a.14 (guard, with warn)"
+Named new tests: "walkRack visits children before parents (post-order)" · "rackDepth counts nesting and validateRack rejects depth > MAX_BRANCH_DEPTH" · "collectPads enumerates pads inside nested branches" · "loading a nested rack reconciles MIDI notes for nested pads (no orphans)" · "loading a nested rack clears undo exactly once" · "project file with depth-5 rack rejected at load (backend)" · "branch node renders nothing pre-P5a.14 (guard, with warn)" · "depth-bomb: a 64-deep nested rack file is rejected at load in <100ms with a clear error — no RecursionError, no stack overflow (negative, BOTH layers)" · "node-count bomb: rack with 65 total nodes rejected (MAX_RACK_NODES_TOTAL=64, negative)"
 
 ### ACCEPTANCE GATES
 - Depth cap enforced in BOTH `schema.py` (load) and `validateRack` (frontend) — tests at both layers.
@@ -864,7 +891,7 @@ Revert; branch is a new union arm; saves with branches are lost on revert (pre-r
 
 ## P5a.14 — Post-order render traversal: branch → composite → branch chain → one layer up · **RISK:HIGH**
 
-- **ID:** P5a.14 · **branch:** `feat/p5a14-rack-render-traversal` · **base:** `origin/main` · **depends-on:** P5a.13
+- **ID:** P5a.14 · **branch:** `feat/p5a14-rack-render-traversal` · **base:** `origin/main` · **depends-on:** P5a.13 · **Est:** ~4h · **Model:** Opus/Fable (RISK:HIGH)
 - **Goal:** Branches render: children's layers composite into one frame (`render_composite`), the branch chain applies to that frame, and ONE layer goes upward — recursively, depth-capped, within the voice budget.
 
 > **Architecture (decide-before-code, comment the citation):** keep the sidecar stateless — the
@@ -910,7 +937,7 @@ python -m pytest tests/test_subcomposite_render.py -x --tb=short
 python -m pytest -x -n auto --tb=short
 cd ../frontend && npx --no vitest run src/__tests__/components/instruments/buildRackLayers.test.ts
 ```
-Named new tests: "subcomposite layer composites its children then applies the branch chain (pixel assertion vs manual two-step)" · "nested branch (depth 3) renders equivalently to manual bottom-up composition" · "depth beyond MAX_BRANCH_DEPTH rejected server-side before decode" · "flattened voice count across tree enforced against MAX_TOTAL_VOICES_PER_RENDER" · "branch voiceCap trims subtree voices oldest-first (frontend)" · "decode-loop refactor: all pre-existing composite tests unchanged (regression commit)" · "empty branch emits a transparent layer, not an error"
+Named new tests: "subcomposite layer composites its children then applies the branch chain (pixel assertion vs manual two-step: byte-equal uint8 output — same ops in the same order; any nonzero diff fails)" · "nested branch (depth 3) renders equivalently to manual bottom-up composition" · "depth beyond MAX_BRANCH_DEPTH rejected server-side before decode" · "depth-bomb: 64-deep nested subcomposite IPC payload rejected pre-decode in <100ms, no RecursionError (negative)" · "flattened voice count across tree enforced against MAX_TOTAL_VOICES_PER_RENDER" · "branch voiceCap trims subtree voices oldest-first (frontend)" · "decode-loop refactor: all pre-existing composite tests unchanged (regression commit)" · "empty branch emits a transparent layer, not an error"
 
 ### ACCEPTANCE GATES
 - Nested-vs-manual pixel-equality test is the correctness oracle (B5 OUT-gate "nested-branch composite correctness").
@@ -926,7 +953,7 @@ Two commits (refactor, recursion) → revert recursion alone if needed. `subcomp
 
 ## P5a.15 — Hierarchical state keys (path-from-root) + sibling-reorder isolation · **RISK:HIGH**
 
-- **ID:** P5a.15 · **branch:** `feat/p5a15-hierarchical-state-keys` · **base:** `origin/main` · **depends-on:** P5a.14 (and P5a.2's diff-based cache)
+- **ID:** P5a.15 · **branch:** `feat/p5a15-hierarchical-state-keys` · **base:** `origin/main` · **depends-on:** P5a.14 (and P5a.2's diff-based cache) · **Est:** ~4h · **Model:** Opus/Fable (RISK:HIGH)
 - **Goal:** Per-layer effect state inside nested racks is keyed by path-from-root, so stateful effects (datamosh etc.) in sibling subtrees never alias when siblings reorder — INSTRUMENTS.md §10 P2-2.
 
 ### PRECONDITIONS (mismatch → STOP)
@@ -941,7 +968,7 @@ git grep -n "layer_signature" backend/src/zmq_server.py | head -3
 ```
 
 ### Scope (verified paths)
-- [ ] `backend/src/zmq_server.py` — `_decode_layer` threads a `path` argument (e.g. `root/2/sub/0`); inside a subcomposite, child `layer_id`s are prefixed: `{path}/{voice:...|asset:...}`; the subcomposite's own branch-chain state keys as `{path}/branch`. State threading for child layers inside a recursion uses the SAME top-level `_composite_states` dict (flat dict, hierarchical keys) so `_get_composite_states` diffing keeps working unchanged.
+- [ ] `backend/src/zmq_server.py` — `_decode_layer` threads a `path` argument (e.g. `root/2/sub/0`); inside a subcomposite, child `layer_id`s are prefixed: `{path}/{voice:...|asset:...}`; the subcomposite's own branch-chain state keys as `{path}/branch`. State threading for child layers inside a recursion uses the SAME top-level `_composite_states` dict (flat dict, hierarchical keys) so `_get_composite_states` diffing keeps working unchanged. Path segments are validated server-side at the trust boundary: each `nodeId` matches `^[A-Za-z0-9_-]{1,64}$`, total path length ≤ 512 chars, segment count ≤ `MAX_BRANCH_DEPTH` + 1 — forged/malformed paths rejected before decode (mirrors P5a.2's voice_id regex discipline).
 - [ ] `frontend/src/renderer/components/instruments/buildRackLayers.ts` — emit a stable `node_id` per RackNode (persisted uuid on the node, NOT array index) that the backend uses as the path segment — array indices alias on reorder, which is the exact bug; add `nodeId: string` to `RackNodeBranch`/leaf in `shared/types.ts` + persistence + reconciliation (P5a.13's `collectPads` carries it).
 - [ ] Tests: NEW `backend/tests/test_hierarchical_state_keys.py`; frontend nodeId persistence tests.
 
@@ -961,7 +988,7 @@ python -m pytest tests/test_hierarchical_state_keys.py -x --tb=short
 python -m pytest -x -n auto --tb=short
 cd ../frontend && npx --no vitest run
 ```
-Named new tests: "sibling branches with identical content keep independent stateful-effect state" · "reordering siblings does not swap or reset their effect state (state follows nodeId)" · "same clip in two subtrees never shares datamosh state (aliasing oracle)" · "flat non-rack renders produce identical layer_ids to pre-packet (regression fixture)" · "removing one branch drops only its subtree's state entries (cleanup symmetry)" · "nodeId persists through save/load and survives rack reconciliation"
+Named new tests: "sibling branches with identical content keep independent stateful-effect state" · "reordering siblings does not swap or reset their effect state (state follows nodeId)" · "same clip in two subtrees never shares datamosh state (aliasing oracle)" · "flat non-rack renders produce identical layer_ids to pre-packet (regression fixture)" · "removing one branch drops only its subtree's state entries (cleanup symmetry)" · "nodeId persists through save/load and survives rack reconciliation" · "forged path (traversal chars / 4KB string / 65-char nodeId segment / 6-segment path) rejected before decode (negative)"
 
 ### ACCEPTANCE GATES
 - Aliasing oracle red on pre-fix keying, green after (run both, paste both).
@@ -987,3 +1014,28 @@ Revert; `nodeId` is additive in persistence; backend falls back to non-prefixed 
 7. **PR #167 (B2-lite) is OPEN, not merged** — it already delivers: track-keyed instruments store, InstrumentsBrowser (deletes InstrumentsPanel), performance-track creation/rendering, drag-sampler-to-track, drag-video-to-sampler, track-keyed persistence. P5a.3+ hard-gate on its merge; P5a.1/P5a.2 deliberately avoid its files so they can run now.
 8. **`types.ts:60` for `Track.type`** (docs) → actually `shared/types.ts:57-79` on current main.
 9. **No transient/onset detector exists for video** (`onset` hits are audio-side: `modulation/audio_follower.py`) — P5a.12's transient slicing requires a new `detect_slices` backend cmd, not a reuse.
+
+---
+
+# Thickness scorecard (rubric pass 2026-06-11)
+
+Rubric: **R1** anchors grep-verified in preconditions · **R2** full contract incl. Est + Model line · **R3** named tests + exact commands (+ live-runtime step for UI packets) · **R4** every gate quantified (ms/counts/bytes) · **R5** ≥1 negative test · **R6** named full-chain integration test (n/a for docs-only) · **R7** depends-on resolve to defined IDs/gates. Cells are before→after.
+
+| Packet | R1 | R2 | R3 | R4 | R5 | R6 | R7 |
+|---|---|---|---|---|---|---|---|
+| P5a.1 | ✅→✅ | ❌→✅ (Est/Model added; FSM table + steal tie-break pinned) | ✅→✅ | ⚠️→✅ (100-replay determinism quantified) | ✅→✅ (illegal-transition negatives added) | n/a (pure module; chain lands P5a.3) | ✅→✅ |
+| P5a.2 | ✅→✅ | ❌→✅ | ✅→✅ | ✅→✅ | ✅→✅ (steal-under-load growth test added) | n/a (backend lib; chain lands P5a.3) | ✅→✅ |
+| P5a.3 | ✅→✅ | ❌→✅ | ⚠️→✅ (Gate-18 live-runtime step formalized) | ✅→✅ | ⚠️→✅ (NaN-frameIndex store negative added) | ❌→✅ (named full-chain pad→store→payload test) | ✅→✅ |
+| P5a.4 | ✅→✅ | ❌→✅ | ✅→✅ | ⚠️→✅ (MAX_CAPTURE_EVENTS=10,000 quantified) | ✅→✅ (+over-cap event-list negative) | ✅→✅ (export byte-identity IS the chain test) | ✅→✅ |
+| P5a.4a | ✅→✅ | ❌→✅ | ✅→✅ | ✅→✅ | ❌→✅ (negative self-test of the grep gate) | n/a (docs-only) | ✅→✅ |
+| P5a.5 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ⚠️→✅ (seam weights sum 1±1e-6) | ✅→✅ (+1-frame-clip negative) | ❌→✅ (UI→store→payload chain test) | ✅→✅ |
+| P5a.6 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ✅→✅ | ✅→✅ | n/a (math lands inside P5a.5's chain) | ✅→✅ |
+| P5a.7 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ✅→✅ ([-30,30] caps) | ✅→✅ | n/a (layer construction covered by P5a.3 chain) | ✅→✅ |
+| P5a.8 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ✅→✅ | ⚠️→✅ (+out-of-range note/velocity negative) | ❌→✅ (MIDI→store→payload chain test) | ✅→✅ |
+| P5a.9 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ✅→✅ | ⚠️→✅ (+rack-on-wrong-track negative) | ❌→✅ (drop→store→trigger→payload chain test) | ✅→✅ |
+| P5a.10 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ⚠️→✅ (MAX_SENDS_PER_PAD=4, MAX_RETURNS_PER_RACK=4, worst-case 24≤50 math) | ✅→✅ (+fan-out cap negatives) | ✅→✅ (budget/determinism layer-array tests) | ✅→✅ |
+| P5a.11 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ✅→✅ (16/256 caps already quantified) | ✅→✅ (+curve value-range + NaN negatives) | n/a (macros stay frontend-pure; load-time is the boundary, tested) | ✅→✅ |
+| P5a.12 | ✅→✅ | ❌→✅ | ⚠️→✅ (live-runtime step added) | ⚠️→✅ (threshold (0,1] default 0.3; 64/16 caps) | ✅→✅ (+1-frame-clip slice negative — the rubric's named case) | ✅→✅ (round-trip pad-k gate already full-chain) | ✅→✅ |
+| P5a.13 | ✅→✅ | ❌→✅ | ✅→✅ | ⚠️→✅ (+MAX_RACK_NODES_TOTAL=64; depth-bomb <100ms) | ✅→✅ (+depth-bomb + node-bomb negatives) | n/a (render chain is P5a.14) | ✅→✅ |
+| P5a.14 | ✅→✅ | ❌→✅ | ✅→✅ | ⚠️→✅ (pixel oracle pinned to byte-equal; depth-bomb <100ms) | ✅→✅ (+IPC depth-bomb negative) | ✅→✅ (nested-vs-manual pixel oracle IS the chain test) | ✅→✅ |
+| P5a.15 | ✅→✅ | ❌→✅ | ✅→✅ | ⚠️→✅ (nodeId regex ^[A-Za-z0-9_-]{1,64}$, path ≤512 chars, ≤depth+1 segments) | ✅→✅ (+forged-path negative) | ✅→✅ (aliasing oracle IS the chain test) | ✅→✅ |

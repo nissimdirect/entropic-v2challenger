@@ -52,6 +52,10 @@
 | `packets/phase-7.md` | Tier 5 latent, hard-gated on Q7 REAL verdict (P7.0–P7.14; G-CHECK is canonical here) |
 | `packets/phase-8-9.md` | Tier 6 `.dna`/Genoscope + Tier 7 SDK (P8.x/P9.x) |
 | `packets/parallel-track.md` | v2 debt + decision packets, schedulable anytime (PD.1–PD.16 + PD.17 rider) |
+| `packets/phase-tier3.md` | T3.1–T3.15 — the everything-modulates-everything layer (B4-full rules, cross-modal matrix, F3 fold, taps+feedback, E5, SG-H2) |
+| `packets/undo-history.md` | UH.1–UH.5 — undo coverage for new systems incl. painted-field history (stroke-list design) |
+| `PERF-MODEL.md` | Global frame budget (33.3ms decomposition, effect classes A/B/C, PERF.1 harness + PERF.2 CI ratchet) |
+| `ONBOARDING-SPEC.md` | First-launch ritual: flow + drafted copy + skip/reduced-motion + grep-checkable acceptance |
 | `packets/user-expectations.md` | User-expectation P1 features (UE.1–UE.7 — MISSING-FUNCTIONS §1 items #1–#6+#8), Phase-1-adjacent, depend on P1.0 only |
 | `packets/ux-audit.md` | CDO UX audit + PUX.1–PUX.6 packets (land between Phase 2 and Phase 3) |
 | `packets/effects-quality.md` | Effects-quality workstream (PFX.0–PFX.5) |
