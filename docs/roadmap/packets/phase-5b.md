@@ -255,6 +255,10 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **ID:** P5b.9 · **Branch:** `feat/p5b-b6-frame-bank-backend` · **Base:** `origin/main` · **Est:** ~4h
 - **Depends-on:** P5b.1 (SG-8 wiring — IN-gate per INSTRUMENTS plan §3 B6). Phase-5a B5 NOT required for this backend lib packet (it's standalone); B5 required from P5b.10 on.
 - **Goal:** The safety crux of B6: a slot bank whose residency bound is **bytes of decoded frames, not slot count** (the existing `_max_readers = 10` at `zmq_server.py:75` caps file handles, NOT decoded RAM — VERIFIED). Over budget → LRU-evict + serve downscale proxy. The renderer (sidecar) is the enforcement authority; the frontend `byteBudget` field is a request only.
+- **PINNED DESIGN (2026-06-11 — was "final at gate"; final HERE. Diverging at the gate requires amending this block first):**
+  - **Budget formula:** `frame_bank_byte_budget = min(MAX_FRAMEBANK_BYTE_BUDGET, floor(0.20 × SESSION_BUDGET_BYTES))`. `SESSION_BUDGET_BYTES` is SG-8's session-start `psutil.virtual_memory().available` anchor (`backend/src/safety/pressure/budget.py`, VERIFIED on main: import-time constant, `ENTROPIC_Q7_BUDGET_MB` env override, 8 GiB fallback when psutil absent — do NOT re-read mid-session, DEC-Q7-011). `MAX_FRAMEBANK_BYTE_BUDGET = 2 GiB` is the absolute `security.py` ceiling. Under SG-8 stage 5 `frame_bank_cache_dropped` (threshold 82% / restore 72%, VERIFIED `degrade_order.py` order=5) the effective cap halves — that's step 3's degrade hook. **Hazard math (why slot-count caps are insufficient):** 256 slots × 3840×2160 px × 4 B = 8,493,465,600 B ≈ **8.5 GiB** ≈ 80%+ of the ~10.5 GiB session budget on the 16 GB Apple-silicon target → would cascade straight through degrade stages 5–10. Under the formula, a worst-case bank is 2 GiB ≈ 19% of session budget.
+  - **Eviction policy:** LRU at **decoded-frame granularity** (one cache entry = one decoded frame = `h*w*4` bytes), never whole-slot. **Pinned slots:** frames of currently-playing banks (current frame ± 1 blend neighbor) are pinned and skipped by eviction — mirror `GPUResourcePool.pin/unpin` + `_evict_lru` skip-pinned semantics (VERIFIED `safety/gpu_resources.py`). If pinned bytes alone reach the cap, new admissions decode at proxy resolution; pinned entries are never evicted.
+  - **Enforcement point:** **before decode, in the slot-load path** — `FrameBank.ensure_capacity(h*w*4)` runs evict-then-admit BEFORE any frame decode; admission denied → decode the downscale proxy instead. Frontend `byteBudget` is clamped to the formula server-side (it can lower the cap, never raise it).
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   git grep -n "PressureMonitor" origin/main -- backend/src/zmq_server.py     # non-empty (P5b.1) — else STOP
@@ -263,8 +267,8 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **Scope (VERIFIED paths):** new `backend/src/instruments/__init__.py` + `backend/src/instruments/frame_bank.py` (bank, LRU accounting, proxy downscaler — reuse `modulation/video_analyzer.py`'s `downscale_proxy` if API fits, VERIFIED it exists), `backend/src/security.py` (add `MAX_FRAMEBANK_SLOTS`, `MAX_FRAMEBANK_BYTE_BUDGET` hard caps; clamp `position` [0,1] finite, per-slot `validate_upload` on add), new `backend/tests/test_instruments/test_frame_bank.py`.
 - **DO-NOT-TOUCH:** `zmq_server.py` (P5b.10 wires it); `video/reader.py` reader pool; existing granulator/sampler code.
 - **Steps:** (1) `FrameBank` class: ordered slots (`SlotRef = {clip_id|still_id, frame_index}`), `resolve(position) → (slot_idx, frac)`; (2) decoded-frame cache with byte accounting (`h*w*4` per frame), LRU eviction at budget, downscale-proxy fallback path; (3) SG-8 `FeatureRegistry` registration: degrade hook = LRU-evict to half cap (SPEC-3 §5.2 priority 5), `disable_fn` returns bytes freed; (4) security constants + clamps.
-- **TEST PLAN:** `python -m pytest tests/test_instruments/test_frame_bank.py -x --tb=short` — named: `test_byte_accounting_exact`, `test_lru_evicts_oldest_at_budget`, `test_over_budget_serves_proxy_not_oom`, `test_position_clamped_and_finite_guarded`, `test_slot_count_cap_rejected`, `test_sg8_degrade_hook_frees_bytes_and_reports`, `test_256_slot_synthetic_bank_stays_under_budget` (synthetic small frames — assert accounting math, not real 8.5GB). Full backend suite.
-- **ACCEPTANCE GATES:** memory bound is bytes-based and backend-owned; SG-8 hook registered; no API exposed to frontend yet (no IPC change in this packet).
+- **TEST PLAN:** `python -m pytest tests/test_instruments/test_frame_bank.py -x --tb=short` — named: `test_byte_accounting_exact`, `test_lru_evicts_oldest_at_budget`, `test_over_budget_serves_proxy_not_oom`, `test_position_clamped_and_finite_guarded`, `test_slot_count_cap_rejected`, `test_sg8_degrade_hook_frees_bytes_and_reports`, `test_256_slot_synthetic_bank_stays_under_budget` (synthetic small frames — assert accounting math, not real 8.5GB), `test_frame_bank_respects_byte_budget_under_4k_load` (**named oracle test** — frames with REAL 4K dims under a tiny `ENTROPIC_Q7_BUDGET_MB` override; assert residency ≤ formula cap after EVERY admission, and that the formula `min(2GiB, 0.20×SESSION_BUDGET_BYTES)` is the binding bound), `test_eviction_is_lru_order_and_skips_pinned_slots` (**eviction-order test** — touch-order eviction proven exact; pinned playing-bank frames survive a full eviction sweep; admission with all-pinned-at-cap yields proxy, not eviction). Full backend suite.
+- **ACCEPTANCE GATES:** memory bound is bytes-based and backend-owned; budget formula, eviction policy, and enforcement point match the PINNED DESIGN block verbatim (reviewer greps the constants); SG-8 hook registered; no API exposed to frontend yet (no IPC change in this packet).
 - **ROLLBACK:** revert PR — entirely additive (`security.py` constants are append-only).
 - **EVIDENCE:** pytest output; line refs of the two new security constants.
 
@@ -281,7 +285,7 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **Goal:** a `frameBank` layer resolves through `_handle_render_composite` (`zmq_server.py:707`, VERIFIED): integer slot + fractional blend (`idx = position * (slots.length-1)`), `interp: nearest|blend` (`flow` deferred to P5b.15), emitting one layer per active voice.
 - **Scope (VERIFIED paths):** `backend/src/zmq_server.py` `_handle_render_composite` (new `layer_type: 'frameBank'` branch — mirror the B1 sampler's layer dict shape from `components/instruments/types.ts` `SamplerVoiceLayer`, VERIFIED), `backend/src/instruments/frame_bank.py` (interp), `backend/src/engine/compositor.py` only if layer plumbing demands (read first), tests.
 - **DO-NOT-TOUCH:** existing layer types' behavior; `_get/_save_composite_states` keying (B2's voice-keying owns that); export encode.
-- **Steps:** parse+validate layer params (clamp position, validate slot refs against bank, reject unknown interp), nearest = integer slot, blend = `(1-frac)*A + frac*B`, per-voice instances keyed by voiceId.
+- **Steps:** parse+validate layer params (clamp position, validate slot refs against bank, reject unknown interp), nearest = integer slot, blend = `(1-frac)*A + frac*B`, per-voice instances keyed by voiceId. **Pinning:** the render arm pins the active bank's current ± neighbor frames (`FrameBank.pin`) for the duration of the render call and unpins after — playing banks are never evicted mid-frame (P5b.9 PINNED DESIGN).
 - **TEST PLAN:** `python -m pytest tests/test_instruments/test_frame_bank_render.py -x --tb=short` — named: `test_nearest_picks_integer_slot`, `test_blend_fractional_crossfade_l1` (L1-diff against hand-computed blend), `test_position_0_and_1_exact_endpoints`, `test_malformed_layer_rejected_before_decode`, `test_unknown_interp_rejected`, `test_two_voices_independent_positions`. Full backend suite.
 - **ACCEPTANCE GATES:** fractional-position crossfade visually/numerically correct; malformed input rejected pre-decode (trust boundary); composite handler regression-free.
 - **ROLLBACK:** revert PR; the `zmq_server.py` branch is one dispatch arm — name the hunk in commit body.
@@ -336,13 +340,13 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
   grep -n "rife49.pth" ~/Development/livephoto/engines.py                      # MUST show ComfyUI-Frame-Interpolation release URL — else weight source changed, STOP
   git grep -rn "rife" origin/main -- backend/src | head -3                     # MUST be EMPTY — else STOP
   ```
-- **Scope (VERIFIED paths):** new `backend/src/interp/__init__.py` + `backend/src/interp/rife_arch.py` (vendored copy of `~/Development/livephoto/rife_arch.py`, license header preserved — RIFE is MIT (hzwer); record provenance + weight URL + SHA-256 in the module docstring), new `backend/scripts/export_rife_onnx.py` (torch → ONNX fp32, fixed opset, fixed input names; torch is a SCRIPT-TIME dep only — must NOT enter the sidecar runtime requirements), model integrity manifest (`{filename, sha256, size}`), `backend/tests/test_interp/test_rife_arch.py`.
+- **Scope (VERIFIED paths):** new `backend/src/interp/__init__.py` + `backend/src/interp/rife_arch.py` (vendored copy of `~/Development/livephoto/rife_arch.py`, license header preserved — RIFE arch CODE is MIT (hzwer); record provenance + weight URL + SHA-256 in the module docstring), new `backend/scripts/export_rife_onnx.py` (torch → ONNX fp32, fixed opset, fixed input names; torch is a SCRIPT-TIME dep only — must NOT enter the sidecar runtime requirements), new `backend/scripts/measure_rife_memory.py` (step 5), model integrity manifest (`{filename, sha256, size, license, license_evidence_url}` — license fields are step 6's deliverable), `backend/tests/test_interp/test_rife_arch.py`.
 - **DO-NOT-TOUCH:** sidecar runtime `requirements` (no torch); `zmq_server.py` (P5b.14); `engines.py` in livephoto (read-only source).
-- **Steps:** (1) copy + import-path-fix `rife_arch.py`; (2) export script: download `rife49.pth` (~/Development/livephoto cache may already have it — check `engines.py`'s cache dir first), load `weights_only=True`, export fp32 ONNX, emit sha256; (3) integrity check helper `verify_model(path)` (build-plan B7 security bullet); (4) document the ~`MAX_RESOLUTION=1920` inference cap carried over from `morphlab_core.py:495`.
-- **TEST PLAN:** `python -m pytest tests/test_interp/test_rife_arch.py -x --tb=short` — named: `test_arch_constructs_without_weights`, `test_verify_model_rejects_bad_hash`, `test_verify_model_accepts_manifest_match`, `test_onnx_export_script_produces_fixed_io_names` (skip-marked if torch absent in CI — assert skip reason is explicit, never silent-pass per `feedback_silent-exception-swallowing`). Full backend suite.
-- **ACCEPTANCE GATES:** ONNX file produced locally + manifest committed (weights file itself NOT committed if >100MB — document the fetch step in the script `--help`); zero new runtime deps.
+- **Steps:** (1) copy + import-path-fix `rife_arch.py`; (2) export script: download `rife49.pth` (~/Development/livephoto cache may already have it — check `engines.py`'s cache dir first), load `weights_only=True`, export fp32 ONNX, emit sha256; (3) integrity check helper `verify_model(path)` (build-plan B7 security bullet); (4) document the ~`MAX_RESOLUTION=1920` inference cap carried over from `morphlab_core.py:495`; (5) **memory-budget measurement (gates P5b.14 start; target machine = Apple M4 16GB):** `backend/scripts/measure_rife_memory.py` loads `rife49.pth` fp32 via the vendored arch, runs one synthetic interpolation at the 1920 cap and one at 1080p, logs peak RSS (`resource.getrusage(RUSAGE_SELF).ru_maxrss` + psutil cross-check) and computes `headroom = SESSION_BUDGET_BYTES − (app+sidecar RSS at measurement time + model peak RSS)` against SG-8's budget anchor (`backend/src/safety/pressure/budget.py` `SESSION_BUDGET_BYTES`, VERIFIED: session-start `psutil.virtual_memory().available`, `ENTROPIC_Q7_BUDGET_MB` override — note its docstring says "16GB M1"; the anchor is psutil-derived so M4-correct anyway). **The script is exit-bearing: `headroom < 4 GiB` → exit nonzero printing the three numbers → STOP, do not start P5b.14; surface to user** (options: fp16 ONNX, lower res cap, defer B7); (6) **weights-licensing verification (exit-bearing):** the arch CODE license (MIT, hzwer) does NOT cover the WEIGHTS. `rife49.pth` is fetched from `github.com/Fannovel16/ComfyUI-Frame-Interpolation` releases (VERIFIED `~/Development/livephoto/engines.py:240`; **no license is recorded anywhere in livephoto — genuinely unverified today, named in ROADMAP G14**). At execution: check that repo's LICENSE + upstream `hzwer/Practical-RIFE` LICENSE as they apply to the weight files; record `{license, license_evidence_url}` in the integrity manifest. **If the weights cannot be pinned to a named license permitting redistribution/bundling → STOP and surface to user before bundling anything.**
+- **TEST PLAN:** `python -m pytest tests/test_interp/test_rife_arch.py -x --tb=short` — named: `test_arch_constructs_without_weights`, `test_verify_model_rejects_bad_hash`, `test_verify_model_accepts_manifest_match`, `test_onnx_export_script_produces_fixed_io_names` (skip-marked if torch absent in CI — assert skip reason is explicit, never silent-pass per `feedback_silent-exception-swallowing`), `test_manifest_requires_nonempty_license_fields` (`verify_model` rejects a manifest missing `license`/`license_evidence_url`), `test_memory_measure_script_exits_nonzero_under_4gib_headroom` (drive via tiny `ENTROPIC_Q7_BUDGET_MB`; assert exit code ≠ 0 and the headroom line printed; skip-marked-with-reason if torch absent). Full backend suite.
+- **ACCEPTANCE GATES:** ONNX file produced locally + manifest committed **including license fields** (weights file itself NOT committed if >100MB — document the fetch step in the script `--help`); zero new runtime deps; measurement run on the M4 16GB target shows `headroom ≥ 4 GiB` (else this packet merges but P5b.14 is STOPPED and the user decides).
 - **ROLLBACK:** revert PR — wholly additive.
-- **EVIDENCE:** sha256 + file size of produced ONNX in PR body; pytest output.
+- **EVIDENCE:** sha256 + file size of produced ONNX in PR body; pytest output; **peak-RSS + headroom numbers from step 5** (both resolutions); **license name + evidence URL from step 6**.
 
 ### P5b.14 — B7 sidecar interp service: ONNX runtime + blend fallback + timeout
 
@@ -352,12 +356,15 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
   ```bash
   git grep -n "verify_model" origin/main -- backend/src/interp/ | head -2   # non-empty — else STOP
   git grep -n "class GPUResource" origin/main -- backend/src/safety/gpu_resources.py  # non-empty (SG-1 lib) — else STOP
+  git grep -n "license_evidence_url" origin/main -- backend/src/interp/ backend/scripts/ | head -2
+  #   non-empty proves P5b.13 step 6 (weights license) recorded — EMPTY → STOP, licensing unresolved
+  # MANUAL gate: P5b.13 step-5 memory evidence in its PR body MUST show headroom ≥ 4 GiB on the M4 16GB target — < 4 GiB → STOP, surface to user
   ```
 - **Goal:** Build-plan B7 service shape: stateless `interp(frameA, frameB, t∈(0,1)) → frame` callable in the sidecar; model absent/load-fail/timeout → degrade to `blend` (never crash, never hard-dep); per-inference timeout; resources owned via SG-1 pool discipline.
 - **Scope (VERIFIED paths):** new `backend/src/interp/service.py` (onnxruntime session lifecycle, lazy load, `interp()`), `backend/src/safety/gpu_resources.py` consumed (pool registration for session-owned buffers — Mock acceptable until real Metal binding lands, which #163 explicitly deferred), per-inference timeout reusing the SG-7 timeout pattern (`backend/src/video/codec_timeout.py`, VERIFIED exists — read it first), `requirements` gains `onnxruntime` (runtime dep — flag in PR body for Infra review), `backend/tests/test_interp/test_service.py`.
 - **DO-NOT-TOUCH:** decode/encode paths; export determinism hashing; frame-bank/sampler call sites (P5b.15).
-- **Steps:** lazy session init + `verify_model` at load; `interp()` with t clamped (0,1) exclusive + finite guards; timeout wrapper → blend fallback + one-shot warning log; explicit `unload()` freeing session.
-- **TEST PLAN:** named: `test_blend_fallback_when_model_absent`, `test_blend_fallback_on_timeout`, `test_t_clamped_and_finite_guarded`, `test_interp_deterministic_same_inputs_same_output` (fp32 CPU EP — byte-equal), `test_session_unload_frees_handles` (SG-1 leak==0 via pool accounting), `test_corrupt_model_rejected_then_blend`. Full backend suite.
+- **Steps:** lazy session init + `verify_model` at load; `interp()` with t clamped (0,1) exclusive + finite guards; timeout wrapper → blend fallback + one-shot warning log; explicit `unload()` freeing session; **SG-8 integration:** register the session's `unload()` with the `FeatureRegistry` (`safety/pressure/registry.py`, VERIFIED) under the canonical cache-release tier (stage 6 `gpu_texture_pool_released` @85%, VERIFIED `degrade_order.py` order=6 — read `registry.py` first for the stage-mapping seam) so memory pressure sheds the ONNX session before the L-backbone stages fire.
+- **TEST PLAN:** named: `test_blend_fallback_when_model_absent`, `test_blend_fallback_on_timeout`, `test_t_clamped_and_finite_guarded`, `test_interp_deterministic_same_inputs_same_output` (fp32 CPU EP — byte-equal), `test_session_unload_frees_handles` (SG-1 leak==0 via pool accounting), `test_corrupt_model_rejected_then_blend`, `test_sg8_pressure_unloads_session_then_blend_fallback` (mock pressure fn → degrade fires → session unloaded → next `interp()` serves blend, no crash). Full backend suite.
 - **ACCEPTANCE GATES:** sidecar boots with NO model present (degraded mode); deterministic CPU-EP output proven byte-stable across two calls; GPU-handle leak == 0.
 - **ROLLBACK:** revert PR; `onnxruntime` requirement removal included in revert.
 - **EVIDENCE:** pytest output incl. determinism byte-compare; `ps`-level RSS note before/after 100 interp calls.
@@ -384,7 +391,7 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 
 ## Track F — B8 Granulator · gated SG-1 ✅(lib) + SG-3 (Track B) + SG-8 (Track A)
 
-> **Scope honesty:** the build plan sizes B8 at **L–XL (~40–70h)**. These five packets cover **B8-core** (CPU-first grain engine, seeded determinism, caps, degrade, UI, 2 of 4 selection rules). The GPU shader pass (≈200 grains/frame as textured quads) and `latentSimilarity` full implementation are explicitly carved out as Phase-5c follow-ups — they need the real Metal binding that #163 deferred.
+> **Scope honesty:** the build plan sizes B8 at **L–XL (~40–70h)**. These five packets cover **B8-core** (CPU-first grain engine, seeded determinism, caps, degrade, UI, 2 of 4 selection rules). The GPU shader pass (≈200 grains/frame as textured quads) and `latentSimilarity` full implementation are packetized as **Track I follow-ups: P5b.28** (GPU pass — lands the real Metal binding that #163 deferred) and **P5b.29** (latentSimilarity — additionally Q7-GATED).
 
 ### P5b.16 — B8 grain engine core (pure, seeded, capped)
 
@@ -458,7 +465,7 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **Goal:** B8 OUT-gates: seeded grain replay byte-identical on the **export path** (export-path-only rule, §0.4 as corrected — preview uses the project-store seed); SG-8 density degrade under pressure during export; GPU leak == 0 (pool accounting; Mock until Metal); malformed-event fuzz.
 - **Scope:** fixture project + `backend/tests/test_instruments/test_granulator_determinism.py`; bugfixes it flushes (separately revertable commits).
 - **TEST PLAN:** named: `test_seeded_export_byte_identical_x2`, `test_edit_after_capture_export_identical`, `test_sg8_degrade_during_export_no_crash_and_logged`, `test_gpu_pool_leak_zero_after_500_frames`, `test_fuzz_malformed_grain_params_rejected`. Full backend suite.
-- **ACCEPTANCE GATES:** byte-identity ×2; **B8-core done**; carve-outs (GPU pass, latentSimilarity impl) filed as named follow-up issues in the PR body.
+- **ACCEPTANCE GATES:** byte-identity ×2; **B8-core done**; follow-up packets P5b.28 (GPU pass) + P5b.29 (latentSimilarity) referenced in the PR body (they are packetized in Track I — no loose issues).
 - **ROLLBACK:** revert.
 - **EVIDENCE:** export hash pairs; leak-counter printout.
 
@@ -596,6 +603,69 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 
 ---
 
+## Track I — B8 follow-ups (carved out of Track F's B8-core; appended 2026-06-11)
+
+### P5b.28 — B8 GPU grain-render pass: Metal binding via the SG-1 seam + textured-quad compositor · RISK:HIGH (first real Metal binding; perf)
+
+- **ID:** P5b.28 · **Branch:** `feat/p5b-b8-gpu-grains` · **Base:** `origin/main` · **Est:** ~4h (if the Metal binding alone exceeds ~4h, ship binding+tests as P5b.28a and the quad pass as P5b.28b — do not half-integrate)
+- **Depends-on:** P5b.20 merged (B8-core done; its P5b.17 perf table at density={16,64,200} is the CPU baseline this packet must beat).
+- **Goal:** The carved-out GPU pass: composite up to `MAX_GRAINS` (≈200) grains/frame as textured quads on Metal, behind the SG-1 resource contract. `gpu_resources.py`'s docstring (VERIFIED) says the real Metal/MLX binding "lands in the first Tier 2 effect PR that needs Metal" — **this is that PR**: every Metal handle wrapped in an SG-1 `GPUResource` implementation, pooled via `GPUResourcePool` (VERIFIED API on main: `acquire/release/touch/pin/unpin/get/destroy_all/stats`, `EvictionPolicy.LRU|FAIL`, `PoolExhausted`, `DestroyedHandleError`, `GlobalPoolRegistry`). **Determinism rule (§0.4 + B7 P5b.15 precedent): the GPU pass is PREVIEW-ONLY; export stays on the deterministic CPU path.** Promoting GPU output into exports requires a separate packet proving byte-identity — not this one.
+- **PRECONDITIONS (mismatch → STOP):**
+  ```bash
+  git grep -n "granulator" origin/main -- backend/src/zmq_server.py                 # B8 render arm merged (P5b.17) — else STOP
+  git grep -n "test_seeded_export_byte_identical_x2" origin/main -- backend/tests/ -r | head -2  # P5b.20 merged — else STOP
+  git grep -n "class GPUResourcePool" origin/main -- backend/src/safety/gpu_resources.py  # SG-1 lib — else STOP
+  git grep -rln "MTLDevice\|MTLTexture\|import Metal\|import mlx" origin/main -- backend/src | head -3
+  #   MUST be EMPTY (no real Metal binding exists yet; #163 deferred it) — non-empty → a binding landed elsewhere, re-scope to CONSUME it, STOP
+  ```
+- **Scope (VERIFIED seams):** new `backend/src/safety/metal_binding.py` (real `GPUResource` implementations for texture/buffer/pipeline handles — satisfies the Protocol incl. `destroy()` idempotence, `raw` raising `DestroyedHandleError` after free, `size_bytes`, the `weakref.finalize` RAII fallback); new `backend/src/instruments/granulator_gpu.py` (quad batcher: grain descriptors from P5b.16 → instanced textured quads, one draw per frame); `backend/src/instruments/granulator_instrument.py` + `zmq_server.py` granulator arm gain `render_path: 'cpu'|'gpu'` (default `'cpu'`, auto-fallback to cpu on any GPU error — never crash); SG-8: texture pool registered so stage 6 `gpu_texture_pool_released` (@85%, VERIFIED `degrade_order.py` order=6) calls `destroy_all()`; `backend/src/security.py` (clamp any new numerics); `backend/tests/test_instruments/test_granulator_gpu.py`.
+- **DO-NOT-TOUCH:** the CPU grain path (P5b.16/17 — regression-guard byte-identity); `engine/export.py` (export never selects `'gpu'`); `gpu_resources.py` pool internals (consume, don't fork); preview seeding.
+- **Steps:** (1) `metal_binding.py` wrappers + pool wiring (read `gpu_resources.py` forbidden-patterns list first — no raw `makeTexture()` outside wrappers, no module-level Metal objects); (2) quad batcher mapping grain descriptors (position/size/window alpha) to instanced quads; (3) `render_path` dispatch + auto-fallback; (4) SG-8 stage-6 hook; (5) perf capture at 1080p, density={16,64,200}, vs the P5b.17 CPU table.
+- **TEST PLAN:** `python -m pytest tests/test_instruments/test_granulator_gpu.py -x --tb=short` — named: `test_gpu_vs_cpu_pixel_tolerance` (**the gate**: same seed/params/frame, max per-channel abs diff ≤ 2/255 and mean abs diff ≤ 0.5/255 at density=64, 1080p), `test_gpu_pass_200_grains_1080p_under_16ms` (**perf target**: median over 100 frames < 16ms on the M4; record the number), `test_gpu_error_falls_back_to_cpu_not_crash`, `test_export_never_uses_gpu_path` (export request with `render_path:'gpu'` is coerced to cpu + logged), `test_pool_leak_zero_after_500_frames` (pool accounting; finalizer-free counter == 0), `test_sg8_stage6_releases_texture_pool_and_renders_continue`, `test_use_after_destroy_raises_destroyed_handle_error`. **All Metal-requiring tests skip-marked-with-explicit-reason when no Metal device (CI) — never silent-pass** (`feedback_silent-exception-swallowing`); the tolerance + perf gates MUST be run-and-pasted from the M4 before merge. Full backend suite.
+- **ACCEPTANCE GATES:** pixel tolerance holds at all three densities; 200 grains @1080p < 16ms (vs CPU baseline — paste both); GPU-handle leak == 0; CPU path byte-identical to pre-packet (regression hash); export untouched.
+- **ROLLBACK:** revert PR — `render_path` defaults `'cpu'`; binding + batcher are additive modules.
+- **EVIDENCE:** CPU-vs-GPU perf table (density {16,64,200} @1080p); pixel-diff stats; pool `stats()` after the 500-frame soak; pytest output.
+
+### P5b.29 — B8 `latentSimilarity` grain selection: L-distance pool filtering · RISK:HIGH (Q7-GATED + SG-3 boundary)
+
+- **ID:** P5b.29 · **Branch:** `feat/p5b-b8-latent-similarity` · **Base:** `origin/main` · **Est:** ~4h
+- **Depends-on:** P5b.18 merged (selection dispatch + flag-off schema rejection), P5b.5 merged (SG-3 GREEN, `MAX_L2_NORM_PER_BACKBONE` seam), **Q7 REAL verdict (G-CHECK below)**.
+- **Q7 GATE — this packet runs the phase-7 G-CHECK verbatim before anything else (gates packet START; the test suite below runs on mocked L vectors, so CI never needs the live backbone). Block kept at column 0 so the heredoc terminator survives copy-paste:**
+
+```bash
+python3 - <<'EOF'
+import json, pathlib, sys
+p = pathlib.Path.home() / ".entropic" / "q7-report.json"
+if not p.exists():
+    sys.exit("STOP: REAL Q7 verdict file missing at ~/.entropic/q7-report.json. Run P7.0.")
+d = json.loads(p.read_text())
+if d.get("backend") == "mock":
+    sys.exit("STOP: verdict file is from the MOCK backend. Not acceptable. Run P7.0.")
+state = d.get("verdict", {}).get("state")
+if state != "TIER_5_GO":
+    sys.exit(f"STOP: verdict is {state!r}. Phase 7 is gated. See P7.0N (NO-GO branch).")
+print(f"GATE OK: TIER_5_GO on backend={d['backend']} p95={d['verdict']['canonical_p95_ms']}ms")
+EOF
+```
+- **PRECONDITIONS (after G-CHECK; mismatch → STOP):**
+  ```bash
+  git grep -n "latentSimilarity\|latent_similarity" origin/main -- backend/src/project/schema.py   # P5b.18's flag-off load rejection present — else STOP
+  git grep -n "MAX_L2_NORM_PER_BACKBONE" origin/main -- backend/src/safety/latent_sentinel.py      # P5b.5 per-backbone ceiling seam — else STOP
+  git grep -n "selection" origin/main -- backend/src/instruments/granulator_instrument.py | head -3 # P5b.18 selection dispatch — else STOP
+  git grep -rn "LatentProvider" origin/main -- backend/src | head -2
+  #   EMPTY = this packet defines the provider seam; non-empty = Phase-7 landed one (P7.10+) → CONSUME it, do not declare a parallel protocol
+  ```
+- **Goal:** Implement `selection:'latentSimilarity'` behind the SG-3-coupled research flag: the grain source-frame pool is filtered by **L-vector distance** — given a target L vector (current playhead frame, or a user-pinned anchor frame), candidate source frames are ranked by L2 distance and the pool = top-k within `maxDistance`, deterministic tie-break by ascending frame index. L vectors arrive through a `LatentProvider` seam (protocol: `get_l_vector(frame_ref) -> ndarray | None`) so unit tests inject **mocked vectors** — the packet is fully testable pre-verdict; only flag-enable + live-backbone wiring is what the G-CHECK gates. **Every** latent read passes SG-3 (`check_and_clamp`/`batch_validate` + `MAX_L2_NORM_PER_BACKBONE`); a NaN/Inf/OOD latent aborts the lane via the P5b.4 gate, never silently degrades selection.
+- **Scope (VERIFIED seams):** `backend/src/instruments/granulator_instrument.py` (selection arm); new `backend/src/instruments/latent_pool.py` (pure distance filter: `filter_pool(candidates, target, k, max_distance) -> list[SlotRef]`); `backend/src/project/schema.py` (flip: ACCEPT `latentSimilarity` when the research flag is ON — load-time, mirroring P5b.18's reject-when-off, which stays); `backend/src/safety/latent_sentinel.py` consumed only; `backend/src/security.py` (clamp `k`, `maxDistance` finite/positive); `backend/tests/test_instruments/test_latent_selection.py` (mocked `LatentProvider`).
+- **DO-NOT-TOUCH:** sentinel internals; the other three selection rules (P5b.18 — regression-guard); SG-8 degrade order (stage 1 `d4_latent_grain_pool` already covers latent-pool drop — register, don't reorder); the flag default (OFF).
+- **Steps:** (1) pure `latent_pool.py` + provider protocol; (2) selection arm: provider miss (returns None) → deterministic fallback to `'random'` with one-shot warning log (never crash, never block render); (3) sentinel validation on every vector at the trust boundary; (4) schema flag-on acceptance + flag-off rejection regression test; (5) SG-8 stage-1 registration (drop cached pool under pressure).
+- **TEST PLAN:** `python -m pytest tests/test_instruments/test_latent_selection.py -x --tb=short` — named (all on mocked vectors): `test_pool_topk_by_l2_distance_mocked_vectors`, `test_max_distance_excludes_far_frames`, `test_distance_tie_breaks_by_frame_index_deterministic`, `test_seeded_selection_replay_identical_x100`, `test_nan_latent_aborts_lane_via_sentinel` (P5b.4 integration; synthetic OOD vector), `test_provider_miss_falls_back_to_random_with_warning`, `test_flag_on_schema_accepts_latent_similarity`, `test_flag_off_still_rejected_at_load` (P5b.18 regression guard), `test_sg8_stage1_drops_cached_pool`. Full backend suite.
+- **ACCEPTANCE GATES:** selection deterministic for fixed (seed, mocked vectors); sentinel demonstrably fires on OOD input; flag-off rejection unchanged; zero live-backbone imports in the test suite (grep the test file for `clip\|clap\|dinov2` = empty); G-CHECK output pasted in PR body.
+- **ROLLBACK:** revert PR — flag stays OFF and schema rejection (P5b.18) is untouched by the revert.
+- **EVIDENCE:** G-CHECK `GATE OK` line; pytest output; the fallback warning log line from a provider-miss run.
+
+---
+
 ## Sequencing summary
 
 ```
@@ -616,8 +686,12 @@ Gated on PR-B #157/#158 + PR-C:
 
 Gated on B6+B7 both landed:
   P5b.15                        (flow wiring)
+
+Gated on B8-core complete (P5b.20):
+  P5b.28                        (GPU grain pass; also first real Metal binding)
+  P5b.29                        (latentSimilarity; ALSO hard-gated on Q7 REAL verdict via G-CHECK + SG-3 GREEN)
 ```
 
 **PR-A gates:** P5b.11 and P5b.19 additionally carry PR-A instruments-tab preconditions (the browser instruments tab must exist before their UI mounts — see each packet's STOP checks).
 
-**Carve-outs filed, not packetized:** B8 GPU quad/shader pass + real Metal binding (deferred by #163), B8 `latentSimilarity` full impl, C2/C3 per-pixel field destinations (B9 ships them flag-rejected), E6 modal live mode (explicitly NOT B10 per build plan).
+**Carve-outs now packetized (2026-06-11):** B8 GPU quad/shader pass + real Metal binding = **P5b.28**; B8 `latentSimilarity` full impl = **P5b.29** (Q7-GATED). **Still carve-outs, not packetized:** C2/C3 per-pixel field destinations (B9 ships them flag-rejected), E6 modal live mode (explicitly NOT B10 per build plan).

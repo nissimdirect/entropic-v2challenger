@@ -211,7 +211,16 @@ vision-B2 cross-modal matrix · vision-B3 mod-as-track · B4-full binding rules 
 | **G11** | **External user-testing resolved "NONE"** (sole-tester) — contradicts vision §9/§11 founder-bias mitigation. Standing tension; revisit at Tier 4 milestone. | 🟡 strategic | master sequence §11 vs vision §11(f) |
 | **G12** | **History-buffer polish**: Gap-2 description-string convention + Gap-3 500-entry memory smoke outstanding; Gap-1/Gap-4 deliberately deferred. | 🟢 | `~/.claude/plans/entropic-history-buffer-validation.md` |
 | **G13** | **Hygiene**: **58 worktrees live** (prune only with per-worktree 6-check audit); cron `b3c47f1c` confirmed dead; effect-count drift across docs (treat 214 as live); `docs/decisions/q7/` has only 4 of ~17 DEC-Q7 records on main. | 🟢 | repo-state sweep |
-| **G14** | **Unnamed prerequisites**: Tier-5 total model disk/download budget unquantified (CLIP+CLAP+DINOv2 = multi-GB; only Q7's 500MB counted); B7 RIFE model weights acquisition/licensing unaddressed; PR-A hover-help <8ms@200 gate needs a perf harness that does not exist yet; CI capacity for re-derived draft branches. | 🟡 | CTO review 2026-06-11 |
+| **G14** | **Unnamed prerequisites**: Tier-5 total model disk/download budget unquantified (CLIP+CLAP+DINOv2 = multi-GB; only Q7's 500MB counted); B7 RIFE model weights acquisition/licensing unaddressed → **now pinned to exit-bearing steps in `packets/phase-5b.md` P5b.13 (steps 5–6); memory slice pinned in the G14 addendum below**; PR-A hover-help <8ms@200 gate needs a perf harness that does not exist yet; CI capacity for re-derived draft branches. | 🟡 | CTO review 2026-06-11 |
+
+### G14 addendum — memory budget (pinned 2026-06-11)
+
+All RAM math uses one denominator: **`SESSION_BUDGET_BYTES`** = session-start `psutil.virtual_memory().available` (`backend/src/safety/pressure/budget.py`, merged #161; override `ENTROPIC_Q7_BUDGET_MB`; never re-read mid-session, DEC-Q7-011). On the 16 GB Apple-silicon target that is ~10–11 GiB — never the marketing 16 GB. (budget.py's docstring says "M1"; the anchor is psutil-derived, so M4-correct.)
+
+- **B6 Frame-Bank** — per-bank cap `min(2 GiB, 0.20 × SESSION_BUDGET_BYTES)`, halved at SG-8 stage 5 (82%); unbounded hazard: 256 slots × 4K RGBA ≈ **8.5 GiB**. Pinned in `packets/phase-5b.md` P5b.9 PINNED DESIGN (formula, decoded-frame LRU + pinned playing slots, enforce-before-decode).
+- **B7 RIFE** — fp32 `rife49.pth` load + 1920-cap inference peak RSS MUST be measured before service work; **STOP if headroom (budget − app − sidecar − model peak) < 4 GiB** (P5b.13 step 5, exit-bearing script). Weights licensing = P5b.13 step 6 (exit-bearing). Pressure sheds the ONNX session at stage 6 (P5b.14).
+- **B8 GPU pass** — texture pool registered to SG-8 stage 6 (85%) release; GPU-handle leak gate == 0 (P5b.28).
+- **Still open under G14:** Tier-5 total model disk/download budget (CLIP+CLAP+DINOv2 multi-GB); PR-A perf harness; CI capacity.
 
 ---
 

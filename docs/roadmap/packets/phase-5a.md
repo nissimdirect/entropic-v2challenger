@@ -40,6 +40,7 @@ repo: ~/Development/entropic-v2challenger (nissimdirect/entropic-v2challenger)
 
 **Dependency spine:** PR #167 → P5a.1‖P5a.2 → P5a.3 → P5a.4 → (B3: P5a.5→P5a.6, P5a.7, P5a.8) → (B4: P5a.9→P5a.10→P5a.11, P5a.12) → (B5: P5a.13→P5a.14→P5a.15).
 P5a.1 and P5a.2 are independent of each other and can run in parallel worktrees.
+**P5a.4 additionally requires P5a.4a** (composite-export design spike — docs-only, zero code dependencies, startable NOW in parallel with P5a.1–P5a.3; appended 2026-06-11).
 
 **Test commands (canonical, from repo CLAUDE.md):**
 - Frontend: `cd frontend && npx --no vitest run` (MUST use `--no`)
@@ -240,7 +241,7 @@ Revert the merge commit. Persistence is additive (`trackEvents` optional on load
 
 ## P5a.4 — Deterministic backend export replay of performance voices · **RISK:HIGH**
 
-- **ID:** P5a.4 · **branch:** `feat/p5a4-export-voice-replay` · **base:** `origin/main` · **depends-on:** P5a.2, P5a.3
+- **ID:** P5a.4 · **branch:** `feat/p5a4-export-voice-replay` · **base:** `origin/main` · **depends-on:** P5a.2, P5a.3, **P5a.4a (composite-export design decision merged — amended 2026-06-11)**
 - **Goal:** Exports replay the voice FSM backend-side from the serialized event list, so rendered output is byte-identical across runs and survives edit-after-capture — INSTRUMENTS.md §10 P1-2 condition (3).
 
 > **Scope honesty:** `ExportManager` is single-input today (`start(input_path, chain, …)`) — there is
@@ -248,6 +249,10 @@ Revert the merge commit. Persistence is additive (`trackEvents` optional on load
 > per-frame layer lists computed backend-side from `(events, instruments, frameIndex)` via a small
 > Python mirror of `evaluateVoices`. If during work this exceeds ~4h, ship the Python FSM mirror +
 > replay correctness tests alone and file the encoder integration as P5a.4b — do not half-integrate.
+> **Design authority (amended 2026-06-11):** the composite-render approach (reuse vs re-render),
+> memory strategy, and determinism contract are DECIDED in `docs/decisions/composite-export-design.md`
+> (P5a.4a's deliverable). Implementation MUST follow its `## Recommendation`; to diverge, amend that
+> doc in the same PR with a DEC note explaining why.
 
 ### PRECONDITIONS (mismatch → STOP)
 ```bash
@@ -258,6 +263,9 @@ git grep -n "voice:" backend/src/zmq_server.py
 # EXPECT: ≥1 hit (P5a.2's voice keying landed)
 git grep -rn "def evaluateVoices\|def evaluate_voices" backend/src/
 # EXPECT: 0 hits (this packet adds the Python mirror)
+git ls-tree origin/main docs/decisions/composite-export-design.md
+# MUST be non-empty (P5a.4a merged) — EMPTY → STOP, the design decision this packet implements does not exist
+grep -q "^## Recommendation" docs/decisions/composite-export-design.md || { echo "STOP: decision doc has no Recommendation"; exit 1; }
 ```
 
 ### Scope (verified paths)
@@ -299,6 +307,62 @@ Revert; `performance` export payload is optional — old clients export unchange
 
 ### EVIDENCE for PR body
 - sha256 pairs from the double-export run; pytest + vitest outputs; fixture diff stats.
+
+---
+
+## P5a.4a — Composite-export design spike (docs-only; the missing foundation under P5a.4) · appended 2026-06-11
+
+- **ID:** P5a.4a · **branch:** `docs/p5a4a-composite-export-design` · **base:** `origin/main` · **depends-on:** none (read-only spike; runs in parallel with P5a.1–P5a.3; gates P5a.4)
+- **Goal:** P5a.4 is RISK:HIGH precisely because `backend/src/engine/export.py` is **single-input only** (VERIFIED on main: `ExportManager.start(input_path, output_path, chain, project_seed, settings, text_layers)` at :169; `_run_export` :311; `_export_gif` :532; `_export_image_sequence` :590; `_mux_audio` :647 — every consumer assumes ONE source clip) and NO composite export exists. This spike produces the decision record P5a.4 implements, so the ~4h implementation packet doesn't improvise architecture under time pressure.
+- **Deliverable:** ONE new file — `docs/decisions/composite-export-design.md` (first non-q7 record in `docs/decisions/`; the q7 DEC pattern is the precedent).
+
+### PRECONDITIONS (mismatch → STOP)
+```bash
+cd ~/Development/entropic-v2challenger
+git grep -n "def start" backend/src/engine/export.py
+# EXPECT single-input signature (input_path, output_path, chain, project_seed, settings, text_layers)
+# — if a layers/events/composite param already exists, the void this spike fills has closed → STOP, re-scope
+git ls-tree origin/main docs/decisions/composite-export-design.md
+# MUST be EMPTY (doc not already written) — else STOP
+git grep -n "def render_composite" backend/src/engine/compositor.py
+# EXPECT hit at ~:82 (render_composite(layers, resolution, project_seed, layer_states)) — the preview entry the doc must address reusing
+```
+
+### Scope (verified read-only inputs; ZERO source edits — docs-only packet)
+- [ ] READ: `backend/src/engine/export.py` (whole), `backend/src/engine/compositor.py` (`render_composite` :82), `backend/src/engine/determinism.py`, `backend/src/engine/cache.py`, `backend/src/zmq_server.py` `_get_composite_states`/`_save_composite_states`/`_handle_render_composite` (:669/:698/:707), `backend/src/safety/pressure/budget.py` (`SESSION_BUDGET_BYTES` anchor).
+- [ ] WRITE: `docs/decisions/composite-export-design.md` with EXACTLY these grep-checkable sections:
+  - `## Context` — single-input ground truth with `file:line` refs (verified against origin/main, not from memory)
+  - `## Options` — **≥3 enumerated options as `### O1`/`### O2`/`### O3`…** each with pros/cons/risk. Must include at minimum: per-frame `render_composite` reuse inside `_run_export`; headless re-render through the preview composite handler; two-pass bake-then-composite. More options allowed.
+  - `## Recommendation` — exactly ONE option, with justification and an explicit statement that it fits P5a.4's ~4h budget (or names the P5a.4b split)
+  - `## Render-path reuse vs re-render` — explicit stance on reusing `render_composite` vs forking it (P5a.4's DO-NOT-TOUCH mandates REUSE — this section either upholds that or formally overturns it with reasons)
+  - `## Memory strategy` — peak-RSS model for N layers × resolution (worst case `MAX_COMPOSITE_LAYERS = 50`, `security.py:48`); streaming vs buffer-all; relation to SG-8's `SESSION_BUDGET_BYTES` and ROADMAP G14's memory-budget addendum
+  - `## Determinism contract` — byte-identity across runs; per-voice state threading keyed `voice:{voiceId}` (P5a.2); seed handling; what is excluded from the hash gate (B7 `interp:'flow'` rule is the precedent)
+  - `## Test obligations` — the named tests P5a.4 must ship to honor this design
+
+### DO-NOT-TOUCH
+- ALL source code (`backend/**`, `frontend/**`) — a single non-docs diff line fails review.
+- P5a.4's packet text (its amendment already points here).
+
+### TEST PLAN (docs are grep-tested; run from repo root)
+```bash
+cd ~/Development/entropic-v2challenger
+for h in "## Context" "## Options" "## Recommendation" "## Render-path reuse vs re-render" "## Memory strategy" "## Determinism contract" "## Test obligations"; do
+  grep -q "^${h}" docs/decisions/composite-export-design.md || { echo "STOP: missing section: $h"; exit 1; }
+done; echo "sections OK"
+test "$(grep -c '^### O[0-9]' docs/decisions/composite-export-design.md)" -ge 3 || { echo "STOP: fewer than 3 enumerated options"; exit 1; }
+test "$(grep -c '^## Recommendation' docs/decisions/composite-export-design.md)" -eq 1 || { echo "STOP: exactly one Recommendation required"; exit 1; }
+```
+
+### ACCEPTANCE GATES
+- All 7 required sections present (grep loop exits 0); ≥3 `### O<n>` options; exactly one `## Recommendation`.
+- Every code claim in `## Context` carries a `file:line` ref reproducible via `git grep`/`git show` against origin/main.
+- Recommendation is implementable inside P5a.4's ~4h budget, or the doc itself names the P5a.4b split.
+
+### ROLLBACK
+Revert — single doc file, zero code coupling.
+
+### EVIDENCE for PR body
+- The three TEST PLAN command outputs (sections OK / option count / recommendation count); the `git grep "def start"` precondition output proving the single-input void still existed when written.
 
 ---
 
