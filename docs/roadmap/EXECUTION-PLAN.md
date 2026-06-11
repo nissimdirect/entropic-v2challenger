@@ -172,6 +172,8 @@ These are verification packets, not build packets: rebase, test, verify the clai
 - **Model:** Sonnet.
 
 ### P1.6 — Hygiene: prune worktrees + verify cron
+
+**DESTRUCTIVE-PACKET GUARD (red-team 2026-06-11):** Model: Fable/Opus ONLY. Before ANY `git worktree remove` of a branch carrying unmerged commits, post the full deletion list (worktree, branch, ahead-count, 6-check audit result per entry) to the user and WAIT for explicit confirmation. Worktrees with 0 commits ahead and clean trees may be pruned without confirmation.
 - **Branch:** none (no PR; local operation) · **Depends-on:** P1.1–P1.5 merged (their worktrees become prunable) · **Goal:** Worktree count down from 58 to active-only.
 - **Preconditions (verified 2026-06-11):** `git -C ~/Development/entropic-v2challenger worktree list | wc -l` → currently **58** (verified; ROADMAP says "~19 prunable" — undercount; treat 58 as ground truth).
 - **Steps:** for each worktree whose branch is merged or whose PR is closed: **run the Gate-19 6-check audit before removal** (git log --all on the path, stash list, reflog, fsck, sibling dirs) — never delete a worktree holding unmerged unique commits. `git worktree remove <path>` only after audit. Keep: main checkout, `entropic-v2-uat`, any worktree of a still-open PR, q7 draft worktrees (parked, not stale). Verify cron `b3c47f1c`: `crontab -l | grep b3c47f1c` → already returns 0 hits (verified 2026-06-11; record as confirmed-dead).
