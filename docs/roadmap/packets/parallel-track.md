@@ -242,6 +242,7 @@
 - **ROLLBACK:** delete doc + bench script.
 - **EVIDENCE:** PR + measurement table.
 - **Effort:** ~4h. (Build packets follow from the doc, not from here.)
+- **PD.17 rider (one-liner): F-16 narrow-fix disposition.** ROADMAP G8 lists "F-16" among the open bugs with zero surviving spec in repo docs (`git grep -rn "F-16" origin/main -- docs/` hits only an unrelated "PF-16/17" string in V2-AUTOMATED-UAT-PLAN.md:1112 — verified 2026-06-11). Whoever picks up PD.11 also: locate F-16's original filing (`memory/entropic-uat-may14.md` / task store), then fix-or-close with a recorded one-line reason and update the G8 row; if unlocatable after that search, close it in G8 as "filing lost — unreproducible" (Gate 19 spirit: search before declaring dead).
 
 ## PD.12 — History-buffer Gap-2 + Gap-3 (per `docs/roadmap/plans/entropic-history-buffer-validation.md`)
 
@@ -264,15 +265,102 @@
 - **EVIDENCE:** PR + vitest output with the measured heap delta number.
 - **Effort:** ~2h.
 
+## PD.13 — DECISION packet: 53 layer transitions — schedule or formally defer (closes the "designed, on no tier" gap)
+
+- **ID:** PD.13 · **branch:** `docs/dec-transitions-disposition` · **base:** `origin/main`
+- **depends-on:** none — **USER decision required; this packet prepares + records it**
+- **goal:** `docs/addendums/LAYER-TRANSITIONS.md` designs **53 transition types** (MISSING-FUNCTIONS §1 item #7, P1 severity) yet they sit on **no roadmap tier**. Output = a decision record assigning transitions to a tier — **recommendation: post-B5**, because B5 grouping/composite-tree (Phase 5a) delivers the layer-composite machinery transitions render through — OR a formal defer-with-owner. No third option, no silent drift.
+- **PRECONDITIONS (mismatch → STOP):**
+  ```bash
+  cd ~/Development/entropic-v2challenger && git fetch origin
+  git -C ~/Development/entropic-v2challenger show origin/main:docs/addendums/LAYER-TRANSITIONS.md | head -5   # doc exists on origin/main (blob verified 2026-06-11)
+  grep -n "PD.13" docs/roadmap/packets/user-expectations.md | head -1                                          # UE file points #7 here — cross-ref intact
+  ```
+- **scope:** new `docs/decisions/transitions-disposition.md` — the measurable artifact — containing: transition-count + category summary read from LAYER-TRANSITIONS.md, dependency analysis (what B5/composite-tree provides vs what transitions additionally need), cost band, the recommendation (post-B5 tier slot), and the user's verbatim choice; update `docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md` item #7 row + ROADMAP Phase-5 note per outcome.
+- **DO-NOT-TOUCH:** any implementation; LAYER-TRANSITIONS.md content (referenced, not edited).
+- **steps:** (1) Read LAYER-TRANSITIONS.md on origin/main end-to-end. (2) Map prerequisites against the B-ladder (composite-tree = B5, P5a). (3) Present tier options + recommendation to user. (4) Record the decision; if scheduled → name the owning phase/packet stub; if deferred → named owner + revisit trigger.
+- **TEST PLAN:** n/a (docs). Structural: `test -f docs/decisions/transitions-disposition.md` AND the file contains a "Decision" section quoting the user; inventory row #7 updated in the same PR.
+- **ACCEPTANCE GATES:** decision file exists with a quoted user decision; zero "on no tier" residue — item #7 names either a tier or an owner.
+- **ROLLBACK:** revert docs commit.
+- **EVIDENCE:** PR + quoted user decision.
+- **Effort:** ~2h. · **Model:** Sonnet.
+
+## PD.14 — DECISION packet: MISSING-FUNCTIONS full disposition (all 26 §1 items)
+
+- **ID:** PD.14 · **branch:** `docs/dec-missing-functions-disposition` · **base:** `origin/main`
+- **depends-on:** none (PD.13 settles item #7 in parallel — don't duplicate its call)
+- **goal:** Every one of the **26 items** in `docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md` §1 gets exactly one disposition — **build-tier** (named tier/packet) / **defer-with-owner** (named owner + revisit trigger) / **cut** (with rationale, appended to the §4 do-not-re-propose table) — recorded **IN the inventory file** as a new "Disposition" table column. P1-shortlist items #1–#6+#8 default to their `packets/user-expectations.md` UE packets; #7 defaults to PD.13's outcome.
+- **PRECONDITIONS (mismatch → STOP):**
+  ```bash
+  cd ~/Development/entropic-v2challenger && git fetch origin
+  sed -n '/^## 1\. NEW Items/,/^## 2\./p' docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md | grep -c "^| [0-9]"    # expect 26 (§1 table rows; a bare `grep -c "^| [0-9]"` over the whole file reads 27 — §2.8's "8x8 pad grid" row false-positives); drift → re-count before dispositioning
+  test -f docs/roadmap/packets/user-expectations.md || { echo "STOP: UE packets missing — P1 defaults have no target"; exit 1; }
+  ```
+- **scope:** `docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md` (add Disposition column to the §1 table; cuts also appended to §4), `docs/roadmap/ROADMAP.md` (one summary line in the parallel-track section), nothing else.
+- **DO-NOT-TOUCH:** §4 existing cut rows (locked decisions); any implementation; the §2 category tables (the §1 shortlist is the disposition surface — §2 rows that are roadmap-covered already carry their IDs).
+- **steps:** (1) Pre-fill defaults: #1–#6+#8 → UE.1–UE.7; #7 → PD.13. (2) For #9–#26: propose disposition per item with a one-line rationale (severity × effort × paradigm fit). (3) User pass on the proposals (binary accept/amend per row — no yellows). (4) Write the column; every row filled, zero blanks.
+- **TEST PLAN:** n/a (docs). Structural: disposition column has 26/26 non-empty cells (`grep -c` quoted in evidence); every "cut" row also appears in §4; every "build-tier" row names an existing tier/packet doc.
+- **ACCEPTANCE GATES:** 26/26 dispositioned; cross-refs resolve (named packets/tiers exist); user's amendments quoted in PR body.
+- **ROLLBACK:** revert docs commit.
+- **EVIDENCE:** PR + the 26/26 grep count + user quotes.
+- **Effort:** ~2h. · **Model:** Sonnet.
+
+## PD.15 — Wire-or-delete: internal orphans (MISSING-FUNCTIONS §3)
+
+- **ID:** PD.15 · **branch:** `chore/pd15-orphan-wire-or-delete` · **base:** `origin/main`
+- **depends-on:** none (UE.3 resolves the `rangeSelectClips` row independently — check its status at pickup)
+- **goal:** Every §3 orphan gets a decision executed in this packet — wire it or delete it; nothing stays half-built. Per-orphan dispositions:
+  - **Auto-update flow** (`preload/index.ts:135–141` `downloadUpdate()`/`installUpdate()`, `UpdateBanner.tsx` exists, zero invokers): DECIDE — finish wiring UpdateBanner into the app shell OR remove banner + preload APIs. Either way = code change + named test or deletion commit.
+  - **`rangeSelectClips`**: **wired by UE.3** (`packets/user-expectations.md`) — reference it, do not duplicate; if UE.3 is merged at pickup, mark the row closed; ground truth: it was already shift-click-wired at `Clip.tsx:169`, so the "orphan" label was half-stale.
+  - **Unmounted components** — `ParamSlider.tsx` (superseded by Slider/ParamPanel): delete; `ZoomScroll.tsx`: delete; **`MacroKnob.tsx`: do NOT delete** — note in-file as a **P5a B4-macros revival candidate** (`// REVIVAL CANDIDATE(P5a/B4): 8-macro rack knobs — see packets/phase-5a.md`) and record in the PR body.
+  - **Dead preload APIs** `getPathForFile()` (:5), `isPopOutOpen()` (:153): delete unless a caller is found at pickup (`git grep` each).
+  - **12 dead ZMQ handlers** (`zmq_server.py`): DECIDE — wire `effect_health` / `effect_stats` / `memory_status` into a **diagnostics-HUD stub** (frontend-only panel behind the existing diagnostics surface, the §3-noted "ready-made backends" path) OR delete them; **the remaining 9** (`shutdown`, `seek`, `apply_chain`, `render_text_frame`, `audio_position`, `audio_tracks_clear`, `export_status`, `check_dag` [test-only — keep if tests use it], `read_freeze`) → delete after a caller grep proves zero invokers each (Infra Change Gate: list the caller map in the PR body).
+- **PRECONDITIONS (mismatch → STOP):**
+  ```bash
+  cd ~/Development/entropic-v2challenger && git fetch origin
+  git grep -n "downloadUpdate\|installUpdate" origin/main -- frontend/src | wc -l        # >0 (preload + banner exist)
+  git grep -rln "ParamSlider\|ZoomScroll" origin/main -- frontend/src/renderer | grep -v "components/effects/ParamSlider.tsx\|components/timeline/ZoomScroll.tsx" | wc -l   # expect 0 importers — else NOT orphans, STOP and re-audit
+  git grep -n "effect_health\|effect_stats\|memory_status" origin/main -- backend/src/zmq_server.py | head -3   # handlers present
+  ```
+- **scope:** the files named per-orphan above + `frontend/src/preload/index.ts` + one new diagnostics-HUD stub component IF the wire option is chosen; tests per wired item; deletion commits per deleted item (one commit per orphan — surgical revert granularity).
+- **DO-NOT-TOUCH:** `EXPERIMENTAL_AUDIO_TRACKS` machinery (PD.1–PD.3 own it); `zmq_server.py` dispatch beyond removing the dead handlers (single-flight rule); anything UE.3 owns.
+- **steps:** (1) Caller-grep every orphan, paste the map. (2) Execute each disposition (one commit each). (3) Wired items get a named test; deleted items get the grep-proof in the commit body. (4) Update MISSING-FUNCTIONS §3 rows to "closed via PD.15" in the same PR.
+- **TEST PLAN:** `cd frontend && npx --no vitest run` + `cd backend && python -m pytest -x -n auto --tb=short` — both green after deletions; per wired item a named test (e.g. `diagnostics hud renders effect_health stats` if the HUD path is chosen; `update banner appears when update available` if auto-update is wired).
+- **ACCEPTANCE GATES:** zero §3 rows left undispositioned; caller map in PR body for every deletion; MacroKnob survives with the revival comment; suites green.
+- **ROLLBACK:** revert per-orphan commits individually.
+- **EVIDENCE:** PR + caller maps + test output + updated §3.
+- **Effort:** ~4h. · **Model:** Sonnet.
+
+## PD.16 — DECISION packet (extends PD.9 / Gap G6): POST-V1-ROADMAP Phases 12–19 fold-in vs supersede
+
+- **ID:** PD.16 · **branch:** `docs/dec-postv1-roadmap-disposition` · **base:** `origin/main`
+- **depends-on:** PD.9 recommended first (same G6 reconciliation muscle; PD.9 settles Cross-Modal F1–F4, this settles the OTHER stale roadmap) — not blocking
+- **goal:** `docs/addendums/POST-V1-ROADMAP.md` Phases 12–19 (tempo, transitions, audio-reactive mods, beat effects, community — pre-paradigm) either FOLD into the synth-paradigm master sequence (per-phase crosswalk: Phase 14 ≈ C7/B2 etc.) or are FORMALLY SUPERSEDED. Output = a supersession note in the POST-V1-ROADMAP.md **header** + `docs/roadmap/INDEX.md` moves the doc to HISTORICAL if superseded.
+- **PRECONDITIONS (mismatch → STOP):**
+  ```bash
+  cd ~/Development/entropic-v2challenger && git fetch origin
+  git -C ~/Development/entropic-v2challenger show origin/main:docs/addendums/POST-V1-ROADMAP.md | head -5   # doc exists (blob verified 2026-06-11)
+  grep -n "POST-V1-ROADMAP" docs/roadmap/INDEX.md | head -2                                                  # currently in NEEDS RECONCILIATION
+  ```
+- **scope:** `docs/addendums/POST-V1-ROADMAP.md` (header note only), `docs/roadmap/INDEX.md` (row move), new `docs/decisions/DEC-POSTV1-001-disposition.md` (per-phase crosswalk table Phases 12–19 → nearest vision PRD/tier + fold-or-supersede call + the user's verbatim choice), ROADMAP G6 row update (G6 closes only when BOTH PD.9 and PD.16 land — say which half this is).
+- **DO-NOT-TOUCH:** POST-V1-ROADMAP body content; PD.13's transitions call (Phase-12 transitions overlap — PD.13 owns the transitions tier decision; this packet's crosswalk REFERENCES it).
+- **steps:** (1) Crosswalk Phases 12–19 against the vision PRD list + master sequence. (2) Present fold-vs-supersede with recommendation. (3) Record choice; execute the header note + INDEX move; mark fold-in absorptions as one-line notes per absorbing PRD row.
+- **TEST PLAN:** n/a (docs). Structural: header note present; INDEX row in the correct section; DEC file has a "Decision" section quoting the user; no phase 12–19 left unmapped in the crosswalk.
+- **ACCEPTANCE GATES:** G6's POST-V1 half closes in the gap register; zero "needs reconciliation" residue for this doc.
+- **ROLLBACK:** revert docs commit.
+- **EVIDENCE:** PR + quoted user decision.
+- **Effort:** ~2h. · **Model:** Sonnet.
+
 ---
 
 ## Suggested order + dependency notes
 
 ```
-Independent, start any time:  PD.1, PD.5, PD.8, PD.9, PD.10, PD.11, PD.12
+Independent, start any time:  PD.1, PD.5, PD.8, PD.9, PD.10, PD.11(+PD.17 rider), PD.12, PD.13, PD.14, PD.15, PD.16
 User-gated chain:             PD.1 → [user 1-week bake ⏸] → PD.2 → PD.4, PD.7 → [1-week default-on ⏸] → PD.3 (RISK:HIGH)
 Sequenced pair:               PD.5 → PD.6 (RISK if container.py mask claim stale)
-Decision packets (user):      PD.9 (F1–F4 disposition), PD.10 step 5 (repo rename), PD.11 verdict (GO/NO-GO)
+Decision packets (user):      PD.9 (F1–F4 disposition), PD.10 step 5 (repo rename), PD.11 verdict (GO/NO-GO), PD.13 (transitions tier), PD.14 (26-item disposition), PD.16 (POST-V1 fold/supersede)
+Cross-file:                   UE.3 (packets/user-expectations.md) closes PD.15's rangeSelectClips row; PD.13/PD.14 update MISSING-FUNCTIONS-INVENTORY.md — single-flight on that file
 ```
 
 **Coordination hazards:** PD.4/PD.6/PD.7 touch `stores/timeline.ts` + `zmq_server.py` dispatch — don't run concurrently with each other or with open PR #157/#158/#160 merges without a rebase check (Gate 18b: multiple `parallel-session` locks exist in this repo's history).

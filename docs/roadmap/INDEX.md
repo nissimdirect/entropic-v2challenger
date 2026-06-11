@@ -51,7 +51,8 @@
 | `packets/phase-6.md` | Tier 2b field params + I1/I2 surfaces (P6.1–P6.11) |
 | `packets/phase-7.md` | Tier 5 latent, hard-gated on Q7 REAL verdict (P7.0–P7.14; G-CHECK is canonical here) |
 | `packets/phase-8-9.md` | Tier 6 `.dna`/Genoscope + Tier 7 SDK (P8.x/P9.x) |
-| `packets/parallel-track.md` | v2 debt, schedulable anytime (PD.1–PD.12) |
+| `packets/parallel-track.md` | v2 debt + decision packets, schedulable anytime (PD.1–PD.16 + PD.17 rider) |
+| `packets/user-expectations.md` | User-expectation P1 features (UE.1–UE.7 — MISSING-FUNCTIONS §1 items #1–#6+#8), Phase-1-adjacent, depend on P1.0 only |
 | `packets/ux-audit.md` | CDO UX audit + PUX.1–PUX.6 packets (land between Phase 2 and Phase 3) |
 | `packets/effects-quality.md` | Effects-quality workstream (PFX.0–PFX.5) |
 

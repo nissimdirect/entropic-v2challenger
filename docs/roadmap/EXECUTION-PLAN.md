@@ -53,12 +53,24 @@ Backend markers (verified in `backend/pyproject.toml`): `perf`, `smoke`, `oracle
 7. **Single-flight on shared hotspots:** no two packets touching `frontend/src/renderer/styles/global.css`
    may be in flight simultaneously; same for `backend/src/zmq_server.py` dispatch — at most one in-flight,
    others queue.
+8. **CI capacity (Gap G14):** packet PRs + re-derived draft branches share one CI pool — keep ≤3 packet PRs awaiting CI at any time; doc-only packets note `[skip-e2e]` intent in the PR body where the workflow permits.
 
 ---
 
 ## 2. Phase 1 — Drain the frontier (merge/verify packets)
 
 These are verification packets, not build packets: rebase, test, verify the claimed behavior, merge.
+
+### P1.0 — Binary-green vitest baseline (runs FIRST, before any merge packet)
+- **Branch:** `chore/p1.0-vitest-green-baseline` · **Base:** origin/main · **Depends-on:** — (first packet of the campaign)
+- **Goal:** The campaign starts from a binary-green frontend suite: identify the 4 failing vitest tests (ROADMAP §0: 1,814/1,818), fix or skip-with-reason, and record the green baseline in ROADMAP §0.
+- **Preconditions:**
+  - `cd frontend && npx --no vitest run 2>&1 | tail -30` → expect exactly 4 failures. 0 failures → already green: record command + count in ROADMAP §0 and close. >4 failures → `{ echo "STOP: new regressions beyond the known baseline"; exit 1; }`.
+- **Steps:** (1) enumerate the 4 failing files + test titles from the run output; (2) per test: fix if root cause is ≤30 min, else `it.skip` with a comment naming the tracking reason (`// SKIP(P1.0): <reason> — tracked in <issue/packet id>`); (3) record in ROADMAP §0: the exact command (`cd frontend && npx --no vitest run`) + the expected pass count after this packet.
+- **Test plan:** `cd frontend && npx --no vitest run` → exit code 0; `grep -rn "SKIP(P1.0)" frontend/src/__tests__/` → one hit per skipped test, each naming its reason.
+- **Acceptance gates:** vitest exits 0; zero unexplained skips (every `it.skip` carries the `SKIP(P1.0)` comment); ROADMAP §0 records command + expected pass count.
+- **Rollback:** revert PR. · **Evidence:** before/after vitest summary lines + the skip-comment grep output.
+- **Model:** Sonnet.
 
 ### P1.1 — Merge the PR-B slice stack #157 → #158 → #160
 - **Branch:** none (operates on existing PR branches) · **Depends-on:** —
@@ -68,7 +80,7 @@ These are verification packets, not build packets: rebase, test, verify the clai
   - `gh pr view 157 158 160 --json state` → all `OPEN`.
 - **Steps (per PR, in order 157, 158, 160):** rebase on current main → run frontend unit + backend smoke → verify the claimed behavior → merge (squash) → repeat for next.
   - **#157 claimed behavior:** `InterpolationMode = 'smooth'|'step'|'gate'|'oneShot'` replaces `isTrigger`/`triggerMode`; `addTriggerLane` removed; mode `'step'` holds left point. Verify: `git grep -c "isTrigger" frontend/src/` on the PR branch → 0 in prod code; grep `InterpolationMode` in `frontend/src/shared/types.ts` → present.
-  - **#158 claimed behavior:** `AutomationLane.axisBinding?: LaneAxisBinding` + `setLaneAxisBinding` with Tier-1 validator (accepts only `broadcast` + domains `t|y|x`); reuses `frontend/src/shared/axis-binding.ts` (verified on main). Verify validator rejection test exists and passes. NOTE: this is schema spine only — the `domain='y'` render unlock is deferred to C2/C3 by design; do not flag its absence as a defect.
+  - **#158 claimed behavior:** `AutomationLane.axisBinding?: LaneAxisBinding` + `setLaneAxisBinding` with Tier-1 validator (accepts only `broadcast` + domains `t|y|x`); reuses `frontend/src/shared/axis-binding.ts` (verified on main). Verify validator rejection test exists and passes — grep #158's added test file(s) for the literal keyword `reject` (`git diff origin/main...pr-head --name-only | grep __tests__`, then `grep -n "reject" <each file>`); zero hits → bounce the PR. NOTE: this is schema spine only — the `domain='y'` render unlock is deferred to C2/C3 by design; do not flag its absence as a defect.
   - **#160 claimed behavior:** export uses real `projectStore.seed` instead of hardcoded `project_seed: 42`. Verify: grep `42` near `project_seed` in export path → gone; determinism test green.
 - **DO-NOT-TOUCH:** anything outside each PR's own diff (rebase conflicts only).
 - **Acceptance:** CI green on each merge; full frontend suite count ≥ pre-merge count (~1814+).
@@ -89,6 +101,7 @@ These are verification packets, not build packets: rebase, test, verify the clai
   - `git grep -n "addTrack" origin/main -- frontend/src/renderer/stores/timeline.ts | head -2` → `:43` signature `type?: 'video' | 'text'` (#167 extends to `'performance'`; `Track.type` union at `frontend/src/shared/types.ts:59` already includes `"performance"`).
 - **Steps:** merge #156 first (global-sampler persistence). Then rebase #167 on the result — **#167 changes `useInstrumentsStore` from one global instrument to `Record<trackId, SamplerInstrumentV1>`, a breaking change to #156's persistence shape** (G10). Resolve in #167, never by re-editing main. Verify #167 behaviors per `docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md` test plan: Cmd+Shift+T creates performance track; drag Sampler from instruments tab onto it; drop video sets `clipId`; two tracks own independent samplers; persistence round-trip.
 - **DO-NOT-TOUCH:** `frontend/src/renderer/components/effects/EffectBrowser.tsx` beyond the drag-payload reuse #167 already contains.
+- **Verification method (do not merge without it):** grep #167's added test files (`git diff origin/main...pr-head --name-only | grep __tests__`) for it() titles containing "performance track", "drag", "clipId", "round-trip"; run `cd frontend && npx --no vitest run <those files>`; then a live-runtime drag smoke per Gate 18 — name the runtime path (`ps aux | grep -i electron`) in the evidence.
 - **Acceptance:** CI green; `buildSamplerLayer` multi-track test green (`frontend/src/__tests__/components/instruments/buildSamplerLayer.test.ts`).
 
 ### P1.4 — Merge #146 Grid Moire v2
@@ -105,9 +118,10 @@ These are verification packets, not build packets: rebase, test, verify the clai
   - **#101** Escape-deselect in perform mode (F-0514-5) — real open bug; rebase + merge. Verify the R.4 integration test title names "Escape" + "perform".
   - **#103** zero-default hint badge (F-0516-7) — **check for reverted files first** (`git diff origin/main...pr-head --stat`; flag any file whose diff deletes post-May work) per ROADMAP G8.
   - **#108** ZMQ REQ-socket mutex — rebase; run `cd backend && python -m pytest tests/ -k zmq --tb=short` + the sidecar CI job.
-  - **#109** timeline drag-reorder — rebase; conflicts likely with #167's track-type change; verify drag-end doesn't fire click-deselect (`feedback_drag-end-suppresses-click.md`).
+  - **#109** timeline drag-reorder — rebase; conflicts likely with #167's track-type change; verify drag-end doesn't fire click-deselect (`feedback_drag-end-suppresses-click.md`). Verification method: grep #109's diff for a vitest title containing "drag-end" AND "deselect" (`git diff origin/main...pr-head | grep -E "it\(.*(drag-end|deselect)"`); run `cd frontend && npx --no vitest run src/__tests__/components/timeline/`; if no such test exists, bounce the PR.
   - **#67** docs — merge or fold into #168 and close.
-- **Acceptance:** zero stale-May PRs open afterward; each close has a one-line reason comment.
+  - **#168** (this consolidation's docs PR, not stale-May but dispositioned here): merge it once all packet docs land — EXECUTION-PLAN, packets/* (incl. `user-expectations.md`), ROADMAP, INDEX — it is the canonical-docs flip; do not merge piecemeal.
+- **Acceptance:** zero stale-May PRs open afterward; each close has a one-line reason comment; #168 merged or explicitly queued with the named remaining doc.
 
 ### P1.6 — Hygiene: prune worktrees + verify cron
 - **Depends-on:** P1.1–P1.5 merged (their worktrees become prunable) · **Goal:** Worktree count down from 58 to active-only.
@@ -115,6 +129,18 @@ These are verification packets, not build packets: rebase, test, verify the clai
 - **Steps:** for each worktree whose branch is merged or whose PR is closed: **run the Gate-19 6-check audit before removal** (git log --all on the path, stash list, reflog, fsck, sibling dirs) — never delete a worktree holding unmerged unique commits. `git worktree remove <path>` only after audit. Keep: main checkout, `entropic-v2-uat`, any worktree of a still-open PR, q7 draft worktrees (parked, not stale). Verify cron `b3c47f1c`: `crontab -l | grep b3c47f1c` → already returns 0 hits (verified 2026-06-11; record as confirmed-dead).
 - **DO-NOT-TOUCH:** never `rm -rf`; only `git worktree remove` (refuses dirty trees by default).
 - **Evidence:** before/after `git worktree list` output; per-removal audit one-liner.
+
+### P1.7 — Return the canonical checkout to main
+- **Branch:** none (operates on the main checkout; no PR unless a doc correction falls out) · **Depends-on:** P1.1–P1.6 (frontier drained)
+- **Goal:** `~/Development/entropic-v2challenger` (currently parked on `docs/torn-edges-solutions` — the multi-session branch-switch hazard, ROADMAP Phase 1) returns to `main`.
+- **Preconditions:**
+  - `git -C ~/Development/entropic-v2challenger status --porcelain` → MUST be empty; non-empty → `{ echo "STOP: dirty canonical checkout — stash-first rule; identify the owning session via ~/.claude/.locks/session-*.lock before touching anything"; exit 1; }`.
+  - `git -C ~/Development/entropic-v2challenger branch --show-current` → record the current branch in the report.
+- **Steps:** `git -C ~/Development/entropic-v2challenger checkout main && git -C ~/Development/entropic-v2challenger pull`.
+- **Test plan / Acceptance:** `git -C ~/Development/entropic-v2challenger branch --show-current` → `main`; `git -C ~/Development/entropic-v2challenger log -1 --oneline` matches `origin/main`.
+- **Rollback:** `git -C ~/Development/entropic-v2challenger checkout docs/torn-edges-solutions`.
+- **Evidence (Gate 18b):** the completion report names the branch AND the SHA (`git log -1 --format='%h %s'`) — never "done" without both.
+- **Model:** Haiku-eligible (mechanical).
 
 ---
 
@@ -228,7 +254,7 @@ browser/layout component is an automatic FAIL.
   - `git grep -n "F_CREATRIX_LAYOUT\|creatrix-layout" origin/main -- frontend/` → zero hits (not built).
   - `git ls-tree --name-only origin/main frontend/src/renderer/stores/ | grep layout` → `layout.ts` exists (extend it; do not create a second layout store).
   - Read `frontend/src/shared/feature-flags.ts` for the flag pattern.
-- **Scope:** flag in `feature-flags.ts` · grid CSS per PLAN.md §3.2 (vars `--left-col-w: 260px` min 200/max 33vw · `--inspector-h: 150px` · `--preview-h: 38%` · `--device-chain-h: 180px`, persisted to localStorage via `stores/layout.ts`) · 4 fat-target handles (6px visible / 16px hit zone, PLAN §3.3) · pop-out preview collapse to 28px strip (PLAN §3.4).
+- **Scope:** flag in `feature-flags.ts` · grid CSS per PLAN.md §3.2 (vars `--left-col-w: 260px` min 200/max 33vw · `--inspector-h: 150px` · `--preview-h: 38%` · `--device-chain-h: 180px`, persisted to localStorage via `stores/layout.ts`) · 4 fat-target handles (6px visible / 16px hit zone, PLAN §3.3) · pop-out preview collapse to 28px strip (PLAN §3.4) · legacy UX-debt closure rides along: **F-0512-11** left-column width + track↔preview alignment (`docs/plans/2026-05-14-upcoming-ux-items.md` #2 — the grid shell's left-col var IS the fix; verify alignment in the flag-on E2E) · **effects-panel 35vh cap removal** (F-0512-36, `global.css:1111` — superseded by the grid rows; the cap must not survive into the flag-on layout).
 - **DO-NOT-TOUCH:** `EffectBrowser.tsx` (P3.2), inspector content (P3.3), root `grid-template-rows` of the OLD layout (`feedback_test-layout-changes.md`).
 - **Tests:** component tests: "resize handle persists width to localStorage", "16px hit zone receives pointer events", "flag off renders legacy layout". Run vitest + E2E smoke with flag on AND off.
 - **Acceptance:** both flag states green in E2E smoke; localStorage round-trip proven.
@@ -270,10 +296,22 @@ browser/layout component is an automatic FAIL.
   - `ls ~/.entropic/demos/` → `audio-lfo-stripes.mp4  painted-blur.mp4  y-is-time.mp4` (verified present 2026-06-11). Missing → STOP; demos must be re-rendered (`backend/scripts/demo_trilogy/` exists on main), do not stub with placeholders.
   - `git grep -n "RACKS" origin/main -- frontend/src/renderer/components/instruments/InstrumentsPanel.tsx` → expected present after #167 (B2-lite ships the RACKS list); if absent, #167 unmerged → STOP.
   - Note: runtime demo dir is `~/.entropic/demos/` on disk today, but `ENTROPIC_DIR` const in `frontend/src/main/diagnostics-handlers.ts:12` already points to `~/.creatrix` — executor must resolve the demos path from ONE constant, not hardcode both.
-- **Scope:** instruments tab entry: Sampler draggable/double-clickable, disabled-with-tooltip when no base clip on timeline (INJ-4 spec: entry only — B1/B2 logic already merged, do NOT reimplement) · Demos Drawer component listing the 3 MP4s with inline playback · first-launch onboarding flag (localStorage) opening the drawer once · spec: `~/.claude/plans/entropic-spec-4-demo-trilogy.md`.
+- **Scope:** instruments tab entry: Sampler draggable/double-clickable, disabled-with-tooltip when no base clip on timeline (INJ-4 spec: entry only — B1/B2 logic already merged, do NOT reimplement) · Demos Drawer component listing the 3 MP4s with inline playback · first-launch onboarding flag (localStorage) opening the drawer once · **D-PB paint affordance** (the painted-blur demo's "paint it yourself" call-to-action per spec-4) — if it pushes the packet past the 4h cap, split it out as a **P3.7 follow-up packet** and say so in the PR body · spec: `~/.claude/plans/entropic-spec-4-demo-trilogy.md`.
 - **DO-NOT-TOUCH:** `buildSamplerLayer.ts`, `SamplerDevice.tsx`, instruments store internals (consume #167's API only).
 - **Tests:** "sampler entry disabled with tooltip when timeline empty", "drag payload kind=instruments id=sampler", "demos drawer lists three demo videos", "onboarding opens drawer on first launch only".
 - **Acceptance:** vitest green; manual/CU smoke of the drag flow; flag-off state unaffected.
+- **Evidence:** standard outputs **+ demo-asset licensing check** (G9 "demo asset licensing unsourced"): confirm the 3 MP4s' source footage is user-owned or license-clear and state the answer in the PR body.
+
+### P3.6 — I3 inline-probe frontend (cherry-pick #143 backend payload + inspector wiring)
+- **Branch:** `feat/pra-6-i3-inline-probe` · **Depends-on:** P3.3 (inspector shell merged)
+- **Goal:** The I3 inline-probe action menu becomes reachable: cherry-pick the parked #143 backend payload onto a fresh branch and wire its actions into the PR-A inspector (right-click a param → inline action menu).
+- **Preconditions:**
+  - P3.3 merged: `git grep -rn "trackStats" origin/main -- frontend/src/renderer/selectors/ | head -1` → non-empty (PR-A inspector landed); EMPTY → `{ echo "STOP: P3.3 inspector not on main"; exit 1; }`.
+  - Payload check (verified 2026-06-11): `git -C ~/Development/entropic-q7-i3 show --stat --format='%h %s' bc0ea0b | head -5` → `bc0ea0b [q7] feat: PR #25 I3 Inline Probe action menu (19 tests)`, exactly 2 files: `backend/src/inspector/inline_actions.py` (+241) and `backend/tests/test_q7_benchmark/test_inline_actions.py` (+257). Branch `feat/q7-i3-inline-probe` (GH #143), worktree `~/Development/entropic-q7-i3`.
+- **Steps:** cherry-pick `bc0ea0b` onto a fresh branch per the §1.3 rule (never raw-merge #143); then build the frontend menu component inside the inspector's param rows, calling the cherry-picked backend actions over the existing IPC dispatch.
+- **Tests:** named vitest `frontend/src/__tests__/components/inspector/inline-probe-menu.test.tsx` — titles must include "inline action menu opens on right-click param", plus "menu action dispatches to backend inline_actions", "Escape closes menu". Backend: the cherry-picked `test_inline_actions.py` suite green. Run: `cd frontend && npx --no vitest run src/__tests__/components/inspector/` and `cd backend && python -m pytest tests/test_q7_benchmark/test_inline_actions.py -x --tb=short`.
+- **Acceptance:** both suites green; #143 closed as "landed via P3.6" with the cherry-picked SHA named.
+- **Rollback:** revert PR. · **Evidence:** payload enumeration + both test outputs.
 
 ---
 
@@ -287,7 +325,8 @@ browser/layout component is an automatic FAIL.
 | P4.x PR-C operators + Kentaro | Surface ops in browser; `kentaroCluster\|sidechain\|gate\|midiEnvStutter`; react-xyflow topology w/ 60fps@32-paths gate + bare-SVG fallback | `layout-session/PLAN.md` §5 | **Path discrepancy:** PLAN cites `backend/src/pipeline/operators/*.py` — no `backend/src/pipeline/` exists; operators live in `backend/src/modulation/` (verified). Re-anchor at expansion. Prototype gate §5.1 runs first. |
 | P5.x Instrument ladder B2→B10 | Voice spine, full sampler, rack, grouping, Frame-Bank, RIFE morph, Granulator, tensor routing, live affordances | `~/Development/entropic-layout-mockup/INSTRUMENTS-BUILD-PLAN.md` | B8 needs SG-3 cherry-pick (#133, +12–18h real work), B9 needs PR-C + SG-5 (#144). Cherry-pick rule §1.3 applies. |
 | P6.x Field params + routing surfaces | C2 frame-as-lane, C3 per-pixel fields (the deferred `domain='y'` render unlock), I1/I2 from drafts #140/#142 | ROADMAP Phase 6; `entropic-spec-2-b4lite-schema.md` | `sample_lane` (`backend/src/modulation/lane_reader.py:92`) is merged but wired nowhere live — C2/C3 wire it. |
-| P7.x Tier 5 latent | **HARD-GATED on Q7 REAL verdict (user runs benchmark)** | `entropic-spec-5-l-backbone.md` §9 | **Discrepancy:** ROADMAP cites `backend/scripts/q7_benchmark/` — NOT on origin/main; the machinery lives only in parked drafts #117–#145 (22 drafts verified open, gh 2026-06-11). The runnable 3-head harness is at `~/Development/entropic-q7-clap` (PR #132); user runs it FIRST, harness extraction follows GO. |
+| **Tier-3 stub** (between Phase 6 and 7) | vision-B2 cross-modal matrix · vision-B3 mod-as-track · B4-full binding rules · SG-H2 FD-management · E5 Launchpad cherry-pick (#145, branch `feat/q7-e5-midi-learn` — NOTE: the `entropic-q7-e5` worktree currently sits on `feat/tier1-b1-b4lite-c1-c7`, NOT #145's branch; re-verify with `git -C ~/Development/entropic-v2challenger worktree list` at expansion) | vision §6 Tier 3; `entropic-spec-1-crosswalk.md` | JIT-expand at phase boundary per §1 contract; P5b.24/P6.10/P7.14 deps resolve here. |
+| P7.x Tier 5 latent | **HARD-GATED on Q7 REAL verdict (user runs benchmark)** | `entropic-spec-5-l-backbone.md` §9 | **Discrepancy:** ROADMAP cites `backend/scripts/q7_benchmark/` — NOT on origin/main; the machinery lives only in parked drafts #117–#145 (22 drafts verified open, gh 2026-06-11). The runnable 3-head harness is at `~/Development/entropic-q7-clap` (PR #132); user runs it FIRST, harness extraction follows GO. SG-4 runtime-starvation tests (ROADMAP G3/SG-4 residue) = P7.5; on NO-GO, P7.0N closes them as moot. |
 | P8.x `.dna` + Genoscope | E2 format + CI lints (draft #139), SG-6, A2/E8 | `entropic-spec-6-dna-format.md` | Research-class; re-spec at boundary. |
 | P9.x Ecosystem | SG-9 quotas + Ed25519 signing, E7 plugin SDK | ROADMAP Phase 9 | Farthest out. |
 | PT.1 Audio tracks un-flag | 1-week user bake → PR-4 removes `EXPERIMENTAL_AUDIO_TRACKS` (`backend/src/zmq_server.py:52`, verified) + auto-extract (task #46) | `memory/entropic-audio-tracks.md` | Bake is a USER action; packet only after bake. |

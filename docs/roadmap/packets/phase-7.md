@@ -50,6 +50,7 @@ The 22 parked q7 drafts (#117–#145) sit on a **stale merge-base** — raw-merg
 - Backend tests: `cd backend && python -m pytest -x -n auto --tb=short` (Q7 suite: `PYTHONPATH=scripts python -m pytest tests/test_q7_benchmark/ -q --confcutdir=tests/test_q7_benchmark -o addopts=""`)
 - Frontend tests: `cd frontend && npx --no vitest run`
 - Every packet ships as ONE PR; PR body pastes the EVIDENCE block; branch + SHA named in the "ready" message (Gate 18b).
+- **Spec-packet test-plan gate:** every spec packet's acceptance gates include: the spec contains a "Test plan" section with named test titles per build slice (grep-checkable: `grep -c "it('\|def test_" <spec> ≥ N`, where N = number of build slices). A spec without grep-able named tests fails its own acceptance gate.
 - Common DO-NOT-TOUCH (all packets): `backend/src/zmq_server.py:52` `EXPERIMENTAL_AUDIO_TRACKS` flag · `frontend/src/renderer/stores/**` unless the packet names a store · `docs/roadmap/**` (owned by docs branch) · anything in another packet's scope.
 
 ### Discrepancy register (found while authoring; packets below already account for these)
@@ -332,6 +333,7 @@ git -C ~/Development/entropic-v2challenger grep -rn "test_export_fails_loud_on_n
 ```bash
 git -C ~/Development/entropic-v2challenger grep -rn "sg3-sentinel" origin/main -- frontend/src | head -2                                  # non-empty → P5b.5 frontend landed; EMPTY → STOP: schedule/finish P5b.5
 git -C ~/Development/entropic-v2challenger grep -n "MAX_L2_NORM_PER_BACKBONE" origin/main -- backend/src/safety/latent_sentinel.py        # non-empty → per-backbone ceiling table present (P5b.5)
+git -C ~/Development/entropic-v2challenger grep -rln "sg3-lane-mute" origin/main -- frontend/src/__tests__/ | head -1                     # expect frontend/src/__tests__/components/sg3-lane-mute.test.tsx — P5b.5's NAMED test plan file ("toast on lane_aborted", "lane shows muted state", "re-enable clears mute", "malformed payload ignored safely"); EMPTY → P5b.5 merged without its named tests, bounce it back to P5b.5's owner
 ```
 
 - **Steps:** greps non-empty → mark SG-3 GREEN (all three clauses), close #133 fully with a comment naming the P5b.3/P5b.4/P5b.5 PRs, proceed to dependent packets (P7.9+ latent features).
@@ -352,7 +354,7 @@ git -C ~/Development/entropic-q7-download-ux show --stat --format='' cef60ee | t
 - **Scope (VERIFIED paths):** cherry-pick `cef60ee` → `frontend/src/renderer/q7/downloadProgressStore.ts` + test; NEW `frontend/src/renderer/components/perception/ModelDownloadDialog.tsx` (~120 lines per SPEC-5 §10); backend: confirm a download-progress emit exists in the loader path (`backend/scripts/q7_benchmark/loaders/cache.py` is script-side — production downloads belong to the worker/sidecar; if no production downloader exists yet, the dialog binds to the store with a stubbed IPC channel and the real producer is wired in P7.9c — state which case applied).
 - **DO-NOT-TOUCH:** model cache layout (`~/.entropic/models/q7/...`, D2); checksum verification logic (SHA-256 pinning per SPEC-5 §6.3 — consume, don't reimplement).
 - **Steps:** cherry-pick; note GH #138's branch carries int. #16–#19 (SG-1/A4/C4/A5) beneath it — **payload is `cef60ee` ONLY** (A4/C4/A5 already merged via #162/#165; SG-1 via #163). Build dialog: per-model rows (name, size: DINOv2 22 MB / CLIP 150 MB / CLAP ~600 MB-class download), progress bars, cancel, error+retry state.
-- **TEST PLAN:** cherry-picked store tests (253-line suite) green; new dialog vitest with mock IPC: progress updates, cancel, error retry, completion dismiss; dead-flag check: every store action has a reader (feedback_dead-flag-never-read).
+- **TEST PLAN:** cherry-picked store tests (253-line suite) green; NEW named test file `frontend/src/__tests__/components/perception/model-download-dialog.test.tsx` with mock IPC, it() titles: "progress updates render per model row", "cancel aborts the active download", "error state offers retry", "completion dismisses the dialog". Run: `cd frontend && npx --no vitest run src/__tests__/components/perception/model-download-dialog.test.tsx` then the full suite. Dead-flag check: every store action has a reader (feedback_dead-flag-never-read).
 - **ACCEPTANCE GATES:** vitest green; dialog mounts and renders all three model rows from store state; no orphan store fields.
 - **ROLLBACK:** revert; all additive.
 - **EVIDENCE:** payload enumeration proving #16–#19 excluded, vitest output, dialog screenshot (storybook/dev mount acceptable). Close #138.
@@ -377,16 +379,16 @@ git -C ~/Development/entropic-q7-download-ux show --stat --format='' cef60ee | t
 - **ID:** P7.9b · **Branch:** `docs/p7.9b-c5-spec` · **Base:** `origin/main` · **Depends-on:** P7.9a report = GO
 - **Goal:** Write `docs/specs/c5-latent-trajectory.md`: data model (trajectory = ordered target latents + weights), store shape, IPC commands, modulation-destination registration (reuse merged `applyCCModulations`/axis-binding pattern from #148/#157/#158 — read them first), sentinel call sites (every latent write → `check_and_clamp`), SG-8 registration, UI surface (minimal: add-reference-clip + simplex XY pad). **Deliverable includes the sliced build-packet list (P7.9c, P7.9d, …) each ≤4 h with verified paths** — this spec packet is what authorizes packets beyond P7.9c. (~3 h)
 - **PRECONDITIONS:** G-CHECK; P7.9a report exists and says GO.
-- **ACCEPTANCE GATES:** spec reviewed against the spike numbers; build-slice list present; every named path verified against main with `git ls-tree`.
-- **EVIDENCE:** spec PR URL.
+- **ACCEPTANCE GATES:** spec reviewed against the spike numbers; build-slice list present; every named path verified against main with `git ls-tree`; **structural test-plan gate (§0 conventions):** the spec contains a "Test plan" section with named test titles per build slice — `grep -c "it('\|def test_" docs/specs/c5-latent-trajectory.md` ≥ number of build slices, output quoted in the PR.
+- **EVIDENCE:** spec PR URL + the structural grep count.
 
 ### P7.9c — C5 build, slice 1 (backend trajectory engine + worker wiring)
 
 - **ID:** P7.9c · **Branch:** `feat/p7.9c-c5-engine` · **Base:** `origin/main` · **Depends-on:** P7.9b spec merged; P7.5, P7.7b
 - **Goal:** First production slice per the P7.9b spec: trajectory data model + encode-on-add via `q7_worker` + per-frame simplex eval as a modulation source + sentinel-guarded writes + SG-8 real disable hooks (upgrading P7.6's stubs — grep for `TODO(P7.9c)`). UI slice lands in a later P7.9x packet defined by the spec. (≤4 h scoped by the spec; if the spec's slice exceeds 4 h, the spec must re-slice — that's an acceptance gate on P7.9b, not a license here)
 - **PRECONDITIONS:** G-CHECK; spec merged; `git grep -n "TODO(P7.9c)" origin/main -- backend/src/` hits the SG-8 stub.
-- **TEST PLAN:** unit tests per spec; sentinel negative test (runaway trajectory clamps); SG-4 lint stays green; backend suite green.
-- **ACCEPTANCE GATES:** per spec; plus: first real L-axis modulation value demonstrably moves an effect param in a headless render test.
+- **TEST PLAN:** unit tests per spec; NEW named test file `backend/tests/test_c5_trajectory.py` with at minimum `test_runaway_trajectory_clamped_by_sentinel` (the sentinel negative case) and `test_l_axis_value_moves_effect_param_headless` (the headless render proof). Run: `cd backend && python -m pytest tests/test_c5_trajectory.py -x --tb=short` then the full suite; SG-4 lint stays green.
+- **ACCEPTANCE GATES:** per spec; plus: both named tests green — the first real L-axis modulation value demonstrably moves an effect param in a headless render test.
 - **ROLLBACK:** feature flag per spec + revert.
 - **EVIDENCE:** test output + headless render diff demo.
 
@@ -405,11 +407,12 @@ git -C ~/Development/entropic-q7-download-ux show --stat --format='' cef60ee | t
 
 ### P7.10b — C6 spec
 
-- **ID:** P7.10b · **Branch:** `docs/p7.10b-c6-spec` · **Depends-on:** P7.10a = GO. Same contract as P7.9b: spec + sliced ≤4 h build-packet list (P7.10c…) with verified paths; sentinel call sites mandatory on every feedback write; explicit interaction note with C8 (C8 = "C6 with L" — spec both surfaces once, C8 inherits). (~3 h)
+- **ID:** P7.10b · **Branch:** `docs/p7.10b-c6-spec` · **Depends-on:** P7.10a = GO. Same contract as P7.9b: spec + sliced ≤4 h build-packet list (P7.10c…) with verified paths; sentinel call sites mandatory on every feedback write; explicit interaction note with C8 (C8 = "C6 with L" — spec both surfaces once, C8 inherits). **Acceptance includes the §0 structural test-plan gate:** `grep -c "it('\|def test_" <c6 spec>` ≥ number of build slices, quoted in the PR. (~3 h)
 
 ### P7.10c — C6 build, slice 1
 
-- **ID:** P7.10c · **Branch:** `feat/p7.10c-c6-feedback-source` · **Depends-on:** P7.10b merged; P7.7b (pipeline gate live — feedback without the NaN gate is forbidden, SPEC-3 §3.2). First slice per spec: frame-tap + pixel/DCT source registration + clamp + tests. Sentinel negative test (NaN injected into the loop → lane aborts, loop dies cleanly) is a hard acceptance gate.
+- **ID:** P7.10c · **Branch:** `feat/p7.10c-c6-feedback-source` · **Depends-on:** P7.10b merged; P7.7b (pipeline gate live — feedback without the NaN gate is forbidden, SPEC-3 §3.2). First slice per spec: frame-tap + pixel/DCT source registration + clamp + tests.
+- **TEST PLAN:** NEW named test file `backend/tests/test_c6_feedback_source.py` with at minimum `test_nan_injected_into_loop_aborts_lane_and_loop_dies_cleanly` (the sentinel negative case — hard acceptance gate) and `test_frame_tap_cost_under_budget` (pins the P7.10a-measured tap cost against the frame budget). Run: `cd backend && python -m pytest tests/test_c6_feedback_source.py -x --tb=short` then the full suite.
 
 ---
 
@@ -426,6 +429,8 @@ git -C ~/Development/entropic-q7-download-ux show --stat --format='' cef60ee | t
 ### P7.11b — C8 spec + build slice 1
 
 - **ID:** P7.11b · **Branch:** `feat/p7.11b-c8` · **Depends-on:** P7.11a = GO; P7.10c merged (C8 layers on C6's tap + routing). Because C8 is contractually "C6 with L" (vision §6), spec is a ≤2-page delta on the C6 spec, then build slice 1 in the same packet IF the combined estimate stays ≤4 h; otherwise split per P7.9b convention. Sentinel + SG-8 registration mandatory; per-axis feedback-rate param surfaced.
+- **SPEC gate (structural, §0 conventions):** the C8 spec delta contains a "Test plan" section with named titles — `grep -c "it('\|def test_" <c8 spec delta>` ≥ 1 per slice, quoted in the PR.
+- **BUILD TEST PLAN:** NEW named test file `backend/tests/test_c8_feedback_through_l.py` with at minimum `test_feedback_through_l_drift_bounded_100_frames` (the P7.11a drift trace, pinned as a regression test) and `test_sparse_encode_cadence_matches_spike_recommendation` (the cadence the spike recommended, asserted in code). Run: `cd backend && python -m pytest tests/test_c8_feedback_through_l.py -x --tb=short` then the full suite.
 
 ---
 
@@ -442,11 +447,12 @@ git -C ~/Development/entropic-q7-download-ux show --stat --format='' cef60ee | t
 
 ### P7.12b — E1 spec
 
-- **ID:** P7.12b · **Branch:** `docs/p7.12b-e1-spec` · **Depends-on:** P7.12a = GO. Spec: training job lifecycle (background, cancellable — borrow SG-6 cancellation thinking but do NOT build SG-6, it's Tier 6), model storage per-project, latent-code routing as mod source, sentinel sites, SG-8 registration (priority 4 row), MLP-distill option deferred-or-not decision. Plus sliced build list. (~3 h)
+- **ID:** P7.12b · **Branch:** `docs/p7.12b-e1-spec` · **Depends-on:** P7.12a = GO. Spec: training job lifecycle (background, cancellable — borrow SG-6 cancellation thinking but do NOT build SG-6, it's Tier 6), model storage per-project, latent-code routing as mod source, sentinel sites, SG-8 registration (priority 4 row), MLP-distill option deferred-or-not decision. Plus sliced build list. **Acceptance includes the §0 structural test-plan gate:** `grep -c "it('\|def test_" <e1 spec>` ≥ number of build slices, quoted in the PR. (~3 h)
 
 ### P7.12c — E1 build, slice 1
 
-- **ID:** P7.12c · **Branch:** `feat/p7.12c-e1-training-job` · **Depends-on:** P7.12b merged; P7.7b. First slice per spec (likely: training job runner + persistence + progress events, no routing yet). Hard gate: training never runs on the audio thread or render thread (SG-4 lint + an explicit process/QoS assertion test).
+- **ID:** P7.12c · **Branch:** `feat/p7.12c-e1-training-job` · **Depends-on:** P7.12b merged; P7.7b. First slice per spec (likely: training job runner + persistence + progress events, no routing yet).
+- **TEST PLAN:** NEW named test file `backend/tests/test_e1_training_job.py` with at minimum `test_training_never_on_audio_or_render_thread_qos_asserted` (the hard gate — SG-4 lint PLUS an explicit process/QoS assertion), `test_training_job_cancellable_mid_epoch`, and `test_progress_events_emitted`. Run: `cd backend && python -m pytest tests/test_e1_training_job.py -x --tb=short` then the full suite; SG-4 lint green.
 
 ---
 
@@ -475,7 +481,8 @@ git -C ~/Development/entropic-q7-download-ux show --stat --format='' cef60ee | t
 
 ### P7.14b — E6 spec + build slice 1 (degradation core only)
 
-- **ID:** P7.14b · **Branch:** `feat/p7.14b-e6-degrade-core` · **Depends-on:** P7.14a report; scope LIMITED to the E5-independent subset (frame-rate floor + axis-aware degradation + panic-recover + session preset save/load). Multi-output and hardware-bridge integration are explicitly out (wait for E5). Spec-then-slice per the P7.9b convention; degradation policy must be a pure, unit-testable function; SG-8 is the only pressure source (no second monitor).
+- **ID:** P7.14b · **Branch:** `feat/p7.14b-e6-degrade-core` · **Depends-on:** P7.14a report; scope LIMITED to the E5-independent subset (frame-rate floor + axis-aware degradation + panic-recover + session preset save/load). Multi-output and hardware-bridge integration are explicitly out (wait for E5). Spec-then-slice per the P7.9b convention (incl. the §0 structural test-plan gate on the spec half); degradation policy must be a pure, unit-testable function; SG-8 is the only pressure source (no second monitor).
+- **TEST PLAN:** NEW named test file `backend/tests/test_e6_degrade_policy.py` with at minimum `test_ladder_drops_f_depth_before_frames` (the vision-E6 ordering contract), `test_recovery_hysteresis_no_oscillation` (the P7.14a hysteresis behavior, pinned), and `test_frame_rate_floor_held_under_synthetic_load`. Run: `cd backend && python -m pytest tests/test_e6_degrade_policy.py -x --tb=short` then the full suite.
 
 ---
 
