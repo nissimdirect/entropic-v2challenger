@@ -58,6 +58,7 @@ Shared packet rules: all branches cut from `origin/main` unless stated; all work
 ### PFX.0 — Batch visual-render harness ("contact sheets")
 
 - **ID:** PFX.0 · **branch:** `fx-quality/pfx0-contact-sheet-harness` · **base:** `origin/main` · **depends-on:** none
+- **Model:** Sonnet
 - **Goal:** one command renders **every registered effect** × {default params, per-param min, per-param max} against 2–3 reference clips into tiled contact-sheet PNGs + short MP4 strips, so user + Fable can visually score all ~214 effects in one sitting. This is the tooling that would have caught C1 before ship.
 - **PRECONDITIONS (run all; any mismatch → STOP and report, do not improvise):**
   ```bash
@@ -87,6 +88,7 @@ Shared packet rules: all branches cut from `origin/main` unless stated; all work
 ### PFX.1 — Full-library triage session (score all ~214 against the rubric)
 
 - **ID:** PFX.1 · **branch:** `fx-quality/pfx1-triage-scorecard` (docs/data only) · **base:** `origin/main` · **depends-on:** PFX.0 merged + one full harness run on disk
+- **Model:** Fable (rubric scoring requires visual + calibration judgment; the rest of the workstream defaults to Sonnet)
 - **Goal:** every effect scored 0–10 on the rubric → ranked fix-list. Output: `docs/audits/EFFECTS-QUALITY-SCORECARD-<date>.md` (one row per effect: 5 axis scores, verdict band, one-line diagnosis, complaint cross-refs C1–C10) + refreshed effect count in `docs/EFFECTS-INVENTORY.md` header.
 - **PRECONDITIONS:** `ls ~/Development/creatrix-fx-renders/<date>/index.html` (harness output exists; missing → STOP, run PFX.0 first) · auto-flag JSON from PFX.0 parses.
 - **Scope (verified paths):** `docs/audits/` (new file) · `docs/EFFECTS-INVENTORY.md` (count/status columns only).
@@ -99,31 +101,31 @@ Shared packet rules: all branches cut from `origin/main` unless stated; all work
 
 ---
 
-### PFX.2 — Grid Moire: land v2 (PR #146) + close the follow-ups
+### PFX.2 — Grid Moire v2 FOLLOW-UPS ONLY (#146 merge owned by EXECUTION-PLAN P1.4)
 
-- **ID:** PFX.2 · **branch:** existing `feat/grid-moire-real` (PR #146), follow-up branch `fx-quality/pfx2-grid-moire-followups` · **base:** `origin/main` · **depends-on:** none (PFX.0 helpful for the artifact but not required)
-- **Goal:** the canonical "sucks → excellent" conversion shipped: merge #146 (black-render fix, true interference, two independent liquify meshes, codec_archaeology→generator recategorization), then ship its declared follow-ups: **transparency-overlay + freeze mode, explicit wrap toggle**, and an updated oracle that encodes the rubric (brightness-preservation is already in #146's +10 acceptance tests).
-- **PRECONDITIONS:**
+- **ID:** PFX.2 · **branch:** `fx-quality/pfx2-grid-moire-followups` · **base:** `origin/main` · **depends-on:** **EXECUTION-PLAN P1.4 (#146 merged — P1.4 is the SOLE merge owner; this packet never merges #146)**; PFX.0 helpful for the artifact but not required
+- **Model:** Sonnet
+- **Goal:** ship #146's declared follow-ups on top of the already-merged v2 (black-render fix, true interference, two independent liquify meshes): **transparency-overlay + freeze mode, explicit wrap toggle**, and an updated oracle that encodes the rubric (brightness-preservation is already in #146's +10 acceptance tests).
+- **PRECONDITIONS (HARD GATE):**
   ```bash
   cd ~/Development/entropic-v2challenger
-  gh pr view 146 --json state,mergeable -q '.state + " " + (.mergeable|tostring)'   # OPEN + MERGEABLE; CONFLICTING → rebase first; MERGED → skip to follow-ups
-  gh pr checks 146   # green; red → STOP, fix CI first
-  git log origin/main --oneline -1   # confirm base hasn't diverged in a way #146's 6267-test claim predates
+  test "$(gh pr view 146 --repo nissimdirect/entropic-v2challenger --json state --jq .state)" = "MERGED" || { echo "STOP: #146 not merged — P1.4 owns the merge; do not merge it from this packet"; exit 1; }
+  git log origin/main --oneline -1   # record base SHA
   ```
-  Mismatch on any → STOP and report PR state.
 - **Scope (verified paths):** `backend/src/effects/fx/grid_moire.py` · `backend/tests/oracles/test_grid_moire_oracle.py` (exists? if not, create — verify with `ls backend/tests/oracles/ | grep grid_moire`) · `backend/tests/test_parameter_sweep.py` exemptions already in #146.
 - **DO-NOT-TOUCH:** `fx/moire.py` (that's PFX.3) · registry mechanics · any other effect · frontend.
-- **Steps:** (1) merge #146 per repo norm (parallel sessions active → confirm no other session owns it; Gate 18b branch/SHA check at declaration); (2) cut follow-up branch; add `overlay_mode` (interference replaces vs composites over source) + `freeze` (halt scroll/liquify phase) + explicit `wrap` toggle; (3) extend oracle: brightness-preservation across full param grid (the C1 bug-catcher), visible-beat assertion (FFT peak at difference frequency, not just "output changed"), determinism, no-NaN at extremes.
+- **Steps:** (1) cut follow-up branch from post-#146 main; add `overlay_mode` (interference replaces vs composites over source) + `freeze` (halt scroll/liquify phase) + explicit `wrap` toggle; (2) extend oracle: brightness-preservation across full param grid (the C1 bug-catcher), visible-beat assertion (FFT peak at difference frequency, not just "output changed"), determinism, no-NaN at extremes.
 - **TEST PLAN:** oracle suite for grid_moire green · param sweep green with documented exemptions · PFX.0 single-effect run: no auto-flags at any param extreme.
-- **ACCEPTANCE GATES:** #146 merged to main (SHA quoted) · follow-up PR: oracle validators pass · **before/after visual artifact** (v1-on-#123-parent vs v2 contact-sheet rows, gray frame + real clip) in PR body · backend smoke green · rubric self-score ≥8 recorded in scorecard.
-- **ROLLBACK:** follow-ups are one revert; #146 itself reverts clean (single effect file + tests; v1 behavior restored by revert commit).
-- **EVIDENCE:** merge SHA, follow-up PR link, artifact images, oracle test names.
+- **ACCEPTANCE GATES:** follow-up PR: oracle validators pass · **before/after visual artifact** (v1-on-#123-parent vs v2 contact-sheet rows, gray frame + real clip) in PR body · backend smoke green · rubric self-score ≥8 recorded in scorecard.
+- **ROLLBACK:** follow-ups are one revert.
+- **EVIDENCE:** the precondition's MERGED output, follow-up PR link, artifact images, oracle test names.
 
 ---
 
 ### PFX.3 — `fx.moire`: same disease, same cure (sine-grating overlay → image-coupled interference)
 
 - **ID:** PFX.3 · **branch:** `fx-quality/pfx3-moire-image-coupled` · **base:** `origin/main` (after PFX.2 merge) · **depends-on:** PFX.2 (reuses its interference + brightness-preservation patterns)
+- **Model:** Sonnet
 - **Goal:** `backend/src/effects/fx/moire.py` (category `misc`) currently blends two *synthetic* sine gratings over the frame — an overlay, exactly C1's failure mode in different clothes. Rework: derive one grating from **image structure** (luma-quantized bands or edge-field phase) so the beat pattern responds to content; keep params (`freq_1`, `freq_2`, `angle`, `mix`) but make each visibly distinct across range; decide overlap story vs grid_moire (sine-interference vs mesh-interference — document the distinction in EFFECTS-INVENTORY or merge one into the other as a variant; merging requires a deprecation alias in `registry.py`, which has alias machinery at line 43).
 - **PRECONDITIONS:**
   ```bash
@@ -145,6 +147,7 @@ Shared packet rules: all branches cut from `origin/main` unless stated; all work
 ### PFX.4 — Datamosh authenticity audit (real technique vs optical-flow simulation)
 
 - **ID:** PFX.4 · **branch:** `fx-quality/pfx4-datamosh-authenticity` · **base:** `origin/main` · **depends-on:** PFX.0 (artifacts); independent of PFX.2/3
+- **Model:** Sonnet
 - **Goal:** resolve C2 for v2/Creatrix. v1 had both a simulation (`effects/destruction.py` optical flow) and a REAL H.264 NAL-splice engine (`core/real_datamosh.py`, 7 modes, all tested). The v2 inventory lists both `fx.datamosh` and `fx.real_datamosh` — **audit whether v2's `real_datamosh` is actually bitstream-real or a renamed simulation**, then (a) if real: verify output quality on high-motion footage + document the real-vs-simulated distinction in EFFECTS-INVENTORY + expose the authentic modes (freeze_through/pframe_extend/donor per datamosh-learnings); (b) if simulated: port the v1 NAL-splice engine behind the existing effect contract (if the port exceeds 4h, this packet delivers the audit verdict + a follow-up packet spec instead — scope is capped).
 - **PRECONDITIONS:**
   ```bash
@@ -168,6 +171,7 @@ Shared packet rules: all branches cut from `origin/main` unless stated; all work
 ### PFX.5 — Modulation-family liveliness pass (anti-mechanical sweep, C3/C4/C7/C8)
 
 - **ID:** PFX.5 · **branch:** `fx-quality/pfx5-modulation-liveliness` · **base:** `origin/main` · **depends-on:** PFX.1 (scorecard tells us *which* of the 13 modulation + 14 temporal effects are in the bottom bands — do those first; this packet covers the top 5 offenders, ≤4h)
+- **Model:** Sonnet
 - **Goal:** the modulation family is the locus of two prior complaints: C4 ("audio concept ports mediocre") and C3 ("don't just modulate shit up and down — that's not musical"). For the 5 worst-scoring modulation/temporal effects: replace bare up-down LFO sweeps with shaped motion (eased/turbulent/sample-and-hold-jittered phase — the #146 liquify "turbulent domain-warp flow" is the house pattern), ensure all oscillating params are **cycles-per-frame not Hz** (C8, grep `hz\|Hz` in PARAMS labels/units), and add preview-warmup state hints where the effect reads as static on frame 0 (C7).
 - **PRECONDITIONS:**
   ```bash
@@ -189,7 +193,7 @@ Shared packet rules: all branches cut from `origin/main` unless stated; all work
 
 ```
 PFX.0 harness (4h) ──► PFX.1 triage (3h Fable + ~1h user) ──► PFX.5 modulation top-5 (4h) ──► [top-10 stubs from PFX.1]
-PFX.2 grid moire #146 + follow-ups (3h) ──► PFX.3 fx.moire rework (4h)        [independent track, can start today]
+[P1.4 merges #146] ──► PFX.2 grid-moire follow-ups (3h) ──► PFX.3 fx.moire rework (4h)   [independent track, gated on P1.4]
 PFX.4 datamosh authenticity (audit 2h, fix ≤2h or re-packet)                  [independent track]
 ```
 

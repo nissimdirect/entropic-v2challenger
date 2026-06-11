@@ -640,7 +640,7 @@ Revert; sends/returns are additive fields defaulting to silent/empty.
 ### PRECONDITIONS (mismatch → STOP)
 ```bash
 cd ~/Development/entropic-v2challenger
-git grep -n "MAX_MODROUTES_PER_MACRO\|MAX_TOTAL_EDGES" backend/src/security.py
+git grep -n "MAX_MODROUTES_PER_MACRO\|MAX_MACRO_EDGES_TOTAL" backend/src/security.py
 # EXPECT: 0 hits (this packet adds both)
 git grep -n "applyCCModulations" frontend/src/renderer/App.tsx
 # EXPECT: import :55 + call ~:111 (the one-to-many precedent to mirror)
@@ -653,7 +653,7 @@ git grep -n "applyChoke" frontend/src/renderer/components/instruments/voiceFSM.t
 ### Scope (verified paths)
 - [ ] `frontend/src/shared/types.ts` — `Macro {id, label, value: number /*0..1*/, routes: MacroRoute[]}`; `MacroRoute {padId, target: 'instrument' | 'chain', paramPath, min, max}`.
 - [ ] NEW `frontend/src/renderer/components/instruments/applyMacros.ts` — pure, clones-not-mutates (the `applyCCModulations` pattern: finite-guard, min/max scale); applied in `buildRackLayers` before chain attachment.
-- [ ] `backend/src/security.py` — `MAX_MODROUTES_PER_MACRO = 16`, `MAX_TOTAL_EDGES = 256`; `backend/src/project/schema.py` — reject racks exceeding caps on FILE LOAD (the §10 P1-5 enforcement point; macros never cross IPC individually, so load-time is the trust boundary).
+- [ ] `backend/src/security.py` — `MAX_MODROUTES_PER_MACRO = 16`, `MAX_MACRO_EDGES_TOTAL = 256` (macro-route edge cap; the mod-routing edge cap `MAX_MOD_EDGES_TOTAL` is P5b.21's, a different constant); `backend/src/project/schema.py` — reject racks exceeding caps on FILE LOAD (the §10 P1-5 enforcement point; macros never cross IPC individually, so load-time is the trust boundary).
 - [ ] Frontend mirror-clamp: `addMacroRoute` refuses past-cap with toast (UX convention; backend is the boundary).
 - [ ] Choke: pad trigger with `chokeGroup` n emits a choke event → `applyChoke` idles sibling voices in the same rack + group (atomically, same frame).
 - [ ] `RackDevice.tsx` — 8 macro knobs + a learn/assign flow (click macro → click param), choke-group selector per pad (exists on `PadEditor` — reuse: `git grep -ln "chokeGroup" frontend/src/renderer/components/performance/`).
@@ -675,7 +675,7 @@ npx --no vitest run src/__tests__/components/instruments/applyMacros.test.ts
 npx --no vitest run
 cd ../backend && python -m pytest -x -n auto --tb=short
 ```
-Named new tests: "one macro drives many destinations scaled to each route's min/max" · "macro route past MAX_MODROUTES_PER_MACRO refused with toast" · "project file exceeding MAX_TOTAL_EDGES rejected at load (backend)" · "macro write is clone-not-mutate (input chain unmutated)" · "trigger in choke group idles same-group sibling voices in the same frame" · "choke across different groups does not interact" · "pad delete removes its macro routes and choke membership (cleanup symmetry)"
+Named new tests: "one macro drives many destinations scaled to each route's min/max" · "macro route past MAX_MODROUTES_PER_MACRO refused with toast" · "project file exceeding MAX_MACRO_EDGES_TOTAL rejected at load (backend)" · "macro write is clone-not-mutate (input chain unmutated)" · "trigger in choke group idles same-group sibling voices in the same frame" · "choke across different groups does not interact" · "pad delete removes its macro routes and choke membership (cleanup symmetry)"
 
 ### ACCEPTANCE GATES
 - Caps enforced in `schema.py` (backend test), not only UI.
@@ -708,7 +708,7 @@ git grep -rn "slice" frontend/src/renderer/components/instruments/
 ### Scope (verified paths)
 - [ ] Backend NEW cmd `detect_slices` in `backend/src/zmq_server.py` (+ impl in `backend/src/video/` or reused scene-detect per precondition): `{asset_path, mode: 'transient', threshold} → {slice_frames: int[]}`; frame-diff threshold detector is sufficient (mean abs luma diff > threshold); cap result count to 64; `validate_upload` the path (SEC-5 mirror).
 - [ ] Frontend NEW `frontend/src/renderer/components/instruments/computeSlices.ts` — pure for grid/manual modes: `grid(frameCount, divisions) → frames[]`, `manual(markers) → frames[]`; transient calls the backend cmd.
-- [ ] `sliceToRack(trackId, sliceFrames)` store action: builds a `SampleRack`, pad i = leaf sampler `{clipId, startFrame: slice[i], endFrame: slice[i+1]-1, triggerMode: 'oneShot'}`, ≤16 pads per rack page (Ableton 4x4 parity — `DrumRack.grid: '4x4'` precedent), surplus slices → additional… NO: cap at 16, toast the surplus count.
+- [ ] `sliceToRack(trackId, sliceFrames)` store action: builds a `SampleRack`, pad i = leaf sampler `{clipId, startFrame: slice[i], endFrame: slice[i+1]-1, triggerMode: 'oneShot'}`, ≤16 pads per rack page (Ableton 4x4 parity — `DrumRack.grid: '4x4'` precedent); surplus slices: cap at 16, toast the surplus count.
 - [ ] `SamplerDevice.tsx` — "Slice" section: mode select, threshold/divisions input, preview slice count, "Slice to Rack" button (replaces the track's sampler with the rack after confirm).
 - [ ] Tests: NEW `computeSlices.test.ts`, store round-trip test, backend `tests/test_detect_slices.py`.
 

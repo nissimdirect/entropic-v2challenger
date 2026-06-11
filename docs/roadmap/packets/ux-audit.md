@@ -72,6 +72,7 @@ Common contract: all branches cut from `origin/main` of `nissimdirect/entropic-v
 
 ### PUX.1 — Design-token foundation (three-tier) + palette decision
 - **ID:** PUX.1 · **branch:** `ux/pux-1-design-tokens` · **base:** `origin/main` · **depends-on:** none (FIRST — everything else consumes it)
+- **Model:** Sonnet + **USER-TOUCH: the `--accent` palette decision is the user's call** (pause for it, or apply the documented deferral mapping in step 2)
 - **Goal:** Create `frontend/src/renderer/styles/tokens.css` implementing Pop Chaos as a three-tier system (Tier 1 primitives → Tier 2 semantic → Tier 3 component), import it first in `global.css`, and migrate the top-20 most-repeated hex values to semantic vars. NOT a full 866-hex migration (that's incremental follow-up); this packet establishes governance + kills the head of the distribution (~620 of 866 instances).
 - **PRECONDITIONS (mismatch → STOP):**
   - `grep -c "var(--" frontend/src/renderer/styles/global.css` → expect ~6-10 (if ≫, someone already started tokens; reconcile first)
@@ -97,6 +98,7 @@ Common contract: all branches cut from `origin/main` of `nissimdirect/entropic-v
 
 ### PUX.2 — Dialog accessibility: Escape, focus trap, ARIA-modal
 - **ID:** PUX.2 · **branch:** `ux/pux-2-dialog-a11y` · **base:** `origin/main` · **depends-on:** none (parallel-safe with PUX.1)
+- **Model:** Sonnet
 - **Goal:** One shared `useModalBehavior(ref, onClose)` hook (Escape-to-close, focus trap, initial focus, return-focus-on-close) + `role="dialog" aria-modal="true" aria-labelledby` applied to all 8 true modals.
 - **PRECONDITIONS (mismatch → STOP):**
   - `grep -rln "Escape" frontend/src/renderer/components/dialogs frontend/src/renderer/components/export frontend/src/renderer/components/library frontend/src/renderer/components/layout` → expect ONLY `layout/ShortcutEditor.tsx` (if more hits, partial fix landed; audit before proceeding)
@@ -115,6 +117,7 @@ Common contract: all branches cut from `origin/main` of `nissimdirect/entropic-v
 
 ### PUX.3 — Focus-visible restoration sweep
 - **ID:** PUX.3 · **branch:** `ux/pux-3-focus-visible` · **base:** `origin/main` · **depends-on:** PUX.1 (uses `--focus-ring`; if PUX.1 unmerged, use literal and leave `TODO(PUX.1)`)
+- **Model:** Sonnet
 - **Goal:** Every `outline: none` either gains a paired `:focus-visible` rule (`box-shadow: 0 0 0 2px var(--focus-ring)` per I15 rule 12) or is deleted.
 - **PRECONDITIONS:** `grep -rn "outline: *none" frontend/src/renderer/styles | wc -l` → expect ~31 · `grep -rn "focus-visible" frontend/src/renderer/styles | wc -l` → expect ~7. Mismatch ≫ → partial fix landed, STOP and re-audit.
 - **Scope:** `frontend/src/renderer/styles/*.css` only (rule additions; no selector renames)
@@ -130,6 +133,7 @@ Common contract: all branches cut from `origin/main` of `nissimdirect/entropic-v
 
 ### PUX.4 — Control & menu semantics (slider ARIA + menu keyboard model)
 - **ID:** PUX.4 · **branch:** `ux/pux-4-control-semantics` · **base:** `origin/main` · **depends-on:** none
+- **Model:** Sonnet
 - **Goal:** (a) `role="slider"` + `aria-valuemin/max/now/valuetext` + `aria-label` on Knob and Slider; (b) ContextMenu gets `role="menu"`/`menuitem`, focus moves to first item on open, ArrowUp/Down/Home/End traversal, Enter activates, focus returns to invoker on close.
 - **PRECONDITIONS:** `grep -n 'role="slider"' frontend/src/renderer/components/common/Knob.tsx frontend/src/renderer/components/common/Slider.tsx` → 0 hits · `grep -n 'role="menu"' frontend/src/renderer/components/timeline/ContextMenu.tsx` → 0 hits · `grep -n "tabIndex={0}" frontend/src/renderer/components/common/Knob.tsx` → 1 hit ~line 201
 - **Scope (verified):** `components/common/Knob.tsx`, `components/common/Slider.tsx`, `components/timeline/ContextMenu.tsx` (+ its consumers compile-check only: Track/Clip/DeviceChain import it), Vitest specs
@@ -145,6 +149,7 @@ Common contract: all branches cut from `origin/main` of `nissimdirect/entropic-v
 
 ### PUX.5 — Hit targets & drag signifiers (timeline + automation)
 - **ID:** PUX.5 · **branch:** `ux/pux-5-hit-targets` · **base:** `origin/main` · **depends-on:** PUX.1 preferred (token colors), not required
+- **Model:** Sonnet
 - **Goal:** (a) AutomationNode: invisible hit circle `r=10` behind visible `r=4-6` glyph, pointer events on the hit circle; (b) clip trim handles: width 6→8px and a *visible at-rest* grip (2×10px bars) whenever the clip is selected — signifier instead of cursor-only affordance; (c) sweep all <24px interactive targets found in §1 (12-14px icon buttons) to ≥24px hit areas via padding/pseudo-element, visuals unchanged.
 - **PRECONDITIONS:** `grep -n "r={isDragging ? 6 : 4}" frontend/src/renderer/components/automation/AutomationNode.tsx` → 1 hit ~line 105 · `grep -n "width: 6px" frontend/src/renderer/styles/timeline.css` → 1 hit ~line 690 · confirm PR #109 (timeline drag-reorder) merge status: `gh pr view 109 --json state` — if merged, re-verify Clip.tsx line numbers before editing
 - **Scope (verified):** `components/automation/AutomationNode.tsx`, `styles/timeline.css` (`.clip__trim-handle*` block :686-705), `styles/automation.css`, targeted touch-ups in `styles/operators.css`/`performance.css` for <24px buttons
@@ -160,6 +165,7 @@ Common contract: all branches cut from `origin/main` of `nissimdirect/entropic-v
 
 ### PUX.6 — LIVE visual pass protocol (computer-use, run during campaign)
 - **ID:** PUX.6 · **branch:** none (no code) — produces `docs/roadmap/packets/ux-visual-pass-results.md` · **base:** n/a · **depends-on:** schedule AFTER PUX.1-5 merge (validates them) and BEFORE PR-A starts (baseline for redesign)
+- **Model:** Sonnet (computer-use session)
 - **Goal:** Ground-truth the static audit with the running app: screenshot every surface, run anti-slop + Gate 6 contrast checks on real pixels, file deltas as 🐛 items.
 - **PRECONDITIONS:** `ps aux | grep -i electron | grep -i creatrix` — note the running binary's path and confirm it is the worktree you intend to audit (Live Runtime Check / Gate 18; `entropic-v2-uat` worktree hazard) · `cd ~/Development/entropic-v2challenger/frontend && npm start` boots clean · computer-use access granted for "Electron" at full tier (per `memory/visual-uat-entropic.md`)
 - **Protocol steps (≤4h):**

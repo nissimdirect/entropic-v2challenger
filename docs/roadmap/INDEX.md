@@ -15,7 +15,7 @@
 
 | Doc | Role |
 |---|---|
-| `ROADMAP.md` | **Start here.** Status ledger + phased roadmap to feature-complete + gap register (G1–G13) |
+| `ROADMAP.md` | **Start here.** Status ledger + phased roadmap to feature-complete + gap register (G1–G14) |
 | `plans/entropic-creatrix-MASTER-SEQUENCE-2026-06-04.md` | Single source of truth for build order: Tiers 0–7, P0–P9 chain, scaffold-PR disposition |
 | `plans/entropic-synth-paradigm-vision.md` | The ~30 PRDs (A/B/C/D/E/I), 6-axis paradigm, Round-1 locked decisions, cuts list |
 | `specs/entropic-spec-1-crosswalk.md` | Vision ↔ build-plan ownership matrix; read before touching any PRD |
@@ -37,6 +37,25 @@
 | `../PENDING-BUG-FIXES.md` | Security-audit reconciliation (M-1 ZMQ size limit still open) |
 | `../V2-AUTOMATED-UAT-PLAN.md` + `../UAT-UIT-GUIDE.md` | Living UAT reference (automated + manual) |
 | `../plans/2026-05-14-upcoming-ux-items.md` | Hotkey epic (6 unchecked) + layout items — items 2–3 absorbed by PR-A scope |
+
+## Execution packets (`packets/`) + companions
+
+| Doc | Role |
+|---|---|
+| `EXECUTION-PLAN.md` | Phases 1–3 fully specified work packets (P1.x/P2.x/P3.x) + Phase 4–9/PT stubs + orchestration rules |
+| `MISSING-FUNCTIONS-INVENTORY.md` | DAW/NLE-paradigm function inventory vs roadmap coverage |
+| `DESIGN-SPEC.md` + `style-guide.html` | Visual design spec + rendered style guide (do not edit from packet work) |
+| `packets/phase-4.md` | PR-C operators + Kentaro (P4.0–P4.6; P4.0 = xyflow prototype gate) |
+| `packets/phase-5a.md` | Instruments B2–B5 (P5a.1–P5a.15) |
+| `packets/phase-5b.md` | Instruments B6–B10 + **SG-3/SG-5/SG-8 implementation (P5b.1–P5b.8)** |
+| `packets/phase-6.md` | Tier 2b field params + I1/I2 surfaces (P6.1–P6.11) |
+| `packets/phase-7.md` | Tier 5 latent, hard-gated on Q7 REAL verdict (P7.0–P7.14; G-CHECK is canonical here) |
+| `packets/phase-8-9.md` | Tier 6 `.dna`/Genoscope + Tier 7 SDK (P8.x/P9.x) |
+| `packets/parallel-track.md` | v2 debt, schedulable anytime (PD.1–PD.12) |
+| `packets/ux-audit.md` | CDO UX audit + PUX.1–PUX.6 packets (land between Phase 2 and Phase 3) |
+| `packets/effects-quality.md` | Effects-quality workstream (PFX.0–PFX.5) |
+
+**OWNERSHIP MAP (single owners — when docs disagree, these win):** SG-3/SG-5/SG-8 → `packets/phase-5b.md` (P5b.1–P5b.8; phase-7's P7.6/P7.7a–c are verify-only) · #146 merge → EXECUTION-PLAN P1.4 (PFX.2 = follow-ups only) · xyflow gate → P4.0's verdict doc `docs/perf/p4-xyflow-gate-result.md` (P6.10 reads it, never re-runs its own) · commit `2d2ac79` (#142 routing graph) cherry-pick → P5b.6 (P6.9 = graph-sync wiring only) · `frontend/src/renderer/styles/global.css` and `backend/src/zmq_server.py` dispatch = single-flight (at most one in-flight packet each).
 
 ## NEEDS RECONCILIATION (predates synth paradigm; not yet folded into master sequence)
 

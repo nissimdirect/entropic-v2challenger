@@ -16,7 +16,7 @@
    `origin/main` must be `d821ae8` **or a descendant**. If it has moved, re-verify the packet's VERIFIED paths before starting (paths below were verified at `d821ae8`).
 2. **CHERRY-PICK RULE (parked q7 drafts):** the q7 branches have a **stale merge-base** (cut before ~10 later merges; raw-merging them falsely reverts merged work — see `memory/feedback_cherry-pick-stale-scaffold-branches.md`). **Never `git merge` a q7 branch.** Enumerate payload with `git log origin/main..<branch> --oneline`, identify the single tip commit that is the actual payload, `git cherry-pick <sha>` onto a fresh branch off `origin/main`. Payload commits verified 2026-06-11:
    - I1 probe registry: `d85828e` (tip of `feat/q7-i1-inspector`, PR #140) — 3 files, +428
-   - I2 routing graph: `2d2ac79` (tip of `feat/q7-i2-routing-canvas`, PR #142) — 2 files, +509
+   - I2 routing graph: `2d2ac79` (tip of `feat/q7-i2-routing-canvas`, PR #142) — 2 files, +509 — **pick owned by Phase-5b P5b.6** (SG-5 dependency); P6.9 wires only
    - I3 inline actions: `bc0ea0b` (tip of `feat/q7-i3-inline-probe`, PR #143) — **NOT in Phase 6 scope** (I3 full UI gated on PR-A; inline-actions shell already on main via #148)
 3. **Test commands (canonical, from repo CLAUDE.md):**
    - Backend: `cd backend && python -m pytest -x -n auto --tb=short`
@@ -31,11 +31,11 @@
 ```bash
 cd ~/Development/entropic-v2challenger && git fetch origin
 # 1. PR-B slice 2 (#158 axis-binding store wiring) must be MERGED — Phase 6 builds on it:
-git grep -q "setLaneAxisBinding" origin/main -- frontend/src/renderer/stores/automation.ts && echo OK-158 || echo "STOP: #158 not merged"
+git grep -q "setLaneAxisBinding" origin/main -- frontend/src/renderer/stores/automation.ts && echo OK-158 || { echo "STOP: #158 not merged"; exit 1; }
 # 2. SG-1 lib must be on main (merged via #163):
-git cat-file -e origin/main:backend/src/safety/gpu_resources.py && echo OK-SG1-LIB || echo "STOP: SG-1 lib missing"
+git cat-file -e origin/main:backend/src/safety/gpu_resources.py && echo OK-SG1-LIB || { echo "STOP: SG-1 lib missing"; exit 1; }
 # 3. Backend B1 lane schema on main (merged via #148):
-git cat-file -e origin/main:backend/src/modulation/lane_reader.py && echo OK-B1 || echo "STOP: lane_reader missing"
+git cat-file -e origin/main:backend/src/modulation/lane_reader.py && echo OK-B1 || { echo "STOP: lane_reader missing"; exit 1; }
 ```
 **As of 2026-06-11, check 1 FAILS — #157/#158/#160 are still open (Phase 1/2 of the roadmap not done).** Packets P6.1 and P6.6 hard-require #158; all other packets only require checks 2–3 and can start now.
 
@@ -63,9 +63,9 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "setLaneAxisBinding" origin/main -- frontend/src/renderer/stores/automation.ts || { echo STOP; }
-  git grep -q "def sample_lane_row" origin/main -- backend/src/modulation/lane_reader.py || { echo STOP; }
-  git grep -qn "automation_overrides" origin/main -- backend/src/zmq_server.py || { echo STOP; }
+  git grep -q "setLaneAxisBinding" origin/main -- frontend/src/renderer/stores/automation.ts || { echo "STOP: #158 not merged"; exit 1; }
+  git grep -q "def sample_lane_row" origin/main -- backend/src/modulation/lane_reader.py || { echo "STOP: sample_lane_row missing from lane_reader"; exit 1; }
+  git grep -qn "automation_overrides" origin/main -- backend/src/zmq_server.py || { echo "STOP: automation_overrides intake missing"; exit 1; }
   ```
 - **Scope (VERIFIED paths @ d821ae8):**
   - `backend/src/modulation/lane_reader.py` — `sample_lane`, `sample_lane_row`, `FrameCoord` (read-only reuse)
@@ -103,7 +103,7 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "RESERVED_PARAM_PREFIX" origin/main -- backend/src/effects/registry.py || { echo STOP; }
+  git grep -q "RESERVED_PARAM_PREFIX" origin/main -- backend/src/effects/registry.py || { echo "STOP: RESERVED_PARAM_PREFIX guard missing from registry"; exit 1; }
   git ls-tree origin/main --name-only backend/src/effects/fx/ | wc -l   # expect ~144 files
   ```
 - **Scope (VERIFIED paths):**
@@ -144,7 +144,7 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "class FieldRef" origin/main -- backend/src/effects/field_params.py || { echo "STOP: P6.2 not merged"; }
+  git grep -q "class FieldRef" origin/main -- backend/src/effects/field_params.py || { echo "STOP: P6.2 not merged"; exit 1; }
   git grep -qn "codec timeout\|decode_timeout\|TimeoutError" origin/main -- backend/src/engine/codecs.py || echo "WARN: verify SG-7 wrap location before reusing"
   ```
 - **Scope (VERIFIED paths):**
@@ -177,8 +177,8 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "class MockGPUResource" origin/main -- backend/src/safety/gpu_resources.py || { echo STOP; }
-  git grep -q "metal: real GPU" origin/main -- backend/pyproject.toml || { echo STOP; }
+  git grep -q "class MockGPUResource" origin/main -- backend/src/safety/gpu_resources.py || { echo "STOP: SG-1 MockGPUResource missing"; exit 1; }
+  git grep -q "metal: real GPU" origin/main -- backend/pyproject.toml || { echo "STOP: metal pytest marker missing"; exit 1; }
   python -c "import mlx.core" 2>/dev/null && echo MLX-AVAILABLE || echo "WARN: MLX not installed locally — metal tests will skip; CI-mock tests still must pass"
   ```
 - **Scope (VERIFIED paths):**
@@ -220,8 +220,8 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "FIELD_TOP25" origin/main -- backend/src/effects/field_top25.py || { echo "STOP: P6.2 not merged"; }
-  git grep -q "class MLXGPUResource" origin/main -- backend/src/safety/mlx_resources.py || { echo "STOP: P6.4 not merged"; }
+  git grep -q "FIELD_TOP25" origin/main -- backend/src/effects/field_top25.py || { echo "STOP: P6.2 not merged"; exit 1; }
+  git grep -q "class MLXGPUResource" origin/main -- backend/src/safety/mlx_resources.py || { echo "STOP: P6.4 not merged"; exit 1; }
   cd backend && python -m pytest -m metal --co -q | tail -2   # metal tests must exist and collect
   ```
 - **Scope (VERIFIED paths):**
@@ -257,9 +257,9 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "setLaneAxisBinding" origin/main -- frontend/src/renderer/stores/automation.ts || { echo STOP; }
-  git grep -q "axis_lanes" origin/main -- backend/src/zmq_server.py || { echo "STOP: P6.1 not merged"; }
-  git grep -q "fieldParams" origin/main -- backend/src/effects/registry.py || { echo "STOP: P6.2 not merged"; }
+  git grep -q "setLaneAxisBinding" origin/main -- frontend/src/renderer/stores/automation.ts || { echo "STOP: #158 not merged"; exit 1; }
+  git grep -q "axis_lanes" origin/main -- backend/src/zmq_server.py || { echo "STOP: P6.1 not merged"; exit 1; }
+  git grep -q "fieldParams" origin/main -- backend/src/effects/registry.py || { echo "STOP: P6.2 not merged"; exit 1; }
   ```
 - **Scope (VERIFIED paths):**
   - `frontend/src/renderer/App.tsx` — render-payload assembly (~line 923, where `automation_overrides` is attached): also attach `axis_lanes` for lanes with `axisBinding.domain` `'y'|'x'`, serialized snake_case via `frontend/src/shared/ipc-serialize.ts`
@@ -294,8 +294,8 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-q7-i1 && git fetch origin
-  git log origin/main..feat/q7-i1-inspector --oneline | head -1 | grep -q "d85828e" || { echo "STOP: payload tip moved — re-enumerate"; }
-  cd ~/Development/entropic-v2challenger && git cat-file -e origin/main:backend/src/inspector/__init__.py 2>/dev/null && echo "STOP: inspector pkg already on main — rebase packet" || echo OK-clean
+  git log origin/main..feat/q7-i1-inspector --oneline | head -1 | grep -q "d85828e" || { echo "STOP: payload tip moved — re-enumerate"; exit 1; }
+  cd ~/Development/entropic-v2challenger && git cat-file -e origin/main:backend/src/inspector/__init__.py 2>/dev/null && { echo "STOP: inspector pkg already on main (P5b.6 may have created the init) — rebase packet: pick d85828e minus the init, keep main's"; exit 1; } || echo OK-clean
   ```
 - **Scope:**
   - CHERRY-PICK `d85828e` → lands `backend/src/inspector/__init__.py`, `backend/src/inspector/registry.py` (ProbeKind/Probe/ProbeReading/ProbeSnapshot/ProbeRegistry, MAX_HISTORY_PER_PROBE=32, mount/unmount no-op gate), `backend/tests/test_q7_benchmark/test_inspector_probes.py` (18 tests). Resolve any conflict by keeping payload content; if the pick conflicts on >2 files STOP and report (stale-base symptom).
@@ -330,8 +330,8 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "probe_snapshot" origin/main -- backend/src/zmq_server.py || { echo "STOP: P6.7 not merged"; }
-  git grep -n '"video" | "performance" | "text" | "audio"' origin/main -- frontend/src/shared/types.ts || { echo "STOP: Track.type union moved — re-verify"; }
+  git grep -q "probe_snapshot" origin/main -- backend/src/zmq_server.py || { echo "STOP: P6.7 not merged"; exit 1; }
+  git grep -n '"video" | "performance" | "text" | "audio"' origin/main -- frontend/src/shared/types.ts || { echo "STOP: Track.type union moved — re-verify"; exit 1; }
   ```
 - **Scope (VERIFIED paths):**
   - `frontend/src/shared/types.ts` — `Track.type` union (line ~59) gains `"inspector"`; new `ProbeBinding` type
@@ -359,39 +359,38 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 
 ---
 
-## P6.9 — I2 backend: cherry-pick routing graph + sync from live state
+## P6.9 — I2 backend: graph-sync wiring ONLY (routing-graph cherry-pick owned by Phase-5b P5b.6)
 
 - **Branch:** `feat/p6-i2-routing-backend`
 - **Base:** `origin/main`
-- **Depends-on:** P6.7 merged (the pick of `2d2ac79` assumes `backend/src/inspector/__init__.py` from `d85828e`; if P6.7 is not merged this packet must also create the package init — prefer ordering P6.7 first)
-- **Goal:** Land draft #142's `RoutingGraph` (nodes/edges, cycle DFS, to_dict/load_dict — clean but **synced to nothing**) and make it authoritative: build it from real project state (operator `modRoutes` + automation lanes) and expose it over ZMQ for the canvas.
+- **Depends-on:** **P5b.6 merged** (it owns the `2d2ac79` cherry-pick of `backend/src/inspector/routing_graph.py` + the package init and is the sole closer of #142's graph payload); P6.7 merged (probe registry)
+- **Goal:** Make the already-landed `RoutingGraph` (via P5b.6 — clean but **synced to nothing**) authoritative: build it from real project state (operator `modRoutes` + automation lanes) and expose it over ZMQ for the canvas. **This packet contains NO cherry-pick.**
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
-  cd ~/Development/entropic-q7-i2 && git fetch origin
-  git log origin/main..feat/q7-i2-routing-canvas --oneline | head -1 | grep -q "2d2ac79" || { echo "STOP: payload tip moved"; }
-  cd ~/Development/entropic-v2challenger && git cat-file -e origin/main:backend/src/inspector/registry.py || { echo "STOP: P6.7 not merged (package init missing)"; }
+  cd ~/Development/entropic-v2challenger && git fetch origin
+  git cat-file -e origin/main:backend/src/inspector/routing_graph.py || { echo "STOP: routing_graph.py not on main (lands via P5b.6) — schedule/finish P5b.6 first"; exit 1; }
+  git cat-file -e origin/main:backend/src/inspector/registry.py || { echo "STOP: P6.7 not merged (probe registry missing)"; exit 1; }
   ```
 - **Scope:**
-  - CHERRY-PICK `2d2ac79` → `backend/src/inspector/routing_graph.py` (NodeKind EFFECT/LANE/OPERATOR/PAD, GraphNode/GraphEdge frozen dataclasses, amount ∈ [-1,1] validated, cascade-remove, `has_cycle()` DFS, to_dict/load_dict, singleton) + `backend/tests/test_q7_benchmark/test_routing_graph.py` (25 tests)
   - WIRE (new work, VERIFIED paths): NEW `backend/src/inspector/graph_sync.py` — `build_graph_from_project(operators: list[dict], lanes_by_track, chain_by_track) -> RoutingGraph`, reading the same operator `modRoutes`/`mappings` shape `modulation/routing.py:resolve_routings` consumes (operator → effect-param edges) and automation lanes (lane → param edges) · `backend/src/zmq_server.py` new cmds `routing_graph_get` (build + serialize) and `routing_edge_update` (depth/amount change → mutate the UNDERLYING operator mapping, then rebuild — the graph is a projection, the stores stay authoritative)
   - NEW: `backend/tests/test_graph_sync.py`
-- **DO-NOT-TOUCH:** `modulation/routing.py` resolve logic, `modulation/schema.py` `ModEdge` (no live ModEdge storage exists on main — the canvas projects operators+lanes; B4-full ModEdges are Tier 3, do NOT invent storage for them here), the 25 picked tests.
+- **DO-NOT-TOUCH:** `backend/src/inspector/routing_graph.py` + its 25 picked tests (P5b.6's payload — consume only), `modulation/routing.py` resolve logic, `modulation/schema.py` `ModEdge` (no live ModEdge storage exists on main — the canvas projects operators+lanes; B4-full ModEdges are Tier 3, do NOT invent storage for them here).
 - **Steps:**
-  1. `git checkout -b feat/p6-i2-routing-backend origin/main && git cherry-pick 2d2ac79`; run picked tests unmodified.
+  1. `git checkout -b feat/p6-i2-routing-backend origin/main`; confirm the P5b.6-landed `test_routing_graph.py` suite passes untouched.
   2. `graph_sync.py`: deterministic node ids (`op:{id}`, `fx:{track}:{effect_id}`, `lane:{track}:{laneId}`), edges from operator mappings (`amount` from mapping depth, clamped) and from automation lanes (amount 1.0).
   3. `routing_graph_get`: accepts the project state in the message (frontend is source of truth for stores, mirroring how `render_frame` receives chains) — do NOT cache server-side across calls.
   4. `routing_edge_update`: validates edge id → maps back to the owning operator mapping → returns updated mapping for the frontend to commit to its store (round-trip authority stays frontend; backend validates ranges).
   5. `has_cycle()` surfaced in the `routing_graph_get` response (`hasCycle: bool` + cycle node ids) so the canvas can badge it — consistent with INJ-2's `ModulationCycleError` semantics (#150) but non-throwing here (view-layer).
 - **TEST PLAN:**
   ```bash
-  cd backend && python -m pytest tests/test_q7_benchmark/test_routing_graph.py -x --tb=short   # 25 picked, unmodified
+  cd backend && python -m pytest tests/test_q7_benchmark/test_routing_graph.py -x --tb=short   # P5b.6's 25 tests, untouched regression guard
   python -m pytest tests/test_graph_sync.py -x --tb=short
   python -m pytest -x -n auto --tb=short
   ```
   Named new tests: `test_build_graph_from_operators_modroutes`, `test_build_graph_from_automation_lanes`, `test_node_ids_deterministic`, `test_edge_amount_clamped_from_mapping`, `test_routing_graph_get_zmq_roundtrip`, `test_edge_update_maps_back_to_operator_mapping`, `test_edge_update_rejects_out_of_range`, `test_cycle_flag_in_response`, `test_empty_project_empty_graph`.
-- **ACCEPTANCE GATES:** 25 picked tests green unmodified; full backend green; a fixture project with 2 operators + 1 lane yields the exact expected node/edge set (snapshot-asserted).
+- **ACCEPTANCE GATES:** P5b.6's 25 routing-graph tests green untouched; full backend green; a fixture project with 2 operators + 1 lane yields the exact expected node/edge set (snapshot-asserted).
 - **ROLLBACK:** revert PR; graph is a stateless projection — nothing persisted.
-- **EVIDENCE:** test output, fixture graph dump, PR URL. PR body: payload from #142 tip `2d2ac79`; close #142 pointing here.
+- **EVIDENCE:** test output, fixture graph dump, PR URL. (#142 is closed by P5b.6, the payload owner — this PR only references it.)
 
 ---
 
@@ -404,17 +403,18 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  git grep -q "routing_graph_get" origin/main -- backend/src/zmq_server.py || { echo "STOP: P6.9 not merged"; }
-  grep -q "@xyflow/react\|reactflow" frontend/package.json && echo "already present" || echo "will add dep"
+  git grep -q "routing_graph_get" origin/main -- backend/src/zmq_server.py || { echo "STOP: P6.9 not merged"; exit 1; }
+  test -f docs/perf/p4-xyflow-gate-result.md && grep -n "VERDICT:" docs/perf/p4-xyflow-gate-result.md || echo "verdict doc absent — run P4.0 first (see step 1)"
+  grep -q "@xyflow/react\|reactflow" frontend/package.json && echo "already present" || echo "will add dep IF verdict doc says PASS"
   ```
 - **Scope (VERIFIED paths):**
   - NEW: `frontend/src/renderer/components/routing-canvas/` (`RoutingCanvas.tsx`, `EdgeInspector.tsx`, `NodeColumn.tsx`, `index.ts`)
   - Keyboard: register ⌘⇧I where existing global shortcuts live (grep `Cmd+B`/`metaKey` handler — `App.tsx` or a hotkeys util; verify at packet start). Note ⌘I = Import media already taken; ⌘⇧I is free per repo CLAUDE.md table.
-  - `frontend/package.json` — add `@xyflow/react` (the PLAN.md PR-C decision: "react-xyflow only, vis-network dropped"; prototype gate below)
+  - `frontend/package.json` — add `@xyflow/react` ONLY if `docs/perf/p4-xyflow-gate-result.md` says `VERDICT: PASS` (the PLAN.md PR-C decision: "react-xyflow only, vis-network dropped"; P4.0 owns the gate)
   - Stores: read `operators.ts` + `automation.ts` to assemble the `routing_graph_get` payload; commit `routing_edge_update` results back via existing store actions (find the operator-mapping update action; do not bypass undo)
 - **DO-NOT-TOUCH:** `backend/**`, existing operator device-chain UI, inline-actions components, global layout CSS rows.
 - **Steps:**
-  1. **Prototype gate FIRST (PLAN.md §5.1, verified at line ~522):** render 32 animated edges in `@xyflow/react`, measure frame time; target <8ms. If it fails → bare-SVG fallback with rAF batching (no dep). Record the measurement in the PR. Budget 1h; if the gate itself drags past 1h, take the bare-SVG path and move on.
+  1. **Read the single canonical xyflow gate verdict FIRST: `docs/perf/p4-xyflow-gate-result.md` (P4.0's artifact).** If the doc is absent → STOP and run P4.0 first; do NOT run a local prototype gate here (P4.0 is the one owner of this measurement). `VERDICT: PASS` → use `@xyflow/react` at the version pinned in the doc; `VERDICT: FAIL` → bare-SVG with rAF batching (pull the pattern from P4.0's spike branch / P4.5's implementation). Quote the verdict line in the PR.
   2. Modal overlay component (portal, Escape closes, focus-trapped) on ⌘⇧I.
   3. Data: open → assemble store state → `routing_graph_get` → render. Sources column = operators + lanes; destinations = effects/params; bright/dim from edge presence; search input filters each column.
   4. Drag source→destination: creates an operator mapping via existing store action (undoable) → re-fetch graph. v1 creates `broadcast`-equivalent routes only (Tier-1 rule — axis-binding pickers are B4-full).
@@ -425,7 +425,7 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
   cd frontend && npx --no vitest run
   ```
   Named tests: `routing-canvas-open.test.tsx` (`cmd-shift-i opens`, `escape closes`, `fetches graph on open`, `no fetch race after close`), `routing-canvas-edges.test.tsx` (`drag creates mapping via store action`, `created edge undoable`, `depth slider round-trips`, `delete removes mapping`), `routing-canvas-columns.test.tsx` (`routed nodes bright`, `search filters`), plus the perf gate as a documented manual measurement (not vitest).
-- **ACCEPTANCE GATES:** vitest green ≥ baseline; prototype-gate measurement recorded (<8ms or fallback taken and stated); manual UAT: create a route on the canvas → parameter visibly modulates in preview → same route visible in device-chain UI (single-source-of-truth proof); undo removes it.
+- **ACCEPTANCE GATES:** vitest green ≥ baseline; P4.0 verdict line quoted in PR and the implementation matches it (dep added ⟺ VERDICT: PASS); manual UAT: create a route on the canvas → parameter visibly modulates in preview → same route visible in device-chain UI (single-source-of-truth proof); undo removes it.
 - **ROLLBACK:** revert PR (removes dep + components + shortcut); zero persistence impact (mappings created through pre-existing store actions remain valid project data).
 - **EVIDENCE:** perf measurement, vitest output, screen capture of drag-create + modulation, PR URL.
 
@@ -440,13 +440,13 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
 - **PRECONDITIONS:**
   ```bash
   cd ~/Development/entropic-v2challenger && git fetch origin
-  for f in backend/src/modulation/field_eval.py backend/src/effects/field_top25.py backend/src/effects/field_source.py backend/src/safety/mlx_resources.py backend/src/effects/field_codegen.py backend/src/inspector/registry.py backend/src/inspector/routing_graph.py; do git cat-file -e origin/main:$f || echo "STOP missing: $f"; done
+  for f in backend/src/modulation/field_eval.py backend/src/effects/field_top25.py backend/src/effects/field_source.py backend/src/safety/mlx_resources.py backend/src/effects/field_codegen.py backend/src/inspector/registry.py backend/src/inspector/routing_graph.py; do git cat-file -e origin/main:$f || { echo "STOP missing: $f"; exit 1; }; done
   ```
 - **Scope (VERIFIED paths):**
   - NEW: `backend/tests/test_phase6_integration.py` — field param + axis lane + probe + graph in ONE project fixture
   - `docs/UAT-UIT-GUIDE.md` — add Phase-6 test section (field assignment, Y-domain render, inspector track, routing canvas)
   - `docs/roadmap/ROADMAP.md` — flip Phase-6 ledger rows (C2/C3/I1/I2/SG-1-Metal) with PR numbers
-  - GitHub: close #140 and #142 with comments naming the superseding PRs (cherry-picked payloads); #143 stays open (I3, Tier-gated on PR-A)
+  - GitHub: close #140 with a comment naming the superseding PR (cherry-picked payload); verify #142 was already closed by P5b.6 (its payload owner) — if still open, escalate, don't close it here; #143 stays open (I3, Tier-gated on PR-A)
 - **DO-NOT-TOUCH:** feature code (this packet ships tests + docs only; integration failures spawn fix packets, they don't get hot-fixed inside the closeout PR).
 - **Steps:**
   1. Integration fixture: project with (a) a top-25 effect with an image field, (b) a second effect with a Y-domain lane, (c) a mounted probe on the field effect's param, (d) one operator route — render 10 frames; assert: no crash, probe history populated, graph projection contains all 4 node kinds, frames non-identical across the Y gradient.
@@ -460,7 +460,7 @@ P6.7 ── P6.9 (I2 backend) ── P6.10 (I2 canvas UI) ────┘
   python -m pytest -x -n auto --tb=short && cd ../frontend && npx --no vitest run
   ```
   Named tests: `test_combined_field_lane_probe_graph_render`, `test_500_frame_soak_rss_bounded`, `test_gpu_pool_flat_over_soak` (metal), `test_probe_history_populated_after_render`, `test_graph_projection_complete_fixture`.
-- **ACCEPTANCE GATES:** all suites green; soak numbers in PR body; ROADMAP ledger accurate (each Phase-6 row links a merged PR); #140/#142 closed. **Comprehensive-done check:** PR body must contain the full/shipped/remaining tally for the phase.
+- **ACCEPTANCE GATES:** all suites green; soak numbers in PR body; ROADMAP ledger accurate (each Phase-6 row links a merged PR); #140 closed, #142 closure (owned by P5b.6) verified. **Comprehensive-done check:** PR body must contain the full/shipped/remaining tally for the phase.
 - **ROLLBACK:** revert PR (docs + tests only).
 - **EVIDENCE:** soak numbers, suite counts, ledger diff, closed-PR links.
 

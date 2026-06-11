@@ -58,9 +58,9 @@ The 22 parked q7 drafts (#117–#145) sit on a **stale merge-base** — raw-merg
 |---|---|---|
 | D1 | **The Q7 harness is NOT on `origin/main`** — `git ls-tree origin/main backend/scripts/q7_benchmark/` returns empty (verified 2026-06-11). ROADMAP Phase 7 text implies it's runnable from the main checkout; it is not. | Harness lives on the stacked q7 branch chain. The most complete runnable harness with **all three heads lit** (DINOv2 internal-PR#6, CLIP #13, CLAP #14) is branch `feat/q7-clap-lit` (GH **#132**), checked out at **`~/Development/entropic-q7-clap`**. `~/Development/entropic-q7-bench` (`feat/q7-l-backbone-benchmark`) is only the PR-#1 scaffold — `--measure` raises SystemExit there. P7.0 runs from `entropic-q7-clap`. |
 | D2 | SPEC-5 §6.2 says models cache to `~/.creatrix/models/`; the actual loader code (`loaders/cache.py`) uses `~/.entropic/models/q7/<name>/<rev>/` (override: `ENTROPIC_Q7_CACHE_DIR`). | Code wins for P7.0. Path migration is rename-residue work (ROADMAP parallel track #5), not Phase 7. |
-| D3 | SPEC-3 §3.3 sentinel constant `MAX_L2_NORM = 32.0`; draft #133 ships `DEFAULT_L2_CEILING = 10.0` (renormalize-to-1 semantics, 5 outcome categories — richer than spec). | P7.7b resolves: keep draft API, add per-backbone ceiling config; record decision in PR body. |
+| D3 | SPEC-3 §3.3 sentinel constant `MAX_L2_NORM = 32.0`; draft #133 ships `DEFAULT_L2_CEILING = 10.0` (renormalize-to-1 semantics, 5 outcome categories — richer than spec). | Resolved in Phase-5b: P5b.3 keeps the draft API + `DEFAULT_L2_CEILING=10.0`; P5b.5 adds the per-backbone table named `MAX_L2_NORM_PER_BACKBONE`. P7.7a/c only verify. |
 | D4 | SPEC-3/SPEC-5 name the enforcement point `backend/src/pipeline/render.py`. **No such path exists.** Real pipeline: `backend/src/engine/pipeline.py` (apply_chain) + `backend/src/engine/compositor.py`. | Packets use the real paths. |
-| D5 | Master sequence row 5.2 calls SG-8 "❌ (q7 PR #129 draft)". In fact `monitor.py` + `registry.py` + `budget.py` + `degrade_order.py` are **already on main** (merged #161, `backend/src/safety/pressure/`, byte-identical to the draft) with **zero live callers**. GH #129 is superseded. | P7.6 wires the merged lib; do not cherry-pick #129. Close #129 as superseded when P7.6 merges. |
+| D5 | Master sequence row 5.2 calls SG-8 "❌ (q7 PR #129 draft)". In fact `monitor.py` + `registry.py` + `budget.py` + `degrade_order.py` are **already on main** (merged #161, `backend/src/safety/pressure/`, byte-identical to the draft) with **zero live callers**. GH #129 is superseded. | Phase-5b P5b.1/P5b.2 wire the merged lib (single owner); do not cherry-pick #129. P7.6 verifies and closes #129 as superseded. |
 | D6 | Runbook `q7-measure.md` writes the report to `~/q7-report.json`; the roadmap gate convention is `~/.entropic/q7-report.json`. | P7.0 writes to `~/.entropic/q7-report.json` explicitly via `--out`. |
 | D7 | requirements-q7-measure.txt targets Python 3.12 (DEC-Q7-002 floor); this machine's default `python3` is **3.14.3** (torch wheels not guaranteed). `python3.12` (3.12.12) is installed. | P7.0 pins `python3.12` in a venv. |
 | D8 | Vision says D4 Latent Granulator needs latent **decode**, which SPEC-5 §8 marks "(deferred — we don't ship decode in v1)". D4 also depends on A1/B8 Granulator (Tier 4, not built). | D4 gets a feasibility spike only (P7.13); build packets deliberately not authored. |
@@ -74,8 +74,8 @@ P7.0 (USER gate) ──┬─ TIER_5_GO ──> all packets below
                    └─ NO_GO/COND ─> P7.0N (ship FC-v3 without L)
 
 P7.1 harness chain ─> P7.2 DINOv2+report ─> P7.3 CLIP+CLAP ─> P7.4 L-worker ─> P7.5 SG-4 saturation
-P7.6 SG-8 wiring (independent after gate)
-P7.7a SG-3 lib ─> P7.7b pipeline gate ─> P7.7c frontend lane-abort
+P7.6 SG-8 VERIFY (impl = P5b.1–2; independent after gate)
+P7.7a SG-3 VERIFY ─> P7.7b VERIFY ─> P7.7c VERIFY (impl = P5b.3/4/5)
 P7.8 download UX (after P7.2)
 P7.9 C5  spike→spec→build   (needs P7.4, P7.5, P7.7*)
 P7.10 C6 spike→spec→build   (needs P7.7*, B4-lite check)
@@ -279,70 +279,63 @@ git -C ~/Development/entropic-v2challenger ls-tree origin/main backend/src/q7_wo
 
 ---
 
-## P7.6 — SG-8 live wiring (lib merged #161 — zero callers today)
+## P7.6 — SG-8 live wiring: VERIFY-ONLY (implementation owned by Phase-5b Track A, P5b.1–P5b.2)
 
-- **ID:** P7.6 · **Branch:** `feat/p7.6-sg8-live-wiring` · **Base:** `origin/main` · **Depends-on:** P7.0 GO (independent of the P7.1–P7.5 chain)
-- **Goal:** `backend/src/safety/pressure/{monitor,registry,budget,degrade_order}.py` is on main with **no production caller** (verified: only import site is `safety/__init__.py`). Wire it: start the monitor at sidecar boot, register the three L backbones as disable-able features (CLAP prio 5 → CLIP 6 → DINOv2 9, SPEC-5 §5), surface pressure events to the frontend. (~4 h)
-- **PRECONDITIONS:** G-CHECK; then:
+- **ID:** P7.6 · **Branch:** none (verification stub, no code lands) · **Base:** n/a · **Depends-on:** P7.0 GO (independent of the P7.1–P7.5 chain)
+- **Goal:** Verify that the SG-8 live wiring shipped by **P5b.1 (backend: monitor startup + feature registry + `pressure_status` REQ/REP poll handler — poll model; no push channel exists on main) and P5b.2 (frontend: memory status surface + `sg8-pressure` toasts)** landed on main, then mark the gate green. **No implementation steps here** — `packets/phase-5b.md` is the single owner of SG-8 wiring.
+- **PRECONDITIONS (these greps ARE the packet):** G-CHECK; then:
 
 ```bash
-git -C ~/Development/entropic-v2challenger grep -rn "PressureMonitor\|FeatureRegistry" origin/main -- backend/src/ | grep -v "safety/pressure\|safety/__init__"   # expect EMPTY (zero callers) — if not, scope changed, STOP and re-read
+git -C ~/Development/entropic-v2challenger grep -n "PressureMonitor" origin/main -- backend/src/zmq_server.py   # non-empty → P5b.1 landed; EMPTY → STOP: schedule/finish P5b.1, do NOT implement here
+git -C ~/Development/entropic-v2challenger grep -n "pressure_status" origin/main -- backend/src/zmq_server.py   # non-empty → poll handler present (P5b.1)
+git -C ~/Development/entropic-v2challenger grep -rn "sg8-pressure" origin/main -- frontend/src | head -2        # non-empty → P5b.2 landed; EMPTY → STOP: schedule/finish P5b.2
 ```
 
-- **Scope (VERIFIED paths):** `backend/src/zmq_server.py` (boot hook + event push — read the existing watchdog/heartbeat pattern first and mirror it), `backend/src/safety/pressure/` (consume only; degrade order is LOCKED per DEC-Q7-010 — do not reorder), NEW `frontend/src/renderer/components/statusbar/` pressure indicator + toast on auto-disable (reuse `stores/toast.ts` conventions: `source` field set, rate-limited).
-- **DO-NOT-TOUCH:** `degrade_order.py` contents (locked); `EXPERIMENTAL_AUDIO_TRACKS`; existing statusbar components beyond adding one element.
-- **Steps:** (1) trace sidecar boot in `zmq_server.py`; (2) `MemoryBudget.detect()` + `PressureMonitor.start()` at boot, behind a kill-switch env (`CREATRIX_SG8_DISABLED=1` escape hatch); (3) register backbone disable hooks as no-op stubs that log until the worker is resident (P7.9c upgrades them to real unload calls — leave a `TODO(P7.9c)` marker); (4) push `PressureEvent` over the existing IPC event path; (5) frontend indicator (60% warn / 75% auto-disable / 90% emergency tiers per SPEC-3 §5.2-B).
-- **TEST PLAN:** backend: mock-pressure unit tests per SPEC-3 §5.5 names (`test_pressure_warn_at_60pct`, `test_auto_disable_at_75pct_in_priority_order`, `test_recovery_re_enables_features`, `test_disable_order_deterministic`) — some already exist from #161's suite; grep `backend/tests/` for the literal names before writing (grep-before-coverage-claim). Frontend: vitest for the indicator + toast with mock IPC. Wiring check (Gate 14): event fires → indicator renders → toast appears.
-- **ACCEPTANCE GATES:** monitor demonstrably polls in a live sidecar run (log line evidence); simulated 75% crossing disables in locked order and toasts; suite green both sides; kill-switch verified.
-- **ROLLBACK:** env kill-switch immediately; revert merge for full removal.
-- **EVIDENCE:** live sidecar log excerpt, simulated-crossing test output, screenshot or DOM-assert of indicator. Close GH #129 as superseded-by-#161+this.
+- **Steps:** all three greps non-empty → mark SG-8 GREEN in the Phase-7 tracking issue, close GH #129 with a comment ("superseded by #161 lib + P5b.1/P5b.2 wiring"), proceed (P7.9c later upgrades the backbone disable hooks to real unload calls).
+- **EVIDENCE:** the three grep outputs + the #129 closing-comment link.
 
 ---
 
-## P7.7a — SG-3 clause 1: cherry-pick the sentinel lib (GH #133)
+## P7.7a — SG-3 clause 1: VERIFY-ONLY (sentinel lib cherry-pick owned by P5b.3)
 
-- **ID:** P7.7a · **Branch:** `feat/p7.7a-sg3-sentinel-lib` · **Base:** `origin/main` · **Depends-on:** P7.0 GO
-- **Goal:** Land draft #133's pure-function sentinel (`check_and_clamp`, 5 outcomes: PASSTHROUGH/CLAMPED/REJECTED_NAN/REJECTED_INF/REJECTED_ZERO; `safe_normalize`; `batch_validate`; `LatentSentinelError`) on main. Clause 1 of the SPEC-3 §3.2 contract only. (~2 h)
-- **PRECONDITIONS:** G-CHECK; payload check:
+- **ID:** P7.7a · **Branch:** none (verification stub) · **Base:** n/a · **Depends-on:** P7.0 GO
+- **Goal:** Verify **P5b.3** (cherry-pick of draft #133's `latent_sentinel.py` + 25 tests, `DEFAULT_L2_CEILING=10.0` kept per D3) landed on main. **No implementation here** — `packets/phase-5b.md` Track B owns SG-3.
+- **PRECONDITIONS (these greps ARE the packet):** G-CHECK; then:
 
 ```bash
-git -C ~/Development/entropic-q7-sg3 show --stat --format='' 8853d63 | tail -1   # expect: backend/src/safety/latent_sentinel.py + its test file only
-git -C ~/Development/entropic-v2challenger ls-tree origin/main backend/src/safety/ | grep latent   # expect EMPTY
+git -C ~/Development/entropic-v2challenger grep -n "check_and_clamp" origin/main -- backend/src/safety/latent_sentinel.py   # non-empty → P5b.3 landed; EMPTY → STOP: schedule/finish P5b.3, do NOT cherry-pick here
 ```
 
-- **Scope (VERIFIED paths):** `backend/src/safety/latent_sentinel.py` (NEW), its 25-test suite, one-line export in `backend/src/safety/__init__.py`.
-- **DO-NOT-TOUCH:** `backend/src/engine/**` (that's P7.7b); the branch's 14 underlying commits (int. #1–#14) — payload is `8853d63` ONLY.
-- **Steps:** cherry-pick `8853d63`; resolve the D3 threshold question explicitly: keep the draft's `DEFAULT_L2_CEILING=10.0` + add `L2_CEILING_PER_BACKBONE: dict` (dinov2/clip/clap keys, all 10.0 initially — values are tunable config, the spec's 32.0 is recorded as a rejected alternative in the PR body).
-- **TEST PLAN:** the 25 sentinel tests + SPEC-3 §3.5's `test_feedback_with_runaway_normalizes` (add if not among the 25 — grep the test file for `runaway` first); backend suite green.
-- **ACCEPTANCE GATES:** 25+ green; module importable from `safety`; zero pipeline coupling (pure functions only).
-- **ROLLBACK:** revert; self-contained module.
-- **EVIDENCE:** payload stat, test output, D3 decision paragraph. Mark #133 "clause 1 landed; clauses 2–3 = P7.7b/c" (close after P7.7c).
+- **Steps:** grep non-empty → mark clause 1 green in the tracking issue, comment on #133 ("clause 1 landed via P5b.3"), proceed.
+- **EVIDENCE:** grep output + #133 comment link.
 
-## P7.7b — SG-3 clause 2: pipeline NaN/Inf gate + lane abort (backend)
+## P7.7b — SG-3 clause 2: VERIFY-ONLY (pipeline NaN/Inf gate owned by P5b.4)
 
-- **ID:** P7.7b · **Branch:** `feat/p7.7b-sg3-pipeline-gate` · **Base:** `origin/main` (after P7.7a) · **Depends-on:** P7.7a · `RISK:HIGH` (touches the hot render path)
-- **Goal:** SPEC-3 §3.2 clauses 2+3 backend half: every rendered frame is finite-checked before compositing/encode; NaN/Inf → abort the offending modulation lane, render last-known-good frame, emit `lane_aborted` event. **Note D4: the spec's `backend/src/pipeline/render.py` does not exist — real seam is `backend/src/engine/pipeline.py` (apply_chain) / `compositor.py`.** (~4 h)
-- **PRECONDITIONS:** G-CHECK; P7.7a merged; trace-the-path evidence required BEFORE editing (Gate 13): read `engine/pipeline.py`, `engine/compositor.py`, `modulation/processor.py`, list the chain in the PR body (frame → apply_chain → compositor → encode; lane identity source in `modulation/routing.py`).
-- **Scope (VERIFIED paths):** `backend/src/engine/pipeline.py` and/or `compositor.py` (one gate call site — after composite, before encode), `backend/src/modulation/processor.py` or `routing.py` (lane-mute flag + `normalize_latent` call on latent-destination writes), `backend/src/zmq_server.py` (emit `lane_aborted` event on the existing event/push path), NEW tests.
-- **DO-NOT-TOUCH:** effect functions (`backend/src/effects/**`); frame encode format; per-frame performance budget — the finite-check must be a single `np.isfinite` reduction, measured.
-- **Steps:** (1) gate function at the verified seam; (2) last-known-good frame buffer (1 frame, per-track); (3) lane-mute state + abort event payload `{lane_id, reason}`; (4) perf guard: benchmark the check on a 1080p float frame, paste the µs cost (must be <1 ms; if the pipeline is uint8 end-to-end, gate only lanes whose sources are latent-typed — decide from the Gate-13 trace and document).
-- **TEST PLAN:** SPEC-3 §3.5 `test_pipeline_emits_lane_aborted_on_nan_output` implemented for real; NaN-injection effect fixture; assert frame skipped + event emitted + lane muted + next clean frame renders; perf micro-bench test with threshold; full backend suite.
-- **ACCEPTANCE GATES:** NaN frame can never reach encode (negative test proves it); abort is per-lane not per-pipeline (other lanes keep rendering); measured overhead pasted; 12K+ backend tests still green.
-- **ROLLBACK:** gate behind `CREATRIX_SG3_DISABLED=1` env kill-switch (mirrors P7.6 pattern) + revert.
-- **EVIDENCE:** Gate-13 chain listing, perf number, NaN-injection test output.
+- **ID:** P7.7b · **Branch:** none (verification stub) · **Base:** n/a · **Depends-on:** P7.7a verified
+- **Goal:** Verify **P5b.4** (render-output finite gate at the `engine/pipeline.py`/`compositor.py` choke point; lane abort rides the **render reply** — REQ/REP, no push channel; export fails loud on NaN) landed on main. **No implementation here.**
+- **PRECONDITIONS (these greps ARE the packet):** G-CHECK; then:
 
-## P7.7c — SG-3 clause 3: frontend lane-abort toast + auto-mute UI
+```bash
+git -C ~/Development/entropic-v2challenger grep -n "lane_aborted" origin/main -- backend/src/zmq_server.py   # non-empty → P5b.4 landed (abort on the render reply); EMPTY → STOP: schedule/finish P5b.4
+git -C ~/Development/entropic-v2challenger grep -rn "test_export_fails_loud_on_nan_frame" origin/main -- backend/tests/ | head -1   # non-empty → P5b.4's export-NaN gate test present
+```
 
-- **ID:** P7.7c · **Branch:** `feat/p7.7c-sg3-frontend` · **Base:** `origin/main` (after P7.7b) · **Depends-on:** P7.7b
-- **Goal:** Frontend listens for `lane_aborted`, toasts "Modulation lane {name} produced NaN — muted automatically", reflects mute state in the lane UI, allows re-enable. (~3 h)
-- **PRECONDITIONS:** G-CHECK; P7.7b merged; `git grep -n "lane_aborted" origin/main -- backend/src/` returns the emit site.
-- **Scope (VERIFIED paths):** the IPC event subscriber (read `frontend/src/renderer/` hooks for the existing event-listening pattern first — read-existing-component-before-build), `frontend/src/renderer/stores/toast.ts` consumer (set `source: 'sg3'` for rate-limit dedup), the modulation-lane UI component for mute badge + re-enable.
-- **DO-NOT-TOUCH:** toast store internals; unrelated stores.
-- **Steps:** subscriber → store update → toast → mute badge → re-enable action round-trips to backend un-mute.
-- **TEST PLAN:** vitest with mock IPC: event → toast text + lane mute state; double-event dedup (rate-limit); re-enable round-trip. Wiring check (Gate 14): entry AND exit (mute and un-mute).
-- **ACCEPTANCE GATES:** vitest green; live-runtime demo (launch app, trigger synthetic abort via a dev hook or backend test command, see the toast — Gate 18: name the runtime path used).
-- **ROLLBACK:** revert; subscriber is additive.
-- **EVIDENCE:** vitest output + screenshot/recording of toast in live app. Close #133 fully.
+- **Steps:** greps non-empty → mark clause 2 green, comment on #133, proceed.
+- **EVIDENCE:** grep outputs.
+
+## P7.7c — SG-3 clause 3: VERIFY-ONLY (frontend lane-mute UX owned by P5b.5)
+
+- **ID:** P7.7c · **Branch:** none (verification stub) · **Base:** n/a · **Depends-on:** P7.7b verified
+- **Goal:** Verify **P5b.5** (frontend toast `source: 'sg3-sentinel'` + lane mute badge + re-enable; `MAX_L2_NORM_PER_BACKBONE` per-backbone ceiling table) landed on main, then close out SG-3. **No implementation here.**
+- **PRECONDITIONS (these greps ARE the packet):** G-CHECK; then:
+
+```bash
+git -C ~/Development/entropic-v2challenger grep -rn "sg3-sentinel" origin/main -- frontend/src | head -2                                  # non-empty → P5b.5 frontend landed; EMPTY → STOP: schedule/finish P5b.5
+git -C ~/Development/entropic-v2challenger grep -n "MAX_L2_NORM_PER_BACKBONE" origin/main -- backend/src/safety/latent_sentinel.py        # non-empty → per-backbone ceiling table present (P5b.5)
+```
+
+- **Steps:** greps non-empty → mark SG-3 GREEN (all three clauses), close #133 fully with a comment naming the P5b.3/P5b.4/P5b.5 PRs, proceed to dependent packets (P7.9+ latent features).
+- **EVIDENCE:** grep outputs + #133 closing-comment link.
 
 ---
 
@@ -486,7 +479,7 @@ git -C ~/Development/entropic-q7-download-ux show --stat --format='' cef60ee | t
 
 ---
 
-## Packet count: 14 top-level (P7.0, P7.0N, P7.1–P7.8 = 10 infra incl. SG-3 ×3) + 6 feature chains decomposed into 14 sub-packets — 24 executable units, each ≤4 h, 7 marked `RISK:HIGH` (P7.0 outcome, P7.7b hot path, and the 5 XL spikes + D4).
+## Packet count: 14 top-level (P7.0, P7.0N, P7.1–P7.8 = 10 infra, of which P7.6/P7.7a/P7.7b/P7.7c are VERIFY-ONLY stubs — implementation owned by Phase-5b P5b.1–P5b.5) + 6 feature chains decomposed into 14 sub-packets — 24 executable units, each ≤4 h, 6 marked `RISK:HIGH` (P7.0 outcome and the 5 XL spikes + D4).
 
 ## Standing notes for executors
 

@@ -497,7 +497,9 @@ test -f docs/perf/p4-xyflow-gate-result.md && grep -n "VERDICT:" docs/perf/p4-xy
 git grep -n "OperatorDepthArc" origin/main -- frontend/src/renderer/components/operators/
 # expect: ≥1 match (P4.4 merged). 0 → STOP.
 git grep -n "xyflow" origin/main -- frontend/package.json
-# expect: 0 matches (dep not yet added — this packet adds it ONLY on VERDICT: PASS)
+# expect: dep presence CONSISTENT WITH THE VERDICT DOC (not a hard 0-matches check):
+#   VERDICT: FAIL → 0 matches required; VERDICT: PASS → 0 matches (this packet adds the dep) OR already
+#   present if a prior PASS-branch packet landed it. Dep present despite VERDICT: FAIL → STOP and report.
 ```
 
 ### Scope checklist (verified paths)

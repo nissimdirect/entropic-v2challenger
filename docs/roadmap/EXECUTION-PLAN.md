@@ -50,6 +50,9 @@ Backend markers (verified in `backend/pyproject.toml`): `perf`, `smoke`, `oracle
 5. Model routing: **Sonnet default**. Packets marked **RISK:HIGH** go to Opus/Fable and get a
    `/qa-redteam` pass before merge.
 6. Merge order is the packet numbering unless a depends-on says otherwise.
+7. **Single-flight on shared hotspots:** no two packets touching `frontend/src/renderer/styles/global.css`
+   may be in flight simultaneously; same for `backend/src/zmq_server.py` dispatch — at most one in-flight,
+   others queue.
 
 ---
 
@@ -90,6 +93,7 @@ These are verification packets, not build packets: rebase, test, verify the clai
 
 ### P1.4 — Merge #146 Grid Moire v2
 - **Depends-on:** — (independent) · **Goal:** Fix black-render + two independent liquify meshes.
+- **Ownership:** P1.4 is the SOLE owner of merging #146. `packets/effects-quality.md` PFX.2 is follow-ups only and hard-gates on this merge.
 - **Preconditions:** `gh pr view 146 --json state` → OPEN.
 - **Steps:** rebase, run backend full suite, verify the generator no longer renders black (claimed fix — confirm a regression test asserts non-zero frame variance for grid_moire), merge.
 - **Acceptance:** CI green; oracle suite unaffected (`python -m pytest -m oracle` count unchanged).
@@ -189,6 +193,16 @@ exclusion darken lighten`); the 36-mode list in PLAN.md is a later additive PR.
 
 ---
 
+## 3.5 UX-audit packets (PUX) — land HERE, between Phase 2 and Phase 3
+
+Source: `docs/roadmap/packets/ux-audit.md`. Sequencing: **PUX.1 → (PUX.2 ∥ PUX.3 ∥ PUX.4) → PUX.5 land here**,
+so PR-A (Phase 3) builds on tokens + a11y primitives instead of retrofitting them. PUX.6 (live visual pass)
+runs after PUX.1–5 merge and before P3.1 starts. Consequence: **P3.1's preconditions gain
+`test -f frontend/src/renderer/styles/tokens.css || echo STOP`** (PUX.1 must have landed). The §1 rule-7
+single-flight constraint applies: PUX packets touching `global.css` queue behind each other.
+
+---
+
 ## 4. Phase 3 — PR-A decomposed (layout redesign, in place)
 
 Source: `docs/roadmap/layout-session/PLAN.md` §3 (9–12h monolith) → 5 packets. Governing constraint:
@@ -210,6 +224,7 @@ browser/layout component is an automatic FAIL.
 - **Branch:** `feat/pra-1-layout-shell` · **Depends-on:** Phase 2 complete (PR-B shape settled)
 - **Goal:** CSS-grid app shell (transport / left-col / right-col / statusbar) with 4 persisted resize handles, flag-gated; old layout untouched when flag off.
 - **Preconditions:**
+  - `test -f frontend/src/renderer/styles/tokens.css || echo STOP` → tokens.css must exist (PUX.1 landed; see §3.5).
   - `git grep -n "F_CREATRIX_LAYOUT\|creatrix-layout" origin/main -- frontend/` → zero hits (not built).
   - `git ls-tree --name-only origin/main frontend/src/renderer/stores/ | grep layout` → `layout.ts` exists (extend it; do not create a second layout store).
   - Read `frontend/src/shared/feature-flags.ts` for the flag pattern.
@@ -272,11 +287,11 @@ browser/layout component is an automatic FAIL.
 | P4.x PR-C operators + Kentaro | Surface ops in browser; `kentaroCluster\|sidechain\|gate\|midiEnvStutter`; react-xyflow topology w/ 60fps@32-paths gate + bare-SVG fallback | `layout-session/PLAN.md` §5 | **Path discrepancy:** PLAN cites `backend/src/pipeline/operators/*.py` — no `backend/src/pipeline/` exists; operators live in `backend/src/modulation/` (verified). Re-anchor at expansion. Prototype gate §5.1 runs first. |
 | P5.x Instrument ladder B2→B10 | Voice spine, full sampler, rack, grouping, Frame-Bank, RIFE morph, Granulator, tensor routing, live affordances | `~/Development/entropic-layout-mockup/INSTRUMENTS-BUILD-PLAN.md` | B8 needs SG-3 cherry-pick (#133, +12–18h real work), B9 needs PR-C + SG-5 (#144). Cherry-pick rule §1.3 applies. |
 | P6.x Field params + routing surfaces | C2 frame-as-lane, C3 per-pixel fields (the deferred `domain='y'` render unlock), I1/I2 from drafts #140/#142 | ROADMAP Phase 6; `entropic-spec-2-b4lite-schema.md` | `sample_lane` (`backend/src/modulation/lane_reader.py:92`) is merged but wired nowhere live — C2/C3 wire it. |
-| P7.x Tier 5 latent | **HARD-GATED on Q7 REAL verdict (user runs benchmark)** | `entropic-spec-5-l-backbone.md` §9 | **Discrepancy:** ROADMAP cites `backend/scripts/q7_benchmark/` — NOT on origin/main; the machinery lives only in parked drafts #117–#145 (26 drafts verified open). First packet = cherry-pick the runner chain, then user runs it. |
+| P7.x Tier 5 latent | **HARD-GATED on Q7 REAL verdict (user runs benchmark)** | `entropic-spec-5-l-backbone.md` §9 | **Discrepancy:** ROADMAP cites `backend/scripts/q7_benchmark/` — NOT on origin/main; the machinery lives only in parked drafts #117–#145 (22 drafts verified open, gh 2026-06-11). The runnable 3-head harness is at `~/Development/entropic-q7-clap` (PR #132); user runs it FIRST, harness extraction follows GO. |
 | P8.x `.dna` + Genoscope | E2 format + CI lints (draft #139), SG-6, A2/E8 | `entropic-spec-6-dna-format.md` | Research-class; re-spec at boundary. |
 | P9.x Ecosystem | SG-9 quotas + Ed25519 signing, E7 plugin SDK | ROADMAP Phase 9 | Farthest out. |
 | PT.1 Audio tracks un-flag | 1-week user bake → PR-4 removes `EXPERIMENTAL_AUDIO_TRACKS` (`backend/src/zmq_server.py:52`, verified) + auto-extract (task #46) | `memory/entropic-audio-tracks.md` | Bake is a USER action; packet only after bake. |
-| PT.2 Feature tasks #45/#47 | Region-select preview; gain-meter phase 3 | `memory/entropic-uat-may14.md` | Independent, schedulable anytime. |
+| PT.2 Feature tasks #45/#35 | Region-select preview; per-track metering + dB readout (task #35; #47 closed as spec task) | `memory/entropic-uat-may14.md` | Independent, schedulable anytime. |
 | PT.3 Hotkey epic | 6 unchecked surfaces | issue #65; `docs/plans/2026-05-14-upcoming-ux-items.md` | Pairs naturally with P3.4. |
 | PT.4 Rename residue | `gh repo rename`, dir rename, `ENTROPIC_DIR` const name (already points to `~/.creatrix` — name-only residue), memory slugs | ROADMAP §3 parallel-track 5 | Low risk; do after PR-A settles. |
 | PT.5 Cross-modal v1.1 decision | F1–F4 fold-in vs supersede (Gap G6) | `docs/plans/2026-05-04-cross-modal-features-plan.md` | Decision packet, not build packet. |

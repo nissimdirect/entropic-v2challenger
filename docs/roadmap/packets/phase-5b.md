@@ -18,7 +18,7 @@
 | `backend/src/safety/gpu_resources.py` | ✅ SG-1 lib merged #163 — `GPUResource` protocol, pools, `MockGPUResource`; real Metal binding deferred |
 | `backend/src/safety/latent_sentinel.py` | ❌ NOT on main — exists only in draft worktree `~/Development/entropic-q7-sg3` (branch `feat/q7-sg3-sentinel`, commit `8853d63`, PR #133) |
 | `backend/src/safety/cycle_detection.py` | ❌ NOT on main — draft worktree `~/Development/entropic-q7-sg5` (branch `feat/q7-sg5-cycle-detection`, commit `f877439`, PR #144). **Imports `inspector.routing_graph` which is ALSO not on main** (commit `2d2ac79`, PR #142) |
-| `backend/src/security.py` | ✅ — `MAX_UPLOAD_SIZE` (l.9), `MAX_FRAME_COUNT` (l.39), `MAX_CHAIN_DEPTH` (l.42), `MAX_COMPOSITE_LAYERS` (l.48, INJ-3). **No** `MAX_GRAINS` / `MAX_FRAMEBANK_SLOTS` / `MAX_TOTAL_VOICES_PER_RENDER` / `MAX_TOTAL_EDGES` yet |
+| `backend/src/security.py` | ✅ — `MAX_UPLOAD_SIZE` (l.9), `MAX_FRAME_COUNT` (l.39), `MAX_CHAIN_DEPTH` (l.42), `MAX_COMPOSITE_LAYERS` (l.48, INJ-3). **No** `MAX_GRAINS` / `MAX_FRAMEBANK_SLOTS` / `MAX_TOTAL_VOICES_PER_RENDER` / `MAX_MACRO_EDGES_TOTAL` (P5a.11) / `MAX_MOD_EDGES_TOTAL` (P5b.21) yet |
 | `backend/src/zmq_server.py` | ✅ — `_handle_render_composite` (l.707), `_get_composite_states` (l.669), `_save_composite_states` (l.698), `_max_readers = 10` (l.75), `EXPERIMENTAL_AUDIO_TRACKS` (l.52) |
 | `backend/src/engine/` | ✅ — `pipeline.py`, `compositor.py`, `export.py`, `determinism.py`, `freeze.py`, `cache.py`, `guards.py` |
 | `backend/src/project/schema.py` | ✅ exists (load-time validation mirror lives here) |
@@ -52,8 +52,12 @@ Parked q7 draft branches have **stale merge-bases** (~10+ behind main at park ti
 1. Tests green at the right layer (Vitest / Playwright / pytest).
 2. Every numeric crossing IPC clamped + finite-guarded (`feedback_numeric-trust-boundary`).
 3. No backend cap left as a frontend-only convention.
-4. Determinism gates are **EXPORT-PATH only** — live preview seeds with `Date.now()` (`App.tsx:840,857`) and is non-deterministic by design. Never assert byte-identity against the preview path.
-5. Each packet = its own branch + its own PR (small, reviewable; per SPEC-3 §9 "bundling gates with feature work increases blast radius").
+4. Determinism gates are **EXPORT-PATH only**. (Corrected 2026-06-11 vs origin/main: the old `Date.now()` preview seeds at `App.tsx:840/857` are GONE — preview now uses the reactive project-store seed, HT-4, `App.tsx:153–156`. The export path remains the only surface we assert byte-identity against; never gate on preview-path byte-identity.)
+5. Each packet = its own branch + its own PR (small, reviewable; per SPEC-3 §9 "bundling gates with feature work increases blast radius"). Exception, pre-decided: **P5b.21 + P5b.22 ship as ONE PR** (SPEC-6 Lint-3 lockstep).
+
+### 0.7 Single ownership of safety-gate work
+
+**SG-3 / SG-5 / SG-8 implementation lives HERE (P5b.1–P5b.8) and nowhere else.** `packets/phase-7.md` P7.6 and P7.7a/b/c are VERIFY-ONLY stubs that grep main for these packets' artifacts. Canonical design decisions (this file wins on divergence): SG-8 uses a **poll model** with a `pressure_status` REQ/REP handler (no push channel exists on main); SG-3's per-backbone ceiling table is named **`MAX_L2_NORM_PER_BACKBONE`**; SG-3 frontend toast source is **`sg3-sentinel`** (SG-8's is `sg8-pressure`); the `lane_aborted` abort signal rides the **render reply** (REQ/REP), not a push event.
 
 ### 0.5 Rollback (universal)
 
@@ -189,7 +193,7 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 
 - **ID:** P5b.6 · **Branch:** `feat/p5b-sg5-cycle-pick` · **Base:** `origin/main` · **Est:** ~2h
 - **Depends-on:** none.
-- **Goal:** Land draft #144's `cycle_detection.py` (DFS static detection, deterministic lex-smallest break, `cycle_safe_edge_addition` pre-check, 19 tests). **Hard fact (VERIFIED):** the module does `from inspector.routing_graph import GraphEdge, RoutingGraph` — and `backend/src/inspector/` does NOT exist on main. The payload is therefore TWO commits: `2d2ac79` (PR #142 I2 routing graph: `backend/src/inspector/routing_graph.py` +237, test +272) then `f877439` (PR #144: `backend/src/safety/cycle_detection.py` +177, test +278).
+- **Goal:** Land draft #144's `cycle_detection.py` (DFS static detection, deterministic lex-smallest break, `cycle_safe_edge_addition` pre-check, 19 tests). **Hard fact (VERIFIED):** the module does `from inspector.routing_graph import GraphEdge, RoutingGraph` — and `backend/src/inspector/` does NOT exist on main. The payload is therefore TWO commits: `2d2ac79` (PR #142 I2 routing graph: `backend/src/inspector/routing_graph.py` +237, test +272) then `f877439` (PR #144: `backend/src/safety/cycle_detection.py` +177, test +278) — **plus the package init `backend/src/inspector/__init__.py`: cherry-pick it if `2d2ac79` carries it, else CREATE it in this packet** (the init otherwise lives only in #140's `d85828e`, which is Phase-6 P6.7's payload — do not pick that commit here). **P5b.6 is the SOLE owner/closer of #142's graph payload**; Phase-6 P6.9 is rescoped to graph-sync wiring only on top of this.
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   cd ~/Development/entropic-q7-sg5 && git branch --show-current      # MUST print: feat/q7-sg5-cycle-detection — else STOP
@@ -198,9 +202,9 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
   git show --stat f877439   # MUST be exactly 2 NEW files (safety/cycle_detection.py + test) — else STOP
   git ls-tree origin/main backend/src/inspector backend/src/safety/cycle_detection.py  # MUST be EMPTY — else STOP
   ```
-- **Scope:** exactly the 4 files in those 2 commits. The branch carries the whole q7 stack (PRs #3–#26) — everything else is NOT payload.
+- **Scope:** exactly the 4 files in those 2 commits, plus `backend/src/inspector/__init__.py` (picked-or-created per Goal). The branch carries the whole q7 stack (PRs #3–#26) — everything else is NOT payload.
 - **DO-NOT-TOUCH:** all other commits on the draft branch; `modulation/engine.py` (P5b.7 owns integration).
-- **Steps:** fresh worktree off `origin/main` → `git cherry-pick 2d2ac79 f877439` → any conflict = STOP per §0.2. PR body must note: this lands the I2 backend graph as an SG-5 dependency, partially extracting draft #142 — comment on both #142 and #144 that their payloads landed (close #144 once merged).
+- **Steps:** fresh worktree off `origin/main` → `git cherry-pick 2d2ac79 f877439` → ensure `backend/src/inspector/__init__.py` exists (create if the pick didn't bring it) → any other conflict = STOP per §0.2. PR body must note: this lands the I2 backend graph as an SG-5 dependency, extracting draft #142's graph payload — **only P5b.6 closes #142's graph payload** (comment on #142 and #144; close #144 once merged; #142 closes pointing here, with P6.9 handling only the remaining graph-sync wiring).
 - **TEST PLAN:** `python -m pytest tests/test_q7_benchmark/test_routing_graph.py tests/test_q7_benchmark/test_cycle_detection.py -x --tb=short` (expect 25+19 pass per the commit messages — actual counts from run are authoritative) → full backend suite.
 - **ACCEPTANCE GATES:** both payload test files green; `git diff origin/main --stat` = exactly 4 files; zero suite regressions.
 - **ROLLBACK:** delete branch / revert; both modules are leaf-namespace.
@@ -307,9 +311,9 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **ID:** P5b.12 · **Branch:** `feat/p5b-b6-determinism` · **Base:** `origin/main` · **Est:** ~3h
 - **Depends-on:** P5b.11 merged.
 - **PRECONDITIONS:** `git grep -n "FrameBankDevice" origin/main -- frontend/src` non-empty — else STOP.
-- **Goal:** B6's OUT-gates from the build plan: position-LFO sweep determinism (seeded, **EXPORT PATH** per §0.4 — never preview), byte-budget eviction under render load, SG-8 degrade drops to proxy not crash.
+- **Goal:** B6's OUT-gates from the build plan: position-LFO sweep determinism (seeded, **EXPORT PATH** per §0.4 — never assert byte-identity on preview), byte-budget eviction under render load, SG-8 degrade drops to proxy not crash.
 - **Scope:** test-only + small fixes it flushes out: `backend/tests/test_instruments/test_frame_bank_determinism.py`, a committed fixture project with a frame-bank + position LFO, export-path harness reuse from `engine/determinism.py` (VERIFIED exists).
-- **DO-NOT-TOUCH:** preview seeding (`App.tsx:840,857` is wall-clock by design).
+- **DO-NOT-TOUCH:** preview seeding (project-store seed, HT-4 `App.tsx:153–156` — corrected §0.4; the old `Date.now()` sites at 840/857 no longer exist).
 - **Steps:** fixture project → export twice → byte-compare; export under artificially tiny byte budget → completes on proxies, hashes still self-consistent within a run; SG-8 forced `auto_disable` mid-export → no crash, degrade logged.
 - **TEST PLAN:** named: `test_position_lfo_export_byte_identical_across_runs`, `test_export_under_tiny_budget_completes_on_proxies`, `test_sg8_degrade_during_export_no_crash`, `test_edit_after_capture_replay_identical` (universal OUT-gate #4 wording). Full backend suite.
 - **ACCEPTANCE GATES:** two consecutive exports byte-identical; OOM path provably converts to proxy; **B6 done** in ROADMAP terms.
@@ -451,7 +455,7 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **ID:** P5b.20 · **Branch:** `feat/p5b-b8-determinism` · **Base:** `origin/main` · **Est:** ~3h
 - **Depends-on:** P5b.19.
 - **PRECONDITIONS:** `git grep -n "GranulatorDevice" origin/main -- frontend/src` non-empty — else STOP.
-- **Goal:** B8 OUT-gates: seeded grain replay byte-identical on the **export path** (preview seed is wall-clock — §0.4); SG-8 density degrade under pressure during export; GPU leak == 0 (pool accounting; Mock until Metal); malformed-event fuzz.
+- **Goal:** B8 OUT-gates: seeded grain replay byte-identical on the **export path** (export-path-only rule, §0.4 as corrected — preview uses the project-store seed); SG-8 density degrade under pressure during export; GPU leak == 0 (pool accounting; Mock until Metal); malformed-event fuzz.
 - **Scope:** fixture project + `backend/tests/test_instruments/test_granulator_determinism.py`; bugfixes it flushes (separately revertable commits).
 - **TEST PLAN:** named: `test_seeded_export_byte_identical_x2`, `test_edit_after_capture_export_identical`, `test_sg8_degrade_during_export_no_crash_and_logged`, `test_gpu_pool_leak_zero_after_500_frames`, `test_fuzz_malformed_grain_params_rejected`. Full backend suite.
 - **ACCEPTANCE GATES:** byte-identity ×2; **B8-core done**; carve-outs (GPU pass, latentSimilarity impl) filed as named follow-up issues in the PR body.
@@ -477,11 +481,13 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
   git grep -n "TIER_1_BINDING_RULES" origin/main -- frontend/src/shared/axis-binding.ts   # non-empty (VERIFIED today) — else STOP
   git grep -n "src_axis\|srcAxis" origin/main -- frontend/src/shared/types.ts
   #   EMPTY = this packet adds them; non-empty = someone already extended OperatorMapping → re-scope to widening only
+  git grep -n "MAX_MOD_EDGES_TOTAL" origin/main -- backend/src/security.py
+  #   MUST be EMPTY (this packet adds it; distinct from P5a.11's MAX_MACRO_EDGES_TOTAL macro-route cap) — non-empty → re-scope, STOP
   ```
-- **Goal:** (1) extend `OperatorMapping` with optional `srcAxis`/`dstAxis`/`bindingRule` (camelCase TS ↔ snake_case Python via the existing IPC serialization layer — repo convention, VERIFIED in CLAUDE.md) defaulting `'t'/'t'/'broadcast'`; (2) **widen the tier accept-set from `{broadcast}` to `{broadcast, sampleAt, scanOver, integrate}` IN THE SAME PR as the renderer impl lands** — per SPEC-2 §3.1 + SPEC-6 Lint-3 the widening must be lockstep, so this packet lands the widened constant behind a build-time guard that P5b.22's engine impl flips (the two PRs merge back-to-back; if forced to choose, fold this packet INTO P5b.22 rather than violate Lint-3 — note it in PR); (3) `backend/src/project/schema.py` rejects (or coerces to `broadcast` — pick REJECT, matching SPEC-2 §4's no-silent-fallback row) any `bindingRule` outside the accept-set and any flagged rule (`painted/hilbert/polar/learned`) with flag off — **the trust boundary is the loader, not the UI** (build-plan B9 flag-enforcement paragraph).
-- **Scope (VERIFIED paths):** `frontend/src/shared/types.ts` (OperatorMapping append), `frontend/src/shared/axis-binding.ts` (tier constant), `frontend/src/renderer/stores/operators.ts` (validator on `addMapping/updateMapping` — VERIFIED those actions at l.162/211), `frontend/src/renderer/stores/automation.ts`, `backend/src/project/schema.py`, `backend/src/security.py` (`MAX_TOTAL_EDGES` append), tests both layers.
+- **Goal:** (1) extend `OperatorMapping` with optional `srcAxis`/`dstAxis`/`bindingRule` (camelCase TS ↔ snake_case Python via the existing IPC serialization layer — repo convention, VERIFIED in CLAUDE.md) defaulting `'t'/'t'/'broadcast'`; (2) **widen the tier accept-set from `{broadcast}` to `{broadcast, sampleAt, scanOver, integrate}` IN THE SAME PR as the renderer impl lands** — per SPEC-2 §3.1 + SPEC-6 Lint-3 the widening must be lockstep. **Pre-decided: P5b.21 + P5b.22 ship as ONE PR** (one branch, both packets' scopes and test plans; Lint-3 satisfied by construction); (3) `backend/src/project/schema.py` rejects (or coerces to `broadcast` — pick REJECT, matching SPEC-2 §4's no-silent-fallback row) any `bindingRule` outside the accept-set and any flagged rule (`painted/hilbert/polar/learned`) with flag off — **the trust boundary is the loader, not the UI** (build-plan B9 flag-enforcement paragraph).
+- **Scope (VERIFIED paths):** `frontend/src/shared/types.ts` (OperatorMapping append), `frontend/src/shared/axis-binding.ts` (tier constant), `frontend/src/renderer/stores/operators.ts` (validator on `addMapping/updateMapping` — VERIFIED those actions at l.162/211), `frontend/src/renderer/stores/automation.ts`, `backend/src/project/schema.py`, `backend/src/security.py` (`MAX_MOD_EDGES_TOTAL` append — mod-routing edge cap, distinct from P5a.11's `MAX_MACRO_EDGES_TOTAL`), tests both layers.
 - **DO-NOT-TOUCH:** the 8-member `BindingRule` union itself (already canonical on main); lane evaluation renderer (P5b.22/23); `.dna` round-trip rules (SPEC-6 territory).
-- **TEST PLAN:** Vitest: `accepts broadcast/sampleAt/scanOver/integrate post-widening`, `rejects painted/hilbert/polar/learned on save when flag off`, `old mapping without axis fields gets defaults`, `non-finite depth rejected`. pytest `tests/test_project/test_b9_schema.py`: `test_load_rejects_flagged_binding_rule_flag_off`, `test_load_accepts_defaults_for_missing_fields`, `test_max_total_edges_enforced`, `test_hand_edited_learned_rule_rejected_with_clear_error`. Full suites.
+- **TEST PLAN:** Vitest: `accepts broadcast/sampleAt/scanOver/integrate post-widening`, `rejects painted/hilbert/polar/learned on save when flag off`, `old mapping without axis fields gets defaults`, `non-finite depth rejected`. pytest `tests/test_project/test_b9_schema.py`: `test_load_rejects_flagged_binding_rule_flag_off`, `test_load_accepts_defaults_for_missing_fields`, `test_max_mod_edges_total_enforced`, `test_hand_edited_learned_rule_rejected_with_clear_error`. Full suites.
 - **ACCEPTANCE GATES:** SPEC-2 §8 checklist rows for validator + backward-compat pass; a hand-edited project file with `bindingRule:'learned'` fails to load with a clear error.
 - **ROLLBACK:** revert PR — fields optional, removal restores old behavior (SPEC-2 §10 pattern).
 - **EVIDENCE:** vitest+pytest output; the rejection error message text.
@@ -500,7 +506,7 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **Scope (VERIFIED paths):** `backend/src/modulation/engine.py` + `backend/src/modulation/routing.py` (`resolve_routings` — read first), axis-edge extension to the SG-5 adapter (P5b.7's), `frontend/.../performance/applyCCModulations.ts` only if live-preview parity demands (export authority is backend), tests.
 - **DO-NOT-TOUCH:** `_topological_sort` core; SG-5 break ordering; effect param schemas.
 - **TEST PLAN:** pytest named: `test_broadcast_identical_to_legacy_scalar`, `test_sampleAt_reads_single_index`, `test_scanOver_produces_per_row_vector`, `test_integrate_cumulative_over_axis`, `test_field_destination_rejected_flag_off`, `test_axis_edge_cycle_detected_via_sg5` (direct/n-hop/axis-bound per build-plan test list), `test_edge_depth_clamped_finite`. Full backend suite.
-- **ACCEPTANCE GATES:** per-binding-rule correctness vs hand-computed fixtures; legacy projects render byte-identically (broadcast == old behavior); tier-widening guard from P5b.21 flipped in THIS PR (Lint-3 lockstep satisfied across the pair — or the two packets shipped as one PR, see P5b.21).
+- **ACCEPTANCE GATES:** per-binding-rule correctness vs hand-computed fixtures; legacy projects render byte-identically (broadcast == old behavior); Lint-3 lockstep satisfied by construction — **P5b.21 + P5b.22 ship as ONE PR (pre-decided, see P5b.21)**.
 - **ROLLBACK:** revert; broadcast-only behavior restored, schema stays (validator re-narrows via the P5b.21 guard).
 - **EVIDENCE:** pytest output; fixture-vs-output diffs.
 
@@ -524,7 +530,9 @@ B6/B8 depend on B5 (grouping), B10 depends on B2 (voice spine) + B4 (rack) — *
 - **PRECONDITIONS (mismatch → STOP):**
   ```bash
   git grep -rln "xyflow\|react-flow" origin/main -- frontend/src frontend/package.json | head -2
-  #   EMPTY → PR-C's graph substrate absent → STOP (do not hand-roll a parallel graph lib; feedback_read-existing-component-before-parallel-build)
+  git grep -rln "OperatorTopologyGraph" origin/main -- frontend/src | head -2
+  #   PASS if EITHER xyflow is present OR OperatorTopologyGraph.tsx (P4.5's bare-SVG FAIL-branch implementation) is present —
+  #   both EMPTY → PR-C's graph substrate absent → STOP (do not hand-roll a parallel graph lib; feedback_read-existing-component-before-parallel-build)
   git grep -n "scanOver" origin/main -- backend/src/modulation/   # P5b.22 merged — else STOP
   ```
 - **Goal:** Build-plan B9 UI: compact topology graph (modulator→target lines, depth = line thickness, color per source), per-edge `srcAxis`/`dstAxis` pickers + binding-rule + depth arc (Bitwig-style); painted/learned hidden behind the research toggle; `cycle_safe_edge_addition` (P5b.6's, VERIFIED in `cycle_detection.py`) called as the pre-flight check before committing an edge add.
@@ -604,10 +612,12 @@ Gated on Phase-5a (B5 / B2+B4) merging:
   P5b.25 → P5b.26 → P5b.27      (B10; needs B2+B4)
 
 Gated on PR-B #157/#158 + PR-C:
-  P5b.21 (+/=) P5b.22 → P5b.23 → P5b.24         (B9; also needs SG-5 GREEN)
+  P5b.21+P5b.22 (ONE PR, pre-decided) → P5b.23 → P5b.24   (B9; also needs SG-5 GREEN)
 
 Gated on B6+B7 both landed:
   P5b.15                        (flow wiring)
 ```
+
+**PR-A gates:** P5b.11 and P5b.19 additionally carry PR-A instruments-tab preconditions (the browser instruments tab must exist before their UI mounts — see each packet's STOP checks).
 
 **Carve-outs filed, not packetized:** B8 GPU quad/shader pass + real Metal binding (deferred by #163), B8 `latentSimilarity` full impl, C2/C3 per-pixel field destinations (B9 ships them flag-rejected), E6 modal live mode (explicitly NOT B10 per build plan).

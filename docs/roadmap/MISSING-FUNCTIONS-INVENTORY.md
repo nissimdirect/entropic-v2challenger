@@ -84,7 +84,7 @@ Has today: trim in/out, split, duplicate (Alt+drag), constant speed, reverse, ga
 | Plugin/extension API | "I write my own effect in Python." | **Yes — E7 Plugin SDK + SG-9 (Tier 7)** | — | — | No |
 | VST/AU hosting | "Load my audio plugins." | PRD "way later", no tier | P3 | L | No |
 
-Has today: per-track effect chains (171 effects), drag-reorder, bypass, dry/wet container, device groups (metadata), single-effect + chain presets with factory library.
+Has today: per-track effect chains (~214 effects — registry count drifts; treat the ROADMAP §0 ledger as live), drag-reorder, bypass, dry/wet container, device groups (metadata), single-effect + chain presets with factory library.
 
 ### 2.4 Automation & Modulation
 

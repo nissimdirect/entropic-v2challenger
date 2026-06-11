@@ -272,7 +272,7 @@
   ```
   git -C ~/Development/entropic-v2challenger grep -rli "genoscope" origin/main -- backend/src frontend/src | wc -l   # expect 0 — greenfield
   git ls-tree origin/main backend/src/cancellation.py                                                                # P8.11 merged
-  cd ~/Development/entropic-v2challenger/backend && python -c "from effects.registry import *" 2>&1 | head -1        # adjust import to actual registry module; STOP if effects registry not importable headless
+  cd ~/Development/entropic-v2challenger/backend && python3 -c "import sys; sys.path.insert(0,'src'); from effects.registry import _REGISTRY, register; print(len(_REGISTRY))"   # PINNED (verified 2026-06-11): registry = backend/src/effects/registry.py — `_REGISTRY: dict[str, dict]` at :8, `def register(effect_id, fn, params, name, category)` at :38. STOP if not importable headless or count < 200
   ```
 - **scope (VERIFIED paths):** spike code quarantined under new `backend/scripts/genoscope_spike/` (pattern: `backend/scripts/demo_trilogy/` exists on main for exactly this kind of runner) + the report doc. Spike code is throwaway-grade but committed for reproducibility.
 - **DO-NOT-TOUCH:** `backend/src/**` (no production modules from a spike); frontend.
@@ -329,9 +329,21 @@
 - **ID:** P8.15 · **branch:** `spike/e8-vibe-fitness` · **base:** `origin/main`
 - **depends-on:** P8.13 (fitness interface defined there); **HARD-BLOCKED on Q7 REAL verdict** for the embedding heads (CLIP text/image, CLAP audio live only on q7 branches — `git grep -l "clip" origin/main -- backend/src` is empty). If Q7 = NO-GO, this packet is cancelled (documented fallback: A2 ships degraded fitness only).
 - **goal:** Measured report `docs/decisions/DEC-E8-001-fusion-fitness.md`: can clip + still + text + audio + existing-patch + latent-point inputs be normalized into ONE fitness scalar (vision E8 row)? Measure: per-head encode latency on this Mac, cross-modal score correlation on a 10-example probe set (does text "warm grainy dusk" rank a warm grainy render above a cold clean one for ≥8/10 hand-built pairs?), fusion weighting strategy comparison (mean vs learned-free rank fusion).
-- **PRECONDITIONS (mismatch → STOP):**
-  ```
-  test -f ~/.entropic/q7-report.json && python3 -c "import json;d=json.load(open('$HOME/.entropic/q7-report.json'));print(d.get('verdict'))"   # must print TIER_5_GO from a REAL run — the existing mock verdict does NOT satisfy this (G1); STOP otherwise
+- **PRECONDITIONS (mismatch → STOP):** run phase-7's canonical G-CHECK verbatim (quoted below), then check the spec exists:
+  ```bash
+  python3 - <<'EOF'
+  import json, pathlib, sys
+  p = pathlib.Path.home() / ".entropic" / "q7-report.json"
+  if not p.exists():
+      sys.exit("STOP: REAL Q7 verdict file missing at ~/.entropic/q7-report.json. Run P7.0.")
+  d = json.loads(p.read_text())
+  if d.get("backend") == "mock":
+      sys.exit("STOP: verdict file is from the MOCK backend. Not acceptable. Run P7.0.")
+  state = d.get("verdict", {}).get("state")
+  if state != "TIER_5_GO":
+      sys.exit(f"STOP: verdict is {state!r}. Phase 7 is gated. See P7.0N (NO-GO branch).")
+  print(f"GATE OK: TIER_5_GO on backend={d['backend']} p95={d['verdict']['canonical_p95_ms']}ms")
+  EOF
   ls docs/roadmap/specs/entropic-spec-8-genoscope.md
   ```
 - **scope:** `backend/scripts/e8_spike/` + report doc only. **DO-NOT-TOUCH:** production packages.
