@@ -6,6 +6,18 @@
 import { create } from 'zustand'
 import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode } from '../../shared/types'
 import { isTriggerLane } from '../utils/automation-evaluate'
+import { validateLaneAxisBinding, type LaneAxisBinding, type Axis } from '../../shared/axis-binding'
+
+// PR-B Commit-2: SPEC-2 Tier-1 also restricts the DOMAIN to t/y/x (c/f/l are
+// Tier-4+). The canonical validateLaneAxisBinding only tier-gates bindingRule, so
+// we add this domain guard to match the spec. Returns null if ok, else an error.
+const TIER1_DOMAINS: ReadonlyArray<Axis> = ['t', 'y', 'x']
+function validateLaneAxisTier1(binding: LaneAxisBinding): string | null {
+  if (!TIER1_DOMAINS.includes(binding.domain)) {
+    return `domain '${binding.domain}' requires a later tier; Tier 1 supports t, y, x`
+  }
+  return validateLaneAxisBinding(binding, 1)
+}
 
 // PR-B Commit-1: map the legacy TriggerMode arg to the unified InterpolationMode.
 // 'toggle' has no lane equivalent (it's a Pad behavior) → treated as 'gate'.
@@ -36,6 +48,7 @@ interface AutomationState {
   removeLane: (trackId: string, laneId: string) => void
   clearLane: (trackId: string, laneId: string) => void
   setLaneVisible: (trackId: string, laneId: string, visible: boolean) => void
+  setLaneAxisBinding: (trackId: string, laneId: string, binding: LaneAxisBinding | undefined) => void
   simplifyLane: (trackId: string, laneId: string, tolerance: number) => void
 
   // Point CRUD
@@ -231,6 +244,42 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     }
 
     undoable(`${visible ? 'Show' : 'Hide'} automation lane`, forward, inverse)
+  },
+
+  // PR-B Commit-2: set/clear a lane's B4-lite axis binding (Tier-1 gated).
+  // Rejects non-broadcast rules / non-t/y/x domains on write (writer-side validator,
+  // mirrors backend modulation.schema.validate_for_save). Pass undefined to clear.
+  setLaneAxisBinding: (trackId, laneId, binding) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+
+    if (binding) {
+      const err = validateLaneAxisTier1(binding)
+      if (err) {
+        useToastStore.getState().addToast({ level: 'warning', message: err, source: 'automation' })
+        return
+      }
+    }
+    const oldBinding = lane.axisBinding
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, axisBinding: binding } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, axisBinding: oldBinding } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(binding ? `Set lane axis → ${binding.domain}` : 'Clear lane axis', forward, inverse)
   },
 
   simplifyLane: (trackId, laneId, tolerance) => {
@@ -529,6 +578,11 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         mode: (['smooth', 'step', 'gate', 'oneShot'] as const).includes(lane.mode)
           ? lane.mode
           : 'smooth',
+        // PR-B Commit-2: drop an axisBinding that fails the Tier-1 validator
+        // (forward-compat: a file written by a future tier won't crash this one).
+        axisBinding: lane.axisBinding && validateLaneAxisTier1(lane.axisBinding) === null
+          ? lane.axisBinding
+          : undefined,
         // Filter out invalid points and sort by time for binary search
         points: lane.points
           .filter((p) =>

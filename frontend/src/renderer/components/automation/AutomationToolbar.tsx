@@ -8,7 +8,16 @@ import { useAutomationStore, type AutomationMode } from '../../stores/automation
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import type { TriggerMode } from '../../../shared/types'
+import type { Axis } from '../../../shared/axis-binding'
 import { FF } from '../../../shared/feature-flags'
+
+// PR-B Commit-2: Tier-1 selectable axis domains. y/x persist + validate now but
+// only render once C2/C3 (per-pixel parameter fields) lands; 't' = today's behavior.
+const TIER1_DOMAINS: { value: Axis; label: string }[] = [
+  { value: 't', label: 'Time' },
+  { value: 'y', label: 'Y (scanline)' },
+  { value: 'x', label: 'X (scanline)' },
+]
 
 const MODES: { value: AutomationMode; label: string; title: string }[] = [
   { value: 'read', label: 'R', title: 'Read — playback only' },
@@ -36,6 +45,7 @@ export default function AutomationToolbar() {
   const tracks = useTimelineStore((s) => s.tracks)
   const armedTrack = tracks.find((t) => t.id === armedTrackId)
   const [pickerMode, setPickerMode] = useState<'lane' | 'trigger' | null>(null)
+  const [pickDomain, setPickDomain] = useState<Axis>('t')
 
   const handleModeChange = useCallback((newMode: AutomationMode) => {
     useAutomationStore.getState().setMode(newMode)
@@ -108,8 +118,18 @@ export default function AutomationToolbar() {
     } else {
       autoState.addLane(armedTrackId, option.effectId, option.paramKey, color)
     }
+    // PR-B Commit-2: apply the chosen axis domain to the just-added lane (t = none).
+    if (pickDomain !== 't') {
+      const lanes = autoState.getLanesForTrack(armedTrackId)
+      const newLane = lanes[lanes.length - 1]
+      if (newLane) {
+        autoState.setLaneAxisBinding(armedTrackId, newLane.id, {
+          domain: pickDomain, bindingRule: 'broadcast', interpolationMode: 'linear',
+        })
+      }
+    }
     setPickerMode(null)
-  }, [armedTrackId, pickerMode])
+  }, [armedTrackId, pickerMode, pickDomain])
 
   const paramOptions = pickerMode ? getAvailableParams() : []
 
@@ -188,6 +208,18 @@ export default function AutomationToolbar() {
           <div className="auto-toolbar__picker-title">
             {pickerMode === 'trigger' ? 'Add Trigger Lane' : 'Add Automation Lane'}
           </div>
+          <label className="auto-toolbar__picker-domain" title="Axis the lane's curve reads along. Y/X are schema-ready but render once per-pixel fields (C2/C3) land.">
+            Domain:{' '}
+            <select
+              data-testid="lane-domain-select"
+              value={pickDomain}
+              onChange={(e) => setPickDomain(e.target.value as Axis)}
+            >
+              {TIER1_DOMAINS.map((d) => (
+                <option key={d.value} value={d.value}>{d.label}</option>
+              ))}
+            </select>
+          </label>
           {paramOptions.length === 0 ? (
             <div className="auto-toolbar__picker-empty">
               No available parameters (add effects or all params mapped)
