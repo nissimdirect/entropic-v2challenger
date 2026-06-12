@@ -468,17 +468,17 @@ browser/layout component is an automatic FAIL.
 | P8.x `.dna` + Genoscope | E2 format + CI lints (draft #139), SG-6, A2/E8 | `entropic-spec-6-dna-format.md` | Research-class; re-spec at boundary. |
 | P9.x Ecosystem | SG-9 quotas + Ed25519 signing, E7 plugin SDK | ROADMAP Phase 9 | Farthest out. Demoted to if-ever (ROADMAP §2.5 decision 3). |
 | PT.1 Audio tracks un-flag | 1-week user bake → PR-4 removes `EXPERIMENTAL_AUDIO_TRACKS` (`backend/src/zmq_server.py:51–54`, re-verified 2026-06-11) + auto-extract (task #46) | `memory/entropic-audio-tracks.md` | Bake is a USER action; packet only after bake. |
-| PT.2 Feature tasks #45/#35 | Region-select preview; per-track metering + dB readout (task #35; #47 closed as spec task) | `memory/entropic-uat-may14.md` | Independent, schedulable anytime. |
+| PT.2 Feature tasks #45/#35 | ~~Region-select preview~~ **task #45 SUPERSEDED by MK.4/MK.9 (masking Phase A)** · per-track metering + dB readout (task #35; #47 closed as spec task) | `memory/entropic-uat-may14.md` | task #45 absorbed: see `packets/masking.md` MK.4 + MK.9; task #35 schedulable anytime. |
 | PT.3 Hotkey epic | 6 unchecked surfaces | issue #65; `docs/plans/2026-05-14-upcoming-ux-items.md` | Pairs naturally with P3.4. |
 | PT.4 Rename residue | `gh repo rename`, dir rename, `ENTROPIC_DIR` const name (already points to `~/.creatrix` — name-only residue), memory slugs | ROADMAP §3 parallel-track 5 | Low risk; do after PR-A settles. |
 | PT.5 Cross-modal v1.1 decision | F1–F4 fold-in vs supersede (Gap G6) | `docs/plans/2026-05-04-cross-modal-features-plan.md` | Decision packet, not build packet. RESOLVED by ROADMAP §2.5 decision 1 — expansion = doc-sync only. |
 | **UH.x Undo/history** | Coverage audit + voice-FSM/mod-edge/rack-op undo + painted-field history + 500-entry memory smoke | **`packets/undo-history.md`** (authored 2026-06-11, full contracts — not a stub) | UH.1/UH.5 schedulable Phase-1-adjacent; UH.2/UH.3 track P5a; UH.4 tracks C3. |
 | **PERF.x Frame-budget** | Measurement harness + CI perf smoke against the global budget | **`docs/roadmap/PERF-MODEL.md`** (authored 2026-06-11, full contracts — not a stub) | PERF.1 schedulable now; PERF.2 after PERF.1 baseline commits. Every effect/instrument packet's perf gate derives from this doc. |
+| **MK.x Masking Phase A** | MK.1–MK.10 + MK.CU: matte model, per-pixel alpha, **universal mask-routing wrapper (MK.3 — HEADLINE)**, marquee/lasso/wand/color-range/key tools, cut-to-track, alpha export, CU journey suite | **`packets/masking.md`** (authored 2026-06-12, full §1 contracts — NOT a stub; 14 packets + CU) | Slot AFTER Phase 2. MK.1 start-now parallel-safe. MK.2 single-flight on `compositor.py` (P2.2c already satisfied, SPEC GT-8). MK.4 supersedes PD.5; MK.9 supersedes PD.6. **MK.CU J1–J5 activates in the rule-9 live-smoke rotation once Phase A merges** (see §1 rule 9). Phase B (MK.11–MK.14) slots Tier-3/Phase-6 era. |
 
 ---
 
-
-**Masking workstream (Phase 2.5):** MK.1–MK.9 + MK.CU per `packets/masking.md` — slot after Phase 2; MK.2 single-flight on compositor.py; MK.CU's J1–J5 joins the rule-9 live-smoke rotation once Phase A merges. D1–D7 locked in SELECTION-MASKING-SPEC §14.
+**Masking workstream (Phase 2.5):** MK.1–MK.9 + MK.CU per `packets/masking.md` — slot after Phase 2; MK.2 single-flight on `compositor.py`; MK.CU's J1–J5 **joins the rule-9 live-smoke rotation once Phase A merges** (the 5-flow smoke gains a 6th masking check: open the MK test project, assign a rect matte, verify the routed effect applies only inside the matte region); MK.1 start-now parallel-safe; MK.4/MK.9 supersede PD.5/PD.6 (task #45); MK.12 tool-tab gate already satisfied (PR-A complete on main). D1–D7 locked in SELECTION-MASKING-SPEC §14.
 ## 6. Verification protocol for the orchestrator
 
 Per-packet, **never batch** — batch-then-verify produced the 170-finding audit

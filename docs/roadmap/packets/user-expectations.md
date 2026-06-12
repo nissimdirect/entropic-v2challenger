@@ -170,6 +170,7 @@ All independent after P1.0:   UE.1, UE.2, UE.3, UE.4, UE.5, UE.6, UE.7
 stores/timeline.ts hotspot:   UE.1 / UE.2 / UE.3 / UE.7 touch it — run at most two concurrently, rebase check between merges (§1 single-flight spirit)
 zmq dispatch hotspot:         UE.6 queues behind any other in-flight zmq_server.py packet (PD.4, PD.7, P2.x)
 Cross-references:             UE.3 ↔ PD.5 (same marquee pattern, different surface) · UE.3 closes PD.15's rangeSelectClips row · #7 transitions = PD.13 · full §1 disposition = PD.14
+**task #45 (region-select preview) SUPERSEDED:** MK.4 (`packets/masking.md`) absorbs task #45a; MK.9 absorbs task #45b. Do not build PD.5 or PD.6 — the masking workstream owns this scope entirely.
 ```
 
 ---

@@ -101,6 +101,23 @@ Operator packets budget against stage 3: ≤ 0.15 ms per operator instance, meas
 operator probe at 32 routing paths (the P4.x xyflow gate's 60 fps @ 32 paths is the FRONTEND half
 of the same constraint).
 
+### 3.3 Masking / matte ops effect-class assignments (MK workstream — 2026-06-12)
+
+Matte operations integrate into the existing stage-2 budget (effects chain) and stage-4 budget
+(composite). Every masking packet must declare one of the classes below:
+
+| Operation | Class | Budget @1080p | Notes |
+|---|---|---:|---|
+| **Mask multiply** (matte × layer alpha, the MK.2/MK.4 `delete-in/out` path — `a' = a·m` or `a' = a·(1−m)` on one 1080p layer) | **A** | ≤ 0.3 ms | Pure numpy element-wise multiply on a (H,W) float32 already allocated; no extra allocations on the fast path |
+| **Mask-routing blend** (MK.3 per-device or per-chain `out = dry·(1−m) + wet·m` at 1080p, one device) | **B** | ≤ 1.0 ms | One dry-snapshot + one blend per masked device; `test_masked_device_blend_under_1ms` in MK.3 gates this |
+| **Key evaluation** (MK.8 chroma/luma/color-range procedural matte re-evaluated per frame at 1080p) | **B** | ≤ 1.0 ms | HSV distance + softness + spill suppression; no GPU; matches class-B convolution budget |
+| **Static matte resolve from cache** (LRU hit on a rect/ellipse/polygon node, MK.1) | **A** | ≤ 0.1 ms | Cache hit = memcpy of a pre-rasterized float32 slab; `test_cache_hit_resolve_under_1ms` gates |
+| **Static matte rasterize** (cache miss — rect/ellipse/polygon computed fresh @1080p) | **B** | ≤ 1.0 ms | Analytic fill; polygon with ≤256 vertices via cv2 |
+| **Magic wand flood-fill** (MK.6 bitmap node bake at pickup frame) | **C** | > 1.0 ms; MUST bake to static sidecar before preview | One-time bake at interaction time, NOT per-frame; cached as PNG sidecar; subsequent frames are cache hits (class A after bake) |
+| **RVM figure matte** (MK.12 offline job — NOT in the per-frame render path) | Out-of-budget | — | Offline pre-compute job; produces a cached matte video; per-frame lookup = class-A frame read |
+
+**Ledger-correction note for masking spec authors:** SELECTION-MASKING-SPEC §13 does not assign PERF-MODEL classes to matte ops. The table above IS the correction — masking packets must cite it in their `## TEST PLAN` perf gate lines. If any MK packet's measured p95 exceeds its declared class budget, file a `ledger-correction` note in that packet's PR body pointing back to this table (ROADMAP §3 rule 8 pattern).
+
 ---
 
 ## 4. PERF.1 — Measurement harness (packet)
