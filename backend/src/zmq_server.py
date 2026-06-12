@@ -51,6 +51,13 @@ from video.ingest import generate_thumbnails, probe, probe_image
 from video.reader import VideoReader
 import diagnostics as _diagnostics_mod
 import os
+from inspector.inline_actions import (
+    ActionContext,
+    ActionContextKind,
+    global_inline_actions,
+    reset_global_inline_actions_for_testing as _reset_inline_actions,
+)
+from inspector.routing_graph import global_routing_graph
 
 
 def _experimental_audio_tracks_enabled() -> bool:
@@ -418,6 +425,10 @@ class ZMQServer:
             return self._handle_thumbnails(message, msg_id)
         elif cmd == "export_frame":
             return self._handle_export_frame(message, msg_id)
+        elif cmd == "inline_actions_list":
+            return self._handle_inline_actions_list(message, msg_id)
+        elif cmd == "inline_actions_invoke":
+            return self._handle_inline_actions_invoke(message, msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -2090,6 +2101,84 @@ class ZMQServer:
                 "percent": -1,
                 "available_mb": -1,
             }
+
+    # ── I3 Inline Probe handlers ─────────────────────────────────────────────
+
+    def _handle_inline_actions_list(self, message: dict, msg_id: str | None) -> dict:
+        """List eligible inline actions for a given context.
+
+        Expected payload:
+          {cmd: "inline_actions_list", kind: str, node_id: str,
+           param_path?: str, track_id?: str}
+        Returns:
+          {ok: True, actions: [{id, label, shortcut}]}
+        """
+        kind_str = message.get("kind", "")
+        node_id = message.get("node_id", "")
+        if not kind_str or not node_id:
+            return {"id": msg_id, "ok": False, "error": "missing kind or node_id"}
+        try:
+            kind = ActionContextKind(kind_str)
+        except ValueError:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": f"unknown action context kind: {kind_str!r}",
+            }
+        ctx = ActionContext(
+            kind=kind,
+            node_id=node_id,
+            param_path=message.get("param_path") or None,
+            track_id=message.get("track_id") or None,
+        )
+        actions = global_inline_actions().list_actions_for(ctx)
+        return {
+            "id": msg_id,
+            "ok": True,
+            "actions": [
+                {"id": a.id, "label": a.label, "shortcut": a.shortcut} for a in actions
+            ],
+        }
+
+    def _handle_inline_actions_invoke(self, message: dict, msg_id: str | None) -> dict:
+        """Invoke a specific inline action for a context.
+
+        Expected payload:
+          {cmd: "inline_actions_invoke", action_id: str, kind: str,
+           node_id: str, param_path?: str, track_id?: str}
+        Returns:
+          {ok: bool, message: str, payload: dict}
+        """
+        action_id = message.get("action_id", "")
+        kind_str = message.get("kind", "")
+        node_id = message.get("node_id", "")
+        if not action_id or not kind_str or not node_id:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "missing action_id, kind, or node_id",
+            }
+        try:
+            kind = ActionContextKind(kind_str)
+        except ValueError:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": f"unknown action context kind: {kind_str!r}",
+            }
+        ctx = ActionContext(
+            kind=kind,
+            node_id=node_id,
+            param_path=message.get("param_path") or None,
+            track_id=message.get("track_id") or None,
+        )
+        result = global_inline_actions().invoke(action_id, ctx, global_routing_graph())
+        return {
+            "id": msg_id,
+            "ok": result.ok,
+            "message": result.message,
+            "payload": result.payload,
+        }
 
     def run(self):
         self.running = True
