@@ -513,6 +513,62 @@ body {
   letter-spacing: 0.5px;
 }
 
+/* P3.2 category tabs — Live Signal segmented control (fx/op/composite/tool/instruments).
+   Content-width pills with horizontal scroll on overflow so the long labels never cram. */
+.effect-browser__tabs {
+  display: flex;
+  flex-shrink: 0;
+  gap: 1px;
+  padding: 0 6px 6px;
+  margin-bottom: 2px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  border-bottom: 1px solid var(--cx-line-1);
+}
+
+.effect-browser__tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.effect-browser__tab {
+  flex: 1 1 auto;
+  padding: 3px 5px;
+  background: transparent;
+  border: none;
+  border-radius: var(--cx-radius-control);
+  color: var(--cx-text-3);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--cx-dur-feedback) var(--cx-ease),
+    background var(--cx-dur-feedback) var(--cx-ease);
+}
+
+.effect-browser__tab:hover {
+  color: var(--cx-text-1);
+  background: var(--cx-surface-3);
+}
+
+.effect-browser__tab--active {
+  color: var(--cx-action-on);
+  background: var(--cx-action);
+  font-weight: 600;
+}
+
+.effect-browser__tab--active:hover {
+  color: var(--cx-action-on);
+  background: var(--cx-action-hover);
+}
+
+.effect-browser__tab:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: -1px;
+}
+
 .effect-browser__body {
   display: flex;
   flex-direction: column;
@@ -659,24 +715,27 @@ body {
 .effect-browser__action-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 5px 8px;
-  background: transparent;
-  border: 1px dashed var(--cx-selection);
-  border-radius: 3px;
-  color: var(--cx-selection);
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-control);
+  color: var(--cx-text-2);
   font-family: inherit;
   font-size: 11px;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background var(--cx-dur-feedback) var(--cx-ease),
+    border-color var(--cx-dur-feedback) var(--cx-ease),
+    color var(--cx-dur-feedback) var(--cx-ease);
   width: 100%;
-  text-align: left;
+  text-align: center;
 }
 
 .effect-browser__action-btn:hover {
-  background: rgba(99, 102, 241, 0.1);
-  border-color: var(--cx-selection);
-  color: var(--cx-selection);
+  background: var(--cx-surface-4);
+  border-color: var(--cx-line-2);
+  color: var(--cx-text-1);
 }
 
 .effect-browser__action-btn:focus-visible {
