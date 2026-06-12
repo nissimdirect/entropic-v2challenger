@@ -178,6 +178,10 @@ function serializeProject(): string {
       // across reloads. defaultSettings() supplies a random seed for brand-new
       // projects; the store seed wins once loaded.
       seed: projectStore.seed,
+      // Persist the actual project tempo (defaultSettings() only supplies 120).
+      // Paired with the hydrateStores setBpm restore — together they fix BPM
+      // round-trip (was write-default + never-read → tempo always reset to 120).
+      bpm: projectStore.bpm,
     },
     assets: projectStore.assets,
     timeline,
@@ -336,6 +340,13 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Validation already clamped it to [0, 2^31-1] in validateProject().
   if (project.settings && typeof project.settings.seed === 'number') {
     projectStore.setSeed(project.settings.seed)
+  }
+
+  // Hydrate BPM (drives the quantize grid + clip snapping). Was serialized to
+  // settings.bpm but never restored — reloading a project silently reset it to 120.
+  // setBpm clamps to [1, 300].
+  if (project.settings && typeof project.settings.bpm === 'number') {
+    projectStore.setBpm(project.settings.bpm)
   }
 
   // Hydrate assets
