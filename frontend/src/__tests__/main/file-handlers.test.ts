@@ -134,6 +134,35 @@ describe('file-handlers', () => {
       expect(isPathAllowed('/tmp/other/.autosave.glitch')).toBe(false)
     })
 
+    // UE.4: numbered backup siblings .bak.1..5 of a granted path
+    it('allows .bak.1 through .bak.5 siblings of a granted path', () => {
+      grantPath('/tmp/project/myfile.glitch')
+      for (let n = 1; n <= 5; n++) {
+        expect(isPathAllowed(`/tmp/project/myfile.glitch.bak.${n}`)).toBe(true)
+      }
+    })
+
+    it('bak path outside granted dir rejected', () => {
+      grantPath('/tmp/project/myfile.glitch')
+      // non-sibling: same suffix, different (ungranted) base
+      expect(isPathAllowed('/tmp/other/myfile.glitch.bak.1')).toBe(false)
+      expect(isPathAllowed('/tmp/project/otherfile.glitch.bak.1')).toBe(false)
+    })
+
+    it('rejects .bak suffixes with N outside 1-5 at the trust boundary', () => {
+      grantPath('/tmp/project/myfile.glitch')
+      expect(isPathAllowed('/tmp/project/myfile.glitch.bak.99')).toBe(false)
+      expect(isPathAllowed('/tmp/project/myfile.glitch.bak.-1')).toBe(false)
+      expect(isPathAllowed('/tmp/project/myfile.glitch.bak.05')).toBe(false)
+      expect(isPathAllowed('/tmp/project/myfile.glitch.bak.0')).toBe(false)
+      expect(isPathAllowed('/tmp/project/myfile.glitch.bak.6')).toBe(false)
+    })
+
+    it('rejects chained .bak suffixes (no .bak.N.bak.M nesting)', () => {
+      grantPath('/tmp/project/myfile.glitch')
+      expect(isPathAllowed('/tmp/project/myfile.glitch.bak.1.bak.1')).toBe(false)
+    })
+
     // 13. Empty string is denied
     it('denies empty string', () => {
       expect(isPathAllowed('')).toBe(false)
