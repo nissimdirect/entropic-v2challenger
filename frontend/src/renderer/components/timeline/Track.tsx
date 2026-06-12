@@ -1,6 +1,8 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
 import type { Track as TrackType, BlendMode, TriggerMode } from '../../../shared/types'
-import { getTrackCompositing, getTerminalComposite } from '../../../shared/types'
+import { getTrackCompositing, getTerminalComposite, makeCompositeEffect, COMPOSITE_EFFECT_ID } from '../../../shared/types'
+import { randomUUID } from '../../utils'
+import { EFFECT_DRAG_TYPE } from '../effects/EffectBrowser'
 import { useTimelineStore } from '../../stores/timeline'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
@@ -191,6 +193,18 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   const compositing = getTrackCompositing(track.effectChain)
   const terminalComposite = getTerminalComposite(track.effectChain)
 
+  // P2.2b: create the terminal CompositeEffect. `addEffect` already wraps the
+  // mutation in ONE undo transaction whose commit runs the terminal-composite
+  // validator (project.ts withCompositeValidation), and appends to the chain end
+  // — so the new composite lands TERMINAL and a single Cmd+Z removes it entirely
+  // (no orphan state). Audio tracks are rejected by the validator with a toast.
+  // Guarded so a second composite is never created (validator would reject it,
+  // but the affordance is hidden when one already exists anyway).
+  const handleAddComposite = useCallback(() => {
+    if (getTerminalComposite(track.effectChain)) return
+    useProjectStore.getState().addEffect(track.id, makeCompositeEffect(randomUUID()))
+  }, [track.id, track.effectChain])
+
   const handleOpacityChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       e.stopPropagation()
@@ -252,9 +266,37 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           if (track.type === 'performance' && e.dataTransfer.types.includes(INSTRUMENT_DRAG_TYPE)) {
             e.preventDefault()
             e.dataTransfer.dropEffect = 'copy'
+            return
+          }
+          // P2.2b: accept a Composite dragged from the effect browser. Only video/
+          // text tracks composite (audio never does — the validator also rejects it,
+          // this is the early signifier). dropEffect 'copy' lights the drop target.
+          if (
+            track.type !== 'performance' &&
+            e.dataTransfer.types.includes(EFFECT_DRAG_TYPE)
+          ) {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'copy'
           }
         }}
         onDrop={(e) => {
+          // P2.2b: Composite dropped on the track header → create it terminal in one
+          // undo transaction (see handleAddComposite). Checked BEFORE the instrument
+          // branch so an effect-typed drop is never misread as an instrument drop.
+          const effectId = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
+          if (effectId) {
+            // RT-3 parity with DeviceChain: cap the payload defensively.
+            if (effectId.length > 64) return
+            if (effectId !== COMPOSITE_EFFECT_ID) return
+            e.preventDefault()
+            if (track.type === 'performance') {
+              useToastStore.getState().addToast({ level: 'warning', message: 'Composite cannot be dropped on a MIDI track', source: 'composite-ui' })
+              return
+            }
+            useTimelineStore.getState().selectTrack(track.id)
+            handleAddComposite()
+            return
+          }
           const id = e.dataTransfer.getData(INSTRUMENT_DRAG_TYPE)
           if (!id) return
           e.preventDefault()
@@ -320,35 +362,52 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           </div>
         </div>
         <div className="track-header__row track-header__row--bottom">
-          <div className="track-header__opacity" onClick={(e) => e.stopPropagation()}>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={compositing.opacity}
-              onChange={handleOpacityChange}
-              disabled={!terminalComposite}
-              title={FF.F_0512_21_OPACITY_LABELS
-                ? `Track opacity: ${Math.round(compositing.opacity * 100)}% (multiplies with clip opacity)`
-                : `Opacity: ${Math.round(compositing.opacity * 100)}%`}
-            />
-            <span className="track-header__opacity-label">
-              {Math.round(compositing.opacity * 100)}%
-            </span>
-          </div>
-          <select
-            className="track-header__blend"
-            value={compositing.mode}
-            onChange={handleBlendModeChange}
-            disabled={!terminalComposite}
-            onClick={(e) => e.stopPropagation()}
-            title="Blend mode"
-          >
-            {BLEND_MODES.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+          {terminalComposite ? (
+            <>
+              <div className="track-header__opacity" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={compositing.opacity}
+                  onChange={handleOpacityChange}
+                  title={FF.F_0512_21_OPACITY_LABELS
+                    ? `Track opacity: ${Math.round(compositing.opacity * 100)}% (multiplies with clip opacity)`
+                    : `Opacity: ${Math.round(compositing.opacity * 100)}%`}
+                />
+                <span className="track-header__opacity-label">
+                  {Math.round(compositing.opacity * 100)}%
+                </span>
+              </div>
+              <select
+                className="track-header__blend"
+                value={compositing.mode}
+                onChange={handleBlendModeChange}
+                onClick={(e) => e.stopPropagation()}
+                title="Blend mode"
+              >
+                {BLEND_MODES.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </>
+          ) : (
+            // P2.2b: no terminal composite yet — offer the creation path instead of
+            // dead disabled controls (Don Norman: a disabled control with no way to
+            // enable it is a dead end). Audio/MIDI tracks never composite, so the
+            // affordance is video/text-only; the button reuses handleAddComposite
+            // (one validated undo transaction).
+            track.type !== 'performance' && track.type !== 'audio' && (
+              <button
+                className="track-header__add-composite"
+                onClick={(e) => { e.stopPropagation(); handleAddComposite() }}
+                title="Add a Composite effect to control this track's opacity and blend mode"
+              >
+                + Composite
+              </button>
+            )
+          )}
         </div>
       </div>
       {ctxMenu && (
