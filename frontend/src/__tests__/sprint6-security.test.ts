@@ -162,11 +162,11 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
     useAutomationStore.setState({
       lanes: {
         'track-1': [
-          { id: 'lane-a', paramPath: 'fx-cascade.amount', color: '#ff0000', isVisible: true, points: [{ time: 0, value: 0.5, curve: 0 }], isTrigger: false },
-          { id: 'lane-b', paramPath: 'fx-other.amount', color: '#00ff00', isVisible: true, points: [], isTrigger: false },
+          { id: 'lane-a', paramPath: 'fx-cascade.amount', color: '#ff0000', isVisible: true, points: [{ time: 0, value: 0.5, curve: 0 }], mode: 'smooth' },
+          { id: 'lane-b', paramPath: 'fx-other.amount', color: '#00ff00', isVisible: true, points: [], mode: 'smooth' },
         ],
         'track-2': [
-          { id: 'lane-c', paramPath: 'fx-cascade.mix', color: '#0000ff', isVisible: true, points: [{ time: 1, value: 1.0, curve: 0 }], isTrigger: false },
+          { id: 'lane-c', paramPath: 'fx-cascade.mix', color: '#0000ff', isVisible: true, points: [{ time: 1, value: 1.0, curve: 0 }], mode: 'smooth' },
         ],
       },
     })
@@ -187,7 +187,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
 
     const automationData = {
       'track-1': [
-        { id: 'lane-r1', paramPath: 'fx-restore.intensity', color: '#ff0000', isVisible: true, points: [{ time: 0, value: 0.3, curve: 0 }, { time: 2, value: 0.9, curve: 0 }], isTrigger: false },
+        { id: 'lane-r1', paramPath: 'fx-restore.intensity', color: '#ff0000', isVisible: true, points: [{ time: 0, value: 0.3, curve: 0 }, { time: 2, value: 0.9, curve: 0 }], mode: 'smooth' },
       ],
     }
     useAutomationStore.setState({ lanes: JSON.parse(JSON.stringify(automationData)) })
@@ -215,7 +215,7 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
     useAutomationStore.setState({
       lanes: {
         'track-1': [
-          { id: 'lane-c1', paramPath: 'fx-cycle.param', color: '#ff0000', isVisible: true, points: [], isTrigger: false },
+          { id: 'lane-c1', paramPath: 'fx-cycle.param', color: '#ff0000', isVisible: true, points: [], mode: 'smooth' },
         ],
       },
     })
@@ -285,10 +285,10 @@ describe('Sprint 6: Cascade-delete automation on effect removal', () => {
     useAutomationStore.setState({
       lanes: {
         'track-1': [
-          { id: 'lane-m1', paramPath: 'fx-multi.amount', color: '#ff0000', isVisible: true, points: [], isTrigger: false },
-          { id: 'lane-m2', paramPath: 'fx-multi.intensity', color: '#00ff00', isVisible: true, points: [], isTrigger: false },
-          { id: 'lane-m3', paramPath: 'fx-multi.offset', color: '#0000ff', isVisible: true, points: [], isTrigger: false },
-          { id: 'lane-other', paramPath: 'fx-safe.amount', color: '#ffffff', isVisible: true, points: [], isTrigger: false },
+          { id: 'lane-m1', paramPath: 'fx-multi.amount', color: '#ff0000', isVisible: true, points: [], mode: 'smooth' },
+          { id: 'lane-m2', paramPath: 'fx-multi.intensity', color: '#00ff00', isVisible: true, points: [], mode: 'smooth' },
+          { id: 'lane-m3', paramPath: 'fx-multi.offset', color: '#0000ff', isVisible: true, points: [], mode: 'smooth' },
+          { id: 'lane-other', paramPath: 'fx-safe.amount', color: '#ffffff', isVisible: true, points: [], mode: 'smooth' },
         ],
       },
     })

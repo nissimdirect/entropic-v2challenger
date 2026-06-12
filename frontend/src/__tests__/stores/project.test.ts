@@ -411,7 +411,7 @@ describe('useProjectStore — per-track effect chain (Epic 01)', () => {
       }],
     })
     useAutomationStore.setState({
-      lanes: { 'trk': [{ id: 'ln', paramPath: 'e1.amount', color: '#f00', isVisible: true, points: [], isTrigger: false }] },
+      lanes: { 'trk': [{ id: 'ln', paramPath: 'e1.amount', color: '#f00', isVisible: true, points: [], mode: 'smooth' }] },
     })
     useMIDIStore.setState({ ccMappings: [{ cc: 1, effectId: 'e1', paramKey: 'amount' }] })
     useUndoStore.getState().clear()

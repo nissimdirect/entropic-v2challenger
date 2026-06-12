@@ -5,6 +5,7 @@ import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
 import { useAutomationStore } from '../../stores/automation'
+import { isTriggerLane } from '../../utils/automation-evaluate'
 import { useEffectsStore } from '../../stores/effects'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
@@ -322,8 +323,8 @@ const EMPTY_LANES: never[] = []
 
 function LaneBadges({ trackId }: { trackId: string }) {
   const lanes = useAutomationStore((s) => s.lanes[trackId]) ?? EMPTY_LANES
-  const hasTrigger = lanes.some((l) => l.isTrigger)
-  const hasAuto = lanes.some((l) => !l.isTrigger)
+  const hasTrigger = lanes.some((l) => isTriggerLane(l))
+  const hasAuto = lanes.some((l) => !isTriggerLane(l))
   if (!hasTrigger && !hasAuto) return null
   return (
     <div className="track-header__badges">
