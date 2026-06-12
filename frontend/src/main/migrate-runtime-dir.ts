@@ -26,6 +26,7 @@ import {
   existsSync,
   mkdirSync,
   copyFileSync,
+  renameSync,
   readdirSync,
   statSync,
   writeFileSync,
@@ -108,7 +109,12 @@ function copyFileIfAbsent(
     return
   }
   mkdirSync(join(dst, '..'), { recursive: true, mode: 0o700 })
-  copyFileSync(src, dst)
+  // Atomic copy: write to a co-located temp then rename, so a crash mid-write
+  // can never leave a truncated target that copy-if-absent would later mask as
+  // "already migrated". rename within the same dir is atomic on the FS.
+  const tmp = `${dst}.tmp-${process.pid}`
+  copyFileSync(src, tmp)
+  renameSync(tmp, dst)
   result.copied.push(dst)
   logger.info('[migrate-runtime-dir] copied', { source: src, target: dst })
 }
