@@ -27,7 +27,8 @@ import { useProjectStore } from '../renderer/stores/project'
 import { useUndoStore } from '../renderer/stores/undo'
 import { useToastStore } from '../renderer/stores/toast'
 import { useAutomationStore } from '../renderer/stores/automation'
-import type { Clip, EffectInstance } from '../shared/types'
+import type { Clip, EffectInstance, BlendMode } from '../shared/types'
+import { getTrackCompositing } from '../shared/types'
 import { LIMITS } from '../shared/limits'
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -356,33 +357,42 @@ describe('RED TEAM: Invalid state transitions', () => {
     })
   })
 
-  describe('setTrackOpacity boundary values', () => {
+  // P2.2a (slice 3c): track compositing migrated to a terminal CompositeEffect;
+  // opacity edits go through updateParam + read-side clamp in getTrackCompositing.
+  describe('composite opacity boundary values', () => {
     let trackId: string
+    let compositeId: string
 
     beforeEach(() => {
       trackId = useTimelineStore.getState().addTrack('Track 1', '#f00')!
+      compositeId = `composite-${trackId}`
+      const composite: EffectInstance = {
+        id: compositeId, effectId: 'composite', isEnabled: true, isFrozen: false,
+        parameters: { opacity: 1, mode: 'normal' as BlendMode }, modulations: {}, mix: 1, mask: null,
+      }
+      useProjectStore.getState().addEffect(trackId, composite)
       useUndoStore.getState().clear()
     })
 
-    it('setTrackOpacity(trackId, -1) — should clamp to 0', () => {
-      useTimelineStore.getState().setTrackOpacity(trackId, -1)
-      const track = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!
-      expect(track.opacity).toBe(0)
+    const opacityOf = () =>
+      getTrackCompositing(useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.effectChain).opacity
+
+    it('composite opacity(-1) — should clamp to 0', () => {
+      useProjectStore.getState().updateParam(trackId, compositeId, 'opacity', -1)
+      expect(opacityOf()).toBe(0)
     })
 
-    it('setTrackOpacity(trackId, 2) — should clamp to 1', () => {
-      useTimelineStore.getState().setTrackOpacity(trackId, 2)
-      const track = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!
-      expect(track.opacity).toBe(1)
+    it('composite opacity(2) — should clamp to 1', () => {
+      useProjectStore.getState().updateParam(trackId, compositeId, 'opacity', 2)
+      expect(opacityOf()).toBe(1)
     })
 
-    it('setTrackOpacity(trackId, NaN) — should reject, not corrupt', () => {
-      const originalOpacity = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.opacity
-      useTimelineStore.getState().setTrackOpacity(trackId, NaN)
-      const track = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!
-      // Should reject — must not be NaN, original value preserved
-      expect(Number.isFinite(track.opacity)).toBe(true)
-      expect(track.opacity).toBe(originalOpacity)
+    it('composite opacity(NaN) — should reject, not corrupt', () => {
+      useProjectStore.getState().updateParam(trackId, compositeId, 'opacity', NaN)
+      // getTrackCompositing clamps a non-finite stored opacity to the finite
+      // default (1) at read time, so the resolved value never corrupts.
+      expect(Number.isFinite(opacityOf())).toBe(true)
+      expect(opacityOf()).toBe(1)
     })
   })
 

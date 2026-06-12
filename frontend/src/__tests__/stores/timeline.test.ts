@@ -14,6 +14,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useUndoStore } from '../../renderer/stores/undo'
 import type { Clip } from '../../shared/types'
+import { getTrackCompositing } from '../../shared/types'
 
 function makeClip(overrides: Partial<Clip> = {}): Clip {
   return {
@@ -107,20 +108,38 @@ describe('TimelineStore', () => {
       expect(useTimelineStore.getState().tracks[0].name).toBe('Renamed')
     })
 
-    it('setTrackOpacity clamps to 0-1', () => {
+    // P2.2a (slice 3c): track compositing migrated from Track.opacity/blendMode
+    // setters to a terminal CompositeEffect resolved via getTrackCompositing.
+    it('getTrackCompositing clamps composite opacity to 0-1', () => {
       useTimelineStore.getState().addTrack('Track 1', '#ff0000')
       const id = useTimelineStore.getState().tracks[0].id
-      useTimelineStore.getState().setTrackOpacity(id, 1.5)
-      expect(useTimelineStore.getState().tracks[0].opacity).toBe(1)
-      useTimelineStore.getState().setTrackOpacity(id, -0.5)
-      expect(useTimelineStore.getState().tracks[0].opacity).toBe(0)
+      const readChain = () => useTimelineStore.getState().tracks.find((t) => t.id === id)!.effectChain
+
+      useTimelineStore.getState().updateTrackEffectChain(id, () => [
+        { id: 'c1', effectId: 'composite', isEnabled: true, isFrozen: false, parameters: { opacity: 1.5, mode: 'normal' }, modulations: {}, mix: 1, mask: null },
+      ])
+      expect(getTrackCompositing(readChain()).opacity).toBe(1)
+
+      useTimelineStore.getState().updateTrackEffectChain(id, () => [
+        { id: 'c1', effectId: 'composite', isEnabled: true, isFrozen: false, parameters: { opacity: -0.5, mode: 'normal' }, modulations: {}, mix: 1, mask: null },
+      ])
+      expect(getTrackCompositing(readChain()).opacity).toBe(0)
     })
 
-    it('setTrackBlendMode changes mode', () => {
+    it('getTrackCompositing reads composite blend mode', () => {
       useTimelineStore.getState().addTrack('Track 1', '#ff0000')
       const id = useTimelineStore.getState().tracks[0].id
-      useTimelineStore.getState().setTrackBlendMode(id, 'multiply')
-      expect(useTimelineStore.getState().tracks[0].blendMode).toBe('multiply')
+      useTimelineStore.getState().updateTrackEffectChain(id, () => [
+        { id: 'c1', effectId: 'composite', isEnabled: true, isFrozen: false, parameters: { opacity: 1, mode: 'multiply' }, modulations: {}, mix: 1, mask: null },
+      ])
+      const chain = useTimelineStore.getState().tracks.find((t) => t.id === id)!.effectChain
+      expect(getTrackCompositing(chain).mode).toBe('multiply')
+    })
+
+    it('getTrackCompositing falls back to defaults with no composite', () => {
+      useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+      const chain = useTimelineStore.getState().tracks[0].effectChain
+      expect(getTrackCompositing(chain)).toEqual({ opacity: 1, mode: 'normal' })
     })
   })
 

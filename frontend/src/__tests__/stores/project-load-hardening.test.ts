@@ -21,14 +21,23 @@ import { validateProjectStructure, loadProject } from '../../renderer/project-pe
 import { useToastStore } from '../../renderer/stores/toast'
 
 describe('validateProjectStructure', () => {
-  it('accepts a normal v2.0.0 project shape', () => {
+  it('accepts a normal v3.0.0 project shape', () => {
     const data = {
-      version: '2.0.0',
+      version: '3.0.0',
       id: 'abc',
       timeline: { tracks: [], markers: [] },
       assets: {},
     }
     expect(validateProjectStructure(data).valid).toBe(true)
+  })
+
+  // P2.2a (slice 3c, Decision D1 clean break): pre-v3 projects are rejected
+  // loudly with the contractual message — no migration, no silent partial load.
+  it('rejects a v2 project with the unsupported-version message', () => {
+    const data = { version: '2.0.0', id: 'abc', timeline: { tracks: [] }, assets: {} }
+    const result = validateProjectStructure(data)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toBe('v2 projects unsupported — start a new project')
   })
 
   it('rejects nesting depth above 32', () => {
@@ -47,7 +56,7 @@ describe('validateProjectStructure', () => {
   it('rejects __proto__ key (prototype pollution attempt)', () => {
     // Object literals special-case __proto__; JSON.parse preserves it as a
     // data property, which is the actual attack vector.
-    const data = JSON.parse('{"version":"2.0.0","__proto__":{"polluted":true}}')
+    const data = JSON.parse('{"version":"3.0.0","__proto__":{"polluted":true}}')
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/__proto__/)
@@ -55,7 +64,7 @@ describe('validateProjectStructure', () => {
 
   it('rejects nested __proto__ key', () => {
     const data = JSON.parse(
-      '{"version":"2.0.0","timeline":{"tracks":[{"__proto__":{"isAdmin":true}}]}}',
+      '{"version":"3.0.0","timeline":{"tracks":[{"__proto__":{"isAdmin":true}}]}}',
     )
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
@@ -63,14 +72,14 @@ describe('validateProjectStructure', () => {
   })
 
   it('rejects constructor key', () => {
-    const data = { version: '2.0.0', payload: { constructor: 'evil' } }
+    const data = { version: '3.0.0', payload: { constructor: 'evil' } }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/constructor/)
   })
 
   it('rejects prototype key', () => {
-    const data = { version: '2.0.0', payload: { prototype: 'evil' } }
+    const data = { version: '3.0.0', payload: { prototype: 'evil' } }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/prototype/)
@@ -86,7 +95,7 @@ describe('validateProjectStructure', () => {
     'Prototype',
     'PROTOTYPE',
   ])('rejects forbidden key with mixed case: %s', (badKey) => {
-    const data = JSON.parse(`{"version":"2.0.0","payload":{"${badKey}":"evil"}}`)
+    const data = JSON.parse(`{"version":"3.0.0","payload":{"${badKey}":"evil"}}`)
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(new RegExp(badKey))
@@ -94,7 +103,7 @@ describe('validateProjectStructure', () => {
 
   it('does NOT reject keys that merely contain forbidden substrings (over-rejection guard)', () => {
     const data = {
-      version: '2.0.0',
+      version: '3.0.0',
       payload: {
         my__proto__field: 'safe',
         constructor_helper: 'also safe',
@@ -106,21 +115,21 @@ describe('validateProjectStructure', () => {
 
   it('rejects arrays larger than 10000', () => {
     const huge = new Array(10_001).fill(0)
-    const data = { version: '2.0.0', huge }
+    const data = { version: '3.0.0', huge }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/Array length/i)
   })
 
   it('accepts arrays at the 10000 boundary', () => {
-    const data = { version: '2.0.0', boundary: new Array(10_000).fill(0) }
+    const data = { version: '3.0.0', boundary: new Array(10_000).fill(0) }
     expect(validateProjectStructure(data).valid).toBe(true)
   })
 
   it('rejects objects with more than 1024 keys per node', () => {
     const obj: Record<string, number> = {}
     for (let i = 0; i < 1025; i++) obj[`k${i}`] = i
-    const data = { version: '2.0.0', payload: obj }
+    const data = { version: '3.0.0', payload: obj }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/key count/i)
@@ -141,7 +150,7 @@ describe('validateProjectStructure', () => {
   })
 
   it('accepts projects with same major version', () => {
-    const data = { version: '2.5.7', id: 'abc' }
+    const data = { version: '3.5.7', id: 'abc' }
     expect(validateProjectStructure(data).valid).toBe(true)
   })
 
@@ -159,8 +168,8 @@ describe('validateProjectStructure', () => {
   })
 
   it('handles version with leading zeros / numeric tail', () => {
-    const data = { version: '02.1.0', id: 'x' }
-    // parseInt('02', 10) === 2, equals current major → accepted
+    const data = { version: '03.1.0', id: 'x' }
+    // parseInt('03', 10) === 3, equals current major → accepted
     expect(validateProjectStructure(data).valid).toBe(true)
   })
 
@@ -172,7 +181,7 @@ describe('validateProjectStructure', () => {
       cursor.push(next)
       cursor = next
     }
-    const result = validateProjectStructure({ version: '2.0.0', deep: node })
+    const result = validateProjectStructure({ version: '3.0.0', deep: node })
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/nesting depth/i)
   })
@@ -192,7 +201,7 @@ describe('loadProject — hostile fixture rejection', () => {
       cursor.nest = next
       cursor = next as Record<string, unknown>
     }
-    mockEntropic.readFile.mockResolvedValue(JSON.stringify({ version: '2.0.0', deep: nest }))
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify({ version: '3.0.0', deep: nest }))
     const ok = await loadProject('/test/depth-bomb.glitch')
     expect(ok).toBe(false)
     const toasts = useToastStore.getState().toasts
@@ -202,7 +211,7 @@ describe('loadProject — hostile fixture rejection', () => {
 
   it('rejects a __proto__ pollution attempt with a toast', async () => {
     // JSON.parse preserves __proto__ as a data property; our walker catches it.
-    const evil = '{"version":"2.0.0","__proto__":{"isAdmin":true}}'
+    const evil = '{"version":"3.0.0","__proto__":{"isAdmin":true}}'
     mockEntropic.readFile.mockResolvedValue(evil)
     const ok = await loadProject('/test/proto-pollute.glitch')
     expect(ok).toBe(false)

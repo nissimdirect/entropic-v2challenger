@@ -1,5 +1,6 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
 import type { Track as TrackType, BlendMode, TriggerMode } from '../../../shared/types'
+import { getTrackCompositing, getTerminalComposite } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
@@ -182,20 +183,38 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     [track.id],
   )
 
+  // P2.2a (slice 3c): compositing is a terminal CompositeEffect on the chain, not a
+  // Track field. The displayed value derives from the chain terminal; the slider /
+  // dropdown edit that effect's params when one exists. Creating a composite via the
+  // header control (drag-onto-track + slider rework) is P2.2b; until then these edit
+  // an existing terminal composite and no-op (with a hint) when the track has none.
+  const compositing = getTrackCompositing(track.effectChain)
+  const terminalComposite = getTerminalComposite(track.effectChain)
+
   const handleOpacityChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       e.stopPropagation()
-      useTimelineStore.getState().setTrackOpacity(track.id, parseFloat(e.target.value))
+      const composite = getTerminalComposite(track.effectChain)
+      if (!composite) {
+        useToastStore.getState().addToast({ level: 'info', message: 'Add a Composite effect to set track opacity', source: 'composite-ui' })
+        return
+      }
+      useProjectStore.getState().updateParam(track.id, composite.id, 'opacity', parseFloat(e.target.value))
     },
-    [track.id],
+    [track.id, track.effectChain],
   )
 
   const handleBlendModeChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       e.stopPropagation()
-      useTimelineStore.getState().setTrackBlendMode(track.id, e.target.value as BlendMode)
+      const composite = getTerminalComposite(track.effectChain)
+      if (!composite) {
+        useToastStore.getState().addToast({ level: 'info', message: 'Add a Composite effect to set blend mode', source: 'composite-ui' })
+        return
+      }
+      useProjectStore.getState().updateParam(track.id, composite.id, 'mode', e.target.value as BlendMode)
     },
-    [track.id],
+    [track.id, track.effectChain],
   )
 
   const BLEND_MODES: { value: BlendMode; label: string }[] = [
@@ -307,20 +326,22 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               min={0}
               max={1}
               step={0.01}
-              value={track.opacity}
+              value={compositing.opacity}
               onChange={handleOpacityChange}
+              disabled={!terminalComposite}
               title={FF.F_0512_21_OPACITY_LABELS
-                ? `Track opacity: ${Math.round(track.opacity * 100)}% (multiplies with clip opacity)`
-                : `Opacity: ${Math.round(track.opacity * 100)}%`}
+                ? `Track opacity: ${Math.round(compositing.opacity * 100)}% (multiplies with clip opacity)`
+                : `Opacity: ${Math.round(compositing.opacity * 100)}%`}
             />
             <span className="track-header__opacity-label">
-              {Math.round(track.opacity * 100)}%
+              {Math.round(compositing.opacity * 100)}%
             </span>
           </div>
           <select
             className="track-header__blend"
-            value={track.blendMode}
+            value={compositing.mode}
             onChange={handleBlendModeChange}
+            disabled={!terminalComposite}
             onClick={(e) => e.stopPropagation()}
             title="Blend mode"
           >

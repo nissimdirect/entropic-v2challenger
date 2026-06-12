@@ -87,6 +87,16 @@ export function validateProjectStructure(data: unknown): StructureCheckResult {
           reason: `Project saved by a newer Creatrix version (v${major}). Update Creatrix to open it.`,
         }
       }
+      // P2.2a (slice 3c, Decision D1 clean break): v3 removed track-level
+      // opacity/blendMode for a terminal CompositeEffect. There is no migration —
+      // pre-v3 projects are rejected LOUDLY (toast, never a crash / silent partial
+      // load). Message is contractual; mirrors backend schema.V2_UNSUPPORTED_MESSAGE.
+      if (Number.isFinite(major) && major < PROJECT_VERSION_MAJOR) {
+        return {
+          valid: false,
+          reason: 'v2 projects unsupported — start a new project',
+        }
+      }
     }
   }
 
@@ -426,8 +436,10 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
         })
       }
     } else {
-      if (track.opacity !== 1.0) useTimelineStore.getState().setTrackOpacity(addedTrackId, track.opacity)
-      if (track.blendMode !== 'normal') useTimelineStore.getState().setTrackBlendMode(addedTrackId, track.blendMode)
+      // P2.2a (slice 3c, Decision D1 clean break): track-level opacity/blendMode
+      // are gone. Compositing is restored as the terminal CompositeEffect inside
+      // the effectChain (hydrated below). v2 files carrying these fields are
+      // rejected by the backend schema validator before reaching this loader.
       // Add video/text clips (migrate legacy transform format: {scale} → {scaleX, scaleY, ...})
       for (const clip of track.clips) {
         const migratedClip = clip.transform
