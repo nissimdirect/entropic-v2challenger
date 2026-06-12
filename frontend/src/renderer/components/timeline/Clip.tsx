@@ -129,6 +129,11 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       },
       { label: 'Duplicate', action: () => store.duplicateClip(clip.id) },
       { label: 'Delete', action: () => store.removeClip(clip.id) },
+      {
+        label: 'Ripple Delete',
+        action: () => store.rippleRemoveClip(clip.id),
+        shortcut: '⇧⌦',
+      },
       { label: '', action: () => {}, separator: true },
       {
         label: 'Speed/Duration...',

@@ -65,6 +65,12 @@ interface TimelineState {
   trimClipIn: (clipId: string, newInPoint: number) => void
   trimClipOut: (clipId: string, newOutPoint: number) => void
   splitClip: (clipId: string, time: number) => void
+  /** Ripple delete: remove clip and shift all later clips on the SAME track left by the deleted clip's duration.
+   *  One undo entry. Does NOT affect other tracks. */
+  rippleRemoveClip: (clipId: string) => void
+  /** Ripple trim out: shorten a clip's out-point by delta and shift all later clips on the SAME track left.
+   *  newOutPoint must be > clip.inPoint. One undo entry. */
+  rippleTrimClipOut: (clipId: string, newOutPoint: number) => void
   setClipSpeed: (clipId: string, speed: number) => void
   openSpeedDialog: (clipId: string, anchor: { x: number; y: number }) => void
   closeSpeedDialog: () => void
@@ -683,6 +689,120 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
             c.id === clipId ? { ...c, outPoint: oldClip!.outPoint, duration: oldClip!.duration } : c,
           ),
         }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  rippleRemoveClip: (clipId) => {
+    // Find the clip to delete and its track
+    let removedClip: Clip | null = null
+    let removedTrackId: string | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) {
+        removedClip = { ...clip }
+        removedTrackId = track.id
+        break
+      }
+    }
+    if (!removedClip || !removedTrackId) return
+
+    const deletedDuration = removedClip.duration
+    const deletedPosition = removedClip.position
+    const trackId = removedTrackId
+
+    undoable(
+      'Ripple delete',
+      () => {
+        const state = get()
+        const tracks = state.tracks.map((t) => {
+          if (t.id !== trackId) return t
+          // Remove the deleted clip; shift all later clips left by deletedDuration
+          const clips = t.clips
+            .filter((c) => c.id !== clipId)
+            .map((c) => {
+              if (c.position > deletedPosition) {
+                const newPos = Math.max(0, c.position - deletedDuration)
+                return { ...c, position: newPos }
+              }
+              return c
+            })
+          return { ...t, clips }
+        })
+        const selectedClipIds = state.selectedClipIds.filter((id) => id !== clipId)
+        const selectedClipId = selectedClipIds[0] ?? null
+        const speedDialog = state.speedDialog?.clipId === clipId ? null : state.speedDialog
+        set({ tracks, selectedClipId, selectedClipIds, speedDialog, duration: recalcDuration(tracks) })
+      },
+      () => {
+        // Undo: restore original positions (shift later clips right, re-insert deleted clip)
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.position >= deletedPosition) {
+              return { ...c, position: c.position + deletedDuration }
+            }
+            return c
+          })
+          return { ...t, clips: [...clips, removedClip!] }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  rippleTrimClipOut: (clipId, newOutPoint) => {
+    let oldClip: Clip | null = null
+    let clipTrackId: string | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldClip = { ...clip }; clipTrackId = track.id; break }
+    }
+    if (!oldClip || !clipTrackId || newOutPoint <= oldClip.inPoint) return
+
+    const delta = oldClip.outPoint - newOutPoint   // positive = trim shortens the clip
+    if (delta <= 0) return                          // only ripple when shortening (out-point moves left)
+
+    const clipPos = oldClip.position
+    const trackId = clipTrackId
+    const oldOut = oldClip.outPoint
+    const oldDuration = oldClip.duration
+
+    undoable(
+      'Ripple trim',
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) {
+              return { ...c, outPoint: newOutPoint, duration: (newOutPoint - c.inPoint) / c.speed }
+            }
+            // Shift clips that start AFTER the trimmed clip's original end position
+            if (c.position > clipPos) {
+              const newPos = Math.max(0, c.position - delta)
+              return { ...c, position: newPos }
+            }
+            return c
+          })
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) {
+              return { ...c, outPoint: oldOut, duration: oldDuration }
+            }
+            if (c.position > clipPos) {
+              return { ...c, position: c.position + delta }
+            }
+            return c
+          })
+          return { ...t, clips }
+        })
         set({ tracks, duration: recalcDuration(tracks) })
       },
     )
