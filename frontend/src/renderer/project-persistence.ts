@@ -184,6 +184,9 @@ function serializeProject(): string {
       // Persist the actual project tempo (defaultSettings() only supplies 120).
       // Paired with the hydrateStores setBpm restore — together they fix BPM
       // round-trip (was write-default + never-read → tempo always reset to 120).
+      // P2.1: Only 'bpm' (the persisted baseline) is saved here. The derived
+      // 'effectiveBpm' (modulation-adjusted value) is NEVER serialized — it is
+      // always recomputed from the automation lanes on each frame.
       bpm: projectStore.bpm,
     },
     assets: projectStore.assets,

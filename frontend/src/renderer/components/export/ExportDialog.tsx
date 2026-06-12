@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 export interface ExportSettings {
   outputPath: string
@@ -133,6 +134,9 @@ export default function ExportDialog({
   const [jpegQuality, setJpegQuality] = useState(95)
 
   const hasLoop = loopIn !== null && loopOut !== null
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useModalBehavior(dialogRef, onClose)
 
   const settings = useMemo<ExportSettings>(() => ({
     outputPath: '',
@@ -423,9 +427,16 @@ export default function ExportDialog({
 
   return (
     <div className="export-dialog__overlay" onClick={onClose}>
-      <div className="export-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="export-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="export-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="export-dialog__header">
-          <span>Export</span>
+          <span id="export-dialog-title">Export</span>
           <button className="export-dialog__close" onClick={onClose}>x</button>
         </div>
 

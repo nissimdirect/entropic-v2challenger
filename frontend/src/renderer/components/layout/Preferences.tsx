@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import ShortcutEditor from './ShortcutEditor'
 import { FF } from '../../../shared/feature-flags'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 export type PreferencesTab = 'general' | 'shortcuts' | 'performance' | 'paths'
 
@@ -38,6 +39,13 @@ export default function Preferences({ isOpen, onClose, initialTab }: Preferences
   const [presetFolder, setPresetFolder] = useState('')
   const [autosaveFolder, setAutosaveFolder] = useState('')
   const [cacheFolder, setCacheFolder] = useState('')
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Note: ShortcutEditor's key-capture listener attaches at window level with
+  // capture phase + stopPropagation, which prevents the Escape event from
+  // reaching this hook's dialog-level listener while a capture is active.
+  // No isCapturing flag needed — the guard is structural.
+  useModalBehavior(dialogRef, onClose)
 
   if (!isOpen) return null
 
@@ -128,9 +136,16 @@ export default function Preferences({ isOpen, onClose, initialTab }: Preferences
 
   return (
     <div className="preferences__overlay" onClick={onClose}>
-      <div className="preferences" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="preferences"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preferences-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="preferences__header">
-          <span>Preferences</span>
+          <span id="preferences-title">Preferences</span>
           <button className="preferences__close" onClick={onClose}>x</button>
         </div>
 

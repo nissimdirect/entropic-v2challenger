@@ -13,7 +13,8 @@
  * this is RT-1's data-clobber-race guard. Callers must set it true around
  * their `await saveProject()` and clear it in `finally`.
  */
-import { type ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 interface UnsavedChangesDialogProps {
   open: boolean
@@ -42,11 +43,22 @@ export default function UnsavedChangesDialog({
   onDiscard,
   onSaveAndContinue,
 }: UnsavedChangesDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Escape = Cancel (safe path — no data loss, no destructive navigation).
+  useModalBehavior(dialogRef, onCancel)
+
   if (!open) return null
   return (
     <div className="dialog-overlay">
-      <div className="dialog">
-        <div className="dialog__header">Unsaved Changes</div>
+      <div
+        ref={dialogRef}
+        className="dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="unsaved-changes-title"
+      >
+        <div id="unsaved-changes-title" className="dialog__header">Unsaved Changes</div>
         <p className="dialog__body">{body}</p>
         <div className="dialog__actions">
           <button

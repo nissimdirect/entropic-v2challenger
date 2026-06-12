@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 interface CrashRecoveryDialogProps {
   isOpen: boolean
@@ -18,6 +19,10 @@ export default function CrashRecoveryDialog({
   onDiscard,
 }: CrashRecoveryDialogProps) {
   const [sendReport, setSendReport] = useState(telemetryConsent === true)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Escape maps to the safe (non-data-loss) path: onDiscard.
+  useModalBehavior(dialogRef, () => onDiscard(sendReport))
 
   if (!isOpen) return null
 
@@ -40,9 +45,16 @@ export default function CrashRecoveryDialog({
 
   return (
     <div className="crash-recovery__overlay">
-      <div className="crash-recovery" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="crash-recovery"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="crash-recovery-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="crash-recovery__header">
-          <span>{title}</span>
+          <span id="crash-recovery-title">{title}</span>
         </div>
         <div className="crash-recovery__body">
           <p className="crash-recovery__text">{message}</p>

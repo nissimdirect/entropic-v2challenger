@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 interface SpeedDialogProps {
   currentSpeed: number
@@ -22,10 +23,17 @@ export default function SpeedDialog({
 }: SpeedDialogProps) {
   const [speedText, setSpeedText] = useState(String(currentSpeed))
   const inputRef = useRef<HTMLInputElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     inputRef.current?.select()
   }, [])
+
+  // PUX.2: focus trap + ARIA. Escape on dialog container fires onClose.
+  // The input-level onKeyDown handles Escape/Enter and previously called
+  // stopPropagation for ALL keys — narrowed here to only Enter/Escape so that
+  // Tab still bubbles to the dialog-level trap.
+  useModalBehavior(dialogRef, onClose)
 
   const parsedSpeed = Number(speedText)
   const isValid = Number.isFinite(parsedSpeed) && parsedSpeed >= 0.1 && parsedSpeed <= 10
@@ -39,11 +47,15 @@ export default function SpeedDialog({
   return (
     <div className="speed-dialog__overlay" onClick={onClose}>
       <div
+        ref={dialogRef}
         className="speed-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="speed-dialog-title"
         style={{ left: `${position.x}px`, top: `${position.y}px` }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="speed-dialog__header">Speed / Duration</div>
+        <div id="speed-dialog-title" className="speed-dialog__header">Speed / Duration</div>
         <div className="speed-dialog__body">
           <div className="speed-dialog__field">
             <label>Speed</label>
@@ -57,7 +69,9 @@ export default function SpeedDialog({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') handleConfirm()
                 else if (e.key === 'Escape') onClose()
-                e.stopPropagation()
+                // Only stop Enter/Escape — let Tab bubble to the dialog-level
+                // focus trap in useModalBehavior.
+                if (e.key === 'Enter' || e.key === 'Escape') e.stopPropagation()
               }}
             />
             <span className="speed-dialog__unit">x</span>

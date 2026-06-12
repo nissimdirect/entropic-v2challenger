@@ -8,7 +8,8 @@
  * Conventions: follows CrashRecoveryDialog.tsx pattern (isOpen prop, BEM classes,
  * no context / no hooks beyond useState).
  */
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 export interface MissingAsset {
   /** The asset id from the project's assets map. */
@@ -60,6 +61,9 @@ export default function RelinkDialog({
   const [resolved, setResolved] = useState<Set<string>>(new Set())
   const [skipped, setSkipped] = useState<Set<string>>(new Set())
   const [locating, setLocating] = useState<string | null>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useModalBehavior(dialogRef, onClose)
 
   if (!isOpen) return null
 
@@ -87,9 +91,16 @@ export default function RelinkDialog({
 
   return (
     <div className="relink-dialog__overlay">
-      <div className="relink-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="relink-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="relink-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="relink-dialog__header">
-          <span>Media Files Missing</span>
+          <span id="relink-dialog-title">Media Files Missing</span>
         </div>
         <div className="relink-dialog__body">
           <p className="relink-dialog__text">

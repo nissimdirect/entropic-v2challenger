@@ -2238,6 +2238,10 @@ function AppInner() {
   const loopRegion = useTimelineStore((s) => s.loopRegion)
   const isLooping = useTimelineStore((s) => s.isLooping)
   const projectBpm = useProjectStore((s) => s.bpm)
+  // P2.1: effectiveBpm is the modulation-derived value (baseline bpm + modulation delta).
+  // The transport display shows effectiveBpm so the user sees the live modulated tempo;
+  // editing always sets the persisted bpm baseline (via setBpm).
+  const effectiveBpm = useProjectStore((s) => s.effectiveBpm)
   const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
   const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
   const snapEnabled = useLayoutStore((s) => s.snapEnabled)
@@ -2325,11 +2329,12 @@ function AppInner() {
         </span>
         <div className="app__transport-bpm">
           <label>BPM</label>
+          {/* P2.1: displays effectiveBpm (modulation-derived); edits write to persisted bpm baseline. */}
           <input
             type="number"
             min={1}
             max={300}
-            value={projectBpm}
+            value={effectiveBpm}
             onChange={(e) => useProjectStore.getState().setBpm(Number(e.target.value))}
           />
         </div>
@@ -2627,7 +2632,7 @@ function AppInner() {
               onStop={handleStop}
               loopEnabled={!!loopRegion}
               onToggleLoop={handleToggleLoop}
-              bpm={projectBpm}
+              bpm={effectiveBpm}
               onBpmChange={(v) => useProjectStore.getState().setBpm(v)}
               quantizeEnabled={quantizeEnabled}
               quantizeDivision={quantizeDivision}

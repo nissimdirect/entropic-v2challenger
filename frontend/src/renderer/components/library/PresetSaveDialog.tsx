@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import type { Preset, EffectInstance, MacroMapping, ModulationRoute } from '../../../shared/types'
 import { randomUUID } from '../../utils'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 interface PresetSaveDialogProps {
   isOpen: boolean
@@ -26,6 +27,9 @@ export default function PresetSaveDialog({
   const [name, setName] = useState('')
   const [tags, setTags] = useState('')
   const [macros, setMacros] = useState<MacroMapping[]>([])
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useModalBehavior(dialogRef, onClose)
 
   if (!isOpen) return null
 
@@ -92,9 +96,15 @@ export default function PresetSaveDialog({
 
   return (
     <div className="preset-save__overlay">
-      <div className="preset-save">
+      <div
+        ref={dialogRef}
+        className="preset-save"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="preset-save-title"
+      >
         <div className="preset-save__header">
-          <span>Save {mode === 'single_effect' ? 'Effect' : 'Chain'} Preset</span>
+          <span id="preset-save-title">Save {mode === 'single_effect' ? 'Effect' : 'Chain'} Preset</span>
           <button className="preset-save__close" onClick={onClose}>
             x
           </button>
