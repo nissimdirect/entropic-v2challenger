@@ -583,6 +583,29 @@ export function getTrackCompositing(chain: EffectInstance[]): { opacity: number;
   return { opacity, mode };
 }
 
+/**
+ * Construct a fresh terminal CompositeEffect at COMPOSITE_DEFAULTS. The `id` is
+ * caller-supplied (this module stays dependency-free — the renderer passes
+ * `randomUUID()`). The compositing params live in the generic `parameters` bag
+ * keyed `opacity`/`mode` so they round-trip through persistence and are read by
+ * `getTrackCompositing` (which prefers `params` then falls back to `parameters`).
+ * P2.2b: created when a Composite is dropped on a track or the "+ Composite"
+ * header affordance is used — always added LAST via the validated addEffect
+ * transaction, never mid-chain.
+ */
+export function makeCompositeEffect(id: string): EffectInstance {
+  return {
+    id,
+    effectId: COMPOSITE_EFFECT_ID,
+    isEnabled: true,
+    isFrozen: false,
+    parameters: { opacity: COMPOSITE_DEFAULTS.opacity, mode: COMPOSITE_DEFAULTS.mode },
+    modulations: {},
+    mix: 1,
+    mask: null,
+  };
+}
+
 // --- Presets (Phase 10) ---
 
 export interface MacroMapping {

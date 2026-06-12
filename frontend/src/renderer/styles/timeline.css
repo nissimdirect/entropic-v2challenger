@@ -782,6 +782,32 @@ body.clip-dragging .timeline__new-track-zone {
   color: var(--cx-text-1);
 }
 
+/* P2.2b: "+ Composite" affordance — shown in the bottom row when a track has no
+   terminal composite yet (replaces dead disabled opacity/blend controls). Acid
+   accent marks it as the primary action that unlocks track compositing. */
+.track-header__add-composite {
+  height: 24px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-acid);
+  border-radius: 2px;
+  color: var(--cx-acid);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9px;
+  cursor: pointer;
+  padding: 0 6px;
+  outline: none;
+}
+
+.track-header__add-composite:hover {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
+}
+
+.track-header__add-composite:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
 /* --- Track Lane --- */
 
 .track-lane {
