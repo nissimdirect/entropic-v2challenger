@@ -1,6 +1,11 @@
 /**
  * Performance store — pad grid, ADSR envelopes, choke groups.
  * All pad evaluation happens frontend-only. Backend receives modulated chains.
+ *
+ * P5a.3: modal perform-mode flag RETIRED — pads are armed whenever a performance
+ * track is selected in the timeline. Use `useTimelineStore` selectedTrackId + track
+ * type to determine arming status. Per-track TriggerEvents are appended here
+ * and consumed by the render path in App.tsx via evaluateVoices (voiceFSM.ts).
  */
 import { create } from 'zustand';
 import type {
@@ -15,6 +20,7 @@ import { DEFAULT_PAD_BINDINGS, DEFAULT_ADSR, RESERVED_KEYS } from '../../shared/
 import { computeADSR } from '../components/performance/computeADSR';
 import { useUndoStore, undoable } from './undo';
 import { useMIDIStore } from './midi';
+import type { TriggerEvent } from '../components/instruments/voiceFSM';
 
 function clampADSR(env: ADSREnvelope): ADSREnvelope {
   return {
@@ -53,15 +59,24 @@ function defaultPadState(): PadRuntimeState {
   };
 }
 
+/** Monotonic event index counter — increments per append, unique within a session. */
+let _eventIndex = 0;
+
 interface PerformanceState {
   drumRack: DrumRack;
-  isPerformMode: boolean;
   isPadEditorOpen: boolean;
   padStates: Record<string, PadRuntimeState>;
+  /**
+   * P5a.3: per-performance-track event log.
+   * trackId → array of TriggerEvents, in append order (ascending eventIndex).
+   * Consumed by evaluateVoices in the App.tsx render effect.
+   * Old saves do NOT have this field — loads cleanly as undefined → defaults to {}.
+   */
+  trackEvents: Record<string, TriggerEvent[]>;
 
   // Pad trigger actions
-  triggerPad: (padId: string, frameIndex: number) => void;
-  releasePad: (padId: string, frameIndex: number) => void;
+  triggerPad: (padId: string, frameIndex: number, trackId?: string) => void;
+  releasePad: (padId: string, frameIndex: number, trackId?: string) => void;
   forceOffPad: (padId: string) => void;
   panicAll: () => void;
 
@@ -72,8 +87,7 @@ interface PerformanceState {
   setPadKeyBinding: (padId: string, key: string | null) => void;
   setChokeGroup: (padId: string, group: number | null) => void;
 
-  // Mode actions
-  setPerformMode: (on: boolean) => void;
+  // Mode actions (modal-flag approach retired in P5a.3 — arming is by track selection)
   setPadEditorOpen: (open: boolean) => void;
 
   // Lifecycle
@@ -86,11 +100,11 @@ interface PerformanceState {
 
 export const usePerformanceStore = create<PerformanceState>((set, get) => ({
   drumRack: createDefaultRack(),
-  isPerformMode: false,
   isPadEditorOpen: false,
   padStates: {},
+  trackEvents: {},
 
-  triggerPad: (padId, frameIndex) => {
+  triggerPad: (padId, frameIndex, trackId) => {
     const { drumRack, padStates } = get();
     const pad = drumRack.pads.find((p) => p.id === padId);
     if (!pad) return;
@@ -116,10 +130,27 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       releaseStartValue: 0,
     };
 
-    set({ padStates: newStates });
+    // P5a.3: append TriggerEvent to the owning track's event log.
+    // Non-finite frameIndex is dropped (trust boundary — numeric guard).
+    const updates: Partial<PerformanceState> = { padStates: newStates };
+    if (trackId && Number.isFinite(frameIndex) && frameIndex >= 0) {
+      const idx = _eventIndex++;
+      const ev: TriggerEvent = {
+        frameIndex: Math.round(frameIndex),
+        eventIndex: idx,
+        note: 60, // default MIDI note; extended in P5a.8
+        velocity: 127,
+        kind: 'trigger',
+        instrumentId: trackId,
+      };
+      const existing = get().trackEvents[trackId] ?? [];
+      updates.trackEvents = { ...get().trackEvents, [trackId]: [...existing, ev] };
+    }
+
+    set(updates);
   },
 
-  releasePad: (padId, frameIndex) => {
+  releasePad: (padId, frameIndex, trackId) => {
     const { padStates, drumRack } = get();
     const state = padStates[padId];
     if (!state || state.phase === 'idle' || state.phase === 'release') return;
@@ -130,17 +161,33 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     // Compute current value at release moment
     const currentResult = computeADSR(pad.envelope, state, frameIndex);
 
-    set({
-      padStates: {
-        ...padStates,
-        [padId]: {
-          ...state,
-          phase: 'release',
-          releaseFrame: frameIndex,
-          releaseStartValue: currentResult.value,
-        },
+    const newPadStates = {
+      ...padStates,
+      [padId]: {
+        ...state,
+        phase: 'release' as const,
+        releaseFrame: frameIndex,
+        releaseStartValue: currentResult.value,
       },
-    });
+    };
+
+    // P5a.3: append release TriggerEvent to the owning track's event log.
+    const updates: Partial<PerformanceState> = { padStates: newPadStates };
+    if (trackId && Number.isFinite(frameIndex) && frameIndex >= 0) {
+      const idx = _eventIndex++;
+      const ev: TriggerEvent = {
+        frameIndex: Math.round(frameIndex),
+        eventIndex: idx,
+        note: 60,
+        velocity: 0,
+        kind: 'release',
+        instrumentId: trackId,
+      };
+      const existing = get().trackEvents[trackId] ?? [];
+      updates.trackEvents = { ...get().trackEvents, [trackId]: [...existing, ev] };
+    }
+
+    set(updates);
   },
 
   forceOffPad: (padId) => {
@@ -153,7 +200,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
   },
 
   panicAll: () => {
-    set({ padStates: {} });
+    set({ padStates: {}, trackEvents: {} });
   },
 
   updatePad: (padId, updates) => {
@@ -296,22 +343,14 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     undoable(`Set choke group for ${pad.label}`, forward, inverse);
   },
 
-  setPerformMode: (on) => {
-    if (!on) {
-      // H5: panicAll when leaving perform mode
-      get().panicAll();
-    }
-    set({ isPerformMode: on });
-  },
-
   setPadEditorOpen: (open) => set({ isPadEditorOpen: open }),
 
   resetDrumRack: () => {
     set({
       drumRack: createDefaultRack(),
       padStates: {},
-      isPerformMode: false,
       isPadEditorOpen: false,
+      trackEvents: {},
     });
   },
 
@@ -324,6 +363,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     set({
       drumRack: { ...rack, pads },
       padStates: {},
+      trackEvents: {},
     });
     // Clear undo — pad IDs changed, old closures reference stale state
     useUndoStore.getState().clear();

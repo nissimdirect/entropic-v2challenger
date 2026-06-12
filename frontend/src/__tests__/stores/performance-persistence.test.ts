@@ -127,7 +127,9 @@ describe('Performance Persistence', () => {
     // Modify state
     usePerformanceStore.getState().updatePad('pad-0', { label: 'Custom' });
     usePerformanceStore.getState().triggerPad('pad-0', 0);
-    usePerformanceStore.getState().setPerformMode(true);
+    // P5a.3: setPerformMode RETIRED — arming is track-selection based.
+    // Append a trackEvent to verify it gets cleared on reset.
+    usePerformanceStore.getState().triggerPad('pad-0', 5, 'track-test');
 
     // Reset
     usePerformanceStore.getState().resetDrumRack();
@@ -135,8 +137,10 @@ describe('Performance Persistence', () => {
     const state = usePerformanceStore.getState();
     expect(state.drumRack.pads).toHaveLength(16);
     expect(state.drumRack.pads[0].label).toBe('Pad 1');
-    expect(state.isPerformMode).toBe(false);
+    // P5a.3: modal flag no longer exists in the store.
     expect(state.isPadEditorOpen).toBe(false);
     expect(Object.keys(state.padStates)).toHaveLength(0);
+    // P5a.3: trackEvents cleared on reset
+    expect(Object.keys(state.trackEvents)).toHaveLength(0);
   });
 });

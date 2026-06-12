@@ -14,7 +14,9 @@ interface PerformancePanelProps {
 export default function PerformancePanel({ onEditPad }: PerformancePanelProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const isPerformMode = usePerformanceStore((s) => s.isPerformMode);
+  // P5a.3: modal-flag approach retired — panel renders only when a performance
+  // track is selected (see App.tsx gate). Always active here.
+  const isArmed = true;
 
   const handleToggle = useCallback(() => {
     setIsCollapsed((prev) => !prev);
@@ -66,7 +68,7 @@ export default function PerformancePanel({ onEditPad }: PerformancePanelProps) {
       <div className="performance-panel__header" onClick={handleToggle}>
         <span className="performance-panel__title">
           <span
-            className={`performance-panel__indicator${isPerformMode ? ' performance-panel__indicator--active' : ''}`}
+            className={`performance-panel__indicator${isArmed ? ' performance-panel__indicator--active' : ''}`}
           />
           PERFORM
         </span>

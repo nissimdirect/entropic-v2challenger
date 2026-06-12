@@ -241,36 +241,60 @@ describe('Performance Store', () => {
     expect(usePerformanceStore.getState().drumRack.pads[1].keyBinding).toBe('Digit2');
   });
 
-  // --- setPerformMode ---
+  // --- P5a.3: modal perform-mode flag RETIRED — arming is track-selection based ---
+  // (setPerformMode removed from store; arming = selectedTrack.type === 'performance')
 
-  it('H5: setPerformMode(false) calls panicAll', () => {
+  it('P5a.3: pad trigger appends a TriggerEvent to the owning track event log', () => {
     const store = usePerformanceStore.getState();
-    store.triggerPad('pad-0', 0);
-    store.triggerPad('pad-1', 0);
-    store.setPerformMode(true);
+    store.triggerPad('pad-0', 42, 'track-perf-1');
 
-    expect(usePerformanceStore.getState().isPerformMode).toBe(true);
-    // Pads still active
-    expect(Object.keys(usePerformanceStore.getState().padStates).length).toBeGreaterThan(0);
+    const events = usePerformanceStore.getState().trackEvents['track-perf-1'];
+    expect(events).toHaveLength(1);
+    expect(events[0].kind).toBe('trigger');
+    expect(events[0].frameIndex).toBe(42);
+    expect(events[0].instrumentId).toBe('track-perf-1');
+  });
 
-    usePerformanceStore.getState().setPerformMode(false);
-    expect(usePerformanceStore.getState().isPerformMode).toBe(false);
+  it('P5a.3: pads are armed when a performance track is selected (no modal flag)', () => {
+    // Arming is a derived value in App.tsx — the store does NOT expose the old flag.
+    const state = usePerformanceStore.getState();
+    expect('setPerformMode' in state).toBe(false);
+    // trackEvents is the new per-track event log
+    expect('trackEvents' in state).toBe(true);
+  });
+
+  it('P5a.3: panicAll clears all tracks active voices (trackEvents emptied)', () => {
+    const store = usePerformanceStore.getState();
+    store.triggerPad('pad-0', 0, 'track-1');
+    store.triggerPad('pad-1', 0, 'track-2');
+    expect(Object.keys(usePerformanceStore.getState().trackEvents).length).toBeGreaterThan(0);
+
+    store.panicAll();
     expect(Object.keys(usePerformanceStore.getState().padStates)).toHaveLength(0);
+    expect(Object.keys(usePerformanceStore.getState().trackEvents)).toHaveLength(0);
+  });
+
+  it('P5a.3: trigger with non-finite frameIndex is dropped at the store boundary (negative)', () => {
+    const store = usePerformanceStore.getState();
+    store.triggerPad('pad-0', NaN, 'track-nan');
+    // No TriggerEvent should be appended for the track when frameIndex is non-finite.
+    const events = usePerformanceStore.getState().trackEvents['track-nan'];
+    expect(events).toBeUndefined();
   });
 
   // --- resetDrumRack ---
 
   it('resetDrumRack restores defaults', () => {
     usePerformanceStore.getState().updatePad('pad-0', { label: 'Custom' });
-    usePerformanceStore.getState().triggerPad('pad-0', 0);
-    usePerformanceStore.getState().setPerformMode(true);
+    usePerformanceStore.getState().triggerPad('pad-0', 0, 'track-x');
 
     usePerformanceStore.getState().resetDrumRack();
 
     const state = usePerformanceStore.getState();
     expect(state.drumRack.pads[0].label).toBe('Pad 1');
     expect(Object.keys(state.padStates)).toHaveLength(0);
-    expect(state.isPerformMode).toBe(false);
+    // P5a.3: trackEvents cleared on reset
+    expect(Object.keys(state.trackEvents)).toHaveLength(0);
   });
 
   // --- loadDrumRack ---
