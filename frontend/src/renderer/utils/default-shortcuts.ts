@@ -70,4 +70,10 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'grid_down',             keys: '[',              category: 'view', label: 'Grid: Coarser Division', context: 'normal' },
   { action: 'toggle_popout',         keys: 'meta+shift+p',   category: 'view', label: 'Toggle Pop-out Preview', context: 'normal' },
   { action: 'tool_escape_select',    keys: 'escape',         category: 'tool', label: 'Reset to Select Tool',   context: 'normal' },
+
+  // --- MK.4: Selection / mask tools (MASKING-INTERACTIONS.md §1/§4/§8) ---
+  // 'q' for marquee — Photoshop 'm' is 'add_marker' here (F-0516-8); 'q' is free.
+  { action: 'tool_marquee',          keys: 'q',              category: 'mask', label: 'Tool: Marquee',           context: 'normal' },
+  { action: 'mask_delete_outside',   keys: 'alt+backspace',  category: 'mask', label: 'Mask: Delete Outside',    context: 'normal' },
+  { action: 'mask_deselect_all',     keys: 'meta+shift+a',   category: 'mask', label: 'Mask: Deselect All',      context: 'normal' },
 ]

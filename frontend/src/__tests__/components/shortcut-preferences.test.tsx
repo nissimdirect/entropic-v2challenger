@@ -26,8 +26,8 @@ describe('ShortcutEditor', () => {
     render(<ShortcutEditor />)
     await waitFor(() => {
       const categories = document.querySelectorAll('.shortcut-editor__category')
-      // P3.4 adds 'Tool' category for cursor-mode shortcuts — now 7 categories
-      expect(categories.length).toBe(7)
+      // P3.4 adds 'Tool' category; MK.4 adds 'Mask' category — now 8 categories
+      expect(categories.length).toBe(8)
     })
   })
 

@@ -13,6 +13,7 @@ import PreviewCanvas, { type PreviewState } from './components/preview/PreviewCa
 import TextPanel from './components/text/TextPanel'
 import TextOverlay from './components/text/TextOverlay'
 import PreviewControls from './components/preview/PreviewControls'
+import MaskSelectOverlay from './components/preview/MaskSelectOverlay'
 import ExportDialog from './components/export/ExportDialog'
 import type { ExportSettings } from './components/export/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
@@ -673,18 +674,56 @@ function AppInner() {
       }
     })
 
-    // Delete selected clips, or fall back to selected effect
+    // Delete selected clips, or fall back to selected effect.
+    // MK.4 priority §4: ① active matte selection → delete-inside · ② clips · ③ effect
     shortcutRegistry.register('delete_selected', () => {
       const ts = useTimelineStore.getState()
+      // Priority ①: active marquee selection → delete-inside (maskMode: 'deleteInside')
+      if (ts.committedMaskSelection) {
+        const { clipId } = ts.committedMaskSelection
+        ts.setClipMaskMode(clipId, 'deleteInside')
+        ts.clearMaskSelection()
+        return
+      }
+      // Priority ②: selected clips
       if (ts.selectedClipIds.length > 0) {
         ts.deleteSelectedClips()
-      } else {
-        const ps = useProjectStore.getState()
-        if (ps.selectedEffectId) {
-          const trackId = getActiveTrackId()
-          if (trackId) ps.removeEffect(trackId, ps.selectedEffectId)
-        }
+        return
       }
+      // Priority ③: selected effect
+      const ps = useProjectStore.getState()
+      if (ps.selectedEffectId) {
+        const trackId = getActiveTrackId()
+        if (trackId) ps.removeEffect(trackId, ps.selectedEffectId)
+      }
+    })
+
+    // MK.4: Alt+Backspace → delete-outside (MASKING-INTERACTIONS.md §4)
+    shortcutRegistry.register('mask_delete_outside', () => {
+      const ts = useTimelineStore.getState()
+      if (ts.committedMaskSelection) {
+        const { clipId } = ts.committedMaskSelection
+        ts.setClipMaskMode(clipId, 'deleteOutside')
+        ts.clearMaskSelection()
+      }
+    })
+
+    // MK.4: q → toggle marquee tool (rect/ellipse via repeat-press; §1 hotkeys)
+    shortcutRegistry.register('tool_marquee', () => {
+      const ts = useTimelineStore.getState()
+      const current = ts.previewToolMode
+      if (current === 'marquee-rect') {
+        ts.setPreviewToolMode('marquee-ellipse')
+      } else if (current === 'marquee-ellipse') {
+        ts.setPreviewToolMode(null)
+      } else {
+        ts.setPreviewToolMode('marquee-rect')
+      }
+    })
+
+    // MK.4: Cmd+Shift+A → deselect (clear active mask selection)
+    shortcutRegistry.register('mask_deselect_all', () => {
+      useTimelineStore.getState().clearMaskSelection()
     })
 
     // UE.2: Ripple delete — Shift+Backspace. Ripple-deletes each selected clip in
@@ -775,15 +814,26 @@ function AppInner() {
         return
       }
 
-      // Escape in normal mode →
-      //   1) F-0514-5: if a clip is selected, clear selection (removes
-      //      TransformPanel from sidebar + lifts bounding-box handles).
-      //      Escape was bound only to transport-stop previously, leaving
-      //      no keyboard way to lose the clip selection.
-      //   2) Otherwise: dispatch the stop event (reset playhead).
+      // Escape in normal mode — 7-level dispatcher (MASKING-INTERACTIONS.md §9):
+      //   Level 1: cancel in-progress marquee drag (handled in MaskSelectOverlay.tsx keydown capture)
+      //   Level 2: clear committed mask selection (deselect ants)
+      //   Level 3: exit preview tool mode (return to select)
+      //   Level 4: clear clip selection (F-0514-5)
+      //   Level 5–7: transport-stop, etc. (no-op until their packets land)
       if (e.code === 'Escape') {
         e.preventDefault()
         const ts = useTimelineStore.getState()
+        // Level 2: active mask selection → deselect (Escape priority: deselect before tool exit)
+        if (ts.committedMaskSelection) {
+          ts.clearMaskSelection()
+          return
+        }
+        // Level 3: exit preview tool mode
+        if (ts.previewToolMode) {
+          ts.setPreviewToolMode(null)
+          return
+        }
+        // Level 4: clip selection (F-0514-5)
         if (ts.selectedClipIds.length > 0) {
           ts.clearSelection()
           return
@@ -2910,6 +2960,13 @@ function AppInner() {
                 enabled={true}
               />
             )}
+            {/* MK.4: Marquee selection overlay — active when previewToolMode is set */}
+            <MaskSelectOverlay
+              containerRef={previewContainerRef}
+              canvasWidth={frameWidth || 1920}
+              canvasHeight={frameHeight || 1080}
+              clipId={selectedClip?.id ?? null}
+            />
           </div>
           <PreviewControls
             currentFrame={currentFrame}

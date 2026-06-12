@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, TextClipConfig, ClipTransform, AudioClip, EffectInstance } from '../../shared/types'
+import type { Track, Clip, Marker, TextClipConfig, ClipTransform, AudioClip, EffectInstance, MatteNode } from '../../shared/types'
 import { AUDIO_LIMITS, clampGainDb, clampNonNegSec } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
@@ -138,6 +138,34 @@ interface TimelineState {
   /** UE.5: Set or clear the missing flag on all Clips referencing a given assetId. */
   setClipMissingByAssetId: (assetId: string, missing: boolean) => void
 
+  // --- MK.4: Preview marquee interaction state ---
+  /**
+   * In-progress drag rect (DOM-space, px). Null when no drag is active.
+   * NOT persisted — purely ephemeral UI state cleared on commit/cancel.
+   * Owned by: timeline store (preview-interaction state collocated with clip state).
+   */
+  marqueeInProgress: { x1: number; y1: number; x2: number; y2: number } | null
+  /**
+   * Committed selection MatteNode (frame-coord params, kind rect|ellipse).
+   * Present after a successful drag commit; consumed by delete/fill ops.
+   * Null = no active selection.
+   */
+  committedMaskSelection: { nodeId: string; clipId: string } | null
+  /** Currently active preview tool mode. Null = normal (select/transform). */
+  previewToolMode: 'marquee-rect' | 'marquee-ellipse' | null
+
+  // Preview tool actions
+  setPreviewToolMode: (mode: 'marquee-rect' | 'marquee-ellipse' | null) => void
+  setMarqueeInProgress: (rect: { x1: number; y1: number; x2: number; y2: number } | null) => void
+  clearMaskSelection: () => void
+
+  // --- MK.4: Matte node CRUD (undoable) ---
+  addMatteNode: (clipId: string, node: MatteNode) => void
+  removeMatteNode: (clipId: string, nodeId: string) => void
+  updateMatteNode: (clipId: string, nodeId: string, patch: Partial<MatteNode>) => void
+  /** MK.4: Set clip maskMode + optional fill color. Undoable. */
+  setClipMaskMode: (clipId: string, mode: 'deleteInside' | 'deleteOutside' | 'fill', fillColor?: string) => void
+
   // Helpers
   getActiveClipsAtTime: (time: number) => { track: Track; clip: Clip }[]
   getTimelineDuration: () => number
@@ -250,6 +278,10 @@ const INITIAL_STATE = {
   selectedClipId: null as string | null,
   selectedClipIds: [] as string[],
   speedDialog: null as { clipId: string; anchor: { x: number; y: number } } | null,
+  // MK.4: preview interaction state
+  marqueeInProgress: null as { x1: number; y1: number; x2: number; y2: number } | null,
+  committedMaskSelection: null as { nodeId: string; clipId: string } | null,
+  previewToolMode: null as 'marquee-rect' | 'marquee-ellipse' | null,
 }
 
 /** Get all clips in track order (top track first, then by position within track). */
@@ -1749,6 +1781,154 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       }
     }
     return result
+  },
+
+  // --- MK.4: Preview tool + marquee interaction ---
+
+  setPreviewToolMode: (mode) => {
+    // Switching tool clears any in-progress drag and committed selection (ephemeral UI)
+    set({ previewToolMode: mode, marqueeInProgress: null, committedMaskSelection: null })
+  },
+
+  setMarqueeInProgress: (rect) => {
+    set({ marqueeInProgress: rect })
+  },
+
+  clearMaskSelection: () => {
+    set({ committedMaskSelection: null, marqueeInProgress: null })
+  },
+
+  // --- MK.4: Matte node CRUD (undoable) ---
+
+  addMatteNode: (clipId, node) => {
+    // Find clip to capture pre-state for undo
+    let prevStack: MatteNode[] | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { prevStack = clip.maskStack ? [...clip.maskStack] : []; break }
+    }
+    if (prevStack === undefined) return  // unknown clip — no-op
+
+    const withNode = [...prevStack, node]
+
+    undoable(
+      'Add matte node',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: withNode } : c,
+          ),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: prevStack } : c,
+          ),
+        })),
+      }),
+    )
+  },
+
+  removeMatteNode: (clipId, nodeId) => {
+    let prevStack: MatteNode[] | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { prevStack = clip.maskStack ? [...clip.maskStack] : []; break }
+    }
+    if (prevStack === undefined) return
+
+    const withoutNode = prevStack.filter((n) => n.id !== nodeId)
+
+    undoable(
+      'Remove matte node',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: withoutNode } : c,
+          ),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: prevStack } : c,
+          ),
+        })),
+      }),
+    )
+  },
+
+  updateMatteNode: (clipId, nodeId, patch) => {
+    let prevStack: MatteNode[] | undefined
+    let prevNode: MatteNode | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) {
+        prevStack = clip.maskStack ? [...clip.maskStack] : []
+        prevNode = prevStack.find((n) => n.id === nodeId)
+        break
+      }
+    }
+    if (!prevStack || !prevNode) return
+
+    const capturedPrev = { ...prevNode }
+    const capturedPrevStack = prevStack
+    const updatedNode: MatteNode = { ...prevNode, ...patch, id: nodeId }
+    const withUpdate = prevStack.map((n) => n.id === nodeId ? updatedNode : n)
+
+    undoable(
+      'Update matte node',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: withUpdate } : c,
+          ),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: capturedPrevStack.map((n) => n.id === nodeId ? capturedPrev : n) } : c,
+          ),
+        })),
+      }),
+    )
+  },
+
+  setClipMaskMode: (clipId, mode, fillColor) => {
+    let prevMode: string | undefined
+    let prevFillColor: string | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { prevMode = clip.maskMode; prevFillColor = clip.maskFillColor; break }
+    }
+
+    undoable(
+      `Mask ${mode}`,
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskMode: mode, ...(fillColor ? { maskFillColor: fillColor } : {}) } : c,
+          ),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskMode: prevMode as any, maskFillColor: prevFillColor } : c,
+          ),
+        })),
+      }),
+    )
   },
 
   // --- Reset ---
