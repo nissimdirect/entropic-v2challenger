@@ -1,0 +1,162 @@
+/* P3.1 — Creatrix CSS-grid app shell (F_CREATRIX_LAYOUT)
+ * Applied ONLY when .app--creatrix class is present (flag ON).
+ * Flag OFF: existing .app rules in global.css are untouched.
+ * No hex literals — use --cx-* tokens from tokens.css only.
+ */
+
+/* Creatrix grid shell — overrides .app when flag is ON */
+.app--creatrix {
+  display: grid;
+  /* left-col | 6px handle | right-col */
+  grid-template-columns: var(--cx-left-col-w, 260px) 6px 1fr;
+  grid-template-rows: var(--cx-transport-h, 33px) 1fr var(--cx-statusbar-h, 36px);
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+  padding-top: 0; /* transport is in grid row 1 now */
+}
+
+.app--creatrix .app__transport-bar {
+  position: relative; /* Override fixed positioning — now in grid row 1 */
+  grid-row: 1;
+  grid-column: 1 / 4; /* span all 3 columns */
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.app--creatrix .cx-left-col {
+  grid-row: 2;
+  grid-column: 1;
+  display: grid;
+  grid-template-rows: 1fr var(--cx-inspector-h, 150px);
+  overflow: hidden;
+  background: var(--cx-bg-panel);
+}
+
+/* The vertical handle lives at grid-column 2, row 2 */
+.app--creatrix .cx-resize-handle--vertical {
+  grid-row: 2;
+  grid-column: 2;
+}
+
+.app--creatrix .cx-right-col {
+  grid-row: 2;
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Right-col children: preview, handle, main+timeline, handle, device-chain */
+.app--creatrix .cx-right-col .app__main {
+  flex-shrink: 0;
+  height: var(--cx-preview-h, 38%);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app--creatrix .cx-right-col .app__timeline {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app--creatrix .cx-right-col .app__device-chain {
+  flex-shrink: 0;
+  height: var(--cx-device-chain-h, 180px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Horizontal handles inside cx-right-col */
+.app--creatrix .cx-right-col .cx-resize-handle--horizontal {
+  flex-shrink: 0;
+}
+
+.app--creatrix .status-bar {
+  grid-row: 3;
+  grid-column: 1 / 4; /* span all 3 columns */
+}
+
+/* Preview collapsed strip */
+.app--creatrix .cx-preview-strip {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+  background: var(--cx-bg-panel);
+  border-bottom: 1px solid var(--cx-line-1);
+  font-size: 11px;
+  color: var(--cx-text-2);
+}
+
+/* Inspector placeholder (P3.1) — P3.3 fills the real inspector content */
+.app--creatrix .cx-inspector-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--cx-text-3);
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-line-1);
+  overflow: hidden;
+}
+
+/* --- Resize handles --- */
+/* 6px visible bar, 16px pointer-events hit zone (5px each side + 6px bar) */
+
+.cx-resize-handle {
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+/* Vertical handle (left-col right edge) */
+.cx-resize-handle--vertical {
+  width: 6px;
+  cursor: col-resize;
+  background: var(--cx-line-1);
+}
+
+.cx-resize-handle--vertical::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5px;
+  right: -5px;
+  bottom: 0;
+  cursor: col-resize;
+}
+
+/* Horizontal handle (preview bottom, device-chain top, inspector top) */
+.cx-resize-handle--horizontal {
+  height: 6px;
+  cursor: row-resize;
+  background: var(--cx-line-1);
+}
+
+.cx-resize-handle--horizontal::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  cursor: row-resize;
+}
+
+.cx-resize-handle:hover,
+.cx-resize-handle--dragging {
+  background: var(--cx-line-2);
+}
+
+/* F-0512-36 retirement: when creatrix flag is ON, the transform-panel cap is
+   superseded by the grid row layout. The grid controls the size instead.
+   Flag OFF: .transform-panel in global.css still has min(28vh, 320px) — untouched. */
+.app--creatrix .transform-panel {
+  max-height: none;
+  overflow-y: auto;
+  flex-shrink: 1;
+}
