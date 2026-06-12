@@ -4,10 +4,15 @@
  * Tests that frontend/scripts/hex-ratchet.sh enforces the hex-ceiling
  * contract: no hardcoded hex colors in styles/ outside tokens.css.
  *
- * Three tests:
+ * Four tests:
  *  1. Passes when styles hex count equals the ceiling.
  *  2. Fails (exit 1) when a stylesheet adds a hardcoded hex above the ceiling.
  *  3. Excludes tokens.css from the count.
+ *  4. THE LIVE GATE: the script passes against the REAL styles tree. The
+ *     fixture tests above prove the script's logic; this one is the actual
+ *     ratchet — without it, two independently-green PRs can squash into a
+ *     red union that no CI run ever counts (exactly what #181 + #179 did
+ *     on 2026-06-12: 3 stray hexes landed and the smoke job stayed green).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -123,5 +128,22 @@ describe('hex-ratchet', () => {
     } finally {
       cleanup()
     }
+  })
+
+  it('live tree: the real styles/ directory is at or under the committed ceiling', () => {
+    // No fixtures — run the script against the actual frontend tree. This is
+    // the enforcing test: a PR that adds a hardcoded hex to styles/ goes red
+    // HERE, in the same vitest run CI already executes.
+    const res = spawnSync('bash', [SCRIPT], {
+      cwd: FRONTEND_DIR,
+      encoding: 'utf-8',
+    })
+    expect(
+      res.status,
+      `hex-ratchet failed on the live tree:\n${res.stdout}${res.stderr}\n` +
+        'A hardcoded hex entered src/renderer/styles/. Use a token from ' +
+        'tokens.css (DESIGN-SPEC v1.1), or — only for a deliberate new ' +
+        'color — add it to tokens.css and keep the ceiling honest.',
+    ).toBe(0)
   })
 })
