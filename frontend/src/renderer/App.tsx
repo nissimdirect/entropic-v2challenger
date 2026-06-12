@@ -1389,22 +1389,15 @@ function AppInner() {
     const res = await window.entropic.sendCommand(payload)
 
     if (res.ok) {
-      // Toast action note: toast store has action:{label, fn} support — using it here.
-      // "Reveal in Finder" is wired via shell:openPath (if available) or logs the path.
+      // "Reveal in Finder" needs a shell:openPath bridge method that doesn't
+      // exist yet — a button calling a missing bridge would be a dead control
+      // (wire-or-delete rule). The toast text carries the full path; the
+      // openPath bridge + Reveal action is a named follow-up in the PR body.
       const exportedPath = (res.output_path as string) || outputPath
       useToastStore.getState().addToast({
         level: 'info',
         message: `Frame exported: ${exportedPath}`,
         source: 'export-frame',
-        action: {
-          label: 'Reveal',
-          fn: () => {
-            // Fire and forget — if openPath is not available, the toast text shows the path
-            if (typeof (window.entropic as Record<string, unknown>)['openPath'] === 'function') {
-              ;(window.entropic as Record<string, unknown>)['openPath'](exportedPath)
-            }
-          },
-        },
       })
     } else {
       useToastStore.getState().addToast({
