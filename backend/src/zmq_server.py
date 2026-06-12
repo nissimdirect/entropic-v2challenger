@@ -2,12 +2,15 @@ import base64
 import collections
 import json
 import logging
+import math
 import time
 import uuid
 
 import numpy as np
 import sentry_sdk
 import zmq
+from PIL import Image
+import io as _io
 
 from effects import registry
 from engine.cache import encode_mjpeg
@@ -400,6 +403,8 @@ class ZMQServer:
             return self._handle_memory_status(msg_id)
         elif cmd == "thumbnails":
             return self._handle_thumbnails(message, msg_id)
+        elif cmd == "export_frame":
+            return self._handle_export_frame(message, msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -484,10 +489,96 @@ class ZMQServer:
             logging.getLogger(__name__).error(f"Seek handler error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
+    def _render_composited_frame(
+        self, message: dict
+    ) -> tuple[np.ndarray, int, object, object]:
+        """Extract the render core of _handle_render_frame for reuse by export_frame.
+
+        Returns (output_ndarray, frame_index, reader, operator_values).
+        Raises on any error (callers wrap in try/except).
+        Caller is responsible for validating path and chain before calling this.
+        The internal end-buffer clamp (frame_count-3) is applied here, matching
+        the preview render path — this is safe after trust-boundary validation.
+        """
+        path = message["path"]
+        chain = list(message.get("chain", []))
+        project_seed = message.get("project_seed", 0)
+
+        reader = self._get_reader(path)
+        # Accept frame_index directly, fall back to time_s * fps
+        if "frame_index" in message:
+            frame_index = int(message["frame_index"])
+        else:
+            time_s = clamp_finite(float(message.get("time", 0.0)), 0.0, 86400.0, 0.0)
+            frame_index = int(time_s * reader.fps)
+
+        # F-3: Bounds check on frame_index (callers may also check)
+        if frame_index < 0:
+            raise ValueError("frame_index must be non-negative")
+
+        # Clamp to safe range — MKV/VP9 containers often can't decode
+        # the very last frames. Leave a 2-frame buffer from the end.
+        if (
+            hasattr(reader, "frame_count")
+            and reader.frame_count
+            and frame_index >= reader.frame_count - 2
+        ):
+            frame_index = max(0, reader.frame_count - 3)
+
+        frame = reader.decode_frame(frame_index)
+        resolution = (reader.width, reader.height)
+
+        # Phase 6A: Apply operator modulation if operators present
+        operators = message.get("operators")
+        operator_values = None
+        if operators and isinstance(operators, list):
+            engine = self._get_signal_engine()
+            # Get audio PCM window for audio follower
+            audio_pcm = self._get_audio_pcm_for_frame(frame_index, reader.fps)
+            audio_sr = (
+                self.audio_player._sample_rate if self.audio_player.loaded else 44100
+            )
+            operator_values, self._signal_state = engine.evaluate_all(
+                operators,
+                frame_index,
+                reader.fps,
+                audio_pcm=audio_pcm,
+                audio_sample_rate=audio_sr,
+                video_frame=frame,
+                state=self._signal_state,
+            )
+            # Phase 7: Extract automation overrides from frontend
+            auto_overrides = message.get("automation_overrides")
+            if auto_overrides and not isinstance(auto_overrides, dict):
+                auto_overrides = None
+
+            chain = engine.apply_modulation(
+                operators,
+                operator_values,
+                chain,
+                registry.get,
+                automation_overrides=auto_overrides,
+            )
+
+        # Apply clip transform if present (before effect chain)
+        transform = message.get("transform")
+        if transform and isinstance(transform, dict):
+            frame = self._apply_clip_transform(frame, transform, resolution)
+
+        # Use pipeline engine — thread per-effect state across frames so
+        # stateful effects (datamosh, reaction_mosh, frame_drop, etc.)
+        # accumulate. Resets on path change or seek; see _get_render_states.
+        states_in = self._get_render_states(path, frame_index)
+        output, states_out = apply_chain(
+            frame, chain, project_seed, frame_index, resolution, states_in
+        )
+        self._store_render_states(path, frame_index, states_out)
+
+        return output, frame_index, reader, operator_values
+
     def _handle_render_frame(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
         chain = message.get("chain", [])
-        project_seed = message.get("project_seed", 0)
         if not path:
             return {"id": msg_id, "ok": False, "error": "missing path"}
 
@@ -502,83 +593,10 @@ class ZMQServer:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
         try:
-            reader = self._get_reader(path)
-            # Accept frame_index directly, fall back to time_s * fps
-            if "frame_index" in message:
-                frame_index = int(message["frame_index"])
-            else:
-                time_s = clamp_finite(
-                    float(message.get("time", 0.0)), 0.0, 86400.0, 0.0
-                )
-                frame_index = int(time_s * reader.fps)
-
-            # F-3: Bounds check on frame_index
-            if frame_index < 0:
-                return {
-                    "id": msg_id,
-                    "ok": False,
-                    "error": "frame_index must be non-negative",
-                }
-            # Clamp to safe range — MKV/VP9 containers often can't decode
-            # the very last frames. Leave a 2-frame buffer from the end.
-            if (
-                hasattr(reader, "frame_count")
-                and reader.frame_count
-                and frame_index >= reader.frame_count - 2
-            ):
-                frame_index = max(0, reader.frame_count - 3)
-
             t0 = time.time()
-            frame = reader.decode_frame(frame_index)
-            resolution = (reader.width, reader.height)
-
-            # Phase 6A: Apply operator modulation if operators present
-            operators = message.get("operators")
-            operator_values = None
-            if operators and isinstance(operators, list):
-                engine = self._get_signal_engine()
-                # Get audio PCM window for audio follower
-                audio_pcm = self._get_audio_pcm_for_frame(frame_index, reader.fps)
-                audio_sr = (
-                    self.audio_player._sample_rate
-                    if self.audio_player.loaded
-                    else 44100
-                )
-                operator_values, self._signal_state = engine.evaluate_all(
-                    operators,
-                    frame_index,
-                    reader.fps,
-                    audio_pcm=audio_pcm,
-                    audio_sample_rate=audio_sr,
-                    video_frame=frame,
-                    state=self._signal_state,
-                )
-                # Phase 7: Extract automation overrides from frontend
-                auto_overrides = message.get("automation_overrides")
-                if auto_overrides and not isinstance(auto_overrides, dict):
-                    auto_overrides = None
-
-                chain = engine.apply_modulation(
-                    operators,
-                    operator_values,
-                    chain,
-                    registry.get,
-                    automation_overrides=auto_overrides,
-                )
-
-            # Apply clip transform if present (before effect chain)
-            transform = message.get("transform")
-            if transform and isinstance(transform, dict):
-                frame = self._apply_clip_transform(frame, transform, resolution)
-
-            # Use pipeline engine — thread per-effect state across frames so
-            # stateful effects (datamosh, reaction_mosh, frame_drop, etc.)
-            # accumulate. Resets on path change or seek; see _get_render_states.
-            states_in = self._get_render_states(path, frame_index)
-            output, states_out = apply_chain(
-                frame, chain, project_seed, frame_index, resolution, states_in
+            output, frame_index, reader, operator_values = (
+                self._render_composited_frame(message)
             )
-            self._store_render_states(path, frame_index, states_out)
 
             # Encode once for base64 transport (skip mmap — Electron uses base64)
             jpeg_bytes = encode_mjpeg(output)
@@ -603,6 +621,129 @@ class ZMQServer:
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Render frame handler error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_export_frame(self, message: dict, msg_id: str | None) -> dict:
+        """Export the composited frame at a given time as a PNG file.
+
+        Trust boundary (UE.6 spec):
+          - path: validated via validate_upload
+          - chain: validated via validate_chain_depth
+          - output_path: validated via validate_output_path (must end in .png)
+          - time: must be a real finite number (not bool), in [0, duration];
+                  out-of-range / NaN / -1 → ok:false, no file written, server stays up.
+                  NEVER silently clamps time (helper's internal end-buffer clamp is fine
+                  after validation — preview does the same, parity maintained).
+        """
+        path = message.get("path")
+        chain = message.get("chain", [])
+        output_path = message.get("output_path")
+
+        if not path:
+            return {"id": msg_id, "ok": False, "error": "missing path"}
+        if not output_path:
+            return {"id": msg_id, "ok": False, "error": "missing output_path"}
+
+        # SEC-5: Validate source path
+        errors = validate_upload(path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # SEC-7: Validate chain depth
+        errors = validate_chain_depth(chain)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # Validate output path (checks extension allowlist, writability, no traversal)
+        # .png was added to ALLOWED_OUTPUT_EXTENSIONS for this command.
+        from pathlib import Path as _Path
+
+        if not str(output_path).lower().endswith(".png"):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "output_path must have .png extension",
+            }
+        errors = validate_output_path(output_path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # Validate time: must be a real finite number (not bool), within [0, duration].
+        # Out-of-range / NaN / infinity → reject; no file written, server stays up.
+        raw_time = message.get("time")
+        if raw_time is None:
+            return {"id": msg_id, "ok": False, "error": "missing time"}
+        if isinstance(raw_time, bool):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "time must be a number, not bool",
+            }
+        try:
+            t_secs = float(raw_time)
+        except (TypeError, ValueError):
+            return {"id": msg_id, "ok": False, "error": "time must be a finite number"}
+        if not math.isfinite(t_secs):
+            return {"id": msg_id, "ok": False, "error": "time must be a finite number"}
+        if t_secs < 0:
+            return {"id": msg_id, "ok": False, "error": "time must be >= 0"}
+
+        # Check time <= duration using the reader
+        try:
+            reader = self._get_reader(path)
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+        if reader.fps and reader.fps > 0:
+            duration = reader.frame_count / reader.fps
+            if t_secs > duration:
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": f"time {t_secs:.3f}s exceeds clip duration {duration:.3f}s",
+                }
+
+        # Render via the same core the preview path uses (call-don't-fork per packet).
+        # frame_index is NOT passed — we use time so the same time→frame mapping is used.
+        render_message = dict(message)
+        render_message["path"] = path
+        # Remove frame_index if frontend accidentally sends both; time is canonical here.
+        render_message.pop("frame_index", None)
+
+        try:
+            output, frame_index, reader, _operator_values = (
+                self._render_composited_frame(render_message)
+            )
+
+            # Write PNG — use RGB (drop alpha channel, matching encode_mjpeg convention
+            # so pixels match what preview shows: RGBA→RGB→JPEG in preview, RGBA→RGB→PNG here).
+            img = Image.fromarray(output[:, :, :3])  # RGBA → RGB, matches encode_mjpeg
+            buf = _io.BytesIO()
+            img.save(buf, format="PNG")
+            png_bytes = buf.getvalue()
+
+            out_p = _Path(output_path)
+            out_p.parent.mkdir(parents=False, exist_ok=True)
+            out_p.write_bytes(png_bytes)
+
+            sentry_sdk.add_breadcrumb(
+                category="export",
+                message="export_frame",
+                data={"frame_index": frame_index, "output_path": output_path},
+                level="info",
+            )
+            return {
+                "id": msg_id,
+                "ok": True,
+                "frame_index": frame_index,
+                "output_path": output_path,
+                "width": reader.width,
+                "height": reader.height,
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(f"Export frame handler error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_apply_chain(self, message: dict, msg_id: str | None) -> dict:

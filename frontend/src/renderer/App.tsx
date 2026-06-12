@@ -1312,6 +1312,112 @@ function AppInner() {
     timeline.addTextTrack(`Text ${textCount + 1}`, '#6366f1')
   }, [])
 
+  // UE.6 — Still-frame export: export the composited frame at the current playhead as a PNG.
+  // Packet design (call-don't-fork): builds the SAME payload shape as the preview single-clip
+  // path (App.tsx:902-925) plus output_path and cmd:'export_frame'.
+  // Packet ambiguity logged below: composite frames are deferred to the Export dialog.
+  const handleExportCurrentFrame = useCallback(async () => {
+    if (!window.entropic) return
+
+    const timeline = useTimelineStore.getState()
+    const currentTime = timeline.playheadTime
+    const projectState = useProjectStore.getState()
+    const projectAssets = projectState.assets
+
+    // Collect active video clips at the current playhead time (mirrors preview logic)
+    const activeVideoClips: Array<{
+      clip: (typeof timeline.tracks)[0]['clips'][0]
+      track: (typeof timeline.tracks)[0]
+      assetPath: string
+    }> = []
+    for (const track of timeline.tracks) {
+      if (track.type !== 'video' || track.isMuted) continue
+      for (const clip of track.clips) {
+        if (clip.isEnabled === false) continue
+        if (currentTime < clip.position || currentTime >= clip.position + clip.duration) continue
+        const asset = projectAssets[clip.assetId]
+        if (!asset?.path) continue
+        activeVideoClips.push({ clip, track, assetPath: asset.path })
+      }
+    }
+
+    // Empty timeline — nothing to export
+    if (activeVideoClips.length === 0) {
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: 'No active clip at the current playhead position.',
+        source: 'export-frame',
+      })
+      return
+    }
+
+    // PACKET AMBIGUITY: The packet assumes a single render path; render_composite parity
+    // is a follow-up. Multi-clip composites (or when text/sampler layers are active) use
+    // render_composite in preview — we cannot replicate that in export_frame without
+    // backend composite support. Show a toast and skip rather than exporting a wrong frame.
+    if (activeVideoClips.length > 1) {
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: 'Composite frames: use Export dialog',
+        source: 'export-frame',
+      })
+      return
+    }
+
+    // Single clip path — mirrors App.tsx:902-925
+    const { clip: singleClip, track: singleTrack, assetPath: singleAssetPath } = activeVideoClips[0]
+    const ct = singleClip.transform
+    const localTime = currentTime - singleClip.position
+    const srcTime = singleClip.reversed ? Math.max(0, singleClip.duration - localTime) : localTime
+    const clipFrame = Math.max(
+      0,
+      Math.round((srcTime * (singleClip.speed || 1) + singleClip.inPoint) * activeFps),
+    )
+    const singleTrackChain = modulateChain(singleTrack.effectChain, clipFrame)
+
+    // Show native save dialog
+    const defaultName = `frame-${currentTime.toFixed(3).replace('.', '_')}s.png`
+    const outputPath = await window.entropic.showSaveDialog({
+      defaultPath: defaultName,
+      filters: [{ name: 'PNG Image', extensions: ['png'] }],
+    })
+    if (!outputPath) return // user cancelled
+
+    // Build payload identical to preview single-clip path + output_path
+    const payload: Record<string, unknown> = {
+      cmd: 'export_frame',
+      path: singleAssetPath || activeAssetPath.current,
+      time: srcTime * (singleClip.speed || 1) + singleClip.inPoint,
+      chain: serializeEffectChain(singleTrackChain),
+      project_seed: projectSeed,
+      output_path: outputPath,
+    }
+    if (ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)) {
+      payload['transform'] = ct
+    }
+
+    const res = await window.entropic.sendCommand(payload)
+
+    if (res.ok) {
+      // "Reveal in Finder" needs a shell:openPath bridge method that doesn't
+      // exist yet — a button calling a missing bridge would be a dead control
+      // (wire-or-delete rule). The toast text carries the full path; the
+      // openPath bridge + Reveal action is a named follow-up in the PR body.
+      const exportedPath = (res.output_path as string) || outputPath
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: `Frame exported: ${exportedPath}`,
+        source: 'export-frame',
+      })
+    } else {
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: `Frame export failed: ${(res.error as string) || 'Unknown error'}`,
+        source: 'export-frame',
+      })
+    }
+  }, [activeFps, projectSeed])
+
   // Listen for menu actions from main process
   useEffect(() => {
     if (typeof window === 'undefined' || !window.entropic?.onMenuAction) return
@@ -1333,6 +1439,7 @@ function AppInner() {
         case 'save': saveProject(); break
         case 'save-as': saveProjectAs(); break
         case 'export': setShowExportDialog(true); break
+        case 'export-current-frame': handleExportCurrentFrame(); break
         case 'toggle-sidebar': useLayoutStore.getState().toggleSidebar(); break
         case 'toggle-focus': useLayoutStore.getState().toggleFocusMode(); break
         case 'toggle-quantize': useLayoutStore.getState().toggleQuantize(); break
@@ -1464,7 +1571,7 @@ function AppInner() {
       }
     })
     return cleanup
-  }, [handleImportMedia, handleAddTextTrack, newProject, loadProject, saveProject, registry, addEffect])
+  }, [handleImportMedia, handleAddTextTrack, handleExportCurrentFrame, newProject, loadProject, saveProject, registry, addEffect])
 
   // Unsaved work prompt on close
   const [showCloseDialog, setShowCloseDialog] = useState(false)

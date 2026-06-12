@@ -163,7 +163,7 @@ def validate_frame_count(count: int) -> list[str]:
     return errors
 
 
-ALLOWED_OUTPUT_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".gif"}
+ALLOWED_OUTPUT_EXTENSIONS = {".mp4", ".mov", ".mkv", ".webm", ".gif", ".png"}
 BLOCKED_OUTPUT_PREFIXES = (
     "/System",
     "/Library",
