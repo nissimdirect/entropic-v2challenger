@@ -833,3 +833,40 @@ def test_export_start_without_performance_is_legacy(monkeypatch):
     assert resp["ok"] is True
     args, kwargs = server.export_manager.started_with
     assert kwargs.get("performance") is None
+
+
+# ── P5a.4 red-team regression (RT-1 asset path, HT-2 instrument chain depth) ──
+
+def test_export_start_rejects_hostile_asset_path(monkeypatch):
+    """RT-1: every performance asset path is decoded + composited into the
+    export output — it MUST pass validate_upload, else a hostile payload
+    exfiltrates any user-readable file into the artifact."""
+    server = _p5a4_server(monkeypatch)
+    import zmq_server as zs
+    monkeypatch.setattr(
+        zs, "validate_upload",
+        lambda p: ["path traversal"] if "hostile" in str(p) else [],
+    )
+    perf = {
+        "events": [],
+        "instruments": {"i1": {"clipId": "c"}},
+        "assets": {"c": {"path": "/Users/victim/private/hostile.mp4"}},
+    }
+    resp = server.handle_message(_export_msg(performance=perf))
+    assert resp["ok"] is False
+    assert server.export_manager.started_with is None
+
+
+def test_export_start_rejects_overdeep_instrument_chain(monkeypatch):
+    """HT-2: per-instrument chains bypass the top-level SEC-7 check — a
+    >MAX_CHAIN_DEPTH instrument chain must be rejected before the thread spawns."""
+    server = _p5a4_server(monkeypatch)
+    import zmq_server as zs
+    from security import validate_chain_depth as real_vcd
+    monkeypatch.setattr(zs, "validate_chain_depth", real_vcd)
+    deep = [{"effectId": f"fx{i}", "params": {}} for i in range(11)]
+    perf = {"events": [], "instruments": {"i1": {"clipId": "c", "chain": deep}}, "assets": {}}
+    resp = server.handle_message(_export_msg(performance=perf))
+    assert resp["ok"] is False
+    assert "SEC-7" in resp["error"] or "depth" in resp["error"].lower()
+    assert server.export_manager.started_with is None

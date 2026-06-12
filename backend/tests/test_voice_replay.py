@@ -562,3 +562,17 @@ def test_export_rejects_hostile_overlayer_payload_no_partial_file(synthetic_vide
         # No partial frames left behind (best-effort cleanup ran).
         # image_sequence writes into `out`; on error it should not contain a
         # complete sequence — at most leftover the cleanup couldn't remove.
+
+
+def test_capture_events_requires_instrumentId():
+    """HT-1: trigger/release/choke key voice state by instrumentId via a direct
+    subscript in evaluate_voices — a missing id must be rejected at the boundary
+    (else KeyError kills the export with an unactionable message). panic is global."""
+    from security import validate_capture_events
+    for kind in ("trigger", "release", "choke"):
+        ev = [{"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100, "kind": kind}]
+        errs = validate_capture_events(ev)
+        assert errs and "instrumentId" in errs[0], f"{kind} missing-id not rejected: {errs}"
+    # panic requires no instrumentId
+    panic = [{"frameIndex": 0, "eventIndex": 0, "note": 0, "velocity": 0, "kind": "panic"}]
+    assert validate_capture_events(panic) == []

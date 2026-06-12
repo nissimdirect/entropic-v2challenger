@@ -436,6 +436,19 @@ def validate_capture_events(events: object) -> list[str]:
         if kind not in valid_kinds:
             errors.append(f"event[{i}].kind {kind!r} is unknown")
             return errors
+        # red-team HT-1: trigger/release/choke index voice state by instrumentId
+        # via a direct subscript in evaluate_voices — a missing/non-string id
+        # raises KeyError mid-replay (export dies with an unactionable error).
+        # Reject at the boundary where the message is useful. (panic is global,
+        # no instrumentId required.)
+        if kind in ("trigger", "release", "choke"):
+            iid = ev.get("instrumentId")
+            if not isinstance(iid, str) or not iid:
+                errors.append(
+                    f"event[{i}].instrumentId must be a non-empty string for "
+                    f"kind {kind!r}, got {iid!r}"
+                )
+                return errors
 
     return errors
 

@@ -557,10 +557,17 @@ class ExportManager:
                         close()
                 except Exception:  # noqa: BLE001 — cleanup must never raise
                     pass
-            # Clean up partial output file on cancel or error
+            # Clean up partial output on cancel or error.
+            # red-team RT-2: image_sequence exports write a DIRECTORY of PNGs;
+            # os.unlink raises IsADirectoryError (swallowed), leaking partial
+            # frames. rmtree the directory case; unlink the single-file case.
             if job.status in (ExportStatus.CANCELLED, ExportStatus.ERROR):
                 try:
-                    if os.path.exists(output_path):
+                    if os.path.isdir(output_path):
+                        import shutil
+
+                        shutil.rmtree(output_path, ignore_errors=True)
+                    elif os.path.exists(output_path):
                         os.unlink(output_path)
                 except OSError:
                     pass  # best-effort cleanup

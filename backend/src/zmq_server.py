@@ -1675,6 +1675,37 @@ class ZMQServer:
             ev_errors = validate_capture_events(performance.get("events", []))
             if ev_errors:
                 return {"id": msg_id, "ok": False, "error": "; ".join(ev_errors)}
+            # red-team RT-1 (SEC-5): every asset path in the performance payload
+            # is decoded + composited into the export output. Without validation
+            # a hostile payload exfiltrates any user-readable file into the
+            # artifact. Validate each the same way the primary input_path is.
+            # assets is a dict {assetId: {path, ...}} (see export.py
+            # _composite_export_frame: instruments.items() / assets.get(clip_id)).
+            assets = performance.get("assets") or {}
+            if isinstance(assets, dict):
+                for a in assets.values():
+                    apath = a.get("path") if isinstance(a, dict) else None
+                    if apath:
+                        a_errors = validate_upload(apath)
+                        if a_errors:
+                            return {
+                                "id": msg_id,
+                                "ok": False,
+                                "error": "; ".join(a_errors),
+                            }
+            # red-team HT-2 (SEC-7): per-instrument chains bypass the top-level
+            # depth check — validate each so a 100-effect instrument chain can't
+            # slip past MAX_CHAIN_DEPTH inside the performance payload.
+            # instruments is a dict {instrumentId: {chain?, ...}}.
+            instruments = performance.get("instruments") or {}
+            if isinstance(instruments, dict):
+                for inst in instruments.values():
+                    inst_chain = (
+                        (inst.get("chain") or []) if isinstance(inst, dict) else []
+                    )
+                    c_errors = validate_chain_depth(inst_chain)
+                    if c_errors:
+                        return {"id": msg_id, "ok": False, "error": "; ".join(c_errors)}
             # Per-frame voice budget is additionally enforced inside the
             # compositor reuse (validate_voice_layers / MAX_TOTAL_VOICES_PER_RENDER
             # via the FSM voiceCap); the event-list cap here bounds the replay
