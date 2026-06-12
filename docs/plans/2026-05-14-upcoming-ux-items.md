@@ -1,7 +1,8 @@
 ---
 title: Upcoming UX items — captured 2026-05-14
-status: pending
+status: in-progress
 session: parked-for-eng-pickup
+updated: 2026-06-12 — §1 surfaces 1–6 addressed by PD.8
 ---
 
 # Upcoming UX items
@@ -22,12 +23,12 @@ component grew a `shortcut?: string` prop and the clip context menu
 displays `⌘K` next to "Split at Playhead". That's ONE site.
 
 **Remaining surfaces** to audit + wire (estimates per site, ~5–15 min):
-- [ ] Track header context menu (Rename Track, Duplicate Track, Move Up/Down, Delete Track, automation lane adds)
-- [ ] Right-click on automation lanes (if any)
-- [ ] Effects browser — double-click adds effect; could surface `add_effect_selected` if there's a bound key
-- [ ] Device Chain right-click (when implemented) — Save as Preset, Reset Parameters, Duplicate, Move Up/Down, Bypass
-- [ ] Preferences → Shortcuts tab already exists; cross-reference for completeness
-- [ ] Adjustments / File / Edit / View / Select / Clip / Timeline / Window / Help top-bar menus already format `\tShortcut` in their labels (Electron native); audit they're consistent
+- [x] Track header context menu (Rename Track, Duplicate Track, Move Up/Down, Delete Track, automation lane adds) — wired via prettyShortcut; actions added to DEFAULT_SHORTCUTS (PD.8 PR)
+- [x] Right-click on automation lanes (if any) — AUDIT: AutomationNode right-click calls onRemove directly (no ContextMenu component); no menu to wire. Finding filed in PR body.
+- [x] Effects browser — double-click adds effect; could surface `add_effect_selected` if there's a bound key — AUDIT: no `add_effect_selected` binding in registry; EffectBrowser has no ContextMenu. Finding filed in PR body.
+- [x] Device Chain right-click (when implemented) — Save as Preset, Reset Parameters, Duplicate, Move Up/Down, Bypass — all available right-click items wired via prettyShortcut (PD.8 PR)
+- [x] Preferences → Shortcuts tab already exists; cross-reference for completeness — AUDIT: track-header and device-chain actions missing from DEFAULT_SHORTCUTS (and thus Shortcuts tab). Fixed: all context-menu actions now registered. Findings in PR body.
+- [x] Adjustments / File / Edit / View / Select / Clip / Timeline / Window / Help top-bar menus already format `\tShortcut` in their labels (Electron native); audit they're consistent — AUDIT: 2 gaps found (select_all, save_as not in registry). Findings filed in PR body.
 
 **Approach for each site:** use `prettyShortcut(shortcutRegistry.getEffectiveKey('<action>'))` from `frontend/src/renderer/utils/pretty-shortcut.ts` to format the key, pass it as the `shortcut` prop on the MenuItem.
 
