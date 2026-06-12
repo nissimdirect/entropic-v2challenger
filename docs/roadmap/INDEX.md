@@ -56,6 +56,9 @@
 | `packets/undo-history.md` | UH.1–UH.5 — undo coverage for new systems incl. painted-field history (stroke-list design) |
 | `PERF-MODEL.md` | Global frame budget (33.3ms decomposition, effect classes A/B/C, PERF.1 harness + PERF.2 CI ratchet) |
 | `ONBOARDING-SPEC.md` | First-launch ritual: flow + drafted copy + skip/reduced-motion + grep-checkable acceptance |
+| `SELECTION-MASKING-SPEC.md` | Masking architecture: spatial routing primitive; §14 decisions D1–D7 LOCKED |
+| `MASKING-INTERACTIONS.md` | Every masking gesture + CU-executable J1–J5 journeys + §14 CDO adoptions |
+| `packets/masking.md` | MK.1–14 + MK.CU (two-tier code+CU testing) |
 | `packets/user-expectations.md` | User-expectation P1 features (UE.1–UE.7 — MISSING-FUNCTIONS §1 items #1–#6+#8), Phase-1-adjacent, depend on P1.0 only |
 | `packets/ux-audit.md` | CDO UX audit + PUX.1–PUX.6 packets (land between Phase 2 and Phase 3) |
 | `packets/effects-quality.md` | Effects-quality workstream (PFX.0–PFX.5) |

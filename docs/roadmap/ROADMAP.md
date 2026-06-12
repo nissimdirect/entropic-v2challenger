@@ -118,6 +118,12 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 | Q7 L-backbone benchmark | 🔄 machinery (22 parked drafts [#117–#145](https://github.com/nissimdirect/entropic-v2challenger/pulls), gh-verified 2026-06-11) · **REAL verdict ❌ USER-BLOCKED** (mock verdict only) |
 | Demo trilogy | 🔄 MP4s ✅ rendered to `~/.entropic/demos/` · Demos Drawer / onboarding / D-PB paint ❌ (gated on PR-A) |
 
+### Selection / Masking / Alpha (MK — docs/roadmap/packets/masking.md, merged #204/#205)
+| Item | Status |
+|---|---|
+| MK.1–MK.9 + MK.CU (Phase A: matte model, per-pixel alpha, **universal mask-routing wrapper**, marquee/lasso/wand/color-range, keys-as-lanes, cut-to-track, alpha export, CU suite) | ❌ specced — D1–D7 LOCKED |
+| MK.10–MK.14 (Phase B: mask-params-as-lanes, keyframed transforms, RVM figure/background, tool UI + mode banner, motion-track spike) | ❌ specced |
+
 ### v2 debt
 | Item | Status |
 |---|---|
@@ -190,6 +196,9 @@ Per `~/.claude/plans/entropic-PR-B-plan-2026-06-05.md`: 3a ✅ (#160 once merged
 
 ### Phase 4.5 — Tier 3 (stub; JIT-expand at phase boundary)
 vision-B2 cross-modal matrix · vision-B3 mod-as-track · B4-full binding rules · SG-H2 FD-management · E5 Launchpad bridge cherry-pick ([#145](https://github.com/nissimdirect/entropic-v2challenger/pull/145), branch `feat/q7-e5-midi-learn`). No packets exist yet by design — see the **Tier-3 stub row in `EXECUTION-PLAN.md` §5**; P5b.24/P6.10/P7.14 dependencies resolve there.
+
+### Phase 2.5 — Masking Phase A (MK.1–MK.9 + MK.CU)
+Per `packets/masking.md` + SELECTION-MASKING-SPEC.md (§14 decisions LOCKED). MK.2 shares **single-flight on `backend/src/engine/compositor.py`**; MK.1 start-now parallel-safe; MK.13 tool UI gates on PR-A surfaces (now landing); MK.4/MK.9 supersede PD.5/PD.6 (task #45). Ground truth: alpha already carried end-to-end, keys shipped-but-dark — Phase A is largely activation.
 
 ### Phase 5 — Instrument ladder Tier 4 (≈131–199h itemized, the bulk of FC-v3)
 `~/Development/entropic-layout-mockup/INSTRUMENTS-BUILD-PLAN.md`. B1 ✅ core+mount; B2-lite in flight (#167).
