@@ -8,22 +8,22 @@ import {
   type CapturedEvent,
 } from '../../renderer/utils/retro-capture';
 
-function makeEvent(overrides: Partial<CapturedEvent> = {}): CapturedEvent {
+// P5a.1: CapturedEvent no longer has modRoutes. eventIndex is auto-assigned.
+function makeEvent(overrides: Partial<Omit<CapturedEvent, 'eventIndex'>> = {}): Omit<CapturedEvent, 'eventIndex'> {
   return {
     timestamp: performance.now(),
     frameIndex: 0,
     padId: 'pad-1',
     eventType: 'trigger',
     source: 'keyboard',
-    modRoutes: [],
     ...overrides,
   };
 }
 
-function makeMapping(effectId: string, paramKey: string, depth = 0.8) {
+function makeMapping(effectId: string, paramKey: string, _depth = 0.8) {
   return {
     sourceId: 'pad-1',
-    depth,
+    depth: _depth,
     min: 0,
     max: 1,
     curve: 'linear' as const,
@@ -43,13 +43,32 @@ describe('retro-capture buffer', () => {
     expect(getBufferLength()).toBe(1);
   });
 
+  it('pushEvent auto-assigns monotonically increasing eventIndex', () => {
+    pushEvent(makeEvent({ frameIndex: 0 }));
+    pushEvent(makeEvent({ frameIndex: 1 }));
+    pushEvent(makeEvent({ frameIndex: 2 }));
+    const buf = getBuffer();
+    expect(buf[0].eventIndex).toBe(0);
+    expect(buf[1].eventIndex).toBe(1);
+    expect(buf[2].eventIndex).toBe(2);
+  });
+
+  it('eventIndex resets to 0 after clearBuffer', () => {
+    pushEvent(makeEvent());
+    pushEvent(makeEvent());
+    clearBuffer();
+    pushEvent(makeEvent());
+    const buf = getBuffer();
+    expect(buf[0].eventIndex).toBe(0);
+  });
+
   it('getBuffer returns copy (not reference)', () => {
     pushEvent(makeEvent());
     const buf1 = getBuffer();
     const buf2 = getBuffer();
     expect(buf1).toEqual(buf2);
     expect(buf1).not.toBe(buf2);
-    buf1.push(makeEvent());
+    buf1.push({ ...makeEvent(), eventIndex: 999 });
     expect(getBufferLength()).toBe(1); // internal buffer unchanged
   });
 
@@ -102,12 +121,13 @@ describe('retro-capture buffer', () => {
   });
 
   it('captureToAutomation returns empty for fps <= 0', () => {
-    pushEvent(makeEvent({ modRoutes: [makeMapping('fx1', 'amount')] }));
-    expect(captureToAutomation(0, 10)).toEqual({});
-    expect(captureToAutomation(-1, 10)).toEqual({});
+    pushEvent(makeEvent({ padId: 'pad-1' }));
+    const padModRoutes = { 'pad-1': [makeMapping('fx1', 'amount')] };
+    expect(captureToAutomation(0, 10, padModRoutes)).toEqual({});
+    expect(captureToAutomation(-1, 10, padModRoutes)).toEqual({});
   });
 
-  it('captureToAutomation groups by paramPath', () => {
+  it('captureToAutomation groups by paramPath using caller-supplied modRoutes', () => {
     const spy = vi.spyOn(performance, 'now');
     const now = 100_000;
     spy.mockReturnValue(now);
@@ -115,10 +135,13 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'trigger',
-      modRoutes: [makeMapping('fx1', 'amount'), makeMapping('fx2', 'intensity')],
+      padId: 'pad-1',
     }));
 
-    const result = captureToAutomation(30, 10);
+    const padModRoutes = {
+      'pad-1': [makeMapping('fx1', 'amount'), makeMapping('fx2', 'intensity')],
+    };
+    const result = captureToAutomation(30, 10, padModRoutes);
     expect(Object.keys(result)).toEqual(['fx1.amount', 'fx2.intensity']);
     expect(result['fx1.amount']).toHaveLength(1);
     expect(result['fx2.intensity']).toHaveLength(1);
@@ -132,11 +155,12 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'trigger',
-      modRoutes: [makeMapping('fx1', 'amount', 0.7)],
+      padId: 'pad-1',
     }));
 
-    const result = captureToAutomation(30, 10);
-    // Trigger events now produce square-wave value 1.0 (Phase 15: trigger lanes)
+    const padModRoutes = { 'pad-1': [makeMapping('fx1', 'amount', 0.7)] };
+    const result = captureToAutomation(30, 10, padModRoutes);
+    // Trigger events produce square-wave value 1.0 (Phase 15: trigger lanes)
     expect(result['fx1.amount'][0].value).toBe(1.0);
     expect(result['fx1.amount'][0].value).toBeGreaterThan(0);
   });
@@ -149,10 +173,11 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'release',
-      modRoutes: [makeMapping('fx1', 'amount', 0.7)],
+      padId: 'pad-1',
     }));
 
-    const result = captureToAutomation(30, 10);
+    const padModRoutes = { 'pad-1': [makeMapping('fx1', 'amount', 0.7)] };
+    const result = captureToAutomation(30, 10, padModRoutes);
     expect(result['fx1.amount'][0].value).toBe(0);
   });
 
@@ -165,20 +190,21 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now - 2000, // 2s ago
       eventType: 'trigger',
-      modRoutes: [makeMapping('fx1', 'amount')],
+      padId: 'pad-1',
     }));
     pushEvent(makeEvent({
       timestamp: now - 1000, // 1s ago
       eventType: 'release',
-      modRoutes: [makeMapping('fx1', 'amount')],
+      padId: 'pad-1',
     }));
     pushEvent(makeEvent({
       timestamp: now, // now
       eventType: 'trigger',
-      modRoutes: [makeMapping('fx1', 'amount')],
+      padId: 'pad-1',
     }));
 
-    const result = captureToAutomation(30, 10);
+    const padModRoutes = { 'pad-1': [makeMapping('fx1', 'amount')] };
+    const result = captureToAutomation(30, 10, padModRoutes);
     const points = result['fx1.amount'];
     expect(points).toHaveLength(3);
     for (let i = 1; i < points.length; i++) {
@@ -195,11 +221,12 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now - 2000,
       eventType: 'trigger',
-      modRoutes: [makeMapping('fx1', 'amount')],
+      padId: 'pad-1',
     }));
 
     // referenceTime = 10 seconds into the timeline
-    const result = captureToAutomation(30, 10);
+    const padModRoutes = { 'pad-1': [makeMapping('fx1', 'amount')] };
+    const result = captureToAutomation(30, 10, padModRoutes);
     const point = result['fx1.amount'][0];
 
     // Event was 2s ago, so timeline time = 10 - 2 = 8
@@ -219,7 +246,7 @@ describe('retro-capture buffer', () => {
     expect(getBuffer()[0].padId).toBe('new');
   });
 
-  it('captureToAutomation skips modRoutes without effectId or paramKey', () => {
+  it('captureToAutomation skips routes without effectId or paramKey', () => {
     const spy = vi.spyOn(performance, 'now');
     const now = 100_000;
     spy.mockReturnValue(now);
@@ -227,14 +254,38 @@ describe('retro-capture buffer', () => {
     pushEvent(makeEvent({
       timestamp: now,
       eventType: 'trigger',
-      modRoutes: [
+      padId: 'pad-1',
+    }));
+
+    const padModRoutes = {
+      'pad-1': [
         { sourceId: 'pad-1', depth: 0.5, min: 0, max: 1, curve: 'linear' as const },
         makeMapping('fx1', 'amount'),
       ],
-    }));
-
-    const result = captureToAutomation(30, 10);
+    };
+    const result = captureToAutomation(30, 10, padModRoutes);
     // Only the mapping with effectId+paramKey should produce output
     expect(Object.keys(result)).toEqual(['fx1.amount']);
+  });
+
+  it('captureToAutomation returns empty if no padModRoutes provided for a pad', () => {
+    const spy = vi.spyOn(performance, 'now');
+    const now = 100_000;
+    spy.mockReturnValue(now);
+
+    pushEvent(makeEvent({ timestamp: now, padId: 'pad-x' }));
+
+    // No routes for pad-x in the supplied map → empty result
+    const result = captureToAutomation(30, 10, {});
+    expect(result).toEqual({});
+  });
+
+  it('captureToAutomation with no padModRoutes argument returns empty (backward-compat default)', () => {
+    const spy = vi.spyOn(performance, 'now');
+    spy.mockReturnValue(100_000);
+    pushEvent(makeEvent({ timestamp: 100_000 }));
+    // Default empty padModRoutes → no routes → empty
+    const result = captureToAutomation(30, 10);
+    expect(result).toEqual({});
   });
 });

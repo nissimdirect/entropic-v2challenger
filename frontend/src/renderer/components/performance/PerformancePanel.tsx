@@ -31,7 +31,14 @@ export default function PerformancePanel({ onEditPad }: PerformancePanelProps) {
     const timeline = useTimelineStore.getState();
     const fps = 30; // TODO: get from project settings
 
-    const automationData = captureToAutomation(fps, timeline.playheadTime);
+    // P5a.1: modRoutes are no longer embedded in events — pass current pad modRoutes here.
+    const pads = usePerformanceStore.getState().drumRack.pads;
+    const padModRoutes: Record<string, import('../../../shared/types').ModulationRoute[]> = {};
+    for (const pad of pads) {
+      padModRoutes[pad.id] = pad.modRoutes;
+    }
+
+    const automationData = captureToAutomation(fps, timeline.playheadTime, padModRoutes);
 
     for (const [paramPath, points] of Object.entries(automationData)) {
       // Find or create lane

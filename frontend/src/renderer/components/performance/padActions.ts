@@ -1,6 +1,12 @@
 /**
  * Shared pad trigger/release actions with retro-capture integration.
  * Eliminates duplication between keyboard handler (App.tsx) and MIDI handler (midi.ts).
+ *
+ * P5a.1: `modRoutes` is NO LONGER embedded in the captured event payload.
+ * INSTRUMENTS.md §10 P1-2 requires that replay events carry no pad-state snapshots —
+ * `modRoutes` embedded at trigger time creates stale data when pads are edited after
+ * capture. The `timestamp` field is kept for rolling-buffer hygiene ONLY; it is never
+ * used as a replay input (see retro-capture.ts).
  */
 import type { Pad, PadRuntimeState } from '../../../shared/types';
 import { pushEvent } from '../../utils/retro-capture';
@@ -22,12 +28,15 @@ export function triggerPadWithCapture(
 ): void {
   perfStore.triggerPad(pad.id, frameIndex);
   pushEvent({
+    // timestamp is performance.now() for buffer-trim hygiene ONLY — never a replay input.
     timestamp: performance.now(),
     frameIndex,
     padId: pad.id,
     eventType: 'trigger',
     source,
-    modRoutes: pad.modRoutes,
+    // modRoutes intentionally OMITTED: per P5a.1, pad-state snapshots must not be
+    // embedded in capture events. See retro-capture.captureToAutomation for how
+    // the CURRENT modRoutes are applied at automation-write time.
   });
 }
 
@@ -42,12 +51,13 @@ export function releasePadWithCapture(
 ): void {
   perfStore.releasePad(pad.id, frameIndex);
   pushEvent({
+    // timestamp is performance.now() for buffer-trim hygiene ONLY — never a replay input.
     timestamp: performance.now(),
     frameIndex,
     padId: pad.id,
     eventType: 'release',
     source,
-    modRoutes: pad.modRoutes,
+    // modRoutes intentionally OMITTED: per P5a.1 (see triggerPadWithCapture comment).
   });
 }
 
