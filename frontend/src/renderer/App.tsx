@@ -840,9 +840,15 @@ function AppInner() {
             c.textConfig && c.isEnabled !== false && currentTime >= c.position && currentTime < c.position + c.duration,
           ))
 
-        // Active video clips across ALL unmuted video tracks (multi-track compositing)
+        // Active video clips across ALL unmuted video tracks (multi-track compositing).
+        // Iterated in REVERSE store order so the topmost track in the UI ends up
+        // LAST in the layer list — backend composites bottom-to-top so the last
+        // entry lands on top. Result: NLE convention (Premiere / Final Cut /
+        // Resolve / After Effects) — drag a track up in the timeline to bring it
+        // to the front of the composite.
         const activeVideoClips: { clip: typeof timelineState.tracks[0]['clips'][0]; track: typeof timelineState.tracks[0]; assetPath: string }[] = []
-        for (const track of timelineState.tracks) {
+        for (let i = timelineState.tracks.length - 1; i >= 0; i--) {
+          const track = timelineState.tracks[i]
           if (track.type !== 'video' || track.isMuted) continue
           for (const clip of track.clips) {
             if (clip.isEnabled === false) continue
@@ -2078,7 +2084,7 @@ function AppInner() {
   // (ALLOWED_EXTENSIONS + AUDIO_EXTENSIONS hoisted to module scope so handleImportMedia can branch.)
 
   const handleAudioIngest = useCallback(
-    async (path: string) => {
+    async (path: string, opts?: { forceNewTrack?: boolean }) => {
       if (!window.entropic) return
       // Probe duration via audio_decode (metadata only — backend also enforces
       // safety guards: validate_upload, realpath, magic-byte, decode timeout).
@@ -2104,7 +2110,12 @@ function AppInner() {
         return
       }
       const timeline = useTimelineStore.getState()
-      let audioTrackId = timeline.tracks.find((t) => t.type === 'audio')?.id
+      // forceNewTrack short-circuits the "find existing audio track" branch so
+      // drops in the empty space below lanes get their own fresh track — matches
+      // how video ingest already behaves and what the new-track drop zone implies.
+      let audioTrackId = opts?.forceNewTrack
+        ? undefined
+        : timeline.tracks.find((t) => t.type === 'audio')?.id
       if (!audioTrackId) {
         audioTrackId = timeline.addAudioTrack()
         if (!audioTrackId) return
@@ -2179,6 +2190,17 @@ function AppInner() {
       return
     }
 
+    // Drop position vs. existing lanes — used to force audio ingest onto a
+    // fresh track when the user drops into the empty area below all tracks
+    // (so the gesture parallels video-file behavior, which always creates one).
+    const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+    let maxBottom = -Infinity
+    for (const lane of lanes) {
+      const rect = lane.getBoundingClientRect()
+      if (rect.bottom > maxBottom) maxBottom = rect.bottom
+    }
+    const droppedBelowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
+
     const getPath = window.entropic?.getPathForFile
     let hadError = false
 
@@ -2197,7 +2219,7 @@ function AppInner() {
         continue
       }
       if (AUDIO_EXTENSIONS.includes(ext)) {
-        handleAudioIngest(filePath)
+        handleAudioIngest(filePath, { forceNewTrack: droppedBelowAllTracks })
       } else {
         handleFileIngest(filePath)
       }
