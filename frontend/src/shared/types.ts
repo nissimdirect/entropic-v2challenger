@@ -250,6 +250,24 @@ export interface ModulationRoute {
   paramKey?: string;   // target param key (for pad mappings)
 }
 
+/**
+ * P2.1 — Modulation sink discriminant.
+ * Identifies the target category for a modulation route.
+ *
+ * - 'effectParam'   : effect instance parameter (existing, default when absent)
+ * - 'projectParam'  : project-level parameter such as 'bpm'; writes to effectiveBpm,
+ *                     never to the persisted bpm field.
+ *
+ * Absent / undefined means 'effectParam' (backward-compat with existing routes).
+ */
+export type ModulationSinkKind = 'effectParam' | 'projectParam';
+
+/**
+ * Well-known projectParam keys for modulation targets.
+ * Only 'bpm' exists at P2.1; future project params extend this union.
+ */
+export type ProjectParamKey = 'bpm';
+
 export interface MaskConfig {
   type: "generated" | "asset";
   generatorId?: string;

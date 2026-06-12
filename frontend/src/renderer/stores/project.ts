@@ -44,6 +44,23 @@ interface ProjectState {
   setProjectPath: (path: string | null) => void
   bpm: number
   setBpm: (bpm: number) => void
+  /**
+   * P2.1: Derived effective BPM after applying all 'projectParam'/'bpm' modulation routes.
+   * Computed by applyProjectModulations.ts; NEVER persisted to save files.
+   * Initialised to `bpm` at startup; reset to `bpm` whenever setBpm is called.
+   */
+  effectiveBpm: number
+  /**
+   * P2.1: Apply a modulation delta to effectiveBpm.
+   * `delta` is an additive BPM offset (e.g. from an automation lane at current frame).
+   * Clamps the result to [1, 300]. Ignores NaN/Infinity deltas (clampFinite guard).
+   */
+  applyBpmModulationDelta: (delta: number) => void
+  /**
+   * P2.1: Reset effectiveBpm back to the persisted bpm baseline.
+   * Called at the top of every frame render cycle before re-applying modulations.
+   */
+  resetEffectiveBpm: () => void
   setProjectName: (name: string) => void
   canvasResolution: [number, number]
   setCanvasResolution: (width: number, height: number) => void
@@ -75,6 +92,7 @@ const PROJECT_DEFAULTS = {
   // in backend schema.py); hydrate overrides on load.
   seed: 0,
   bpm: 120,
+  effectiveBpm: 120,
   canvasResolution: [1920, 1080] as [number, number],
   deviceGroups: {} as Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>,
 }
@@ -303,9 +321,23 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   },
 
   bpm: PROJECT_DEFAULTS.bpm,
+  effectiveBpm: PROJECT_DEFAULTS.effectiveBpm,
   setBpm: (bpm: number) => {
     if (!Number.isFinite(bpm)) return
-    set({ bpm: Math.max(1, Math.min(300, Math.round(bpm))) })
+    const clamped = Math.max(1, Math.min(300, Math.round(bpm)))
+    // P2.1: When the user edits BPM, also reset the derived effectiveBpm to the
+    // new baseline so modulation consumers start from the correct reference.
+    set({ bpm: clamped, effectiveBpm: clamped })
+  },
+  applyBpmModulationDelta: (delta: number) => {
+    // P2.1: Ignore non-finite deltas — clampFinite boundary guard.
+    if (!Number.isFinite(delta)) return
+    const current = get().bpm
+    const next = Math.max(1, Math.min(300, current + delta))
+    set({ effectiveBpm: next })
+  },
+  resetEffectiveBpm: () => {
+    set({ effectiveBpm: get().bpm })
   },
   selectEffect: (id) => set({ selectedEffectId: id }),
   setCurrentFrame: (frame) => set({ currentFrame: frame }),
