@@ -8,6 +8,12 @@ export interface MenuItem {
   /** Optional keyboard shortcut hint shown right-aligned in the item (e.g.
    * '⌘K'). Display-only; the actual binding is owned by shortcutRegistry. */
   shortcut?: string
+  /**
+   * UE.7: Optional swatch palette. When present the item renders as a label
+   * row followed by a row of colour dots. Each swatch calls its own action
+   * and closes the menu. onClose is NOT called from the parent item.action().
+   */
+  swatches?: Array<{ hex: string; label: string; action: () => void }>
 }
 
 interface ContextMenuProps {
@@ -53,6 +59,26 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
       {items.map((item, i) =>
         item.separator ? (
           <div key={i} className="context-menu__separator" />
+        ) : item.swatches ? (
+          // UE.7: swatch row — label above, colour dots below
+          <div key={i} className="context-menu__swatch-group">
+            <span className="context-menu__swatch-label">{item.label}</span>
+            <div className="context-menu__swatch-row">
+              {item.swatches.map((sw) => (
+                <button
+                  key={sw.hex}
+                  className="context-menu__swatch"
+                  title={sw.label}
+                  style={{ backgroundColor: sw.hex }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    sw.action()
+                    onClose()
+                  }}
+                />
+              ))}
+            </div>
+          </div>
         ) : (
           <button
             key={i}

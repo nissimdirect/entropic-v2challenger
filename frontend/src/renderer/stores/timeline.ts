@@ -79,6 +79,10 @@ interface TimelineState {
   duplicateClip: (clipId: string) => void
   toggleClipEnabled: (clipId: string) => void
   reverseClip: (clipId: string) => void
+  /** UE.7: Set or clear clip label. Empty string clears it (falls back to asset name). Clamped to MAX_CLIP_NAME_LENGTH. */
+  renameClip: (clipId: string, name: string) => void
+  /** UE.7: Set or clear clip body tint. Pass undefined to reset to default. */
+  setClipColor: (clipId: string, color: string | undefined) => void
 
   // Track actions
   duplicateTrack: (trackId: string) => void
@@ -1090,6 +1094,58 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         tracks: get().tracks.map((t) => ({
           ...t,
           clips: t.clips.map((c) => (c.id === clipId ? { ...c, reversed: oldReversed } : c)),
+        })),
+      }),
+    )
+  },
+
+  renameClip: (clipId, name) => {
+    // UE.7: trust boundary — clamp at MAX_CLIP_NAME_LENGTH; empty string clears (undefined = fallback to asset name)
+    const clamped = name.slice(0, LIMITS.MAX_CLIP_NAME_LENGTH)
+    const newName = clamped.length > 0 ? clamped : undefined
+
+    let oldName: string | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldName = clip.name; break }
+    }
+
+    undoable(
+      'Rename clip',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, name: newName } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, name: oldName } : c)),
+        })),
+      }),
+    )
+  },
+
+  setClipColor: (clipId, color) => {
+    let oldColor: string | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldColor = clip.color; break }
+    }
+
+    undoable(
+      'Set clip color',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, color } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, color: oldColor } : c)),
         })),
       }),
     )

@@ -10,6 +10,8 @@ export const LIMITS = {
   MAX_POINTS_PER_LANE: 50_000,
   MAX_COMPOSITOR_LAYERS: 32,
   MAX_EFFECTS_PER_CHAIN: 10,
+  /** UE.7: Maximum clip label length; clamped at trust boundary in renameClip. */
+  MAX_CLIP_NAME_LENGTH: 100,
 } as const
 
 /**

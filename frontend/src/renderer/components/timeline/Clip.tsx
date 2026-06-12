@@ -13,6 +13,23 @@ import { prettyShortcut } from '../../utils/pretty-shortcut'
 import { computeSnapPosition, collectClipEdges } from '../../utils/snap-candidates'
 
 /**
+ * UE.7: 8-swatch equal-luminance palette (DESIGN-SPEC §8, ≈oklch 0.65 0.09).
+ * Defined as TSX constants so they are NOT in CSS and do not trigger the
+ * hex-ratchet (PUX.1 PR #179 coordination note: ratchet ceiling = 9 in CSS,
+ * these are applied via inline style only).
+ */
+export const CLIP_COLOR_SWATCHES: ReadonlyArray<{ hex: string; label: string }> = [
+  { hex: '#C07A6A', label: 'Terracotta' },
+  { hex: '#B99655', label: 'Ochre' },
+  { hex: '#97A659', label: 'Olive' },
+  { hex: '#6FA98A', label: 'Sage' },
+  { hex: '#5FA8A8', label: 'Teal' },
+  { hex: '#6E93BE', label: 'Slate' },
+  { hex: '#9B86C9', label: 'Lavender' },
+  { hex: '#B878A8', label: 'Mauve' },
+] as const
+
+/**
  * Resolve a raw drag position to a snapped one.
  *
  * UE.1: single nearest-wins pass over grid lines + clip edges + playhead + markers.
@@ -71,6 +88,10 @@ interface ClipProps {
 
 export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  // UE.7: inline rename
+  const [renaming, setRenaming] = useState(false)
+  const [renameValue, setRenameValue] = useState('')
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
   // Mini waveform canvas
   const waveCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -138,6 +159,43 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
     }
   }, [waveformPeaks, assetDuration, clip.inPoint, clip.outPoint, waveWidth])
 
+  // UE.7: focus rename input when renaming state activates
+  useEffect(() => {
+    if (renaming && renameInputRef.current) {
+      renameInputRef.current.focus()
+      renameInputRef.current.select()
+    }
+  }, [renaming])
+
+  // UE.7: start inline rename
+  const startRename = useCallback(() => {
+    // Pre-populate with the current user-set name, or fall back to asset name
+    setRenameValue(clip.name ?? assetName)
+    setRenaming(true)
+  }, [clip.name, assetName])
+
+  // UE.7: commit rename on Enter or blur
+  const commitRename = useCallback(() => {
+    useTimelineStore.getState().renameClip(clip.id, renameValue)
+    setRenaming(false)
+  }, [clip.id, renameValue])
+
+  const cancelRename = useCallback(() => {
+    setRenaming(false)
+  }, [])
+
+  const handleRenameKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitRename()
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelRename()
+    }
+    // All other keys are naturally suppressed by the INPUT element — shortcutRegistry
+    // skips actions when document.activeElement is an INPUT (shortcuts.ts:163).
+  }, [commitRename, cancelRename])
+
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
@@ -169,6 +227,19 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         shortcut: '⇧⌦',
       },
       { label: '', action: () => {}, separator: true },
+      // UE.7: Rename (context-menu entry — double-click label is the primary path)
+      { label: 'Rename', action: startRename },
+      // UE.7: Color swatches — 8 DESIGN-SPEC §8 equal-luminance swatches
+      {
+        label: 'Color',
+        action: () => {},   // action not used when swatches are present
+        swatches: CLIP_COLOR_SWATCHES.map((sw) => ({
+          hex: sw.hex,
+          label: sw.label,
+          action: () => store.setClipColor(clip.id, sw.hex),
+        })),
+      },
+      { label: '', action: () => {}, separator: true },
       {
         label: 'Speed/Duration...',
         action: () => {
@@ -183,7 +254,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         action: () => store.toggleClipEnabled(clip.id),
       },
     ]
-  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled])
+  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled, startRename])
 
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
@@ -424,17 +495,25 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   if (left + width < 0) return null
 
   const isTextClip = !!clip.textConfig
-  const displayName = isTextClip
-    ? (clip.textConfig!.text.slice(0, 30) || 'Text')
-    : assetName
+  // UE.7: user-set name takes precedence; empty string falls back to asset name
+  const displayName = clip.name
+    ? clip.name
+    : isTextClip
+      ? (clip.textConfig!.text.slice(0, 30) || 'Text')
+      : assetName
 
   const isDisabled = clip.isEnabled === false
+
+  // UE.7: colour tint — 40% opacity overlay keeps selection/disabled states legible
+  const colorStyle: React.CSSProperties = clip.color
+    ? { backgroundColor: clip.color + '66' /* 40% hex alpha */, borderColor: clip.color }
+    : {}
 
   return (
     <>
       <div
         className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}${isDisabled ? ' clip--disabled' : ''}`}
-        style={{ left: `${left}px`, width: `${Math.max(4, width)}px` }}
+        style={{ left: `${left}px`, width: `${Math.max(4, width)}px`, ...colorStyle }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -465,7 +544,28 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
           className="clip__trim-handle clip__trim-handle--left"
           onPointerDown={handleTrimLeftDown}
         />
-        <span className={`clip__name${isTextClip ? ' clip__name--text' : ''}`}>{displayName}</span>
+        {renaming ? (
+          // UE.7: inline rename input — INPUT focus suppresses timeline shortcuts
+          // (shortcutRegistry skips actions when activeElement.tagName === 'INPUT')
+          <input
+            ref={renameInputRef}
+            className="clip__rename-input"
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={handleRenameKeyDown}
+            onBlur={commitRename}
+            maxLength={512}  // raw input cap; store clamps to MAX_CLIP_NAME_LENGTH (100)
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          />
+        ) : (
+          <span
+            className={`clip__name${isTextClip ? ' clip__name--text' : ''}${clip.name ? ' clip__name--user' : ''}`}
+            onDoubleClick={(e) => { e.stopPropagation(); startRename() }}
+          >
+            {displayName}
+          </span>
+        )}
         <div
           className="clip__trim-handle clip__trim-handle--right"
           onPointerDown={handleTrimRightDown}
