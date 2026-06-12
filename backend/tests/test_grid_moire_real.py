@@ -1,11 +1,10 @@
-"""Acceptance tests for the enhanced Grid Moire (real interference moiré).
+"""Acceptance tests for Grid Moire v2 — two independent liquify-able meshes.
 
-Maps each user-requested capability to an assertion:
-- real moiré (two-grid interference, not just overlay)
-- movement: rotation, infinite scroll (wraps), drift
-- grid distortion (warp)
-- source coupling (image contributes to the moiré)
-- determinism + trust-boundary safety (no NaN/Inf, shape/dtype preserved)
+Maps each capability to an assertion:
+- real moiré (two-mesh interference, not overlay) + BRIGHTNESS PRESERVED (the v1 black-collapse bug)
+- per-mesh INDEPENDENT motion (rotate) and distortion (liquify)
+- infinite scroll (wraps), liquify animation, source coupling
+- determinism + trust-boundary safety
 """
 
 import numpy as np
@@ -19,151 +18,179 @@ H, W = 120, 160
 RES = (W, H)
 
 
-def _frame(kind: str = "ramp") -> np.ndarray:
-    """RGBA test frame."""
-    f = np.zeros((H, W, 4), dtype=np.uint8)
-    if kind == "ramp":
-        f[:, :, :3] = np.linspace(0, 255, W, dtype=np.uint8)[None, :, None]
-    elif kind == "mid":
-        f[:, :, :3] = 128
-    elif kind == "checker":
-        yy, xx = np.mgrid[0:H, 0:W]
-        f[:, :, :3] = (((xx // 13 + yy // 13) % 2) * 255)[:, :, None]
+def _gray(v=128):
+    f = np.full((H, W, 4), v, np.uint8)
     f[:, :, 3] = 255
     return f
 
 
-def _apply(params: dict, frame_index: int = 0, frame=None) -> np.ndarray:
+def _frame(kind="gray"):
+    if kind == "gray":
+        return _gray()
+    f = np.zeros((H, W, 4), np.uint8)
+    if kind == "ramp":
+        f[:, :, :3] = np.linspace(0, 255, W, dtype=np.uint8)[None, :, None]
+    elif kind == "checker":
+        yy, xx = np.mgrid[0:H, 0:W]
+        f[:, :, :3] = (((xx // 13 + yy // 13) % 2) * 255).astype(np.uint8)[:, :, None]
+    f[:, :, 3] = 255
+    return f
+
+
+def _apply(params, fi=0, frame=None):
     out, _ = grid_moire.apply(
-        frame if frame is not None else _frame(),
+        frame if frame is not None else _gray(),
         params,
         None,
-        frame_index=frame_index,
+        frame_index=fi,
         seed=0,
         resolution=RES,
     )
     return out
 
 
-def _diff(a: np.ndarray, b: np.ndarray) -> float:
-    return float(
-        np.abs(a[:, :, :3].astype(np.int32) - b[:, :, :3].astype(np.int32)).mean()
+def _diff(a, b):
+    return float(np.abs(a[:, :, :3].astype(int) - b[:, :, :3].astype(int)).mean())
+
+
+def test_ac_visible_and_brightness_preserved():
+    """[grid-moire/visible+brightness] Two-mesh moiré is visible AND does not collapse to near-black (the v1 regression)."""
+    g = _gray(128)
+    out = _apply(
+        {"a_size": 14, "b_size": 16, "interference": 1.0, "opacity": 1.0}, frame=g
+    )
+    mean = float(out[:, :, :3].mean())
+    assert _diff(out, g) > 1.0, "must visibly change the frame"
+    assert mean > 40.0, (
+        f"moiré collapsed to near-black (mean {mean:.1f}); v1 bug rendered ~8"
     )
 
 
-def test_ac_visible_moire_changes_frame():
-    """[grid-moire/visible] The effect visibly alters the frame."""
-    src = _frame("mid")
-    out = _apply({"grid_size": 8, "opacity": 0.8, "interference": 0.7}, frame=src)
-    assert _diff(out, src) > 1.0
-
-
-def test_ac_two_grid_interference_differs_from_single_grid():
-    """[grid-moire/real-moiré] Two-grid interference (interference=1, freq offset) differs from a single grid overlay (interference=0)."""
-    base = {
-        "grid_size": 10,
-        "opacity": 1.0,
-        "freq_ratio": 1.12,
-        "angle_offset": 7.0,
-        "sharpness": 0.0,
-    }
-    single = _apply({**base, "interference": 0.0})
-    moire = _apply({**base, "interference": 1.0})
-    assert _diff(single, moire) > 2.0, (
-        "interference param must produce a genuinely different (beat) pattern"
+def test_ac_two_mesh_interference_differs_from_single():
+    """[grid-moire/real-moiré] interference=1 (two-mesh beat) differs from interference=0 (single overlay)."""
+    base = {"a_size": 14, "b_size": 16, "b_angle": 7.0, "opacity": 1.0}
+    assert (
+        _diff(
+            _apply({**base, "interference": 0.0}), _apply({**base, "interference": 1.0})
+        )
+        > 2.0
     )
+
+
+def test_ac_per_mesh_independent_rotation():
+    """[grid-moire/independent-motion] Meshes A and B rotate independently — A-only spin differs from B-only spin."""
+    a_only = _apply(
+        {"a_size": 12, "b_size": 14, "a_rotate": 5.0, "b_rotate": 0.0, "opacity": 1.0},
+        fi=12,
+    )
+    b_only = _apply(
+        {"a_size": 12, "b_size": 14, "a_rotate": 0.0, "b_rotate": 5.0, "opacity": 1.0},
+        fi=12,
+    )
+    assert _diff(a_only, b_only) > 2.0, "per-mesh rotation must be independent"
 
 
 def test_ac_rotation_animates():
-    """[grid-moire/rotation] rotation_speed makes the pattern differ across frames."""
-    p = {"grid_size": 8, "opacity": 1.0, "rotation_speed": 4.0, "interference": 0.6}
-    assert _diff(_apply(p, frame_index=0), _apply(p, frame_index=20)) > 2.0
+    """[grid-moire/rotation] Rotation animates across frames."""
+    p = {"a_size": 12, "b_size": 14, "a_rotate": 4.0, "opacity": 1.0}
+    assert _diff(_apply(p, 0), _apply(p, 11)) > 2.0
 
 
-def test_ac_infinite_scroll_animates_and_wraps():
-    """[grid-moire/scroll] scroll_x/y animate across frames and never error over a long run (infinite wrap via sine periodicity)."""
-    p = {
-        "grid_size": 8,
-        "opacity": 1.0,
-        "scroll_x": 6.0,
-        "scroll_y": 3.0,
-        "interference": 0.5,
-    }
-    assert _diff(_apply(p, frame_index=0), _apply(p, frame_index=15)) > 2.0
-    for fi in (0, 50, 200, 1000, 9999):  # no overflow / no error at large frame_index
-        out = _apply(p, frame_index=fi)
+def test_ac_infinite_scroll_wraps():
+    """[grid-moire/scroll] Per-mesh scroll animates and never errors over a long run."""
+    p = {"a_size": 10, "a_scroll_x": 8.0, "b_scroll_y": 5.0, "opacity": 1.0}
+    assert _diff(_apply(p, 0), _apply(p, 13)) > 2.0
+    for fi in (0, 100, 1000, 9999):
+        out = _apply(p, fi)
         assert out.shape == (H, W, 4) and np.isfinite(out).all()
 
 
-def test_ac_drift_animates_in_place():
-    """[grid-moire/drift] drift animates the beating between the two gratings."""
-    p = {
-        "grid_size": 10,
-        "opacity": 1.0,
-        "interference": 1.0,
-        "freq_ratio": 1.1,
-        "drift": 2.0,
-    }
-    assert _diff(_apply(p, frame_index=0), _apply(p, frame_index=10)) > 1.0
+def test_ac_liquify_distorts_and_animates():
+    """[grid-moire/liquify] Liquify distorts the mesh and the flow animates over time."""
+    base = {"a_size": 10, "b_size": 12, "opacity": 1.0}
+    assert (
+        _diff(_apply({**base, "a_liquify": 0.0}), _apply({**base, "a_liquify": 45.0}))
+        > 2.0
+    ), "liquify changes the pattern"
+    p = {**base, "a_liquify": 40.0, "a_liquify_speed": 1.0}
+    assert _diff(_apply(p, 0), _apply(p, 15)) > 2.0, "liquify flow must animate"
 
 
-def test_ac_warp_distorts_grid():
-    """[grid-moire/warp] warp changes the pattern vs no warp."""
-    base = {"grid_size": 8, "opacity": 1.0, "interference": 0.6, "warp_freq": 3.0}
-    assert _diff(_apply({**base, "warp": 0.0}), _apply({**base, "warp": 25.0})) > 2.0
+def test_ac_per_mesh_independent_liquify():
+    """[grid-moire/independent-distortion] Liquifying only A differs from liquifying only B."""
+    a_liq = _apply(
+        {
+            "a_size": 12,
+            "b_size": 15,
+            "a_liquify": 40.0,
+            "b_liquify": 0.0,
+            "opacity": 1.0,
+        },
+        fi=10,
+    )
+    b_liq = _apply(
+        {
+            "a_size": 12,
+            "b_size": 12,
+            "a_liquify": 0.0,
+            "b_liquify": 40.0,
+            "opacity": 1.0,
+        },
+        fi=10,
+    )
+    assert _diff(a_liq, b_liq) > 2.0, "per-mesh liquify must be independent"
 
 
-def test_ac_source_coupling_makes_image_contribute():
-    """[grid-moire/source-couple] With source_coupling>0, different source images yield different moiré modulation; with =0 the grid is source-independent in phase."""
-    p_on = {"grid_size": 8, "opacity": 1.0, "interference": 0.7, "source_coupling": 1.0}
-    out_ramp = _apply(p_on, frame=_frame("ramp"))
-    out_check = _apply(p_on, frame=_frame("checker"))
-    # The moiré phase is bent by the (different) source content beyond the raw source difference.
-    assert _diff(out_ramp, out_check) > 1.0
+def test_ac_source_coupling():
+    """[grid-moire/source-couple] With coupling on, different source images bend the moiré differently."""
+    p = {"a_size": 10, "b_size": 12, "source_coupling": 1.0, "opacity": 1.0}
+    assert (
+        _diff(_apply(p, frame=_frame("ramp")), _apply(p, frame=_frame("checker"))) > 1.0
+    )
 
 
 def test_ac_deterministic():
     """[grid-moire/deterministic] Same params + frame_index → identical output."""
     p = {
-        "grid_size": 8,
-        "opacity": 0.7,
-        "rotation_speed": 3.0,
-        "scroll_x": 5.0,
-        "interference": 0.8,
+        "a_size": 12,
+        "b_size": 14,
+        "a_rotate": 3.0,
+        "a_liquify": 30.0,
+        "b_scroll_x": 5.0,
+        "opacity": 0.8,
     }
-    a = _apply(p, frame_index=7)
-    b = _apply(p, frame_index=7)
-    assert np.array_equal(a, b)
+    assert np.array_equal(_apply(p, 7), _apply(p, 7))
 
 
 def test_ac_trust_boundary_safe():
-    """[grid-moire/states] Malformed/extreme/missing params don't crash or produce NaN; shape+dtype preserved."""
+    """[grid-moire/states] Garbage/extreme/missing params never crash or NaN; shape+dtype+alpha preserved."""
     for p in (
-        {},  # all defaults
+        {},
         {
-            "grid_size": "x",
+            "a_size": "x",
             "opacity": None,
-            "freq_ratio": float("nan"),
-            "angle": float("inf"),
-        },  # garbage
+            "interference": float("nan"),
+            "a_angle": float("inf"),
+        },
         {
-            "grid_size": -999,
+            "a_size": -999,
+            "b_size": 0,
             "opacity": 99,
-            "freq_ratio": 0.0,
-            "warp": 1e9,
-            "rotation_speed": 1e6,
-        },  # out of range
+            "a_liquify": 1e9,
+            "a_rotate": 1e6,
+            "b_scroll_x": 1e9,
+        },
         {
             "interference": 1.0,
             "sharpness": 1.0,
             "source_coupling": 1.0,
-            "warp": 40.0,
-            "drift": 5.0,
-        },  # all maxed
+            "a_liquify": 60.0,
+            "b_liquify": 60.0,
+            "a_rotate": 15.0,
+            "b_rotate": -15.0,
+        },
     ):
-        out = _apply(p, frame_index=3)
-        assert out.shape == (H, W, 4)
-        assert out.dtype == np.uint8
+        out = _apply(p, fi=3)
+        assert out.shape == (H, W, 4) and out.dtype == np.uint8
         assert np.isfinite(out).all()
-        # alpha preserved
-        assert np.array_equal(out[:, :, 3], _frame()[:, :, 3])
+        assert np.array_equal(out[:, :, 3], _gray()[:, :, 3])

@@ -3,7 +3,7 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode } from '../shared/types'
 import { normalizeTransform } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
@@ -13,9 +13,19 @@ import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
+import { useInstrumentsStore } from './stores/instruments'
+import type { SamplerInstrumentV1 } from './components/instruments/types'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX } from './components/instruments/types'
+import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
 import { LIMITS } from '../shared/limits'
+
+// B1 mount: blend modes accepted on a persisted sampler (mirrors SamplerDevice).
+const VALID_BLEND_MODES = new Set<BlendMode>([
+  'normal', 'add', 'multiply', 'screen', 'overlay',
+  'difference', 'exclusion', 'darken', 'lighten',
+])
 
 const GLITCH_FILTERS = [{ name: 'Creatrix Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
@@ -155,7 +165,7 @@ function serializeProject(): string {
 
   const midiStore = useMIDIStore.getState()
 
-  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> } = {
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instrument?: SamplerInstrumentV1 } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -168,6 +178,10 @@ function serializeProject(): string {
       // across reloads. defaultSettings() supplies a random seed for brand-new
       // projects; the store seed wins once loaded.
       seed: projectStore.seed,
+      // Persist the actual project tempo (defaultSettings() only supplies 120).
+      // Paired with the hydrateStores setBpm restore — together they fix BPM
+      // round-trip (was write-default + never-read → tempo always reset to 120).
+      bpm: projectStore.bpm,
     },
     assets: projectStore.assets,
     timeline,
@@ -178,6 +192,8 @@ function serializeProject(): string {
     automationLanes: automationStore.lanes,
     midiMappings: midiStore.getMIDIPersistData(),
     deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
+    // B1 mount: persist the single sampler instrument (omitted when none).
+    instrument: useInstrumentsStore.getState().instrument ?? undefined,
   }
 
   return JSON.stringify(project, null, 2)
@@ -293,6 +309,15 @@ function validateProject(data: unknown): data is Project {
     if (midi.padMidiNotes !== undefined && (typeof midi.padMidiNotes !== 'object' || midi.padMidiNotes === null)) return false
   }
 
+  // B1 mount: optional sampler instrument. Shape-check only — numeric ranges are
+  // clamped at hydrate (deserialization trust boundary). Absent = older project.
+  if (obj.instrument !== undefined) {
+    if (typeof obj.instrument !== 'object' || obj.instrument === null) return false
+    const ri = obj.instrument as Record<string, unknown>
+    if (ri.type !== 'sampler') return false
+    if (typeof ri.clipId !== 'string') return false
+  }
+
   return true
 }
 
@@ -309,6 +334,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
+  useInstrumentsStore.getState().removeSampler()
 
   // HT-4: hydrate project-level seed for deterministic renders + freeze caches.
   // Validation already clamped it to [0, 2^31-1] in validateProject().
@@ -316,9 +342,34 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     projectStore.setSeed(project.settings.seed)
   }
 
+  // Hydrate BPM (drives the quantize grid + clip snapping). Was serialized to
+  // settings.bpm but never restored — reloading a project silently reset it to 120.
+  // setBpm clamps to [1, 300].
+  if (project.settings && typeof project.settings.bpm === 'number') {
+    projectStore.setBpm(project.settings.bpm)
+  }
+
   // Hydrate assets
   for (const asset of Object.values(project.assets)) {
     projectStore.addAsset(asset as Asset)
+  }
+
+  // B1 mount: restore the sampler instrument, clamping numeric fields at this
+  // deserialization trust boundary. A clipId pointing at a now-missing asset is
+  // harmless — buildSamplerLayer returns null and the sampler simply renders nothing.
+  const rawInst = (project as { instrument?: unknown }).instrument
+  if (rawInst && typeof rawInst === 'object') {
+    const ri = rawInst as Record<string, unknown>
+    if (ri.type === 'sampler' && typeof ri.clipId === 'string') {
+      const instruments = useInstrumentsStore.getState()
+      instruments.addSampler(ri.clipId)
+      instruments.updateSampler({
+        startFrame: Math.round(clampFinite(Number(ri.startFrame), 0, 1_000_000, 0)),
+        speed: clampFinite(Number(ri.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
+        opacity: clampFinite(Number(ri.opacity), 0, 1, 1),
+        blendMode: VALID_BLEND_MODES.has(ri.blendMode as BlendMode) ? (ri.blendMode as BlendMode) : 'normal',
+      })
+    }
   }
 
   // Epic 05 D2: masterEffectChain hydrate stub removed. Per-track effectChains
@@ -478,6 +529,63 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   }
 }
 
+// UE.4: rolling numbered backups — rotate .bak.1..5 beside the project file.
+// Rotation always happens BEFORE the overwrite so the last good copy is preserved.
+// Rotation failure must NOT block the save (log + toast warning per the packet spec).
+export const MAX_BACKUPS = 5
+
+export async function rotateBackups(filePath: string): Promise<void> {
+  if (!window.entropic) return
+
+  // Shift .bak.4 -> .bak.5, .bak.3 -> .bak.4, ..., .bak.1 -> .bak.2.
+  // A missing .bak.N is normal (readFile throws — skip); shift failures are
+  // best-effort and never block the save, but the user is warned once.
+  let rotationFailed = false
+  for (let n = MAX_BACKUPS - 1; n >= 1; n--) {
+    const src = `${filePath}.bak.${n}`
+    const dst = `${filePath}.bak.${n + 1}`
+    let content: string
+    try {
+      content = await window.entropic.readFile(src)
+    } catch {
+      continue // .bak.N does not exist yet — normal
+    }
+    try {
+      await window.entropic.writeFile(dst, content)
+      await window.entropic.deleteFile(src)
+    } catch (err) {
+      console.warn(`[Backup] Shift ${src} -> ${dst} failed:`, err)
+      rotationFailed = true
+    }
+  }
+
+  // Copy current project file -> .bak.1. If the project file is unreadable it
+  // does not exist yet (first save) — skip silently. If it IS readable but the
+  // backup write fails, that is a real rotation failure: warn, never block.
+  let current: string | null = null
+  try {
+    current = await window.entropic.readFile(filePath)
+  } catch {
+    // first save — nothing to back up
+  }
+  if (current !== null) {
+    try {
+      await window.entropic.writeFile(`${filePath}.bak.1`, current)
+    } catch (err) {
+      console.warn('[Backup] Rotation failed, save will continue:', err)
+      rotationFailed = true
+    }
+  }
+
+  if (rotationFailed) {
+    useToastStore.getState().addToast({
+      level: 'warning',
+      source: 'backup-rotation',
+      message: 'Backup rotation failed — save will continue without backup',
+    })
+  }
+}
+
 export async function saveProject(): Promise<boolean> {
   if (!window.entropic) return false
 
@@ -491,8 +599,24 @@ export async function saveProject(): Promise<boolean> {
     if (!filePath) return false // user cancelled
   }
 
+  // UE.4: rotate backups BEFORE overwriting the project file
+  await rotateBackups(filePath)
+
   const json = serializeProject()
-  await window.entropic.writeFile(filePath, json)
+  try {
+    await window.entropic.writeFile(filePath, json)
+  } catch (err) {
+    // Mirror saveProjectAs: a failed write must not mutate store state or
+    // surface as an unhandled rejection. The rotated .bak.1 still holds the
+    // last good copy.
+    console.error('[Save] Write failed:', err)
+    useToastStore.getState().addToast({
+      level: 'error',
+      source: 'save-project',
+      message: `Save failed: ${err instanceof Error ? err.message : String(err)}`,
+    })
+    return false
+  }
 
   // Update project path and name
   const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
@@ -505,6 +629,61 @@ export async function saveProject(): Promise<boolean> {
 
   // Track as recent project
   addRecentProject({ path: filePath, name, lastModified: Date.now() })
+
+  return true
+}
+
+// UE.4: Save As — open native dialog, write to the new path, rebind the project.
+// If the write fails, the store is NOT rebound (Cmd+S still targets the original file).
+export async function saveProjectAs(): Promise<boolean> {
+  if (!window.entropic) return false
+
+  const projectStore = useProjectStore.getState()
+  const currentPath = projectStore.projectPath
+
+  // Suggest a default filename: current name + " copy"
+  const currentName = projectStore.projectName ?? 'Untitled'
+  const defaultName = `${currentName} copy.glitch`
+
+  const newPath = await window.entropic.showSaveDialog({
+    filters: GLITCH_FILTERS,
+    defaultPath: defaultName,
+  })
+  if (!newPath) return false // user cancelled
+
+  // Write to the new path first — do NOT rebind until write succeeds
+  const json = serializeProject()
+  try {
+    await window.entropic.writeFile(newPath, json)
+  } catch (err) {
+    console.error('[SaveAs] Write failed, keeping original binding:', err)
+    useToastStore.getState().addToast({
+      level: 'error',
+      source: 'save-as',
+      message: `Save As failed: ${err instanceof Error ? err.message : String(err)}`,
+    })
+    // Return false — Cmd+S still targets the ORIGINAL file (store not mutated)
+    return false
+  }
+
+  // Write succeeded — now rebind
+  const name = newPath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
+  projectStore.setProjectPath(newPath)
+  projectStore.setProjectName(name)
+  useUndoStore.getState().clearDirty()
+
+  // Delete autosave for the old path
+  if (currentPath) {
+    try {
+      const dir = currentPath.substring(0, currentPath.lastIndexOf('/'))
+      await window.entropic.deleteFile(`${dir}/.autosave.glitch`)
+    } catch {
+      // Best-effort cleanup
+    }
+  }
+
+  // Track as recent project
+  addRecentProject({ path: newPath, name, lastModified: Date.now() })
 
   return true
 }
@@ -585,6 +764,7 @@ export function newProject(): void {
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
+  useInstrumentsStore.getState().removeSampler()
 }
 
 export function startAutosave(): void {

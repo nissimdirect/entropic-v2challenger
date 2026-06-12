@@ -85,6 +85,17 @@ export function isPathAllowed(targetPath: string): boolean {
     }
   }
 
+  // 5. UE.4 backup sibling: <granted>.bak.N where N is strictly an integer 1-5.
+  // Single digit [1-5] only — rejects .bak.99, .bak.-1, .bak.05, .bak.0 at the
+  // trust boundary. The base path (suffix stripped) must itself be granted.
+  const bakMatch = resolved.match(/\.bak\.([1-5])$/)
+  if (bakMatch && !/\.bak\.\d+\.bak\.[1-5]$/.test(resolved)) {
+    const base = resolved.slice(0, -('.bak.'.length + 1))
+    if (grantedPaths.has(base)) {
+      return true
+    }
+  }
+
   return false
 }
 

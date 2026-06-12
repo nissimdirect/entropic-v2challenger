@@ -2,6 +2,7 @@
  * Entropic v2 — Core data types.
  * Matches DATA-SCHEMAS.md. Python must serialize/deserialize these exact shapes.
  */
+import type { LaneAxisBinding } from './axis-binding'
 
 // --- Project ---
 
@@ -278,6 +279,11 @@ export interface AutomationLane {
   points: AutomationPoint[];
   mode: InterpolationMode;
   triggerADSR?: ADSREnvelope; // envelope for gate/oneShot modes
+  // PR-B Commit-2: optional B4-lite axis binding. Absent = evaluate at time (t).
+  // NB: LaneAxisBinding.interpolationMode is a DISTINCT concept from `mode` above —
+  // it controls between-keyframe interp ALONG the chosen axis, not lane behavior.
+  // Tier-1 only renders broadcast/t; richer domains (y/x/...) land with C2/C3.
+  axisBinding?: LaneAxisBinding;
 }
 
 export interface AutomationPoint {

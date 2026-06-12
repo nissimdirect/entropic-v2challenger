@@ -40,7 +40,7 @@ import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
-import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave, probeForMissingAssets, relinkAsset, markAssetMissing } from './project-persistence'
+import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave, probeForMissingAssets, relinkAsset, markAssetMissing } from './project-persistence'
 import { getActiveTrackId, getActiveEffectChain, useActiveEffectChain } from './stores/project'
 import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
@@ -1340,7 +1340,7 @@ function AppInner() {
           break
         }
         case 'save': saveProject(); break
-        case 'save-as': saveProject(); break
+        case 'save-as': saveProjectAs(); break
         case 'export': setShowExportDialog(true); break
         case 'toggle-sidebar': useLayoutStore.getState().toggleSidebar(); break
         case 'toggle-focus': useLayoutStore.getState().toggleFocusMode(); break
@@ -1879,7 +1879,10 @@ function AppInner() {
         input_path: activeAssetPath.current,
         output_path: settings.outputPath,
         chain: serializeEffectChain(activeExportChain),
-        project_seed: 42,
+        // PR-B Commit-3: use the real project seed (was hardcoded 42) so export is
+        // deterministic AND matches preview — stateful/seeded effects (datamosh,
+        // frame_drop, noise) now render identically in export and the live canvas.
+        project_seed: projectSeed,
         ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
         settings: {
           codec: settings.codec,

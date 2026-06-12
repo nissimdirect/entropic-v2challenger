@@ -775,8 +775,13 @@ describe('saveProject', () => {
     mockEntropic.showSaveDialog.mockResolvedValue('/test/project.glitch')
     await saveProject()
 
-    const writtenJson = mockEntropic.writeFile.mock.calls[0][1]
-    const parsed = JSON.parse(writtenJson)
+    // UE.4: backup rotation may write .bak.N siblings first — select the
+    // write that targets the project file itself.
+    const projectWrite = mockEntropic.writeFile.mock.calls.find(
+      (c: unknown[]) => c[0] === '/test/project.glitch',
+    )
+    expect(projectWrite).toBeDefined()
+    const parsed = JSON.parse(projectWrite![1])
     expect(validateProject(parsed)).toBe(true)
   })
 })
