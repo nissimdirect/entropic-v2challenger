@@ -46,6 +46,24 @@ function isFixEnabled(slug: string): boolean {
 }
 
 /**
+ * isEnabled — opt-in polarity (opposite of isFixEnabled).
+ * Returns true only when explicitly enabled via localStorage or env var.
+ * Use for new features that are OFF by default.
+ *
+ * Enable at runtime:
+ *   localStorage.setItem('entropic-enable-creatrix-layout', '1')
+ *   location.reload()
+ *
+ * Enable at build time:
+ *   VITE_ENTROPIC_ENABLE_CREATRIX_LAYOUT=1 npm run build
+ */
+function isEnabled(slug: string): boolean {
+  const lsKey = `entropic-enable-${slug}`
+  const envKey = `VITE_ENTROPIC_ENABLE_${slug.toUpperCase().replace(/-/g, '_')}`
+  return readLocalStorageFlag(lsKey) || readEnvFlag(envKey)
+}
+
+/**
  * Feature-flag map. Each property is TRUE when the corresponding 2026-05-12
  * UAT bugfix is active. Keys mirror the F-0512-N bug IDs.
  */
@@ -99,6 +117,10 @@ export const FF = {
    * max-width/max-height caps can't stretch the canvas to non-source aspect, and
    * the BoundingBoxOverlay's contain-fit math aligns with the visible canvas. */
   F_0512_12_PREVIEW_ASPECT: isFixEnabled('f-0512-12'),
+
+  // ── Creatrix campaign ──────────────────────────────────────────────────
+  /** F_CREATRIX_LAYOUT: Creatrix CSS-grid app shell + 4 resize handles (P3.1). Off by default. */
+  F_CREATRIX_LAYOUT: isEnabled('creatrix-layout'),
 } as const
 
 /**
