@@ -131,6 +131,7 @@ describe('IPC Contract', () => {
       'effect_health',
       'effect_stats',
       'export_cancel',
+      'export_frame',
       'export_start',
       'export_status',
       'flatten',
