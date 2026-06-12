@@ -3,7 +3,7 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode, MatteNode, MatteNodeKind, MatteOp } from '../shared/types'
 import { normalizeTransform, COMPOSITE_EFFECT_ID } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
@@ -32,6 +32,106 @@ const AUTOSAVE_INTERVAL_MS = 60_000
 const PROJECT_VERSION = '3.0.0'
 const PROJECT_VERSION_MAJOR = 3
 const MAX_RECENT_PROJECTS = 20
+
+// MK.1: Matte node trust boundary constants (mirrored from backend masking/schema.py).
+const MAX_MATTE_NODES_PER_CLIP = 8
+const MATTE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+const VALID_MATTE_KINDS = new Set<MatteNodeKind>([
+  'rect', 'ellipse', 'polygon', 'bitmap',
+  'chroma_key', 'luma_key', 'color_range', 'ai_matte',
+])
+const VALID_MATTE_OPS = new Set<MatteOp>(['add', 'subtract', 'intersect'])
+const FEATHER_MIN = 0
+const FEATHER_MAX = 100
+const GROW_SHRINK_MIN = -50
+const GROW_SHRINK_MAX = 50
+
+/**
+ * MK.1: Load-time validator for a single MatteNode from persisted JSON.
+ *
+ * Trust boundary (P6.6 pattern + feedback_numeric-trust-boundary.md):
+ *   - Unknown id (bad regex) → reject (return null)
+ *   - Unknown kind → reject (return null)
+ *   - feather: NaN/Inf → 0, out-of-range → clamped [0, 100]
+ *   - growShrink: NaN/Inf → 0, out-of-range → clamped [−50, 50]
+ *   - params numeric values: NaN/Inf → 0; strings pass through
+ *   - op: unknown → 'add'
+ *   - enabled/invert: coerced to boolean
+ *
+ * Returns a validated MatteNode, or null if the node must be dropped.
+ */
+function validateMatteNode(raw: unknown): MatteNode | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+
+  // id: must match regex
+  const id = r.id
+  if (typeof id !== 'string' || !MATTE_ID_PATTERN.test(id)) return null
+
+  // kind: must be in allowlist
+  const kind = r.kind
+  if (typeof kind !== 'string' || !VALID_MATTE_KINDS.has(kind as MatteNodeKind)) return null
+
+  // op: unknown → 'add'
+  const rawOp = r.op
+  const op: MatteOp = (typeof rawOp === 'string' && VALID_MATTE_OPS.has(rawOp as MatteOp))
+    ? (rawOp as MatteOp)
+    : 'add'
+
+  // Clamp finite helper
+  const clampFiniteNum = (v: unknown, lo: number, hi: number): number => {
+    const n = Number(v)
+    if (!Number.isFinite(n)) return 0
+    return Math.max(lo, Math.min(hi, n))
+  }
+
+  const feather = clampFiniteNum(r.feather, FEATHER_MIN, FEATHER_MAX)
+  const growShrink = clampFiniteNum(r.growShrink, GROW_SHRINK_MIN, GROW_SHRINK_MAX)
+  const invert = Boolean(r.invert)
+  const enabled = r.enabled === undefined ? true : Boolean(r.enabled)
+
+  // params: sanitize numeric values, pass strings through
+  const rawParams = (typeof r.params === 'object' && r.params !== null)
+    ? r.params as Record<string, unknown>
+    : {}
+  const params: Record<string, number | string> = {}
+  for (const [k, v] of Object.entries(rawParams)) {
+    if (typeof v === 'number') {
+      params[k] = Number.isFinite(v) ? v : 0
+    } else if (typeof v === 'string') {
+      params[k] = v
+    }
+  }
+
+  return { id, kind: kind as MatteNodeKind, params, op, invert, feather, growShrink, enabled }
+}
+
+/**
+ * MK.1: Validate and sanitize a clip's maskStack at load time.
+ *
+ * Rules (P6.6 pattern):
+ *   - Non-array → return []
+ *   - Each entry passed through validateMatteNode; null → dropped with toast
+ *   - Stack capped at MAX_MATTE_NODES_PER_CLIP (8)
+ */
+function loadMaskStack(raw: unknown, clipId: string): MatteNode[] {
+  if (!Array.isArray(raw)) return []
+  const validated: MatteNode[] = []
+  for (const entry of raw) {
+    if (validated.length >= MAX_MATTE_NODES_PER_CLIP) break
+    const node = validateMatteNode(entry)
+    if (node !== null) {
+      validated.push(node)
+    } else {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        source: 'mask-stack-load',
+        message: `Clip ${clipId}: malformed matte node dropped on load`,
+      })
+    }
+  }
+  return validated
+}
 
 // F-0514-10 + F-0514-11: numeric range guards mirrored from backend schema.py.
 // Type-only checks let pathological values through; UAT 2026-05-14 confirmed only
@@ -448,11 +548,24 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
       // the effectChain (hydrated below). v2 files carrying these fields are
       // rejected by the backend schema validator before reaching this loader.
       // Add video/text clips (migrate legacy transform format: {scale} → {scaleX, scaleY, ...})
+      // MK.1: also validate and hydrate maskStack at the persistence trust boundary.
+      // IMPORTANT: always use the validated maskStack (not the raw clip's maskStack), so
+      // malformed nodes from disk are dropped before reaching the store.
       for (const clip of track.clips) {
-        const migratedClip = clip.transform
-          ? { ...clip, trackId: addedTrackId, transform: normalizeTransform(clip.transform as any) }
-          : { ...clip, trackId: addedTrackId }
-        useTimelineStore.getState().addClip(addedTrackId, migratedClip)
+        const rawClip = clip as unknown as Record<string, unknown>
+        const maskStack = loadMaskStack(rawClip.maskStack, clip.id)
+        // Build the migrated clip WITHOUT spreading the raw maskStack (it may contain invalid nodes).
+        // We destructure clip explicitly to exclude maskStack, then add the validated one.
+        const { maskStack: _rawMaskStack, ...clipWithoutMaskStack } = rawClip
+        const base = {
+          ...clipWithoutMaskStack,
+          trackId: addedTrackId,
+          ...(clip.transform ? { transform: normalizeTransform(clip.transform as any) } : {}),
+        }
+        const migratedClip = maskStack.length > 0
+          ? { ...base, maskStack }
+          : base
+        useTimelineStore.getState().addClip(addedTrackId, migratedClip as any)
       }
     }
 
