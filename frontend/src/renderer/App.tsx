@@ -3120,6 +3120,9 @@ function AppInner() {
               effectChain={effectChain}
               registry={registry}
               operatorValues={operatorValues}
+              maskNodes={(selectedClip?.maskStack ?? []).filter(
+                (n) => n.kind === 'chroma_key' || n.kind === 'luma_key',
+              )}
             />
           </div>
         </div>

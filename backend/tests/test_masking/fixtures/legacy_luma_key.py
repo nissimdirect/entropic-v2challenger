@@ -1,14 +1,7 @@
-"""Luma Key — make dark or bright areas transparent based on luminance.
+"""Luma Key — make dark or bright areas transparent based on luminance."""
 
-MK.8: the keying math lives in ``masking.key_kernels`` (single source of truth,
-SPEC §13-5). This effect is a thin adapter; output is byte-identical to the
-pre-refactor effect (back-compat golden ``test_spill_zero_matches_legacy_effect_output``
-sibling for luma).
-"""
-
+import cv2
 import numpy as np
-
-from masking.key_kernels import luma_alpha
 
 EFFECT_ID = "fx.luma_key"
 EFFECT_NAME = "Luma Key"
@@ -54,22 +47,24 @@ def apply(
     seed: int,
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
-    """Luma key — make dark or bright areas transparent.
+    """Luma key — make dark or bright areas transparent."""
+    threshold = max(0.0, min(1.0, float(params.get("threshold", 0.3))))
+    mode = str(params.get("mode", "dark"))
+    softness = max(0.0, min(50.0, float(params.get("softness", 10.0))))
 
-    Single source of truth: ``masking.key_kernels.luma_alpha`` (MK.8).
-    Byte-identical to the pre-refactor effect.
-    """
     rgb = frame[:, :, :3]
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY).astype(np.float32) / 255.0
 
-    # Kernel finite-guards + clamps every param internally; pass raw values.
-    alpha_f01 = luma_alpha(
-        rgb,
-        params.get("threshold", 0.3),
-        params.get("mode", "dark"),
-        params.get("softness", 10.0),
-    )
+    if mode == "dark":
+        mask = (gray < threshold).astype(np.float32)
+    else:
+        mask = (gray > threshold).astype(np.float32)
 
-    new_alpha = (alpha_f01 * 255).astype(np.uint8)
+    if softness > 0:
+        ksize = int(softness * 2) | 1
+        mask = cv2.GaussianBlur(mask, (ksize, ksize), 0)
+
+    new_alpha = ((1.0 - mask) * 255).astype(np.uint8)
     # Multiply with incoming alpha so upstream transparency is preserved
     incoming_alpha = frame[:, :, 3]
     combined_alpha = np.minimum(new_alpha, incoming_alpha)

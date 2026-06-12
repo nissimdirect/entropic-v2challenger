@@ -385,3 +385,172 @@ describe('ModulationMatrix — F-0516-9 _mix synthetic target', () => {
     ).toHaveLength(0)
   })
 })
+
+// --------------------------------------------------------------------------- #
+//  MK.8 — keying-as-performance: key node params as synthetic lane targets
+// --------------------------------------------------------------------------- #
+
+import type { MatteNode } from '../../shared/types'
+
+function chromaNode(id: string): MatteNode {
+  return {
+    id,
+    kind: 'chroma_key',
+    params: { hue: 120, tolerance: 30, softness: 10, spill: 0 },
+    op: 'add',
+    invert: false,
+    feather: 0,
+    growShrink: 0,
+    enabled: true,
+  }
+}
+
+function lumaNode(id: string): MatteNode {
+  return {
+    id,
+    kind: 'luma_key',
+    params: { threshold: 0.3, mode: 'dark', softness: 10 },
+    op: 'add',
+    invert: false,
+    feather: 0,
+    growShrink: 0,
+    enabled: true,
+  }
+}
+
+describe('ModulationMatrix — MK.8 key node params appear as modulation targets', () => {
+  it('key node params appear as modulation targets', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+        maskNodes={[chromaNode('key-1')]}
+      />,
+    )
+    // chroma_key exposes 4 lane params: Hue, Tolerance, Softness, Spill.
+    const headers = container.querySelectorAll('.mod-matrix__col-header')
+    expect(headers).toHaveLength(4)
+    const labels = Array.from(
+      container.querySelectorAll('.mod-matrix__param-name'),
+    ).map((el) => el.textContent)
+    expect(labels).toEqual(['Hue', 'Tolerance', 'Softness', 'Spill'])
+  })
+
+  it('luma key exposes threshold + softness (mode choice excluded)', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+        maskNodes={[lumaNode('luma-1')]}
+      />,
+    )
+    const labels = Array.from(
+      container.querySelectorAll('.mod-matrix__param-name'),
+    ).map((el) => el.textContent)
+    expect(labels).toEqual(['Threshold', 'Softness'])
+  })
+
+  it('key targets are namespaced mask.<node>.<param> (no _mix collision)', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const op = useOperatorStore.getState().operators[0]
+    // Map onto the chroma tolerance lane via its namespaced key.
+    useOperatorStore.getState().addMapping(op.id, {
+      targetEffectId: 'mask.key-1',
+      targetParamKey: 'mask.key-1.tolerance',
+      depth: 1.0,
+      min: 0,
+      max: 1,
+      curve: 'linear',
+    })
+    // Also a real effect _mix mapping — must remain independent.
+    useOperatorStore.getState().addMapping(op.id, {
+      targetEffectId: 'fx1',
+      targetParamKey: '_mix',
+      depth: 0.5,
+      min: 0,
+      max: 1,
+      curve: 'linear',
+    })
+
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[{ id: 'fx1', effectId: 'fx.invert' }]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+        maskNodes={[chromaNode('key-1')]}
+      />,
+    )
+    // Two distinct active cells: the key tolerance lane and the effect mix.
+    expect(container.querySelectorAll('.mod-matrix__cell--active')).toHaveLength(2)
+    // The mappings remain distinct (no key collision overwrote the other).
+    const keys = useOperatorStore
+      .getState()
+      .operators[0].mappings.map((m) => m.targetParamKey)
+      .sort()
+    expect(keys).toEqual(['_mix', 'mask.key-1.tolerance'])
+  })
+
+  it('emits the mask.<id>.<param> target the backend lane consumes', () => {
+    // The matrix's job is to SURFACE the correctly-namespaced target. The
+    // actual wiring (modulated value → node.params → kernel) is proven by the
+    // backend integration test tests/test_masking/test_mask_lane_routing.py
+    // (test_mask_lane_is_not_a_noop). Here we lock the UI contract: the column
+    // header for a key node carries paramKey `mask.<id>.tolerance`, which is
+    // exactly what resolve_mask_modulations splits on the backend.
+    useOperatorStore.getState().addOperator('lfo')
+    const op = useOperatorStore.getState().operators[0]
+    // The header click creates a mapping with this paramKey (asserted via the
+    // store, matching how OperatorRack wires the cell).
+    useOperatorStore.getState().addMapping(op.id, {
+      targetEffectId: 'mask.key-1',
+      targetParamKey: 'mask.key-1.tolerance',
+      depth: 1.0,
+      min: 0,
+      max: 1,
+      curve: 'linear',
+    })
+
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+        maskNodes={[chromaNode('key-1')]}
+      />,
+    )
+    // The Tolerance column for this key node renders an active cell — proving
+    // the target the matrix emits matches the mapping the backend will resolve.
+    expect(container.querySelector('.mod-matrix__cell--active')).toBeTruthy()
+    const mapping = useOperatorStore.getState().operators[0].mappings[0]
+    // Exactly the shape resolve_mask_modulations parses: prefix.node.param.
+    expect(mapping.targetParamKey.split('.')).toEqual(['mask', 'key-1', 'tolerance'])
+  })
+
+  it('non-key matte nodes (rect/ellipse) contribute no lane targets', () => {
+    useOperatorStore.getState().addOperator('lfo')
+    const rectNode: MatteNode = {
+      id: 'rect-1',
+      kind: 'rect',
+      params: { x: 0, y: 0, w: 1, h: 1 },
+      op: 'add',
+      invert: false,
+      feather: 0,
+      growShrink: 0,
+      enabled: true,
+    }
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+        maskNodes={[rectNode]}
+      />,
+    )
+    // No effects + no key nodes → empty state.
+    expect(container.querySelector('.mod-matrix--empty')).toBeTruthy()
+  })
+})

@@ -1,7 +1,15 @@
-"""Chroma Key — green screen / color-based keying to transparency."""
+"""Chroma Key — green screen / color-based keying to transparency.
 
-import cv2
+MK.8: the keying math lives in ``masking.key_kernels`` (single source of truth,
+SPEC §13-5). This effect is a thin adapter that maps PARAMS → the kernel and
+writes the result into the alpha channel. The ``spill`` param (default 0) adds
+spill suppression; at spill=0 the output is byte-identical to the pre-refactor
+effect (back-compat golden ``test_spill_zero_matches_legacy_effect_output``).
+"""
+
 import numpy as np
+
+from masking.key_kernels import chroma_alpha
 
 EFFECT_ID = "fx.chroma_key"
 EFFECT_NAME = "Chroma Key"
@@ -38,6 +46,17 @@ PARAMS: dict = {
         "unit": "px",
         "description": "Edge feathering amount",
     },
+    "spill": {
+        "type": "float",
+        "min": 0.0,
+        "max": 1.0,
+        "default": 0.0,
+        "label": "Spill",
+        "curve": "linear",
+        "unit": "",
+        "description": "Spill suppression: desaturate key-colour fringe toward "
+        "luma (0 = off, legacy behavior)",
+    },
 }
 
 
@@ -50,36 +69,25 @@ def apply(
     seed: int,
     resolution: tuple[int, int],
 ) -> tuple[np.ndarray, dict | None]:
-    """Chroma key — make a specific hue range transparent."""
-    hue = float(params.get("hue", 120.0)) % 360
-    tolerance = max(1.0, min(180.0, float(params.get("tolerance", 30.0))))
-    softness = max(0.0, min(50.0, float(params.get("softness", 10.0))))
+    """Chroma key — make a specific hue range transparent.
 
+    Single source of truth: ``masking.key_kernels.chroma_alpha`` (MK.8).
+    At ``spill=0`` (default) this is byte-identical to the pre-refactor effect.
+    """
     rgb = frame[:, :, :3]
-    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
 
-    h_center = hue / 2.0
-    h_low = (h_center - tolerance / 2.0) % 180
-    h_high = (h_center + tolerance / 2.0) % 180
+    # Kernel finite-guards + clamps every param internally; pass raw values.
+    alpha_f01, rgb_out = chroma_alpha(
+        rgb,
+        params.get("hue", 120.0),
+        params.get("tolerance", 30.0),
+        params.get("softness", 10.0),
+        params.get("spill", 0.0),
+    )
 
-    h = hsv[:, :, 0].astype(np.float32)
-    s = hsv[:, :, 1].astype(np.float32)
-
-    if h_low < h_high:
-        hue_mask = (h >= h_low) & (h <= h_high)
-    else:
-        hue_mask = (h >= h_low) | (h <= h_high)
-
-    sat_mask = s > 30
-    mask = (hue_mask & sat_mask).astype(np.float32)
-
-    if softness > 0:
-        ksize = int(softness * 2) | 1
-        mask = cv2.GaussianBlur(mask, (ksize, ksize), 0)
-
-    new_alpha = ((1.0 - mask) * 255).astype(np.uint8)
+    new_alpha = (alpha_f01 * 255).astype(np.uint8)
     # Multiply with incoming alpha so upstream transparency is preserved
     incoming_alpha = frame[:, :, 3]
     combined_alpha = np.minimum(new_alpha, incoming_alpha)
-    output = np.concatenate([rgb, combined_alpha[:, :, np.newaxis]], axis=2)
+    output = np.concatenate([rgb_out, combined_alpha[:, :, np.newaxis]], axis=2)
     return output, None
