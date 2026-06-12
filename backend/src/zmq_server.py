@@ -26,6 +26,7 @@ from engine.pipeline import (
     get_effect_stats,
 )
 from memory.writer import SharedMemoryWriter
+from project.schema import V2_UNSUPPORTED_MESSAGE
 from security import (
     is_audio_magic,
     resolve_safe_path,
@@ -845,6 +846,45 @@ class ZMQServer:
         self._composite_states = new_layer_states
         self._composite_state_key = (layer_signature, frame_index)
 
+    @staticmethod
+    def _is_v2_compositing_shape(layer_info: dict) -> bool:
+        """True when a VIDEO-CLIP layer carries v2-era track-level compositing.
+
+        P2.2c (Decision D1 clean break): video-track compositing moved out of
+        layer-level `opacity`/`blend_mode` fields (the removed `Track.opacity` /
+        `Track.blendMode`) into a TERMINAL `composite` effect on the chain. The
+        v2-era signature is a VIDEO layer that carries an effect chain (a real
+        track-clip context) AND orphaned top-level `opacity`/`blend_mode` AND no
+        terminal composite — that is a pre-v3 payload, rejected loudly (no crash,
+        sidecar stays alive) rather than silently honored.
+
+        Deliberately NARROW so legitimate v3 layers are never flagged:
+          * `layer_type != "video"` (text) is exempt — text composites in normal
+            mode and forwards its fade via `clip_opacity`.
+          * An EMPTY chain is exempt — that is the sampler/instrument voice path
+            (and the no-clip fallback), which legitimately carries instrument-level
+            opacity/blend_mode and never had Track-level compositing.
+          * A chain ENDING in a terminal composite is exempt — it is v3-shaped even
+            if a belt-and-suspenders sender also passed stray top-level fields.
+        Only a video layer with a NON-EMPTY chain, top-level opacity/blend_mode, and
+        no terminal composite is the v2 track-clip shape we reject.
+        """
+        if not isinstance(layer_info, dict):
+            return False
+        if layer_info.get("layer_type", "video") != "video":
+            return False
+        has_v2_fields = "opacity" in layer_info or "blend_mode" in layer_info
+        if not has_v2_fields:
+            return False
+        chain = layer_info.get("chain") or []
+        if not chain:
+            return False
+        terminal = chain[-1]
+        has_terminal_composite = (
+            isinstance(terminal, dict) and terminal.get("effect_id") == "composite"
+        )
+        return not has_terminal_composite
+
     def _handle_render_composite(self, message: dict, msg_id: str | None) -> dict:
         raw_layers = message.get("layers", [])
         raw_res = message.get("resolution", [1920, 1080])
@@ -885,10 +925,19 @@ class ZMQServer:
                         "ok": False,
                         "error": "layer frame_index must be non-negative",
                     }
-                opacity = clamp_finite(
-                    float(layer_info.get("opacity", 1.0)), 0.0, 1.0, 1.0
-                )
-                blend_mode = layer_info.get("blend_mode", "normal")
+
+                # P2.2c (slice 3c, Decision D1 clean break): compositing now lives
+                # in the TERMINAL `composite` effect of the layer's chain — the
+                # compositor reads opacity/mode from there. A render request that
+                # still carries v2-era layer-level `opacity`/`blend_mode` fields
+                # WITHOUT a terminal composite is a pre-v3 shape and is rejected
+                # LOUDLY (no crash, sidecar stays alive) — never silently honored.
+                if self._is_v2_compositing_shape(layer_info):
+                    return {
+                        "id": msg_id,
+                        "ok": False,
+                        "error": V2_UNSUPPORTED_MESSAGE,
+                    }
 
                 if layer_type == "text":
                     # Text layer — render text config to RGBA frame
@@ -933,16 +982,27 @@ class ZMQServer:
                 else:
                     layer_id = f"asset:{layer_info.get('asset_path', '')}"
 
-                layers.append(
-                    {
-                        "frame": frame,
-                        "chain": chain,
-                        "opacity": opacity,
-                        "blend_mode": blend_mode,
-                        "frame_index": frame_index,
-                        "layer_id": layer_id,
-                    }
-                )
+                # P2.2c (Decision D3/D4): video-clip track compositing is resolved
+                # by the compositor from the TERMINAL composite in `chain`.
+                # `clip_opacity` (a distinct per-clip multiplier, not track
+                # compositing) is forwarded so faded clips still fade. Top-level
+                # `opacity`/`blend_mode` are forwarded ONLY as the legitimate
+                # fallback transport for layers with no terminal composite — sampler/
+                # instrument voices and text (the v2 video-track-clip shape that
+                # carries them with a real chain is rejected upstream by
+                # _is_v2_compositing_shape, so anything reaching here is legitimate).
+                layer_dict = {
+                    "frame": frame,
+                    "chain": chain,
+                    "clip_opacity": layer_info.get("clip_opacity", 1.0),
+                    "frame_index": frame_index,
+                    "layer_id": layer_id,
+                }
+                if "opacity" in layer_info:
+                    layer_dict["opacity"] = layer_info["opacity"]
+                if "blend_mode" in layer_info:
+                    layer_dict["blend_mode"] = layer_info["blend_mode"]
+                layers.append(layer_dict)
 
             # Build a layer signature from ordered layer_ids — invalidates cache
             # on add/remove/reorder. Use the smallest frame_index across layers
