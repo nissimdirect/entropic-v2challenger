@@ -32,7 +32,11 @@
   cursor: grabbing;
 }
 .instruments-browser__item--disabled {
-  color: var(--cx-text-disabled);
+  /* a11y: --cx-text-disabled renders ~2.4:1 here — a WCAG fail the DESIGN-SPEC
+     itself flags. Use --cx-text-3 (4.8:1 AA, legible-secondary); the dashed
+     border + not-allowed cursor carry the disabled signal without relying on
+     illegible contrast. "(soon)"/"(no clip)" must stay readable. */
+  color: var(--cx-text-3);
   border-style: dashed;
   border-color: var(--cx-line-2);
   cursor: not-allowed;

@@ -658,7 +658,11 @@ body {
 }
 
 .effect-browser__item:disabled {
-  opacity: 0.4;
+  /* a11y: opacity 0.4 on text tanks contrast below 3:1 — the operator-stub and
+     full-chain disabled rows became unreadable. Use --cx-text-3 (4.8:1 AA) +
+     a gentle 0.85 dim; the not-allowed cursor carries the disabled signal. */
+  color: var(--cx-text-3);
+  opacity: 0.85;
   cursor: not-allowed;
 }
 
