@@ -122,6 +122,17 @@
         "output_path": { "type": "string", "minLength": 1 },
         "chain": { "type": "array", "items": { "type": "object" } },
         "project_seed": { "type": "integer" },
+        "settings": { "type": "object" },
+        "text_layers": { "type": "array", "items": { "type": "object" } },
+        "performance": {
+          "type": "object",
+          "description": "P5a.4 composite-replay payload {events, instruments, assets}",
+          "properties": {
+            "events": { "type": "array", "items": { "type": "object" } },
+            "instruments": { "type": "object" },
+            "assets": { "type": "object" }
+          }
+        },
         "_token": { "type": "string" },
         "_ts_send": { "type": "number" },
         "_render_seq": { "type": "integer" }
