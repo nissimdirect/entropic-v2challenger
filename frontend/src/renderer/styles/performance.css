@@ -68,7 +68,7 @@
   grid-column: 1 / -1;
   text-align: center;
   font-size: 11px;
-  color: var(--cx-text-disabled);
+  color: var(--cx-text-3);
   padding: 8px 0;
 }
 

@@ -258,7 +258,7 @@
 
 .timeline__empty-hint {
   font-size: 12px;
-  color: var(--cx-text-disabled);
+  color: var(--cx-text-3);
   text-align: center;
   line-height: 1.5;
 }
