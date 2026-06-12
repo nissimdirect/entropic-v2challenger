@@ -424,12 +424,45 @@ export default function MaskSelectOverlay({
   // If no tool mode active, render nothing (pointerEvents:none shortcut — BoundingBox handles)
   if (!toolMode) return null
 
+  // ── MK.5: Resolve committed POLYGON node → DOM-space vertices ─────────────
+  // Shared across the lasso and rect/ellipse render paths. Polygon nodes carry
+  // params.vertices ([[x,y],...] normalized pairs), NOT cx/cy/rx/ry — so they
+  // must NOT fall into the rect/ellipse committedRect resolution (that produced
+  // NaN and an invisible affordance — the MK.5 committed-render bug).
+  const resolveCommittedPolygon = (): { x: number; y: number }[] | null => {
+    if (!committedMaskSelection || !layout || !containerRef.current) return null
+    const tracks = useTimelineStore.getState().tracks
+    let foundNode: MatteNode | undefined
+    for (const track of tracks) {
+      const clip = track.clips.find((c) => c.id === committedMaskSelection.clipId)
+      if (clip) {
+        foundNode = clip.maskStack?.find((n) => n.id === committedMaskSelection.nodeId)
+        break
+      }
+    }
+    if (!foundNode || foundNode.kind !== 'polygon') return null
+    const rawVerts = foundNode.params.vertices as unknown
+    if (!Array.isArray(rawVerts)) return null
+    const pts = rawVerts
+      .map((v) => {
+        const vx = Array.isArray(v) ? (v[0] as number) : NaN
+        const vy = Array.isArray(v) ? (v[1] as number) : NaN
+        return {
+          x: vx * layout.canvasDisplayWidth + layout.canvasOffsetX,
+          y: vy * layout.canvasDisplayHeight + layout.canvasOffsetY,
+        }
+      })
+      .filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y))
+    return pts.length >= 3 ? pts : null
+  }
+
   // ── MK.5: Route to lasso render path ─────────────────────────────────────
   const isLassoFreehand = toolMode === 'lasso-freehand'
   const isLassoPolygon = toolMode === 'lasso-polygon'
   const isLassoMode = isLassoFreehand || isLassoPolygon
 
   if (isLassoMode) {
+    const committedPolygonLasso = resolveCommittedPolygon()
     // Helper: convert client coords to SVG-space (SVG covers the container)
     const toSVG = (pt: Point2D): Point2D => {
       if (!containerRef.current) return pt
@@ -466,6 +499,37 @@ export default function MaskSelectOverlay({
         onClick={isLassoPolygon ? handlePolygonClick : undefined}
         onDoubleClick={isLassoPolygon ? handlePolygonDblClick : undefined}
       >
+        {/* MK.5: Committed polygon affordance — dashed MOD outline + 65% outside-dim.
+            Renders AFTER a lasso commits (tool mode is still lasso-*). Follows the
+            drawn path via a <polygon>, mirroring the rect/ellipse committed visual. */}
+        {committedPolygonLasso && (
+          <>
+            <defs>
+              <mask id="mask-select-committed-cutout-polygon">
+                <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                <polygon
+                  points={committedPolygonLasso.map((p) => `${p.x},${p.y}`).join(' ')}
+                  fill="black"
+                />
+              </mask>
+            </defs>
+            <rect
+              x="0" y="0" width="100%" height="100%"
+              fill="rgba(0,0,0,0.65)"
+              mask="url(#mask-select-committed-cutout-polygon)"
+              style={{ pointerEvents: 'none' }}
+            />
+            <polygon
+              points={committedPolygonLasso.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke="#8F7DFF"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+              style={{ pointerEvents: 'none' }}
+            />
+          </>
+        )}
+
         {/* Freehand in-progress path — follows drawn path exactly (not bounding rect) */}
         {isLassoFreehand && svgFreehandPts.length >= 2 && (
           <polyline
@@ -524,7 +588,10 @@ export default function MaskSelectOverlay({
 
   // Committed selection visual — resolve from store
   let committedRect: { x: number; y: number; w: number; h: number; kind: MatteNodeKind } | null = null
-  if (committedMaskSelection && layout && containerRef.current) {
+  // MK.5: committed polygon (DOM-space vertices). Resolved via the shared helper
+  // so a polygon node committed while a rect/ellipse tool is active still renders.
+  const committedPolygon = resolveCommittedPolygon()
+  if (committedMaskSelection && layout && containerRef.current && !committedPolygon) {
     const tracks = useTimelineStore.getState().tracks
     let foundNode: MatteNode | undefined
     for (const track of tracks) {
@@ -534,7 +601,7 @@ export default function MaskSelectOverlay({
         break
       }
     }
-    if (foundNode) {
+    if (foundNode && foundNode.kind !== 'polygon') {
       const containerRect = containerRef.current.getBoundingClientRect()
       const p = foundNode.params
       let normX: number, normY: number, normW: number, normH: number
@@ -648,6 +715,36 @@ export default function MaskSelectOverlay({
               />
             </>
           )}
+        </>
+      )}
+
+      {/* MK.5: Committed polygon selection — dashed MOD outline + 65% outside-dim.
+          Mirrors the rect/ellipse committed affordance but uses a <polygon>. */}
+      {committedPolygon && (
+        <>
+          <defs>
+            <mask id="mask-select-committed-cutout-polygon">
+              <rect x="0" y="0" width="100%" height="100%" fill="white" />
+              <polygon
+                points={committedPolygon.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="black"
+              />
+            </mask>
+          </defs>
+          <rect
+            x="0" y="0" width="100%" height="100%"
+            fill="rgba(0,0,0,0.65)"
+            mask="url(#mask-select-committed-cutout-polygon)"
+            style={{ pointerEvents: 'none' }}
+          />
+          <polygon
+            points={committedPolygon.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke="#8F7DFF"
+            strokeWidth={1}
+            strokeDasharray="4 2"
+            style={{ pointerEvents: 'none' }}
+          />
         </>
       )}
 
