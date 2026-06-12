@@ -24,6 +24,8 @@
 - **Closed with reason:** #103 (superseded by #100), #108 (subsumed — mutex commit 5ef6e1c excluded from #178, re-pick directly if ever needed), #101→#175, #67→#174, #109→#178.
 - **Live smoke (rule 9) after 5th feature merge:** PASS — no campaign regression. `smoke.spec.ts` green on main; `full-journey.spec.ts` failure **bisected to pre-campaign d821ae8** (stale `.effect-rack__item` selectors; the visible chain is DeviceChain since June 3). Evidence: `~/Development/creatrix-smoke-wt/test-evidence/01-03*.png`.
 
+**Masking (MK) workstream integrated 2026-06-12 — Phase 2.5 slot, supersedes PD.5/task#45.**
+
 **Standing-red main CI (pre-campaign, discovered during P1.1 — §3 gate amended):**
 1. **sidecar job red on EVERY main run since ≤8dc96cd:** runner image dropped ffmpeg; 127 oracle errors `FileNotFoundError: 'ffmpeg'`. Fix = [PR #171](https://github.com/nissimdirect/entropic-v2challenger/pull/171) (one-line workflow change, **USER MERGE REQUIRED** — workflow-change-guard). PR-level CI path-filters sidecar to "skipped", which is why PRs looked green while main stayed red.
 2. **full-e2e step (main-push-only) red since ≤8dc96cd:** stale selectors (`.effect-rack__item`, phase-0a title expectations). Fix candidate: selector migration effect-rack→device-chain in `full-journey.spec.ts` + `effect-chain.spec.ts` (new packet).
@@ -119,17 +121,33 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 | Demo trilogy | 🔄 MP4s ✅ rendered to `~/.entropic/demos/` · Demos Drawer / onboarding / D-PB paint ❌ (gated on PR-A) |
 
 ### Selection / Masking / Alpha (MK — docs/roadmap/packets/masking.md, merged #204/#205)
-| Item | Status |
-|---|---|
-| MK.1–MK.9 + MK.CU (Phase A: matte model, per-pixel alpha, **universal mask-routing wrapper**, marquee/lasso/wand/color-range, keys-as-lanes, cut-to-track, alpha export, CU suite) | ❌ specced — D1–D7 LOCKED |
-| MK.10–MK.14 (Phase B: mask-params-as-lanes, keyframed transforms, RVM figure/background, tool UI + mode banner, motion-track spike) | ❌ specced |
+
+**Masking (MK) workstream integrated 2026-06-12 — Phase 2.5 slot, supersedes PD.5/task#45.**
+
+| Item | Status | Notes |
+|---|---|---|
+| **MK.3 — Universal mask-routing wrapper (per-device + per-chain)** | ❌ **HEADLINE** | C4's spatial twin; orphaned `container.py:58/:130–133` seam activated; per-device `maskRef` + per-chain `chain_mask`; invertible. Opus. |
+| MK.1 — Matte data model, budget, cache, persistence | ❌ | Start-now parallel-safe (no engine deps); greenfield `backend/src/masking/`; schema both sides of IPC; SG-8 registered |
+| MK.2 — Per-pixel alpha in compositor path **[RISK:HIGH]** | ❌ | Single-flight owner of `compositor.py`; HARD-DEPENDS on P2.2c — **already satisfied** (SPEC GT-8: `_resolve_compositing` verified on main); extends shipped code |
+| MK.4 — Rect/ellipse marquee on preview → MatteNode + delete/fill | ❌ | **Supersedes PD.5** (task #45a); depends MK.1 + MK.2 |
+| MK.5 — Lasso: freehand + polygon | ❌ | Depends MK.4 |
+| MK.6 — Magic wand + Select Color Range | ❌ | Depends MK.4 |
+| MK.7 — Matte ops UI: invert / feather / grow-shrink / boolean editing | ❌ | Depends MK.1 |
+| MK.8 — Chroma + luma key as procedural mattes, spill suppression, key params as LANES | ❌ | Depends MK.1 |
+| MK.9 — Cut / copy region to new track | ❌ | **Supersedes PD.6** (task #45b); depends MK.4 |
+| MK.10 — Alpha decode + export round-trip (ProRes 4444; WebM/VP9 optional) | ❌ | Depends MK.2 |
+| MK.CU — CU regression suite J1–J5 (Phase A exit gate; reruns at Phase B exit) | ❌ | Gate: MK.1–MK.10 merged; joins rule-9 live-smoke rotation |
+| MK.11 — Phase B: mask params as lanes + matte-as-mod-source + keyframed transforms | ❌ specced | Phase B — Tier-3/Phase-6 era; mod-source half **hard-gated on SG-5** |
+| MK.12 — Subject/background dual-chain routing via local RVM | ❌ specced | Phase B — **MK.12 tool UI gate (PR-A tool-tab surfaces) NOW SATISFIED** (PR-A complete on main); buildable once Phase A merges |
+| MK.13 — Tool-mode stack in browser tool tab + marching-ants overlay + mask chips | ❌ specced | Phase B — gates on PR-A; **unblocked** |
+| MK.14 — SPIKE: motion-tracked masks (research deliverable) | ❌ specced | Phase B — depends MK.1 only |
 
 ### v2 debt
 | Item | Status |
 |---|---|
 | Audio tracks | ✅ merged [#30](https://github.com/nissimdirect/entropic-v2challenger/pull/30)+[#66](https://github.com/nissimdirect/entropic-v2challenger/pull/66) but flag default-OFF · bake ❌ · PR-4 un-flag + audio auto-extract (task #46) ❌ |
 | Gain meter | phases 1–2 ✅ [#102](https://github.com/nissimdirect/entropic-v2challenger/pull/102)/[#105](https://github.com/nissimdirect/entropic-v2challenger/pull/105); task #47 CLOSED (spec task); open implementation = task #35 (per-track metering + dB readout; current AudioTrackMeter shows master on every track) ❌ |
-| Region-select preview (task #45) | ❌ |
+| Region-select preview (task #45) | ❌ **SUPERSEDED by MK.4/MK.9** — absorbed into masking workstream Phase A (see MK section above) |
 | Hotkey discoverability | [issue #65](https://github.com/nissimdirect/entropic-v2challenger/issues/65) CLOSED 2026-05-15 with 6 surfaces unshipped — PD.8 reopens-or-supersedes; the WORK remains 🔄 ([#64](https://github.com/nissimdirect/entropic-v2challenger/pull/64)/[#68](https://github.com/nissimdirect/entropic-v2challenger/pull/68) done) |
 | Cross-modal v1.1 F1–F4 | ❌ — plan merged ([#36](https://github.com/nissimdirect/entropic-v2challenger/pull/36)), zero implementation |
 | Bug fixes in stale open PRs | ✅ ALL DISPOSITIONED 2026-06-12 — #101→merged [#175](https://github.com/nissimdirect/entropic-v2challenger/pull/175) · #103 closed (superseded by #100) · #108 closed (mutex commit 5ef6e1c excluded from #178; re-pick directly if relay races recur) · #109→merged [#178](https://github.com/nissimdirect/entropic-v2challenger/pull/178) |
@@ -198,7 +216,17 @@ Per `~/.claude/plans/entropic-PR-B-plan-2026-06-05.md`: 3a ✅ (#160 once merged
 vision-B2 cross-modal matrix · vision-B3 mod-as-track · B4-full binding rules · SG-H2 FD-management · E5 Launchpad bridge cherry-pick ([#145](https://github.com/nissimdirect/entropic-v2challenger/pull/145), branch `feat/q7-e5-midi-learn`). No packets exist yet by design — see the **Tier-3 stub row in `EXECUTION-PLAN.md` §5**; P5b.24/P6.10/P7.14 dependencies resolve there.
 
 ### Phase 2.5 — Masking Phase A (MK.1–MK.9 + MK.CU)
-Per `packets/masking.md` + SELECTION-MASKING-SPEC.md (§14 decisions LOCKED). MK.2 shares **single-flight on `backend/src/engine/compositor.py`**; MK.1 start-now parallel-safe; MK.13 tool UI gates on PR-A surfaces (now landing); MK.4/MK.9 supersede PD.5/PD.6 (task #45). Ground truth: alpha already carried end-to-end, keys shipped-but-dark — Phase A is largely activation.
+Per `packets/masking.md` + `SELECTION-MASKING-SPEC.md` (§14 decisions D1–D7 LOCKED). Ground truth: alpha already carried end-to-end (SPEC GT-1), keys shipped-but-dark (SPEC GT-3) — Phase A is largely activation. Masking enters the execution queue directly after Phase 2 completes.
+
+**Sequencing rules (ground-truth verified, SPEC §2):**
+- **MK.1** (matte model, `backend/src/masking/` greenfield) — start-now **parallel-safe**; no engine deps; can run concurrent with Phase 2 cleanup.
+- **MK.2** (per-pixel alpha compositor) — single-flight owner of `backend/src/engine/compositor.py` (SPEC §0); **HARD-DEPENDS on P2.2c** (composite-as-terminal-effect) — **already satisfied**: `_resolve_compositing` verified live on main at `compositor.py:102` (SPEC GT-8 ledger-correction; ROADMAP §2's "3c ❌" row is stale — the code shipped in the P2.2c-equivalent merge). MK.2 extends live code; single-flight on `compositor.py` still applies.
+- **MK.3** (universal mask-routing wrapper — the **HEADLINE**) — depends MK.1; single-flight on `backend/src/zmq_server.py` dispatch. `container.py:58/:130–133` seam orphaned and ready; this is C4's spatial twin.
+- **MK.4/MK.9** — **absorb PD.5/PD.6** (task #45a/45b); do not double-build.
+- **MK.12 (Phase A subset: split-by-matte)** — the PR-A tool-tab gate is **NOW SATISFIED** (PR-A complete on main); buildable once Phase A merges; full RVM figure-matte port slots in Phase B.
+- **MK.CU** (J1–J5 computer-use regression suite) — Phase A exit gate; activates once MK.1–MK.10 are merged; joins the §3 rule-9 live-smoke rotation thereafter.
+
+**Phase B (MK.11–MK.14 + full MK.12)** — mask-params-as-lanes, keyframed matte transforms, full RVM figure matte, tool-mode banner — slots with the **Tier-3 / Phase-6 era**. MK.11 mod-source half **hard-gated on SG-5**.
 
 ### Phase 5 — Instrument ladder Tier 4 (≈131–199h itemized, the bulk of FC-v3)
 `~/Development/entropic-layout-mockup/INSTRUMENTS-BUILD-PLAN.md`. B1 ✅ core+mount; B2-lite in flight (#167).
