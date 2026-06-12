@@ -74,11 +74,11 @@ PARAMS: dict = {
         "type": "int",
         "min": 1,
         "max": 10,
-        "default": 3,
+        "default": 1,
         "label": "PDE Steps/Frame",
         "curve": "linear",
         "unit": "",
-        "description": "Gray-Scott iterations per video frame — more = faster pattern evolution",
+        "description": "Gray-Scott iterations per video frame — more = faster pattern evolution. Default 1 keeps 1080p under the 500ms render budget; raise to 3-5 for visible bloom on preview-only short clips.",
     },
     "seed_pattern": {
         "type": "choice",
@@ -141,7 +141,7 @@ def apply(
     k = max(0.04, min(0.07, float(params.get("kill_rate", 0.062))))
     da = max(0.5, min(1.5, float(params.get("diffusion_a", 1.0))))
     db = max(0.1, min(0.8, float(params.get("diffusion_b", 0.5))))
-    steps = max(1, min(10, int(params.get("pde_steps_per_frame", 3))))
+    steps = max(1, min(10, int(params.get("pde_steps_per_frame", 1))))
     seed_mode = str(params.get("seed_pattern", "luma"))
     if seed_mode not in {"luma", "center", "edges", "random"}:
         seed_mode = "luma"
