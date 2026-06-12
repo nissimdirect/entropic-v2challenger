@@ -3,7 +3,7 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode } from '../shared/types'
 import { normalizeTransform } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
@@ -13,9 +13,19 @@ import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
+import { useInstrumentsStore } from './stores/instruments'
+import type { SamplerInstrumentV1 } from './components/instruments/types'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX } from './components/instruments/types'
+import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
 import { LIMITS } from '../shared/limits'
+
+// B1 mount: blend modes accepted on a persisted sampler (mirrors SamplerDevice).
+const VALID_BLEND_MODES = new Set<BlendMode>([
+  'normal', 'add', 'multiply', 'screen', 'overlay',
+  'difference', 'exclusion', 'darken', 'lighten',
+])
 
 const GLITCH_FILTERS = [{ name: 'Creatrix Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
@@ -155,7 +165,7 @@ function serializeProject(): string {
 
   const midiStore = useMIDIStore.getState()
 
-  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> } = {
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instrument?: SamplerInstrumentV1 } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -178,6 +188,8 @@ function serializeProject(): string {
     automationLanes: automationStore.lanes,
     midiMappings: midiStore.getMIDIPersistData(),
     deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
+    // B1 mount: persist the single sampler instrument (omitted when none).
+    instrument: useInstrumentsStore.getState().instrument ?? undefined,
   }
 
   return JSON.stringify(project, null, 2)
@@ -293,6 +305,15 @@ function validateProject(data: unknown): data is Project {
     if (midi.padMidiNotes !== undefined && (typeof midi.padMidiNotes !== 'object' || midi.padMidiNotes === null)) return false
   }
 
+  // B1 mount: optional sampler instrument. Shape-check only — numeric ranges are
+  // clamped at hydrate (deserialization trust boundary). Absent = older project.
+  if (obj.instrument !== undefined) {
+    if (typeof obj.instrument !== 'object' || obj.instrument === null) return false
+    const ri = obj.instrument as Record<string, unknown>
+    if (ri.type !== 'sampler') return false
+    if (typeof ri.clipId !== 'string') return false
+  }
+
   return true
 }
 
@@ -309,6 +330,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
+  useInstrumentsStore.getState().removeSampler()
 
   // HT-4: hydrate project-level seed for deterministic renders + freeze caches.
   // Validation already clamped it to [0, 2^31-1] in validateProject().
@@ -319,6 +341,24 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate assets
   for (const asset of Object.values(project.assets)) {
     projectStore.addAsset(asset as Asset)
+  }
+
+  // B1 mount: restore the sampler instrument, clamping numeric fields at this
+  // deserialization trust boundary. A clipId pointing at a now-missing asset is
+  // harmless — buildSamplerLayer returns null and the sampler simply renders nothing.
+  const rawInst = (project as { instrument?: unknown }).instrument
+  if (rawInst && typeof rawInst === 'object') {
+    const ri = rawInst as Record<string, unknown>
+    if (ri.type === 'sampler' && typeof ri.clipId === 'string') {
+      const instruments = useInstrumentsStore.getState()
+      instruments.addSampler(ri.clipId)
+      instruments.updateSampler({
+        startFrame: Math.round(clampFinite(Number(ri.startFrame), 0, 1_000_000, 0)),
+        speed: clampFinite(Number(ri.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
+        opacity: clampFinite(Number(ri.opacity), 0, 1, 1),
+        blendMode: VALID_BLEND_MODES.has(ri.blendMode as BlendMode) ? (ri.blendMode as BlendMode) : 'normal',
+      })
+    }
   }
 
   // Epic 05 D2: masterEffectChain hydrate stub removed. Per-track effectChains
@@ -585,6 +625,7 @@ export function newProject(): void {
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
+  useInstrumentsStore.getState().removeSampler()
 }
 
 export function startAutosave(): void {
