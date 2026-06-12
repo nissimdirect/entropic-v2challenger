@@ -2,14 +2,14 @@
 
 .text-panel {
   padding: 12px;
-  border-top: 1px solid #333;
+  border-top: 1px solid var(--cx-line-1);
 }
 
 .text-panel__header {
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
-  color: #888;
+  color: var(--cx-text-2);
   letter-spacing: 0.5px;
   margin-bottom: 12px;
 }
@@ -22,24 +22,24 @@
   display: block;
   font-size: 10px;
   font-weight: 500;
-  color: #888;
+  color: var(--cx-text-2);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   margin-bottom: 4px;
 }
 
 .text-panel__value {
-  color: #4ade80;
+  color: var(--cx-action);
   float: right;
 }
 
 .text-panel__textarea {
   width: 100%;
   padding: 6px 8px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--cx-text-1);
   font-family: inherit;
   font-size: 12px;
   resize: vertical;
@@ -48,16 +48,16 @@
 }
 
 .text-panel__textarea:focus {
-  border-color: #4ade80;
+  border-color: var(--cx-action);
 }
 
 .text-panel__select {
   width: 100%;
   padding: 5px 8px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--cx-text-1);
   font-family: inherit;
   font-size: 11px;
   outline: none;
@@ -65,7 +65,7 @@
 }
 
 .text-panel__select:focus {
-  border-color: #4ade80;
+  border-color: var(--cx-action);
 }
 
 .text-panel__row {
@@ -81,10 +81,10 @@
 .text-panel__number {
   width: 100%;
   padding: 4px 6px;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
   border-radius: 3px;
-  color: #e0e0e0;
+  color: var(--cx-text-1);
   font-family: inherit;
   font-size: 11px;
   text-align: center;
@@ -92,15 +92,15 @@
 }
 
 .text-panel__number:focus {
-  border-color: #4ade80;
+  border-color: var(--cx-action);
 }
 
 .text-panel__color {
   width: 100%;
   height: 26px;
   padding: 0;
-  background: #1a1a1a;
-  border: 1px solid #444;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
   border-radius: 3px;
   cursor: pointer;
 }
@@ -122,10 +122,10 @@
 .text-panel__align-btn {
   flex: 1;
   padding: 4px;
-  background: #333;
-  border: 1px solid #444;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
   border-radius: 3px;
-  color: #aaa;
+  color: var(--cx-text-2);
   font-family: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -134,14 +134,14 @@
 }
 
 .text-panel__align-btn:hover {
-  background: #444;
-  color: #e0e0e0;
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
 }
 
 .text-panel__align-btn--active {
-  background: #4ade80;
-  color: #1a1a1a;
-  border-color: #4ade80;
+  background: var(--cx-action);
+  color: var(--cx-bg-panel);
+  border-color: var(--cx-action);
 }
 
 .text-panel__slider {
@@ -149,7 +149,7 @@
   height: 4px;
   -webkit-appearance: none;
   appearance: none;
-  background: #333;
+  background: var(--cx-bg-raised);
   border-radius: 2px;
   outline: none;
 }
@@ -158,14 +158,14 @@
   -webkit-appearance: none;
   width: 12px;
   height: 12px;
-  background: #4ade80;
+  background: var(--cx-action);
   border-radius: 50%;
   cursor: pointer;
 }
 
 .text-panel__divider {
   height: 1px;
-  background: #333;
+  background: var(--cx-bg-raised);
   margin: 12px 0;
 }
 
@@ -197,12 +197,12 @@
 }
 
 .text-overlay:hover .text-overlay__box {
-  border-color: #4ade80;
+  border-color: var(--cx-action);
 }
 
 .text-overlay--editing .text-overlay__box {
   border-style: solid;
-  border-color: #4ade80;
+  border-color: var(--cx-action);
   background: rgba(0, 0, 0, 0.4);
 }
 
@@ -229,8 +229,8 @@
   width: 18px;
   height: 18px;
   border-radius: 3px;
-  background: #6366f1;
-  color: #fff;
+  background: var(--cx-selection);
+  color: var(--cx-text-1);
   font-size: 10px;
   font-weight: 700;
   flex-shrink: 0;
@@ -239,20 +239,20 @@
 /* Add Text Track button variant */
 
 .timeline__add-track-btn--text {
-  background: #6366f1;
-  border-color: #818cf8;
-  color: #fff;
+  background: var(--cx-selection);
+  border-color: var(--cx-selection);
+  color: var(--cx-text-1);
 }
 
 .timeline__add-track-btn--text:hover {
-  background: #818cf8;
+  background: var(--cx-selection);
 }
 
 /* Timeline text clip appearance */
 
 .clip--text {
-  background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  border: 1px solid #818cf8;
+  background: linear-gradient(135deg, var(--cx-selection) 0%, var(--cx-selection) 100%);
+  border: 1px solid var(--cx-selection);
 }
 
 .clip__name--text {

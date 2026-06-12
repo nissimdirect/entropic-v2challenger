@@ -13,9 +13,9 @@
 }
 
 .toast {
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-left: 3px solid #2196f3;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-left: 3px solid var(--cx-selection);
   border-radius: 4px;
   padding: 10px 12px;
   cursor: pointer;
@@ -49,7 +49,7 @@
 
 .toast__message {
   font-size: 12px;
-  color: #e0e0e0;
+  color: var(--cx-text-1);
   flex: 1;
   word-break: break-word;
 }
@@ -58,20 +58,20 @@
   display: inline-block;
   margin-left: 6px;
   padding: 1px 5px;
-  background: #444;
+  background: var(--cx-bg-hover);
   border-radius: 8px;
   font-size: 10px;
-  color: #aaa;
+  color: var(--cx-text-2);
   font-weight: 600;
 }
 
 .toast__action {
   flex-shrink: 0;
   padding: 3px 10px;
-  background: #333;
-  border: 1px solid #555;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
   border-radius: 3px;
-  color: #4ade80;
+  color: var(--cx-action);
   font-family: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -79,7 +79,7 @@
 }
 
 .toast__action:hover {
-  background: #444;
+  background: var(--cx-bg-hover);
 }
 
 .toast__details {
@@ -88,7 +88,7 @@
 
 .toast__details summary {
   font-size: 11px;
-  color: #888;
+  color: var(--cx-text-3);
   cursor: pointer;
   user-select: none;
 }
@@ -96,12 +96,36 @@
 .toast__details-text {
   margin-top: 4px;
   padding: 6px 8px;
-  background: #1a1a1a;
+  background: var(--cx-bg-panel);
   border-radius: 3px;
   font-size: 10px;
-  color: #aaa;
+  color: var(--cx-text-2);
   max-height: 120px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* --- Per-level border-left ticks (DESIGN-SPEC §6 toast row) ---
+ * Replaces the LEVEL_COLORS TSX inline-style map (PUX.1 step 5).
+ * text-1 body is handled by .toast__message. */
+
+/* info: MOD violet tick */
+.toast--info {
+  border-left-color: var(--cx-selection);
+}
+/* success: ACID tick (success = ACID, no separate green) */
+.toast--success {
+  border-left-color: var(--cx-action);
+}
+/* warning / state (suspended/in-progress states): AMBER tick */
+.toast--warning {
+  border-left-color: var(--cx-warn);
+}
+.toast--state {
+  border-left-color: var(--cx-warn);
+}
+/* error: RED tick (text/icon token — 3px tick, per §9 text/fill split) */
+.toast--error {
+  border-left-color: var(--cx-danger-text);
 }

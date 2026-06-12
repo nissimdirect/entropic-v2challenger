@@ -12,10 +12,10 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  background: #333;
-  border: 1px solid #444;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
   border-radius: 4px;
-  color: #e0e0e0;
+  color: var(--cx-text-1);
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
   line-height: 1.4;
@@ -58,17 +58,17 @@
 
 .tooltip__text {
   font-weight: 700;
-  color: #fff;
+  color: var(--cx-text-1);
 }
 
 .tooltip__shortcut {
   padding: 1px 5px;
-  background: #1a1a1a;
-  border: 1px solid #555;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
   border-radius: 3px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
-  color: #aaa;
+  color: var(--cx-text-2);
 }
 
 .tooltip__description {
@@ -76,7 +76,7 @@
   margin-top: 2px;
   font-size: 10px;
   font-weight: 400;
-  color: #888;
+  color: var(--cx-text-3);
   white-space: normal;
   max-width: 220px;
 }

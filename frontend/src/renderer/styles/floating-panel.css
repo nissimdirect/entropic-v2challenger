@@ -2,7 +2,7 @@
  *
  * Shared BEM block for the operators rack overlay (Cmd+Shift+O) and the
  * undo history panel (Edit → Undo History). Each used to inline ~12 style
- * properties (hard-coded #1a1a1a, z-index:1000, etc.). The third "Unsaved
+ * properties (hard-coded var(--cx-bg-panel), z-index:1000, etc.). The third "Unsaved
  * Changes" prompt in the same PR correctly used the existing `.dialog`
  * BEM family — this rule pulls the other two into the same idiom.
  *
@@ -14,8 +14,8 @@
   top: 60px;
   max-height: calc(100vh - 200px);
   overflow-y: auto;
-  background: #1a1a1a;
-  border: 1px solid #333;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-1);
   border-radius: 6px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
   z-index: 200;
@@ -40,7 +40,7 @@
 }
 
 .floating-panel__title {
-  color: #aaa;
+  color: var(--cx-text-2);
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -50,7 +50,7 @@
 .floating-panel__close-btn {
   background: none;
   border: none;
-  color: #999;
+  color: var(--cx-text-2);
   cursor: pointer;
   font-size: 18px;
   padding: 0;
@@ -58,5 +58,5 @@
 }
 
 .floating-panel__close-btn:hover {
-  color: #e0e0e0;
+  color: var(--cx-text-1);
 }

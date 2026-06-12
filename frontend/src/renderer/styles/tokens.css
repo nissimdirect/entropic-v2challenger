@@ -1,0 +1,154 @@
+/*
+ * tokens.css — "Live Signal" Design Language v1.1
+ * Canonical source: docs/roadmap/DESIGN-SPEC.md
+ * PUX.1 · 2026-06-11
+ *
+ * Three-tier system:
+ *   Tier 1 (--cx-*): primitives — hex values ONLY here
+ *   Tier 2 (semantic): alias Tier 1, never a literal hex
+ *   Tier 3 (component): alias Tier 2, live in per-surface CSS files
+ *
+ * CI: frontend/scripts/hex-ratchet.sh counts hexes in styles/ (excl. this file).
+ * Every hardcoded hex in other CSS files is a ratchet violation.
+ */
+
+/* ==========================================================================
+   TIER 1 — PRIMITIVES
+   ========================================================================== */
+
+:root {
+
+  /* --- Layout (preserved from original global.css :root — keep names) --- */
+  --sidebar-width: 280px;
+  --sidebar-width-collapsed: 0px;
+  --statusbar-height: 36px;
+  --params-max-height: 240px;
+  --timeline-default-height: 200px;
+  --timeline-min-height: 120px;
+  --panel-collapsed-height: 28px;
+  --resize-handle-height: 4px;
+
+  /* --- Surface ladder (DESIGN-SPEC §2)
+       Elevation = lightness, not shadows.
+       Neutrals carry hue-285 cold CRT cast — no pure gray. --- */
+  --cx-surface-0: #0B0B10;   /* preview surround / void / app frame */
+  --cx-surface-1: #121218;   /* app background */
+  --cx-surface-2: #18181F;   /* panels / sidebars / timeline bed */
+  --cx-surface-3: #20202A;   /* devices / cards / inputs */
+  --cx-surface-4: #282834;   /* hover / overlays / menus */
+  --cx-line-1: #2E2E3A;      /* hairline borders */
+  --cx-line-2: #3C3C4C;      /* strong borders / dividers */
+
+  /* --- Text (DESIGN-SPEC §2) --- */
+  --cx-text-1: #E7E7EC;      /* body+ on surface-1..4 (15.1:1 on s-1 — AAA) */
+  --cx-text-2: #9A9AA6;      /* labels on s-1..3 (6.4:1 — AA) */
+  --cx-text-3: #80808E;      /* hint / placeholder (4.8:1 on s-1 — AA) */
+  --cx-text-disabled: #62626E; /* disabled states ONLY — never hints (3.1:1, WCAG-exempt) */
+
+  /* --- ACID accent (DESIGN-SPEC §2) — life/activity/primary-action/meters --- */
+  --cx-acid: #C8F321;              /* core */
+  --cx-acid-hover: #D9FF4D;
+  --cx-acid-pressed: #A4C916;
+  --cx-acid-wash: rgba(200, 243, 33, 0.10);
+  --cx-acid-on: #0B0B10;           /* on-color text on ACID fill */
+
+  /* --- MOD violet (DESIGN-SPEC §2) — selection / routing / inspector --- */
+  --cx-mod: #8F7DFF;
+  --cx-mod-hover: #A693FF;
+  --cx-mod-pressed: #7361D6;
+  --cx-mod-wash: rgba(143, 125, 255, 0.12);
+  --cx-mod-on: #0B0B10;
+
+  /* --- RED (DESIGN-SPEC §2) — record / destructive / clip / error --- */
+  --cx-red-text: #E5484D;          /* text / icons (4.53:1 on surface-2 — AA) */
+  --cx-red-fill: #C13B40;          /* filled buttons (white-on-fill 5.3:1 — AA; NEVER white on #E5484D — 3.9:1 FAIL) */
+  --cx-red-hover-text: #F2555A;
+  --cx-red-hover-fill: #D24449;
+  --cx-red-pressed: #B53A3E;
+  --cx-red-wash: rgba(229, 72, 77, 0.12);
+  --cx-red-on: #FFFFFF;            /* on-color text on RED fill */
+
+  /* --- AMBER (DESIGN-SPEC §2) — bypass / freeze / warnings / suspended --- */
+  --cx-amber: #D9A23C;
+  --cx-amber-hover: #E8B453;
+  --cx-amber-pressed: #B28430;
+  --cx-amber-wash: rgba(217, 162, 60, 0.12);
+  --cx-amber-on: #0B0B10;
+
+  /* --- Category ticks — device rack 3px left tick only (DESIGN-SPEC §2)
+       These are tick colors ONLY; never fill/text. --- */
+  --cx-cat-glitch: #D06A6A;
+  --cx-cat-distortion: #9A8BE8;
+  --cx-cat-color: #5FB8C4;         /* muted cyan — tick only, never fill/text */
+  --cx-cat-temporal: #D4A865;
+  --cx-cat-modulation: #AFCB52;
+  --cx-cat-texture: #8E8E9A;
+  --cx-cat-enhance: #C9C9D2;
+  --cx-cat-destruction: #C77DC0;
+
+  /* --- Typography (DESIGN-SPEC §3) --- */
+  /* TODO(plex-swap): replace stacks with IBM Plex Sans / IBM Plex Mono when font assets are bundled */
+  --cx-font-ui: 'JetBrains Mono', 'Courier New', monospace;  /* TODO(plex-swap): → 'IBM Plex Sans', sans-serif */
+  --cx-font-mono: 'JetBrains Mono', 'Courier New', monospace; /* TODO(plex-swap): → 'IBM Plex Mono', monospace */
+  --cx-text-body: 12.5px;          /* weight 450 (approximated as 400 until Plex variable) */
+  --cx-text-label: 12px;           /* weight 550 (approximated as 500) */
+  --cx-text-data: 11px;            /* mono, tabular-nums; floor — nothing smaller */
+
+  /* --- Motion (DESIGN-SPEC §5) --- */
+  --cx-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cx-dur-feedback: 120ms;        /* hover state, button press */
+  --cx-dur-entry: 180ms;           /* panel open, overlay mount */
+  --cx-dur-exit: 140ms;            /* panel close, overlay unmount */
+
+  /* --- Shape (DESIGN-SPEC §4) --- */
+  --cx-radius-control: 2px;
+  --cx-radius-card: 4px;
+  --cx-radius-dialog: 6px;
+
+  /* --- Density (DESIGN-SPEC §8) — consumed by PR-A layout work --- */
+  --cx-row-h: 24px;
+  --cx-panel-header: 28px;
+  --cx-device-param-h: 18px;
+
+  /* ==========================================================================
+     TIER 2 — SEMANTIC ALIASES
+     May only alias Tier-1, never a literal hex.
+     ========================================================================== */
+
+  /* Actions (primary) */
+  --cx-action: var(--cx-acid);
+  --cx-action-hover: var(--cx-acid-hover);
+  --cx-action-pressed: var(--cx-acid-pressed);
+  --cx-action-wash: var(--cx-acid-wash);
+  --cx-action-on: var(--cx-acid-on);
+
+  /* Selection / routing */
+  --cx-selection: var(--cx-mod);
+  --cx-selection-hover: var(--cx-mod-hover);
+  --cx-selection-wash: var(--cx-mod-wash);
+
+  /* Danger — keep the text/fill split (DESIGN-SPEC §9) */
+  --cx-danger-text: var(--cx-red-text);   /* text, icons */
+  --cx-danger-fill: var(--cx-red-fill);   /* filled destructive buttons */
+  --cx-danger-hover-text: var(--cx-red-hover-text);
+  --cx-danger-hover-fill: var(--cx-red-hover-fill);
+  --cx-danger-wash: var(--cx-red-wash);
+  --cx-danger-on: var(--cx-red-on);
+
+  /* Warnings / suspended */
+  --cx-warn: var(--cx-amber);
+  --cx-warn-hover: var(--cx-amber-hover);
+  --cx-warn-wash: var(--cx-amber-wash);
+
+  /* Meters (life/activity = ACID) */
+  --cx-meter: var(--cx-acid);
+
+  /* Surfaces — semantic names for common roles */
+  --cx-bg-app: var(--cx-surface-1);       /* app background */
+  --cx-bg-panel: var(--cx-surface-2);     /* panels / sidebars */
+  --cx-bg-raised: var(--cx-surface-3);    /* cards / inputs */
+  --cx-bg-hover: var(--cx-surface-4);     /* hover / menus */
+
+  /* Focus ring — ACID per DESIGN-SPEC §4 */
+  --cx-focus-ring: var(--cx-acid);
+}

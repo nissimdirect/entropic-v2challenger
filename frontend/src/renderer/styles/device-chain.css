@@ -1,8 +1,8 @@
 /* --- Device Chain (Phase 13 — Ableton-style horizontal strip) --- */
 
 .device-chain {
-  background: #18181e;
-  border-top: 1px solid #9B7BB5;
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-selection);
   display: flex;
   flex-direction: column;
   min-height: 100px;
@@ -31,8 +31,8 @@
 /* F-0514-7: drag-target affordance. Tinted background + accent border tell the
    user the drop will land here. Brief enough to feel like a state, not a flash. */
 .device-chain--drag-over {
-  background: #1f1f2a;
-  outline: 2px dashed #4ade80;
+  background: var(--cx-bg-raised);
+  outline: 2px dashed var(--cx-action);
   outline-offset: -4px;
 }
 
@@ -41,8 +41,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 4px 12px;
-  background: #1c1c24;
-  border-bottom: 1px solid #2a2a34;
+  background: var(--cx-bg-panel);
+  border-bottom: 1px solid var(--cx-bg-hover);
   min-height: 24px;
   flex-shrink: 0;
 }
@@ -50,7 +50,7 @@
 .device-chain__title {
   font-size: 10px;
   font-weight: 600;
-  color: #555;
+  color: var(--cx-text-3);
   text-transform: uppercase;
   letter-spacing: 0.8px;
 }
@@ -77,7 +77,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #555;
+  color: var(--cx-text-3);
   font-size: 12px;
 }
 
@@ -103,9 +103,9 @@
   width: 28px;
   height: 14px;
   background: transparent;
-  border: 1px solid #333;
+  border: 1px solid var(--cx-line-1);
   border-radius: 2px;
-  color: #555;
+  color: var(--cx-text-3);
   font-size: 8px;
   font-weight: 600;
   font-family: 'JetBrains Mono', monospace;
@@ -118,28 +118,28 @@
 }
 
 .ab-switch:hover {
-  border-color: #9B7BB5;
-  color: #888;
+  border-color: var(--cx-selection);
+  color: var(--cx-text-2);
 }
 
 .ab-switch--active {
-  border-color: #9B7BB5;
+  border-color: var(--cx-selection);
 }
 
 .ab-switch__slot--active {
-  color: #e0e0e4;
+  color: var(--cx-text-1);
   font-weight: 700;
 }
 
 .ab-switch__slot--dim {
-  color: #444;
+  color: var(--cx-line-2);
 }
 
 .device-chain__arrow {
   display: flex;
   align-items: center;
   padding: 0 4px;
-  color: #333;
+  color: var(--cx-bg-raised);
   font-size: 12px;
   flex-shrink: 0;
 }
@@ -154,8 +154,8 @@
      full labels at ~64px per knob. Flag-off override below. */
   min-width: 160px;
   max-width: 280px;
-  background: #20202a;
-  border: 1px solid #2a2a34;
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-bg-hover);
   border-radius: 4px;
   display: flex;
   flex-direction: column;
@@ -165,12 +165,12 @@
 }
 
 .device-card:hover {
-  border-color: #444;
+  border-color: var(--cx-line-2);
 }
 
 .device-card--selected {
-  border-color: #9B7BB5;
-  box-shadow: 0 0 0 1px #9B7BB5;
+  border-color: var(--cx-selection);
+  box-shadow: 0 0 0 1px var(--cx-selection);
 }
 
 .device-card--disabled {
@@ -184,7 +184,7 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card--error {
-  border-color: #ef4444;
+  border-color: var(--cx-danger-text);
 }
 
 .device-card__header {
@@ -192,8 +192,8 @@ body[data-disable-f-0512-30] .device-card {
   align-items: center;
   justify-content: space-between;
   padding: 4px 8px;
-  border-bottom: 1px solid #2a2a34;
-  background: #24242e;
+  border-bottom: 1px solid var(--cx-bg-hover);
+  background: var(--cx-bg-raised);
   border-radius: 3px 3px 0 0;
   gap: 4px;
 }
@@ -201,7 +201,7 @@ body[data-disable-f-0512-30] .device-card {
 .device-card__name {
   font-size: 10px;
   font-weight: 600;
-  color: #e0e0e4;
+  color: var(--cx-text-1);
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
@@ -211,10 +211,10 @@ body[data-disable-f-0512-30] .device-card {
 .device-card__toggle {
   width: 22px;
   height: 14px;
-  background: #4ade80;
+  background: var(--cx-action);
   border: none;
   border-radius: 2px;
-  color: #0a0a0e;
+  color: var(--cx-surface-0);
   font-size: 7px;
   font-weight: 700;
   font-family: 'JetBrains Mono', monospace;
@@ -223,14 +223,14 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__toggle--off {
-  background: #333;
-  color: #666;
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-3);
 }
 
 .device-card__remove {
   background: transparent;
   border: none;
-  color: #555;
+  color: var(--cx-text-3);
   font-size: 14px;
   cursor: pointer;
   padding: 0 2px;
@@ -239,7 +239,7 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__remove:hover {
-  color: #ef4444;
+  color: var(--cx-danger-text);
 }
 
 /* Params area */
@@ -263,7 +263,7 @@ body[data-disable-f-0512-30] .device-card {
   right: -2px;
   font-size: 7px;
   font-weight: 700;
-  color: #4ade80;
+  color: var(--cx-action);
   background: rgba(74, 222, 128, 0.15);
   border: 1px solid rgba(74, 222, 128, 0.3);
   border-radius: 2px;
@@ -274,7 +274,7 @@ body[data-disable-f-0512-30] .device-card {
 /* Mix slider */
 .device-card__mix {
   padding: 4px 8px;
-  border-top: 1px solid #2a2a34;
+  border-top: 1px solid var(--cx-bg-hover);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -283,7 +283,7 @@ body[data-disable-f-0512-30] .device-card {
 
 .device-card__mix-label {
   font-size: 8px;
-  color: #555;
+  color: var(--cx-text-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   flex-shrink: 0;
@@ -293,7 +293,7 @@ body[data-disable-f-0512-30] .device-card {
   flex: 1;
   -webkit-appearance: none;
   height: 2px;
-  background: #333;
+  background: var(--cx-bg-raised);
   border-radius: 1px;
   outline: none;
 }
@@ -302,18 +302,18 @@ body[data-disable-f-0512-30] .device-card {
   -webkit-appearance: none;
   width: 8px;
   height: 8px;
-  background: #888;
+  background: var(--cx-text-2);
   border-radius: 50%;
   cursor: pointer;
 }
 
 .device-card__mix-slider::-webkit-slider-thumb:hover {
-  background: #9B7BB5;
+  background: var(--cx-selection);
 }
 
 .device-card__mix-value {
   font-size: 9px;
-  color: #666;
+  color: var(--cx-text-3);
   font-variant-numeric: tabular-nums;
   min-width: 24px;
   text-align: right;
@@ -330,18 +330,18 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-chain__strip::-webkit-scrollbar-thumb {
-  background: #333;
+  background: var(--cx-bg-raised);
   border-radius: 2px;
 }
 
 .device-chain__strip::-webkit-scrollbar-thumb:hover {
-  background: #444;
+  background: var(--cx-bg-hover);
 }
 
 /* --- Device Groups (Phase 14B) --- */
 
 .device-chain__item--grouped {
-  border-top: 2px solid #9B7BB5;
+  border-top: 2px solid var(--cx-selection);
   border-radius: 4px;
   margin-top: -2px;
   padding-top: 2px;
