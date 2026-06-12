@@ -258,15 +258,25 @@ export interface MaskConfig {
 
 export type TriggerMode = 'toggle' | 'gate' | 'one-shot';
 
+/**
+ * PR-B Commit-1: unified lane interpolation/behavior mode. Collapses the old
+ * (isTrigger + triggerMode) pair into one field.
+ *  - smooth  : continuous interpolation (the old non-trigger lane)
+ *  - step    : hold each point's value until the next (no interpolation)
+ *  - gate    : trigger lane, held while "on" (old isTrigger + triggerMode 'gate')
+ *  - oneShot : trigger lane, fires its ADSR once (old triggerMode 'one-shot')
+ * gate/oneShot are the trigger modes — see isTriggerLane().
+ */
+export type InterpolationMode = 'smooth' | 'step' | 'gate' | 'oneShot';
+
 export interface AutomationLane {
   id: string;
   paramPath: string;
   color: string;
   isVisible: boolean;
   points: AutomationPoint[];
-  isTrigger: boolean;
-  triggerMode?: TriggerMode;
-  triggerADSR?: ADSREnvelope;
+  mode: InterpolationMode;
+  triggerADSR?: ADSREnvelope; // envelope for gate/oneShot modes
 }
 
 export interface AutomationPoint {
