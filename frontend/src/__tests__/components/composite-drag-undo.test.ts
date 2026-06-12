@@ -28,7 +28,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useProjectStore } from '../../renderer/stores/project'
 import { useUndoStore } from '../../renderer/stores/undo'
-import { getTerminalComposite, makeCompositeEffect } from '../../shared/types'
+import { getTerminalComposite, makeCompositeEffect, COMPOSITE_EFFECT_ID } from '../../shared/types'
 import { randomUUID } from '../../renderer/utils'
 
 function reset() {
@@ -88,5 +88,24 @@ describe('composite drag undoes in one transaction', () => {
     expect(getTerminalComposite(chainOf(trackId))!.id).toBe(firstId)
     // no new history entry from the no-op second drop.
     expect(useUndoStore.getState().past.length).toBe(historyAfterFirst)
+  })
+})
+
+// Red-team HT-2: the JS-level guard no-op is covered above; this exercises the
+// DEEPER backstop — two composite adds that both slip past a stale guard land
+// at addEffect, and the transaction-commit validator rolls the second back.
+describe('validator rollback backstop (rapid double-add)', () => {
+  it('second composite added at the store level is rolled back by the commit validator', () => {
+    const trackId = useTimelineStore.getState().addTrack('V1', '#fff', 'video')!
+    const project = useProjectStore.getState()
+
+    project.addEffect(trackId, makeCompositeEffect('comp-a'))
+    // Bypass the UI guard entirely — call addEffect again with a second composite
+    project.addEffect(trackId, makeCompositeEffect('comp-b'))
+
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.effectChain
+    const composites = chain.filter((e) => e.effectId === COMPOSITE_EFFECT_ID)
+    expect(composites).toHaveLength(1)
+    expect(composites[0].id).toBe('comp-a') // first one survives, second rolled back
   })
 })

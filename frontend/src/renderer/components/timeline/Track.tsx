@@ -273,6 +273,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           // this is the early signifier). dropEffect 'copy' lights the drop target.
           if (
             track.type !== 'performance' &&
+            track.type !== 'audio' &&
             e.dataTransfer.types.includes(EFFECT_DRAG_TYPE)
           ) {
             e.preventDefault()

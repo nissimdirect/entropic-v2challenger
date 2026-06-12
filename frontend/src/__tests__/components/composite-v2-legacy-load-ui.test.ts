@@ -56,6 +56,9 @@ describe('opening the v2 legacy fixture surfaces the unsupported-version error i
     // Sanity: the fixture really is a v2 project (guards against a silently
     // regenerated fixture passing the test for the wrong reason).
     expect(v2FixtureJson).toContain('"version": "2.0.0"')
+    // Red-team HT-3: pin the fixture's track id so the partial-hydration
+    // assertion below can never pass vacuously after a fixture regeneration.
+    expect(v2FixtureJson).toContain('track-1')
 
     // Load the v2 fixture through the real UI load path. It must NOT throw —
     // a throw here would propagate to the React ErrorBoundary (white-screen).
