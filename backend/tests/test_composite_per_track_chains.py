@@ -121,10 +121,20 @@ def test_distinct_per_layer_chains_produce_distinct_layer_outputs():
 def test_empty_layer_chain_is_passthrough():
     """
     GIVEN a layer with chain=[]
-    WHEN render_composite renders it (single layer, full opacity)
+    WHEN render_composite renders it (single OPAQUE layer, full opacity)
     THEN the output frame equals the input frame (passthrough, no modification)
+
+    MK.2 (SPEC GT-2): per-pixel alpha is now HONORED in the composite, so
+    "passthrough" only holds byte-for-byte for a FULLY-OPAQUE source — which is the
+    real meaning of the AC ("composite its source frame unmodified"). The original
+    fixture used random alpha; under correct alpha compositing a partial-alpha layer
+    over the transparent canvas is legitimately weighted by its own alpha (no longer
+    a byte-copy of the carried RGB). We force alpha=255 so the passthrough invariant
+    is exact under the corrected semantics. (Partial-alpha behaviour is pinned by
+    tests/test_alpha_composite.py.)
     """
     frame = _checkerboard()
+    frame[:, :, 3] = 255  # fully opaque → exact passthrough (fast path)
 
     layers = [
         {
@@ -140,7 +150,7 @@ def test_empty_layer_chain_is_passthrough():
 
     assert isinstance(out, np.ndarray)
     # The compositor initialises a black canvas and composites the layer on top.
-    # With chain=[], opacity=1.0, normal blend, the output should equal the input frame.
+    # With chain=[], opacity=1.0, normal blend, opaque source → output equals input.
     assert np.array_equal(out, frame), (
         "Empty chain layer is NOT passthrough — compositor modified the frame when chain=[]."
     )
