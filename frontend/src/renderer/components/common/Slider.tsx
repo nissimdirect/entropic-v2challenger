@@ -116,6 +116,13 @@ export default function Slider({
         ref={trackRef}
         className="hslider__track"
         tabIndex={0}
+        role="slider"
+        aria-label={label}
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={type === 'int' ? Math.round(value) : value}
+        aria-valuetext={display}
+        aria-orientation="horizontal"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onContextMenu={handleContextMenu}
