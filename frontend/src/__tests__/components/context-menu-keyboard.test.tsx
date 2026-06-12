@@ -187,4 +187,24 @@ describe('ContextMenu — PUX.4 keyboard model', () => {
     expect(onClose).toHaveBeenCalledOnce()
     expect(action0).not.toHaveBeenCalled()
   })
+
+  it('unmount before the focus frame fires does not setState after teardown', async () => {
+    // Regression: the focus-on-open requestAnimationFrame must be cancelled on
+    // unmount — a menu closed within one frame otherwise crashes the scheduler
+    // after environment teardown (CI: "window is not defined").
+    const items = [
+      { label: 'Item A', action: () => {} },
+      { label: 'Item B', action: () => {} },
+    ]
+    const { container, unmount } = render(
+      <ContextMenu x={10} y={10} items={items as MenuItem[]} onClose={() => {}} />,
+    )
+    unmount()
+    // Flush the frame the menu scheduled; a non-cancelled callback would throw
+    // or warn via React's post-unmount setState path.
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
+    // Reaching here without an uncaught exception is the assertion; double-check
+    // this test's own container stayed empty.
+    expect(container.querySelector('[role="menu"]')).toBeNull()
+  })
 })

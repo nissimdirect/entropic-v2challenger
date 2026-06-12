@@ -49,11 +49,15 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
     invokerRef.current = document.activeElement
     // requestAnimationFrame avoids racing the pointerdown click-outside listener
     // (ContextMenu.tsx historic failure mode — F-0512-9 adjacent trap).
-    requestAnimationFrame(() => {
+    // MUST be cancelled on unmount: a menu that closes within one frame leaves
+    // the callback armed, and its setState after teardown crashes the React
+    // scheduler ("window is not defined" post-teardown — caught in CI).
+    const raf = requestAnimationFrame(() => {
       if (focusableIndices.length > 0) {
         setFocusedIndex(focusableIndices[0])
       }
     })
+    return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally empty — run once on mount
 
