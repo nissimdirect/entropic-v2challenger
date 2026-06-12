@@ -878,7 +878,11 @@ class ZMQServer:
             return False
         chain = layer_info.get("chain") or []
         if not chain:
-            return False
+            # red-team HT-2: an EMPTY-chain VIDEO layer carrying top-level
+            # opacity/blend_mode is a v2 shape — only non-video layers
+            # (sampler/instrument voices, no-clip fallbacks) legitimately use the
+            # top-level fields with no chain.
+            return layer_info.get("layer_type", "video") == "video"
         terminal = chain[-1]
         has_terminal_composite = (
             isinstance(terminal, dict) and terminal.get("effect_id") == "composite"

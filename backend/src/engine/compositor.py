@@ -120,8 +120,11 @@ def _resolve_compositing(layer_info: dict) -> tuple[float, str]:
     """
     chain = layer_info.get("chain") or []
     terminal = chain[-1] if chain else None
-    if isinstance(terminal, dict) and terminal.get("effect_id") == COMPOSITE_EFFECT_ID:
-        params = terminal.get("params") or {}
+    if isinstance(terminal, dict) and terminal.get("effect_id") == COMPOSITE_EFFECT_ID and terminal.get("enabled", True) is not False:
+        # red-team RT-2: a forged IPC params=[..] / params=42 is truthy but has
+        # no .get — coerce to {} unless it is genuinely a dict.
+        raw_params = terminal.get("params")
+        params = raw_params if isinstance(raw_params, dict) else {}
         opacity = _clamp_opacity(params.get("opacity", _COMPOSITE_OPACITY_DEFAULT))
         raw_mode = params.get("mode", _COMPOSITE_MODE_DEFAULT)
     else:

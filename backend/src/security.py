@@ -247,12 +247,31 @@ def validate_output_directory(path: str) -> list[str]:
     return errors
 
 
+# P2.2c: the terminal composite is compositing metadata, not a processed
+# effect — the pipeline strips it before its own depth check (pipeline.py:147).
+# SEC-7 must count the same way, or a full 10-effect chain + terminal composite
+# (length 11) is falsely rejected at the IPC boundary, silently capping users
+# at 9 real effects. (red-team RT-1)
+_COMPOSITE_EFFECT_ID = "composite"
+
+
+def _effective_depth(chain: list) -> int:
+    if (
+        chain
+        and isinstance(chain[-1], dict)
+        and chain[-1].get("effect_id") == _COMPOSITE_EFFECT_ID
+    ):
+        return len(chain) - 1
+    return len(chain)
+
+
 def validate_chain_depth(chain: list) -> list[str]:
     """Validate effect chain depth against SEC-7 cap. Returns list of errors."""
     errors: list[str] = []
-    if len(chain) > MAX_CHAIN_DEPTH:
+    depth = _effective_depth(chain)
+    if depth > MAX_CHAIN_DEPTH:
         errors.append(
-            f"Chain depth {len(chain)} exceeds maximum {MAX_CHAIN_DEPTH} (SEC-7)"
+            f"Chain depth {depth} exceeds maximum {MAX_CHAIN_DEPTH} (SEC-7)"
         )
     return errors
 

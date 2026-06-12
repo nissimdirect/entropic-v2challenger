@@ -396,3 +396,46 @@ def test_frontend_chain_with_terminal_composite_renders_end_to_end_via_ipc(
     assert len(raw) > 0
     # JPEG SOI marker — proves real encoded frame bytes, not an empty payload.
     assert raw[:2] == b"\xff\xd8"
+
+
+# ── Red-team P2.2c hardening (RT-1, RT-2, HT-1, HT-2) ──────────────────────────
+
+def test_rt1_ten_effects_plus_terminal_composite_passes_ipc_depth_gate():
+    """RT-1: SEC-7 must not count the terminal composite — 10 real effects + a
+    terminal composite (length 11) is a legal v3 chain, not a depth violation."""
+    from security import validate_chain_depth
+    chain = [{"effect_id": f"fx{i}", "params": {}} for i in range(10)]
+    chain.append({"effect_id": "composite", "params": {"opacity": 0.5, "mode": "normal"}})
+    assert validate_chain_depth(chain) == []  # 11 entries, 10 effective — passes
+    # 11 real effects (no composite) still rejected
+    over = [{"effect_id": f"fx{i}", "params": {}} for i in range(11)]
+    assert validate_chain_depth(over) != []
+
+
+def test_rt2_forged_non_dict_params_does_not_crash_compositor():
+    """RT-2: a forged params=[..]/params=int must coerce to {} (defaults), not
+    raise AttributeError."""
+    from engine.compositor import _resolve_compositing
+    for forged in ([0.5, "multiply"], 42, "opaque"):
+        op, mode = _resolve_compositing({"chain": [{"effect_id": "composite", "params": forged}]})
+        assert op == 1.0 and mode == "normal"  # fell back to defaults, no crash
+
+
+def test_ht1_disabled_terminal_composite_falls_back_to_defaults():
+    """HT-1: disabling the terminal composite restores default compositing."""
+    from engine.compositor import _resolve_compositing
+    op, mode = _resolve_compositing({"chain": [
+        {"effect_id": "composite", "enabled": False, "params": {"opacity": 0.2, "mode": "difference"}},
+    ]})
+    assert op == 1.0 and mode == "normal"
+
+
+def test_ht2_empty_chain_video_layer_with_v2_fields_is_rejected():
+    """HT-2: an empty-chain VIDEO layer carrying top-level opacity/blend_mode is a
+    v2 shape and must be flagged; non-video empty-chain layers are exempt."""
+    from zmq_server import ZMQServer
+    is_v2 = ZMQServer._is_v2_compositing_shape
+    assert is_v2({"layer_type": "video", "chain": [], "opacity": 0.0, "blend_mode": "difference"}) is True
+    assert is_v2({"layer_type": "sampler", "chain": [], "opacity": 0.5}) is False
+    # clean v3 video layer (no legacy fields) is not flagged
+    assert is_v2({"layer_type": "video", "chain": []}) is False
