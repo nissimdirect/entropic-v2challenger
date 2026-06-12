@@ -242,6 +242,7 @@ export default function DeviceChain({
         action: () => {
           void onFreezeUpTo(index)
         },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('freeze_up_to')),
       })
     }
     if (onUnfreeze && indexIsFrozen) {
@@ -251,6 +252,7 @@ export default function DeviceChain({
         action: () => {
           void onUnfreeze()
         },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('unfreeze_effects')),
       })
     }
     if (onFlatten && indexIsFrozen) {
@@ -260,6 +262,7 @@ export default function DeviceChain({
         action: () => {
           void onFlatten()
         },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('flatten_to_video')),
       })
     }
 
@@ -270,6 +273,7 @@ export default function DeviceChain({
         action: () => {
           onSaveAsPreset(effectId)
         },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('save_effect_preset')),
       })
     }
     // F-0516-1: Save the entire chain (incl. mappings) as a chain preset.
@@ -279,6 +283,7 @@ export default function DeviceChain({
         action: () => {
           onSaveChainAsPreset()
         },
+        shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('save_chain_preset')),
       })
     }
 
