@@ -45,7 +45,7 @@ jobs:
           cache: 'pip'
           cache-dependency-path: backend/pyproject.toml
       - name: Install system deps
-        run: brew install portaudio
+        run: brew install portaudio ffmpeg
       - name: Install backend deps
         run: cd backend && pip install -e ".[dev]"
       - name: Run sidecar tests
