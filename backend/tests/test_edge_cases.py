@@ -38,7 +38,10 @@ class TestEmptyVideoFile:
             empty_path = f.name
         try:
             with pytest.raises(
-                (av.error.InvalidDataError, av.error.ValueError, Exception)
+                # av.error.ValueError was removed in PyAV 17.x; InvalidDataError
+                # covers the same FFmpeg EINVAL/invalid-data class.  Exception is
+                # the catch-all so the test stays green on any future PyAV version.
+                (av.error.InvalidDataError, Exception)
             ):
                 VideoReader(empty_path)
         finally:
