@@ -455,6 +455,17 @@ def _auto_register():
         band_isolated,
     ]
 
+    # --- P2.2c (slice 3c): terminal composite primitive ---
+    # `composite` is the track-compositing terminal effect (Decision D3/D4). It is
+    # NOT an fx-style frame transform — its `apply` is an identity no-op because
+    # the compositor applies the blend and apply_chain SKIPS the terminal entry.
+    # Registered here (not on a `*_mods` list) so test_no_orphan_module_lists,
+    # which governs only fx-style phase lists, stays green. Registering it lights
+    # up the EffectBrowser tile and lets registry.get('composite') resolve.
+    from effects.fx import composite as composite_mod
+
+    composite_family = [composite_mod]
+
     # Register all simple effects
     for mod in (
         mods
@@ -463,6 +474,7 @@ def _auto_register():
         + phase12_mods
         + spectral_warpers
         + spectral_family_ext
+        + composite_family
     ):
         register(
             mod.EFFECT_ID, mod.apply, mod.PARAMS, mod.EFFECT_NAME, mod.EFFECT_CATEGORY

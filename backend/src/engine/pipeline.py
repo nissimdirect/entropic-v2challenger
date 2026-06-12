@@ -23,6 +23,13 @@ logger = logging.getLogger(__name__)
 # SEC-7: Maximum effects in a single chain
 MAX_CHAIN_DEPTH = 10
 
+# P2.2c (slice 3c, Decision D3): the terminal `composite` effect is compositing
+# plumbing, not a frame transform. apply_chain DETECTS and SKIPS it so the blend
+# is applied exactly once (by render_composite, reading opacity/mode off the same
+# terminal). Double-applying it is the headline failure mode for this slice — the
+# 9 per-blend-mode hash-stability tests are the catch.
+COMPOSITE_EFFECT_ID = "composite"
+
 # Per-effect timing thresholds (milliseconds)
 EFFECT_WARN_MS = 100
 EFFECT_ABORT_MS = 500
@@ -129,6 +136,17 @@ def apply_chain(
     Raises:
         ValueError: If chain exceeds MAX_CHAIN_DEPTH or contains unknown effects.
     """
+    # P2.2c (Decision D3): strip the terminal composite BEFORE the depth check
+    # and the process loop. It is compositing plumbing (opacity/mode read by
+    # render_composite), never a frame transform — running it here would
+    # double-apply the blend. Only the LAST entry is the terminal composite;
+    # a mid-chain composite is invalid (frontend validator rejects it) and is
+    # left in place so it surfaces as the registered identity no-op rather than
+    # being silently honored as compositing. Done against the SEC-7 cap so a
+    # full 10-effect chain plus a terminal composite is not falsely rejected.
+    if chain and chain[-1].get("effect_id") == COMPOSITE_EFFECT_ID:
+        chain = chain[:-1]
+
     if len(chain) > MAX_CHAIN_DEPTH:
         raise ValueError(
             f"Chain depth {len(chain)} exceeds maximum {MAX_CHAIN_DEPTH} (SEC-7)"
