@@ -165,7 +165,10 @@ function serializeProject(): string {
 
   const midiStore = useMIDIStore.getState()
 
-  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instrument?: SamplerInstrumentV1 } = {
+  // G10 resolution: B2's track-keyed `instruments` supersedes B1's global
+  // single `instrument` (#156). Legacy saves with `instrument` are dropped
+  // with a toast in hydrateStores — clean-break policy, never a throw.
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -190,10 +193,10 @@ function serializeProject(): string {
     drumRack: performanceStore.drumRack,
     operators: operatorStore.operators,
     automationLanes: automationStore.lanes,
+    // B2: per-Performance-track samplers, keyed by trackId (remapped on load).
+    instruments: useInstrumentsStore.getState().instruments,
     midiMappings: midiStore.getMIDIPersistData(),
     deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
-    // B1 mount: persist the single sampler instrument (omitted when none).
-    instrument: useInstrumentsStore.getState().instrument ?? undefined,
   }
 
   return JSON.stringify(project, null, 2)
@@ -321,7 +324,7 @@ function validateProject(data: unknown): data is Project {
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }> }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1> }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -334,7 +337,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
-  useInstrumentsStore.getState().removeSampler()
+  useInstrumentsStore.setState({ instruments: {} })
+
+  // B2: saved trackId → freshly-created trackId (tracks get new ids on load).
+  // Used to re-key the per-track samplers after the track loop.
+  const trackIdMap: Record<string, string> = {}
 
   // HT-4: hydrate project-level seed for deterministic renders + freeze caches.
   // Validation already clamped it to [0, 2^31-1] in validateProject().
@@ -354,22 +361,16 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     projectStore.addAsset(asset as Asset)
   }
 
-  // B1 mount: restore the sampler instrument, clamping numeric fields at this
-  // deserialization trust boundary. A clipId pointing at a now-missing asset is
-  // harmless — buildSamplerLayer returns null and the sampler simply renders nothing.
+  // G10 (B1→B2 seam): legacy saves carry a GLOBAL single `instrument` (#156's
+  // shape). B2's store is track-keyed and a global sampler has no track to bind
+  // to, so per clean-break policy it is DROPPED with a toast — never a throw.
   const rawInst = (project as { instrument?: unknown }).instrument
   if (rawInst && typeof rawInst === 'object') {
-    const ri = rawInst as Record<string, unknown>
-    if (ri.type === 'sampler' && typeof ri.clipId === 'string') {
-      const instruments = useInstrumentsStore.getState()
-      instruments.addSampler(ri.clipId)
-      instruments.updateSampler({
-        startFrame: Math.round(clampFinite(Number(ri.startFrame), 0, 1_000_000, 0)),
-        speed: clampFinite(Number(ri.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
-        opacity: clampFinite(Number(ri.opacity), 0, 1, 1),
-        blendMode: VALID_BLEND_MODES.has(ri.blendMode as BlendMode) ? (ri.blendMode as BlendMode) : 'normal',
-      })
-    }
+    useToastStore.getState().addToast({
+      level: 'warning',
+      source: 'legacy-instrument',
+      message: 'Legacy single-sampler project: sampler dropped — re-add it to a Performance track',
+    })
   }
 
   // Epic 05 D2: masterEffectChain hydrate stub removed. Per-track effectChains
@@ -388,11 +389,14 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     if (isAudio) {
       addedTrackId = tls.addAudioTrack(track.name, track.color)
     } else {
-      tls.addTrack(track.name, track.color, track.type === 'text' ? 'text' : undefined)
+      // B2: preserve performance/text type on reload (was collapsing → video).
+      const addType = track.type === 'text' ? 'text' : track.type === 'performance' ? 'performance' : undefined
+      tls.addTrack(track.name, track.color, addType)
       const freshTracks = useTimelineStore.getState().tracks
       addedTrackId = freshTracks[freshTracks.length - 1]?.id
     }
     if (!addedTrackId) continue
+    trackIdMap[track.id] = addedTrackId
     // Set shared track properties
     if (track.isMuted) useTimelineStore.getState().toggleMute(addedTrackId)
     if (track.isSoloed) useTimelineStore.getState().toggleSolo(addedTrackId)
@@ -510,6 +514,24 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate MIDI mappings (backward compat: missing = empty)
   if (project.midiMappings && typeof project.midiMappings === 'object') {
     useMIDIStore.getState().loadMIDIMappings(project.midiMappings)
+  }
+
+  // B2: restore per-track samplers, re-keyed to the new trackIds + clamped at the
+  // deserialization trust boundary. Samplers whose track didn't survive are dropped.
+  if (project.instruments && typeof project.instruments === 'object') {
+    const instr = useInstrumentsStore.getState()
+    for (const [oldId, raw] of Object.entries(project.instruments)) {
+      const newId = trackIdMap[oldId]
+      if (!newId || !raw || typeof raw !== 'object' || (raw as SamplerInstrumentV1).type !== 'sampler') continue
+      const s = raw as SamplerInstrumentV1
+      instr.addSampler(newId, typeof s.clipId === 'string' ? s.clipId : '')
+      instr.updateSampler(newId, {
+        startFrame: Math.round(clampFinite(Number(s.startFrame), 0, 1_000_000, 0)),
+        speed: clampFinite(Number(s.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
+        opacity: clampFinite(Number(s.opacity), 0, 1, 1),
+        blendMode: VALID_BLEND_MODES.has(s.blendMode as BlendMode) ? s.blendMode : 'normal',
+      })
+    }
   }
 
   // Hydrate canvas resolution from project settings (backward compat: default 1920x1080)
@@ -764,7 +786,9 @@ export function newProject(): void {
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
-  useInstrumentsStore.getState().removeSampler()
+  // B2: clear ALL per-track samplers (the old no-arg removeSampler() became a
+  // silent no-op when the store went track-keyed — samplers must not survive New Project)
+  useInstrumentsStore.setState({ instruments: {} })
 }
 
 export function startAutosave(): void {
