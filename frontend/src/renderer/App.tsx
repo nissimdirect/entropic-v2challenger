@@ -575,6 +575,26 @@ function AppInner() {
       }
     })
 
+    // UE.2: Ripple delete — Shift+Backspace. Ripple-deletes each selected clip in
+    // ascending position order so earlier clips shift before later ones are evaluated.
+    shortcutRegistry.register('ripple_delete', () => {
+      const ts = useTimelineStore.getState()
+      if (ts.selectedClipIds.length === 0) return
+      // Gather selected clips across all tracks and sort by timeline position
+      const selected: { id: string; position: number }[] = []
+      for (const track of ts.tracks) {
+        for (const clip of track.clips) {
+          if (ts.selectedClipIds.includes(clip.id)) {
+            selected.push({ id: clip.id, position: clip.position })
+          }
+        }
+      }
+      selected.sort((a, b) => a.position - b.position)
+      for (const { id } of selected) {
+        ts.rippleRemoveClip(id)
+      }
+    })
+
     // Duplicate selected effect (deep clone with new ID)
     shortcutRegistry.register('duplicate_effect', () => {
       const ps = useProjectStore.getState()
