@@ -78,6 +78,85 @@ BLEND_MODES = {
     "lighten": _blend_lighten,
 }
 
+# P2.2c (slice 3c, Decision D4): the terminal compositing effect id. Compositing
+# (opacity + blend mode) is read off the LAST entry of a layer's effect chain when
+# that entry is a `composite` effect — not from layer-level fields. The 9 modes
+# above ARE the shipped blend modes; a `mode` outside this dict falls back to
+# normal (the BLEND_MODES.get default below).
+COMPOSITE_EFFECT_ID = "composite"
+_COMPOSITE_OPACITY_DEFAULT = 1.0
+_COMPOSITE_MODE_DEFAULT = "normal"
+
+
+def _clamp_opacity(raw: object) -> float:
+    """Clamp an opacity value to finite [0,1], defaulting to 1.0 on bad input."""
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return _COMPOSITE_OPACITY_DEFAULT
+    if not (value == value) or value in (float("inf"), float("-inf")):
+        return _COMPOSITE_OPACITY_DEFAULT
+    return max(0.0, min(1.0, value))
+
+
+def _resolve_compositing(layer_info: dict) -> tuple[float, str]:
+    """Resolve (opacity, blend_mode) for a layer.
+
+    Decision D3/D4: VIDEO-CLIP track compositing lives in the TERMINAL `composite`
+    effect at the end of the layer's chain (params `{opacity, mode}`), NOT in the
+    removed v2-era `Track.opacity`/`Track.blendMode`. When a terminal composite is
+    present, its params are authoritative.
+
+    When NO terminal composite is present we fall back to the layer's top-level
+    `opacity`/`blend_mode`. This is NOT the removed Track-level path — it is the
+    transport for the layer types that legitimately carry their own compositing and
+    never had a terminal composite: sampler/instrument voices (instrument opacity +
+    blend) and the no-clip fallback. The render handler's _is_v2_compositing_shape
+    guard rejects the genuine v2 video-track-clip shape upstream, so reaching this
+    fallback means the fields are legitimate.
+
+    Every value crosses a trust boundary (IPC payload): opacity is clamped to finite
+    [0,1] and mode is validated against BLEND_MODES (unknown → normal).
+    """
+    chain = layer_info.get("chain") or []
+    terminal = chain[-1] if chain else None
+    if isinstance(terminal, dict) and terminal.get("effect_id") == COMPOSITE_EFFECT_ID and terminal.get("enabled", True) is not False:
+        # red-team RT-2: a forged IPC params=[..] / params=42 is truthy but has
+        # no .get — coerce to {} unless it is genuinely a dict.
+        raw_params = terminal.get("params")
+        params = raw_params if isinstance(raw_params, dict) else {}
+        opacity = _clamp_opacity(params.get("opacity", _COMPOSITE_OPACITY_DEFAULT))
+        raw_mode = params.get("mode", _COMPOSITE_MODE_DEFAULT)
+    else:
+        opacity = _clamp_opacity(layer_info.get("opacity", _COMPOSITE_OPACITY_DEFAULT))
+        raw_mode = layer_info.get("blend_mode", _COMPOSITE_MODE_DEFAULT)
+
+    mode = (
+        raw_mode
+        if (isinstance(raw_mode, str) and raw_mode in BLEND_MODES)
+        else _COMPOSITE_MODE_DEFAULT
+    )
+
+    return opacity, mode
+
+
+def _clip_opacity(layer_info: dict) -> float:
+    """Per-clip opacity multiplier (NOT track compositing).
+
+    `clip_opacity` is a per-clip property distinct from track compositing. Track
+    opacity/mode come from the terminal composite (_resolve_compositing); clip
+    opacity multiplies on top so a faded clip on a full-opacity track still fades.
+    Trust boundary: clamped to finite [0,1], defaults to 1.0 (fully opaque).
+    """
+    raw = layer_info.get("clip_opacity", 1.0)
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        return 1.0
+    if not (value == value) or value in (float("inf"), float("-inf")):
+        return 1.0
+    return max(0.0, min(1.0, value))
+
 
 def render_composite(
     layers: list[dict],
@@ -91,12 +170,18 @@ def render_composite(
         layers: List of layer dicts, ordered bottom-to-top:
             {
                 "frame": np.ndarray (H, W, 4) uint8,
-                "chain": list[dict],  # effect chain for apply_chain()
-                "opacity": float (0-1),
-                "blend_mode": str,
+                "chain": list[dict],  # effect chain for apply_chain(); when its
+                                      # LAST entry is a `composite` effect, that
+                                      # entry's params {opacity, mode} drive this
+                                      # layer's compositing (Decision D3/D4).
                 "frame_index": int,
                 "layer_id": str,  # OPTIONAL — required only when layer_states is passed
             }
+            Opacity/blend mode are resolved from the terminal composite in `chain`
+            (see _resolve_compositing). Layer-level "opacity"/"blend_mode" fields
+            are v2-era and are NO LONGER read — they were removed in the v3 clean
+            break. apply_chain strips the same terminal composite so the blend is
+            applied exactly once.
         resolution: (width, height) of the output.
         project_seed: For deterministic effects.
         layer_states: Per-layer state dicts keyed by `layer_id`. When provided,
@@ -127,8 +212,15 @@ def render_composite(
     for idx, layer_info in enumerate(layers):
         frame = layer_info["frame"]
         chain = layer_info.get("chain", [])
-        opacity = float(layer_info.get("opacity", 1.0))
-        blend_mode = layer_info.get("blend_mode", "normal")
+        # P2.2c (Decision D3/D4): opacity + blend mode come from the terminal
+        # composite at the END of `chain`, not from layer-level fields (removed in
+        # the v3 clean break). apply_chain strips the same terminal entry so the
+        # blend is applied exactly once. No terminal composite → compositing
+        # defaults (opacity 1.0 / normal), never the removed layer-level fields.
+        opacity, blend_mode = _resolve_compositing(layer_info)
+        # Per-clip opacity (a distinct property, not track compositing) multiplies
+        # on top so a faded clip on a full-opacity track still fades.
+        opacity *= _clip_opacity(layer_info)
         frame_index = layer_info.get("frame_index", 0)
         # When layer_states is passed but the caller didn't tag a layer_id,
         # fall back to positional index. Position-based keys silently invalidate

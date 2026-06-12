@@ -112,11 +112,14 @@ def test_render_composite_with_image(zmq_server, synthetic_image_for_zmq):
             "id": "test-img-composite",
             "layers": [
                 {
+                    # P2.2c clean break: track compositing lives in the terminal
+                    # CompositeEffect, not top-level opacity/blend_mode. A v3 video
+                    # layer with no composite forwards per-clip fade as clip_opacity;
+                    # carrying top-level opacity/blend_mode is now a rejected v2 shape.
                     "asset_path": synthetic_image_for_zmq,
                     "frame_index": 0,
                     "chain": [],
-                    "opacity": 1.0,
-                    "blend_mode": "normal",
+                    "clip_opacity": 1.0,
                 }
             ],
             "resolution": [200, 100],
