@@ -154,6 +154,11 @@
   outline: none;
 }
 
+.text-panel__slider:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
 .text-panel__slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px;
@@ -218,6 +223,11 @@
   outline: none;
   min-width: 60px;
   white-space: pre-wrap;
+}
+
+.text-overlay__edit:focus {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 /* Timeline text track icon */

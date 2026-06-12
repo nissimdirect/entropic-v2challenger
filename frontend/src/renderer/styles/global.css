@@ -680,7 +680,7 @@ body {
 }
 
 .effect-browser__action-btn:focus-visible {
-  outline: 2px solid var(--cx-selection);
+  outline: 2px solid var(--cx-focus-ring);
   outline-offset: 1px;
 }
 
@@ -887,6 +887,11 @@ body {
   outline: none;
 }
 
+.param-slider__input:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
 .param-slider__input::-webkit-slider-thumb {
   -webkit-appearance: none;
   width: 12px;
@@ -970,6 +975,11 @@ body {
   background: var(--cx-bg-hover);
   border-radius: 2px;
   outline: none;
+}
+
+.param-mix__input:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .param-mix__input::-webkit-slider-thumb {
@@ -1159,8 +1169,8 @@ body[data-disable-f-0512-36] .transform-panel {
 }
 
 .transform-panel__btn:focus-visible {
-  outline: 2px solid var(--cx-action);
-  outline-offset: -2px;
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .transform-panel__fields {
@@ -1237,8 +1247,8 @@ body[data-disable-f-0512-36] .transform-panel {
 }
 
 .preview-controls__play-btn:focus-visible {
-  outline: 2px solid var(--cx-action);
-  outline-offset: -2px;
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .preview-controls__scrub {
@@ -1248,6 +1258,11 @@ body[data-disable-f-0512-36] .transform-panel {
   background: var(--cx-bg-hover);
   border-radius: 2px;
   outline: none;
+}
+
+.preview-controls__scrub:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .preview-controls__scrub::-webkit-slider-thumb {
@@ -1373,6 +1388,10 @@ body[data-disable-f-0512-36] .transform-panel {
   font-family: inherit;
   font-size: 12px;
   outline: none;
+}
+
+.export-dialog__res-input:focus {
+  border-color: var(--cx-action);
 }
 
 .export-dialog__footer {
@@ -1503,7 +1522,8 @@ body[data-disable-f-0512-36] .transform-panel {
 }
 
 .knob__svg:focus-visible {
-  box-shadow: 0 0 0 2px var(--cx-action);
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .knob__value {
@@ -1523,6 +1543,10 @@ body[data-disable-f-0512-36] .transform-panel {
   font-size: 11px;
   text-align: center;
   outline: none;
+}
+
+.number-input:focus {
+  border-color: var(--cx-action-hover);
 }
 
 /* --- Param Label --- */
@@ -1582,7 +1606,8 @@ body[data-disable-f-0512-36] .transform-panel {
 }
 
 .hslider__track:focus-visible {
-  box-shadow: 0 0 0 2px var(--cx-action);
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .hslider__fill {
@@ -2354,6 +2379,6 @@ body[data-disable-f-0512-36] .transform-panel {
 }
 
 .dialog__btn:focus-visible {
-  outline: 2px solid var(--cx-action);
-  outline-offset: 2px;
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
