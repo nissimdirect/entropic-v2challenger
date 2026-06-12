@@ -1,0 +1,35 @@
+{
+  "version": "2.0.0",
+  "id": "11111111-1111-1111-1111-111111111111",
+  "created": 1700000000.0,
+  "modified": 1700000000.0,
+  "author": "legacy-fixture",
+  "settings": {
+    "resolution": [1920, 1080],
+    "frameRate": 30,
+    "audioSampleRate": 48000,
+    "masterVolume": 1.0,
+    "seed": 42
+  },
+  "assets": {},
+  "timeline": {
+    "duration": 30.0,
+    "tracks": [
+      {
+        "id": "track-1",
+        "type": "video",
+        "name": "Video 1",
+        "color": "#ef4444",
+        "isMuted": false,
+        "isSoloed": false,
+        "opacity": 0.8,
+        "blendMode": "add",
+        "clips": [],
+        "effectChain": [],
+        "automationLanes": []
+      }
+    ],
+    "markers": [],
+    "loopRegion": null
+  }
+}
