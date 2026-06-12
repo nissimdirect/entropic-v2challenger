@@ -56,6 +56,15 @@ MAX_COMPOSITE_LAYERS = 50
 # _handle_render_composite BEFORE the per-layer decode loop, mirroring INJ-3.
 MAX_TOTAL_VOICES_PER_RENDER = 4
 
+# P5a.4 (INSTRUMENTS.md §10 P1-2): cap the serialized performance event list an
+# export may replay. A capture buffer of N events crosses the IPC trust boundary
+# as one JSON payload; ~48 B/event × 10_000 ≈ 480 KB, comfortably one ZMQ
+# message. Over-cap is REJECTED at export start (never truncated — truncation
+# would silently drop trigger/release events and desync the replay). Enforced in
+# _handle_export_start BEFORE the export thread is spawned, mirroring the
+# enforce-before-decode posture of INJ-3 / MAX_TOTAL_VOICES_PER_RENDER.
+MAX_CAPTURE_EVENTS = 10_000
+
 # Voice ids cross the IPC trust boundary and are used directly as state-cache
 # keys (`voice:{voice_id}`). Constrain to a conservative charset/length so a
 # hand-edited / hostile project cannot inject path-traversal-ish or
@@ -366,6 +375,95 @@ def validate_voice_layers(layers: list) -> list[str]:
         )
 
     return errors
+
+
+def validate_capture_events(events: object) -> list[str]:
+    """Validate a serialized performance event list for export replay (P5a.4).
+
+    Trust boundary: the event list arrives as an IPC payload and is replayed by
+    ``evaluate_voices`` to reconstruct voice layers. This validator enforces the
+    structural / size bounds BEFORE the export thread spawns (enforce-before-
+    decode); the per-event field ranges are additionally re-checked inside
+    ``evaluate_voices`` (which silently drops malformed events, mirroring
+    ``voiceFSM.ts`` ``isValidEvent``). Here we REJECT the whole export — a
+    hand-edited / hostile project must not start a partial render.
+
+    Rejects:
+    - a non-list ``events``
+    - more than ``MAX_CAPTURE_EVENTS`` events (reject, never truncate)
+    - any event that is not a dict, or whose replay-key fields are malformed:
+      non-finite / non-integer / negative ``frameIndex`` or ``eventIndex``,
+      out-of-range ``note`` / ``velocity`` (0–127), unknown ``kind``.
+
+    Only the first malformed event is reported (fail-closed). Returns a list of
+    error strings (empty == valid).
+    """
+    errors: list[str] = []
+    if not isinstance(events, list):
+        return ["performance.events must be a list"]
+
+    if len(events) > MAX_CAPTURE_EVENTS:
+        errors.append(
+            f"Event list length {len(events)} exceeds maximum "
+            f"{MAX_CAPTURE_EVENTS} (MAX_CAPTURE_EVENTS)"
+        )
+        return errors
+
+    valid_kinds = {"trigger", "release", "choke", "panic"}
+    for i, ev in enumerate(events):
+        if not isinstance(ev, dict):
+            errors.append(f"event[{i}] must be a dict (got {type(ev).__name__})")
+            return errors
+        fi = ev.get("frameIndex")
+        ei = ev.get("eventIndex")
+        note = ev.get("note")
+        vel = ev.get("velocity")
+        kind = ev.get("kind")
+        # bool is an int subclass — exclude it explicitly so True/False can't
+        # masquerade as a frame index.
+        if isinstance(fi, bool) or not isinstance(fi, int) or fi < 0:
+            errors.append(f"event[{i}].frameIndex must be an int >= 0, got {fi!r}")
+            return errors
+        if isinstance(ei, bool) or not isinstance(ei, int) or ei < 0:
+            errors.append(f"event[{i}].eventIndex must be an int >= 0, got {ei!r}")
+            return errors
+        if not _is_finite_int_in_range(note, 0, 127):
+            errors.append(f"event[{i}].note must be in [0,127], got {note!r}")
+            return errors
+        if not _is_finite_int_in_range(vel, 0, 127):
+            errors.append(f"event[{i}].velocity must be in [0,127], got {vel!r}")
+            return errors
+        if kind not in valid_kinds:
+            errors.append(f"event[{i}].kind {kind!r} is unknown")
+            return errors
+        # red-team HT-1: trigger/release/choke index voice state by instrumentId
+        # via a direct subscript in evaluate_voices — a missing/non-string id
+        # raises KeyError mid-replay (export dies with an unactionable error).
+        # Reject at the boundary where the message is useful. (panic is global,
+        # no instrumentId required.)
+        if kind in ("trigger", "release", "choke"):
+            iid = ev.get("instrumentId")
+            if not isinstance(iid, str) or not iid:
+                errors.append(
+                    f"event[{i}].instrumentId must be a non-empty string for "
+                    f"kind {kind!r}, got {iid!r}"
+                )
+                return errors
+
+    return errors
+
+
+def _is_finite_int_in_range(x: object, lo: int, hi: int) -> bool:
+    """True iff x is a finite real number (not bool, not NaN/inf) within [lo, hi]."""
+    if isinstance(x, bool):
+        return False
+    if isinstance(x, int):
+        return lo <= x <= hi
+    if isinstance(x, float):
+        if x != x or x in (float("inf"), float("-inf")):
+            return False
+        return lo <= x <= hi
+    return False
 
 
 # --- PII stripping for Sentry and crash dumps ---

@@ -21,8 +21,11 @@ from engine.codecs import (
     RESOLUTION_PRESETS,
     get_codec_config,
 )
+from engine.compositor import render_composite
+from security import validate_composite_layer_count, validate_voice_layers
 from engine.gif_export import export_gif_from_generator
 from engine.image_sequence import export_image_sequence_from_generator
+from engine.voice_replay import encode_voice_id, evaluate_voices
 from video.codec_timeout import av_open_timeout
 from engine.pipeline import apply_chain
 from engine.text_renderer import render_text_frame
@@ -174,6 +177,7 @@ class ExportManager:
         project_seed: int,
         settings: dict | None = None,
         text_layers: list[dict] | None = None,
+        performance: dict | None = None,
     ) -> ExportJob:
         """Start a background export. Returns the job for status tracking.
 
@@ -189,6 +193,19 @@ class ExportManager:
             Deterministic seed for effects.
         settings : dict, optional
             Export settings dict. Missing keys fall back to *DEFAULT_SETTINGS*.
+        performance : dict, optional
+            P5a.4 composite-replay payload ``{events, instruments, assets}``.
+            When present (and non-empty ``events``), the export takes the
+            composite branch: each output frame reconstructs the active voice
+            layers via ``evaluate_voices`` (a pure mirror of ``voiceFSM.ts``) and
+            feeds the already-merged ``render_composite`` with per-voice
+            ``layer_states`` threaded across frames — exactly as live preview
+            does (O1 in docs/decisions/composite-export-design.md). The caller
+            (``_handle_export_start``) is responsible for trust-boundary
+            validation (``validate_capture_events``) BEFORE calling start; this
+            method assumes the payload already passed that gate. When ``None``
+            or events-empty, the export is byte-identical to the legacy
+            single-input path.
 
         Raises
         ------
@@ -213,6 +230,7 @@ class ExportManager:
                 project_seed,
                 merged,
                 text_layers or [],
+                performance,
             ),
             daemon=True,
         )
@@ -317,9 +335,14 @@ class ExportManager:
         project_seed: int,
         settings: dict,
         text_layers: list[dict] | None = None,
+        performance: dict | None = None,
     ):
         reader = None
         writer = None
+        # P5a.4: per-asset reader cache for the composite branch. Voices on the
+        # same clip share one reader across the whole export (opened lazily,
+        # closed in `finally`) so we never re-open footage per frame.
+        voice_readers: dict[str, object] = {}
         try:
             if is_image_file(input_path):
                 reader = ImageReader(input_path)
@@ -347,13 +370,52 @@ class ExportManager:
             resolution = (source_w, source_h)
             states: dict[str, dict | None] = {}
 
+            # P5a.4: the composite-replay branch is active only when a non-empty
+            # performance payload is supplied. Empty / None → byte-identical to
+            # the legacy single-input path (ROLLBACK contract: old clients
+            # unchanged).
+            perf_events = (performance or {}).get("events") or []
+            perf_active = bool(perf_events)
+            # Per-voice layer state cache (keyed `voice:{encoded_voice_id}` — the
+            # P5a.2 contract). Threaded across frames exactly like preview's
+            # _get_composite_states, but a LOCAL dict (no server singleton),
+            # avoiding live-preview cache contention.
+            voice_states: dict[str, dict] = {}
+
+            # P5a.4: shared per-frame renderer the GIF / image-sequence
+            # generators call. Returns the composited frame for `src_idx`,
+            # taking the composite-replay branch when a performance payload is
+            # active, else the legacy single-input apply_chain. Threads its own
+            # state via closures over `states` / `voice_states`.
+            def render_export_frame(src_idx: int) -> np.ndarray:
+                nonlocal states, voice_states
+                base = reader.decode_frame(src_idx)
+                if perf_active:
+                    out, voice_states = self._composite_export_frame(
+                        base_frame=base,
+                        base_chain=chain,
+                        performance=performance or {},
+                        frame_index=src_idx,
+                        resolution=resolution,
+                        project_seed=project_seed,
+                        voice_states=voice_states,
+                        voice_readers=voice_readers,
+                    )
+                else:
+                    out, states = apply_chain(
+                        base, chain, project_seed, src_idx, resolution, states
+                    )
+                if text_layers:
+                    out = self._composite_text_layers(
+                        out, text_layers, resolution, src_idx, source_fps
+                    )
+                return out
+
             # ---- GIF export path ----
             if export_type == "gif":
                 self._export_gif(
                     job,
-                    reader,
-                    chain,
-                    project_seed,
+                    render_export_frame,
                     resolution,
                     frame_indices,
                     needs_resize,
@@ -362,7 +424,6 @@ class ExportManager:
                     output_path,
                     target_fps,
                     settings,
-                    states,
                 )
                 return
 
@@ -370,9 +431,7 @@ class ExportManager:
             if export_type == "image_sequence":
                 self._export_image_sequence(
                     job,
-                    reader,
-                    chain,
-                    project_seed,
+                    render_export_frame,
                     resolution,
                     frame_indices,
                     needs_resize,
@@ -380,7 +439,6 @@ class ExportManager:
                     target_h,
                     output_path,
                     settings,
-                    states,
                 )
                 return
 
@@ -413,9 +471,25 @@ class ExportManager:
 
                 frame = reader.decode_frame(src_idx)
 
-                output, states = apply_chain(
-                    frame, chain, project_seed, src_idx, resolution, states
-                )
+                if perf_active:
+                    # P5a.4 composite branch (O1): reconstruct voice layers from
+                    # the serialized event list and composite them on top of the
+                    # base clip via the already-merged render_composite, threading
+                    # per-voice state across frames.
+                    output, voice_states = self._composite_export_frame(
+                        base_frame=frame,
+                        base_chain=chain,
+                        performance=performance or {},
+                        frame_index=src_idx,
+                        resolution=resolution,
+                        project_seed=project_seed,
+                        voice_states=voice_states,
+                        voice_readers=voice_readers,
+                    )
+                else:
+                    output, states = apply_chain(
+                        frame, chain, project_seed, src_idx, resolution, states
+                    )
 
                 # Composite text layers on top of the processed frame
                 if text_layers:
@@ -474,10 +548,26 @@ class ExportManager:
                 writer.close()
             if reader is not None:
                 reader.close()
-            # Clean up partial output file on cancel or error
+            # P5a.4: close every per-voice footage reader opened by the
+            # composite branch (best-effort; one map for the export's lifetime).
+            for _vr in voice_readers.values():
+                try:
+                    close = getattr(_vr, "close", None)
+                    if callable(close):
+                        close()
+                except Exception:  # noqa: BLE001 — cleanup must never raise
+                    pass
+            # Clean up partial output on cancel or error.
+            # red-team RT-2: image_sequence exports write a DIRECTORY of PNGs;
+            # os.unlink raises IsADirectoryError (swallowed), leaking partial
+            # frames. rmtree the directory case; unlink the single-file case.
             if job.status in (ExportStatus.CANCELLED, ExportStatus.ERROR):
                 try:
-                    if os.path.exists(output_path):
+                    if os.path.isdir(output_path):
+                        import shutil
+
+                        shutil.rmtree(output_path, ignore_errors=True)
+                    elif os.path.exists(output_path):
                         os.unlink(output_path)
                 except OSError:
                     pass  # best-effort cleanup
@@ -526,15 +616,204 @@ class ExportManager:
         return output
 
     # ------------------------------------------------------------------
+    # P5a.4 — composite voice replay (O1: per-frame render_composite reuse)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _compute_voice_footage_frame(
+        inst: dict, playhead_frame: int, frame_count: int
+    ) -> int:
+        """Mirror of frontend computeSamplerVoice's footage-frame math.
+
+        # MIRROR: computeSamplerVoice.ts
+        footageFrameIndex = clamp(startFrame + round(speed * playheadFrame),
+        0, frameCount-1). Speed clamps [-8, 8]; bad probe → freeze on 0.
+        """
+        SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX = -8.0, 8.0
+        fc = frame_count if isinstance(frame_count, int) and frame_count > 0 else 1
+        last_frame = max(0, fc - 1)
+
+        def clamp_finite(v, lo, hi, fallback):
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                return fallback
+            if v != v or v in (float("inf"), float("-inf")):
+                return fallback
+            return min(hi, max(lo, v))
+
+        speed = clamp_finite(
+            inst.get("speed", 1), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1
+        )
+        start = clamp_finite(inst.get("startFrame", 0), 0, last_frame, 0)
+        raw = start + round(speed * playhead_frame)
+        return int(round(clamp_finite(raw, 0, last_frame, 0)))
+
+    def _get_voice_reader(self, asset_path: str, voice_readers: dict):
+        """Lazily open (and cache) a footage reader for the export's lifetime.
+
+        One reader per asset path, shared across voices on the same clip and
+        across frames — never re-opened per frame (design Cons mitigation).
+        Closed in _run_export's finally.
+        """
+        reader = voice_readers.get(asset_path)
+        if reader is None:
+            if is_image_file(asset_path):
+                reader = ImageReader(asset_path)
+            else:
+                reader = VideoReader(asset_path)
+            voice_readers[asset_path] = reader
+        return reader
+
+    def _composite_export_frame(
+        self,
+        *,
+        base_frame: np.ndarray,
+        base_chain: list[dict],
+        performance: dict,
+        frame_index: int,
+        resolution: tuple[int, int],
+        project_seed: int,
+        voice_states: dict,
+        voice_readers: dict,
+    ) -> tuple[np.ndarray, dict]:
+        """Build the composited frame for one output frame (O1 composite branch).
+
+        Reconstructs the active voices for ``frame_index`` via
+        ``evaluate_voices`` (the pure voiceFSM mirror), assembles per-voice layer
+        dicts (decode footage + attach chain + colon-free ``voice_id``), and
+        feeds the **already-merged** ``render_composite`` with per-voice
+        ``layer_states`` keyed ``voice:{encoded_voice_id}`` (P5a.2 contract).
+        Reuses the v3 compositor verbatim so preview and export cannot drift.
+
+        The base clip (single input + its chain) is the bottom-most layer; voices
+        composite on top in ascending-triggerFrame order (newest on top), exactly
+        as ``buildVoiceLayers`` orders them in preview.
+        """
+        events = performance.get("events") or []
+        instruments = performance.get("instruments") or {}
+        assets = performance.get("assets") or {}
+
+        # Build the layer list bottom-to-top. Layer 0 = base clip with its chain.
+        layers: list[dict] = [
+            {
+                "frame": base_frame,
+                "chain": base_chain,
+                "frame_index": frame_index,
+                "layer_id": "base",
+            }
+        ]
+
+        from engine.voice_replay import envelope_value
+
+        # PHASE 1 — reconstruct voice descriptors WITHOUT decoding any footage.
+        # Per instrument: evaluate its voices (own ADSR + cap), resolve the
+        # footage index + opacity, and stage a layer descriptor. evaluate_voices
+        # caps each instrument at its voiceCap, so the descriptor count is
+        # bounded by (num_instruments × voiceCap) — never unbounded.
+        voice_descriptors: list[dict] = []
+        for inst_id, inst in instruments.items():
+            adsr = inst.get("adsr") or {
+                "attack": 0,
+                "decay": 0,
+                "sustain": 1,
+                "release": 0,
+            }
+            voice_cap = inst.get("voiceCap", 4)
+            inst_chain = inst.get("chain") or []
+            clip_id = inst.get("clipId")
+            asset = assets.get(clip_id) if clip_id is not None else None
+            if not asset or not asset.get("path"):
+                # Unsourced sampler — no layers (mirrors buildVoiceLayers early-out).
+                continue
+            asset_path = asset["path"]
+            frame_count = asset.get("frameCount") or 1
+
+            # Per-instrument bucket: this instrument's events PLUS global panic
+            # (panic crosses instruments). Keeps each instrument's ADSR / cap /
+            # footage resolution independent. For B2 there is one instrument.
+            inst_events = [
+                e
+                for e in events
+                if isinstance(e, dict)
+                and (e.get("instrumentId") == inst_id or e.get("kind") == "panic")
+            ]
+            voices = evaluate_voices(
+                inst_events, frame_index, {"voiceCap": voice_cap, "adsr": adsr}
+            )
+
+            for voice in voices:
+                # Footage playhead mirrors buildVoiceLayers (passes
+                # voice.footagePos; the FSM tracks lifecycle only, footagePos
+                # stays 0 in B2 → freeze on startFrame). Faithful port.
+                playhead = voice.get("footagePos", 0)
+                env = envelope_value(voice, frame_index, adsr)
+                inst_op = inst.get("opacity", 1.0)
+                op = inst_op * env
+                if not isinstance(op, (int, float)) or op != op:
+                    op = 0.0
+                op = max(0.0, min(1.0, op))
+                vid = encode_voice_id(voice["voiceId"])
+                voice_descriptors.append(
+                    {
+                        "asset_path": asset_path,
+                        "frame_count": frame_count,
+                        "inst": inst,
+                        "playhead": playhead,
+                        "chain": inst_chain,
+                        "voice_id": vid,
+                        "opacity": op,
+                        "blend_mode": inst.get("blendMode", "normal"),
+                    }
+                )
+
+        # ENFORCE-BEFORE-DECODE (design Memory-strategy): validate the per-frame
+        # voice budget and the composite layer cap BEFORE opening/decoding any
+        # footage, mirroring _handle_render_composite's order. A hostile
+        # multi-instrument payload is rejected here, never buffered.
+        budget_errors = validate_voice_layers(
+            [{"voice_id": d["voice_id"]} for d in voice_descriptors]
+        )
+        # +1 for the base layer.
+        budget_errors += validate_composite_layer_count(len(voice_descriptors) + 1)
+        if budget_errors:
+            raise ValueError("; ".join(budget_errors))
+
+        # PHASE 2 — decode footage + assemble the final layer list (now safe).
+        for d in voice_descriptors:
+            reader = self._get_voice_reader(d["asset_path"], voice_readers)
+            rfc = getattr(reader, "frame_count", d["frame_count"]) or d["frame_count"]
+            footage_idx = self._compute_voice_footage_frame(
+                d["inst"], d["playhead"], rfc
+            )
+            # INJ-3 tail clamp parity with _handle_render_composite.
+            if rfc and footage_idx >= rfc - 2:
+                footage_idx = max(0, rfc - 3)
+            vframe = reader.decode_frame(footage_idx)
+            layers.append(
+                {
+                    "frame": vframe,
+                    "chain": d["chain"],
+                    "frame_index": frame_index,
+                    "voice_id": d["voice_id"],
+                    "layer_id": f"voice:{d['voice_id']}",
+                    "opacity": d["opacity"],
+                    "blend_mode": d["blend_mode"],
+                }
+            )
+
+        # Reuse the merged compositor verbatim, threading per-voice state.
+        out, new_states = render_composite(
+            layers, resolution, project_seed, voice_states
+        )
+        return out, new_states
+
+    # ------------------------------------------------------------------
     # GIF export
     # ------------------------------------------------------------------
 
     def _export_gif(
         self,
         job: ExportJob,
-        reader: VideoReader,
-        chain: list[dict],
-        project_seed: int,
+        render_frame,
         resolution: tuple[int, int],
         frame_indices: list[int],
         needs_resize: bool,
@@ -543,14 +822,13 @@ class ExportManager:
         output_path: str,
         target_fps: int,
         settings: dict,
-        states: dict,
     ):
+        # `render_frame(src_idx) -> np.ndarray` encapsulates the legacy
+        # apply_chain path AND the P5a.4 composite-replay branch (chosen in
+        # _run_export). The GIF generator only resizes + yields.
         def frame_gen():
             for out_idx, src_idx in enumerate(frame_indices):
-                frame = reader.decode_frame(src_idx)
-                output, _ = apply_chain(
-                    frame, chain, project_seed, src_idx, resolution, states
-                )
+                output = render_frame(src_idx)
                 if needs_resize:
                     output = cv2.resize(
                         output,
@@ -590,9 +868,7 @@ class ExportManager:
     def _export_image_sequence(
         self,
         job: ExportJob,
-        reader: VideoReader,
-        chain: list[dict],
-        project_seed: int,
+        render_frame,
         resolution: tuple[int, int],
         frame_indices: list[int],
         needs_resize: bool,
@@ -600,14 +876,13 @@ class ExportManager:
         target_h: int,
         output_dir: str,
         settings: dict,
-        states: dict,
     ):
+        # `render_frame(src_idx) -> np.ndarray` encapsulates the legacy
+        # apply_chain path AND the P5a.4 composite-replay branch (chosen in
+        # _run_export). The sequence generator only resizes + yields.
         def frame_gen():
             for out_idx, src_idx in enumerate(frame_indices):
-                frame = reader.decode_frame(src_idx)
-                output, _ = apply_chain(
-                    frame, chain, project_seed, src_idx, resolution, states
-                )
+                output = render_frame(src_idx)
                 if needs_resize:
                     output = cv2.resize(
                         output,

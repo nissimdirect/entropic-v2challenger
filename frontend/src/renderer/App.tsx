@@ -2157,6 +2157,75 @@ function AppInner() {
       // and is explicitly out of scope for this change.
       const activeExportChain = getActiveEffectChain()
 
+      // P5a.4: build the optional composite-replay payload for projects with
+      // performance tracks. The backend replays the voice FSM from this
+      // serialized event list (evaluate_voices) so the exported voices are
+      // byte-identical across runs and survive edit-after-capture. Absent when
+      // there are no performance tracks → legacy single-input export, unchanged.
+      const buildPerformancePayload = ():
+        | { events: unknown[]; instruments: Record<string, unknown>; assets: Record<string, unknown> }
+        | undefined => {
+        const timelineState = useTimelineStore.getState()
+        const perfState = usePerformanceStore.getState()
+        const instrState = useInstrumentsStore.getState()
+        const projectAssets = useProjectStore.getState().assets
+        const rackAdsr = perfState.drumRack.pads[0]?.envelope ?? {
+          attack: 0, decay: 0, sustain: 1, release: 0,
+        }
+        const perfTrackIds = timelineState.tracks
+          .filter((t) => t.type === 'performance' && !t.isMuted)
+          .map((t) => t.id)
+
+        const events: unknown[] = []
+        const instruments: Record<string, unknown> = {}
+        const assets: Record<string, unknown> = {}
+
+        for (const trackId of perfTrackIds) {
+          const inst = instrState.instruments[trackId]
+          if (!inst) continue
+          // The backend keys events/instruments by instrumentId === inst.id.
+          // Re-stamp each captured event's instrumentId to the instrument id so
+          // backend referential integrity + per-instrument bucketing line up.
+          const trackEvents = perfState.trackEvents[trackId] ?? []
+          for (const e of trackEvents) {
+            events.push({
+              frameIndex: e.frameIndex,
+              eventIndex: e.eventIndex,
+              note: e.note,
+              velocity: e.velocity,
+              kind: e.kind,
+              instrumentId: inst.id,
+              ...(e.chokeGroup != null ? { chokeGroup: e.chokeGroup } : {}),
+            })
+          }
+          instruments[inst.id] = {
+            clipId: inst.clipId,
+            startFrame: inst.startFrame,
+            speed: inst.speed,
+            opacity: inst.opacity,
+            blendMode: inst.blendMode,
+            voiceCap: 4,
+            adsr: rackAdsr,
+            chain: [],
+          }
+          const asset = projectAssets[inst.clipId]
+          if (asset?.path) {
+            const metaFps = asset.meta?.fps
+            const fps = Number.isFinite(metaFps) && metaFps! > 0 ? metaFps! : settings.fps
+            const dur = Number.isFinite(asset.meta?.duration) ? asset.meta!.duration : 0
+            assets[inst.clipId] = {
+              path: asset.path,
+              frameCount: Math.max(1, Math.round(dur * fps)),
+              fps,
+            }
+          }
+        }
+
+        if (events.length === 0) return undefined
+        return { events, instruments, assets }
+      }
+      const performancePayload = buildPerformancePayload()
+
       const res = await window.entropic.sendCommand({
         cmd: 'export_start',
         input_path: activeAssetPath.current,
@@ -2167,6 +2236,7 @@ function AppInner() {
         // frame_drop, noise) now render identically in export and the live canvas.
         project_seed: projectSeed,
         ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
+        ...(performancePayload ? { performance: performancePayload } : {}),
         settings: {
           codec: settings.codec,
           resolution: settings.resolution,

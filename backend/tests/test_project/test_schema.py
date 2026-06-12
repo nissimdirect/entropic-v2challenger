@@ -412,3 +412,63 @@ def test_numeric_version_strings_still_parse():
     assert schema._major_version("10.1") == 10
     assert schema._major_version("v2.0.0") is None
     assert schema._major_version("3a.0.0") is None
+
+
+# ---------------------------------------------------------------------------
+# P5a.4 — performance event list referential integrity (§10 P1-2)
+# ---------------------------------------------------------------------------
+
+
+def _project_with_performance(events, instruments=None):
+    p = new_project(author="p5a4")
+    if instruments is not None:
+        p["instruments"] = instruments
+    p["performance"] = {"events": events}
+    return p
+
+
+def test_project_without_performance_is_unchanged():
+    """ROLLBACK: a project with no `performance` key validates as before."""
+    p = new_project()
+    assert validate(p) == []
+
+
+def test_project_load_rejects_event_referencing_unknown_instrumentid():
+    """project load rejects event referencing unknown instrumentId (§10 P1-2)."""
+    events = [
+        {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100,
+         "kind": "trigger", "instrumentId": "ghost-instrument"},
+    ]
+    p = _project_with_performance(events, instruments={"sampler-1": {}})
+    errors = validate(p)
+    assert any("unknown instrumentId" in e for e in errors)
+
+
+def test_project_load_accepts_event_referencing_known_instrumentid():
+    events = [
+        {"frameIndex": 5, "eventIndex": 0, "note": 60, "velocity": 100,
+         "kind": "trigger", "instrumentId": "sampler-1"},
+    ]
+    p = _project_with_performance(events, instruments={"sampler-1": {}})
+    assert validate(p) == []
+
+
+def test_project_load_rejects_malformed_event_fields():
+    for bad in [
+        {"frameIndex": -1, "eventIndex": 0, "note": 60, "velocity": 100, "kind": "trigger", "instrumentId": "sampler-1"},
+        {"frameIndex": 0, "eventIndex": 0, "note": 999, "velocity": 100, "kind": "trigger", "instrumentId": "sampler-1"},
+        {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 999, "kind": "trigger", "instrumentId": "sampler-1"},
+        {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100, "kind": "boom", "instrumentId": "sampler-1"},
+    ]:
+        p = _project_with_performance([bad], instruments={"sampler-1": {}})
+        assert validate(p), f"expected rejection for {bad}"
+
+
+def test_project_load_panic_event_exempt_from_instrument_check():
+    """A global panic event needs no matching instrument."""
+    events = [
+        {"frameIndex": 0, "eventIndex": 0, "note": 0, "velocity": 0,
+         "kind": "panic", "instrumentId": "anything"},
+    ]
+    p = _project_with_performance(events, instruments={"sampler-1": {}})
+    assert validate(p) == []
