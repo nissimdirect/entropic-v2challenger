@@ -6,7 +6,15 @@ import time
 import uuid
 from typing import TypeGuard
 
-CURRENT_VERSION = "2.0.0"
+CURRENT_VERSION = "3.0.0"
+
+# P2.2a (slice 3c, Decision D1 clean break): the v3 schema removed track-level
+# opacity/blendMode in favour of a terminal CompositeEffect. There is NO migration
+# code (single-tester app, clean-break policy). Projects whose major version is
+# below 3 are rejected LOUDLY with this exact message — never crash, never a silent
+# partial load. The error string is contractual; tests assert it verbatim.
+MIN_SUPPORTED_MAJOR = 3
+V2_UNSUPPORTED_MESSAGE = "v2 projects unsupported — start a new project"
 
 REQUIRED_KEYS = {
     "version",
@@ -120,6 +128,26 @@ def _walk_structure(node: object, depth: int, path: str) -> str | None:
     return None
 
 
+def _major_version(version: object) -> int | None:
+    """Parse the leading integer of a 'MAJOR.MINOR.PATCH' version string.
+
+    Returns the major version as an int, or None when the value is not a string
+    with a leading integer component (caller treats None as 'unparseable').
+    """
+    if not isinstance(version, str):
+        return None
+    head = version.split(".", 1)[0].strip()
+    # Red-team RT-2: int("v2") raised and the gate was SKIPPED — a crafted
+    # "v2.0.0" version string evaded the v2 clean-break rejection. The head
+    # must be strictly ASCII digits; anything else is unparseable.
+    if not head or any(c not in "0123456789" for c in head):
+        return None
+    try:
+        return int(head)
+    except ValueError:
+        return None
+
+
 def validate(project: dict) -> list[str]:
     """Validate a project dict. Returns list of error strings (empty = valid)."""
     errors = []
@@ -135,6 +163,21 @@ def validate(project: dict) -> list[str]:
     structure_error = _walk_structure(project, 0, "$")
     if structure_error is not None:
         errors.append(structure_error)
+        return errors
+
+    # P2.2a (slice 3c, Decision D1): v3 clean break. A parseable major version
+    # below 3 (e.g. the legacy "2.0.0" track-level-compositing schema) is rejected
+    # LOUDLY with the contractual message — no migration, no silent partial load.
+    # An unparseable/missing version falls through to the existing type/required
+    # checks below (those produce their own clear errors).
+    major = _major_version(version)
+    if major is not None and major < MIN_SUPPORTED_MAJOR:
+        errors.append(V2_UNSUPPORTED_MESSAGE)
+    # Red-team RT-2 (second half): a version KEY that exists but cannot be
+    # parsed ("v2.0.0", "x3.0.0") must REJECT — skipping the gate let forged
+    # version strings carry pre-v3 shapes past the clean break.
+    if major is None and isinstance(project.get("version"), str):
+        errors.append(f"Invalid version format: {project['version'][:16]!r}")
         return errors
 
     missing = REQUIRED_KEYS - set(project.keys())

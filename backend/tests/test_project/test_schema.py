@@ -1,5 +1,8 @@
 """Tests for .glitch project file schema."""
 
+import json
+import pathlib
+
 import pytest
 
 from project.schema import deserialize, new_project, serialize, validate
@@ -9,7 +12,9 @@ pytestmark = pytest.mark.smoke
 
 def test_new_project_has_required_fields():
     p = new_project(author="test")
-    assert p["version"] == "2.0.0"
+    assert (
+        p["version"] == "3.0.0"
+    )  # P2.2a: v3 clean break (composite-as-terminal-effect)
     assert p["author"] == "test"
     assert p["settings"]["resolution"] == [1920, 1080]
     assert p["settings"]["frameRate"] == 30
@@ -34,7 +39,9 @@ def test_validate_valid_project():
 
 
 def test_validate_missing_keys():
-    errors = validate({"version": "2.0.0"})
+    # P2.2a: use a v3 version so the missing-keys path is exercised, not the
+    # v2-rejection short-circuit.
+    errors = validate({"version": "3.0.0"})
     assert len(errors) > 0
     assert "Missing top-level keys" in errors[0]
 
@@ -52,8 +59,9 @@ def test_deserialize_invalid_json():
 
 
 def test_deserialize_missing_fields():
+    # P2.2a: v3 version so this exercises the missing-fields path, not v2-rejection.
     with pytest.raises(ValueError, match="Invalid project"):
-        deserialize('{"version": "2.0.0"}')
+        deserialize('{"version": "3.0.0"}')
 
 
 # F-0514-10 + F-0514-11: numeric range validation at the project boundary.
@@ -310,3 +318,97 @@ def test_validate_accepts_31_level_nesting_at_boundary():
         cursor = cursor["x"]
     cursor["leaf"] = "ok"
     assert validate(p) == []
+
+
+# ---------------------------------------------------------------------------
+# P2.2a (slice 3c) — v3 clean break. Pre-v3 projects (the legacy track-level
+# opacity/blendMode schema) MUST be rejected loudly with the contractual message,
+# never crash, never silently partial-load. Fixture preserved at
+# fixtures/project-v2-legacy.glitch — NEVER regenerated.
+# ---------------------------------------------------------------------------
+
+_V2_LEGACY_FIXTURE = (
+    pathlib.Path(__file__).parent / "fixtures" / "project-v2-legacy.glitch"
+)
+
+
+def test_v2_legacy_fixture_rejected_with_unsupported_message_no_traceback():
+    """v2 legacy fixture rejected with 'v2 projects unsupported' message, no traceback."""
+    raw = _V2_LEGACY_FIXTURE.read_text()
+
+    # deserialize must raise a ValueError carrying the contractual message — a
+    # clean rejection, NOT an uncaught crash. Assert the message text verbatim.
+    with pytest.raises(ValueError) as excinfo:
+        deserialize(raw)
+    assert "v2 projects unsupported — start a new project" in str(excinfo.value)
+
+    # validate() (the non-raising path) returns exactly the contractual error and
+    # short-circuits — no traceback, no partial structure leaking through.
+    project = json.loads(raw)
+    errors = validate(project)
+    assert errors == ["v2 projects unsupported — start a new project"]
+
+
+def test_v2_legacy_fixture_is_actually_v2():
+    """Guard: the preserved fixture really is a pre-v3 file (version major < 3)."""
+    project = json.loads(_V2_LEGACY_FIXTURE.read_text())
+    assert project["version"].split(".")[0] == "2"
+
+
+def test_v3_project_with_terminal_composite_validates():
+    """A v3 project carrying a terminal composite in effectChain passes validate()."""
+    p = new_project()
+    p["timeline"]["tracks"] = [
+        {
+            "id": "t1",
+            "type": "video",
+            "name": "Video 1",
+            "color": "#ef4444",
+            "isMuted": False,
+            "isSoloed": False,
+            "clips": [],
+            "effectChain": [
+                {
+                    "id": "comp1",
+                    "effectId": "composite",
+                    "isEnabled": True,
+                    "isFrozen": False,
+                    "parameters": {"opacity": 0.8, "mode": "add"},
+                    "modulations": {},
+                    "mix": 1,
+                    "mask": None,
+                }
+            ],
+            "automationLanes": [],
+        }
+    ]
+    assert validate(p) == []
+
+
+def test_forged_version_prefix_rejected_not_skipped():
+    """Red-team RT-2: "v2.0.0" must REJECT loudly, not skip the version gate.
+
+    int("v2") used to raise inside _major_version -> None -> gate skipped ->
+    a pre-v3 shape rode a forged version string past the clean break.
+    """
+    import copy
+    from project import schema
+
+    base = _load_v2_legacy_dict() if "_load_v2_legacy_dict" in dir() else None
+    for forged in ("v2.0.0", "x3.0.0", "A2.0.0", " v2.0.0"):
+        project = {"version": forged, "id": "p", "created": 1, "modified": 1,
+                   "settings": {}, "assets": {}, "timeline": {"duration": 0, "tracks": [], "markers": [], "loopRegion": None}}
+        errors = schema.validate(copy.deepcopy(project))
+        assert any("Invalid version format" in e for e in errors), (
+            f"forged version {forged!r} produced no version error: {errors}"
+        )
+
+
+def test_numeric_version_strings_still_parse():
+    """Sanity: digit-headed versions keep their existing semantics."""
+    from project import schema
+    assert schema._major_version("3.0.0") == 3
+    assert schema._major_version("2.0.0") == 2
+    assert schema._major_version("10.1") == 10
+    assert schema._major_version("v2.0.0") is None
+    assert schema._major_version("3a.0.0") is None

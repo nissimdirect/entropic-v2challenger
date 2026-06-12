@@ -28,6 +28,7 @@ import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useUndoStore } from '../../renderer/stores/undo'
 import { useOperatorStore } from '../../renderer/stores/operators'
 import { useAutomationStore } from '../../renderer/stores/automation'
+import { getTrackCompositing } from '../../shared/types'
 import {
   serializeProject,
   validateProject,
@@ -41,9 +42,10 @@ import {
 } from '../../renderer/project-persistence'
 
 // Helper: build a valid project JSON object
+// P2.2a (slice 3c): default to the v3 schema (composite-as-terminal-effect).
 function makeValidProject(overrides: Record<string, unknown> = {}) {
   return {
-    version: '2.0.0',
+    version: '3.0.0',
     id: 'test-id-123',
     created: 1700000000000,
     modified: 1700000000000,
@@ -337,6 +339,9 @@ describe('hydrateStores', () => {
   })
 
   it('hydrates tracks from project', () => {
+    // P2.2a (slice 3c): compositing lives in a terminal CompositeEffect on the
+    // chain, not Track.opacity/blendMode. v3 fixtures carry the composite in
+    // effectChain; opacity/mode resolve via getTrackCompositing.
     const project = makeValidProject({
       timeline: {
         duration: 30,
@@ -348,10 +353,19 @@ describe('hydrateStores', () => {
             color: '#ef4444',
             isMuted: false,
             isSoloed: false,
-            opacity: 0.8,
-            blendMode: 'add',
             clips: [],
-            effectChain: [],
+            effectChain: [
+              {
+                id: 'comp1',
+                effectId: 'composite',
+                isEnabled: true,
+                isFrozen: false,
+                parameters: { opacity: 0.8, mode: 'add' },
+                modulations: {},
+                mix: 1,
+                mask: null,
+              },
+            ],
             automationLanes: [],
           },
         ],
@@ -366,8 +380,9 @@ describe('hydrateStores', () => {
     expect(tracks).toHaveLength(1)
     expect(tracks[0].name).toBe('Video 1')
     expect(tracks[0].color).toBe('#ef4444')
-    expect(tracks[0].opacity).toBe(0.8)
-    expect(tracks[0].blendMode).toBe('add')
+    const compositing = getTrackCompositing(tracks[0].effectChain)
+    expect(compositing.opacity).toBe(0.8)
+    expect(compositing.mode).toBe('add')
   })
 
   it('hydrates markers from project', () => {

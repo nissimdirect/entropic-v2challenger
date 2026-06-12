@@ -17,18 +17,39 @@ const mockEntropic = {
 }
 ;(globalThis as any).window = { entropic: mockEntropic }
 
-import { validateProjectStructure, loadProject } from '../../renderer/project-persistence'
+import { validateProjectStructure, loadProject, hydrateStores } from '../../renderer/project-persistence'
 import { useToastStore } from '../../renderer/stores/toast'
+import { useTimelineStore } from '../../renderer/stores/timeline'
 
 describe('validateProjectStructure', () => {
-  it('accepts a normal v2.0.0 project shape', () => {
+  it('accepts a normal v3.0.0 project shape', () => {
     const data = {
-      version: '2.0.0',
+      version: '3.0.0',
       id: 'abc',
       timeline: { tracks: [], markers: [] },
       assets: {},
     }
     expect(validateProjectStructure(data).valid).toBe(true)
+  })
+
+  // P2.2a (slice 3c, Decision D1 clean break): pre-v3 projects are rejected
+  // loudly with the contractual message — no migration, no silent partial load.
+  it('rejects a v2 project with the unsupported-version message', () => {
+    const data = { version: '2.0.0', id: 'abc', timeline: { tracks: [] }, assets: {} }
+    const result = validateProjectStructure(data)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toBe('v2 projects unsupported — start a new project')
+  })
+
+  // Red-team RT-2: "v2.0.0" (non-digit head) made parseInt return NaN and the
+  // version gate was SKIPPED — a forged version string carried a pre-v3 shape
+  // past the clean break. The head must be strictly numeric.
+  it('rejects a forged non-digit version prefix instead of skipping the gate', () => {
+    for (const forged of ['v2.0.0', 'x3.0.0', 'A2.0.0']) {
+      const result = validateProjectStructure({ version: forged, id: 'abc', timeline: { tracks: [] }, assets: {} })
+      expect(result.valid, `forged version ${forged} must be rejected`).toBe(false)
+      expect(result.reason).toMatch(/Invalid project version format/)
+    }
   })
 
   it('rejects nesting depth above 32', () => {
@@ -47,7 +68,7 @@ describe('validateProjectStructure', () => {
   it('rejects __proto__ key (prototype pollution attempt)', () => {
     // Object literals special-case __proto__; JSON.parse preserves it as a
     // data property, which is the actual attack vector.
-    const data = JSON.parse('{"version":"2.0.0","__proto__":{"polluted":true}}')
+    const data = JSON.parse('{"version":"3.0.0","__proto__":{"polluted":true}}')
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/__proto__/)
@@ -55,7 +76,7 @@ describe('validateProjectStructure', () => {
 
   it('rejects nested __proto__ key', () => {
     const data = JSON.parse(
-      '{"version":"2.0.0","timeline":{"tracks":[{"__proto__":{"isAdmin":true}}]}}',
+      '{"version":"3.0.0","timeline":{"tracks":[{"__proto__":{"isAdmin":true}}]}}',
     )
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
@@ -63,14 +84,14 @@ describe('validateProjectStructure', () => {
   })
 
   it('rejects constructor key', () => {
-    const data = { version: '2.0.0', payload: { constructor: 'evil' } }
+    const data = { version: '3.0.0', payload: { constructor: 'evil' } }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/constructor/)
   })
 
   it('rejects prototype key', () => {
-    const data = { version: '2.0.0', payload: { prototype: 'evil' } }
+    const data = { version: '3.0.0', payload: { prototype: 'evil' } }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/prototype/)
@@ -86,7 +107,7 @@ describe('validateProjectStructure', () => {
     'Prototype',
     'PROTOTYPE',
   ])('rejects forbidden key with mixed case: %s', (badKey) => {
-    const data = JSON.parse(`{"version":"2.0.0","payload":{"${badKey}":"evil"}}`)
+    const data = JSON.parse(`{"version":"3.0.0","payload":{"${badKey}":"evil"}}`)
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(new RegExp(badKey))
@@ -94,7 +115,7 @@ describe('validateProjectStructure', () => {
 
   it('does NOT reject keys that merely contain forbidden substrings (over-rejection guard)', () => {
     const data = {
-      version: '2.0.0',
+      version: '3.0.0',
       payload: {
         my__proto__field: 'safe',
         constructor_helper: 'also safe',
@@ -106,21 +127,21 @@ describe('validateProjectStructure', () => {
 
   it('rejects arrays larger than 10000', () => {
     const huge = new Array(10_001).fill(0)
-    const data = { version: '2.0.0', huge }
+    const data = { version: '3.0.0', huge }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/Array length/i)
   })
 
   it('accepts arrays at the 10000 boundary', () => {
-    const data = { version: '2.0.0', boundary: new Array(10_000).fill(0) }
+    const data = { version: '3.0.0', boundary: new Array(10_000).fill(0) }
     expect(validateProjectStructure(data).valid).toBe(true)
   })
 
   it('rejects objects with more than 1024 keys per node', () => {
     const obj: Record<string, number> = {}
     for (let i = 0; i < 1025; i++) obj[`k${i}`] = i
-    const data = { version: '2.0.0', payload: obj }
+    const data = { version: '3.0.0', payload: obj }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/key count/i)
@@ -141,7 +162,7 @@ describe('validateProjectStructure', () => {
   })
 
   it('accepts projects with same major version', () => {
-    const data = { version: '2.5.7', id: 'abc' }
+    const data = { version: '3.5.7', id: 'abc' }
     expect(validateProjectStructure(data).valid).toBe(true)
   })
 
@@ -152,15 +173,19 @@ describe('validateProjectStructure', () => {
     expect(validateProjectStructure(undefined).valid).toBe(true)
   })
 
-  it('handles non-numeric version major silently', () => {
-    // Defensive: a malformed version like "abc.def.xyz" should not crash
+  it('rejects a non-numeric version major (was silently accepted pre-RT-2)', () => {
+    // Red-team RT-2 changed this contract: a malformed version like
+    // "abc.def.xyz" used to skip the version gate (the forged-"v2.0.0"
+    // evasion). It now rejects loudly — still no crash.
     const data = { version: 'abc.def.xyz', id: 'x' }
-    expect(validateProjectStructure(data).valid).toBe(true)
+    const result = validateProjectStructure(data)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toMatch(/Invalid project version format/)
   })
 
   it('handles version with leading zeros / numeric tail', () => {
-    const data = { version: '02.1.0', id: 'x' }
-    // parseInt('02', 10) === 2, equals current major → accepted
+    const data = { version: '03.1.0', id: 'x' }
+    // parseInt('03', 10) === 3, equals current major → accepted
     expect(validateProjectStructure(data).valid).toBe(true)
   })
 
@@ -172,7 +197,7 @@ describe('validateProjectStructure', () => {
       cursor.push(next)
       cursor = next
     }
-    const result = validateProjectStructure({ version: '2.0.0', deep: node })
+    const result = validateProjectStructure({ version: '3.0.0', deep: node })
     expect(result.valid).toBe(false)
     expect(result.reason).toMatch(/nesting depth/i)
   })
@@ -192,7 +217,7 @@ describe('loadProject — hostile fixture rejection', () => {
       cursor.nest = next
       cursor = next as Record<string, unknown>
     }
-    mockEntropic.readFile.mockResolvedValue(JSON.stringify({ version: '2.0.0', deep: nest }))
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify({ version: '3.0.0', deep: nest }))
     const ok = await loadProject('/test/depth-bomb.glitch')
     expect(ok).toBe(false)
     const toasts = useToastStore.getState().toasts
@@ -202,7 +227,7 @@ describe('loadProject — hostile fixture rejection', () => {
 
   it('rejects a __proto__ pollution attempt with a toast', async () => {
     // JSON.parse preserves __proto__ as a data property; our walker catches it.
-    const evil = '{"version":"2.0.0","__proto__":{"isAdmin":true}}'
+    const evil = '{"version":"3.0.0","__proto__":{"isAdmin":true}}'
     mockEntropic.readFile.mockResolvedValue(evil)
     const ok = await loadProject('/test/proto-pollute.glitch')
     expect(ok).toBe(false)
@@ -216,5 +241,65 @@ describe('loadProject — hostile fixture rejection', () => {
     expect(ok).toBe(false)
     const toasts = useToastStore.getState().toasts
     expect(toasts[0].message).toMatch(/v99/)
+  })
+})
+
+// Red-team RT-1: hydrateStores writes chains via the raw store primitive,
+// bypassing the transaction-commit validator — load-time placement guards
+// must drop/normalize composites that violate R1/R2/R3 from hostile files.
+describe('hydrateStores — load-time composite placement guard (RT-1)', () => {
+  const compositeEntry = (id: string) => ({
+    id, effectId: 'composite', isEnabled: true, isFrozen: false,
+    parameters: { opacity: 0.5, mode: 'add' }, modulations: {}, mix: 1, mask: null,
+  })
+  const normalEffect = (id: string) => ({
+    id, effectId: 'pixel_sort', isEnabled: true, isFrozen: false,
+    parameters: {}, modulations: {}, mix: 1, mask: null,
+  })
+
+  function baseProject(tracks: unknown[]) {
+    return {
+      version: '3.0.0', id: 'p1', created: 1, modified: 1, author: '',
+      settings: { resolution: [1920, 1080], frameRate: 30, audioSampleRate: 44100, masterVolume: 1, seed: 42 },
+      assets: {}, timeline: { duration: 0, tracks, markers: [], loopRegion: null },
+    } as Parameters<typeof hydrateStores>[0]
+  }
+
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+    useToastStore.setState({ toasts: [] })
+  })
+
+  it('drops a composite found on an audio track in the saved file, with a toast', () => {
+    hydrateStores(baseProject([{
+      id: 't-audio', type: 'audio', name: 'A1', color: '#fff', clips: [],
+      effectChain: [compositeEntry('c1')],
+    }]))
+    const tracks = useTimelineStore.getState().tracks
+    const audio = tracks.find((t) => t.type === 'audio')
+    expect(audio?.effectChain ?? []).toHaveLength(0)
+    expect(useToastStore.getState().toasts.some((t) => /audio track/i.test(t.message))).toBe(true)
+  })
+
+  it('keeps only the terminal composite when the saved file has duplicates', () => {
+    hydrateStores(baseProject([{
+      id: 't-video', type: 'video', name: 'V1', color: '#fff', clips: [],
+      effectChain: [compositeEntry('c1'), normalEffect('e1'), compositeEntry('c2')],
+    }]))
+    const video = useTimelineStore.getState().tracks.find((t) => t.type === 'video')
+    const composites = (video?.effectChain ?? []).filter((e) => e.effectId === 'composite')
+    expect(composites).toHaveLength(1)
+    expect(composites[0].id).toBe('c2')
+    expect(video?.effectChain[video.effectChain.length - 1].effectId).toBe('composite')
+  })
+
+  it('moves a single mid-chain composite to the terminal position on load', () => {
+    hydrateStores(baseProject([{
+      id: 't-video', type: 'video', name: 'V1', color: '#fff', clips: [],
+      effectChain: [compositeEntry('c1'), normalEffect('e1')],
+    }]))
+    const video = useTimelineStore.getState().tracks.find((t) => t.type === 'video')
+    expect(video?.effectChain).toHaveLength(2)
+    expect(video?.effectChain[1].effectId).toBe('composite')
   })
 })

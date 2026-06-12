@@ -31,7 +31,7 @@ import { buildSamplerLayer } from './components/instruments/buildSamplerLayer'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
 import type { Asset, EffectInstance } from '../shared/types'
-import { IDENTITY_TRANSFORM } from '../shared/types'
+import { IDENTITY_TRANSFORM, getTrackCompositing } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
 import SnapGuides from './components/preview/SnapGuides'
 import type { WaveformPeaks } from './components/transport/useWaveform'
@@ -884,7 +884,10 @@ function AppInner() {
               (srcTime * (clip.speed || 1) + clip.inPoint) * activeFps,
             ))
             const ct = clip.transform
-            const trackOpacity = track.opacity ?? 1
+            // P2.2a (slice 3c): compositing now lives in the terminal CompositeEffect
+            // on the track's chain, not Track.opacity/blendMode. Read via the helper.
+            // (Full render rewire — pipeline/compositor consumption — is P2.2c.)
+            const { opacity: trackOpacity, mode: trackBlendMode } = getTrackCompositing(track.effectChain)
             const clipOpacity = clip.opacity ?? 1
             return {
               layer_type: 'video',
@@ -895,7 +898,7 @@ function AppInner() {
                 ? serializeEffectChain(chainOverride)
                 : serializeEffectChain(modulateChain(track.effectChain, frame)),
               opacity: trackOpacity * clipOpacity,
-              blend_mode: track.blendMode ?? 'normal',
+              blend_mode: trackBlendMode,
               ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
                 ? { transform: ct } : {}),
             }

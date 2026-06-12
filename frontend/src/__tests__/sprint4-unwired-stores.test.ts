@@ -31,6 +31,8 @@ import { useTimelineStore } from '../renderer/stores/timeline'
 import { useOperatorStore } from '../renderer/stores/operators'
 import { useAutomationStore } from '../renderer/stores/automation'
 import { useUndoStore } from '../renderer/stores/undo'
+import { useProjectStore } from '../renderer/stores/project'
+import { getTrackCompositing, type EffectInstance, type BlendMode } from '../shared/types'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -39,6 +41,26 @@ import { useUndoStore } from '../renderer/stores/undo'
 function resetTimeline() {
   useTimelineStore.getState().reset()
   useUndoStore.getState().clear()
+}
+
+/** P2.2a: add a terminal composite to a track, returning its effect id. */
+function addComposite(trackId: string, opacity = 1, mode: BlendMode = 'normal'): string {
+  const composite: EffectInstance = {
+    id: `composite-${trackId}`,
+    effectId: 'composite',
+    isEnabled: true,
+    isFrozen: false,
+    parameters: { opacity, mode },
+    modulations: {},
+    mix: 1,
+    mask: null,
+  }
+  useProjectStore.getState().addEffect(trackId, composite)
+  return composite.id
+}
+
+function compositingOf(trackId: string): { opacity: number; mode: BlendMode } {
+  return getTrackCompositing(useTimelineStore.getState().tracks.find((t) => t.id === trackId)!.effectChain)
 }
 
 function resetOperators() {
@@ -58,110 +80,113 @@ function addTestLane() {
 }
 
 // ===========================================================================
-// 1. setTrackOpacity — gap: undo, valid mid-range, non-existent track
+// 1. Composite opacity — P2.2a: migrated from setTrackOpacity to terminal
+//    CompositeEffect params (updateParam) + getTrackCompositing resolution.
 // ===========================================================================
 
-describe('setTrackOpacity (gap coverage)', () => {
+describe('composite opacity (gap coverage)', () => {
   beforeEach(resetTimeline)
 
   it('sets opacity to a valid mid-range value', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const id = useTimelineStore.getState().tracks[0].id
-    useTimelineStore.getState().setTrackOpacity(id, 0.42)
-    expect(useTimelineStore.getState().tracks[0].opacity).toBe(0.42)
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    const cid = addComposite(id)
+    useProjectStore.getState().updateParam(id, cid, 'opacity', 0.42)
+    expect(compositingOf(id).opacity).toBe(0.42)
   })
 
   it('is undoable — restores previous opacity on undo', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const id = useTimelineStore.getState().tracks[0].id
-    // Default opacity is 1.0
-    expect(useTimelineStore.getState().tracks[0].opacity).toBe(1)
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    const cid = addComposite(id)
+    expect(compositingOf(id).opacity).toBe(1)
 
     useUndoStore.getState().clear()
-    useTimelineStore.getState().setTrackOpacity(id, 0.25)
-    expect(useTimelineStore.getState().tracks[0].opacity).toBe(0.25)
+    useProjectStore.getState().updateParam(id, cid, 'opacity', 0.25)
+    expect(compositingOf(id).opacity).toBe(0.25)
 
     useUndoStore.getState().undo()
-    expect(useTimelineStore.getState().tracks[0].opacity).toBe(1)
+    expect(compositingOf(id).opacity).toBe(1)
   })
 
   it('is redoable — re-applies opacity after undo+redo', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const id = useTimelineStore.getState().tracks[0].id
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    const cid = addComposite(id)
 
     useUndoStore.getState().clear()
-    useTimelineStore.getState().setTrackOpacity(id, 0.6)
+    useProjectStore.getState().updateParam(id, cid, 'opacity', 0.6)
     useUndoStore.getState().undo()
     useUndoStore.getState().redo()
-    expect(useTimelineStore.getState().tracks[0].opacity).toBe(0.6)
+    expect(compositingOf(id).opacity).toBe(0.6)
   })
 
   it('no-ops for non-existent track ID', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const before = useTimelineStore.getState().tracks[0].opacity
-    useTimelineStore.getState().setTrackOpacity('non-existent', 0.5)
-    // Original track unchanged
-    expect(useTimelineStore.getState().tracks[0].opacity).toBe(before)
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    addComposite(id)
+    const before = compositingOf(id).opacity
+    useProjectStore.getState().updateParam('non-existent', 'whatever', 'opacity', 0.5)
+    expect(compositingOf(id).opacity).toBe(before)
   })
 
-  it('clamps NaN to 0', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const id = useTimelineStore.getState().tracks[0].id
-    useTimelineStore.getState().setTrackOpacity(id, NaN)
-    // Math.max(0, Math.min(1, NaN)) === NaN, but clamp should handle:
-    // NaN comparisons return false, so Math.max(0, NaN) = NaN, Math.min(1, NaN) = NaN
-    // This documents the current behavior
-    const opacity = useTimelineStore.getState().tracks[0].opacity
-    // If NaN passes through, that's a known gap; test documents it
-    expect(typeof opacity).toBe('number')
+  it('getTrackCompositing clamps a non-finite stored opacity to a finite default', () => {
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    const cid = addComposite(id)
+    // updateParam drops NaN at its own boundary; force a non-finite stored value
+    // directly to assert the read-side clamp keeps the resolved opacity finite.
+    useTimelineStore.getState().updateTrackEffectChain(id, (chain) =>
+      chain.map((e) => (e.id === cid ? { ...e, parameters: { ...e.parameters, opacity: NaN } } : e)),
+    )
+    const opacity = compositingOf(id).opacity
+    expect(Number.isFinite(opacity)).toBe(true)
+    expect(opacity).toBe(1)
   })
 })
 
 // ===========================================================================
-// 2. setTrackBlendMode — gap: undo, all valid modes, non-existent track
+// 2. Composite blend mode — P2.2a: migrated from setTrackBlendMode to terminal
+//    CompositeEffect params (updateParam) + getTrackCompositing resolution.
 // ===========================================================================
 
-describe('setTrackBlendMode (gap coverage)', () => {
+describe('composite blend mode (gap coverage)', () => {
   beforeEach(resetTimeline)
 
   it('is undoable — restores previous blend mode on undo', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const id = useTimelineStore.getState().tracks[0].id
-    expect(useTimelineStore.getState().tracks[0].blendMode).toBe('normal')
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    const cid = addComposite(id)
+    expect(compositingOf(id).mode).toBe('normal')
 
     useUndoStore.getState().clear()
-    useTimelineStore.getState().setTrackBlendMode(id, 'screen')
-    expect(useTimelineStore.getState().tracks[0].blendMode).toBe('screen')
+    useProjectStore.getState().updateParam(id, cid, 'mode', 'screen')
+    expect(compositingOf(id).mode).toBe('screen')
 
     useUndoStore.getState().undo()
-    expect(useTimelineStore.getState().tracks[0].blendMode).toBe('normal')
+    expect(compositingOf(id).mode).toBe('normal')
   })
 
   it('is redoable', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const id = useTimelineStore.getState().tracks[0].id
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    const cid = addComposite(id)
 
     useUndoStore.getState().clear()
-    useTimelineStore.getState().setTrackBlendMode(id, 'overlay')
+    useProjectStore.getState().updateParam(id, cid, 'mode', 'overlay')
     useUndoStore.getState().undo()
     useUndoStore.getState().redo()
-    expect(useTimelineStore.getState().tracks[0].blendMode).toBe('overlay')
+    expect(compositingOf(id).mode).toBe('overlay')
   })
 
   it.each([
     'normal', 'add', 'multiply', 'screen', 'overlay',
     'difference', 'exclusion', 'darken', 'lighten',
   ] as const)('accepts blend mode "%s"', (mode) => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    const id = useTimelineStore.getState().tracks[0].id
-    useTimelineStore.getState().setTrackBlendMode(id, mode)
-    expect(useTimelineStore.getState().tracks[0].blendMode).toBe(mode)
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    const cid = addComposite(id)
+    useProjectStore.getState().updateParam(id, cid, 'mode', mode)
+    expect(compositingOf(id).mode).toBe(mode)
   })
 
   it('no-ops for non-existent track ID', () => {
-    useTimelineStore.getState().addTrack('V1', '#ff0000')
-    useTimelineStore.getState().setTrackBlendMode('non-existent', 'multiply')
-    expect(useTimelineStore.getState().tracks[0].blendMode).toBe('normal')
+    const id = useTimelineStore.getState().addTrack('V1', '#ff0000')!
+    addComposite(id)
+    useProjectStore.getState().updateParam('non-existent', 'whatever', 'mode', 'multiply')
+    expect(compositingOf(id).mode).toBe('normal')
   })
 })
 

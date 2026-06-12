@@ -32,6 +32,28 @@ interface UndoState {
   abortTransaction: () => void
 }
 
+/**
+ * P2.2a (slice 3c) — transaction-commit validator hook.
+ *
+ * A validator registered here runs at commitTransaction() AFTER the buffered
+ * mutations have already been applied to the stores (so it sees the final,
+ * post-transaction state) but BEFORE the entry is pushed to the undo stack.
+ * If it returns a non-null error string, the transaction is ABORTED (its
+ * buffered inverses are replayed in reverse, rolling the stores back) and the
+ * error is returned to the caller — never pushed to the stack.
+ *
+ * This is how the terminal-Composite chain rules are enforced "at transaction
+ * commit, not per mutation": intermediate states inside an open transaction are
+ * never validated, only the committed result. Registered by project.ts.
+ */
+type CommitValidator = () => string | null
+let commitValidator: CommitValidator | null = null
+
+/** Register the transaction-commit validator. Pass null to clear (tests). */
+export function setCommitValidator(fn: CommitValidator | null): void {
+  commitValidator = fn
+}
+
 export const useUndoStore = create<UndoState>((set, get) => ({
   past: [],
   future: [],
@@ -115,6 +137,27 @@ export const useUndoStore = create<UndoState>((set, get) => ({
     if (!tx || tx.entries.length === 0) {
       set({ _transaction: null })
       return
+    }
+
+    // P2.2a: validate the committed (already-applied) state before pushing.
+    // The mutations are live in the stores at this point, so the validator sees
+    // the final transaction result. A violation rolls the whole transaction back
+    // (replay buffered inverses in reverse) and surfaces a toast — nothing reaches
+    // the undo stack. This is the "validate at commit, not per mutation" contract.
+    if (commitValidator) {
+      const error = commitValidator()
+      if (error) {
+        for (let i = tx.entries.length - 1; i >= 0; i--) {
+          tx.entries[i].inverse()
+        }
+        set({ _transaction: null })
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: error,
+          source: 'composite-validator',
+        })
+        return
+      }
     }
 
     // Coalesce all buffered entries into a single undo entry
