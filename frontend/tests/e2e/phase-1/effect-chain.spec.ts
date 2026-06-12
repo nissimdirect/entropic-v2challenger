@@ -57,7 +57,8 @@ test.describe('Phase 1 — Effect Chain', () => {
     await expect(effectItems.first()).toBeVisible({ timeout: 5_000 })
     await effectItems.first().click()
 
-    const rackItems = window.locator('.effect-rack__item')
+    // Migrated from .effect-rack__item → .device-chain__item (Phase 13C: DeviceChain)
+    const rackItems = window.locator('.device-chain__item')
     await expect(rackItems.first()).toBeVisible({ timeout: 5_000 })
 
     // Add second effect (Hue Shift)
@@ -70,11 +71,14 @@ test.describe('Phase 1 — Effect Chain', () => {
     await window.waitForTimeout(500)
     expect(await rackItems.count()).toBe(2)
 
-    // Read initial order — effect names are inside EffectCard (.effect-card__name)
-    const firstName = await rackItems.nth(0).locator('.effect-card__name').textContent()
-    const secondName = await rackItems.nth(1).locator('.effect-card__name').textContent()
+    // Read initial order — effect names are inside DeviceCard (.device-card__name, data-testid="device-card-name")
+    const firstName = await rackItems.nth(0).locator('.device-card__name').textContent()
+    const secondName = await rackItems.nth(1).locator('.device-card__name').textContent()
 
-    // Click "move down" arrow on first effect to swap positions
+    // Phase 13C: DeviceChain removed move-up/move-down arrow buttons; reordering is via drag-and-drop.
+    // The .effect-rack__arrow[title="Move down"] selector no longer exists in the DOM.
+    // This block is intentionally preserved as a no-op (moveDownCount will be 0) until
+    // AC-9 drag-and-drop reorder tests are added to cover the new interaction model.
     const moveDownBtns = window.locator('.effect-rack__arrow[title="Move down"]')
     const moveDownCount = await moveDownBtns.count()
 
@@ -82,9 +86,9 @@ test.describe('Phase 1 — Effect Chain', () => {
       await moveDownBtns.first().click()
       await window.waitForTimeout(500)
 
-      // Verify order swapped
-      const newFirstName = await rackItems.nth(0).locator('.effect-card__name').textContent()
-      const newSecondName = await rackItems.nth(1).locator('.effect-card__name').textContent()
+      // Verify order swapped — .device-card__name (migrated from .effect-card__name)
+      const newFirstName = await rackItems.nth(0).locator('.device-card__name').textContent()
+      const newSecondName = await rackItems.nth(1).locator('.device-card__name').textContent()
 
       expect(newFirstName).toBe(secondName)
       expect(newSecondName).toBe(firstName)
@@ -109,10 +113,13 @@ test.describe('Phase 1 — Effect Chain', () => {
     await expect(effectItems.first()).toBeVisible({ timeout: 5_000 })
     await effectItems.first().click()
 
-    const rackItems = window.locator('.effect-rack__item')
+    // Migrated from .effect-rack__item → .device-chain__item (Phase 13C: DeviceChain)
+    const rackItems = window.locator('.device-chain__item')
     await expect(rackItems.first()).toBeVisible({ timeout: 5_000 })
 
-    // The move-up button on the first (and only) item should be disabled
+    // Phase 13C: DeviceChain removed move-up/move-down arrow buttons; reordering is via drag-and-drop.
+    // The .effect-rack__arrow[title="Move up"] selector no longer exists in the DOM.
+    // This assertion is a no-op (moveUpCount will be 0) until AC-9 drag-and-drop tests are added.
     const moveUpBtn = rackItems.first().locator('.effect-rack__arrow[title="Move up"]')
     const moveUpCount = await moveUpBtn.count()
 

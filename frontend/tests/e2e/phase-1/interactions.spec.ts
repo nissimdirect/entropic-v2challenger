@@ -235,29 +235,32 @@ test.describe('Interactions — Param Panel', () => {
     const effectItems = window.locator('.effect-browser__item')
     await effectItems.first().click()
 
-    const rackItems = window.locator('.effect-rack__item')
+    // Migrated from .effect-rack__item → .device-chain__item (Phase 13C: DeviceChain)
+    const rackItems = window.locator('.device-chain__item')
     await expect(rackItems.first()).toBeVisible({ timeout: 5_000 })
 
-    // Click the effect card to select it
-    await rackItems.first().locator('.effect-card').click()
+    // Click the effect card to select it — migrated from .effect-card → .device-card
+    await rackItems.first().locator('.device-card').click()
     await window.waitForTimeout(500)
 
-    // Param panel should show the effect name
-    const paramHeader = window.locator('.param-panel__header')
-    await expect(paramHeader).toBeVisible()
-    const headerText = await paramHeader.textContent()
-    expect(headerText).toBeTruthy()
+    // Phase 13C: ParamPanel removed — params are now inline in DeviceCard.
+    // DeviceCard shows the effect name in .device-card__name.
+    const effectName = rackItems.first().locator('.device-card__name')
+    await expect(effectName).toBeVisible()
+    const nameText = await effectName.textContent()
+    expect(nameText).toBeTruthy()
 
-    // Should have at least one param control (slider, toggle, or choice)
-    const sliders = window.locator('.param-slider')
+    // Should have at least one param control (knob in device-card__param, toggle, or choice)
+    // Note: .param-slider was in the removed ParamPanel; DeviceCard uses Knob (.device-card__param)
+    const knobs = window.locator('.device-card__param')
     const toggles = window.locator('.param-toggle')
     const choices = window.locator('.param-choice')
     const totalParams =
-      (await sliders.count()) + (await toggles.count()) + (await choices.count())
+      (await knobs.count()) + (await toggles.count()) + (await choices.count())
     expect(totalParams).toBeGreaterThanOrEqual(0)
 
-    // Mix slider should always be present
-    const mixSlider = window.locator('.param-mix')
+    // Mix slider — migrated from .param-mix → .device-card__mix (Phase 13C: DeviceChain)
+    const mixSlider = window.locator('.device-card__mix')
     await expect(mixSlider).toBeVisible()
   })
 
