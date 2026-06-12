@@ -1,21 +1,37 @@
 /**
- * MaskSelectOverlay — Preview canvas marquee for MK.4.
+ * MaskSelectOverlay — Preview canvas marquee for MK.4 + lasso modes for MK.5.
  *
  * Renders on top of the preview canvas. Captures pointer events exclusively
- * when previewToolMode is 'marquee-rect' or 'marquee-ellipse'.
+ * when previewToolMode is 'marquee-rect', 'marquee-ellipse', 'lasso-freehand',
+ * or 'lasso-polygon'.
  *
- * Interaction model:
+ * Interaction model (rect/ellipse — MK.4, unchanged):
  *   pointerdown  → anchor the drag origin; setPointerCapture so mouseup outside still fires
  *   pointermove  → update marqueeInProgress (DOM-space rect); suppress synthetic click flag
  *   pointerup ≥4px → commit → addMatteNode with frame-coord params
  *   pointerup <4px → deselect (click-off), suppress if isDragging was set (drag-end-suppresses-click)
  *   Escape (keydown while dragging) → cancel without committing a node
  *
+ * Interaction model (lasso-freehand — MK.5 NEW):
+ *   pointerdown  → begin path; sample pointer at ≥4px movement deltas
+ *   pointermove  → append sampled points; render live SVG polyline
+ *   pointerup    → RDP-simplify to ≤256 vertices; commit polygon MatteNode
+ *                  drag-end-suppresses-click: pointerup after drag must NOT clear selection
+ *
+ * Interaction model (lasso-polygon — MK.5 NEW):
+ *   left-click   → place vertex (single click only; double-click handled separately)
+ *   double-click → close polygon + commit MatteNode (≥3 vertices required)
+ *   Enter (keydown) → close + commit (same as double-click)
+ *   Escape (keydown) → cancel mid-placement (no node committed)
+ *   ≤2 vertices at close attempt → reject (no node committed)
+ *
  * Letterbox coordinate mapping reuses BoundingBoxOverlay.tsx:53–66 pattern via
  * computeCanvasLayout + the domToFrameCoords helper below.
  * // letterbox mapping from BoundingBoxOverlay.tsx:53 (computeCanvasLayout + ResizeObserver)
  */
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { rdpSimplify, samplePath } from '../../utils/rdp-simplify'
+import type { Point2D } from '../../utils/rdp-simplify'
 import { computeCanvasLayout } from '../../utils/transform-coords'
 import type { CanvasLayout } from '../../utils/transform-coords'
 import { useTimelineStore } from '../../stores/timeline'
@@ -94,20 +110,211 @@ export default function MaskSelectOverlay({
 
   const svgRef = useRef<SVGSVGElement>(null)
 
-  // Keyboard Escape handler for mid-drag cancel
+  // ── MK.5: freehand lasso state ───────────────────────────────────────────
+  // Raw pointer points sampled at ≥4px intervals during a freehand drag.
+  const freehandPoints = useRef<Point2D[]>([])
+  const freehandActive = useRef(false)
+  const lastFreehandPoint = useRef<Point2D | null>(null)
+  // Rendered in-progress path (DOM-space, for SVG polyline display)
+  const [freehandPath, setFreehandPath] = useState<Point2D[]>([])
+
+  // ── MK.5: polygon lasso state ────────────────────────────────────────────
+  // Placed vertices (DOM-space, converted to frame coords at commit time).
+  const polygonVertices = useRef<Point2D[]>([])
+  const [polygonDisplay, setPolygonDisplay] = useState<Point2D[]>([])
+  // Suppress the single-click that would fire after a double-click close.
+  // Strategy: record timestamp of last double-click; single-click fires within
+  // ~300 ms of the dblclick event, so we gate it out.
+  const lastDblClickTime = useRef<number>(0)
+
+  // Keyboard Escape handler for mid-drag cancel (rect/ellipse MK.4 + lasso MK.5)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code !== 'Escape') return
-      if (!isDragging.current) return
-      e.preventDefault()
-      e.stopPropagation()
-      isDragging.current = false
-      dragOrigin.current = null
-      useTimelineStore.getState().setMarqueeInProgress(null)
+      if (e.code === 'Escape') {
+        // Cancel ANY active lasso or marquee
+        if (isDragging.current) {
+          e.preventDefault()
+          e.stopPropagation()
+          isDragging.current = false
+          dragOrigin.current = null
+          useTimelineStore.getState().setMarqueeInProgress(null)
+        }
+        if (freehandActive.current) {
+          e.preventDefault()
+          e.stopPropagation()
+          freehandActive.current = false
+          freehandPoints.current = []
+          lastFreehandPoint.current = null
+          setFreehandPath([])
+        }
+        if (polygonVertices.current.length > 0) {
+          e.preventDefault()
+          e.stopPropagation()
+          polygonVertices.current = []
+          setPolygonDisplay([])
+        }
+      } else if (e.code === 'Enter') {
+        // Commit polygon on Enter (same as double-click close)
+        if (toolMode === 'lasso-polygon' && polygonVertices.current.length >= 3) {
+          e.preventDefault()
+          e.stopPropagation()
+          commitPolygon(polygonVertices.current)
+          polygonVertices.current = []
+          setPolygonDisplay([])
+        }
+      }
     }
     window.addEventListener('keydown', handleKeyDown, { capture: true })
     return () => window.removeEventListener('keydown', handleKeyDown, { capture: true })
+  }, [toolMode]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── MK.5: commitPolygon helper ───────────────────────────────────────────
+  /**
+   * Convert DOM-space vertices to frame-normalized coords and commit a polygon
+   * MatteNode through MK.4's existing addMatteNode pipeline.
+   * Requires ≥3 vertices; fewer is a no-op (two-point polygon rejected).
+   *
+   * Self-intersecting polygons are allowed (even-odd fill rule in backend).
+   * The backend polygon rasterizer already ships from MK.1.
+   */
+  const commitPolygon = useCallback((domPts: ReadonlyArray<Point2D>) => {
+    if (domPts.length < 3) return   // two-point polygon rejected
+    if (!layout || !containerRef.current || !clipId) return
+
+    const containerRect = containerRef.current.getBoundingClientRect()
+    // Convert each DOM-space vertex to frame-normalized [0,1]×[0,1]
+    const vertices = domPts.map((pt) => {
+      const { fx, fy } = domToFrameCoords(pt.x, pt.y, layout, containerRect)
+      return { x: fx, y: fy }
+    })
+
+    const node: MatteNode = {
+      id: randomUUID(),
+      kind: 'polygon',
+      // vertices encoded as [[x,y], ...] pairs per MK.1 backend contract.
+      // _rasterize_polygon expects params["vertices"] = list of [x_norm, y_norm]
+      params: { vertices: vertices.map((v) => [v.x, v.y]) as unknown as number[][] },
+      op: opAtDown.current,
+      invert: false,
+      feather: 0,
+      growShrink: 0,
+      enabled: true,
+    }
+
+    useTimelineStore.getState().addMatteNode(clipId, node)
+    useTimelineStore.setState({ committedMaskSelection: { nodeId: node.id, clipId } })
+  }, [layout, containerRef, clipId])
+
+  // ── MK.5: freehand pointer handlers ─────────────────────────────────────
+
+  const handleFreehandPointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    if (!layout || !clipId) return
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (e.shiftKey && e.altKey) opAtDown.current = 'intersect'
+    else if (e.shiftKey) opAtDown.current = 'add'
+    else if (e.altKey) opAtDown.current = 'subtract'
+    else opAtDown.current = 'add'
+
+    const pt: Point2D = { x: e.clientX, y: e.clientY }
+    freehandPoints.current = [pt]
+    lastFreehandPoint.current = pt
+    freehandActive.current = true
+    setFreehandPath([pt])
+
+    svgRef.current?.setPointerCapture(e.pointerId)
+  }, [layout, clipId])
+
+  const handleFreehandPointerMove = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
+    if (!freehandActive.current || !lastFreehandPoint.current) return
+    const dx = e.clientX - lastFreehandPoint.current.x
+    const dy = e.clientY - lastFreehandPoint.current.y
+    // Sample at ≥4px movement deltas (failure mode guard from MK.5 spec)
+    if (Math.hypot(dx, dy) < 4) return
+
+    const pt: Point2D = { x: e.clientX, y: e.clientY }
+    freehandPoints.current.push(pt)
+    lastFreehandPoint.current = pt
+    // Update display path (creates new array reference to trigger re-render)
+    setFreehandPath([...freehandPoints.current])
   }, [])
+
+  const handleFreehandPointerUp = useCallback((_e: React.PointerEvent<SVGSVGElement>) => {
+    if (!freehandActive.current) return
+
+    // drag-end-suppresses-click: freehand mouseup must NOT clear the commit
+    // We record that a freehand drag completed so the subsequent synthetic
+    // click (if any) is ignored.
+    freehandActive.current = false
+    lastFreehandPoint.current = null
+
+    const raw = freehandPoints.current
+    freehandPoints.current = []
+    setFreehandPath([])
+
+    if (raw.length < 3) return   // too few points — no node
+
+    // RDP-simplify the sampled path (≤256 vertices, max deviation 2px)
+    const simplified = rdpSimplify(samplePath(raw, 4), 2.0)
+
+    if (simplified.length < 3) return   // degenerate after simplification
+
+    // Convert DOM-space coords to container-relative for commitPolygon
+    if (!containerRef.current) return
+    const containerRect = containerRef.current.getBoundingClientRect()
+    // domToFrameCoords already takes clientX/Y → frame coords
+    // But commitPolygon expects DOM-space (client) coords
+    commitPolygon(simplified)
+  }, [commitPolygon, containerRef])
+
+  // ── MK.5: polygon click handlers ─────────────────────────────────────────
+
+  const handlePolygonClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!layout || !clipId) return
+    if (e.button !== 0) return
+
+    // Suppress the single-click that immediately follows a double-click
+    if (Date.now() - lastDblClickTime.current < 400) return
+
+    e.preventDefault()
+    e.stopPropagation()
+
+    if (polygonVertices.current.length === 0) {
+      // First vertex — capture modifier for boolean op
+      if (e.shiftKey && e.altKey) opAtDown.current = 'intersect'
+      else if (e.shiftKey) opAtDown.current = 'add'
+      else if (e.altKey) opAtDown.current = 'subtract'
+      else opAtDown.current = 'add'
+    }
+
+    const pt: Point2D = { x: e.clientX, y: e.clientY }
+    polygonVertices.current = [...polygonVertices.current, pt]
+    setPolygonDisplay([...polygonVertices.current])
+  }, [layout, clipId])
+
+  const handlePolygonDblClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!layout || !clipId) return
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    lastDblClickTime.current = Date.now()
+
+    // Need ≥3 vertices to form a valid polygon (two-point polygon rejected)
+    if (polygonVertices.current.length < 3) {
+      // Reject: cancel silently
+      polygonVertices.current = []
+      setPolygonDisplay([])
+      return
+    }
+
+    const verts = polygonVertices.current
+    polygonVertices.current = []
+    setPolygonDisplay([])
+    commitPolygon(verts)
+  }, [layout, clipId, commitPolygon])
 
   const handlePointerDown = useCallback((e: React.PointerEvent<SVGSVGElement>) => {
     if (!layout || !clipId) return
@@ -217,6 +424,152 @@ export default function MaskSelectOverlay({
   // If no tool mode active, render nothing (pointerEvents:none shortcut — BoundingBox handles)
   if (!toolMode) return null
 
+  // ── MK.5: Resolve committed POLYGON node → DOM-space vertices ─────────────
+  // Shared across the lasso and rect/ellipse render paths. Polygon nodes carry
+  // params.vertices ([[x,y],...] normalized pairs), NOT cx/cy/rx/ry — so they
+  // must NOT fall into the rect/ellipse committedRect resolution (that produced
+  // NaN and an invisible affordance — the MK.5 committed-render bug).
+  const resolveCommittedPolygon = (): { x: number; y: number }[] | null => {
+    if (!committedMaskSelection || !layout || !containerRef.current) return null
+    const tracks = useTimelineStore.getState().tracks
+    let foundNode: MatteNode | undefined
+    for (const track of tracks) {
+      const clip = track.clips.find((c) => c.id === committedMaskSelection.clipId)
+      if (clip) {
+        foundNode = clip.maskStack?.find((n) => n.id === committedMaskSelection.nodeId)
+        break
+      }
+    }
+    if (!foundNode || foundNode.kind !== 'polygon') return null
+    const rawVerts = foundNode.params.vertices as unknown
+    if (!Array.isArray(rawVerts)) return null
+    const pts = rawVerts
+      .map((v) => {
+        const vx = Array.isArray(v) ? (v[0] as number) : NaN
+        const vy = Array.isArray(v) ? (v[1] as number) : NaN
+        return {
+          x: vx * layout.canvasDisplayWidth + layout.canvasOffsetX,
+          y: vy * layout.canvasDisplayHeight + layout.canvasOffsetY,
+        }
+      })
+      .filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y))
+    return pts.length >= 3 ? pts : null
+  }
+
+  // ── MK.5: Route to lasso render path ─────────────────────────────────────
+  const isLassoFreehand = toolMode === 'lasso-freehand'
+  const isLassoPolygon = toolMode === 'lasso-polygon'
+  const isLassoMode = isLassoFreehand || isLassoPolygon
+
+  if (isLassoMode) {
+    const committedPolygonLasso = resolveCommittedPolygon()
+    // Helper: convert client coords to SVG-space (SVG covers the container)
+    const toSVG = (pt: Point2D): Point2D => {
+      if (!containerRef.current) return pt
+      const r = containerRef.current.getBoundingClientRect()
+      return { x: pt.x - r.left, y: pt.y - r.top }
+    }
+
+    // Build points string for polyline/polygon SVG elements
+    const svgFreehandPts = freehandPath.map(toSVG)
+    const svgPolygonPts = polygonDisplay.map(toSVG)
+
+    const toPointsAttr = (pts: Point2D[]) => pts.map((p) => `${p.x},${p.y}`).join(' ')
+
+    return (
+      <svg
+        ref={svgRef}
+        className="mask-select-overlay"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          cursor: isLassoPolygon ? 'crosshair' : 'cell',
+          pointerEvents: 'all',
+          userSelect: 'none',
+          overflow: 'visible',
+        }}
+        // Freehand: pointer events for drag
+        onPointerDown={isLassoFreehand ? handleFreehandPointerDown : undefined}
+        onPointerMove={isLassoFreehand ? handleFreehandPointerMove : undefined}
+        onPointerUp={isLassoFreehand ? handleFreehandPointerUp : undefined}
+        // Polygon: click events
+        onClick={isLassoPolygon ? handlePolygonClick : undefined}
+        onDoubleClick={isLassoPolygon ? handlePolygonDblClick : undefined}
+      >
+        {/* MK.5: Committed polygon affordance — dashed MOD outline + 65% outside-dim.
+            Renders AFTER a lasso commits (tool mode is still lasso-*). Follows the
+            drawn path via a <polygon>, mirroring the rect/ellipse committed visual. */}
+        {committedPolygonLasso && (
+          <>
+            <defs>
+              <mask id="mask-select-committed-cutout-polygon">
+                <rect x="0" y="0" width="100%" height="100%" fill="white" />
+                <polygon
+                  points={committedPolygonLasso.map((p) => `${p.x},${p.y}`).join(' ')}
+                  fill="black"
+                />
+              </mask>
+            </defs>
+            <rect
+              x="0" y="0" width="100%" height="100%"
+              fill="rgba(0,0,0,0.65)"
+              mask="url(#mask-select-committed-cutout-polygon)"
+              style={{ pointerEvents: 'none' }}
+            />
+            <polygon
+              points={committedPolygonLasso.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill="none"
+              stroke="#8F7DFF"
+              strokeWidth={1}
+              strokeDasharray="4 2"
+              style={{ pointerEvents: 'none' }}
+            />
+          </>
+        )}
+
+        {/* Freehand in-progress path — follows drawn path exactly (not bounding rect) */}
+        {isLassoFreehand && svgFreehandPts.length >= 2 && (
+          <polyline
+            points={toPointsAttr(svgFreehandPts)}
+            fill="rgba(143,125,255,0.12)"
+            stroke="#8F7DFF"
+            strokeWidth={1}
+            strokeDasharray="4 2"
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+
+        {/* Polygon in-progress vertices + edges */}
+        {isLassoPolygon && svgPolygonPts.length >= 2 && (
+          <polyline
+            points={toPointsAttr(svgPolygonPts)}
+            fill="none"
+            stroke="#8F7DFF"
+            strokeWidth={1}
+            strokeDasharray="4 2"
+            style={{ pointerEvents: 'none' }}
+          />
+        )}
+        {/* Polygon vertex dots */}
+        {isLassoPolygon && svgPolygonPts.map((p, i) => (
+          <circle
+            key={i}
+            cx={p.x}
+            cy={p.y}
+            r={3}
+            fill="#8F7DFF"
+            style={{ pointerEvents: 'none' }}
+          />
+        ))}
+      </svg>
+    )
+  }
+
+  // ── MK.4: rect/ellipse paths (byte-identical — DO NOT MODIFY) ─────────────
+
   // Compute the in-progress visual (DOM-space rect to overlay coords)
   let inProgressRect: { x: number; y: number; w: number; h: number } | null = null
   if (marqueeInProgress && layout && containerRef.current) {
@@ -235,7 +588,10 @@ export default function MaskSelectOverlay({
 
   // Committed selection visual — resolve from store
   let committedRect: { x: number; y: number; w: number; h: number; kind: MatteNodeKind } | null = null
-  if (committedMaskSelection && layout && containerRef.current) {
+  // MK.5: committed polygon (DOM-space vertices). Resolved via the shared helper
+  // so a polygon node committed while a rect/ellipse tool is active still renders.
+  const committedPolygon = resolveCommittedPolygon()
+  if (committedMaskSelection && layout && containerRef.current && !committedPolygon) {
     const tracks = useTimelineStore.getState().tracks
     let foundNode: MatteNode | undefined
     for (const track of tracks) {
@@ -245,7 +601,7 @@ export default function MaskSelectOverlay({
         break
       }
     }
-    if (foundNode) {
+    if (foundNode && foundNode.kind !== 'polygon') {
       const containerRect = containerRef.current.getBoundingClientRect()
       const p = foundNode.params
       let normX: number, normY: number, normW: number, normH: number
@@ -359,6 +715,36 @@ export default function MaskSelectOverlay({
               />
             </>
           )}
+        </>
+      )}
+
+      {/* MK.5: Committed polygon selection — dashed MOD outline + 65% outside-dim.
+          Mirrors the rect/ellipse committed affordance but uses a <polygon>. */}
+      {committedPolygon && (
+        <>
+          <defs>
+            <mask id="mask-select-committed-cutout-polygon">
+              <rect x="0" y="0" width="100%" height="100%" fill="white" />
+              <polygon
+                points={committedPolygon.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="black"
+              />
+            </mask>
+          </defs>
+          <rect
+            x="0" y="0" width="100%" height="100%"
+            fill="rgba(0,0,0,0.65)"
+            mask="url(#mask-select-committed-cutout-polygon)"
+            style={{ pointerEvents: 'none' }}
+          />
+          <polygon
+            points={committedPolygon.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill="none"
+            stroke="#8F7DFF"
+            strokeWidth={1}
+            strokeDasharray="4 2"
+            style={{ pointerEvents: 'none' }}
+          />
         </>
       )}
 

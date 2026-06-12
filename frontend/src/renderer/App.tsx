@@ -721,6 +721,19 @@ function AppInner() {
       }
     })
 
+    // MK.5: l → toggle lasso tool (freehand → polygon → off via repeat-press)
+    shortcutRegistry.register('tool_lasso', () => {
+      const ts = useTimelineStore.getState()
+      const current = ts.previewToolMode
+      if (current === 'lasso-freehand') {
+        ts.setPreviewToolMode('lasso-polygon')
+      } else if (current === 'lasso-polygon') {
+        ts.setPreviewToolMode(null)
+      } else {
+        ts.setPreviewToolMode('lasso-freehand')
+      }
+    })
+
     // MK.4: Cmd+Shift+A → deselect (clear active mask selection)
     shortcutRegistry.register('mask_deselect_all', () => {
       useTimelineStore.getState().clearMaskSelection()

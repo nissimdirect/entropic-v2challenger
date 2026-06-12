@@ -152,10 +152,10 @@ interface TimelineState {
    */
   committedMaskSelection: { nodeId: string; clipId: string } | null
   /** Currently active preview tool mode. Null = normal (select/transform). */
-  previewToolMode: 'marquee-rect' | 'marquee-ellipse' | null
+  previewToolMode: 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | null
 
   // Preview tool actions
-  setPreviewToolMode: (mode: 'marquee-rect' | 'marquee-ellipse' | null) => void
+  setPreviewToolMode: (mode: 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | null) => void
   setMarqueeInProgress: (rect: { x1: number; y1: number; x2: number; y2: number } | null) => void
   clearMaskSelection: () => void
 
@@ -281,7 +281,7 @@ const INITIAL_STATE = {
   // MK.4: preview interaction state
   marqueeInProgress: null as { x1: number; y1: number; x2: number; y2: number } | null,
   committedMaskSelection: null as { nodeId: string; clipId: string } | null,
-  previewToolMode: null as 'marquee-rect' | 'marquee-ellipse' | null,
+  previewToolMode: null as 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | null,
 }
 
 /** Get all clips in track order (top track first, then by position within track). */

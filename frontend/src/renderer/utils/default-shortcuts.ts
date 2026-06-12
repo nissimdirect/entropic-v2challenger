@@ -74,6 +74,9 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   // --- MK.4: Selection / mask tools (MASKING-INTERACTIONS.md §1/§4/§8) ---
   // 'q' for marquee — Photoshop 'm' is 'add_marker' here (F-0516-8); 'q' is free.
   { action: 'tool_marquee',          keys: 'q',              category: 'mask', label: 'Tool: Marquee',           context: 'normal' },
+  // MK.5: 'w' → freehand lasso; repeat → polygon lasso; repeat → off
+  // ('l' reserved for transport_forward; 'w' is free in normal context)
+  { action: 'tool_lasso',            keys: 'w',              category: 'mask', label: 'Tool: Lasso',             context: 'normal' },
   { action: 'mask_delete_outside',   keys: 'alt+backspace',  category: 'mask', label: 'Mask: Delete Outside',    context: 'normal' },
   { action: 'mask_deselect_all',     keys: 'meta+shift+a',   category: 'mask', label: 'Mask: Deselect All',      context: 'normal' },
 ]
