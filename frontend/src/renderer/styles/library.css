@@ -298,6 +298,11 @@
   outline: none;
 }
 
+.preset-save__macro-label:focus,
+.preset-save__macro-param:focus {
+  border-color: var(--cx-action);
+}
+
 .preset-save__macro-select {
   flex: 1;
   padding: 4px 6px;
@@ -386,6 +391,11 @@
   background: var(--cx-bg-hover);
   border-radius: 2px;
   outline: none;
+}
+
+.macro-knob__slider:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .macro-knob__slider::-webkit-slider-thumb {

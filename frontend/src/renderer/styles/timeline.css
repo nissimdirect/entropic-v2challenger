@@ -373,8 +373,8 @@
 }
 
 .timeline__transport-btn:focus-visible {
-  outline: 2px solid var(--cx-action);
-  outline-offset: -2px;
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .timeline__timecode {
@@ -459,6 +459,11 @@
   background: var(--cx-bg-hover);
   border-radius: 2px;
   outline: none;
+}
+
+.zoom-scroll__slider:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .zoom-scroll__slider::-webkit-slider-thumb {
@@ -645,6 +650,10 @@ body.clip-dragging .timeline__new-track-zone {
   outline: none;
 }
 
+.track-header__rename-input:focus {
+  border-color: var(--cx-action-hover);
+}
+
 .track-header__controls {
   display: flex;
   gap: 2px;
@@ -697,6 +706,11 @@ body.clip-dragging .timeline__new-track-zone {
   cursor: pointer;
 }
 
+.track-header__opacity input[type="range"]:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
 .track-header__opacity input[type="range"]::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
@@ -737,8 +751,9 @@ body.clip-dragging .timeline__new-track-zone {
   color: var(--cx-text-1);
 }
 
-.track-header__blend:focus {
-  border: 1px solid var(--cx-action);
+.track-header__blend:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
   color: var(--cx-text-1);
 }
 
