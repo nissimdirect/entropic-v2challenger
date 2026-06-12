@@ -208,6 +208,78 @@ def validate(project: dict) -> list[str]:
     if not isinstance(timeline, dict):
         errors.append("'timeline' must be a dict")
 
+    # P5a.4 (§10 P1-2): referential integrity on FILE LOAD for the OPTIONAL
+    # performance event list. Old projects carry no `performance` key → this is
+    # a no-op (ROLLBACK: no load regression). When present, every event must be
+    # well-formed AND reference an instrument that exists in the project.
+    errors.extend(_validate_performance_events(project))
+
+    return errors
+
+
+def _validate_performance_events(project: dict) -> list[str]:
+    """Validate the optional `performance.events` list on file load (P5a.4).
+
+    Rules (reject-only; absence is valid):
+    - `performance`, when present, must be a dict; `events` must be a list.
+    - every event: finite int `frameIndex >= 0`, int `eventIndex >= 0`,
+      `note` in [0,127], `velocity` in [0,127], known `kind`.
+    - referential integrity: each event's `instrumentId` must exist in the
+      project's top-level `instruments` map (§10 P1-2). `panic` events are
+      global and exempt from the instrument-existence check.
+
+    Only the first error per event is reported (fail-closed).
+    """
+    performance = project.get("performance")
+    if performance is None:
+        return []
+    if not isinstance(performance, dict):
+        return ["'performance' must be a dict"]
+
+    events = performance.get("events")
+    if events is None:
+        return []
+    if not isinstance(events, list):
+        return ["'performance.events' must be a list"]
+
+    instruments = project.get("instruments")
+    known_ids = set(instruments.keys()) if isinstance(instruments, dict) else set()
+    valid_kinds = {"trigger", "release", "choke", "panic"}
+
+    errors: list[str] = []
+    for i, ev in enumerate(events):
+        if not isinstance(ev, dict):
+            errors.append(f"performance.events[{i}] must be a dict")
+            return errors
+        fi = ev.get("frameIndex")
+        ei = ev.get("eventIndex")
+        note = ev.get("note")
+        vel = ev.get("velocity")
+        kind = ev.get("kind")
+        inst_id = ev.get("instrumentId")
+        if isinstance(fi, bool) or not isinstance(fi, int) or fi < 0:
+            errors.append(f"performance.events[{i}].frameIndex must be int >= 0")
+            return errors
+        if isinstance(ei, bool) or not isinstance(ei, int) or ei < 0:
+            errors.append(f"performance.events[{i}].eventIndex must be int >= 0")
+            return errors
+        if not _is_finite_number(note) or not (0 <= note <= 127):
+            errors.append(f"performance.events[{i}].note must be in [0,127]")
+            return errors
+        if not _is_finite_number(vel) or not (0 <= vel <= 127):
+            errors.append(f"performance.events[{i}].velocity must be in [0,127]")
+            return errors
+        if kind not in valid_kinds:
+            errors.append(f"performance.events[{i}].kind {kind!r} is unknown")
+            return errors
+        # Referential integrity (panic is global → exempt).
+        if kind != "panic" and inst_id not in known_ids:
+            errors.append(
+                f"performance.events[{i}] references unknown instrumentId "
+                f"{inst_id!r} (§10 P1-2 referential integrity)"
+            )
+            return errors
+
     return errors
 
 

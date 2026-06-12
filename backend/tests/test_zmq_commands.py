@@ -719,3 +719,117 @@ class TestResolutionClamping:
         )
         assert resp["ok"] is False
         assert "resolution" in resp["error"].lower()
+
+
+# ---------------------------------------------------------------------------
+# P5a.4 — performance payload validation at export start (enforce-before-decode)
+# ---------------------------------------------------------------------------
+
+
+def _p5a4_server(monkeypatch):
+    """A bare ZMQServer with export-path validators stubbed to pass, and a
+    recording export manager. Patches the names AS IMPORTED INTO zmq_server."""
+    import zmq_server as zs
+
+    class RecordingExportManager:
+        def __init__(self):
+            self.started_with = None
+
+        def start(self, *args, **kwargs):
+            self.started_with = (args, kwargs)
+            return object()
+
+    server = zs.ZMQServer.__new__(zs.ZMQServer)
+    server.export_manager = RecordingExportManager()
+    server.token = "test-token"
+
+    # Stub the path/chain/settings validators that zmq_server bound at import.
+    monkeypatch.setattr(zs, "validate_upload", lambda p: [])
+    monkeypatch.setattr(zs, "validate_output_path", lambda p: [])
+    monkeypatch.setattr(zs, "validate_output_directory", lambda p: [])
+    monkeypatch.setattr(zs, "validate_chain_depth", lambda c: [])
+    monkeypatch.setattr(
+        server, "_validate_export_settings", lambda s: [], raising=False
+    )
+    return server
+
+
+def _export_msg(performance=None, sentinel=object()):
+    msg = {
+        "cmd": "export_start",
+        "id": "p5a4",
+        "_token": "test-token",
+        "input_path": "/fake/input.mp4",
+        "output_path": "/fake/output.mp4",
+        "chain": [],
+    }
+    if performance is not sentinel:
+        msg["performance"] = performance
+    return msg
+
+
+def test_export_start_rejects_malformed_performance_payload(monkeypatch):
+    """Malformed performance event list → structured error, no export started,
+    no partial file (enforce-before-decode)."""
+    server = _p5a4_server(monkeypatch)
+    bad_perf = {
+        "events": [
+            {"frameIndex": -1, "eventIndex": 0, "note": 60, "velocity": 100,
+             "kind": "trigger", "instrumentId": "sampler-1"},
+        ]
+    }
+    resp = server.handle_message(_export_msg(performance=bad_perf))
+    assert resp["ok"] is False
+    assert "frameIndex" in resp["error"]
+    # Export must NOT have been started.
+    assert server.export_manager.started_with is None
+
+
+def test_export_start_rejects_forged_voice_id_via_unknown_kind(monkeypatch):
+    """A forged event with an unknown kind is rejected at the boundary."""
+    server = _p5a4_server(monkeypatch)
+    bad_perf = {
+        "events": [
+            {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100,
+             "kind": "forged", "instrumentId": "sampler-1"},
+        ]
+    }
+    resp = server.handle_message(_export_msg(performance=bad_perf))
+    assert resp["ok"] is False
+    assert "kind" in resp["error"]
+    assert server.export_manager.started_with is None
+
+
+def test_export_start_rejects_non_dict_performance(monkeypatch):
+    server = _p5a4_server(monkeypatch)
+    resp = server.handle_message(_export_msg(performance=[1, 2, 3]))
+    assert resp["ok"] is False
+    assert "performance" in resp["error"]
+    assert server.export_manager.started_with is None
+
+
+def test_export_start_passes_valid_performance_payload(monkeypatch):
+    """A well-formed payload starts the export and is forwarded to the manager."""
+    server = _p5a4_server(monkeypatch)
+    good_perf = {
+        "events": [
+            {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100,
+             "kind": "trigger", "instrumentId": "sampler-1"},
+        ],
+        "instruments": {"sampler-1": {"clipId": "c", "adsr": {"attack": 0, "decay": 0, "sustain": 1, "release": 0}}},
+        "assets": {"c": {"path": "/fake/clip.mp4", "frameCount": 10}},
+    }
+    resp = server.handle_message(_export_msg(performance=good_perf))
+    assert resp["ok"] is True
+    # The manager received the performance payload as a kwarg.
+    args, kwargs = server.export_manager.started_with
+    assert kwargs.get("performance") == good_perf
+
+
+def test_export_start_without_performance_is_legacy(monkeypatch):
+    """No performance key → legacy export, manager called with performance=None."""
+    server = _p5a4_server(monkeypatch)
+    resp = server.handle_message(_export_msg())  # no performance key
+    assert resp["ok"] is True
+    args, kwargs = server.export_manager.started_with
+    assert kwargs.get("performance") is None

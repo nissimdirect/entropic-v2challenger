@@ -30,6 +30,7 @@ from project.schema import V2_UNSUPPORTED_MESSAGE
 from security import (
     is_audio_magic,
     resolve_safe_path,
+    validate_capture_events,
     validate_chain_depth,
     validate_composite_layer_count,
     validate_frame_count,
@@ -1628,6 +1629,8 @@ class ZMQServer:
         project_seed = message.get("project_seed", 0)
         settings = message.get("settings", {})
         text_layers = message.get("text_layers", [])
+        # P5a.4: optional composite-replay payload {events, instruments, assets}.
+        performance = message.get("performance")
 
         if not input_path:
             return {"id": msg_id, "ok": False, "error": "missing input_path"}
@@ -1657,6 +1660,26 @@ class ZMQServer:
         if settings_errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(settings_errors)}
 
+        # P5a.4: enforce-before-decode trust boundary on the performance payload.
+        # The serialized event list is replayed by evaluate_voices to reconstruct
+        # voice layers; reject a malformed / oversized list BEFORE the export
+        # thread spawns (never truncate). A None / absent payload skips this
+        # entirely (legacy single-input export, byte-identical).
+        if performance is not None:
+            if not isinstance(performance, dict):
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": "performance must be an object",
+                }
+            ev_errors = validate_capture_events(performance.get("events", []))
+            if ev_errors:
+                return {"id": msg_id, "ok": False, "error": "; ".join(ev_errors)}
+            # Per-frame voice budget is additionally enforced inside the
+            # compositor reuse (validate_voice_layers / MAX_TOTAL_VOICES_PER_RENDER
+            # via the FSM voiceCap); the event-list cap here bounds the replay
+            # input.
+
         try:
             self.export_manager.start(
                 input_path,
@@ -1665,6 +1688,7 @@ class ZMQServer:
                 project_seed,
                 settings=settings,
                 text_layers=text_layers or None,
+                performance=performance,
             )
             return {"id": msg_id, "ok": True}
         except Exception as e:
