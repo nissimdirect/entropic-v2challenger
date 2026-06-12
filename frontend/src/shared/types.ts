@@ -170,6 +170,49 @@ export const IDENTITY_TRANSFORM: ClipTransform = {
   anchorX: 0, anchorY: 0, flipH: false, flipV: false,
 }
 
+// --- Masking (MK.1) ---
+
+/**
+ * Known matte node kinds (SPEC §3.2).
+ * Static kinds resolve once and cache; procedural kinds re-evaluate per frame.
+ */
+export type MatteNodeKind =
+  | 'rect'
+  | 'ellipse'
+  | 'polygon'
+  | 'bitmap'
+  | 'chroma_key'
+  | 'luma_key'
+  | 'color_range'
+  | 'ai_matte';
+
+export type MatteOp = 'add' | 'subtract' | 'intersect';
+
+/**
+ * One node in a clip's per-clip mask stack (SPEC §3.2).
+ *
+ * Additive optional field on Clip (maskStack?) — no PROJECT_VERSION bump,
+ * UE.7 precedent. Absent = no mask applied (byte-identical legacy behavior).
+ *
+ * Numeric trust boundary: feather ∈ [0, 100], growShrink ∈ [−50, 50].
+ * Load-time validator in project-persistence.ts drops malformed nodes and
+ * clamps out-of-range numerics (P6.6 pattern).
+ */
+export interface MatteNode {
+  /** Unique node identity. Must match ^[A-Za-z0-9_-]{1,64}$. */
+  id: string;
+  kind: MatteNodeKind;
+  /** Kind-specific parameters (e.g. {x,y,w,h} for rect; {vertices:[]} for polygon). */
+  params: Record<string, number | string>;
+  op: MatteOp;
+  invert: boolean;
+  /** Gaussian feather radius in px. Clamped [0, 100] at the persistence boundary. */
+  feather: number;
+  /** Morphological grow (+) / shrink (−) in px. Clamped [−50, 50] at the persistence boundary. */
+  growShrink: number;
+  enabled: boolean;
+}
+
 export interface Clip {
   id: string;
   assetId: string;
@@ -187,6 +230,12 @@ export interface Clip {
   missing?: boolean;     // true when the referenced asset path is no longer resolvable (UE.5)
   name?: string;         // UE.7: optional user-set label (≤ LIMITS.MAX_CLIP_NAME_LENGTH chars)
   color?: string;        // UE.7: optional clip body tint (one of the 8 DESIGN-SPEC §8 swatches)
+  /**
+   * MK.1: per-clip mask stack. Optional, additive — absent = no masking.
+   * Max MAX_MATTE_NODES_PER_CLIP (8) entries; load-time validator enforces cap.
+   * No PROJECT_VERSION bump required (UE.7 precedent).
+   */
+  maskStack?: MatteNode[];
 }
 
 // --- Text ---
