@@ -199,6 +199,13 @@ export default function Knob({
           height={SIZE}
           viewBox={`0 0 ${SIZE} ${SIZE}`}
           tabIndex={0}
+          role="slider"
+          aria-label={label}
+          aria-valuemin={min}
+          aria-valuemax={max}
+          aria-valuenow={type === 'int' ? Math.round(value) : value}
+          aria-valuetext={unit ? `${type === 'int' ? Math.round(value) : value.toFixed(2)}${unit}` : `${type === 'int' ? Math.round(value) : value.toFixed(2)}`}
+          aria-orientation="vertical"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

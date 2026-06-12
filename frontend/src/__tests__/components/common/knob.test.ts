@@ -1,4 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
+import { render, fireEvent } from '@testing-library/react'
+import React from 'react'
 
 // Since Knob is a React component with SVG rendering,
 // we test the behavioral logic that drives it rather than DOM rendering.
@@ -7,6 +9,8 @@ import { describe, it, expect } from 'vitest'
 import {
   sliderToValue,
 } from '../../../renderer/utils/paramScaling'
+import Knob from '../../../renderer/components/common/Knob'
+import Slider from '../../../renderer/components/common/Slider'
 
 describe('Knob behavioral logic', () => {
   describe('value clamping', () => {
@@ -118,5 +122,96 @@ describe('Knob behavioral logic', () => {
       const slider50pct = sliderToValue(0.5, 0, 100, 'exponential')
       expect(slider50pct).toBeLessThan(50)
     })
+  })
+})
+
+// PUX.4 — ARIA slider semantics (Knob)
+describe('Knob ARIA slider semantics', () => {
+  const defaultProps = {
+    value: 50,
+    min: 0,
+    max: 100,
+    default: 50,
+    label: 'Volume',
+    type: 'float' as const,
+    unit: 'dB',
+    onChange: vi.fn(),
+  }
+
+  it('exposes role="slider" with aria-valuemin/max matching props', () => {
+    const { container } = render(React.createElement(Knob, defaultProps))
+    const svg = container.querySelector('[role="slider"]')
+    expect(svg).not.toBeNull()
+    expect(svg?.getAttribute('aria-valuemin')).toBe('0')
+    expect(svg?.getAttribute('aria-valuemax')).toBe('100')
+  })
+
+  it('updates aria-valuenow when an arrow key changes the value', () => {
+    let currentValue = 50
+    const onChange = vi.fn((v: number) => { currentValue = v })
+    const { container, rerender } = render(
+      React.createElement(Knob, { ...defaultProps, value: currentValue, onChange }),
+    )
+    const svg = container.querySelector('[role="slider"]')!
+    fireEvent.keyDown(svg, { key: 'ArrowUp' })
+    expect(onChange).toHaveBeenCalled()
+    // Re-render with the new value to verify aria-valuenow updates
+    rerender(React.createElement(Knob, { ...defaultProps, value: onChange.mock.calls[0][0], onChange }))
+    const updatedSvg = container.querySelector('[role="slider"]')!
+    const newNow = parseFloat(updatedSvg.getAttribute('aria-valuenow') ?? '50')
+    expect(newNow).toBeGreaterThan(50)
+  })
+
+  it('formats aria-valuetext with the display formatter', () => {
+    const { container } = render(React.createElement(Knob, { ...defaultProps, value: 75, unit: 'dB' }))
+    const svg = container.querySelector('[role="slider"]')!
+    const text = svg.getAttribute('aria-valuetext')
+    expect(text).toContain('75')
+    expect(text).toContain('dB')
+  })
+})
+
+// PUX.4 — ARIA slider semantics (Slider)
+describe('Slider ARIA slider semantics', () => {
+  const defaultProps = {
+    value: 50,
+    min: 0,
+    max: 100,
+    default: 50,
+    label: 'Cutoff',
+    type: 'float' as const,
+    unit: 'Hz',
+    onChange: vi.fn(),
+  }
+
+  it('exposes role="slider" with aria-valuemin/max matching props', () => {
+    const { container } = render(React.createElement(Slider, defaultProps))
+    const track = container.querySelector('[role="slider"]')
+    expect(track).not.toBeNull()
+    expect(track?.getAttribute('aria-valuemin')).toBe('0')
+    expect(track?.getAttribute('aria-valuemax')).toBe('100')
+  })
+
+  it('updates aria-valuenow when an arrow key changes the value', () => {
+    let currentValue = 50
+    const onChange = vi.fn((v: number) => { currentValue = v })
+    const { container, rerender } = render(
+      React.createElement(Slider, { ...defaultProps, value: currentValue, onChange }),
+    )
+    const track = container.querySelector('[role="slider"]')!
+    fireEvent.keyDown(track, { key: 'ArrowRight' })
+    expect(onChange).toHaveBeenCalled()
+    rerender(React.createElement(Slider, { ...defaultProps, value: onChange.mock.calls[0][0], onChange }))
+    const updatedTrack = container.querySelector('[role="slider"]')!
+    const newNow = parseFloat(updatedTrack.getAttribute('aria-valuenow') ?? '50')
+    expect(newNow).toBeGreaterThan(50)
+  })
+
+  it('formats aria-valuetext with the display formatter', () => {
+    const { container } = render(React.createElement(Slider, { ...defaultProps, value: 75, unit: 'Hz' }))
+    const track = container.querySelector('[role="slider"]')!
+    const text = track.getAttribute('aria-valuetext')
+    expect(text).toContain('75')
+    expect(text).toContain('Hz')
   })
 })
