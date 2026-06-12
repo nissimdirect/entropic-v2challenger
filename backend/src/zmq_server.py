@@ -600,6 +600,17 @@ class ZMQServer:
         #   transformed) frame so the matte always broadcasts against it.
         frame_hw = (frame.shape[0], frame.shape[1])
         mask_stack = message.get("mask_stack")
+        # MK.8 — keying-as-performance: resolve `mask.<node_id>.<param>` operator
+        # modulation INTO the key nodes' params before the mattes rasterize, so
+        # an LFO/sidechain/beat-gate on a key rides this frame. Trust-bounded:
+        # unknown nodes / non-key params are skipped, never crash. No-op unless
+        # operators are active AND a mask.* mapping exists.
+        if operators and isinstance(operators, list) and operator_values:
+            from modulation.routing import resolve_mask_modulations
+
+            mask_stack = resolve_mask_modulations(
+                operator_values, operators, mask_stack
+            )
         mask_ctx = FrameCtx(frame=frame, frame_index=frame_index, clip_id=str(path))
         # Per-device: resolve each device's mask_ref → inject _mask param
         # (consumes the orphaned container.py:58 seam, GT-6 — ZERO diff there).

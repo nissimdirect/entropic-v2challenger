@@ -317,17 +317,17 @@ def test_wraparound_hue_tolerance() -> None:
 
 
 # --------------------------------------------------------------------------- #
-#  8. INTEGRATION — keying-as-performance: tolerance lane changes matte coverage
+#  8. KERNEL — chroma matte coverage is monotonic in tolerance
 # --------------------------------------------------------------------------- #
 
 
-def test_lfo_on_key_tolerance_changes_matte_over_time() -> None:
-    """Same frame rendered with two payload tolerance values (simulating a lane
-    output) → matte coverage grows monotonically with tolerance.
+def test_chroma_tolerance_monotonic_coverage() -> None:
+    """Matte coverage grows monotonically with tolerance (kernel property only).
 
-    This is the keying-as-performance proof at this layer: a higher tolerance
-    (what an LFO/sidechain would push into ``mask.<node>.tolerance``) keys a
-    wider hue band → more pixels selected. Full UI→lane→render E2E rides MK.11.
+    A higher tolerance keys a wider hue band → more pixels selected. This pins
+    the kernel's monotonicity; the actual lane wiring (a modulated value
+    reaching node.params and feeding this kernel) is proven by
+    ``test_mask_lane_modulates_node_param`` in test_mask_lane_routing.py.
     """
     import cv2
 

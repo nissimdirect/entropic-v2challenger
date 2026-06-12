@@ -494,26 +494,40 @@ describe('ModulationMatrix — MK.8 key node params appear as modulation targets
     expect(keys).toEqual(['_mix', 'mask.key-1.tolerance'])
   })
 
-  it('modulated tolerance rides render payload per frame (two frames, two values)', () => {
-    // The matrix surfaces the lane target; the per-frame resolved value rides
-    // node.params in the render payload (serializeMaskStack pass-through). This
-    // mock-IPC test proves two different lane outputs produce two different
-    // payload param values for the SAME node id across two frames.
-    const node = chromaNode('key-1')
+  it('emits the mask.<id>.<param> target the backend lane consumes', () => {
+    // The matrix's job is to SURFACE the correctly-namespaced target. The
+    // actual wiring (modulated value → node.params → kernel) is proven by the
+    // backend integration test tests/test_masking/test_mask_lane_routing.py
+    // (test_mask_lane_is_not_a_noop). Here we lock the UI contract: the column
+    // header for a key node carries paramKey `mask.<id>.tolerance`, which is
+    // exactly what resolve_mask_modulations splits on the backend.
+    useOperatorStore.getState().addOperator('lfo')
+    const op = useOperatorStore.getState().operators[0]
+    // The header click creates a mapping with this paramKey (asserted via the
+    // store, matching how OperatorRack wires the cell).
+    useOperatorStore.getState().addMapping(op.id, {
+      targetEffectId: 'mask.key-1',
+      targetParamKey: 'mask.key-1.tolerance',
+      depth: 1.0,
+      min: 0,
+      max: 1,
+      curve: 'linear',
+    })
 
-    // Simulated lane outputs for frame 0 and frame 1 (e.g. an LFO sweeping
-    // tolerance). The render loop applies the resolved value to node.params.
-    function resolvePayload(frameTolerance: number): MatteNode {
-      return { ...node, params: { ...node.params, tolerance: frameTolerance } }
-    }
-
-    const frame0 = resolvePayload(20)
-    const frame1 = resolvePayload(120)
-
-    expect(frame0.params.tolerance).toBe(20)
-    expect(frame1.params.tolerance).toBe(120)
-    expect(frame0.id).toBe(frame1.id) // same node, different per-frame value
-    expect(frame0.params.tolerance).not.toBe(frame1.params.tolerance)
+    const { container } = render(
+      <ModulationMatrix
+        effectChain={[]}
+        registry={makeRegistry()}
+        operatorValues={{}}
+        maskNodes={[chromaNode('key-1')]}
+      />,
+    )
+    // The Tolerance column for this key node renders an active cell — proving
+    // the target the matrix emits matches the mapping the backend will resolve.
+    expect(container.querySelector('.mod-matrix__cell--active')).toBeTruthy()
+    const mapping = useOperatorStore.getState().operators[0].mappings[0]
+    // Exactly the shape resolve_mask_modulations parses: prefix.node.param.
+    expect(mapping.targetParamKey.split('.')).toEqual(['mask', 'key-1', 'tolerance'])
   })
 
   it('non-key matte nodes (rect/ellipse) contribute no lane targets', () => {

@@ -97,6 +97,128 @@ def resolve_routings(
     return modulated
 
 
+# --------------------------------------------------------------------------- #
+#  MK.8 — key-params-as-lanes: resolve `mask.<node_id>.<param>` modulation
+# --------------------------------------------------------------------------- #
+
+# Lane-addressable key params → (min, max) bounds for the base+offset map. These
+# mirror the shipped key effects' PARAMS ranges (DO-NOT-TOUCH; sourced from
+# masking.key_kernels). `mode` (luma choice) is intentionally NOT lane-able.
+_KEY_PARAM_BOUNDS: dict[str, tuple[float, float]] = {
+    "hue": (0.0, 360.0),
+    "tolerance": (1.0, 180.0),
+    "softness": (0.0, 50.0),
+    "spill": (0.0, 1.0),
+    "threshold": (0.0, 1.0),
+}
+
+# Per-kind allowlist of which params may be modulated (defends against a stray
+# `mask.<node>.mode` or a param that doesn't belong to the node's kind).
+_KEY_LANE_PARAMS_BY_KIND: dict[str, frozenset[str]] = {
+    "chroma_key": frozenset({"hue", "tolerance", "softness", "spill"}),
+    "luma_key": frozenset({"threshold", "softness"}),
+}
+
+
+def resolve_mask_modulations(
+    operator_values: dict[str, float],
+    operators: list[dict],
+    mask_stack: list[dict] | None,
+) -> list[dict] | None:
+    """Apply operator modulation to key-node params in *mask_stack* (MK.8).
+
+    Recognizes modulation targets of the form ``mask.<node_id>.<param>`` and
+    writes the resolved (LFO / sidechain / beat-gated) value into the matching
+    MatteNode's ``params[<param>]`` — so the modulated value feeds the chroma/
+    luma kernel THAT frame, BEFORE inject_device_masks / resolve_chain_mask
+    rasterize the mattes.
+
+    Trust boundary (same discipline as MK.3): a target whose prefix isn't
+    ``mask``, whose node_id isn't in the stack, or whose param isn't lane-able
+    for that node's kind is SKIPPED — never raises. node_id parsing is safe to
+    split on '.' because MK.1's schema id regex forbids dots
+    (``^[A-Za-z0-9_-]{1,64}$``), so ``target.split('.', 2)`` is unambiguous.
+
+    Returns a deep-copied, modulated mask_stack (or the input unchanged when
+    there is nothing to modulate / no mask_stack).
+    """
+    if not mask_stack or not isinstance(mask_stack, list):
+        return mask_stack
+
+    # Build node lookup by id (only dict nodes with a string id count).
+    node_map: dict[str, dict] = {}
+    for node in mask_stack:
+        if isinstance(node, dict):
+            nid = node.get("id")
+            if isinstance(nid, str):
+                node_map[nid] = node
+
+    if not node_map:
+        return mask_stack
+
+    # Accumulate deltas per (node_id, param) — reuse the chain blend semantics.
+    deltas: dict[tuple[str, str], list[tuple[float, float, float, float, str]]] = (
+        defaultdict(list)
+    )
+
+    for op in operators:
+        if not op.get("is_enabled", op.get("isEnabled", True)):
+            continue
+        signal = operator_values.get(op.get("id", ""), 0.0)
+
+        for mapping in op.get("mappings", []):
+            target = mapping.get("target_param_key", mapping.get("targetParamKey", ""))
+            if not target or not target.startswith("mask."):
+                continue
+            # mask.<node_id>.<param> — split into exactly 3 (node ids have no dots).
+            parts = target.split(".", 2)
+            if len(parts) != 3 or parts[0] != "mask":
+                continue
+            _, node_id, param = parts
+            if node_id not in node_map or not param:
+                continue
+
+            depth = float(mapping.get("depth", 1.0))
+            m_min = float(mapping.get("min", 0.0))
+            m_max = float(mapping.get("max", 1.0))
+            blend = mapping.get("blend_mode", mapping.get("blendMode", "add"))
+            deltas[(node_id, param)].append((signal, depth, m_min, m_max, blend))
+
+    if not deltas:
+        return mask_stack
+
+    modulated = copy.deepcopy(mask_stack)
+    # Rebuild the lookup against the COPY so we mutate the returned structure.
+    copy_map: dict[str, dict] = {}
+    for node in modulated:
+        if isinstance(node, dict) and isinstance(node.get("id"), str):
+            copy_map[node["id"]] = node
+
+    for (node_id, param), contributions in deltas.items():
+        node = copy_map.get(node_id)
+        if node is None:
+            continue
+        kind = node.get("kind", "")
+        allowed = _KEY_LANE_PARAMS_BY_KIND.get(kind)
+        if allowed is None or param not in allowed:
+            continue  # not a key node, or param not lane-able for this kind
+
+        params = node.setdefault("params", {})
+        if not isinstance(params, dict):
+            continue
+        # Base value: the param's current value, else the param's range min.
+        p_min, p_max = _KEY_PARAM_BOUNDS.get(param, (0.0, 1.0))
+        base_value = params.get(param)
+        if not isinstance(base_value, (int, float)):
+            base_value = p_min
+
+        mod_value = _blend_contributions(contributions)
+        new_value = base_value + mod_value * (p_max - p_min)
+        params[param] = max(p_min, min(p_max, new_value))
+
+    return modulated
+
+
 def _blend_contributions(
     contributions: list[tuple[float, float, float, float, str]],
 ) -> float:
