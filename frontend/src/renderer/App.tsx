@@ -24,6 +24,8 @@ import HistoryPanel from './components/layout/HistoryPanel'
 import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
+// P3.3: Polymorphic inspector (8 states, info-only)
+import Inspector from './components/inspector/Inspector'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
 import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
@@ -2540,7 +2542,8 @@ function AppInner() {
               }}
               onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
             />
-            <div className="cx-inspector-placeholder">Inspector (P3.3)</div>
+            {/* P3.3: Real inspector replaces placeholder */}
+            <Inspector />
           </>
         )}
       </div>
