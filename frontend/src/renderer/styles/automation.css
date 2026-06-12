@@ -7,10 +7,14 @@
 
 .auto-node__circle {
   transition: r 0.1s ease;
+  /* pointer-events: none set inline — hit-ring handles all interactions */
 }
 
-.auto-node__circle:hover {
-  r: 6;
+/* PUX.5: transparent hit ring — pointer-events surface for interactions.
+   r=12 gives 24px effective diameter (DESIGN-SPEC §4 floor, WCAG 2.5.8).
+   Max r=12 to prevent overlap on dense curves (failure-mode (a) guard). */
+.auto-node__hit-ring {
+  /* transparent fill set inline; cursor set inline */
 }
 
 .auto-node__circle--active {
