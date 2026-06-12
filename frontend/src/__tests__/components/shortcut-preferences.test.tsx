@@ -26,7 +26,8 @@ describe('ShortcutEditor', () => {
     render(<ShortcutEditor />)
     await waitFor(() => {
       const categories = document.querySelectorAll('.shortcut-editor__category')
-      expect(categories.length).toBe(6)
+      // P3.4 adds 'Tool' category for cursor-mode shortcuts — now 7 categories
+      expect(categories.length).toBe(7)
     })
   })
 
@@ -34,6 +35,8 @@ describe('ShortcutEditor', () => {
     render(<ShortcutEditor />)
     await waitFor(() => {
       const rows = document.querySelectorAll('.shortcut-editor__row')
+      // P3.4 adds 12 tool shortcuts — row count now equals total DEFAULT_SHORTCUTS entries
+      // All shortcuts appear in at least one of the 7 categories shown in the editor
       expect(rows.length).toBe(DEFAULT_SHORTCUTS.length)
     })
   })

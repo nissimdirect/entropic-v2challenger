@@ -1,3 +1,9 @@
+/**
+ * P5a.3 update: modal-flag approach retired — arming is now track-selection based.
+ * Pads are armed whenever a performance track is selected in the timeline.
+ * The keyboard handler logic in App.tsx now checks selectedTrack.type === 'performance'
+ * instead of a modal flag.
+ */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { usePerformanceStore } from '../../../renderer/stores/performance';
 import { useUndoStore } from '../../../renderer/stores/undo';
@@ -8,26 +14,24 @@ function resetStores() {
   useUndoStore.getState().clear();
 }
 
-// Simulate the keyboard handler logic from App.tsx
-// (We test the store interactions, not the DOM events)
+// Simulate the keyboard handler logic from App.tsx (P5a.3 version).
+// Arming is determined by the selected track type, not a modal flag.
+// Tests pass `armed` directly rather than manipulating timeline store.
 function simulateKeyDown(code: string, options: {
   meta?: boolean;
   repeat?: boolean;
   isInput?: boolean;
+  armed?: boolean; // true when a perf track is selected (replaces old modal flag)
 } = {}) {
   const perfStore = usePerformanceStore.getState();
   const mod = options.meta ?? false;
 
   if (options.isInput) return { handled: false };
 
-  // P toggle — always works
-  if (code === 'KeyP' && !mod) {
-    perfStore.setPerformMode(!perfStore.isPerformMode);
-    return { handled: true, action: 'toggle-perform' };
-  }
+  const isArmed = options.armed ?? false;
 
-  // Perform mode gate
-  if (perfStore.isPerformMode && !mod) {
+  // Perform mode gate (P5a.3: armed by track selection)
+  if (isArmed && !mod) {
     if (code === 'Escape') {
       perfStore.panicAll();
       return { handled: true, action: 'panic' };
@@ -57,9 +61,9 @@ function simulateKeyDown(code: string, options: {
   return { handled: false };
 }
 
-function simulateKeyUp(code: string) {
+function simulateKeyUp(code: string, armed: boolean) {
   const perfStore = usePerformanceStore.getState();
-  if (!perfStore.isPerformMode) return;
+  if (!armed) return;
   if (perfStore.isPadEditorOpen) return;
 
   const pad = perfStore.drumRack.pads.find((p) => p.keyBinding === code);
@@ -70,59 +74,51 @@ function simulateKeyUp(code: string) {
   }
 }
 
-describe('Keyboard Trigger', () => {
+describe('Keyboard Trigger (P5a.3 — track-selection arming)', () => {
   beforeEach(resetStores);
 
   it('uses e.code for pad lookup (not e.key)', () => {
-    usePerformanceStore.getState().setPerformMode(true);
-    const result = simulateKeyDown('KeyQ');
+    const result = simulateKeyDown('KeyQ', { armed: true });
     expect(result.action).toBe('pad-trigger');
   });
 
   it('modifier keys cause fallthrough (not consumed by pads)', () => {
-    usePerformanceStore.getState().setPerformMode(true);
-    const result = simulateKeyDown('KeyQ', { meta: true });
+    const result = simulateKeyDown('KeyQ', { armed: true, meta: true });
     expect(result.handled).toBe(false);
   });
 
   it('repeat events are ignored', () => {
-    usePerformanceStore.getState().setPerformMode(true);
-    const result = simulateKeyDown('KeyQ', { repeat: true });
+    const result = simulateKeyDown('KeyQ', { armed: true, repeat: true });
     expect(result.action).toBe('repeat-ignored');
   });
 
   it('INPUT element bypass', () => {
-    usePerformanceStore.getState().setPerformMode(true);
-    const result = simulateKeyDown('KeyQ', { isInput: true });
+    const result = simulateKeyDown('KeyQ', { armed: true, isInput: true });
     expect(result.handled).toBe(false);
   });
 
   it('gate: keydown=trigger, keyup=release', () => {
-    usePerformanceStore.getState().setPerformMode(true);
-    simulateKeyDown('KeyQ');
+    simulateKeyDown('KeyQ', { armed: true });
 
     const state1 = usePerformanceStore.getState().padStates['pad-4']; // KeyQ is pad index 4
     expect(state1.phase).toBe('attack');
 
-    simulateKeyUp('KeyQ');
+    simulateKeyUp('KeyQ', true);
     const state2 = usePerformanceStore.getState().padStates['pad-4'];
     expect(state2.phase).toBe('release');
   });
 
   it('toggle: keydown=trigger, keydown again=release', () => {
-    // Set pad to toggle mode
     const { drumRack } = usePerformanceStore.getState();
     const pads = [...drumRack.pads];
     pads[4] = { ...pads[4], mode: 'toggle' };
     usePerformanceStore.setState({ drumRack: { ...drumRack, pads } });
 
-    usePerformanceStore.getState().setPerformMode(true);
-
-    simulateKeyDown('KeyQ');
+    simulateKeyDown('KeyQ', { armed: true });
     const state1 = usePerformanceStore.getState().padStates['pad-4'];
     expect(state1.phase).toBe('attack');
 
-    simulateKeyDown('KeyQ');
+    simulateKeyDown('KeyQ', { armed: true });
     const state2 = usePerformanceStore.getState().padStates['pad-4'];
     expect(state2.phase).toBe('release');
   });
@@ -133,49 +129,32 @@ describe('Keyboard Trigger', () => {
     pads[4] = { ...pads[4], mode: 'one-shot' };
     usePerformanceStore.setState({ drumRack: { ...drumRack, pads } });
 
-    usePerformanceStore.getState().setPerformMode(true);
-    simulateKeyDown('KeyQ');
-
+    simulateKeyDown('KeyQ', { armed: true });
     const state1 = usePerformanceStore.getState().padStates['pad-4'];
     expect(state1.phase).toBe('attack');
 
-    simulateKeyUp('KeyQ');
+    simulateKeyUp('KeyQ', true);
     const state2 = usePerformanceStore.getState().padStates['pad-4'];
     expect(state2.phase).toBe('release');
   });
 
   it('Escape = panic (all pads off)', () => {
-    usePerformanceStore.getState().setPerformMode(true);
     usePerformanceStore.getState().triggerPad('pad-0', 0);
     usePerformanceStore.getState().triggerPad('pad-1', 0);
 
-    simulateKeyDown('Escape');
+    simulateKeyDown('Escape', { armed: true });
     expect(Object.keys(usePerformanceStore.getState().padStates)).toHaveLength(0);
   });
 
-  it('P toggles perform mode on', () => {
-    expect(usePerformanceStore.getState().isPerformMode).toBe(false);
-    simulateKeyDown('KeyP');
-    expect(usePerformanceStore.getState().isPerformMode).toBe(true);
-  });
-
-  it('P toggles perform mode off', () => {
-    usePerformanceStore.getState().setPerformMode(true);
-    simulateKeyDown('KeyP');
-    expect(usePerformanceStore.getState().isPerformMode).toBe(false);
-  });
-
   it('M4: PadEditor open → keys dont trigger pads', () => {
-    usePerformanceStore.getState().setPerformMode(true);
     usePerformanceStore.setState({ isPadEditorOpen: true });
 
-    const result = simulateKeyDown('KeyQ');
+    const result = simulateKeyDown('KeyQ', { armed: true });
     expect(result.action).toBe('editor-swallow');
     expect(usePerformanceStore.getState().padStates['pad-4']).toBeUndefined();
   });
 
   it('H2: Window blur → all pads released (panicAll)', () => {
-    usePerformanceStore.getState().setPerformMode(true);
     usePerformanceStore.getState().triggerPad('pad-0', 0);
     usePerformanceStore.getState().triggerPad('pad-1', 0);
 
@@ -184,23 +163,21 @@ describe('Keyboard Trigger', () => {
     expect(Object.keys(usePerformanceStore.getState().padStates)).toHaveLength(0);
   });
 
-  it('bare keys consumed in perform mode (blocks i/o shortcuts)', () => {
-    usePerformanceStore.getState().setPerformMode(true);
+  it('bare keys consumed when armed (blocks i/o shortcuts)', () => {
     // KeyI is not bound to any pad (reserved), but still consumed
-    const result = simulateKeyDown('KeyI');
+    const result = simulateKeyDown('KeyI', { armed: true });
     expect(result.handled).toBe(true);
     expect(result.action).toBe('consumed');
   });
 
-  it('Cmd+Z still works in perform mode (modifier key)', () => {
-    usePerformanceStore.getState().setPerformMode(true);
-    const result = simulateKeyDown('KeyZ', { meta: true });
+  it('Cmd+Z still works when armed (modifier key)', () => {
+    const result = simulateKeyDown('KeyZ', { armed: true, meta: true });
     expect(result.handled).toBe(false); // Falls through to normal handler
   });
 
-  it('perform mode off: pad keys dont trigger', () => {
-    expect(usePerformanceStore.getState().isPerformMode).toBe(false);
-    const result = simulateKeyDown('KeyQ');
+  it('not armed: pad keys dont trigger', () => {
+    // P5a.3: unarmed = no performance track selected
+    const result = simulateKeyDown('KeyQ', { armed: false });
     expect(result.handled).toBe(false);
   });
 

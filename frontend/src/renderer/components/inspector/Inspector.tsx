@@ -19,6 +19,7 @@
 import React, { useMemo } from 'react'
 import { useTimelineStore } from '../../stores/timeline'
 import { useProjectStore } from '../../stores/project'
+import { useHoverDelegation } from '../../hooks/useHoverDelegation'
 import type { SelectionState } from './selectionState'
 import InspectorNoneState from './InspectorNoneState'
 import InspectorClipState from './InspectorClipState'
@@ -101,11 +102,24 @@ export default function Inspector({ selectionOverride = null }: Props): React.Re
   const selection = selectionOverride ?? storeSelection
   const key = selectionKey(selection)
 
+  // P3.4: single delegated onMouseOver at inspector root — zero per-target listeners.
+  // The hook walks event.target upward to [data-help-id]. See useHoverDelegation.ts.
+  const { entry, collapsed, toggle, onMouseOver, onMouseLeave, onFocusIn, onFocusOut, rootRef } =
+    useHoverDelegation()
+
   return (
-    <div className="cx-inspector" data-testid="inspector-root">
+    <div
+      className="cx-inspector"
+      data-testid="inspector-root"
+      onMouseOver={onMouseOver}
+      onMouseLeave={onMouseLeave}
+      onFocus={onFocusIn}
+      onBlur={onFocusOut}
+      ref={rootRef}
+    >
       {/* InspectorHoverHelp is OUTSIDE the keyed subtree — survives selection changes.
-          P3.4 fills the real hover delegation (300ms settle, 200ms fade, WCAG 1.4.13). */}
-      <InspectorHoverHelp />
+          P3.4 hover delegation: single listener at root, WCAG 1.4.13 timings. */}
+      <InspectorHoverHelp entry={entry} collapsed={collapsed} onToggle={toggle} />
       {/* key= forces clean remount on selection type change */}
       <InspectorBody key={key} selection={selection} />
     </div>

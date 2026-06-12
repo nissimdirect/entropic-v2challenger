@@ -53,4 +53,21 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'support_bundle',    keys: 'meta+shift+d',   category: 'project',   label: 'Support Bundle',      context: 'normal' },
   { action: 'import_media',      keys: 'meta+i',         category: 'project',   label: 'Import Media',        context: 'normal' },
   { action: 'add_text_track',    keys: 'meta+t',         category: 'project',   label: 'Add Text Track',      context: 'normal' },
+
+  // --- P3.4: Tool mode (cursor mode) hotkeys — Ableton-parity, guarded against text inputs ---
+  // Conflict-checked: all 12 keys are unique in this table.
+  // Guard: shortcutRegistry.handleKeyEvent skips when target is INPUT/TEXTAREA/contenteditable.
+  // See PLAN §3.7 (isTextInputActive guard) and the 12/12 conflict-check in the PR body.
+  { action: 'tool_select',           keys: 'v',              category: 'tool', label: 'Tool: Select',           context: 'normal' },
+  { action: 'tool_razor',            keys: 'b',              category: 'tool', label: 'Tool: Razor (Blade)',     context: 'normal' },
+  { action: 'tool_slip',             keys: 's',              category: 'tool', label: 'Tool: Slip',             context: 'normal' },
+  { action: 'tool_slide',            keys: 'd',              category: 'tool', label: 'Tool: Slide',            context: 'normal' },
+  { action: 'tool_ripple_delete',    keys: 'x',              category: 'tool', label: 'Tool: Ripple Delete',    context: 'normal' },
+  { action: 'tool_marker',           keys: 'shift+m',        category: 'tool', label: 'Tool: Marker',           context: 'normal' },
+  { action: 'tool_range_select',     keys: 'r',              category: 'tool', label: 'Tool: Range Select',     context: 'normal' },
+  { action: 'loop_toggle',           keys: 'meta+l',         category: 'timeline', label: 'Toggle Loop',        context: 'normal' },
+  { action: 'grid_up',               keys: ']',              category: 'view', label: 'Grid: Finer Division',   context: 'normal' },
+  { action: 'grid_down',             keys: '[',              category: 'view', label: 'Grid: Coarser Division', context: 'normal' },
+  { action: 'toggle_popout',         keys: 'meta+shift+p',   category: 'view', label: 'Toggle Pop-out Preview', context: 'normal' },
+  { action: 'tool_escape_select',    keys: 'escape',         category: 'tool', label: 'Reset to Select Tool',   context: 'normal' },
 ]

@@ -10,7 +10,8 @@ interface PadGridProps {
 export default function PadGrid({ onEditPad }: PadGridProps) {
   const drumRack = usePerformanceStore((s) => s.drumRack);
   const padStates = usePerformanceStore((s) => s.padStates);
-  const isPerformMode = usePerformanceStore((s) => s.isPerformMode);
+  // P5a.3: modal-flag approach retired — PadGrid only renders inside PerformancePanel
+  // which itself is gated on track-selection in App.tsx. Always armed here.
   const triggerPad = usePerformanceStore((s) => s.triggerPad);
   const releasePad = usePerformanceStore((s) => s.releasePad);
   const currentFrame = useProjectStore((s) => s.currentFrame);
@@ -29,7 +30,7 @@ export default function PadGrid({ onEditPad }: PadGridProps) {
           onEdit={onEditPad}
         />
       ))}
-      {isPerformMode && !hasMappings && (
+      {!hasMappings && (
         <div className="pad-grid__hint">
           No pad modRoutes configured — double-click a pad to add one
         </div>

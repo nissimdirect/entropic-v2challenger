@@ -27,9 +27,12 @@ import HelpPanel from './components/effects/HelpPanel'
 // P3.3: Polymorphic inspector (8 states, info-only)
 import Inspector from './components/inspector/Inspector'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
+// P5a.3: buildVoiceLayers replaces buildSamplerLayer in the render path (multi-voice FSM).
+//        buildSamplerLayer kept for legacy callers outside the voice path.
 import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
-import { buildSamplerLayer } from './components/instruments/buildSamplerLayer'
+import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
+import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
 import './styles/creatrix-layout.css'
@@ -228,7 +231,15 @@ function AppInner() {
   }, [addEffectRaw])
 
   const isDirty = useUndoStore((s) => s.isDirty)
-  const isPerformMode = usePerformanceStore((s) => s.isPerformMode)
+  // P5a.3: arming derived from selected track type (modal flag retired).
+  // Pads are armed whenever the selected track is a performance track.
+  // Reactive: re-renders when selectedTrackId or track type changes.
+  const isPerformArmed = useTimelineStore((s) => {
+    const selId = s.selectedTrackId
+    if (!selId) return false
+    const track = s.tracks.find((t) => t.id === selId)
+    return track?.type === 'performance'
+  })
 
   // F-0512-19: subscribe to tracks so the render trigger below re-fires when
   // any track-level state mutates (blend mode, opacity, mute, clip add/remove).
@@ -516,8 +527,16 @@ function AppInner() {
     shortcutRegistry.register('toggle_sidebar', () => useLayoutStore.getState().toggleSidebar())
     shortcutRegistry.register('toggle_focus', () => useLayoutStore.getState().toggleFocusMode())
     shortcutRegistry.register('toggle_perform', () => {
-      const perfStore = usePerformanceStore.getState()
-      perfStore.setPerformMode(!perfStore.isPerformMode)
+      // P5a.3: perform mode is track-selection based — Cmd+P selects/deselects
+      // the first performance track (or the current one if already selected).
+      const tl = useTimelineStore.getState()
+      const perfTrack = tl.tracks.find((t) => t.type === 'performance')
+      if (!perfTrack) return
+      if (tl.selectedTrackId === perfTrack.id) {
+        tl.selectTrack(null as unknown as string)
+      } else {
+        tl.selectTrack(perfTrack.id)
+      }
     })
     shortcutRegistry.register('toggle_operators', () => {
       setShowOperators((v) => !v)
@@ -715,9 +734,13 @@ function AppInner() {
       if (isInput) return
 
       const perfStore = usePerformanceStore.getState()
+      // P5a.3: arming is track-selection based (no modal flag).
+      const tl = useTimelineStore.getState()
+      const selTrack = tl.tracks.find((t) => t.id === tl.selectedTrackId)
+      const isArmed = selTrack?.type === 'performance'
 
       // Perform mode pad handling (NOT in registry — uses e.code for pad bindings)
-      if (perfStore.isPerformMode && !(e.metaKey || e.ctrlKey)) {
+      if (isArmed && !(e.metaKey || e.ctrlKey)) {
         if (e.code === 'Escape') {
           e.preventDefault()
           // F-0514-5 (perform-mode case): clear visual selection BEFORE panicking.
@@ -801,7 +824,10 @@ function AppInner() {
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
 
       const perfStore = usePerformanceStore.getState()
-      if (!perfStore.isPerformMode) return
+      // P5a.3: arming is track-selection based (no modal flag).
+      const tlUp = useTimelineStore.getState()
+      const selTrackUp = tlUp.tracks.find((t) => t.id === tlUp.selectedTrackId)
+      if (selTrackUp?.type !== 'performance') return
       if (perfStore.isPadEditorOpen) return
 
       const pad = perfStore.drumRack.pads.find((p) => p.keyBinding === e.code)
@@ -953,18 +979,32 @@ function AppInner() {
         }
 
         let res
-        // B2: resolve each performance-track Sampler into a composite layer. Only
-        // render samplers whose track still exists, is a performance track, and isn't
+        // P5a.3: resolve each performance-track Sampler into multi-voice composite layers.
+        // Uses evaluateVoices (voiceFSM) + buildVoiceLayers for voice-keyed rendering.
+        // Only render samplers whose track still exists, is a performance track, and isn't
         // muted (drops orphans left by a deleted track). Imperative getState() read is
         // deliberate: requestRenderFrame's deps are [effectChain], so a coalesced/queued
         // render must re-read instruments at exec time rather than capture a stale value.
         const perfTrackIds = new Set(
           timelineState.tracks.filter((t) => t.type === 'performance' && !t.isMuted).map((t) => t.id),
         )
-        const samplerLayers = Object.entries(useInstrumentsStore.getState().instruments)
-          .filter(([trackId]) => perfTrackIds.has(trackId))
-          .map(([, inst]) => buildSamplerLayer(inst, projectAssets, frame, activeFps))
-          .filter((l): l is NonNullable<typeof l> => l !== null)
+        const perfState = usePerformanceStore.getState()
+        const instrState = useInstrumentsStore.getState()
+        // One ADSREnvelope per track: use the first pad's envelope (all pads share
+        // the same rack envelope for the sampler voice lifecycle in Phase 5a).
+        const rackAdsr = perfState.drumRack.pads[0]?.envelope ?? { attack: 0, decay: 0, sustain: 1, release: 0 }
+        const samplerLayers = Array.from(perfTrackIds).flatMap((trackId) => {
+          const inst = instrState.instruments[trackId]
+          if (!inst) return []
+          const events = perfState.trackEvents[trackId] ?? []
+          const voices = evaluateVoices(events, frame, { voiceCap: 4, adsr: rackAdsr })
+          if (voices.length > 0) {
+            return buildVoiceLayers(inst, voices, projectAssets, frame, activeFps, rackAdsr)
+          }
+          // Fall back to single-layer B1 path when no voices are active (silent track)
+          const legacy = buildSamplerLayer(inst, projectAssets, frame, activeFps)
+          return legacy ? [legacy] : []
+        })
         const hasMultipleLayers =
           activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0
 
@@ -2851,7 +2891,7 @@ function AppInner() {
       </div>
 
       {/* Phase 15C: PerformancePanel converted to floating config overlay */}
-      {isPerformMode && (
+      {isPerformArmed && (
         <div className="app__performance-overlay">
           <PerformancePanel onEditPad={(id) => {
             setEditingPadId(id)
@@ -3040,7 +3080,7 @@ function AppInner() {
               effectCount={registry.length}
             />
           )}
-          {isPerformMode && (
+          {isPerformArmed && (
             <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
           )}
           {/* P3.2: cursor tool chip — reads data-cursor-tool set by EffectBrowser tool tab */}
