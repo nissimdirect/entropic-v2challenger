@@ -12,18 +12,24 @@ interface LayoutState {
   sidebarCollapsed: boolean
   timelineCollapsed: boolean
   timelineHeight: number
+  deviceChainHeight: number
   isPopOutOpen: boolean
   popOutBounds: PopOutBounds | null
   quantizeEnabled: boolean
   quantizeDivision: number
+  /** UE.1: snap clips to edges/playhead/markers. Persisted to localStorage. */
+  snapEnabled: boolean
   toggleSidebar: () => void
   toggleTimeline: () => void
   setTimelineHeight: (h: number) => void
+  setDeviceChainHeight: (h: number) => void
   toggleFocusMode: () => void
   setPopOutOpen: (open: boolean) => void
   setPopOutBounds: (bounds: PopOutBounds | null) => void
   toggleQuantize: () => void
   setQuantizeDivision: (div: number) => void
+  /** UE.1: Toggle clip-edge/playhead/marker snapping. */
+  toggleSnap: () => void
 }
 
 const STORAGE_KEY = 'entropic-layout'
@@ -32,6 +38,8 @@ interface PersistedLayout {
   sidebarCollapsed: boolean
   timelineCollapsed: boolean
   timelineHeight: number
+  deviceChainHeight: number
+  snapEnabled: boolean
 }
 
 function loadPersistedLayout(): Partial<PersistedLayout> {
@@ -46,6 +54,10 @@ function loadPersistedLayout(): Partial<PersistedLayout> {
     if (typeof parsed.timelineHeight === 'number' && parsed.timelineHeight >= 120 && parsed.timelineHeight <= 800) {
       result.timelineHeight = parsed.timelineHeight
     }
+    if (typeof parsed.deviceChainHeight === 'number' && parsed.deviceChainHeight >= 100 && parsed.deviceChainHeight <= 600) {
+      result.deviceChainHeight = parsed.deviceChainHeight
+    }
+    if (typeof parsed.snapEnabled === 'boolean') result.snapEnabled = parsed.snapEnabled
     return result
   } catch {
     return {}
@@ -66,10 +78,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   sidebarCollapsed: persisted.sidebarCollapsed ?? false,
   timelineCollapsed: persisted.timelineCollapsed ?? false,
   timelineHeight: persisted.timelineHeight ?? 200,
+  deviceChainHeight: persisted.deviceChainHeight ?? 180,
   isPopOutOpen: false,
   popOutBounds: null,
   quantizeEnabled: false,
   quantizeDivision: 4, // 1/4 note
+  snapEnabled: persisted.snapEnabled ?? true, // on by default
 
   toggleSidebar: () => {
     const next = !get().sidebarCollapsed
@@ -87,6 +101,12 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const clamped = clampFinite(h, 100, 800, 250)
     set({ timelineHeight: clamped })
     persistLayout({ ...get(), timelineHeight: clamped })
+  },
+
+  setDeviceChainHeight: (h: number) => {
+    const clamped = clampFinite(h, 100, 600, 180)
+    set({ deviceChainHeight: clamped })
+    persistLayout({ ...get(), deviceChainHeight: clamped })
   },
 
   toggleFocusMode: () => {
@@ -112,5 +132,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setQuantizeDivision: (div: number) => {
     const valid = [1, 2, 4, 8, 16, 32]
     if (valid.includes(div)) set({ quantizeDivision: div })
+  },
+
+  toggleSnap: () => {
+    const next = !get().snapEnabled
+    set({ snapEnabled: next })
+    persistLayout({ ...get(), snapEnabled: next })
   },
 }))

@@ -476,10 +476,30 @@
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  height: 48px;
+  height: 76px;
   border-bottom: 1px solid var(--cx-line-1);
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.track-header--video {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  height: auto;
+  min-height: 76px;
+  padding: 6px 8px;
+}
+
+.track-header__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.track-header__row--bottom {
+  padding-left: 8px;
 }
 
 .track-header:hover {
@@ -488,6 +508,49 @@
 
 .track-header--selected {
   background: rgba(74, 222, 128, 0.08);
+}
+
+.track-header--dragging {
+  cursor: grabbing;
+  background: rgba(74, 222, 128, 0.22);
+  box-shadow:
+    0 0 0 1px var(--cx-action) inset,
+    0 4px 12px rgba(0, 0, 0, 0.6);
+  z-index: 5;
+  position: relative;
+}
+
+body.track-reorder-active,
+body.track-reorder-active * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  cursor: grabbing !important;
+}
+
+.timeline__new-track-zone {
+  display: none;
+  width: 100%;
+  height: 48px;
+  margin-top: 8px;
+  border: 2px dashed var(--cx-action);
+  border-radius: 4px;
+  background: rgba(74, 222, 128, 0.08);
+  pointer-events: auto;
+}
+
+body.clip-dragging .timeline__new-track-zone {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline__new-track-zone-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-action);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  pointer-events: none;
 }
 
 .track-header__color {
@@ -627,7 +690,7 @@
 /* --- Track Lane --- */
 
 .track-lane {
-  height: 48px;
+  height: 76px;
   border-bottom: 1px solid var(--cx-line-1);
   position: relative;
   background: var(--cx-bg-raised);
@@ -642,7 +705,7 @@
 .clip {
   position: absolute;
   top: 4px;
-  height: 40px;
+  height: 68px;
   background: var(--cx-action-wash);
   border: 1px solid var(--cx-action-wash);
   border-radius: 3px;

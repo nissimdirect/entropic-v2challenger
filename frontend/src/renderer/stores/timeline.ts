@@ -65,6 +65,12 @@ interface TimelineState {
   trimClipIn: (clipId: string, newInPoint: number) => void
   trimClipOut: (clipId: string, newOutPoint: number) => void
   splitClip: (clipId: string, time: number) => void
+  /** Ripple delete: remove clip and shift all later clips on the SAME track left by the deleted clip's duration.
+   *  One undo entry. Does NOT affect other tracks. */
+  rippleRemoveClip: (clipId: string) => void
+  /** Ripple trim out: shorten a clip's out-point by delta and shift all later clips on the SAME track left.
+   *  newOutPoint must be > clip.inPoint. One undo entry. */
+  rippleTrimClipOut: (clipId: string, newOutPoint: number) => void
   setClipSpeed: (clipId: string, speed: number) => void
   openSpeedDialog: (clipId: string, anchor: { x: number; y: number }) => void
   closeSpeedDialog: () => void
@@ -119,6 +125,14 @@ interface TimelineState {
   trimAudioClip: (clipId: string, newInSec: number, newOutSec: number) => void
   toggleAudioClipMute: (clipId: string) => void
   getActiveAudioClipsAtTime: (time: number) => { track: Track; clip: AudioClip }[]
+  /** UE.5: Update the path of an audio clip after media relink and clear its missing flag. */
+  relinkAudioClip: (clipId: string, newPath: string) => void
+  /** UE.5: Clear the missing flag on all Clip entries (video/image) referencing assetId. */
+  clearClipMissingFlag: (assetId: string) => void
+  /** UE.5: Set or clear the missing flag on a specific audio clip by id. */
+  setAudioClipMissing: (clipId: string, missing: boolean) => void
+  /** UE.5: Set or clear the missing flag on all Clips referencing a given assetId. */
+  setClipMissingByAssetId: (assetId: string, missing: boolean) => void
 
   // Helpers
   getActiveClipsAtTime: (time: number) => { track: Track; clip: Clip }[]
@@ -583,6 +597,55 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const oldTrackId = oldClip.trackId
     const oldPosition = oldClip.position
 
+    // Overlap snap: don't let the moved clip occupy the same time range as
+    // any other clip on the target track. If newPosition would overlap, snap
+    // to the closest free position (either right after the overlapping clip
+    // or right before it, whichever is closer to the requested newPosition).
+    const targetTrack = get().tracks.find((t) => t.id === newTrackId)
+    if (targetTrack) {
+      const myDuration = oldClip.duration
+      const siblings = targetTrack.clips
+        .filter((c) => c.id !== clipId)
+        .map((c) => ({ start: c.position, end: c.position + c.duration }))
+        .sort((a, b) => a.start - b.start)
+
+      const overlaps = (start: number) =>
+        siblings.some((s) => start < s.end && start + myDuration > s.start)
+
+      if (overlaps(newPosition)) {
+        // Build the set of free intervals between siblings on the target track.
+        const free: Array<[number, number]> = []
+        let cursor = 0
+        for (const s of siblings) {
+          if (s.start - cursor >= myDuration) free.push([cursor, s.start])
+          cursor = Math.max(cursor, s.end)
+        }
+        free.push([cursor, Infinity])
+
+        // Pick the free interval whose nearest valid start is closest to
+        // the requested newPosition. Tie-break by preferring the interval
+        // that contains newPosition's neighborhood.
+        let best = newPosition
+        let bestDist = Infinity
+        for (const [a, b] of free) {
+          const cand = Math.max(a, Math.min(b - myDuration, newPosition))
+          if (cand + myDuration > b) continue // doesn't fit
+          const dist = Math.abs(cand - newPosition)
+          if (dist < bestDist) {
+            bestDist = dist
+            best = cand
+          }
+        }
+        newPosition = best
+      }
+    }
+
+    // No-op fast path: if the snap produced the same track + position, skip
+    // the undoable so a held drag-on-overlap doesn't spam undo entries.
+    if (oldTrackId === newTrackId && Math.abs(oldPosition - newPosition) < 1e-6) {
+      return
+    }
+
     undoable(
       'Move clip',
       () => {
@@ -683,6 +746,120 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
             c.id === clipId ? { ...c, outPoint: oldClip!.outPoint, duration: oldClip!.duration } : c,
           ),
         }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  rippleRemoveClip: (clipId) => {
+    // Find the clip to delete and its track
+    let removedClip: Clip | null = null
+    let removedTrackId: string | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) {
+        removedClip = { ...clip }
+        removedTrackId = track.id
+        break
+      }
+    }
+    if (!removedClip || !removedTrackId) return
+
+    const deletedDuration = removedClip.duration
+    const deletedPosition = removedClip.position
+    const trackId = removedTrackId
+
+    undoable(
+      'Ripple delete',
+      () => {
+        const state = get()
+        const tracks = state.tracks.map((t) => {
+          if (t.id !== trackId) return t
+          // Remove the deleted clip; shift all later clips left by deletedDuration
+          const clips = t.clips
+            .filter((c) => c.id !== clipId)
+            .map((c) => {
+              if (c.position > deletedPosition) {
+                const newPos = Math.max(0, c.position - deletedDuration)
+                return { ...c, position: newPos }
+              }
+              return c
+            })
+          return { ...t, clips }
+        })
+        const selectedClipIds = state.selectedClipIds.filter((id) => id !== clipId)
+        const selectedClipId = selectedClipIds[0] ?? null
+        const speedDialog = state.speedDialog?.clipId === clipId ? null : state.speedDialog
+        set({ tracks, selectedClipId, selectedClipIds, speedDialog, duration: recalcDuration(tracks) })
+      },
+      () => {
+        // Undo: restore original positions (shift later clips right, re-insert deleted clip)
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.position >= deletedPosition) {
+              return { ...c, position: c.position + deletedDuration }
+            }
+            return c
+          })
+          return { ...t, clips: [...clips, removedClip!] }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  rippleTrimClipOut: (clipId, newOutPoint) => {
+    let oldClip: Clip | null = null
+    let clipTrackId: string | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldClip = { ...clip }; clipTrackId = track.id; break }
+    }
+    if (!oldClip || !clipTrackId || newOutPoint <= oldClip.inPoint) return
+
+    const delta = oldClip.outPoint - newOutPoint   // positive = trim shortens the clip
+    if (delta <= 0) return                          // only ripple when shortening (out-point moves left)
+
+    const clipPos = oldClip.position
+    const trackId = clipTrackId
+    const oldOut = oldClip.outPoint
+    const oldDuration = oldClip.duration
+
+    undoable(
+      'Ripple trim',
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) {
+              return { ...c, outPoint: newOutPoint, duration: (newOutPoint - c.inPoint) / c.speed }
+            }
+            // Shift clips that start AFTER the trimmed clip's original end position
+            if (c.position > clipPos) {
+              const newPos = Math.max(0, c.position - delta)
+              return { ...c, position: newPos }
+            }
+            return c
+          })
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) {
+              return { ...c, outPoint: oldOut, duration: oldDuration }
+            }
+            if (c.position > clipPos) {
+              return { ...c, position: c.position + delta }
+            }
+            return c
+          })
+          return { ...t, clips }
+        })
         set({ tracks, duration: recalcDuration(tracks) })
       },
     )
@@ -1462,6 +1639,64 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         ),
       }),
     )
+  },
+
+  relinkAudioClip: (clipId, newPath) => {
+    // UE.5: Update the path of an audio clip after relink; clear missing flag.
+    // Not undoable — relink is a persistent correction, not an edit operation.
+    set({
+      tracks: get().tracks.map((t) =>
+        t.type === 'audio'
+          ? {
+              ...t,
+              audioClips: (t.audioClips ?? []).map((c) =>
+                c.id === clipId ? { ...c, path: newPath, missing: undefined } : c,
+              ),
+            }
+          : t,
+      ),
+    })
+  },
+
+  clearClipMissingFlag: (assetId) => {
+    // UE.5: Clear missing flag on all Clip entries referencing assetId.
+    // Not undoable — relink is a persistent correction.
+    set({
+      tracks: get().tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) =>
+          c.assetId === assetId ? { ...c, missing: undefined } : c,
+        ),
+      })),
+    })
+  },
+
+  setAudioClipMissing: (clipId, missing) => {
+    // UE.5: Set or clear missing flag on a specific audio clip.
+    set({
+      tracks: get().tracks.map((t) =>
+        t.type === 'audio'
+          ? {
+              ...t,
+              audioClips: (t.audioClips ?? []).map((c) =>
+                c.id === clipId ? { ...c, missing: missing ? true : undefined } : c,
+              ),
+            }
+          : t,
+      ),
+    })
+  },
+
+  setClipMissingByAssetId: (assetId, missing) => {
+    // UE.5: Set or clear missing flag on all Clips referencing assetId.
+    set({
+      tracks: get().tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) =>
+          c.assetId === assetId ? { ...c, missing: missing ? true : undefined } : c,
+        ),
+      })),
+    })
   },
 
   getActiveAudioClipsAtTime: (time) => {

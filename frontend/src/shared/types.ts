@@ -180,6 +180,7 @@ export interface Clip {
   opacity?: number;      // 0.0–1.0, default 1.0 (undefined = fully opaque)
   isEnabled?: boolean;   // default true (undefined = enabled)
   reversed?: boolean;    // default false
+  missing?: boolean;     // true when the referenced asset path is no longer resolvable (UE.5)
 }
 
 // --- Text ---

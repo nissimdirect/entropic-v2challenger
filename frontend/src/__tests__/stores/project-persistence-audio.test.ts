@@ -17,6 +17,7 @@ const mockEntropic = {
   readFile: vi.fn().mockResolvedValue('{}'),
   writeFile: vi.fn().mockResolvedValue(undefined),
   deleteFile: vi.fn().mockResolvedValue(undefined),
+  fileExists: vi.fn().mockResolvedValue(true),
   getAppPath: vi.fn().mockResolvedValue('/test/userData'),
 }
 ;(globalThis as any).window = { entropic: mockEntropic }

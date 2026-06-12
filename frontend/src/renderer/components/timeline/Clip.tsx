@@ -10,15 +10,52 @@ import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
+import { computeSnapPosition, collectClipEdges } from '../../utils/snap-candidates'
 
-/** Snap a position to the nearest grid line if quantize is enabled. */
-function snapToGrid(pos: number, bypassSnap: boolean): number {
-  if (bypassSnap) return pos
-  const { quantizeEnabled, quantizeDivision } = useLayoutStore.getState()
+/**
+ * Resolve a raw drag position to a snapped one.
+ *
+ * UE.1: single nearest-wins pass over grid lines + clip edges + playhead + markers.
+ * metaKey bypasses ALL snapping (generalises the previous grid-bypass behaviour).
+ *
+ * Chain: drag handler → snapPosition() → moveClip / trimClipIn / trimClipOut (store stays dumb).
+ *
+ * @param pos       raw position in timeline seconds
+ * @param bypass    true when metaKey/ctrlKey is held — returns pos unchanged
+ * @param zoom      pixels per second (for threshold conversion)
+ * @param excludeId clip ID to exclude from edge candidates (the clip being dragged)
+ */
+function snapPosition(pos: number, bypass: boolean, zoom: number, excludeId?: string): number {
+  if (bypass) return pos
+
+  const layoutState = useLayoutStore.getState()
+  const { snapEnabled, quantizeEnabled, quantizeDivision } = layoutState
   const { bpm } = useProjectStore.getState()
-  if (!quantizeEnabled || bpm <= 0) return pos
-  const interval = (60 / bpm) * (4 / quantizeDivision)
-  return Math.round(pos / interval) * interval
+  const { playheadTime, markers, tracks } = useTimelineStore.getState()
+
+  // If both snap and quantize are off, return raw position unchanged
+  if (!snapEnabled && !quantizeEnabled) return pos
+
+  // Collect clip edges from all tracks (excluding the dragged clip)
+  const allClips = tracks.flatMap((t) => t.clips)
+  const clipEdges = snapEnabled ? collectClipEdges(allClips, excludeId) : []
+
+  // Grid interval: only include if quantize is on and BPM is valid
+  let gridInterval: number | null = null
+  if (quantizeEnabled && bpm > 0) {
+    gridInterval = (60 / bpm) * (4 / quantizeDivision)
+  }
+
+  const result = computeSnapPosition({
+    rawPos: pos,
+    zoom,
+    playheadTime: snapEnabled ? playheadTime : -Infinity,
+    markers: snapEnabled ? markers : [],
+    clipEdges,
+    gridInterval,
+  })
+
+  return result.snappedPos
 }
 
 interface ClipProps {
@@ -33,9 +70,6 @@ interface ClipProps {
 }
 
 export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
-  const isDragging = useRef(false)
-  const dragStartX = useRef(0)
-  const dragStartPos = useRef(0)
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
 
   // Mini waveform canvas
@@ -129,6 +163,11 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       },
       { label: 'Duplicate', action: () => store.duplicateClip(clip.id) },
       { label: 'Delete', action: () => store.removeClip(clip.id) },
+      {
+        label: 'Ripple Delete',
+        action: () => store.rippleRemoveClip(clip.id),
+        shortcut: '⇧⌦',
+      },
       { label: '', action: () => {}, separator: true },
       {
         label: 'Speed/Duration...',
@@ -149,97 +188,177 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
 
+  // Document-level drag: when moveClip transfers the clip to a different
+  // track, React unmounts this clip's component from the old track and mounts
+  // a NEW one in the new track (because key={clip.id} lives inside each
+  // track's clips.map). Pointer capture on this element would be lost, and
+  // React handlers on the new instance start fresh with isDragging.current=false
+  // → drag dies after one track crossing, leaving the visible "overlap" mess.
+  // Attaching pointermove/up to `document` instead survives the re-mount —
+  // the closure stays alive (the document listeners hold the reference) and
+  // keeps moving the clip via clipId regardless of which component instance
+  // is mounted at any moment.
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
       // Don't start drag from trim handles
       if ((e.target as HTMLElement).classList.contains('clip__trim-handle')) return
+      if (e.button !== 0) return
 
       e.preventDefault()
       e.stopPropagation()
-      isDragging.current = true
-      dragStartX.current = e.clientX
-      dragStartPos.current = clip.position
-      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+
+      const clipId = clip.id
+      const startX = e.clientX
+      const startPos = clip.position
+      const pointerId = e.pointerId
+      const zoomAtStart = zoom
+      let active = true
+      let lastClientY = e.clientY
+      let autoScrollRaf: number | null = null
+      document.body.classList.add('clip-dragging')
+
+      // Edge-scroll loop: while the cursor sits in the top/bottom 40 px of the
+      // lanes scroll container, push scrollTop in that direction so the user
+      // can drag onto rows that started off-screen. Speed ramps with how
+      // deeply the cursor penetrates the edge zone (sigmoid-ish via linear
+      // scaling clamped to ±20 px/frame).
+      const tickAutoScroll = () => {
+        if (!active) return
+        const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+        if (lanes) {
+          const rect = lanes.getBoundingClientRect()
+          const EDGE = 40
+          let dy = 0
+          if (lastClientY < rect.top + EDGE) {
+            dy = -Math.min(20, (rect.top + EDGE - lastClientY) * 0.5)
+          } else if (lastClientY > rect.bottom - EDGE) {
+            dy = Math.min(20, (lastClientY - (rect.bottom - EDGE)) * 0.5)
+          }
+          if (dy !== 0) {
+            lanes.scrollTop = Math.max(
+              0,
+              Math.min(lanes.scrollHeight - lanes.clientHeight, lanes.scrollTop + dy),
+            )
+          }
+        }
+        autoScrollRaf = requestAnimationFrame(tickAutoScroll)
+      }
+      autoScrollRaf = requestAnimationFrame(tickAutoScroll)
 
       const store = useTimelineStore.getState()
       if (e.metaKey || e.ctrlKey) {
-        store.toggleClipSelection(clip.id)
+        store.toggleClipSelection(clipId)
       } else if (e.shiftKey && store.selectedClipIds.length > 0) {
         const lastSelected = store.selectedClipIds[store.selectedClipIds.length - 1]
-        store.rangeSelectClips(lastSelected, clip.id)
+        store.rangeSelectClips(lastSelected, clipId)
       } else {
-        store.selectClip(clip.id)
+        store.selectClip(clipId)
       }
-    },
-    [clip.id, clip.position],
-  )
 
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isDragging.current) return
-      const dx = e.clientX - dragStartX.current
-      const dt = dx / zoom
-      const newPos = Math.max(0, dragStartPos.current + dt)
-      const snapped = snapToGrid(newPos, e.metaKey)
+      const moveHandler = (ev: PointerEvent) => {
+        if (!active || ev.pointerId !== pointerId) return
+        lastClientY = ev.clientY
+        const dx = ev.clientX - startX
+        const dt = dx / zoomAtStart
+        const newPos = Math.max(0, startPos + dt)
+        const snapped = snapPosition(newPos, ev.metaKey || ev.ctrlKey, zoomAtStart, clipId)
 
-      // Detect target track by Y. Iterate visible track lanes and check bounding rects.
-      // Do NOT latch pendingNewTrack from transient move samples — OS interrupts or window
-      // exits can leave a false latch. Re-check belowAllTracks at pointerup instead.
-      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
-      let targetTrackId = clip.trackId
-
-      for (const lane of lanes) {
-        const rect = lane.getBoundingClientRect()
-        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-          const id = lane.dataset.trackId
-          if (id) targetTrackId = id
+        // Look up the clip's CURRENT track in the store (it migrates as we
+        // call moveClip below — using the captured clip.trackId would lock
+        // the fallback to the starting lane and cause re-targeting glitches).
+        const tracks = useTimelineStore.getState().tracks
+        let currentTrackId: string | null = null
+        for (const t of tracks) {
+          if (t.clips.some((c) => c.id === clipId)) {
+            currentTrackId = t.id
+            break
+          }
         }
-      }
+        if (!currentTrackId) return
 
-      useTimelineStore.getState().moveClip(clip.id, targetTrackId, snapped)
-    },
-    [clip.id, clip.trackId, zoom],
-  )
-
-  const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
-      if (!isDragging.current) {
-        return
-      }
-      // Compute belowAllTracks from the pointer-UP position, not a latched move sample.
-      const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
-      let maxBottom = -Infinity
-      for (const lane of lanes) {
-        const rect = lane.getBoundingClientRect()
-        if (rect.bottom > maxBottom) maxBottom = rect.bottom
-      }
-      const belowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
-
-      if (belowAllTracks) {
-        const store = useTimelineStore.getState()
-        const current = store.tracks.find((t) => t.clips.some((c) => c.id === clip.id))
-        const currentClip = current?.clips.find((c) => c.id === clip.id)
-        const newTrackId = store.addTrack(`Track ${store.tracks.length + 1}`, '#4ade80', 'video')
-        if (newTrackId && currentClip) {
-          store.moveClip(clip.id, newTrackId, currentClip.position)
-        } else if (!newTrackId) {
-          useToastStore.getState().addToast({
-            level: 'warning',
-            message: 'Could not create new track — limit reached.',
-            source: 'clip-drag-new-track',
-          })
+        const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+        let targetTrackId = currentTrackId
+        for (const lane of lanes) {
+          const rect = lane.getBoundingClientRect()
+          if (ev.clientY >= rect.top && ev.clientY <= rect.bottom) {
+            const id = lane.dataset.trackId
+            if (id) targetTrackId = id
+          }
         }
+
+        useTimelineStore.getState().moveClip(clipId, targetTrackId, snapped)
       }
-      isDragging.current = false
+
+      const teardown = () => {
+        active = false
+        if (autoScrollRaf !== null) {
+          cancelAnimationFrame(autoScrollRaf)
+          autoScrollRaf = null
+        }
+        document.body.classList.remove('clip-dragging')
+        document.removeEventListener('pointermove', moveHandler)
+        document.removeEventListener('pointerup', upHandler)
+        document.removeEventListener('pointercancel', cancelHandler)
+      }
+
+      const upHandler = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return
+
+        // Generous "below all tracks" detection: either pointer is past every
+        // lane's bottom edge, OR pointer is over the explicit new-track drop
+        // zone. The drop zone gives users a reliable, visible hit target —
+        // the bare clientY check failed in practice when the timeline scroll
+        // container ended flush with the last lane.
+        const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+        let maxBottom = -Infinity
+        for (const lane of lanes) {
+          const rect = lane.getBoundingClientRect()
+          if (rect.bottom > maxBottom) maxBottom = rect.bottom
+        }
+        const belowAllTracks = maxBottom !== -Infinity && ev.clientY > maxBottom
+
+        // Drop-zone hit: walk up from elementFromPoint to find the new-track zone.
+        let overDropZone = false
+        const hit = document.elementFromPoint(ev.clientX, ev.clientY)
+        if (hit && hit.closest('[data-drop-zone="new-track"]')) {
+          overDropZone = true
+        }
+
+        if (belowAllTracks || overDropZone) {
+          const s = useTimelineStore.getState()
+          const current = s.tracks.find((t) => t.clips.some((c) => c.id === clipId))
+          const currentClip = current?.clips.find((c) => c.id === clipId)
+          const newTrackId = s.addTrack(`Track ${s.tracks.length + 1}`, '#4ade80', 'video')
+          if (newTrackId && currentClip) {
+            s.moveClip(clipId, newTrackId, currentClip.position)
+          } else if (!newTrackId) {
+            useToastStore.getState().addToast({
+              level: 'warning',
+              message: 'Could not create new track — limit reached.',
+              source: 'clip-drag-new-track',
+            })
+          }
+        }
+        teardown()
+      }
+
+      const cancelHandler = (ev: PointerEvent) => {
+        if (ev.pointerId !== pointerId) return
+        teardown()
+      }
+
+      document.addEventListener('pointermove', moveHandler)
+      document.addEventListener('pointerup', upHandler)
+      document.addEventListener('pointercancel', cancelHandler)
     },
-    [clip.id],
+    [clip.id, clip.position, zoom],
   )
 
-  // pointercancel (OS interrupt, context menu, window focus loss) must reset state
-  // without creating a track — we can't trust the event's position in that case.
-  const handlePointerCancel = useCallback(() => {
-    isDragging.current = false
-  }, [])
+  // Stubs kept on the element so React's event delegation doesn't warn —
+  // the actual logic now lives in document listeners attached in onPointerDown.
+  const handlePointerMove = useCallback(() => undefined, [])
+  const handlePointerUp = useCallback(() => undefined, [])
+  const handlePointerCancel = useCallback(() => undefined, [])
 
   const handleClick = useCallback(
     (e: React.MouseEvent) => {
@@ -262,7 +381,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         const dx = me.clientX - startX
         const dt = dx / zoom
         const rawIn = Math.max(0, startIn + dt)
-        const newIn = snapToGrid(rawIn, me.metaKey)
+        const newIn = snapPosition(rawIn, me.metaKey || me.ctrlKey, zoom, clip.id)
         useTimelineStore.getState().trimClipIn(clip.id, newIn)
       }
       const onUp = () => {
@@ -288,7 +407,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         const dx = me.clientX - startX
         const dt = dx / zoom
         const rawOut = startOut + dt
-        const newOut = snapToGrid(rawOut, me.metaKey)
+        const newOut = snapPosition(rawOut, me.metaKey || me.ctrlKey, zoom, clip.id)
         useTimelineStore.getState().trimClipOut(clip.id, newOut)
       }
       const onUp = () => {

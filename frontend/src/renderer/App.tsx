@@ -41,12 +41,13 @@ import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
-import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
+import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave, probeForMissingAssets, relinkAsset, markAssetMissing } from './project-persistence'
 import { getActiveTrackId, getActiveEffectChain, useActiveEffectChain } from './stores/project'
 import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
 import CrashRecoveryDialog from './components/dialogs/CrashRecoveryDialog'
+import RelinkDialog, { type MissingAsset } from './components/dialogs/RelinkDialog'
 import FeedbackDialog from './components/dialogs/FeedbackDialog'
 import UnsavedChangesDialog from './components/dialogs/UnsavedChangesDialog'
 import PerformancePanel from './components/performance/PerformancePanel'
@@ -244,6 +245,10 @@ function AppInner() {
   // currently mounted). Locking all 3 buttons during the await closes the race.
   const [isNavSaving, setIsNavSaving] = useState(false)
 
+  // UE.5: media relink dialog state
+  const [relinkAssets, setRelinkAssets] = useState<MissingAsset[]>([])
+  const [showRelinkDialog, setShowRelinkDialog] = useState(false)
+
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
   const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
@@ -316,7 +321,7 @@ function AppInner() {
 
   const handleCrashRestore = useCallback(async (_sendReport: boolean) => {
     if (autosavePath) {
-      await restoreAutosave(autosavePath, () => initPreviewRef.current())
+      await restoreAutosave(autosavePath, handleProjectHydrated)
     }
     if (window.entropic) {
       await window.entropic.clearCrashReports()
@@ -389,7 +394,7 @@ function AppInner() {
     // entirely and opened the file picker on a dirty project — silent data loss.
     shortcutRegistry.register('open', () => {
       if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'open' })
-      else loadProject(undefined, () => initPreviewRef.current())
+      else loadProject(undefined, handleProjectHydrated)
     })
     shortcutRegistry.register('new_project', () => {
       if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'new' })
@@ -570,6 +575,26 @@ function AppInner() {
       }
     })
 
+    // UE.2: Ripple delete — Shift+Backspace. Ripple-deletes each selected clip in
+    // ascending position order so earlier clips shift before later ones are evaluated.
+    shortcutRegistry.register('ripple_delete', () => {
+      const ts = useTimelineStore.getState()
+      if (ts.selectedClipIds.length === 0) return
+      // Gather selected clips across all tracks and sort by timeline position
+      const selected: { id: string; position: number }[] = []
+      for (const track of ts.tracks) {
+        for (const clip of track.clips) {
+          if (ts.selectedClipIds.includes(clip.id)) {
+            selected.push({ id: clip.id, position: clip.position })
+          }
+        }
+      }
+      selected.sort((a, b) => a.position - b.position)
+      for (const { id } of selected) {
+        ts.rippleRemoveClip(id)
+      }
+    })
+
     // Duplicate selected effect (deep clone with new ID)
     shortcutRegistry.register('duplicate_effect', () => {
       const ps = useProjectStore.getState()
@@ -602,6 +627,14 @@ function AppInner() {
       if (perfStore.isPerformMode && !(e.metaKey || e.ctrlKey)) {
         if (e.code === 'Escape') {
           e.preventDefault()
+          // F-0514-5 (perform-mode case): clear visual selection BEFORE panicking.
+          // Without this, Escape in perform mode short-circuits to panic, leaving
+          // any selected clip + its TransformPanel + bounding-box handles stuck.
+          const ts = useTimelineStore.getState()
+          if (ts.selectedClipIds.length > 0) {
+            ts.clearSelection()
+            return
+          }
           perfStore.panicAll()
           return
         }
@@ -807,9 +840,15 @@ function AppInner() {
             c.textConfig && c.isEnabled !== false && currentTime >= c.position && currentTime < c.position + c.duration,
           ))
 
-        // Active video clips across ALL unmuted video tracks (multi-track compositing)
+        // Active video clips across ALL unmuted video tracks (multi-track compositing).
+        // Iterated in REVERSE store order so the topmost track in the UI ends up
+        // LAST in the layer list — backend composites bottom-to-top so the last
+        // entry lands on top. Result: NLE convention (Premiere / Final Cut /
+        // Resolve / After Effects) — drag a track up in the timeline to bring it
+        // to the front of the composite.
         const activeVideoClips: { clip: typeof timelineState.tracks[0]['clips'][0]; track: typeof timelineState.tracks[0]; assetPath: string }[] = []
-        for (const track of timelineState.tracks) {
+        for (let i = timelineState.tracks.length - 1; i >= 0; i--) {
+          const track = timelineState.tracks[i]
           if (track.type !== 'video' || track.isMuted) continue
           for (const clip of track.clips) {
             if (clip.isEnabled === false) continue
@@ -1111,6 +1150,20 @@ function AppInner() {
   }, [audioStore, loadWaveform, setCurrentFrame, setTotalFrames])
   initPreviewRef.current = initPreviewFromHydratedProject
 
+  /**
+   * UE.5: Combined post-hydrate callback: initialise preview state, then probe
+   * for missing assets and show the relink dialog if any are found.
+   * Replaces the raw `() => initPreviewRef.current()` at every loadProject callsite.
+   */
+  const handleProjectHydrated = useCallback(async () => {
+    await initPreviewRef.current()
+    const missing = await probeForMissingAssets()
+    if (missing.length > 0) {
+      setRelinkAssets(missing)
+      setShowRelinkDialog(true)
+    }
+  }, [])
+
   const handleFileIngest = useCallback(
     async (path: string) => {
       if (!window.entropic) return
@@ -1304,6 +1357,112 @@ function AppInner() {
     timeline.addTextTrack(`Text ${textCount + 1}`, '#6366f1')
   }, [])
 
+  // UE.6 — Still-frame export: export the composited frame at the current playhead as a PNG.
+  // Packet design (call-don't-fork): builds the SAME payload shape as the preview single-clip
+  // path (App.tsx:902-925) plus output_path and cmd:'export_frame'.
+  // Packet ambiguity logged below: composite frames are deferred to the Export dialog.
+  const handleExportCurrentFrame = useCallback(async () => {
+    if (!window.entropic) return
+
+    const timeline = useTimelineStore.getState()
+    const currentTime = timeline.playheadTime
+    const projectState = useProjectStore.getState()
+    const projectAssets = projectState.assets
+
+    // Collect active video clips at the current playhead time (mirrors preview logic)
+    const activeVideoClips: Array<{
+      clip: (typeof timeline.tracks)[0]['clips'][0]
+      track: (typeof timeline.tracks)[0]
+      assetPath: string
+    }> = []
+    for (const track of timeline.tracks) {
+      if (track.type !== 'video' || track.isMuted) continue
+      for (const clip of track.clips) {
+        if (clip.isEnabled === false) continue
+        if (currentTime < clip.position || currentTime >= clip.position + clip.duration) continue
+        const asset = projectAssets[clip.assetId]
+        if (!asset?.path) continue
+        activeVideoClips.push({ clip, track, assetPath: asset.path })
+      }
+    }
+
+    // Empty timeline — nothing to export
+    if (activeVideoClips.length === 0) {
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: 'No active clip at the current playhead position.',
+        source: 'export-frame',
+      })
+      return
+    }
+
+    // PACKET AMBIGUITY: The packet assumes a single render path; render_composite parity
+    // is a follow-up. Multi-clip composites (or when text/sampler layers are active) use
+    // render_composite in preview — we cannot replicate that in export_frame without
+    // backend composite support. Show a toast and skip rather than exporting a wrong frame.
+    if (activeVideoClips.length > 1) {
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: 'Composite frames: use Export dialog',
+        source: 'export-frame',
+      })
+      return
+    }
+
+    // Single clip path — mirrors App.tsx:902-925
+    const { clip: singleClip, track: singleTrack, assetPath: singleAssetPath } = activeVideoClips[0]
+    const ct = singleClip.transform
+    const localTime = currentTime - singleClip.position
+    const srcTime = singleClip.reversed ? Math.max(0, singleClip.duration - localTime) : localTime
+    const clipFrame = Math.max(
+      0,
+      Math.round((srcTime * (singleClip.speed || 1) + singleClip.inPoint) * activeFps),
+    )
+    const singleTrackChain = modulateChain(singleTrack.effectChain, clipFrame)
+
+    // Show native save dialog
+    const defaultName = `frame-${currentTime.toFixed(3).replace('.', '_')}s.png`
+    const outputPath = await window.entropic.showSaveDialog({
+      defaultPath: defaultName,
+      filters: [{ name: 'PNG Image', extensions: ['png'] }],
+    })
+    if (!outputPath) return // user cancelled
+
+    // Build payload identical to preview single-clip path + output_path
+    const payload: Record<string, unknown> = {
+      cmd: 'export_frame',
+      path: singleAssetPath || activeAssetPath.current,
+      time: srcTime * (singleClip.speed || 1) + singleClip.inPoint,
+      chain: serializeEffectChain(singleTrackChain),
+      project_seed: projectSeed,
+      output_path: outputPath,
+    }
+    if (ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)) {
+      payload['transform'] = ct
+    }
+
+    const res = await window.entropic.sendCommand(payload)
+
+    if (res.ok) {
+      // "Reveal in Finder" needs a shell:openPath bridge method that doesn't
+      // exist yet — a button calling a missing bridge would be a dead control
+      // (wire-or-delete rule). The toast text carries the full path; the
+      // openPath bridge + Reveal action is a named follow-up in the PR body.
+      const exportedPath = (res.output_path as string) || outputPath
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: `Frame exported: ${exportedPath}`,
+        source: 'export-frame',
+      })
+    } else {
+      useToastStore.getState().addToast({
+        level: 'error',
+        message: `Frame export failed: ${(res.error as string) || 'Unknown error'}`,
+        source: 'export-frame',
+      })
+    }
+  }, [activeFps, projectSeed])
+
   // Listen for menu actions from main process
   useEffect(() => {
     if (typeof window === 'undefined' || !window.entropic?.onMenuAction) return
@@ -1319,12 +1478,13 @@ function AppInner() {
         }
         case 'open-project': {
           if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'open' })
-          else loadProject(undefined, () => initPreviewRef.current())
+          else loadProject(undefined, handleProjectHydrated)
           break
         }
         case 'save': saveProject(); break
         case 'save-as': saveProjectAs(); break
         case 'export': setShowExportDialog(true); break
+        case 'export-current-frame': handleExportCurrentFrame(); break
         case 'toggle-sidebar': useLayoutStore.getState().toggleSidebar(); break
         case 'toggle-focus': useLayoutStore.getState().toggleFocusMode(); break
         case 'toggle-quantize': useLayoutStore.getState().toggleQuantize(); break
@@ -1456,7 +1616,7 @@ function AppInner() {
       }
     })
     return cleanup
-  }, [handleImportMedia, handleAddTextTrack, newProject, loadProject, saveProject, registry, addEffect])
+  }, [handleImportMedia, handleAddTextTrack, handleExportCurrentFrame, newProject, loadProject, saveProject, registry, addEffect])
 
   // Unsaved work prompt on close
   const [showCloseDialog, setShowCloseDialog] = useState(false)
@@ -1924,7 +2084,7 @@ function AppInner() {
   // (ALLOWED_EXTENSIONS + AUDIO_EXTENSIONS hoisted to module scope so handleImportMedia can branch.)
 
   const handleAudioIngest = useCallback(
-    async (path: string) => {
+    async (path: string, opts?: { forceNewTrack?: boolean }) => {
       if (!window.entropic) return
       // Probe duration via audio_decode (metadata only — backend also enforces
       // safety guards: validate_upload, realpath, magic-byte, decode timeout).
@@ -1950,7 +2110,12 @@ function AppInner() {
         return
       }
       const timeline = useTimelineStore.getState()
-      let audioTrackId = timeline.tracks.find((t) => t.type === 'audio')?.id
+      // forceNewTrack short-circuits the "find existing audio track" branch so
+      // drops in the empty space below lanes get their own fresh track — matches
+      // how video ingest already behaves and what the new-track drop zone implies.
+      let audioTrackId = opts?.forceNewTrack
+        ? undefined
+        : timeline.tracks.find((t) => t.type === 'audio')?.id
       if (!audioTrackId) {
         audioTrackId = timeline.addAudioTrack()
         if (!audioTrackId) return
@@ -2025,6 +2190,17 @@ function AppInner() {
       return
     }
 
+    // Drop position vs. existing lanes — used to force audio ingest onto a
+    // fresh track when the user drops into the empty area below all tracks
+    // (so the gesture parallels video-file behavior, which always creates one).
+    const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+    let maxBottom = -Infinity
+    for (const lane of lanes) {
+      const rect = lane.getBoundingClientRect()
+      if (rect.bottom > maxBottom) maxBottom = rect.bottom
+    }
+    const droppedBelowAllTracks = maxBottom !== -Infinity && e.clientY > maxBottom
+
     const getPath = window.entropic?.getPathForFile
     let hadError = false
 
@@ -2043,7 +2219,7 @@ function AppInner() {
         continue
       }
       if (AUDIO_EXTENSIONS.includes(ext)) {
-        handleAudioIngest(filePath)
+        handleAudioIngest(filePath, { forceNewTrack: droppedBelowAllTracks })
       } else {
         handleFileIngest(filePath)
       }
@@ -2064,6 +2240,7 @@ function AppInner() {
   const projectBpm = useProjectStore((s) => s.bpm)
   const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
   const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
+  const snapEnabled = useLayoutStore((s) => s.snapEnabled)
 
   const selectedClip = useTimelineStore((s) => {
     if (s.selectedClipIds.length !== 1) return null
@@ -2157,6 +2334,15 @@ function AppInner() {
           />
         </div>
         <div className="app__transport-quant">
+          {/* UE.1: Snap toggle — clip-edge/playhead/marker snapping. Store-shape change → kill+relaunch required (not HMR). */}
+          <button
+            className={`app__transport-btn ${snapEnabled ? 'app__transport-btn--active' : ''}`}
+            onClick={() => useLayoutStore.getState().toggleSnap()}
+            title="Toggle snapping (clip edges, playhead, markers)"
+            data-testid="snap-toggle"
+          >
+            S
+          </button>
           <button
             className={`app__transport-btn ${quantizeEnabled ? 'app__transport-btn--active' : ''}`}
             onClick={() => useLayoutStore.getState().toggleQuantize()}
@@ -2621,6 +2807,20 @@ function AppInner() {
         />
       )}
 
+      {/* UE.5: media relink dialog — shown after project load when assets are missing */}
+      <RelinkDialog
+        isOpen={showRelinkDialog}
+        missingAssets={relinkAssets}
+        onLocate={(assetId, newPath) => relinkAsset(assetId, newPath)}
+        onSkip={(assetId) => markAssetMissing(assetId)}
+        onClose={() => setShowRelinkDialog(false)}
+        onShowOpenDialog={(filters) =>
+          window.entropic
+            ? window.entropic.showOpenDialog({ filters })
+            : Promise.resolve(null)
+        }
+      />
+
       <FeedbackDialog
         isOpen={showFeedbackDialog}
         onClose={() => setShowFeedbackDialog(false)}
@@ -2681,7 +2881,7 @@ function AppInner() {
           const kind = pendingNav.kind
           setPendingNav(null)
           if (kind === 'open') {
-            loadProject(undefined, () => initPreviewRef.current())
+            loadProject(undefined, handleProjectHydrated)
           } else {
             handleNewProject()
           }
@@ -2697,7 +2897,7 @@ function AppInner() {
             if (!saved) return
             setPendingNav(null)
             if (kind === 'open') {
-              loadProject(undefined, () => initPreviewRef.current())
+              loadProject(undefined, handleProjectHydrated)
             } else {
               handleNewProject()
             }
@@ -2723,8 +2923,8 @@ function AppInner() {
         isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
         onNewProject={() => { handleNewProject(); setWelcomeDismissed(true) }}
-        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, () => initPreviewRef.current()) }}
-        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, () => initPreviewRef.current()) }}
+        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, handleProjectHydrated) }}
+        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, handleProjectHydrated) }}
       />
 
       <Toast />

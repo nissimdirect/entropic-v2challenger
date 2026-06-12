@@ -1,8 +1,9 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId } from '../../stores/project'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
+import { useLayoutStore } from '../../stores/layout'
 import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import ContextMenu from '../timeline/ContextMenu'
@@ -49,6 +50,29 @@ export default function DeviceChain({
 
   const handleSelect = useCallback((id: string) => {
     useProjectStore.getState().selectEffect(id)
+  }, [])
+
+  // Drag-resize for the device chain panel — top-edge handle, vertical drag
+  // adjusts height. Persists via the layout store. Matches the pattern used
+  // by the timeline's resize handle (drag up = taller, drag down = shorter).
+  const height = useLayoutStore((s) => s.deviceChainHeight)
+  const resizeRef = useRef<{ startY: number; startH: number } | null>(null)
+  const handleResizeDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      e.preventDefault()
+      resizeRef.current = { startY: e.clientY, startH: height }
+      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    },
+    [height],
+  )
+  const handleResizeMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!resizeRef.current) return
+    const dy = resizeRef.current.startY - e.clientY // drag up = taller
+    const newH = Math.max(100, Math.min(600, resizeRef.current.startH + dy))
+    useLayoutStore.getState().setDeviceChainHeight(newH)
+  }, [])
+  const handleResizeUp = useCallback(() => {
+    resizeRef.current = null
   }, [])
 
   const handleToggle = useCallback((id: string) => {
@@ -242,14 +266,27 @@ export default function DeviceChain({
   const rootProps = {
     className: `device-chain${isDragOver ? ' device-chain--drag-over' : ''}`,
     'data-testid': 'device-chain',
+    style: { height: `${height}px` },
     onDragOver: handleDragOver,
     onDragLeave: handleDragLeave,
     onDrop: handleDrop,
   } as const
 
+  const resizeHandle = (
+    <div
+      className="device-chain__resize-handle"
+      onPointerDown={handleResizeDown}
+      onPointerMove={handleResizeMove}
+      onPointerUp={handleResizeUp}
+      aria-label="Resize device chain panel"
+      title="Drag to resize"
+    />
+  )
+
   if (effectChain.length === 0) {
     return (
       <div {...rootProps}>
+        {resizeHandle}
         <div className="device-chain__header">
           <span className="device-chain__title">Device Chain</span>
         </div>
@@ -262,6 +299,7 @@ export default function DeviceChain({
 
   return (
     <div {...rootProps}>
+      {resizeHandle}
       <div className="device-chain__header">
         <span className="device-chain__title">Device Chain</span>
         <span className="device-chain__info">

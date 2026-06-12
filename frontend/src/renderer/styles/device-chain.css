@@ -5,9 +5,27 @@
   border-top: 1px solid var(--cx-selection);
   display: flex;
   flex-direction: column;
-  min-height: 120px;
-  max-height: 400px;
+  min-height: 100px;
+  max-height: 600px;
   overflow: hidden;
+  position: relative;
+}
+
+.device-chain__resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  cursor: ns-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.device-chain__resize-handle:hover,
+.device-chain__resize-handle:active {
+  background: rgba(155, 123, 181, 0.5);
 }
 
 /* F-0514-7: drag-target affordance. Tinted background + accent border tell the

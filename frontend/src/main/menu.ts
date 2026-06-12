@@ -33,6 +33,7 @@ export function buildMenu(mainWindow: BrowserWindow): void {
       { label: 'Save As...\tCmdOrCtrl+Shift+S', click: () => sendAction(mainWindow, 'save-as') },
       { type: 'separator' },
       { label: 'Export...\tCmdOrCtrl+E', click: () => sendAction(mainWindow, 'export') },
+      { label: 'Export Current Frame…', click: () => sendAction(mainWindow, 'export-current-frame') },
     ],
   }
 

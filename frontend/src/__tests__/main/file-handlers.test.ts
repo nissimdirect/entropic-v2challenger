@@ -252,6 +252,33 @@ describe('file-handlers', () => {
       ).rejects.toThrow(/Access denied/)
     })
 
+    // UE.5: file:exists trust boundary
+    it('file:exists returns true for an allowed path that exists', async () => {
+      const testPath = join(ENTROPIC, 'some-asset.mp4')
+      fsMocks.existsSync.mockReturnValue(true)
+      const result = await handlers['file:exists']({} as Electron.IpcMainInvokeEvent, testPath)
+      expect(result).toBe(true)
+    })
+
+    it('file:exists returns false for an allowed path that does not exist', async () => {
+      const testPath = join(ENTROPIC, 'missing-asset.mp4')
+      fsMocks.existsSync.mockReturnValue(false)
+      const result = await handlers['file:exists']({} as Electron.IpcMainInvokeEvent, testPath)
+      expect(result).toBe(false)
+    })
+
+    it('file:exists rejects non-granted paths (trust boundary)', async () => {
+      await expect(
+        handlers['file:exists']({} as Electron.IpcMainInvokeEvent, '/etc/passwd'),
+      ).rejects.toThrow(/Access denied/)
+    })
+
+    it('file:exists throws TypeError for non-string path', async () => {
+      await expect(
+        handlers['file:exists']({} as Electron.IpcMainInvokeEvent, 123),
+      ).rejects.toThrow(TypeError)
+    })
+
     it('registers all 6 expected channels', () => {
       expect(Object.keys(handlers)).toEqual(
         expect.arrayContaining([
