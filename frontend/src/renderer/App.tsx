@@ -2064,6 +2064,7 @@ function AppInner() {
   const projectBpm = useProjectStore((s) => s.bpm)
   const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
   const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
+  const snapEnabled = useLayoutStore((s) => s.snapEnabled)
 
   const selectedClip = useTimelineStore((s) => {
     if (s.selectedClipIds.length !== 1) return null
@@ -2157,6 +2158,15 @@ function AppInner() {
           />
         </div>
         <div className="app__transport-quant">
+          {/* UE.1: Snap toggle — clip-edge/playhead/marker snapping. Store-shape change → kill+relaunch required (not HMR). */}
+          <button
+            className={`app__transport-btn ${snapEnabled ? 'app__transport-btn--active' : ''}`}
+            onClick={() => useLayoutStore.getState().toggleSnap()}
+            title="Toggle snapping (clip edges, playhead, markers)"
+            data-testid="snap-toggle"
+          >
+            S
+          </button>
           <button
             className={`app__transport-btn ${quantizeEnabled ? 'app__transport-btn--active' : ''}`}
             onClick={() => useLayoutStore.getState().toggleQuantize()}

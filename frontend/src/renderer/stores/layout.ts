@@ -16,6 +16,8 @@ interface LayoutState {
   popOutBounds: PopOutBounds | null
   quantizeEnabled: boolean
   quantizeDivision: number
+  /** UE.1: snap clips to edges/playhead/markers. Persisted to localStorage. */
+  snapEnabled: boolean
   toggleSidebar: () => void
   toggleTimeline: () => void
   setTimelineHeight: (h: number) => void
@@ -24,6 +26,8 @@ interface LayoutState {
   setPopOutBounds: (bounds: PopOutBounds | null) => void
   toggleQuantize: () => void
   setQuantizeDivision: (div: number) => void
+  /** UE.1: Toggle clip-edge/playhead/marker snapping. */
+  toggleSnap: () => void
 }
 
 const STORAGE_KEY = 'entropic-layout'
@@ -32,6 +36,7 @@ interface PersistedLayout {
   sidebarCollapsed: boolean
   timelineCollapsed: boolean
   timelineHeight: number
+  snapEnabled: boolean
 }
 
 function loadPersistedLayout(): Partial<PersistedLayout> {
@@ -46,6 +51,7 @@ function loadPersistedLayout(): Partial<PersistedLayout> {
     if (typeof parsed.timelineHeight === 'number' && parsed.timelineHeight >= 120 && parsed.timelineHeight <= 800) {
       result.timelineHeight = parsed.timelineHeight
     }
+    if (typeof parsed.snapEnabled === 'boolean') result.snapEnabled = parsed.snapEnabled
     return result
   } catch {
     return {}
@@ -70,6 +76,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   popOutBounds: null,
   quantizeEnabled: false,
   quantizeDivision: 4, // 1/4 note
+  snapEnabled: persisted.snapEnabled ?? true, // on by default
 
   toggleSidebar: () => {
     const next = !get().sidebarCollapsed
@@ -112,5 +119,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   setQuantizeDivision: (div: number) => {
     const valid = [1, 2, 4, 8, 16, 32]
     if (valid.includes(div)) set({ quantizeDivision: div })
+  },
+
+  toggleSnap: () => {
+    const next = !get().snapEnabled
+    set({ snapEnabled: next })
+    persistLayout({ ...get(), snapEnabled: next })
   },
 }))
