@@ -13,6 +13,7 @@ import { initAutoUpdater } from './updater'
 import { registerPopOutHandlers, closePopOutWindow } from './pop-out-window'
 import { buildMenu } from './menu'
 import { logger } from './logger'
+import { migrateRuntimeDir } from './migrate-runtime-dir'
 
 // PII stripping for Sentry events — matches Python's strip_pii pattern
 const _homeDir = homedir()
@@ -228,6 +229,11 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(async () => {
   app.setName('Creatrix')
+  // PD.10: one-time ~/.entropic → ~/.creatrix runtime-dir migration. MUST run
+  // FIRST — before any runtime-dir writer (logger, diagnostics) — so the
+  // logger writes to the new dir on this same boot. Copy-if-absent + never
+  // overwrite + breadcrumb-gated; best-effort, never crashes boot.
+  migrateRuntimeDir()
   registerDiagnosticsHandlers()
   registerSupportBundleHandler()
   registerRelayHandlers()

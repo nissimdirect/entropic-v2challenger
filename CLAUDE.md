@@ -4,20 +4,30 @@
 
 When the user reports a crash, error, freeze, or unexpected behavior:
 
+> **Runtime dir:** `~/.creatrix/` (renamed from `~/.entropic/` — backend + all
+> Electron-main writers now target `~/.creatrix`). PD.10 added a one-time
+> copy-if-absent migration that runs FIRST in the main-process bootstrap, so a
+> user's old `~/.entropic` logs/state are copied across on next launch. Originals
+> are NEVER deleted (a `~/.entropic/MOVED.txt` breadcrumb marks completion).
+> **Legacy data that stays in `~/.entropic/` by design (not migrated):**
+> `demos/` (rendered MP4s), `projects/` (user project data — manual follow-up
+> only), `models/`, and pre-rename `crash_reports/` dumps. Check BOTH dirs for
+> historical crash reports from before the rename.
+
 1. **Read crash dumps** (newest first):
-   `~/.entropic/crash_reports/crash_*.json`
+   `~/.creatrix/crash_reports/crash_*.json` (pre-rename dumps: `~/.entropic/crash_reports/`)
    Fields: timestamp, exception_type, exception_message, traceback, python_version, platform
 
 2. **Read Python sidecar log** (last 100 lines):
-   `~/.entropic/logs/sidecar.log`
+   `~/.creatrix/logs/sidecar.log`
    JSON lines: timestamp, level, logger, message, exception
 
 3. **Read Electron main log** (last 100 lines):
-   `~/.entropic/logs/electron-main.log`
+   `~/.creatrix/logs/electron-main.log`
    JSON lines: timestamp, level, message, data
 
 4. **Read fault log** (C-level crashes — SIGSEGV, SIGABRT):
-   `~/.entropic/logs/sidecar_fault.log`
+   `~/.creatrix/logs/sidecar_fault.log`
 
 5. **Check for autosave** (indicates unclean shutdown):
    `<userData>/.autosave.glitch`

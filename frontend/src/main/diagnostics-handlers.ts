@@ -9,17 +9,17 @@ import { homedir, platform, arch, totalmem, release } from 'os'
 import { logger } from './logger'
 import { grantPath } from './file-handlers'
 
-const ENTROPIC_DIR = join(homedir(), '.creatrix')
-const CONSENT_FILE = join(ENTROPIC_DIR, 'telemetry_consent')
-const CRASH_DIR = join(ENTROPIC_DIR, 'crash_reports')
+const CREATRIX_DIR = join(homedir(), '.creatrix')
+const CONSENT_FILE = join(CREATRIX_DIR, 'telemetry_consent')
+const CRASH_DIR = join(CREATRIX_DIR, 'crash_reports')
 
 /**
- * Validate that a path is under ~/.entropic to prevent path traversal.
+ * Validate that a path is under ~/.creatrix to prevent path traversal.
  * Matches Python's _validate_log_dir pattern.
  */
-function isUnderEntropicDir(targetPath: string): boolean {
+function isUnderCreatrixDir(targetPath: string): boolean {
   const resolved = resolve(targetPath)
-  const allowedPrefix = resolve(ENTROPIC_DIR)
+  const allowedPrefix = resolve(CREATRIX_DIR)
   return resolved === allowedPrefix || resolved.startsWith(allowedPrefix + '/')
 }
 
@@ -40,7 +40,7 @@ export function registerDiagnosticsHandlers(): void {
 
   ipcMain.handle('telemetry:set', async (_event, consent: boolean) => {
     try {
-      mkdirSync(ENTROPIC_DIR, { recursive: true, mode: 0o700 })
+      mkdirSync(CREATRIX_DIR, { recursive: true, mode: 0o700 })
       writeFileSync(CONSENT_FILE, consent ? 'yes' : 'no', { encoding: 'utf8', mode: 0o600 })
     } catch {
       // Best-effort — don't crash if filesystem is unwritable
@@ -51,7 +51,7 @@ export function registerDiagnosticsHandlers(): void {
 
   ipcMain.handle('crash:list', async () => {
     try {
-      if (!existsSync(CRASH_DIR) || !isUnderEntropicDir(CRASH_DIR)) return []
+      if (!existsSync(CRASH_DIR) || !isUnderCreatrixDir(CRASH_DIR)) return []
 
       const files = readdirSync(CRASH_DIR)
         .filter((f) => f.startsWith('crash_') && f.endsWith('.json'))
@@ -61,7 +61,7 @@ export function registerDiagnosticsHandlers(): void {
       const reports: Record<string, unknown>[] = []
       for (const file of files) {
         const filePath = join(CRASH_DIR, file)
-        if (!isUnderEntropicDir(filePath)) continue
+        if (!isUnderCreatrixDir(filePath)) continue
         try {
           const content = readFileSync(filePath, 'utf8')
           reports.push(JSON.parse(content))
@@ -77,14 +77,14 @@ export function registerDiagnosticsHandlers(): void {
 
   ipcMain.handle('crash:clear', async () => {
     try {
-      if (!existsSync(CRASH_DIR) || !isUnderEntropicDir(CRASH_DIR)) return
+      if (!existsSync(CRASH_DIR) || !isUnderCreatrixDir(CRASH_DIR)) return
 
       const files = readdirSync(CRASH_DIR)
         .filter((f) => f.startsWith('crash_') && f.endsWith('.json'))
 
       for (const file of files) {
         const filePath = join(CRASH_DIR, file)
-        if (isUnderEntropicDir(filePath)) {
+        if (isUnderCreatrixDir(filePath)) {
           try {
             unlinkSync(filePath)
           } catch {
@@ -130,7 +130,7 @@ export function registerDiagnosticsHandlers(): void {
 
   ipcMain.handle('preferences:read', async () => {
     try {
-      const prefsPath = join(ENTROPIC_DIR, 'preferences.json')
+      const prefsPath = join(CREATRIX_DIR, 'preferences.json')
       if (!existsSync(prefsPath)) return {}
       const content = readFileSync(prefsPath, 'utf8')
       const parsed = JSON.parse(content)
@@ -150,8 +150,8 @@ export function registerDiagnosticsHandlers(): void {
       throw new Error('Preferences data too large (max 1MB)')
     }
     try {
-      mkdirSync(ENTROPIC_DIR, { recursive: true, mode: 0o700 })
-      const prefsPath = join(ENTROPIC_DIR, 'preferences.json')
+      mkdirSync(CREATRIX_DIR, { recursive: true, mode: 0o700 })
+      const prefsPath = join(CREATRIX_DIR, 'preferences.json')
       writeFileSync(prefsPath, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
     } catch {
       // Best-effort
@@ -162,7 +162,7 @@ export function registerDiagnosticsHandlers(): void {
 
   ipcMain.handle('recentProjects:read', async () => {
     try {
-      const recentPath = join(ENTROPIC_DIR, 'recent-projects.json')
+      const recentPath = join(CREATRIX_DIR, 'recent-projects.json')
       if (!existsSync(recentPath)) return []
       const content = readFileSync(recentPath, 'utf8')
       const parsed = JSON.parse(content)
@@ -193,8 +193,8 @@ export function registerDiagnosticsHandlers(): void {
       throw new Error('Recent projects data too large (max 1MB)')
     }
     try {
-      mkdirSync(ENTROPIC_DIR, { recursive: true, mode: 0o700 })
-      const recentPath = join(ENTROPIC_DIR, 'recent-projects.json')
+      mkdirSync(CREATRIX_DIR, { recursive: true, mode: 0o700 })
+      const recentPath = join(CREATRIX_DIR, 'recent-projects.json')
       writeFileSync(recentPath, JSON.stringify(capped, null, 2), { encoding: 'utf8', mode: 0o600 })
     } catch {
       // Best-effort
@@ -212,7 +212,7 @@ export function registerDiagnosticsHandlers(): void {
     // Save feedback as JSON to Desktop (always, regardless of Sentry)
     const now = new Date()
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    const feedbackDir = join(homedir(), '.entropic', 'feedback')
+    const feedbackDir = join(homedir(), '.creatrix', 'feedback')
     try {
       mkdirSync(feedbackDir, { recursive: true, mode: 0o700 })
       const feedbackPath = join(feedbackDir, `feedback-${timestamp}.json`)

@@ -4,7 +4,7 @@ import { join } from 'path'
 import { homedir } from 'os'
 import { clampFinite } from '../shared/numeric'
 
-const POP_OUT_STATE_PATH = join(homedir(), '.entropic', 'pop-out-state.json')
+const POP_OUT_STATE_PATH = join(homedir(), '.creatrix', 'pop-out-state.json')
 
 interface PopOutBounds {
   x: number
@@ -91,7 +91,7 @@ function savePopOutBounds(win: BrowserWindow): void {
       width: clampFinite(bounds.width, 200, 4000, 640),
       height: clampFinite(bounds.height, 150, 3000, 480),
     }
-    const dir = join(homedir(), '.entropic')
+    const dir = join(homedir(), '.creatrix')
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
     writeFileSync(POP_OUT_STATE_PATH, JSON.stringify(state), 'utf8')
   } catch {

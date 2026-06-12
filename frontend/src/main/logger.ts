@@ -1,13 +1,13 @@
 /**
  * JSON line logger for Electron main process.
- * Writes to ~/.entropic/logs/electron-main.log with PII stripping and rotation.
+ * Writes to ~/.creatrix/logs/electron-main.log with PII stripping and rotation.
  * No external dependencies — uses Node.js fs directly.
  */
 import { appendFileSync, statSync, renameSync, mkdirSync, existsSync } from 'fs'
 import { join } from 'path'
 import { homedir, userInfo } from 'os'
 
-const LOG_DIR = join(homedir(), '.entropic', 'logs')
+const LOG_DIR = join(homedir(), '.creatrix', 'logs')
 const LOG_FILE = join(LOG_DIR, 'electron-main.log')
 const MAX_SIZE = 5 * 1024 * 1024 // 5MB
 const MAX_BACKUPS = 3
