@@ -151,6 +151,16 @@ def test_all_effects_process_without_crash():
     frame[:, :, 3] = 255  # opaque alpha
 
     for effect_info in list_all():
+        # Skip debug/dev-only effects (e.g. debug.crash) — they are intentionally
+        # broken and are tested in test_effect_harness.py::TestZMQCrashIsolation.
+        # test_effect_harness.py sets APP_ENV=development and registers debug.crash
+        # without restoring the env, so this effect may be visible in the registry
+        # when tests share an xdist worker process.
+        if effect_info.get("category") == "debug" or effect_info["id"].startswith(
+            "debug."
+        ):
+            continue
+
         entry = get(effect_info["id"])
         assert entry is not None, f"Effect {effect_info['id']} not found in registry"
 
