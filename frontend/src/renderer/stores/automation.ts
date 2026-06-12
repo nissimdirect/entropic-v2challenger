@@ -4,7 +4,14 @@
  * All mutations go through the undo system.
  */
 import { create } from 'zustand'
-import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope } from '../../shared/types'
+import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode } from '../../shared/types'
+import { isTriggerLane } from '../utils/automation-evaluate'
+
+// PR-B Commit-1: map the legacy TriggerMode arg to the unified InterpolationMode.
+// 'toggle' has no lane equivalent (it's a Pad behavior) → treated as 'gate'.
+function triggerModeToInterp(mode: TriggerMode): InterpolationMode {
+  return mode === 'one-shot' ? 'oneShot' : 'gate'
+}
 import { undoable } from './undo'
 import { useToastStore } from './toast'
 import { simplifyPoints } from '../utils/automation-simplify'
@@ -90,7 +97,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       color,
       isVisible: true,
       points: [],
-      isTrigger: false,
+      mode: 'smooth',
     }
 
     const forward = () => {
@@ -113,7 +120,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     const paramPath = `${effectId}.${paramKey}`
     for (const trackLanes of Object.values(get().lanes)) {
       for (const lane of trackLanes) {
-        if (lane.isTrigger && lane.paramPath === paramPath) {
+        if (isTriggerLane(lane) && lane.paramPath === paramPath) {
           useToastStore.getState().addToast({
             level: 'warning',
             message: `Parameter already mapped to trigger lane "${lane.id}"`,
@@ -132,8 +139,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       color,
       isVisible: true,
       points: [],
-      isTrigger: true,
-      triggerMode,
+      mode: triggerModeToInterp(triggerMode),
       triggerADSR: triggerADSR ?? defaultADSR,
     }
 
@@ -370,7 +376,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     const trackLanes = get().lanes[trackId]
     if (!trackLanes) return
     const lane = trackLanes.find((l) => l.id === laneId)
-    if (!lane || !lane.isTrigger) return
+    if (!lane || !isTriggerLane(lane)) return
 
     // Clamp value to exactly 0 or 1 (square-wave, numeric trust boundary)
     const value = eventType === 'trigger' ? 1.0 : 0.0
@@ -401,7 +407,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     const trackLanes = get().lanes[trackId]
     if (!trackLanes) return
     const lane = trackLanes.find((l) => l.id === laneId)
-    if (!lane || !lane.isTrigger) return
+    if (!lane || !isTriggerLane(lane)) return
 
     const oldPoints = [...lane.points]
     // Merge and sort
@@ -519,8 +525,10 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         return true
       }).map((lane) => ({
         ...lane,
-        // Backward-compatible: old projects may not have isTrigger
-        isTrigger: lane.isTrigger === true,
+        // PR-B Commit-1: v3 lanes carry `mode`; default to 'smooth' if absent/invalid.
+        mode: (['smooth', 'step', 'gate', 'oneShot'] as const).includes(lane.mode)
+          ? lane.mode
+          : 'smooth',
         // Filter out invalid points and sort by time for binary search
         points: lane.points
           .filter((p) =>

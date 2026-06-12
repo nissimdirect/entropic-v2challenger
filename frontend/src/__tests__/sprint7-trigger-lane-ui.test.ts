@@ -24,6 +24,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 }
 
 import { useAutomationStore } from '../renderer/stores/automation'
+import { isTriggerLane } from '../renderer/utils/automation-evaluate'
 import { useTimelineStore } from '../renderer/stores/timeline'
 import { useEffectsStore } from '../renderer/stores/effects'
 import { useUndoStore } from '../renderer/stores/undo'
@@ -109,7 +110,7 @@ describe('Trigger Lane UI Wiring', () => {
 
     const lanes = useAutomationStore.getState().getLanesForTrack(trackId)
     expect(lanes).toHaveLength(1)
-    expect(lanes[0].isTrigger).toBe(false)
+    expect(isTriggerLane(lanes[0])).toBe(false)
     expect(lanes[0].paramPath).toBe('fx-test-1.amount')
   })
 
@@ -123,8 +124,8 @@ describe('Trigger Lane UI Wiring', () => {
     expect(laneId).toBeTruthy()
     const lanes = useAutomationStore.getState().getLanesForTrack(trackId)
     expect(lanes).toHaveLength(1)
-    expect(lanes[0].isTrigger).toBe(true)
-    expect(lanes[0].triggerMode).toBe('gate')
+    expect(isTriggerLane(lanes[0])).toBe(true)
+    expect(lanes[0].mode).toBe('gate')
     expect(lanes[0].paramPath).toBe('fx-test-1.amount')
   })
 
@@ -252,9 +253,9 @@ describe('Trigger Lane UI Wiring', () => {
 
     const lanes = useAutomationStore.getState().getLanesForTrack(trackId)
     expect(lanes).toHaveLength(2)
-    expect(lanes[0].isTrigger).toBe(false)
+    expect(isTriggerLane(lanes[0])).toBe(false)
     expect(lanes[0].paramPath).toBe('fx-test-1.amount')
-    expect(lanes[1].isTrigger).toBe(true)
+    expect(isTriggerLane(lanes[1])).toBe(true)
     expect(lanes[1].paramPath).toBe('fx-test-1.speed')
   })
 
@@ -270,8 +271,8 @@ describe('Trigger Lane UI Wiring', () => {
     )
 
     const lanes = useAutomationStore.getState().lanes[trackId] ?? []
-    const hasTrigger = lanes.some((l) => l.isTrigger)
-    const hasAuto = lanes.some((l) => !l.isTrigger)
+    const hasTrigger = lanes.some((l) => isTriggerLane(l))
+    const hasAuto = lanes.some((l) => !isTriggerLane(l))
 
     expect(hasTrigger).toBe(true)
     expect(hasAuto).toBe(true)
@@ -304,7 +305,7 @@ describe('Trigger Lane UI Wiring', () => {
     )
 
     const lane = useAutomationStore.getState().getLanesForTrack(trackId)[0]
-    expect(lane.triggerMode).toBe('gate')
+    expect(lane.mode).toBe('gate')
     expect(lane.triggerADSR).toEqual({ attack: 0, decay: 0, sustain: 1, release: 0 })
   })
 })
