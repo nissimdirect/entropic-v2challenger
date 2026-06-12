@@ -1,7 +1,7 @@
 /**
  * Secure file I/O and dialog IPC handlers.
  * Uses dialog-gated access: paths must be explicitly granted via native dialog,
- * or fall within ~/.entropic/ / userData before file operations are allowed.
+ * or fall within ~/.creatrix/ / userData before file operations are allowed.
  */
 import { ipcMain, app, dialog, BrowserWindow, SaveDialogOptions, OpenDialogOptions } from 'electron'
 import { open, readFile, rename, unlink, readdir, mkdir } from 'fs/promises'
@@ -9,16 +9,18 @@ import { lstatSync, existsSync } from 'fs'
 import { resolve, dirname, basename, join } from 'path'
 import { homedir } from 'os'
 
-const ENTROPIC_DIR = resolve(join(homedir(), '.creatrix'))
+const CREATRIX_DIR = resolve(join(homedir(), '.creatrix'))
 
 /**
- * P3.5: The demo MP4s live under ~/.entropic/demos/ during the transition
- * period before PT.4/PD.10 unifies the runtime-dir split. This ONE constant
- * is the single source of truth for the resolver — never hardcode both dirs
- * in renderer code (ONBOARDING-SPEC §8 grep-check #2).
+ * P3.5: The demo MP4s live under ~/.entropic/demos/. PD.10 deliberately does
+ * NOT migrate user render artifacts (demos/, projects/, models/, crash_reports/)
+ * — only small state/log files move to ~/.creatrix. So this resolver keeps the
+ * ~/.entropic/demos/ fallback. This ONE constant is the single source of truth
+ * for the resolver — never hardcode both dirs in renderer code (ONBOARDING-SPEC
+ * §8 grep-check #2).
  *
- * Resolution order: if ~/.creatrix/demos/ exists (post-unification), use it;
- * else fall back to ~/.entropic/demos/ (current on-disk reality 2026-06-11).
+ * Resolution order: if ~/.creatrix/demos/ exists (manual user follow-up), use
+ * it; else fall back to ~/.entropic/demos/ (current on-disk reality 2026-06-11).
  */
 const DEMOS_DIR = (() => {
   const primary = resolve(join(homedir(), '.creatrix', 'demos'))
@@ -36,7 +38,7 @@ const ALLOWED_APP_PATHS = new Set(['userData', 'documents', 'desktop'])
  * Check whether a resolved path is allowed for file operations.
  *
  * A path is allowed if it:
- * 1. Falls under ~/.entropic/
+ * 1. Falls under ~/.creatrix/
  * 2. Falls under app.getPath('userData')
  * 3. Was explicitly granted via a native dialog this session
  * 4. Is an .autosave.glitch sibling of a granted path
@@ -55,8 +57,8 @@ export function isPathAllowed(targetPath: string): boolean {
     return false
   }
 
-  // 1. Under ~/.entropic/
-  if (resolved === ENTROPIC_DIR || resolved.startsWith(ENTROPIC_DIR + '/')) {
+  // 1. Under ~/.creatrix/
+  if (resolved === CREATRIX_DIR || resolved.startsWith(CREATRIX_DIR + '/')) {
     return true
   }
 

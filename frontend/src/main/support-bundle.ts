@@ -9,9 +9,9 @@ import { homedir, platform, arch, totalmem, release, userInfo } from 'os'
 import { gzipSync } from 'zlib'
 import { app, ipcMain } from 'electron'
 
-const ENTROPIC_DIR = join(homedir(), '.creatrix')
-const LOG_DIR = join(ENTROPIC_DIR, 'logs')
-const CRASH_DIR = join(ENTROPIC_DIR, 'crash_reports')
+const CREATRIX_DIR = join(homedir(), '.creatrix')
+const LOG_DIR = join(CREATRIX_DIR, 'logs')
+const CRASH_DIR = join(CREATRIX_DIR, 'crash_reports')
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB per file
 const MAX_BUNDLE_SIZE = 50 * 1024 * 1024 // 50MB total
 
