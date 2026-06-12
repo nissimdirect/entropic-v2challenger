@@ -11,6 +11,22 @@ import { homedir } from 'os'
 
 const ENTROPIC_DIR = resolve(join(homedir(), '.creatrix'))
 
+/**
+ * P3.5: The demo MP4s live under ~/.entropic/demos/ during the transition
+ * period before PT.4/PD.10 unifies the runtime-dir split. This ONE constant
+ * is the single source of truth for the resolver — never hardcode both dirs
+ * in renderer code (ONBOARDING-SPEC §8 grep-check #2).
+ *
+ * Resolution order: if ~/.creatrix/demos/ exists (post-unification), use it;
+ * else fall back to ~/.entropic/demos/ (current on-disk reality 2026-06-11).
+ */
+const DEMOS_DIR = (() => {
+  const primary = resolve(join(homedir(), '.creatrix', 'demos'))
+  const fallback = resolve(join(homedir(), '.entropic', 'demos'))
+  if (existsSync(primary)) return primary
+  return fallback
+})()
+
 /** Paths granted by user via native file dialogs during this session. */
 const grantedPaths = new Set<string>()
 
@@ -244,5 +260,26 @@ export function registerFileHandlers(): void {
       throw new Error(`app:getPath denied for '${name}' — allowed: ${[...ALLOWED_APP_PATHS].join(', ')}`)
     }
     return app.getPath(name as Parameters<typeof app.getPath>[0])
+  })
+
+  // --- P3.5: Demo file paths (resolved from the ONE runtime-dir constant) ---
+  /**
+   * Returns a Record<demoId, absolutePath | null> for the 3 demo MP4s.
+   * null means the file is missing on disk (renderer shows the error card).
+   * Renderer code never hardcodes ~/.entropic or ~/.creatrix — all path
+   * resolution happens here (ONBOARDING-SPEC §8 grep-check #2).
+   */
+  ipcMain.handle('demos:getPaths', async () => {
+    const DEMO_FILES: Record<string, string> = {
+      y_is_time: 'y-is-time.mp4',
+      painted_blur: 'painted-blur.mp4',
+      audio_lfo_stripes: 'audio-lfo-stripes.mp4',
+    }
+    const result: Record<string, string | null> = {}
+    for (const [id, filename] of Object.entries(DEMO_FILES)) {
+      const fullPath = join(DEMOS_DIR, filename)
+      result[id] = existsSync(fullPath) ? fullPath : null
+    }
+    return result
   })
 }

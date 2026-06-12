@@ -61,6 +61,8 @@ export interface EntropicBridge {
   onMenuAction: (callback: (action: string) => void) => () => void
   onCloseRequested: (callback: () => void) => () => void
   confirmClose: () => void
+  // P3.5: demo file paths resolved from single runtime-dir constant
+  getDemoPaths: () => Promise<Record<string, string | null>>
 }
 
 /**
@@ -109,6 +111,12 @@ export function createMockEntropic(
     onMenuAction: vi.fn().mockReturnValue(vi.fn()),
     onCloseRequested: vi.fn().mockReturnValue(vi.fn()),
     confirmClose: vi.fn(),
+    // P3.5
+    getDemoPaths: vi.fn().mockResolvedValue({
+      y_is_time: '/test/demos/y-is-time.mp4',
+      painted_blur: '/test/demos/painted-blur.mp4',
+      audio_lfo_stripes: '/test/demos/audio-lfo-stripes.mp4',
+    }),
   }
   return { ...defaults, ...overrides }
 }

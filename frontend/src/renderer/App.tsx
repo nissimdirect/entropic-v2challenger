@@ -95,6 +95,11 @@ import './styles/toast.css'
 import './styles/export.css'
 import './styles/text.css'
 import './styles/device-chain.css'
+// P3.5: Demos drawer + first-launch onboarding
+import DemosDrawer, { type DemoId } from './components/demos/DemosDrawer'
+import BootLine from './components/demos/BootLine'
+import { useOnboardingStore } from './stores/onboarding'
+import './styles/demos.css'
 import WelcomeScreen from './components/layout/WelcomeScreen'
 import Preferences from './components/layout/Preferences'
 import AboutDialog from './components/layout/AboutDialog'
@@ -315,6 +320,22 @@ function AppInner() {
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
 
+  // P3.5: Onboarding + demos
+  const onboardingInit = useOnboardingStore((s) => s.init)
+  const onboardingDismissed = useOnboardingStore((s) => s.dismissed)
+  const onboardingLaunchCount = useOnboardingStore((s) => s.launchCount)
+  const onboardingEngaged = useOnboardingStore((s) => s.engaged)
+  const onboardingPromptAnswered = useOnboardingStore((s) => s.promptAnswered)
+  const recordPromptAnswered = useOnboardingStore((s) => s.recordPromptAnswered)
+  const dismissOnboarding = useOnboardingStore((s) => s.dismiss)
+  const [demoPaths, setDemoPaths] = useState<Record<DemoId, string | null>>({
+    y_is_time: null,
+    painted_blur: null,
+    audio_lfo_stripes: null,
+  })
+  const [showHideDemosToast, setShowHideDemosToast] = useState(false)
+  const [bootLineDone, setBootLineDone] = useState(false)
+
   const activeAssetPath = useRef<string | null>(null)
   const previewContainerRef = useRef<HTMLDivElement>(null)
   const [aspectLocked, setAspectLocked] = useState(true)
@@ -370,6 +391,33 @@ function AppInner() {
       setStartupChecked(true)
     })
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // P3.5: Initialize onboarding store + load demo paths on mount.
+  useEffect(() => {
+    // Initialize store (reads localStorage, decides whether to auto-open drawer).
+    onboardingInit()
+
+    // Load demo file paths from main process via the ONE runtime-dir constant.
+    if (window.entropic?.getDemoPaths) {
+      window.entropic.getDemoPaths().then((paths) => {
+        setDemoPaths(paths as Record<DemoId, string | null>)
+      }).catch(() => {
+        // Demo paths unavailable — all cards will show error state; non-fatal.
+      })
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // P3.5: §7 no-engagement toast — show once after 3 zero-engagement launches.
+  useEffect(() => {
+    if (
+      !onboardingDismissed &&
+      onboardingLaunchCount >= 3 &&
+      !onboardingEngaged &&
+      !onboardingPromptAnswered
+    ) {
+      setShowHideDemosToast(true)
+    }
+  }, [onboardingDismissed, onboardingLaunchCount, onboardingEngaged, onboardingPromptAnswered])
 
   const handleConsentDecision = useCallback((consent: boolean) => {
     setConsent(consent)
@@ -2953,6 +3001,46 @@ function AppInner() {
       {/* P3.1: end cx-right-col wrapper */}
       </div>
 
+      {/* P3.5: Demos Drawer — slides open on first launch, reachable afterward */}
+      <DemosDrawer
+        demoPaths={demoPaths}
+        onOpenDemo={(_demoId) => {
+          // Future: load the demo project. For P3.5 the drawer opens + engagement is recorded.
+          useOnboardingStore.getState().recordEngagement()
+        }}
+      />
+
+      {/* P3.5: §7 no-engagement toast — 3 launches with zero engagement */}
+      {showHideDemosToast && (
+        <div
+          className="onboarding-prompt-toast"
+          data-testid="onboarding-hide-demos-toast"
+        >
+          <span>Demos keep opening at launch. Hide them?</span>
+          <button
+            className="onboarding-prompt-toast__action"
+            onClick={() => {
+              dismissOnboarding()
+              recordPromptAnswered()
+              setShowHideDemosToast(false)
+            }}
+            data-testid="onboarding-prompt-hide"
+          >
+            hide
+          </button>
+          <button
+            className="onboarding-prompt-toast__action onboarding-prompt-toast__action--keep"
+            onClick={() => {
+              recordPromptAnswered()
+              setShowHideDemosToast(false)
+            }}
+            data-testid="onboarding-prompt-keep"
+          >
+            keep
+          </button>
+        </div>
+      )}
+
       <div className="status-bar">
         <div className="status-bar__left">
           <div
@@ -2985,6 +3073,13 @@ function AppInner() {
           )}
         </div>
         <div className="status-bar__right">
+          {/* P3.5: Boot line — types on every launch per ONBOARDING-SPEC §2 */}
+          {!bootLineDone && (
+            <BootLine
+              appVersion="3.0.0"
+              effectCount={registry.length}
+            />
+          )}
           {isPerformArmed && (
             <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
           )}

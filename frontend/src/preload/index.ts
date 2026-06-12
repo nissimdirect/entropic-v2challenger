@@ -181,4 +181,9 @@ contextBridge.exposeInMainWorld('entropic', {
   confirmClose: (): void => {
     ipcRenderer.send('close-confirmed')
   },
+
+  // --- P3.5: Demo paths (single resolver, no hardcoded runtime dirs in renderer) ---
+  getDemoPaths: (): Promise<Record<string, string | null>> => {
+    return ipcRenderer.invoke('demos:getPaths')
+  },
 })
