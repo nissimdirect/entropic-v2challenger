@@ -68,7 +68,10 @@ describe('R.4 — Audio + Video + Effect + Operator chain', () => {
     }
     expect(useTimelineStore.getState().tracks.some((t) => t.type === 'audio')).toBe(true);
 
-    // Step 2: Add an effect to master chain (Curves substitute — we add a generic effect)
+    // Step 2: Add an effect to a video track's chain (Epic 05: per-track chains,
+    // the May-era global effectChain no longer exists — ported during the P1.5
+    // cherry-pick of #101 onto post-Epic-05 main)
+    const videoTrackId = timeline.addTrack('V1', '#ffffff', 'video')!;
     const effectInstance = {
       id: 'curves-1',
       effectId: 'util.curves',
@@ -79,8 +82,9 @@ describe('R.4 — Audio + Video + Effect + Operator chain', () => {
       mix: 1.0,
       mask: null,
     };
-    project.addEffect(effectInstance);
-    expect(useProjectStore.getState().effectChain.length).toBe(1);
+    project.addEffect(videoTrackId, effectInstance);
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === videoTrackId)?.effectChain ?? [];
+    expect(chain.length).toBe(1);
 
     // Step 3: Add AudioFollower operator (addOperator returns void; read back from store)
     operators.addOperator('audio_follower');
@@ -115,7 +119,7 @@ describe('R.4 — Audio + Video + Effect + Operator chain', () => {
       max: 1,
       curve: 'linear',
     });
-    project.removeEffect('curves-1');
+    project.removeEffect(videoTrackId, 'curves-1');
     // Verify no orphan mappings reference the deleted effect
     const orphans = useOperatorStore
       .getState()
@@ -132,7 +136,6 @@ describe('R.4 — Audio + Video + Effect + Operator chain', () => {
 
   it('all four subsystems initialize and persist without erroring', () => {
     // Smoke: each store responds to a benign query without throwing
-    expect(useProjectStore.getState().effectChain).toEqual([]);
     expect(useTimelineStore.getState().tracks).toEqual([]);
     expect(useOperatorStore.getState().operators).toEqual([]);
   });
