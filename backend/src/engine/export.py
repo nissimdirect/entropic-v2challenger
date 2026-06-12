@@ -1,5 +1,6 @@
 """Export job manager — background rendering with progress and cancel."""
 
+import copy
 import logging
 import os
 import tempfile
@@ -21,7 +22,9 @@ from engine.codecs import (
     RESOLUTION_PRESETS,
     get_codec_config,
 )
+from effects import registry
 from engine.compositor import render_composite
+from modulation.engine import SignalEngine
 from security import validate_composite_layer_count, validate_voice_layers
 from engine.gif_export import export_gif_from_generator
 from engine.image_sequence import export_image_sequence_from_generator
@@ -178,6 +181,9 @@ class ExportManager:
         settings: dict | None = None,
         text_layers: list[dict] | None = None,
         performance: dict | None = None,
+        operators: list[dict] | None = None,
+        automation_by_frame: dict | None = None,
+        audio_pcm_provider=None,
     ) -> ExportJob:
         """Start a background export. Returns the job for status tracking.
 
@@ -193,6 +199,28 @@ class ExportManager:
             Deterministic seed for effects.
         settings : dict, optional
             Export settings dict. Missing keys fall back to *DEFAULT_SETTINGS*.
+        operators : list[dict], optional
+            P2.3 export-parity payload — the serialized operator list (LFO,
+            audio_follower, video_analyzer, envelope, step_sequencer, fusion).
+            When present, each output frame runs the ``SignalEngine`` exactly as
+            the preview render path does (``_render_composited_frame`` in
+            ``zmq_server``): ``evaluate_all`` at the frame, then
+            ``apply_modulation`` onto the chain — so export operator modulation
+            matches preview. Deterministic: LFO/sequencer/envelope key on
+            ``frame_index``; audio/video followers read the frame's PCM/pixels.
+        automation_by_frame : dict, optional
+            P2.3 export-parity payload — automation overrides PRE-RESOLVED on the
+            frontend per output frame, keyed ``{source_frame_index: {"<effectId>.<paramKey>":
+            value}}``. The frontend reuses the SAME ``evaluateAutomationOverrides``
+            evaluator preview uses, so the values are byte-identical to preview;
+            the export applies them per frame via ``apply_modulation``'s
+            automation-override path (replace, clamped to param bounds).
+        audio_pcm_provider : callable, optional
+            ``(frame_index: int, fps: float) -> np.ndarray | None``. Supplies the
+            per-frame mono PCM window for the ``audio_follower`` operator so audio
+            modulation matches preview. Absent → audio followers read ``None``
+            (no audio modulation), the same graceful degrade preview uses when no
+            audio is loaded.
         performance : dict, optional
             P5a.4 composite-replay payload ``{events, instruments, assets}``.
             When present (and non-empty ``events``), the export takes the
@@ -217,6 +245,21 @@ class ExportManager:
 
         merged = {**DEFAULT_SETTINGS, **(settings or {})}
 
+        # P2.3 (snapshot isolation): deep-clone every mutable payload at job start
+        # so the background export thread renders from a frozen snapshot — edits to
+        # the caller's project/timeline/effect/automation/operator state AFTER the
+        # export starts cannot change the exported frames. Mirrors the PR-B plan's
+        # "snapshot at job start: deep-clone {project,timeline,effect,automation,
+        # operator}". The audio_pcm_provider is a bound method (read-only sampler),
+        # not cloned. project_seed/input_path/output_path are immutable scalars.
+        snap_chain = copy.deepcopy(chain) if chain else chain
+        snap_text_layers = copy.deepcopy(text_layers) if text_layers else []
+        snap_performance = copy.deepcopy(performance) if performance else performance
+        snap_operators = copy.deepcopy(operators) if operators else None
+        snap_automation = (
+            copy.deepcopy(automation_by_frame) if automation_by_frame else None
+        )
+
         job = ExportJob(output_path=output_path)
         self._job = job
 
@@ -226,12 +269,17 @@ class ExportManager:
                 job,
                 input_path,
                 output_path,
-                chain,
+                snap_chain,
                 project_seed,
                 merged,
-                text_layers or [],
-                performance,
+                snap_text_layers,
+                snap_performance,
             ),
+            kwargs={
+                "operators": snap_operators,
+                "automation_by_frame": snap_automation,
+                "audio_pcm_provider": audio_pcm_provider,
+            },
             daemon=True,
         )
         job._thread = thread
@@ -336,6 +384,9 @@ class ExportManager:
         settings: dict,
         text_layers: list[dict] | None = None,
         performance: dict | None = None,
+        operators: list[dict] | None = None,
+        automation_by_frame: dict | None = None,
+        audio_pcm_provider=None,
     ):
         reader = None
         writer = None
@@ -382,6 +433,73 @@ class ExportManager:
             # avoiding live-preview cache contention.
             voice_states: dict[str, dict] = {}
 
+            # P2.3: export-parity modulation engine. When operators and/or
+            # pre-resolved automation overrides are supplied, the export runs the
+            # SAME modulation the preview render path runs
+            # (`_render_composited_frame`, zmq_server.py): per frame, evaluate the
+            # operators via SignalEngine, then apply_modulation onto the chain —
+            # so export operator/automation modulation matches preview. A single
+            # SignalEngine + its state dict are threaded across the export's
+            # frames (the operators' own LFO/slew/audio state accumulate), the
+            # same per-server-singleton pattern preview uses but as a LOCAL engine
+            # (no live-preview contention). Empty operators AND empty automation →
+            # `modulate_chain_for_frame` returns the chain unchanged (legacy
+            # path byte-identical).
+            mod_operators = operators if isinstance(operators, list) else []
+            mod_active = bool(mod_operators) or bool(automation_by_frame)
+            signal_engine = SignalEngine() if mod_active else None
+            signal_state: dict = {}
+
+            def modulate_chain_for_frame(
+                base_chain: list[dict], src_idx: int, video_frame
+            ) -> list[dict]:
+                """Return the per-frame modulated chain (operators + automation).
+
+                Mirrors zmq_server._render_composited_frame's modulation order:
+                evaluate_all → apply_modulation (operator routings first, then
+                automation overrides replace). Returns the chain unchanged when no
+                modulation is active so the legacy export stays byte-identical.
+                """
+                nonlocal signal_state
+                if not mod_active:
+                    return base_chain
+                auto_overrides = None
+                if automation_by_frame:
+                    # Frontend pre-resolved per source-frame override map (keyed by
+                    # source frame index, stringified over the IPC/JSON boundary).
+                    auto_overrides = automation_by_frame.get(
+                        src_idx
+                    ) or automation_by_frame.get(str(src_idx))
+                    if auto_overrides is not None and not isinstance(
+                        auto_overrides, dict
+                    ):
+                        auto_overrides = None
+                if not mod_operators and not auto_overrides:
+                    return base_chain
+                values: dict = {}
+                if mod_operators:
+                    audio_pcm = None
+                    if audio_pcm_provider is not None:
+                        try:
+                            audio_pcm = audio_pcm_provider(src_idx, source_fps)
+                        except Exception:  # noqa: BLE001 — degrade like preview
+                            audio_pcm = None
+                    values, signal_state = signal_engine.evaluate_all(
+                        mod_operators,
+                        src_idx,
+                        source_fps,
+                        audio_pcm=audio_pcm,
+                        video_frame=video_frame,
+                        state=signal_state,
+                    )
+                return signal_engine.apply_modulation(
+                    mod_operators,
+                    values,
+                    base_chain,
+                    registry.get,
+                    automation_overrides=auto_overrides,
+                )
+
             # P5a.4: shared per-frame renderer the GIF / image-sequence
             # generators call. Returns the composited frame for `src_idx`,
             # taking the composite-replay branch when a performance payload is
@@ -390,10 +508,14 @@ class ExportManager:
             def render_export_frame(src_idx: int) -> np.ndarray:
                 nonlocal states, voice_states
                 base = reader.decode_frame(src_idx)
+                # P2.3: modulate the base chain per frame (operators + automation)
+                # before it is applied — same as preview. video_frame=base feeds
+                # the video_analyzer operator its proxy.
+                frame_chain = modulate_chain_for_frame(chain, src_idx, base)
                 if perf_active:
                     out, voice_states = self._composite_export_frame(
                         base_frame=base,
-                        base_chain=chain,
+                        base_chain=frame_chain,
                         performance=performance or {},
                         frame_index=src_idx,
                         resolution=resolution,
@@ -403,7 +525,7 @@ class ExportManager:
                     )
                 else:
                     out, states = apply_chain(
-                        base, chain, project_seed, src_idx, resolution, states
+                        base, frame_chain, project_seed, src_idx, resolution, states
                     )
                 if text_layers:
                     out = self._composite_text_layers(
@@ -471,6 +593,10 @@ class ExportManager:
 
                 frame = reader.decode_frame(src_idx)
 
+                # P2.3: per-frame operator + automation modulation (export==preview).
+                # Returns `chain` unchanged when no modulation is active.
+                frame_chain = modulate_chain_for_frame(chain, src_idx, frame)
+
                 if perf_active:
                     # P5a.4 composite branch (O1): reconstruct voice layers from
                     # the serialized event list and composite them on top of the
@@ -478,7 +604,7 @@ class ExportManager:
                     # per-voice state across frames.
                     output, voice_states = self._composite_export_frame(
                         base_frame=frame,
-                        base_chain=chain,
+                        base_chain=frame_chain,
                         performance=performance or {},
                         frame_index=src_idx,
                         resolution=resolution,
@@ -488,7 +614,7 @@ class ExportManager:
                     )
                 else:
                     output, states = apply_chain(
-                        frame, chain, project_seed, src_idx, resolution, states
+                        frame, frame_chain, project_seed, src_idx, resolution, states
                     )
 
                 # Composite text layers on top of the processed frame

@@ -32,6 +32,7 @@ from security import (
     resolve_safe_path,
     validate_capture_events,
     validate_chain_depth,
+    validate_export_modulation,
     validate_composite_layer_count,
     validate_frame_count,
     validate_output_directory,
@@ -1642,6 +1643,13 @@ class ZMQServer:
         text_layers = message.get("text_layers", [])
         # P5a.4: optional composite-replay payload {events, instruments, assets}.
         performance = message.get("performance")
+        # P2.3: optional export-parity modulation payloads. `operators` is the
+        # serialized operator list (same shape preview sends to render_frame);
+        # `automation_by_frame` is the frontend-pre-resolved per-source-frame
+        # override map {frameIndex: {"effectId.paramKey": value}}. Both absent →
+        # legacy export, byte-identical.
+        operators = message.get("operators")
+        automation_by_frame = message.get("automation_by_frame")
 
         if not input_path:
             return {"id": msg_id, "ok": False, "error": "missing input_path"}
@@ -1670,6 +1678,14 @@ class ZMQServer:
         settings_errors = self._validate_export_settings(settings)
         if settings_errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(settings_errors)}
+
+        # P2.3: enforce-before-decode trust boundary on the export-parity
+        # modulation payloads (operators + per-frame automation overrides). A
+        # malformed snapshot (unknown operator type, NaN automation point) is
+        # REJECTED here, BEFORE the export thread spawns — never a partial file.
+        mod_errors = validate_export_modulation(operators, automation_by_frame)
+        if mod_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(mod_errors)}
 
         # P5a.4: enforce-before-decode trust boundary on the performance payload.
         # The serialized event list is replayed by evaluate_voices to reconstruct
@@ -1731,6 +1747,13 @@ class ZMQServer:
                 settings=settings,
                 text_layers=text_layers or None,
                 performance=performance,
+                # P2.3: export-parity modulation. The audio follower reads the
+                # SAME per-frame PCM window preview uses (_get_audio_pcm_for_frame)
+                # so audio-driven modulation matches preview; absent audio → None
+                # (graceful degrade, identical to preview with no audio loaded).
+                operators=operators,
+                automation_by_frame=automation_by_frame,
+                audio_pcm_provider=self._get_audio_pcm_for_frame,
             )
             return {"id": msg_id, "ok": True}
         except Exception as e:

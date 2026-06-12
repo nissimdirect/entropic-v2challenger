@@ -76,4 +76,35 @@ test.describe('Phase 11 — Export', () => {
     // Partial file should be cleaned up
     expect(fs.existsSync(outputPath)).toBe(false)
   })
+
+  // P2.3 (slice 3d — full export parity): exporting a project runs the
+  // modulation engine in the export path (export == preview). This E2E asserts
+  // the start-export-from-UI flow completes a valid file with the export-parity
+  // changes in place (operators / automation_by_frame payloads are additive and
+  // do not break the shipping export pipeline). // WHY E2E: only the real
+  // sidecar runs the SignalEngine + PyAV encode end to end.
+  test('export-parity flow completes a valid file from the UI', async ({ window }) => {
+    await window.locator('.drop-zone').click()
+    await window.setInputFiles('input[type="file"]', TEST_VIDEO)
+    await window.waitForSelector('.preview-canvas', { timeout: 10_000 })
+
+    await window.locator('.export-btn').click()
+    await window.waitForSelector('.export-dialog')
+
+    const outputPath = path.join(os.tmpdir(), `entropic-parity-${Date.now()}.mp4`)
+    await window.evaluate((p: string) => {
+      (window as any).__testExportPath = p
+    }, outputPath)
+
+    await window.locator('.export-dialog__export-btn').click()
+
+    // Progress surfaces, then completion — the modulation-parity wiring did not
+    // break the export pipeline.
+    await window.waitForSelector('.export-progress__done', { timeout: 30_000 })
+
+    expect(fs.existsSync(outputPath)).toBe(true)
+    expect(fs.statSync(outputPath).size).toBeGreaterThan(1000)
+
+    fs.unlinkSync(outputPath)
+  })
 })
