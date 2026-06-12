@@ -73,6 +73,29 @@ _EVALUATOR_REGISTRY: dict[str, EvaluatorFn] = {}
 
 _STATIC_KINDS = frozenset({"rect", "ellipse", "polygon", "bitmap"})
 
+# Per-render budget on PROCEDURAL mattes (chroma/luma/color_range/ai_matte).
+# Procedural mattes evaluate per-frame (HSV convert, blur, optional model) and
+# are far costlier than cached static rasterizers, so they get a tighter cap
+# than MAX_MATTE_NODES_PER_CLIP (8). Exceeding it → structured error (MK.8 §13).
+MAX_PROCEDURAL_MATTES_PER_RENDER: int = 4
+
+
+class ProceduralMatteBudgetError(RuntimeError):
+    """Raised when a stack contains more procedural mattes than the budget.
+
+    Carries machine-readable fields so the IPC layer can surface a structured
+    error (snake_case) rather than a bare traceback.
+    """
+
+    def __init__(self, count: int, cap: int) -> None:
+        self.count = count
+        self.cap = cap
+        self.code = "procedural_matte_budget_exceeded"
+        super().__init__(
+            f"{count} procedural matte(s) in stack exceeds the per-render cap of "
+            f"{cap} (MAX_PROCEDURAL_MATTES_PER_RENDER)."
+        )
+
 
 def register_evaluator(kind: str, fn: EvaluatorFn) -> None:
     """Register a procedural matte evaluator for a given node kind.
@@ -163,6 +186,17 @@ def resolve_stack(
     height, width = resolution
     # Start with an empty (all-zero) accumulator.
     stack = np.zeros((height, width), dtype=np.float32)
+
+    # Budget guard: count ENABLED procedural mattes up front and reject the
+    # whole render with a structured error if over cap (MK.8 §13). Disabled
+    # nodes and static rasterizers do not count.
+    procedural_count = sum(
+        1 for n in nodes if n.enabled and n.kind not in _STATIC_KINDS
+    )
+    if procedural_count > MAX_PROCEDURAL_MATTES_PER_RENDER:
+        raise ProceduralMatteBudgetError(
+            procedural_count, MAX_PROCEDURAL_MATTES_PER_RENDER
+        )
 
     for node in nodes:
         if not node.enabled:

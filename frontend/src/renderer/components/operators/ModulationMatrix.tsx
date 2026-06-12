@@ -1,16 +1,42 @@
 import { useOperatorStore } from '../../stores/operators'
-import type { EffectInfo } from '../../../shared/types'
+import type { EffectInfo, MatteNode } from '../../../shared/types'
 
 interface ModulationMatrixProps {
   effectChain: { id: string; effectId: string }[]
   registry: EffectInfo[]
   operatorValues: Record<string, number>
+  /**
+   * MK.8 — key nodes (chroma_key / luma_key) from the selected clip's maskStack.
+   * Their lane-able params are prepended as synthetic targets
+   * `mask.<node_id>.<param>` riding the F-0516-9 `_mix` mechanism, so a key can
+   * be sidechained / LFO'd / beat-gated live (keying-as-performance, SPEC §6).
+   * Optional — absent / empty = no key targets (legacy behavior).
+   */
+  maskNodes?: MatteNode[]
+}
+
+/**
+ * MK.8 — which params of each key kind are lane-addressable (float scalars
+ * only; `mode` is a choice and is excluded). Order defines column order.
+ */
+const KEY_LANE_PARAMS: Record<string, { key: string; label: string }[]> = {
+  chroma_key: [
+    { key: 'hue', label: 'Hue' },
+    { key: 'tolerance', label: 'Tolerance' },
+    { key: 'softness', label: 'Softness' },
+    { key: 'spill', label: 'Spill' },
+  ],
+  luma_key: [
+    { key: 'threshold', label: 'Threshold' },
+    { key: 'softness', label: 'Softness' },
+  ],
 }
 
 export default function ModulationMatrix({
   effectChain,
   registry,
   operatorValues,
+  maskNodes,
 }: ModulationMatrixProps) {
   const operators = useOperatorStore((s) => s.operators)
   const removeMapping = useOperatorStore((s) => s.removeMapping)
@@ -22,6 +48,27 @@ export default function ModulationMatrix({
   // `params._mix` and pipeline.py defers via setdefault so a routing-set
   // value survives. Range is hard-coded [0,1] in routing._get_param_bounds.
   const targets: { effectId: string; effectName: string; paramKey: string; paramLabel: string }[] = []
+
+  // MK.8 — keying-as-performance: prepend the selected clip's key-node params
+  // as synthetic targets `mask.<node_id>.<param>` (riding the F-0516-9 `_mix`
+  // mechanism). The render payload carries the per-frame resolved values, so a
+  // key can be sidechained / LFO'd / beat-gated live. Namespaced under `mask.`
+  // so the paramKey never collides with `_mix` or a real effect param.
+  for (const node of maskNodes ?? []) {
+    const laneParams = KEY_LANE_PARAMS[node.kind]
+    if (!laneParams) continue // not a key node (rect/ellipse/etc. — Phase B)
+    for (const p of laneParams) {
+      targets.push({
+        // `effectId` carries the namespaced node id; backend routing keys off
+        // the `mask.` prefix to route into the matte node instead of an effect.
+        effectId: `mask.${node.id}`,
+        effectName: `Key: ${node.id}`,
+        paramKey: `mask.${node.id}.${p.key}`,
+        paramLabel: p.label,
+      })
+    }
+  }
+
   for (const fx of effectChain) {
     const info = registry.find((r) => r.id === fx.effectId)
     if (!info) continue

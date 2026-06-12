@@ -14,7 +14,19 @@ from masking.matte_source import (
     MATTE_CACHE_MAX_ENTRIES,
     MATTE_CACHE_MAX_BYTES,
 )
-from masking.stack import resolve_stack, register_evaluator, FrameCtx
+from masking.stack import (
+    resolve_stack,
+    register_evaluator,
+    FrameCtx,
+    MAX_PROCEDURAL_MATTES_PER_RENDER,
+    ProceduralMatteBudgetError,
+)
+
+# MK.8: register the chroma/luma procedural matte evaluators on package import
+# so a render touching a key node finds its evaluator wired up.
+from masking.key_kernels import register_key_evaluators as _register_key_evaluators
+
+_register_key_evaluators()
 
 __all__ = [
     "MatteNode",
@@ -28,4 +40,6 @@ __all__ = [
     "resolve_stack",
     "register_evaluator",
     "FrameCtx",
+    "MAX_PROCEDURAL_MATTES_PER_RENDER",
+    "ProceduralMatteBudgetError",
 ]
