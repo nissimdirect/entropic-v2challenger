@@ -10,15 +10,52 @@ import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
+import { computeSnapPosition, collectClipEdges } from '../../utils/snap-candidates'
 
-/** Snap a position to the nearest grid line if quantize is enabled. */
-function snapToGrid(pos: number, bypassSnap: boolean): number {
-  if (bypassSnap) return pos
-  const { quantizeEnabled, quantizeDivision } = useLayoutStore.getState()
+/**
+ * Resolve a raw drag position to a snapped one.
+ *
+ * UE.1: single nearest-wins pass over grid lines + clip edges + playhead + markers.
+ * metaKey bypasses ALL snapping (generalises the previous grid-bypass behaviour).
+ *
+ * Chain: drag handler → snapPosition() → moveClip / trimClipIn / trimClipOut (store stays dumb).
+ *
+ * @param pos       raw position in timeline seconds
+ * @param bypass    true when metaKey/ctrlKey is held — returns pos unchanged
+ * @param zoom      pixels per second (for threshold conversion)
+ * @param excludeId clip ID to exclude from edge candidates (the clip being dragged)
+ */
+function snapPosition(pos: number, bypass: boolean, zoom: number, excludeId?: string): number {
+  if (bypass) return pos
+
+  const layoutState = useLayoutStore.getState()
+  const { snapEnabled, quantizeEnabled, quantizeDivision } = layoutState
   const { bpm } = useProjectStore.getState()
-  if (!quantizeEnabled || bpm <= 0) return pos
-  const interval = (60 / bpm) * (4 / quantizeDivision)
-  return Math.round(pos / interval) * interval
+  const { playheadTime, markers, tracks } = useTimelineStore.getState()
+
+  // If both snap and quantize are off, return raw position unchanged
+  if (!snapEnabled && !quantizeEnabled) return pos
+
+  // Collect clip edges from all tracks (excluding the dragged clip)
+  const allClips = tracks.flatMap((t) => t.clips)
+  const clipEdges = snapEnabled ? collectClipEdges(allClips, excludeId) : []
+
+  // Grid interval: only include if quantize is on and BPM is valid
+  let gridInterval: number | null = null
+  if (quantizeEnabled && bpm > 0) {
+    gridInterval = (60 / bpm) * (4 / quantizeDivision)
+  }
+
+  const result = computeSnapPosition({
+    rawPos: pos,
+    zoom,
+    playheadTime: snapEnabled ? playheadTime : -Infinity,
+    markers: snapEnabled ? markers : [],
+    clipEdges,
+    gridInterval,
+  })
+
+  return result.snappedPos
 }
 
 interface ClipProps {
@@ -126,6 +163,11 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       },
       { label: 'Duplicate', action: () => store.duplicateClip(clip.id) },
       { label: 'Delete', action: () => store.removeClip(clip.id) },
+      {
+        label: 'Ripple Delete',
+        action: () => store.rippleRemoveClip(clip.id),
+        shortcut: '⇧⌦',
+      },
       { label: '', action: () => {}, separator: true },
       {
         label: 'Speed/Duration...',
@@ -219,7 +261,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         const dx = ev.clientX - startX
         const dt = dx / zoomAtStart
         const newPos = Math.max(0, startPos + dt)
-        const snapped = snapToGrid(newPos, ev.metaKey)
+        const snapped = snapPosition(newPos, ev.metaKey || ev.ctrlKey, zoomAtStart, clipId)
 
         // Look up the clip's CURRENT track in the store (it migrates as we
         // call moveClip below — using the captured clip.trackId would lock
@@ -339,7 +381,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         const dx = me.clientX - startX
         const dt = dx / zoom
         const rawIn = Math.max(0, startIn + dt)
-        const newIn = snapToGrid(rawIn, me.metaKey)
+        const newIn = snapPosition(rawIn, me.metaKey || me.ctrlKey, zoom, clip.id)
         useTimelineStore.getState().trimClipIn(clip.id, newIn)
       }
       const onUp = () => {
@@ -365,7 +407,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         const dx = me.clientX - startX
         const dt = dx / zoom
         const rawOut = startOut + dt
-        const newOut = snapToGrid(rawOut, me.metaKey)
+        const newOut = snapPosition(rawOut, me.metaKey || me.ctrlKey, zoom, clip.id)
         useTimelineStore.getState().trimClipOut(clip.id, newOut)
       }
       const onUp = () => {

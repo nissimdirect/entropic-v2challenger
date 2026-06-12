@@ -16,6 +16,8 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'redo',              keys: 'meta+shift+z',   category: 'edit',      label: 'Redo',                context: 'normal' },
   { action: 'duplicate_effect',  keys: 'meta+d',         category: 'edit',      label: 'Duplicate Effect',    context: 'normal' },
   { action: 'delete_selected',   keys: 'backspace',      category: 'edit',      label: 'Delete Selected',     context: 'normal' },
+  // UE.2: Ripple delete — Shift+Backspace (NLE convention; matches Premiere/Resolve Shift+Delete)
+  { action: 'ripple_delete',     keys: 'shift+backspace', category: 'edit',     label: 'Ripple Delete',       context: 'normal' },
 
   // --- Timeline ---
   { action: 'split_clip',        keys: 'meta+shift+k',   category: 'timeline',  label: 'Split Clip',          context: 'normal' },
