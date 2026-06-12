@@ -132,3 +132,106 @@ Kills the all-caps-mono shout; mono stays where mono earns it (alignment, instru
 | Type floor | 11px everywhere (style-guide 10.5px labels FIXED) | pass |
 
 Caveats: computed, not assistive-tech-tested — live screen-reader/keyboard pass remains PUX.6's gate. Dialog Escape/focus-trap/aria-modal ships in PUX.2; this spec defines the targets.
+
+## 10. Masking & selection components (2026-06-12 addendum)
+
+Skins the behavior in `MASKING-INTERACTIONS.md` (q/g/w/c tools, mask chips, mask-edit mode, J1–J5); data model in `SELECTION-MASKING-SPEC.md`. All §1–§5 laws apply unchanged: chroma budget, glow-is-a-verb, two voices, 11px floor. Live samples: [`style-guide.html`](./style-guide.html) §masking.
+
+### 10.1 Tool palette chips (browser `tool` tab)
+
+| State | Treatment |
+|---|---|
+| Rest | 24px row (`--cx-row-h`), `surface-2`, lowercase mono label `text-2`, glyph stroke `currentColor` |
+| Hover | `surface-4` (browser convention §6) |
+| Active | **ACID text on acid-wash** — never a filled chip; glyph inherits ACID |
+| Focus | 2px acid outline, offset 1px (§4) |
+
+**Glyphs — 1.5px-stroke schematic line icons (§8 TE language), 16×16 grid, round caps, no fills:**
+- `marquee` — a 11×9 rectangle drawn as dashes (2px dash / 2px gap): the icon *is* the selection it makes.
+- `lasso` — one closed freehand loop whose tail crosses itself at lower-left and exits ~3px: the rope.
+- `wand` — a 45° baton from lower-left, tipped with a four-point sparkle (two crossed 4px strokes); the only diagonal-axis glyph in the set.
+- `key` — an eyedropper at 45°: 6px barrel, hollow teardrop tip pointing lower-left; the glyph's tip matches the cursor hotspot.
+
+### 10.2 Mode banner — the Norman mode problem, answered
+
+Selection tools are modal (`MASKING-INTERACTIONS.md` §1) and they capture preview pointer events — a forgotten mode is the classic Norman mode error. The statusbar chip is necessary but peripheral; the banner is the unmissable indicator, **docked to the preview's top edge, inside the panel but outside the canvas letterbox** — chrome never overlaps footage (§1 color-truth rule).
+
+| Property | Spec |
+|---|---|
+| Geometry | height **20px** (hard cap 22px), full preview-panel width; `surface-2`, `line-1` bottom hairline |
+| Appears | ≤**120ms** (`--cx-t-fb`) after tool activation; opacity + 4px translate; exit 140ms; reduced-motion instant |
+| Shown when | `cursorMode ≠ select` OR a selection exists OR mask-edit mode; hidden otherwise (zero resting cost) |
+| ① MOD tick | 6px MOD dot, present only while a selection exists — the "you have ants" tell, visible even when ants are hidden (`Cmd+Shift+H`) or suppressed during playback |
+| ② Tool name | `tool: marquee (ellipse)` / `mask edit: mask_1` — 11px mono `text-1` |
+| ③ Key hints | 11px mono `text-3`, context-swapped: rest = `⇧ add · ⌥ subtract · ⌫ delete inside · ⌥⌫ outside`; mid-gesture = `⇧ constrain · ⌥ center · space move`; mask-edit = `b brush · e eraser · [ ] size · v view` |
+| ④ Esc affordance | right-aligned keycap chip (1px `line-2`, 2px radius), clickable + focusable, **names the next Escape level** (`esc deselect` → `esc exit tool`) — makes the §9 stack legible one pop at a time |
+| Chroma | the MOD dot is the banner's only saturated element (budget §1 holds); a11y: mirrors to `aria-live="polite"` |
+
+### 10.3 Mask chips (device chain + mask-stack row)
+
+In-chain chips fit the 24px density grid: **24×16 matte thumbnail** (1px `line-2` border), lowercase mono name. The 64×36 thumbnail size in `MASKING-INTERACTIONS.md` §5–6 is the **inspector/mask-stack-row size only** — in-chain uses 24×16 (density §8 wins inside the rack).
+
+| State | Treatment |
+|---|---|
+| Enabled | `surface-3` chip, thumbnail + name `text-1` |
+| Disabled | name AMBER (bypass convention §6), thumbnail 45% opacity |
+| Edit mode | 2px MOD inset + mod-wash background |
+| Routed (`maskRef` on ≥1 device) | 3px MOD corner tick, top-right |
+| Lane-modulated | standard mod-ring (ACID 25% α, ≤8px — the only glow, §4) |
+| Drag affordance | 2×3 grip-dot column (≈5px) painted at rest at the chip's left edge — handles visible at rest (§4); drag ghost gets the float shadow |
+
+### 10.4 Per-device mask slot (inspector)
+
+One `mask` row at 18px param height: label lowercase mono `text-2` · dropdown (`none / mask_1 / figure / …` — `surface-3`, 1px `line-1`, value mono `text-1`) · `invert` toggle (≥24×24 effective hit). **Mod-ring on the row only when the routed matte is procedural AND lane-modulated** — static mattes never ring. The dropdown is the keyboard routing path (`MASKING-INTERACTIONS.md` §12); drag-assign is the pointer shortcut, never the only path. While a mask chip is being dragged, **every valid drop target shows the dot-grid drop treatment** (§8) persistently — not hover-only — so routing is discoverable mid-drag.
+
+### 10.5 Key inspector panel
+
+| Element | Spec |
+|---|---|
+| Header | `key — per-frame` 11px mono `text-2` (states the procedural truth in chrome) |
+| Eyedropper button | quiet-button anatomy + the `key` glyph; engaged = ACID text on wash |
+| Picked-color swatch | 16×16, 1px `line-2`, 2px radius; double-click → hex type-in (mono). The swatch shows **user content** — chroma-budget-exempt the way clip colors are (§8): data, not decoration |
+| `tolerance` / `softness` / `spill` | flat slider-bars per §8 Ableton idiom (drag anywhere · ⇧ fine · double-click default · click value = type-in), 18px rows, ACID fill; mod-ring when a lane modulates them (keys are lanes day one) |
+| View-mode control | segmented `composite \| matte \| rubylith`, lowercase mono, active = ACID text on wash, 24px tall; mirrors `v`-cycling; current mode echoes in the mode banner and statusbar |
+
+### 10.6 Mask-edit mode treatment
+
+- **Rubylith = 50% `#C13B40` (red-fill) wash over the masked-out area.** §1 reserves RED for destructive *chrome*; rubylith tints *content* — the same chrome/content separation that exempts effect palettes (§7). Film-industry rubylith has been red for seventy years; `red-fill` (not `#E5484D`) keeps chroma low enough not to vibrate over moving footage.
+- **Chrome de-emphasis:** timeline + browser sit under a `surface-0` 35% scrim (visual only — click-away still lands and exits, `MASKING-INTERACTIONS.md` §5); inspector + preview stay full. Entry 180ms; reduced-motion instant.
+- **Brush cursor:** circle outline at brush radius — 1px MOD over 1px `#0B0B10` ink (same dual-stroke contract as ants) + 2px center dot; while `[`/`]` is held, a size readout chip (`24 px`, 11px mono) rides 16px below the cursor.
+
+### 10.7 Generation progress (RVM figure matte, MK.12)
+
+- The `generate figure matte` button is replaced **in place** by a progress row — no dialog, no overlay; transport stays live (offline-job rationale, `SELECTION-MASKING-SPEC.md` GT-10).
+- **Determinate bar** (flat-slider anatomy, AMBER fill — long-running is the suspend family), label `figure matte… 42% · frame 126/300` 11px mono, `cancel` ghost button. First ≤1s before frame counts arrive: bar at 0 with a slow amber-wash pulse, then determinate.
+- **Completion:** row swaps out; the two new chips `figure` + `background` enter at **180ms** (`--cx-t-in`, fade + 4px rise, one MOD-wash pulse each — the eye follows the artifact). Reduced-motion: instant.
+- **Cancel:** button restored, partial cache discarded, info toast. **Failure:** RED toast + `retry`.
+
+### 10.8 Marching ants — final spec
+
+| Property | Value |
+|---|---|
+| Stroke | dual: 1px `#0B0B10` ink underlay + 1px dashed `--cx-mod` (dash 4 / gap 4) — guaranteed contrast over any footage |
+| Animation | `stroke-dashoffset`, **500ms cycle**, linear, compositor-only; ≤256 vertices (RDP) |
+| Secondary affordance | outside-region dim to 65% |
+| Playback | ants + dim hide; matte/rubylith view modes persist (`MASKING-INTERACTIONS.md` §10) |
+| Reduced motion | no animation — **static dual stroke at 50% opacity**; the 65% dim carries the affordance |
+
+### 10.9 Empty & error states
+
+| State | Treatment |
+|---|---|
+| Zero-coverage key (<0.1% of frame) | AMBER toast `key matches 0.0% of frame — widen tolerance?` + action link `show matte` (one-click jump to matte view — the auto-suggest) |
+| Delete with empty selection | info toast (MOD tick) `nothing selected to delete` |
+| Delete-inside / delete-outside | every delete op toasts **which op ran + coverage**: `deleted outside selection — 69% of frame · ⌘Z` — undo visibility is part of the op; 0% coverage at the current frame → AMBER variant (the op happened, just not visibly *here*) |
+| Missing matte sidecar / AI cache | chip label AMBER + hover `matte data missing — regenerate` |
+
+### 10.10 Accessibility rows (extends §9)
+
+| Behavior | Verdict / reasoning |
+|---|---|
+| Focus order | tool chips in `tool`-tab DOM order → preview canvas → inspector; mask chips Tab-sequenced in stack order; banner `esc` chip focusable; nothing focus-trapped outside dialogs |
+| Rubylith contrast | **cannot be guaranteed — it overlays unknown footage.** Therefore rubylith is never the only channel: matte view (black/white, guaranteed contrast) is one `v` away, the boundary keeps its 1px ink underlay in every view, and the banner + statusbar announce the active view |
+| Mode announcement | banner + statusbar chips mirror to `aria-live="polite"`; view/tool changes are announced, not color-only |
+| Keyboard-only operation | full path table in `MASKING-INTERACTIONS.md` §12 — every operation reachable; brush strokes pointer-only v1 (flagged gap, MK.13 a11y row) |
+| Chip text contrast | ACID-on-wash 14.5:1 AAA; AMBER disabled-chip labels 7.7:1 AA; banner `text-3` hints 4.8:1 AA |

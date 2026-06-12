@@ -107,6 +107,41 @@ code{font:450 11px var(--cx-font-data);background:var(--cx-surface-2);padding:1p
 .led{display:flex;gap:2px}
 .led i{width:9px;height:14px;border-radius:1px;background:var(--cx-surface-3)}
 .led i.on{background:var(--cx-acid)}.led i.on.w{background:var(--cx-amber)}.led i.on.c{background:var(--cx-red)}
+/* v1.2 — masking components (DESIGN-SPEC §10) */
+.tchip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 10px;background:var(--cx-surface-2);
+  border:1px solid var(--cx-line-1);border-radius:var(--cx-r-ctl);color:var(--cx-text-2);
+  font:450 11px var(--cx-font-data);cursor:pointer}
+.tchip svg{stroke:currentColor;stroke-width:1.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tchip:hover{background:var(--cx-surface-4)}
+.tchip.active{color:var(--cx-acid);background:linear-gradient(var(--cx-acid-wash),var(--cx-acid-wash)),var(--cx-surface-2)}
+.banner{display:flex;align-items:center;gap:10px;height:20px;padding:0 10px;width:560px;
+  background:var(--cx-surface-2);border-bottom:1px solid var(--cx-line-1);font:450 11px var(--cx-font-data)}
+.banner .seldot{width:6px;height:6px;border-radius:50%;background:var(--cx-mod)}
+.banner .tn{color:var(--cx-text-1)}.banner .hint{color:var(--cx-text-3);flex:1}
+.banner .esc{border:1px solid var(--cx-line-2);border-radius:2px;padding:1px 6px;color:var(--cx-text-2)}
+.mchip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px 0 5px;position:relative;
+  background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:var(--cx-r-ctl);
+  color:var(--cx-text-1);font:450 11px var(--cx-font-data)}
+.mchip .grip{width:5px;height:12px;background-image:radial-gradient(var(--cx-text-3) 1px,transparent 1px);background-size:3px 4px}
+.mchip .thumb{width:24px;height:16px;border:1px solid var(--cx-line-2);border-radius:1px;
+  background:radial-gradient(ellipse at 38% 50%,#D8D8D8 0 34%,#101014 58%)}
+.mchip .tick{position:absolute;top:-1px;right:-1px;width:0;height:0;border-left:6px solid transparent;border-top:6px solid var(--cx-mod)}
+.mchip.disabled{color:var(--cx-amber)}.mchip.disabled .thumb{opacity:.45}
+.mchip.editing{box-shadow:inset 0 0 0 2px var(--cx-mod);background:linear-gradient(var(--cx-mod-wash),var(--cx-mod-wash)),var(--cx-surface-3)}
+.param.ring .bar{box-shadow:0 0 0 1.5px var(--cx-mod),0 0 6px rgba(200,243,33,.25)}
+.kswatch{width:16px;height:16px;border:1px solid var(--cx-line-2);border-radius:2px;background:#23B14B}
+.seg{display:inline-flex;border:1px solid var(--cx-line-1);border-radius:var(--cx-r-ctl);overflow:hidden;font:450 11px var(--cx-font-data)}
+.seg span{padding:4px 10px;color:var(--cx-text-2)}
+.seg .on{color:var(--cx-acid);background:linear-gradient(var(--cx-acid-wash),var(--cx-acid-wash)),var(--cx-surface-2)}
+.demobox{position:relative;width:230px;height:90px;border:1px solid var(--cx-line-1);border-radius:var(--cx-r-card);overflow:hidden}
+.antsbg{background:linear-gradient(115deg,#2B3A46 0 45%,#6B4A35 45% 70%,#3E5A3A 70%)}
+.ants-ink{stroke:#0B0B10;stroke-width:1}
+.ants-mod{stroke:var(--cx-mod);stroke-width:1;stroke-dasharray:4 4;animation:march .5s linear infinite}
+@keyframes march{to{stroke-dashoffset:-8}}
+@media (prefers-reduced-motion: reduce){.ants-mod{opacity:.5}} /* static dual-stroke fallback (DESIGN-SPEC §10.8) */
+.rubybg{background:linear-gradient(115deg,#E8B04A,#3A7BD5 55%,#7A4AE8)}
+.ruby-wash{position:absolute;inset:0;left:42%;background:rgba(193,59,64,.5);border-left:1px solid #0B0B10}
+.demolab{position:absolute;left:8px;bottom:6px;font:450 11px var(--cx-font-data);color:#E7E7EC;text-shadow:0 1px 2px rgba(0,0,0,.8)}
 table.a11y{border-collapse:collapse;font-size:11.5px}
 table.a11y td,table.a11y th{border:1px solid var(--cx-line-1);padding:5px 10px;text-align:left}
 table.a11y th{color:var(--cx-text-2);font-weight:550}
@@ -211,6 +246,39 @@ table.a11y th{color:var(--cx-text-2);font-weight:550}
 <div class="row" style="align-items:center;gap:24px">
   <div class="dotzone" style="flex:1">drop video here — or double-click to browse</div>
   <div class="led"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on w"></i><i class="on w"></i><i class="c on"></i><i></i><i></i></div>
+</div>
+
+<h2>Masking — tool chips · mode banner · mask chips · key panel · ants · rubylith (DESIGN-SPEC §10)</h2>
+<div class="row">
+  <div class="tchip active"><svg width="16" height="16" viewBox="0 0 16 16"><rect x="2.5" y="3.5" width="11" height="9" stroke-dasharray="2 2"/></svg>marquee</div>
+  <div class="tchip"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M8 3.2c3.2-.3 5 1.6 5 4.1 0 2.6-2.4 4.2-5 4.2-2.5 0-5-1.5-5-4C3 5.6 4.4 4 6.5 3.5M5.2 11.2 3.8 13.6"/></svg>lasso</div>
+  <div class="tchip"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 13l6-6M11 3.5v4M9 5.5h4"/></svg>wand</div>
+  <div class="tchip"><svg width="16" height="16" viewBox="0 0 16 16"><path d="M3.5 12.5l5.5-5.5M9.5 6.5 8.5 5.5l3-3 2 2-3 3z"/></svg>key</div>
+</div>
+<p class="sub" style="margin-top:10px">mode banner — docked to preview top edge, ≤22px, MOD dot = selection exists, esc names the next pop</p>
+<div class="banner"><span class="seldot"></span><span class="tn">tool: marquee (ellipse)</span><span class="hint">⇧ add · ⌥ subtract · ⌫ delete inside · ⌥⌫ outside</span><span class="esc">esc deselect</span></div>
+<p class="sub" style="margin-top:14px">mask chips — enabled / disabled (amber, bypass voice) / editing (MOD inset); grip painted at rest, corner tick = routed</p>
+<div class="row">
+  <div class="mchip"><span class="grip"></span><span class="thumb"></span>mask_1<i class="tick"></i></div>
+  <div class="mchip disabled"><span class="grip"></span><span class="thumb"></span>mask_2</div>
+  <div class="mchip editing"><span class="grip"></span><span class="thumb"></span>figure</div>
+</div>
+<p class="sub" style="margin-top:14px">key inspector — swatch is user data (chroma-exempt); spill carries a live mod-ring</p>
+<div style="display:flex;flex-direction:column;gap:5px;background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:4px;padding:10px 12px;width:280px">
+  <div style="font:450 11px var(--cx-font-data);color:var(--cx-text-2)">key — per-frame</div>
+  <div class="row" style="gap:8px"><span class="kswatch"></span><code>#23B14B</code></div>
+  <div class="param"><span class="pn">tolerance</span><div class="bar"><i style="width:42%"></i></div><span class="pv">0.42</span></div>
+  <div class="param"><span class="pn">softness</span><div class="bar"><i style="width:18%"></i></div><span class="pv">0.18</span></div>
+  <div class="param ring"><span class="pn">spill</span><div class="bar"><i style="width:55%"></i></div><span class="pv">0.55</span></div>
+  <div class="seg" style="margin-top:4px"><span>composite</span><span class="on">matte</span><span>rubylith</span></div>
+</div>
+<p class="sub" style="margin-top:14px">marching ants (MOD dual-stroke, 500ms, reduced-motion → static 50%) · rubylith 50% red-fill over masked-out content</p>
+<div class="row">
+  <div class="demobox antsbg"><svg width="228" height="88" style="position:absolute;inset:0">
+    <rect x="40" y="18" width="120" height="52" fill="rgba(143,125,255,.12)" class="ants-ink"/>
+    <rect x="40" y="18" width="120" height="52" fill="none" class="ants-mod"/></svg>
+    <span class="demolab">ants — ink under mod</span></div>
+  <div class="demobox rubybg"><span class="ruby-wash"></span><span class="demolab">rubylith — masked-out</span></div>
 </div>
 
 <h2>Accessibility — computed WCAG 2.1 AA (full table in DESIGN-SPEC §9)</h2>
