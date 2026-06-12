@@ -2151,11 +2151,53 @@ function AppInner() {
 
       // Epic 4 (D1): source the active track's chain (not the global effectChain, which is
       // stale/empty after Epic 1 moved chains into per-track storage).
-      // NOTE: Export remains single-video-source + text overlays — it processes the active
-      // track's source with the active track's chain. Multi-track composite export parity
-      // (rendering all video tracks like the preview does) is a separate follow-up feature
-      // and is explicitly out of scope for this change.
       const activeExportChain = getActiveEffectChain()
+
+      // P2.3 (slice 3d — full export parity): the export must run the SAME
+      // modulation engine the preview render path runs, so the exported video
+      // matches the live canvas (previously export dropped operators + automation
+      // entirely — export.py divergence). We send:
+      //   • operators — the serialized operator list (LFO / audio_follower /
+      //     video_analyzer / …), evaluated per frame backend-side via the
+      //     SignalEngine, exactly as preview's render_frame path does;
+      //   • automation_by_frame — automation overrides PRE-RESOLVED here, per
+      //     source frame, using the SAME `evaluateAutomationOverrides` evaluator
+      //     preview uses (so values are byte-identical to preview; no second
+      //     backend evaluator that could drift).
+      const exportOperators = useOperatorStore.getState().getSerializedOperators()
+
+      // Pre-resolve automation per SOURCE frame index over the export range. The
+      // backend keys the map by source frame index (src_idx) and looks it up per
+      // frame; automation is time-based, so frame f's time = f / activeFps.
+      const exportLanes = useAutomationStore.getState().getAllLanes()
+      const exportSourceFps = activeFps > 0 ? activeFps : 30
+      const exportStartFrame = settings.region === 'full'
+        ? 0
+        : Math.max(0, settings.startFrame ?? 0)
+      const exportEndFrame = settings.region === 'full'
+        ? Math.max(0, totalFrames - 1)
+        : Math.max(exportStartFrame, settings.endFrame ?? (totalFrames - 1))
+      const automationByFrame: Record<number, Record<string, number>> = {}
+      if (exportLanes.length > 0) {
+        for (let f = exportStartFrame; f <= exportEndFrame; f++) {
+          const overrides = evaluateAutomationOverrides(
+            exportLanes, f / exportSourceFps, registry,
+          )
+          if (Object.keys(overrides).length > 0) {
+            automationByFrame[f] = overrides
+          }
+        }
+      }
+      const hasAutomation = Object.keys(automationByFrame).length > 0
+
+      // Status string surfaces the snapshot semantics to the user (the export
+      // renders from a frozen snapshot taken at job start; edits during export
+      // do not change the output). T = the export's start source frame.
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: `Exporting from snapshot @ T=${exportStartFrame}`,
+        source: 'export-snapshot',
+      })
 
       // P5a.4: build the optional composite-replay payload for projects with
       // performance tracks. The backend replays the voice FSM from this
@@ -2237,6 +2279,11 @@ function AppInner() {
         project_seed: projectSeed,
         ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
         ...(performancePayload ? { performance: performancePayload } : {}),
+        // P2.3: export-parity modulation payloads. Both omitted when empty so a
+        // project with no operators/automation produces a legacy (byte-identical)
+        // export — the backend treats absent payloads as the old single-input path.
+        ...(exportOperators.length > 0 ? { operators: exportOperators } : {}),
+        ...(hasAutomation ? { automation_by_frame: automationByFrame } : {}),
         settings: {
           codec: settings.codec,
           resolution: settings.resolution,

@@ -76,6 +76,32 @@ MAX_CAPTURE_EVENTS = 10_000
 VOICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MAX_VOICE_ID_LENGTH = 128
 
+# P2.3 (export parity): bound the per-frame automation-override map an export may
+# replay. The frontend pre-resolves automation per output frame and ships a
+# {frameIndex: {paramPath: value}} map across the IPC trust boundary. Cap the
+# number of frame entries (one per source frame; a 300_000-frame project is the
+# MAX_FRAME_COUNT ceiling, but the override map only carries frames that HAVE
+# overrides) and the per-frame override count. Over-cap is REJECTED at export
+# start (enforce-before-decode); malformed values (NaN/inf) are rejected, never
+# silently coerced (numeric-trust-boundary rule).
+MAX_AUTOMATION_FRAMES = MAX_FRAME_COUNT  # one entry per source frame, at most
+MAX_AUTOMATION_OVERRIDES_PER_FRAME = 256
+
+# P2.3: the operator types the signal engine understands. An export payload
+# carrying an unknown operator type is a hand-edited / hostile project and is
+# REJECTED at export start (the engine would silently evaluate it to 0.0; the
+# packet's negative test requires a loud structured error instead).
+VALID_OPERATOR_TYPES = frozenset(
+    {
+        "lfo",
+        "envelope",
+        "step_sequencer",
+        "audio_follower",
+        "video_analyzer",
+        "fusion",
+    }
+)
+
 
 def validate_upload(path: str) -> list[str]:
     """Validate an uploaded file path. Returns list of errors (empty = valid).
@@ -449,6 +475,108 @@ def validate_capture_events(events: object) -> list[str]:
                     f"kind {kind!r}, got {iid!r}"
                 )
                 return errors
+
+    return errors
+
+
+def _is_finite_number(x: object) -> bool:
+    """True iff x is a finite real number (not bool, not NaN/inf)."""
+    if isinstance(x, bool):
+        return False
+    if isinstance(x, int):
+        return True
+    if isinstance(x, float):
+        return x == x and x not in (float("inf"), float("-inf"))
+    return False
+
+
+def validate_export_modulation(
+    operators: object, automation_by_frame: object
+) -> list[str]:
+    """Validate the P2.3 export-parity modulation payloads at export start.
+
+    Trust boundary: both arrive as IPC payloads and drive per-frame modulation in
+    the export loop (``SignalEngine.evaluate_all`` + ``apply_modulation``). This
+    enforces structural + numeric bounds BEFORE the export thread spawns
+    (enforce-before-decode), so a hand-edited / hostile project fails LOUDLY with
+    a structured error and leaves no partial file — never a silent partial render.
+
+    Rejects (first offender only, fail-closed):
+    - ``operators`` not a list (when present)
+    - more than ``MAX_OPERATORS`` operators
+    - an operator that is not a dict, lacks a string ``id``, or carries an
+      unknown ``type`` (not in ``VALID_OPERATOR_TYPES``)
+    - ``automation_by_frame`` not a dict (when present)
+    - more than ``MAX_AUTOMATION_FRAMES`` frame entries
+    - a frame key that is not a non-negative integer (or its string form)
+    - a per-frame map that is not a dict, exceeds
+      ``MAX_AUTOMATION_OVERRIDES_PER_FRAME`` entries, or carries a non-finite
+      (NaN/inf) override value
+
+    Returns a list of error strings (empty == valid). ``None`` payloads pass.
+    """
+    # Imported lazily to avoid a security.py -> modulation import cycle.
+    from modulation.engine import MAX_OPERATORS
+
+    errors: list[str] = []
+
+    if operators is not None:
+        if not isinstance(operators, list):
+            return ["operators must be a list"]
+        if len(operators) > MAX_OPERATORS:
+            return [
+                f"operator list length {len(operators)} exceeds maximum "
+                f"{MAX_OPERATORS} (MAX_OPERATORS)"
+            ]
+        for i, op in enumerate(operators):
+            if not isinstance(op, dict):
+                return [f"operator[{i}] must be a dict (got {type(op).__name__})"]
+            op_id = op.get("id")
+            if not isinstance(op_id, str) or not op_id:
+                return [f"operator[{i}].id must be a non-empty string, got {op_id!r}"]
+            op_type = op.get("type")
+            if op_type not in VALID_OPERATOR_TYPES:
+                return [f"operator[{i}].type {op_type!r} is unknown"]
+
+    if automation_by_frame is not None:
+        if not isinstance(automation_by_frame, dict):
+            return ["automation_by_frame must be an object"]
+        if len(automation_by_frame) > MAX_AUTOMATION_FRAMES:
+            return [
+                f"automation_by_frame has {len(automation_by_frame)} frame entries, "
+                f"exceeds maximum {MAX_AUTOMATION_FRAMES} (MAX_AUTOMATION_FRAMES)"
+            ]
+        for fkey, fmap in automation_by_frame.items():
+            # Frame keys cross JSON as strings; accept int or digit-string >= 0.
+            if isinstance(fkey, bool) or not (
+                (isinstance(fkey, int) and fkey >= 0)
+                or (isinstance(fkey, str) and fkey.isdigit())
+            ):
+                return [
+                    f"automation_by_frame key {fkey!r} must be a non-negative "
+                    f"integer frame index"
+                ]
+            if not isinstance(fmap, dict):
+                return [
+                    f"automation_by_frame[{fkey!r}] must be an object "
+                    f"(got {type(fmap).__name__})"
+                ]
+            if len(fmap) > MAX_AUTOMATION_OVERRIDES_PER_FRAME:
+                return [
+                    f"automation_by_frame[{fkey!r}] has {len(fmap)} overrides, "
+                    f"exceeds maximum {MAX_AUTOMATION_OVERRIDES_PER_FRAME}"
+                ]
+            for pkey, pval in fmap.items():
+                if not isinstance(pkey, str) or not pkey:
+                    return [
+                        f"automation_by_frame[{fkey!r}] key {pkey!r} must be a "
+                        f"non-empty 'effectId.paramKey' string"
+                    ]
+                if not _is_finite_number(pval):
+                    return [
+                        f"automation_by_frame[{fkey!r}][{pkey!r}] must be a finite "
+                        f"number, got {pval!r}"
+                    ]
 
     return errors
 
