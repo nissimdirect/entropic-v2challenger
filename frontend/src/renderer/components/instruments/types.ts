@@ -21,6 +21,12 @@ export interface SamplerInstrumentV1 {
  * The composite-layer dict the sampler appends to the render_composite `layers`
  * array (mirrors the shape App.tsx builds for video clips). NOT a Composite
  * effect — opacity rides on the layer.
+ *
+ * P5a.3: `voice_id` added for per-voice state keying on the backend (P5a.2).
+ * Constraint: must match backend VOICE_ID_PATTERN `^[A-Za-z0-9_-]{1,128}$`
+ * (no colons — the backend prepends "voice:" as namespace prefix). The FSM
+ * voiceId (`voice:{instrumentId}:{triggerFrame}:{eventIndex}`) is encoded
+ * colon-free as `{instrumentId}_{triggerFrame}_{eventIndex}` in the layer.
  */
 export interface SamplerVoiceLayer {
   layer_type: 'video'
@@ -29,6 +35,8 @@ export interface SamplerVoiceLayer {
   chain: never[]
   opacity: number
   blend_mode: BlendMode
+  /** P5a.3: per-voice state cache key for the backend. No colons (P5a.2 constraint). */
+  voice_id?: string
 }
 
 /** Hard speed bounds (reverse..forward), per B1 plan. */

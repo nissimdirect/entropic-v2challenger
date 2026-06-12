@@ -3,13 +3,20 @@
  * Tests that window.addEventListener('keydown') correctly routes
  * Cmd+B → toggleSidebar and F → toggleFocusMode.
  *
- * Uses the same handler logic as App.tsx but without rendering the full component tree.
+ * P5a.3 update: modal-flag approach retired — arming is track-selection based.
+ * The handler now uses a standalone `isArmed` flag (mirrors App.tsx checking
+ * selectedTrack.type === 'performance'). setPerformMode removed from store;
+ * tests that need arming set `isArmed` directly.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { useLayoutStore } from '../../renderer/stores/layout'
 import { usePerformanceStore } from '../../renderer/stores/performance'
 
-// Replicate the exact handler wiring from App.tsx lines 240-415
+// P5a.3: arming state is external to the performance store.
+// Mirrors App.tsx's `isArmed = selectedTrack?.type === 'performance'` derived value.
+let _isArmed = false
+
+// Replicate the P5a.3 handler wiring from App.tsx
 function installKeyboardHandler(): () => void {
   const handleKeyDown = (e: KeyboardEvent) => {
     const target = e.target as HTMLElement
@@ -20,17 +27,9 @@ function installKeyboardHandler(): () => void {
     if (isInput) return
 
     const mod = e.metaKey || e.ctrlKey
-    const perfStore = usePerformanceStore.getState()
 
-    // P key toggle perform mode
-    if (e.code === 'KeyP' && !mod && !e.shiftKey) {
-      e.preventDefault()
-      perfStore.setPerformMode(!perfStore.isPerformMode)
-      return
-    }
-
-    // Perform mode gate
-    if (perfStore.isPerformMode && !mod) {
+    // Perform mode gate (P5a.3: armed by track selection)
+    if (_isArmed && !mod) {
       e.preventDefault()
       return
     }
@@ -62,15 +61,8 @@ function installKeyboardHandlerWithCapture(): () => void {
     if (isInput) return
 
     const mod = e.metaKey || e.ctrlKey
-    const perfStore = usePerformanceStore.getState()
 
-    if (e.code === 'KeyP' && !mod && !e.shiftKey) {
-      e.preventDefault()
-      perfStore.setPerformMode(!perfStore.isPerformMode)
-      return
-    }
-
-    if (perfStore.isPerformMode && !mod) {
+    if (_isArmed && !mod) {
       e.preventDefault()
       return
     }
@@ -110,11 +102,13 @@ describe('keyboard shortcuts integration', () => {
       timelineCollapsed: false,
       timelineHeight: 200,
     })
-    usePerformanceStore.getState().setPerformMode(false)
+    usePerformanceStore.getState().resetDrumRack()
+    _isArmed = false
   })
 
   afterEach(() => {
     cleanup?.()
+    _isArmed = false
   })
 
   describe('bubble phase (current implementation)', () => {
@@ -151,14 +145,14 @@ describe('keyboard shortcuts integration', () => {
       document.body.removeChild(input)
     })
 
-    it('F is blocked in perform mode', () => {
-      usePerformanceStore.getState().setPerformMode(true)
+    it('F is blocked when armed (performance track selected)', () => {
+      _isArmed = true
       fireKey('f', 'KeyF')
       expect(useLayoutStore.getState().sidebarCollapsed).toBe(false)
     })
 
-    it('Cmd+B works even in perform mode (modifier key)', () => {
-      usePerformanceStore.getState().setPerformMode(true)
+    it('Cmd+B works even when armed (modifier key)', () => {
+      _isArmed = true
       fireKey('b', 'KeyB', { metaKey: true })
       expect(useLayoutStore.getState().sidebarCollapsed).toBe(true)
     })
