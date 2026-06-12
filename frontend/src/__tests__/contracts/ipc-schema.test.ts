@@ -140,6 +140,8 @@ describe('IPC Contract', () => {
       'flush_state',
       'freeze_prefix',
       'ingest',
+      'inline_actions_invoke',
+      'inline_actions_list',
       'invalidate_cache',
       'list_effects',
       'list_fonts',

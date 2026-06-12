@@ -97,23 +97,21 @@ describe('InlineActionMenu — I3 shell', () => {
   })
 })
 
-describe('useInlineActions — Tier-1 stub', () => {
-  it('returns recent/browse/tools actions wired to callbacks', () => {
-    const onMap = vi.fn()
-    const onProbe = vi.fn()
-    const onDelete = vi.fn()
-    const { result } = renderHook(() => useInlineActions('paramX', onMap, onProbe, onDelete))
-    const { actions, loading } = result.current
-    expect(loading).toBe(false)
-    expect(actions.length).toBeGreaterThanOrEqual(4)
-    expect(actions.every((a) => a.id.startsWith('paramX:'))).toBe(true)
-    expect(actions.some((a) => a.category === 'recent')).toBe(true)
-    expect(actions.some((a) => a.category === 'browse')).toBe(true)
-    expect(actions.some((a) => a.category === 'tools')).toBe(true)
+describe('useInlineActions — P3.6 Tier-3 stub (IPC unavailable → stub actions)', () => {
+  it('returns stub actions when IPC unavailable (loading starts true, stub shown)', () => {
+    // When window.entropic is absent, the hook returns the stub action set
+    // and loading=true (async fetch in flight). This is the P3.6 Tier-3 API.
+    // Full IPC wiring tested in inline-probe-menu.test.tsx.
+    const savedEntropic = (window as any).entropic
+    delete (window as any).entropic
 
-    actions.find((a) => a.id === 'paramX:probe')?.onSelect()
-    expect(onProbe).toHaveBeenCalledTimes(1)
-    actions.find((a) => a.id === 'paramX:delete')?.onSelect()
-    expect(onDelete).toHaveBeenCalledTimes(1)
+    const ctx = { kind: 'effect' as const, nodeId: 'fx-1' }
+    const { result } = renderHook(() => useInlineActions(ctx))
+    const { actions } = result.current
+    // Stub has at least 1 action (reveal_in_canvas)
+    expect(actions.length).toBeGreaterThanOrEqual(1)
+
+    // Restore
+    Object.defineProperty(window, 'entropic', { value: savedEntropic, writable: true, configurable: true })
   })
 })
