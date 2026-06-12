@@ -10,7 +10,7 @@ import ContextMenu from '../timeline/ContextMenu'
 import type { MenuItem } from '../timeline/ContextMenu'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
-import { EFFECT_DRAG_TYPE } from '../effects/EffectBrowser'
+import { EFFECT_DRAG_TYPE, CREATRIX_NONCE_TYPE, SESSION_NONCE } from '../effects/EffectBrowser'
 import { randomUUID } from '../../utils'
 import type { EffectInstance } from '../../../shared/types'
 
@@ -110,13 +110,40 @@ export default function DeviceChain({
     (e: React.DragEvent<HTMLDivElement>) => {
       e.preventDefault()
       setIsDragOver(false)
-      const effectId = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
-      // RT-3: cap defensively at 64 chars. Real effect IDs are <32 chars; an
-      // XSS-in-renderer (or future hostile drag source) writing a multi-MB
-      // string into dataTransfer would otherwise force a full registry scan
-      // on an obviously bogus payload.
-      if (!effectId || effectId.length > 64) return
+      const raw = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
+      // RT-3: cap defensively at 256 chars. Real payloads are <128 chars.
+      if (!raw || raw.length > 256) return
       if (effectChain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return
+
+      // P3.2: resolve effectId from either new JSON payload or legacy plain string.
+      // New payload: JSON {"kind":"fx","id":"builtin:<effectId>"} with nonce.
+      // Legacy payload: plain string effectId (back-compat, no nonce required).
+      let effectId: string
+      const nonce = e.dataTransfer.getData(CREATRIX_NONCE_TYPE)
+      if (nonce) {
+        // Nonce present: validate it matches session nonce (qa-redteam H1).
+        if (nonce !== SESSION_NONCE) return
+        // Parse JSON payload (qa-redteam H2).
+        try {
+          const parsed = JSON.parse(raw)
+          if (typeof parsed !== 'object' || parsed === null) return
+          const { kind, id } = parsed as { kind: unknown; id: unknown }
+          if (!['fx', 'op', 'composite', 'instruments'].includes(kind as string)) return
+          if (typeof id !== 'string') return
+          // Extract effectId from namespaced id: "builtin:<effectId>" or "user:<name>"
+          const match = id.match(/^builtin:(.+)$/)
+          if (!match) return  // user: presets not yet wired — reject gracefully
+          effectId = match[1]
+        } catch {
+          return
+        }
+      } else {
+        // Legacy plain-string fx drag payload (back-compat: pre-P3.2 browser).
+        // No nonce = legacy source. Accept as-is with the original 64-char cap.
+        if (raw.length > 64) return
+        effectId = raw
+      }
+
       const info = registry.find((r) => r.id === effectId)
       if (!info) return
       const trackId = getActiveTrackId()

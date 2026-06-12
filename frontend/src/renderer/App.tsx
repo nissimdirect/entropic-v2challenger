@@ -24,6 +24,8 @@ import HistoryPanel from './components/layout/HistoryPanel'
 import DeviceChain from './components/device-chain/DeviceChain'
 import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
+// P3.3: Polymorphic inspector (8 states, info-only)
+import Inspector from './components/inspector/Inspector'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
 // P5a.3: buildVoiceLayers replaces buildSamplerLayer in the render path (multi-voice FSM).
 //        buildSamplerLayer kept for legacy callers outside the voice path.
@@ -117,6 +119,39 @@ function modulateChain(chain: EffectInstance[], frame: number): EffectInstance[]
     out = applyCCModulations(out, midi.ccMappings, midi.ccValues)
   }
   return out
+}
+
+/**
+ * P3.2: Statusbar chip showing the active cursor tool when the [tool] tab is active.
+ * Reads data-cursor-tool set by EffectBrowser's useEffect (avoids prop-drilling).
+ * Hidden when no tool attribute is present (i.e. tool tab not active).
+ */
+function CursorToolChip() {
+  const [tool, setTool] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    // Sync from DOM attribute set by EffectBrowser
+    const sync = () => {
+      const val = document.body.getAttribute('data-cursor-tool')
+      setTool(val)
+    }
+    sync()
+    // MutationObserver watches for attribute changes
+    const obs = new MutationObserver(sync)
+    obs.observe(document.body, { attributes: true, attributeFilter: ['data-cursor-tool'] })
+    return () => obs.disconnect()
+  }, [])
+
+  if (!tool) return null
+  return (
+    <span
+      className="status-bar__cursor-tool-chip"
+      title="Active cursor tool (set in [tool] tab)"
+      data-testid="statusbar-cursor-tool-chip"
+    >
+      tool: {tool}
+    </span>
+  )
 }
 
 function SpeedDialogHost() {
@@ -2580,7 +2615,8 @@ function AppInner() {
               }}
               onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
             />
-            <div className="cx-inspector-placeholder">Inspector (P3.3)</div>
+            {/* P3.3: Real inspector replaces placeholder */}
+            <Inspector />
           </>
         )}
       </div>
@@ -2952,6 +2988,8 @@ function AppInner() {
           {isPerformArmed && (
             <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
           )}
+          {/* P3.2: cursor tool chip — reads data-cursor-tool set by EffectBrowser tool tab */}
+          <CursorToolChip />
           {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>
