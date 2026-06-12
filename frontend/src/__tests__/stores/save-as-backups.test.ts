@@ -213,6 +213,53 @@ describe('UE.4 backup rotation', () => {
     expect(warnToasts).toHaveLength(1)
   })
 
+  it('save failing after rotation returns false, keeps .bak.1 and binding', async () => {
+    const path = '/test/project.glitch'
+    useProjectStore.getState().setProjectPath(path)
+    useProjectStore.getState().setProjectName('project')
+    memfs.set(path, '{"marker":"pre-save-good-copy"}')
+
+    // Rotation succeeds; the project write itself fails
+    mockEntropic.writeFile.mockImplementation(async (p: string, data: string) => {
+      if (p === path) throw new Error('ENOSPC: disk full')
+      memfs.set(p, data)
+    })
+
+    const ok = await saveProject()
+
+    expect(ok).toBe(false) // graceful failure, no unhandled rejection
+    // .bak.1 still holds the pre-save content
+    expect(memfs.get(`${path}.bak.1`)).toBe('{"marker":"pre-save-good-copy"}')
+    // binding unchanged
+    expect(useProjectStore.getState().projectPath).toBe(path)
+    expect(useProjectStore.getState().projectName).toBe('project')
+    const errorToasts = useToastStore
+      .getState()
+      .toasts.filter((t) => t.level === 'error' && t.source === 'save-project')
+    expect(errorToasts).toHaveLength(1)
+  })
+
+  it('mid-shift backup failure still warns the user once', async () => {
+    const path = '/test/project.glitch'
+    useProjectStore.getState().setProjectPath(path)
+    memfs.set(path, '{"marker":"current"}')
+    memfs.set(`${path}.bak.1`, '{"marker":"old-1"}')
+
+    // The shift write (.bak.2) fails; .bak.1 copy and project write succeed
+    mockEntropic.writeFile.mockImplementation(async (p: string, data: string) => {
+      if (p === `${path}.bak.2`) throw new Error('EACCES')
+      memfs.set(p, data)
+    })
+
+    const ok = await saveProject()
+
+    expect(ok).toBe(true)
+    const warnToasts = useToastStore
+      .getState()
+      .toasts.filter((t) => t.level === 'warning' && t.source === 'backup-rotation')
+    expect(warnToasts).toHaveLength(1)
+  })
+
   it('first save with no existing project file creates no backups', async () => {
     const path = '/test/fresh.glitch'
     useProjectStore.getState().setProjectPath(path)

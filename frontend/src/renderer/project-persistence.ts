@@ -488,7 +488,8 @@ export async function rotateBackups(filePath: string): Promise<void> {
 
   // Shift .bak.4 -> .bak.5, .bak.3 -> .bak.4, ..., .bak.1 -> .bak.2.
   // A missing .bak.N is normal (readFile throws — skip); shift failures are
-  // best-effort and never block the save.
+  // best-effort and never block the save, but the user is warned once.
+  let rotationFailed = false
   for (let n = MAX_BACKUPS - 1; n >= 1; n--) {
     const src = `${filePath}.bak.${n}`
     const dst = `${filePath}.bak.${n + 1}`
@@ -503,22 +504,29 @@ export async function rotateBackups(filePath: string): Promise<void> {
       await window.entropic.deleteFile(src)
     } catch (err) {
       console.warn(`[Backup] Shift ${src} -> ${dst} failed:`, err)
+      rotationFailed = true
     }
   }
 
   // Copy current project file -> .bak.1. If the project file is unreadable it
   // does not exist yet (first save) — skip silently. If it IS readable but the
   // backup write fails, that is a real rotation failure: warn, never block.
-  let current: string
+  let current: string | null = null
   try {
     current = await window.entropic.readFile(filePath)
   } catch {
-    return // first save — nothing to back up
+    // first save — nothing to back up
   }
-  try {
-    await window.entropic.writeFile(`${filePath}.bak.1`, current)
-  } catch (err) {
-    console.warn('[Backup] Rotation failed, save will continue:', err)
+  if (current !== null) {
+    try {
+      await window.entropic.writeFile(`${filePath}.bak.1`, current)
+    } catch (err) {
+      console.warn('[Backup] Rotation failed, save will continue:', err)
+      rotationFailed = true
+    }
+  }
+
+  if (rotationFailed) {
     useToastStore.getState().addToast({
       level: 'warning',
       source: 'backup-rotation',
@@ -544,7 +552,20 @@ export async function saveProject(): Promise<boolean> {
   await rotateBackups(filePath)
 
   const json = serializeProject()
-  await window.entropic.writeFile(filePath, json)
+  try {
+    await window.entropic.writeFile(filePath, json)
+  } catch (err) {
+    // Mirror saveProjectAs: a failed write must not mutate store state or
+    // surface as an unhandled rejection. The rotated .bak.1 still holds the
+    // last good copy.
+    console.error('[Save] Write failed:', err)
+    useToastStore.getState().addToast({
+      level: 'error',
+      source: 'save-project',
+      message: `Save failed: ${err instanceof Error ? err.message : String(err)}`,
+    })
+    return false
+  }
 
   // Update project path and name
   const name = filePath.split('/').pop()?.replace('.glitch', '') ?? 'Untitled'
