@@ -32,8 +32,8 @@
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
-  background: #222;
-  border-top: 1px solid #333;
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-line-1);
   font-family: 'JetBrains Mono', monospace;
   font-size: 11px;
 }
@@ -44,9 +44,9 @@
 }
 
 .auto-toolbar__mode-btn {
-  background: #333;
-  border: 1px solid #444;
-  color: #888;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-2);
   font-family: inherit;
   font-size: 11px;
   font-weight: 600;
@@ -57,20 +57,20 @@
 }
 
 .auto-toolbar__mode-btn:hover {
-  background: #444;
-  color: #ccc;
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
 }
 
 .auto-toolbar__mode-btn--active {
-  background: #4ade80;
-  color: #111;
-  border-color: #4ade80;
+  background: var(--cx-action);
+  color: var(--cx-bg-app);
+  border-color: var(--cx-action);
 }
 
 .auto-toolbar__btn {
-  background: #333;
-  border: 1px solid #444;
-  color: #aaa;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-2);
   font-family: inherit;
   font-size: 10px;
   padding: 2px 8px;
@@ -79,8 +79,8 @@
 }
 
 .auto-toolbar__btn:hover:not(:disabled) {
-  background: #444;
-  color: #fff;
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
 }
 
 .auto-toolbar__btn:disabled {
@@ -89,19 +89,19 @@
 }
 
 .auto-toolbar__btn--danger:hover:not(:disabled) {
-  background: #ef4444;
-  color: #fff;
-  border-color: #ef4444;
+  background: var(--cx-danger-fill);
+  color: var(--cx-danger-on);
+  border-color: var(--cx-danger-text);
 }
 
 .auto-toolbar__armed {
-  color: #4ade80;
+  color: var(--cx-action);
   margin-left: auto;
 }
 
 /* F-0512-34: discoverability hint shown when no track is armed. */
 .auto-toolbar__hint {
-  color: #888;
+  color: var(--cx-text-3);
   margin-left: auto;
   font-size: 11px;
 }
@@ -109,11 +109,11 @@
 .auto-toolbar__hint kbd {
   display: inline-block;
   padding: 0 4px;
-  background: #2a2a2a;
-  border: 1px solid #444;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
   border-radius: 3px;
   font-size: 10px;
-  color: #ccc;
+  color: var(--cx-text-1);
   font-family: inherit;
 }
 
@@ -127,8 +127,8 @@
 
 .track-header__auto-btn {
   background: transparent;
-  border: 1px solid #555;
-  color: #777;
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-3);
   font-family: inherit;
   font-size: 10px;
   font-weight: 600;
@@ -139,20 +139,20 @@
 }
 
 .track-header__auto-btn:hover {
-  color: #4ade80;
-  border-color: #4ade80;
+  color: var(--cx-action);
+  border-color: var(--cx-action);
 }
 
 .track-header__auto-btn--active {
-  color: #4ade80;
-  border-color: #4ade80;
+  color: var(--cx-action);
+  border-color: var(--cx-action);
 }
 
 /* --- Track ARM button (red when armed) --- */
 
 .track-header__auto-btn--armed {
-  color: #ef4444;
-  border-color: #ef4444;
+  color: var(--cx-danger-text);
+  border-color: var(--cx-danger-text);
   animation: arm-pulse 1.5s ease-in-out infinite;
 }
 
@@ -180,13 +180,13 @@
 
 .track-header__badge--trig {
   background: rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  color: var(--cx-danger-text);
   border: 1px solid rgba(239, 68, 68, 0.5);
 }
 
 .track-header__badge--auto {
   background: rgba(74, 222, 128, 0.2);
-  color: #4ade80;
+  color: var(--cx-action);
   border: 1px solid rgba(74, 222, 128, 0.4);
 }
 

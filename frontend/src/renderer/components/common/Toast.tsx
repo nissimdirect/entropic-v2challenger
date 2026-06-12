@@ -1,13 +1,6 @@
 import { useCallback } from 'react'
-import { useToastStore, type ToastLevel } from '../../stores/toast'
+import { useToastStore } from '../../stores/toast'
 import '../../styles/toast.css'
-
-const LEVEL_COLORS: Record<ToastLevel, string> = {
-  info: '#2196f3',
-  warning: '#ff9800',
-  error: '#ef4444',
-  state: '#fbbf24',
-}
 
 export default function Toast() {
   const toasts = useToastStore((s) => s.toasts)
@@ -27,8 +20,7 @@ export default function Toast() {
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className="toast"
-          style={{ borderLeftColor: LEVEL_COLORS[toast.level] }}
+          className={`toast toast--${toast.level}`}
           role="alert"
           aria-live={toast.level === 'error' ? 'assertive' : 'polite'}
           onClick={() => handleDismiss(toast.id)}

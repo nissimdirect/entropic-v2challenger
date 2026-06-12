@@ -10,10 +10,10 @@
   padding: 3px 12px; border-radius: 4px; border: none; cursor: pointer;
   font-size: 12px; font-family: inherit;
 }
-.update-banner__download { background: #3b82f6; color: white; }
+.update-banner__download { background: var(--cx-selection); color: white; }
 .update-banner__download:hover { background: #2563eb; }
-.update-banner__install { background: #4ade80; color: #1a1a1a; font-weight: 600; }
-.update-banner__install:hover { background: #22c55e; }
+.update-banner__install { background: var(--cx-action); color: var(--cx-bg-panel); font-weight: 600; }
+.update-banner__install:hover { background: var(--cx-action); }
 .update-banner__dismiss {
   background: none; border: none; color: #93c5fd; cursor: pointer;
   font-size: 16px; padding: 0 4px;

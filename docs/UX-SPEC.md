@@ -14,7 +14,7 @@
 - **Typography:**
   - Data/code: JetBrains Mono (monospace)
   - UI labels: Inter (sans-serif)
-- **Accent color:** Configurable per-user. Default: electric purple `#a855f7`.
+- **Accent color:** Superseded by `docs/roadmap/DESIGN-SPEC.md`; `frontend/src/renderer/styles/tokens.css` is the source of truth (Live Signal v1.1 — ACID `#C8F321` primary, MOD `#8F7DFF` selection, RED/AMBER for state).
 - **Border radius:** 4px (consistent). No rounded corners > 8px.
 
 ### 1.2 Panel Architecture
