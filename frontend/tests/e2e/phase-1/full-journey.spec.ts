@@ -131,8 +131,8 @@ test.describe('Phase 1 — Full User Journey', () => {
     // Click the first effect to add it
     await effectItems.first().click()
 
-    // Verify effect appears in the rack
-    const rackItems = window.locator('.effect-rack__item')
+    // Verify effect appears in the device chain (migrated from .effect-rack__item → .device-chain__item)
+    const rackItems = window.locator('.device-chain__item')
     await expect(rackItems.first()).toBeVisible({ timeout: 5_000 })
     expect(await rackItems.count()).toBe(1)
 
@@ -149,42 +149,25 @@ test.describe('Phase 1 — Full User Journey', () => {
     // ── Step 6: Select effect and adjust parameter ──
     await rackItems.first().click()
 
-    const paramSliders = window.locator('.param-slider input[type="range"]')
-    const paramSliderCount = await paramSliders.count()
+    // Phase 13C: DeviceCard uses Knob (rotary) for numeric params — no range inputs on param-slider.
+    // We can still interact with the mix slider which is a native range input.
+    // (Note: .param-slider lived in the removed ParamPanel; DeviceCard uses .device-card__param > Knob)
+    // Screenshot the selected effect state regardless
+    await window.screenshot({ path: path.join(EVIDENCE_DIR, '06-effect-selected.png') })
 
-    if (paramSliderCount > 0) {
-      // Set param slider to 75% via nativeInputValueSetter (React-compatible)
-      await paramSliders.first().evaluate((el: HTMLInputElement) => {
-        const min = parseFloat(el.min) || 0
-        const max = parseFloat(el.max) || 1
-        const targetVal = min + (max - min) * 0.75
-        const nativeSetter = Object.getOwnPropertyDescriptor(
-          HTMLInputElement.prototype,
-          'value',
-        )?.set
-        if (nativeSetter) {
-          nativeSetter.call(el, String(targetVal))
-          el.dispatchEvent(new Event('input', { bubbles: true }))
-          el.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-      })
-
-      await window.waitForTimeout(2000)
-      await window.screenshot({ path: path.join(EVIDENCE_DIR, '06-param-adjusted.png') })
-    }
-
-    // Check mix slider
-    const mixSlider = window.locator('.param-mix input[type="range"]')
+    // Check mix slider (migrated from .param-mix input[type="range"] → .device-card__mix-slider)
+    const mixSlider = window.locator('.device-card__mix-slider')
     const mixCount = await mixSlider.count()
     if (mixCount > 0) {
       // Set mix to 50% via nativeInputValueSetter (React-compatible)
-      await mixSlider.evaluate((el: HTMLInputElement) => {
+      // DeviceCard mix slider is 0-100 (integer percent), not 0-1
+      await mixSlider.first().evaluate((el: HTMLInputElement) => {
         const nativeSetter = Object.getOwnPropertyDescriptor(
           HTMLInputElement.prototype,
           'value',
         )?.set
         if (nativeSetter) {
-          nativeSetter.call(el, '0.5')
+          nativeSetter.call(el, '50')
           el.dispatchEvent(new Event('input', { bubbles: true }))
           el.dispatchEvent(new Event('change', { bubbles: true }))
         }
@@ -204,7 +187,8 @@ test.describe('Phase 1 — Full User Journey', () => {
     }
 
     // ── Step 8: Toggle first effect off ──
-    const toggleBtns = window.locator('.effect-rack__toggle')
+    // Migrated from .effect-rack__toggle → .device-card__toggle (Phase 13C: DeviceChain)
+    const toggleBtns = window.locator('.device-card__toggle')
     if ((await toggleBtns.count()) > 0) {
       await toggleBtns.first().click()
       await window.waitForTimeout(2000)
@@ -216,7 +200,8 @@ test.describe('Phase 1 — Full User Journey', () => {
     }
 
     // ── Step 9: Remove an effect ──
-    const removeBtns = window.locator('.effect-rack__remove')
+    // Migrated from .effect-rack__remove → .device-card__remove (Phase 13C: DeviceChain)
+    const removeBtns = window.locator('.device-card__remove')
     if ((await removeBtns.count()) > 0) {
       const beforeCount = await rackItems.count()
       await removeBtns.first().click()
@@ -226,20 +211,19 @@ test.describe('Phase 1 — Full User Journey', () => {
     }
 
     // ── Step 10: Export ──
-    const exportBtn = window.locator('.export-btn')
-    await expect(exportBtn).toBeVisible()
-    await expect(exportBtn).toBeEnabled()
-
+    // Phase 13C: .export-btn removed — export is now File → Export (Cmd+E) only.
+    // Trigger the export dialog via keyboard shortcut.
     const exportPath = path.join(EVIDENCE_DIR, 'test-export.mp4')
     await stubSaveDialog(electronApp, exportPath)
-    await exportBtn.click()
+    await window.keyboard.press('Meta+e')
 
     // Export dialog should open
     const exportDialog = window.locator('.export-dialog')
     if ((await exportDialog.count()) > 0) {
       await window.screenshot({ path: path.join(EVIDENCE_DIR, '11-export-dialog.png') })
 
-      const startExportBtn = window.locator('.export-dialog__start')
+      // Migrated from .export-dialog__start → .export-dialog__export-btn
+      const startExportBtn = window.locator('.export-dialog__export-btn')
       if ((await startExportBtn.count()) > 0) {
         await startExportBtn.click()
         await window.waitForTimeout(2000)
