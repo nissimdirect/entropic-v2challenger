@@ -40,7 +40,7 @@ import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
-import { saveProject, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
+import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
 import { getActiveTrackId, getActiveEffectChain, useActiveEffectChain } from './stores/project'
 import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
@@ -1321,7 +1321,7 @@ function AppInner() {
           break
         }
         case 'save': saveProject(); break
-        case 'save-as': saveProject(); break
+        case 'save-as': saveProjectAs(); break
         case 'export': setShowExportDialog(true); break
         case 'toggle-sidebar': useLayoutStore.getState().toggleSidebar(); break
         case 'toggle-focus': useLayoutStore.getState().toggleFocusMode(); break
