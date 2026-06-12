@@ -61,7 +61,10 @@ MAX_TOTAL_VOICES_PER_RENDER = 4
 # hand-edited / hostile project cannot inject path-traversal-ish or
 # unbounded-length keys into the cache. Mirrors the numeric-trust-boundary rule
 # for the string case.
-VOICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9:_-]{1,128}$")
+# Colon is RESERVED: the handler prepends "voice:" as the namespace prefix, so a
+# voice_id must not itself contain ":" (red-team HT-2 — prevents "voice:voice:x"
+# ambiguity and any future split-on-colon key parsing).
+VOICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
 MAX_VOICE_ID_LENGTH = 128
 
 

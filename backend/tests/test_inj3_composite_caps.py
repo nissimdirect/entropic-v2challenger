@@ -123,8 +123,15 @@ class TestVoiceLayerValidator:
         assert errors and "duplicate" in errors[0]
 
     def test_valid_charset_accepted(self) -> None:
-        # The full allowed charset [A-Za-z0-9:_-].
-        assert validate_voice_layers([{"voice_id": "voice:pad_1-A:99"}]) == []
+        # Allowed charset [A-Za-z0-9_-]. Colon is RESERVED as the handler's
+        # namespace delimiter (red-team HT-2) — a voice_id must not contain it.
+        assert validate_voice_layers([{"voice_id": "pad_1-A_99"}]) == []
+
+    def test_colon_in_voice_id_rejected(self) -> None:
+        # HT-2: ':' belongs to the "voice:" prefix the handler prepends, never
+        # to the voice_id itself — rejecting it prevents "voice:voice:x".
+        assert validate_voice_layers([{"voice_id": "voice:pad_1"}]) != []
+        assert validate_voice_layers([{"voice_id": ":"}]) != []
 
 
 class TestVoiceCapHandlerGuard:

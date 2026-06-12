@@ -182,6 +182,17 @@ class ZMQServer:
         self._render_states = {}
         self._render_state_key = (None, -1)
 
+        # Reset composite per-voice/per-layer state cache (P5a.2 red-team RT-1:
+        # these lazily-init attrs were not cleared here, leaking stale per-voice
+        # numpy buffers across a reset — breaks test isolation on the shared
+        # session server; reset_state is a public method, so the invariant must hold).
+        if hasattr(self, "_composite_states"):
+            self._composite_states = {}
+        if hasattr(self, "_composite_last_signature"):
+            self._composite_last_signature = None
+        if hasattr(self, "_composite_last_frame"):
+            self._composite_last_frame = None
+
         # Reset freeze caches
         self.freeze_manager.reset()
 

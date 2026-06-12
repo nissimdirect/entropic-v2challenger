@@ -317,8 +317,10 @@ def test_voice_steal_under_load_no_unbounded_state_growth():
         frame_index = prev_frame + 1
         # A rolling window of up to cap voices; ids advance each cycle so old
         # voices are "stolen" (depart the signature) and new ones appear.
-        active = [f"voice:{cycle - k}" for k in range(MAX_TOTAL_VOICES_PER_RENDER)]
-        active = [v for v in active if int(v.split(":")[1].lstrip("-")) >= 0 or True]
+        # Rolling window of cap voices; only non-negative cycle ids are real
+        # voices (early cycles have fewer than cap), so the window naturally
+        # starts small and grows — exercises the under-cap path too.
+        active = [f"voice:{cycle - k}" for k in range(MAX_TOTAL_VOICES_PER_RENDER) if cycle - k >= 0]
         active = active[:MAX_TOTAL_VOICES_PER_RENDER]
         sig = tuple(active)
 
@@ -344,3 +346,31 @@ def test_voice_steal_under_load_no_unbounded_state_growth():
     assert len([k for k in final if k.startswith("voice:")]) <= (
         MAX_TOTAL_VOICES_PER_RENDER
     )
+
+
+# ── Red-team P5a.2 hardening (RT-1, HT-2) ─────────────────────────────────────
+
+def test_rt1_reset_state_clears_composite_voice_state(zmq_server):
+    """RT-1: reset_state() must clear the per-voice composite cache — leaking
+    stale numpy buffers across a reset broke test isolation on the shared server."""
+    # Seed the lazily-init composite-state attrs
+    zmq_server._composite_states = {"voice:pad_1": {"prev_frame": object()}}
+    zmq_server._composite_last_signature = ("voice:pad_1",)
+    zmq_server._composite_last_frame = 42
+
+    zmq_server.reset_state()
+
+    assert zmq_server._composite_states == {}
+    assert zmq_server._composite_last_signature is None
+    assert zmq_server._composite_last_frame is None
+
+
+def test_ht2_voice_id_with_colon_rejected(zmq_server=None):
+    """HT-2: ':' is the handler's namespace delimiter — a voice_id containing it
+    must be rejected, so 'voice:voice:x' / split-on-colon ambiguity is impossible."""
+    from security import VOICE_ID_PATTERN
+    assert VOICE_ID_PATTERN.match("pad_1")          # legal
+    assert VOICE_ID_PATTERN.match("voice-3a")       # legal
+    assert not VOICE_ID_PATTERN.match(":")          # bare colon rejected
+    assert not VOICE_ID_PATTERN.match("voice:pad")  # colon rejected
+    assert not VOICE_ID_PATTERN.match("a:b")        # any colon rejected
