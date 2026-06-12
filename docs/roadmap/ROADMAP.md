@@ -15,6 +15,31 @@
 - **Open:** **22 parked q7 drafts** (#117–#145, gh-verified 2026-06-11; the rest of that range already had content cherry-picked to main via #149/#159/#161/#162/#163/#165 and closed) + 7 active (June: #146/#156/#157/#158/#160/#164/#167) + 4 stale May (#101/#103/#108/#109) + docs [#67](https://github.com/nissimdirect/entropic-v2challenger/pull/67) + this consolidation's #168.
 - **Feature flags:** exactly one — env-var read `_experimental_audio_tracks_enabled()` at `backend/src/zmq_server.py:51–54`, **default OFF** even though the full audio chain merged ([#30](https://github.com/nissimdirect/entropic-v2challenger/pull/30)+[#66](https://github.com/nissimdirect/entropic-v2challenger/pull/66)).
 
+## 0.1 Campaign tick 1 snapshot (2026-06-12, orchestrated run)
+
+**Phase 1 DRAINED + UE.1–UE.7 SHIPPED in one orchestrated session (16 PRs merged, 4 closed-with-reason).**
+
+- **main:** `d0983b0` (+18 squash merges since `4d19f31`). Frontend baseline: **2,114+ passed | 4 skipped** (`cd frontend && npx --no vitest run`).
+- **Merged 2026-06-11/12:** PR-B stack [#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157)/[#158](https://github.com/nissimdirect/entropic-v2challenger/pull/158)/[#160](https://github.com/nissimdirect/entropic-v2challenger/pull/160) · Grid Moire v2 [#146](https://github.com/nissimdirect/entropic-v2challenger/pull/146) · BPM persistence [#164](https://github.com/nissimdirect/entropic-v2challenger/pull/164) · B1 sampler persistence [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) · B2-lite [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) (G10 resolved: track-keyed `instruments`, legacy drop-with-toast) · UE.4 [#170](https://github.com/nissimdirect/entropic-v2challenger/pull/170) · UE.6 [#173](https://github.com/nissimdirect/entropic-v2challenger/pull/173) · UE.5 [#172](https://github.com/nissimdirect/entropic-v2challenger/pull/172) · UE.2 [#176](https://github.com/nissimdirect/entropic-v2challenger/pull/176) · UE.1 [#177](https://github.com/nissimdirect/entropic-v2challenger/pull/177) · UE.3 [#180](https://github.com/nissimdirect/entropic-v2challenger/pull/180) · #109-fresh drag-reorder [#178](https://github.com/nissimdirect/entropic-v2challenger/pull/178) · torn-edges docs [#174](https://github.com/nissimdirect/entropic-v2challenger/pull/174) · F-0514-5 Escape fix [#175](https://github.com/nissimdirect/entropic-v2challenger/pull/175). UE.7 [#181](https://github.com/nissimdirect/entropic-v2challenger/pull/181) (`d5d8076`) and PUX.1 [#179](https://github.com/nissimdirect/entropic-v2challenger/pull/179) (`d0983b0`) merged — **18 PRs total; campaign tick-1 scope complete. Live Signal is live: 905→9 hardcoded hexes, ratchet ceiling 9 enforced via vitest.**
+- **Closed with reason:** #103 (superseded by #100), #108 (subsumed — mutex commit 5ef6e1c excluded from #178, re-pick directly if ever needed), #101→#175, #67→#174, #109→#178.
+- **Live smoke (rule 9) after 5th feature merge:** PASS — no campaign regression. `smoke.spec.ts` green on main; `full-journey.spec.ts` failure **bisected to pre-campaign d821ae8** (stale `.effect-rack__item` selectors; the visible chain is DeviceChain since June 3). Evidence: `~/Development/creatrix-smoke-wt/test-evidence/01-03*.png`.
+
+**Standing-red main CI (pre-campaign, discovered during P1.1 — §3 gate amended):**
+1. **sidecar job red on EVERY main run since ≤8dc96cd:** runner image dropped ffmpeg; 127 oracle errors `FileNotFoundError: 'ffmpeg'`. Fix = [PR #171](https://github.com/nissimdirect/entropic-v2challenger/pull/171) (one-line workflow change, **USER MERGE REQUIRED** — workflow-change-guard). PR-level CI path-filters sidecar to "skipped", which is why PRs looked green while main stayed red.
+2. **full-e2e step (main-push-only) red since ≤8dc96cd:** stale selectors (`.effect-rack__item`, phase-0a title expectations). Fix candidate: selector migration effect-rack→device-chain in `full-journey.spec.ts` + `effect-chain.spec.ts` (new packet).
+3. **Amended merge gate (rule 8 correction):** PR CI green + main `smoke` job green; sidecar + full-e2e tracked as the standing-red items above until their fixes land.
+
+**New findings filed:**
+- 3 effects render NO visible change at defaults (pre-existing, bisected to main): `fx.cellular_pixel_sort`, `fx.reaction_mosh` (suspect #166's pde_steps 3→1), `fx.temporal_dispersion` — PFX.2-class follow-ups.
+- Latent bug fixed in #167: `newProject` called the no-arg legacy `removeSampler()` (silent no-op) — samplers survived New Project.
+- Transient "Frame render failed" toast at app startup before engine connect (seen in smoke evidence; frame renders fine after) — minor, worth a startup-race look.
+- PUX.1's hex-ratchet caught its first real catch pre-merge: #178 introduced 3 new `#4ade80` (drop-zone styles) — tokenized during the #179 rebase, ceiling held at 9.
+
+**Process amendments (EXECUTION-PLAN contract riders):**
+- **Rule 12 — stacked PRs:** a PR whose base is another PR's branch reads CONFLICTING after the base squash-merges; retarget to main (`gh pr edit N --base main`) and nudge CI with an empty commit (base-edit alone does not trigger `synchronize`). #158/#160 both hit this.
+- **Rule 13 — force-push prohibition workaround:** local hooks block ALL force-pushes; the rebase steps in merge packets are executed as merge-equivalence instead (merge main into the PR branch, resolve to the rebase-verified tree, prove `git rev-parse HEAD^{tree}` equality, fast-forward push). Tree-hash equality is the evidence standard.
+- **Rule 14 — executor merge authority:** packet executors NEVER merge any PR, including unblocking dependencies (one executor merged #178 to unblock itself — outcome harmless, instruction tightened).
+
 **Canonical plan sources** (source-of-truth order per master sequence):
 1. `~/.claude/plans/entropic-creatrix-MASTER-SEQUENCE-2026-06-04.md` — live truth for sequence + status
 2. `~/.claude/plans/entropic-synth-paradigm-vision.md` — ~30 PRDs, Tiers 0–7, gates (some orderings overtaken by events)
@@ -41,7 +66,7 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 |---|---|
 | PR-zero per-track chains | ✅ [#116](https://github.com/nissimdirect/entropic-v2challenger/pull/116) |
 | PR-A layout redesign | ❌ — attempt [#154](https://github.com/nissimdirect/entropic-v2challenger/pull/154) closed as waste; "evolve EffectBrowser in place" |
-| PR-B data-model break | 🔄 — slice 1 automation-unify [#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157), slice 2 axis-binding [#158](https://github.com/nissimdirect/entropic-v2challenger/pull/158), slice 3a export-determinism [#160](https://github.com/nissimdirect/entropic-v2challenger/pull/160) all open-active; **3b BPM split / 3c composite-as-effect / 3d export parity ❌** |
+| PR-B data-model break | 🔄 — slices 1/2/3a ✅ MERGED 2026-06-11 ([#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157)/[#158](https://github.com/nissimdirect/entropic-v2challenger/pull/158)/[#160](https://github.com/nissimdirect/entropic-v2challenger/pull/160)); **3b BPM split / 3c composite-as-effect / 3d export parity ❌** (Phase 2) |
 | PR-C operators + Kentaro | ❌ |
 | PR-D rebrand → Creatrix v3.0.0 | ✅ [#120](https://github.com/nissimdirect/entropic-v2challenger/pull/120) — residue ❌ incl. a REAL BUG: split-brain runtime dir (`logger.ts`/`pop-out-window.ts` still write `~/.entropic` while backend + diagnostics path-validation use `~/.creatrix` — electron-main.log unreadable via in-app diagnostics IPC); plus `ENTROPIC_DIR` const + repo/dir names. PD.10 fixes with one-time migration |
 
@@ -70,8 +95,8 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 ### Instruments (Creatrix B-ladder, Tier 4)
 | Build | Status |
 |---|---|
-| B1 1-voice Sampler | ✅ core [#153](https://github.com/nissimdirect/entropic-v2challenger/pull/153) + mount [#155](https://github.com/nissimdirect/entropic-v2challenger/pull/155) · persistence 🔄 [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) · UX correction 🔄 [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) |
-| B2 voice spine / Performance Track | 🔄 — B2-lite open [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167); full voice spine (polyphony/FSM) ❌ |
+| B1 1-voice Sampler | ✅ core [#153](https://github.com/nissimdirect/entropic-v2challenger/pull/153) + mount [#155](https://github.com/nissimdirect/entropic-v2challenger/pull/155) + persistence ✅ [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) (B1 global shape superseded same-day by #167's track-keyed `instruments`; legacy saves drop-with-toast) |
+| B2 voice spine / Performance Track | 🔄 — B2-lite ✅ MERGED [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) 2026-06-12; full voice spine (polyphony/FSM) ❌ |
 | B3 full sampler · B4 sample rack · B5 grouping | ❌ (plans ready) |
 | B6 Frame-Bank · B7 RIFE morph · B8 Granulator · B9 tensor routing · B10 live affordances | ❌ (gated designs; B8 needs SG-3, B9 needs PR-C+SG-5) |
 
@@ -101,7 +126,7 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 | Region-select preview (task #45) | ❌ |
 | Hotkey discoverability | [issue #65](https://github.com/nissimdirect/entropic-v2challenger/issues/65) CLOSED 2026-05-15 with 6 surfaces unshipped — PD.8 reopens-or-supersedes; the WORK remains 🔄 ([#64](https://github.com/nissimdirect/entropic-v2challenger/pull/64)/[#68](https://github.com/nissimdirect/entropic-v2challenger/pull/68) done) |
 | Cross-modal v1.1 F1–F4 | ❌ — plan merged ([#36](https://github.com/nissimdirect/entropic-v2challenger/pull/36)), zero implementation |
-| Bug fixes in stale open PRs | 🔄 [#101](https://github.com/nissimdirect/entropic-v2challenger/pull/101) Escape-deselect · [#103](https://github.com/nissimdirect/entropic-v2challenger/pull/103) hint badge · [#108](https://github.com/nissimdirect/entropic-v2challenger/pull/108) ZMQ mutex · [#109](https://github.com/nissimdirect/entropic-v2challenger/pull/109) timeline drag |
+| Bug fixes in stale open PRs | ✅ ALL DISPOSITIONED 2026-06-12 — #101→merged [#175](https://github.com/nissimdirect/entropic-v2challenger/pull/175) · #103 closed (superseded by #100) · #108 closed (mutex commit 5ef6e1c excluded from #178; re-pick directly if relay races recur) · #109→merged [#178](https://github.com/nissimdirect/entropic-v2challenger/pull/178) |
 
 ---
 
@@ -145,7 +170,7 @@ Adopted from the 2026-06-11 /review pass (CTO: CONDITIONAL GO · Red Team: 9 tig
 
 ## 4. Phased roadmap
 
-### Phase 1 — Drain the frontier (≈1–2 sessions)
+### Phase 1 — Drain the frontier (≈1–2 sessions) — ✅ DRAINED 2026-06-12 (P1.0–P1.5 complete; P1.6 awaiting user confirmation on the deletion list; P1.7 blocked on the parallel session's dirty checkout). UE.1–UE.7 (Phase-1-adjacent) ALL shipped same session; PUX.1 in final merge. See §0.1.
 The 7 active PRs are the live edge; nothing has merged since June 5.
 - Merge the PR-B slice stack: [#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157) (automation unify) → [#158](https://github.com/nissimdirect/entropic-v2challenger/pull/158) (B4-lite axis binding = INJ-5 wiring) → [#160](https://github.com/nissimdirect/entropic-v2challenger/pull/160) (export determinism 3a)
 - [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) B1 sampler persistence (coordinate with B2-lite breaking change), [#164](https://github.com/nissimdirect/entropic-v2challenger/pull/164) BPM persistence fix, [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) B2-lite performance track, [#146](https://github.com/nissimdirect/entropic-v2challenger/pull/146) Grid Moire v2
