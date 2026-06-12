@@ -44,20 +44,18 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
     return acc
   }, [])
 
-  // Save invoker on mount, move focus to first item after paint.
+  // Save invoker on mount, move logical focus to the first item.
+  // Synchronous on purpose: an earlier requestAnimationFrame version left
+  // React work pending across unmount (scheduler crash after environment
+  // teardown — "window is not defined" in CI), and even a cancelled RAF can
+  // fire pre-unmount with its async flush landing post-teardown. The
+  // click-outside pointerdown listener (F-0512-9) is not racing this —
+  // it reacts to pointer events, and roving-tabindex state emits none.
   useEffect(() => {
     invokerRef.current = document.activeElement
-    // requestAnimationFrame avoids racing the pointerdown click-outside listener
-    // (ContextMenu.tsx historic failure mode — F-0512-9 adjacent trap).
-    // MUST be cancelled on unmount: a menu that closes within one frame leaves
-    // the callback armed, and its setState after teardown crashes the React
-    // scheduler ("window is not defined" post-teardown — caught in CI).
-    const raf = requestAnimationFrame(() => {
-      if (focusableIndices.length > 0) {
-        setFocusedIndex(focusableIndices[0])
-      }
-    })
-    return () => cancelAnimationFrame(raf)
+    if (focusableIndices.length > 0) {
+      setFocusedIndex(focusableIndices[0])
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // intentionally empty — run once on mount
 
