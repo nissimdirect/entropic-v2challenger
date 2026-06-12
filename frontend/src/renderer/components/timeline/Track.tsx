@@ -16,6 +16,7 @@ import ClipComponent from './Clip'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
 import { FF } from '../../../shared/feature-flags'
+import MarqueeOverlay from './MarqueeOverlay'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
 import { useTrackDragStore } from '../../stores/trackDrag'
 
@@ -371,6 +372,8 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds, w
   const assets = useProjectStore((s) => s.assets)
   const automationLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
   const automationMode = useAutomationStore((s) => s.mode)
+  // ref passed to MarqueeOverlay so it can map pointer coords to lane-relative space
+  const laneRef = useRef<HTMLDivElement>(null)
 
   const handleLaneClick = useCallback((e: React.MouseEvent) => {
     useTimelineStore.getState().selectTrack(track.id)
@@ -388,11 +391,20 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds, w
 
   return (
     <div
+      ref={laneRef}
       className={`track-lane${isSelected ? ' track-lane--selected' : ''}`}
       data-track-id={track.id}
       onClick={handleLaneClick}
       style={{ position: 'relative' }}
     >
+      {/* MarqueeOverlay: captures pointerdown on the track background.
+          Clips call stopPropagation so clip-body gestures never start a marquee. */}
+      <MarqueeOverlay
+        zoom={zoom}
+        scrollX={scrollX}
+        trackId={track.id}
+        containerRef={laneRef}
+      />
       {track.clips.map((clip) => {
         const asset = assets[clip.assetId]
         const assetName = asset ? asset.path.split('/').pop() ?? '' : clip.assetId
