@@ -37,7 +37,24 @@ interface ParamOption {
   effectName: string
   paramKey: string
   paramLabel: string
+  /** P2.1: When true, paramPath = 'projectParam.<paramKey>' instead of '<effectId>.<paramKey>'. */
+  isProjectParam?: boolean
 }
+
+/**
+ * P2.1 — Project-level params available as automation targets.
+ * These appear as "Mixer → BPM" in the picker regardless of which track is armed.
+ * paramPath in the created lane: 'projectParam.bpm'.
+ */
+const PROJECT_PARAM_OPTIONS: ParamOption[] = [
+  {
+    effectId: 'projectParam',
+    effectName: 'Mixer',
+    paramKey: 'bpm',
+    paramLabel: 'BPM',
+    isProjectParam: true,
+  },
+]
 
 export default function AutomationToolbar() {
   const mode = useAutomationStore((s) => s.mode)
@@ -95,6 +112,15 @@ export default function AutomationToolbar() {
         })
       }
     }
+
+    // P2.1: Append project-level params (e.g. Mixer → BPM) if not already mapped.
+    for (const opt of PROJECT_PARAM_OPTIONS) {
+      const paramPath = `${opt.effectId}.${opt.paramKey}` // 'projectParam.bpm'
+      if (!existingPaths.has(paramPath)) {
+        options.push(opt)
+      }
+    }
+
     return options
   }, [armedTrack])
 

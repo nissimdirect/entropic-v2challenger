@@ -188,8 +188,21 @@ describe('AutomationToolbar — + Lane picker flow (G.24 / P.12)', () => {
     expect(container.querySelector('[data-testid="param-picker"]')).toBeNull()
   })
 
-  it('picker shows empty hint when no params available', () => {
+  it('picker shows Mixer → BPM project param even when track has no effects (P2.1)', () => {
+    // P2.1: "Mixer → BPM" is always available as a project-level automation target,
+    // so "No available parameters" should never appear for a track with no effects.
     armATrack() // track with no effect chain
+    const { container, getByText } = render(<AutomationToolbar />)
+    fireEvent.click(container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement)
+    // Should show the BPM option instead of the empty hint
+    expect(getByText(/Mixer/i)).toBeTruthy()
+    expect(getByText(/BPM/i)).toBeTruthy()
+  })
+
+  it('picker shows empty hint only when all params (including Mixer BPM) are already mapped (P2.1)', () => {
+    const t = armATrack()
+    // Pre-map the Mixer → BPM lane so it appears in existingPaths
+    useAutomationStore.getState().addLane(t.id, 'projectParam', 'bpm', '#4ade80')
     const { container, getByText } = render(<AutomationToolbar />)
     fireEvent.click(container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement)
     expect(getByText(/No available parameters/i)).toBeTruthy()
