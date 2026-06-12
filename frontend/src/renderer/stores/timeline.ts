@@ -119,6 +119,14 @@ interface TimelineState {
   trimAudioClip: (clipId: string, newInSec: number, newOutSec: number) => void
   toggleAudioClipMute: (clipId: string) => void
   getActiveAudioClipsAtTime: (time: number) => { track: Track; clip: AudioClip }[]
+  /** UE.5: Update the path of an audio clip after media relink and clear its missing flag. */
+  relinkAudioClip: (clipId: string, newPath: string) => void
+  /** UE.5: Clear the missing flag on all Clip entries (video/image) referencing assetId. */
+  clearClipMissingFlag: (assetId: string) => void
+  /** UE.5: Set or clear the missing flag on a specific audio clip by id. */
+  setAudioClipMissing: (clipId: string, missing: boolean) => void
+  /** UE.5: Set or clear the missing flag on all Clips referencing a given assetId. */
+  setClipMissingByAssetId: (assetId: string, missing: boolean) => void
 
   // Helpers
   getActiveClipsAtTime: (time: number) => { track: Track; clip: Clip }[]
@@ -1462,6 +1470,64 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         ),
       }),
     )
+  },
+
+  relinkAudioClip: (clipId, newPath) => {
+    // UE.5: Update the path of an audio clip after relink; clear missing flag.
+    // Not undoable — relink is a persistent correction, not an edit operation.
+    set({
+      tracks: get().tracks.map((t) =>
+        t.type === 'audio'
+          ? {
+              ...t,
+              audioClips: (t.audioClips ?? []).map((c) =>
+                c.id === clipId ? { ...c, path: newPath, missing: undefined } : c,
+              ),
+            }
+          : t,
+      ),
+    })
+  },
+
+  clearClipMissingFlag: (assetId) => {
+    // UE.5: Clear missing flag on all Clip entries referencing assetId.
+    // Not undoable — relink is a persistent correction.
+    set({
+      tracks: get().tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) =>
+          c.assetId === assetId ? { ...c, missing: undefined } : c,
+        ),
+      })),
+    })
+  },
+
+  setAudioClipMissing: (clipId, missing) => {
+    // UE.5: Set or clear missing flag on a specific audio clip.
+    set({
+      tracks: get().tracks.map((t) =>
+        t.type === 'audio'
+          ? {
+              ...t,
+              audioClips: (t.audioClips ?? []).map((c) =>
+                c.id === clipId ? { ...c, missing: missing ? true : undefined } : c,
+              ),
+            }
+          : t,
+      ),
+    })
+  },
+
+  setClipMissingByAssetId: (assetId, missing) => {
+    // UE.5: Set or clear missing flag on all Clips referencing assetId.
+    set({
+      tracks: get().tracks.map((t) => ({
+        ...t,
+        clips: t.clips.map((c) =>
+          c.assetId === assetId ? { ...c, missing: missing ? true : undefined } : c,
+        ),
+      })),
+    })
   },
 
   getActiveAudioClipsAtTime: (time) => {

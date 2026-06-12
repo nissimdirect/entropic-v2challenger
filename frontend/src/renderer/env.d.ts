@@ -38,6 +38,7 @@ interface Window {
     deleteFile: (filePath: string) => Promise<void>
     listFiles: (dirPath: string, pattern?: string) => Promise<string[]>
     mkdirp: (dirPath: string) => Promise<void>
+    fileExists: (filePath: string) => Promise<boolean>
     getAppPath: (name: string) => Promise<string>
     checkTelemetryConsent: () => Promise<boolean | null>
     setTelemetryConsent: (consent: boolean) => Promise<void>

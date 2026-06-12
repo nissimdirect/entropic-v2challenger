@@ -105,7 +105,9 @@ describe('IPC Contract', () => {
     // Close prompt (Sprint 3)
     expect(methods).toContain('onCloseRequested')
     expect(methods).toContain('confirmClose')
-    expect(methods).toHaveLength(37)
+    // UE.5: file existence check for media relink probe
+    expect(methods).toContain('fileExists')
+    expect(methods).toHaveLength(38)
   })
 
   it('backend ZMQ server registers all expected commands', () => {

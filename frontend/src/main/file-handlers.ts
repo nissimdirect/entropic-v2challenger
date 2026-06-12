@@ -210,6 +210,19 @@ export function registerFileHandlers(): void {
     await mkdir(resolved, { recursive: true })
   })
 
+  // --- Existence check (narrow: only for granted/internal paths — used by relink probe) ---
+
+  ipcMain.handle('file:exists', async (_event, filePath: unknown) => {
+    if (typeof filePath !== 'string') {
+      throw new TypeError('file:exists expects a string path')
+    }
+    const resolved = resolve(filePath)
+    if (!isPathAllowed(resolved)) {
+      throw new Error(`Access denied: ${filePath}`)
+    }
+    return existsSync(resolved)
+  })
+
   // --- App path (allowlisted names only) ---
 
   ipcMain.handle('app:getPath', async (_event, name: unknown) => {
