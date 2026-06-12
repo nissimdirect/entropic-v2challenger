@@ -290,7 +290,7 @@
 
 .operator-editor__hint {
   font-size: 9px;
-  color: var(--cx-text-disabled);
+  color: var(--cx-text-3);
   font-style: italic;
 }
 
@@ -355,7 +355,7 @@
 
 .mod-matrix__hint {
   font-size: 10px;
-  color: var(--cx-text-disabled);
+  color: var(--cx-text-3);
 }
 
 .mod-matrix__grid-wrapper {
