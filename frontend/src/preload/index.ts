@@ -60,6 +60,10 @@ contextBridge.exposeInMainWorld('entropic', {
     return ipcRenderer.invoke('file:mkdir', dirPath)
   },
 
+  fileExists: (filePath: string): Promise<boolean> => {
+    return ipcRenderer.invoke('file:exists', filePath)
+  },
+
   getAppPath: (name: string): Promise<string> => {
     return ipcRenderer.invoke('app:getPath', name)
   },

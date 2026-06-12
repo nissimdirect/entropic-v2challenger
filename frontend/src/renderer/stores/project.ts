@@ -28,6 +28,8 @@ interface ProjectState {
 
   addAsset: (asset: Asset) => void
   removeAsset: (id: string) => void
+  /** UE.5: Update an asset's path after media relink. */
+  relinkAsset: (id: string, newPath: string) => void
   addEffect: (trackId: string, effect: EffectInstance) => void
   removeEffect: (trackId: string, id: string) => void
   reorderEffect: (trackId: string, fromIndex: number, toIndex: number) => void
@@ -108,6 +110,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set((state) => {
       const { [id]: _, ...rest } = state.assets
       return { assets: rest }
+    }),
+
+  relinkAsset: (id, newPath) =>
+    set((state) => {
+      const existing = state.assets[id]
+      if (!existing) return state
+      return {
+        assets: {
+          ...state.assets,
+          [id]: { ...existing, path: newPath },
+        },
+      }
     }),
 
   addEffect: (trackId, effect) => {

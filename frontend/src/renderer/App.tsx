@@ -41,12 +41,13 @@ import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
-import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave } from './project-persistence'
+import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave, probeForMissingAssets, relinkAsset, markAssetMissing } from './project-persistence'
 import { getActiveTrackId, getActiveEffectChain, useActiveEffectChain } from './stores/project'
 import { FF } from '../shared/feature-flags'
 import { useSettingsStore } from './stores/settings'
 import TelemetryConsentDialog from './components/dialogs/TelemetryConsentDialog'
 import CrashRecoveryDialog from './components/dialogs/CrashRecoveryDialog'
+import RelinkDialog, { type MissingAsset } from './components/dialogs/RelinkDialog'
 import FeedbackDialog from './components/dialogs/FeedbackDialog'
 import UnsavedChangesDialog from './components/dialogs/UnsavedChangesDialog'
 import PerformancePanel from './components/performance/PerformancePanel'
@@ -244,6 +245,10 @@ function AppInner() {
   // currently mounted). Locking all 3 buttons during the await closes the race.
   const [isNavSaving, setIsNavSaving] = useState(false)
 
+  // UE.5: media relink dialog state
+  const [relinkAssets, setRelinkAssets] = useState<MissingAsset[]>([])
+  const [showRelinkDialog, setShowRelinkDialog] = useState(false)
+
   // Audio-specific state
   const [hasAudio, setHasAudio] = useState(false)
   const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
@@ -316,7 +321,7 @@ function AppInner() {
 
   const handleCrashRestore = useCallback(async (_sendReport: boolean) => {
     if (autosavePath) {
-      await restoreAutosave(autosavePath, () => initPreviewRef.current())
+      await restoreAutosave(autosavePath, handleProjectHydrated)
     }
     if (window.entropic) {
       await window.entropic.clearCrashReports()
@@ -389,7 +394,7 @@ function AppInner() {
     // entirely and opened the file picker on a dirty project — silent data loss.
     shortcutRegistry.register('open', () => {
       if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'open' })
-      else loadProject(undefined, () => initPreviewRef.current())
+      else loadProject(undefined, handleProjectHydrated)
     })
     shortcutRegistry.register('new_project', () => {
       if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'new' })
@@ -1119,6 +1124,20 @@ function AppInner() {
   }, [audioStore, loadWaveform, setCurrentFrame, setTotalFrames])
   initPreviewRef.current = initPreviewFromHydratedProject
 
+  /**
+   * UE.5: Combined post-hydrate callback: initialise preview state, then probe
+   * for missing assets and show the relink dialog if any are found.
+   * Replaces the raw `() => initPreviewRef.current()` at every loadProject callsite.
+   */
+  const handleProjectHydrated = useCallback(async () => {
+    await initPreviewRef.current()
+    const missing = await probeForMissingAssets()
+    if (missing.length > 0) {
+      setRelinkAssets(missing)
+      setShowRelinkDialog(true)
+    }
+  }, [])
+
   const handleFileIngest = useCallback(
     async (path: string) => {
       if (!window.entropic) return
@@ -1433,7 +1452,7 @@ function AppInner() {
         }
         case 'open-project': {
           if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'open' })
-          else loadProject(undefined, () => initPreviewRef.current())
+          else loadProject(undefined, handleProjectHydrated)
           break
         }
         case 'save': saveProject(); break
@@ -2736,6 +2755,20 @@ function AppInner() {
         />
       )}
 
+      {/* UE.5: media relink dialog — shown after project load when assets are missing */}
+      <RelinkDialog
+        isOpen={showRelinkDialog}
+        missingAssets={relinkAssets}
+        onLocate={(assetId, newPath) => relinkAsset(assetId, newPath)}
+        onSkip={(assetId) => markAssetMissing(assetId)}
+        onClose={() => setShowRelinkDialog(false)}
+        onShowOpenDialog={(filters) =>
+          window.entropic
+            ? window.entropic.showOpenDialog({ filters })
+            : Promise.resolve(null)
+        }
+      />
+
       <FeedbackDialog
         isOpen={showFeedbackDialog}
         onClose={() => setShowFeedbackDialog(false)}
@@ -2796,7 +2829,7 @@ function AppInner() {
           const kind = pendingNav.kind
           setPendingNav(null)
           if (kind === 'open') {
-            loadProject(undefined, () => initPreviewRef.current())
+            loadProject(undefined, handleProjectHydrated)
           } else {
             handleNewProject()
           }
@@ -2812,7 +2845,7 @@ function AppInner() {
             if (!saved) return
             setPendingNav(null)
             if (kind === 'open') {
-              loadProject(undefined, () => initPreviewRef.current())
+              loadProject(undefined, handleProjectHydrated)
             } else {
               handleNewProject()
             }
@@ -2838,8 +2871,8 @@ function AppInner() {
         isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
         onNewProject={() => { handleNewProject(); setWelcomeDismissed(true) }}
-        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, () => initPreviewRef.current()) }}
-        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, () => initPreviewRef.current()) }}
+        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, handleProjectHydrated) }}
+        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, handleProjectHydrated) }}
       />
 
       <Toast />

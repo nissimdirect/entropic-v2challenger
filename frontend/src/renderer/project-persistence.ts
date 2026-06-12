@@ -934,5 +934,127 @@ export async function addRecentProject(project: RecentProject): Promise<void> {
   }
 }
 
+/**
+ * UE.5: Probe all asset paths (video/image) and audio clip paths in the loaded project
+ * and return a list of missing items.  Called once on hydrate, before the user sees the
+ * timeline.  The probe is a single batched pass — one `fileExists` call per distinct path.
+ *
+ * Returns an array of `{assetId, name, oldPath, kind}` entries for every path that does
+ * not exist on disk.  An empty array means all assets are present → no dialog shown.
+ */
+export async function probeForMissingAssets(): Promise<
+  { assetId: string; name: string; oldPath: string; kind: 'video' | 'image' | 'audio' }[]
+> {
+  if (!window.entropic) return []
+
+  const projectStore = useProjectStore.getState()
+  const timelineStore = useTimelineStore.getState()
+
+  // Collect (assetId, path, kind, displayName) for every referenced path.
+  // Using a Map to deduplicate by assetId (multiple clips can share one asset).
+  const candidates = new Map<
+    string,
+    { assetId: string; name: string; oldPath: string; kind: 'video' | 'image' | 'audio' }
+  >()
+
+  // Asset registry (video / image)
+  for (const asset of Object.values(projectStore.assets)) {
+    if (!candidates.has(asset.id)) {
+      const name = asset.path.split('/').pop() ?? asset.path
+      const kind: 'video' | 'image' | 'audio' = asset.type === 'audio' ? 'audio' : asset.type
+      candidates.set(asset.id, { assetId: asset.id, name, oldPath: asset.path, kind })
+    }
+  }
+
+  // Audio clips (path stored directly on AudioClip, not via asset registry)
+  for (const track of timelineStore.tracks) {
+    if (track.type !== 'audio') continue
+    const audioClips = (track as unknown as { audioClips?: { id: string; path: string }[] }).audioClips ?? []
+    for (const clip of audioClips) {
+      const syntheticId = `audio:${clip.path}`
+      if (!candidates.has(syntheticId)) {
+        const name = clip.path.split('/').pop() ?? clip.path
+        candidates.set(syntheticId, { assetId: syntheticId, name, oldPath: clip.path, kind: 'audio' })
+      }
+    }
+  }
+
+  if (candidates.size === 0) return []
+
+  // Single batched existence pass — one IPC call per path.
+  const missing: { assetId: string; name: string; oldPath: string; kind: 'video' | 'image' | 'audio' }[] = []
+  for (const entry of candidates.values()) {
+    try {
+      const exists = await window.entropic.fileExists(entry.oldPath)
+      if (!exists) missing.push(entry)
+    } catch {
+      // If the IPC call itself fails (path denied), treat as missing.
+      missing.push(entry)
+    }
+  }
+
+  return missing
+}
+
+/**
+ * UE.5: Mark a single asset's clips as missing (user clicked Skip).
+ * Audio clips use the synthetic `audio:<oldPath>` id.
+ */
+export function markAssetMissing(assetId: string): void {
+  const timelineStore = useTimelineStore.getState()
+
+  if (assetId.startsWith('audio:')) {
+    const oldPath = assetId.slice('audio:'.length)
+    const tracks = timelineStore.tracks
+    for (const track of tracks) {
+      if (track.type !== 'audio') continue
+      const audioClips = (track as unknown as { audioClips?: { id: string; path: string }[] }).audioClips ?? []
+      for (const clip of audioClips) {
+        if (clip.path === oldPath) {
+          // Mark missing via relinkAudioClip with the same path but set missing=true
+          // We use a direct setState since this is a persistence-correction, not an edit
+          timelineStore.setAudioClipMissing(clip.id, true)
+        }
+      }
+    }
+  } else {
+    // Video/image asset: mark all clips referencing this asset as missing
+    timelineStore.setClipMissingByAssetId(assetId, true)
+  }
+}
+
+/**
+ * UE.5: Relink a single asset — update the store path so the next save persists
+ * the new location, and clear the `missing` flag on all clips referencing the asset.
+ */
+export function relinkAsset(assetId: string, newPath: string): void {
+  const projectStore = useProjectStore.getState()
+  const timelineStore = useTimelineStore.getState()
+
+  // Handle asset-registry entries (video/image)
+  if (assetId.startsWith('audio:')) {
+    // Audio clip pseudo-id: update all AudioClip entries with the old path
+    const oldPath = assetId.slice('audio:'.length)
+    const tracks = timelineStore.tracks
+    for (const track of tracks) {
+      if (track.type !== 'audio') continue
+      const audioClips = (track as unknown as { audioClips?: { id: string; path: string; missing?: boolean }[] }).audioClips ?? []
+      for (const clip of audioClips) {
+        if (clip.path === oldPath) {
+          timelineStore.relinkAudioClip(clip.id, newPath)
+        }
+      }
+    }
+  } else {
+    // Video/image asset: update the asset registry entry
+    const asset = projectStore.assets[assetId]
+    if (asset) {
+      projectStore.relinkAsset(assetId, newPath)
+      // Clear missing flag on all Clip entries referencing this assetId
+      timelineStore.clearClipMissingFlag(assetId)
+    }
+  }
+}
+
 // Export for testing
 export { serializeProject, validateProject, hydrateStores }
