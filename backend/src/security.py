@@ -47,6 +47,26 @@ MAX_CHAIN_DEPTH = 10
 # per-layer decode loop.
 MAX_COMPOSITE_LAYERS = 50
 
+# P5a.2 (INSTRUMENTS.md §10 P1-1): per-render voice cap. The voice spine keys
+# the composite per-layer state cache by `voice:{voice_id}` so independent
+# voices on the same clip keep independent stateful-effect state. The 4-voice
+# polyphony limit is a real backend boundary here (not just UX): every active
+# voice is a full per-layer chain run + cached state dict, so an unbounded
+# voice_id count would grow the state cache without limit. Enforced in
+# _handle_render_composite BEFORE the per-layer decode loop, mirroring INJ-3.
+MAX_TOTAL_VOICES_PER_RENDER = 4
+
+# Voice ids cross the IPC trust boundary and are used directly as state-cache
+# keys (`voice:{voice_id}`). Constrain to a conservative charset/length so a
+# hand-edited / hostile project cannot inject path-traversal-ish or
+# unbounded-length keys into the cache. Mirrors the numeric-trust-boundary rule
+# for the string case.
+# Colon is RESERVED: the handler prepends "voice:" as the namespace prefix, so a
+# voice_id must not itself contain ":" (red-team HT-2 — prevents "voice:voice:x"
+# ambiguity and any future split-on-colon key parsing).
+VOICE_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+MAX_VOICE_ID_LENGTH = 128
+
 
 def validate_upload(path: str) -> list[str]:
     """Validate an uploaded file path. Returns list of errors (empty = valid).
@@ -270,9 +290,7 @@ def validate_chain_depth(chain: list) -> list[str]:
     errors: list[str] = []
     depth = _effective_depth(chain)
     if depth > MAX_CHAIN_DEPTH:
-        errors.append(
-            f"Chain depth {depth} exceeds maximum {MAX_CHAIN_DEPTH} (SEC-7)"
-        )
+        errors.append(f"Chain depth {depth} exceeds maximum {MAX_CHAIN_DEPTH} (SEC-7)")
     return errors
 
 
@@ -284,6 +302,69 @@ def validate_composite_layer_count(count: int) -> list[str]:
             f"Composite layer count {count} exceeds maximum "
             f"{MAX_COMPOSITE_LAYERS} (INJ-3)"
         )
+    return errors
+
+
+def validate_voice_layers(layers: list) -> list[str]:
+    """Validate voice_id-bearing composite layers (P5a.2, INSTRUMENTS.md §10 P1-1).
+
+    A "voice layer" is any layer dict carrying a non-None ``voice_id``. Layers
+    without a ``voice_id`` are the legacy / B1 / PR #167 shape and are ignored
+    here entirely (back-compat: those frontends send no voice_id).
+
+    Returns a list of error strings (empty == valid). Rejects, BEFORE any
+    decode runs:
+    - more than ``MAX_TOTAL_VOICES_PER_RENDER`` voice-keyed layers
+    - a ``voice_id`` that is not a str, or doesn't match ``VOICE_ID_PATTERN``
+      (path-traversal-ish chars, oversize strings, empty strings)
+    - a ``voice_id`` that appears on more than one layer in the same render
+      (duplicate keys would collide in the per-voice state cache)
+
+    Only the first failure of each kind is reported (fail-closed; the caller
+    rejects the whole render on any non-empty result).
+    """
+    errors: list[str] = []
+    if not isinstance(layers, list):
+        # The caller already type-checks `layers`, but stay defensive — this is
+        # a trust boundary.
+        return ["layers must be a list"]
+
+    seen: set[str] = set()
+    voice_count = 0
+    for layer in layers:
+        if not isinstance(layer, dict):
+            continue
+        voice_id = layer.get("voice_id")
+        if voice_id is None:
+            continue  # legacy / non-voice layer — not this validator's concern
+
+        voice_count += 1
+
+        if not isinstance(voice_id, str):
+            errors.append(f"voice_id must be a string (got {type(voice_id).__name__})")
+            continue
+        if not VOICE_ID_PATTERN.match(voice_id):
+            # Truncate in the message so a 4KB hostile id can't bloat the log.
+            shown = voice_id[:32] + ("…" if len(voice_id) > 32 else "")
+            errors.append(
+                f"voice_id {shown!r} is malformed (must match "
+                f"[A-Za-z0-9:_-]{{1,{MAX_VOICE_ID_LENGTH}}})"
+            )
+            continue
+        if voice_id in seen:
+            errors.append(
+                f"duplicate voice_id {voice_id!r} in one render "
+                "(would collide in the per-voice state cache)"
+            )
+            continue
+        seen.add(voice_id)
+
+    if voice_count > MAX_TOTAL_VOICES_PER_RENDER:
+        errors.append(
+            f"Voice count {voice_count} exceeds maximum "
+            f"{MAX_TOTAL_VOICES_PER_RENDER} (MAX_TOTAL_VOICES_PER_RENDER)"
+        )
+
     return errors
 
 

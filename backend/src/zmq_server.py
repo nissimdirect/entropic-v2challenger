@@ -36,6 +36,7 @@ from security import (
     validate_output_directory,
     validate_output_path,
     validate_upload,
+    validate_voice_layers,
 )
 from audio.decoder import decode_audio
 from audio.clock import AVClock
@@ -180,6 +181,17 @@ class ZMQServer:
         # Reset per-effect render-state cache
         self._render_states = {}
         self._render_state_key = (None, -1)
+
+        # Reset composite per-voice/per-layer state cache (P5a.2 red-team RT-1:
+        # these lazily-init attrs were not cleared here, leaking stale per-voice
+        # numpy buffers across a reset — breaks test isolation on the shared
+        # session server; reset_state is a public method, so the invariant must hold).
+        if hasattr(self, "_composite_states"):
+            self._composite_states = {}
+        if hasattr(self, "_composite_last_signature"):
+            self._composite_last_signature = None
+        if hasattr(self, "_composite_last_frame"):
+            self._composite_last_frame = None
 
         # Reset freeze caches
         self.freeze_manager.reset()
@@ -814,9 +826,18 @@ class ZMQServer:
         """Return per-layer state cache for composite rendering.
 
         Mirrors `_get_render_states` (PR #51) but for the multi-layer composite
-        path. Keyed by (layer_signature, last_frame_index) so it resets when:
-        - layer set changes (add/remove/reorder by asset_path)
-        - frame_index is non-monotonic (scrub jump)
+        path. Two reset triggers, handled INDEPENDENTLY (P5a.2):
+
+        - **Scrub (non-monotonic frame jump)** → full reset. We require the
+          incoming frame to be exactly `last_frame + 1`; any other jump means
+          the user scrubbed and every effect must start cold.
+        - **Layer-set change (add/remove/reorder/voice steal)** → *surgical*
+          per-layer-id diff. Survivors whose `layer_id` is still in the new
+          signature KEEP their state dict (identity preserved); only departed
+          ids are dropped. Previously this was an all-or-nothing reset, which
+          meant stealing one voice cold-started every other voice on the same
+          render — the exact orphan-cleanup / state-leak class this packet
+          fixes (INSTRUMENTS.md §10 P1-1).
 
         Stateful effects (datamosh, reaction_mosh, frame_drop, etc.) need this
         for correct multi-frame preview output. Without it every preview frame
@@ -830,11 +851,30 @@ class ZMQServer:
         # PR #51 which adds parallel `_render_states` for the single-frame path.
         if not hasattr(self, "_composite_states"):
             self._composite_states: dict[str, dict] = {}
-            self._composite_state_key: tuple | None = None
+            self._composite_last_signature: tuple | None = None
+            self._composite_last_frame: int | None = None
 
-        expected_key = (layer_signature, frame_index - 1)
-        if self._composite_state_key != expected_key:
+        # 1) Scrub detection: any non-monotonic frame jump cold-starts everything.
+        #    First render (last_frame is None) is treated as monotonic start.
+        is_monotonic = (
+            self._composite_last_frame is not None
+            and frame_index == self._composite_last_frame + 1
+        )
+        if not is_monotonic:
             self._composite_states = {}
+            return self._composite_states
+
+        # 2) Layer-set change: surgical diff. Keep survivors, drop departed ids.
+        #    `layer_signature` is the ordered tuple of layer_ids; the SET of ids
+        #    is what state keys must intersect with (reorder alone keeps state,
+        #    which is correct — per-layer effect state is order-independent).
+        if layer_signature != self._composite_last_signature:
+            live_ids = set(layer_signature)
+            # Mutate in place so survivor state dicts keep object identity (the
+            # acceptance gate asserts `is`-level survival across a steal).
+            for stale_id in [k for k in self._composite_states if k not in live_ids]:
+                del self._composite_states[stale_id]
+
         return self._composite_states
 
     def _save_composite_states(
@@ -844,7 +884,8 @@ class ZMQServer:
         frame_index: int,
     ) -> None:
         self._composite_states = new_layer_states
-        self._composite_state_key = (layer_signature, frame_index)
+        self._composite_last_signature = layer_signature
+        self._composite_last_frame = frame_index
 
     @staticmethod
     def _is_v2_compositing_shape(layer_info: dict) -> bool:
@@ -902,6 +943,14 @@ class ZMQServer:
         layer_count_errors = validate_composite_layer_count(len(raw_layers))
         if layer_count_errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(layer_count_errors)}
+
+        # P5a.2: voice-layer cap + voice_id validation BEFORE the decode loop
+        # (mirrors INJ-3 placement). Rejects > MAX_TOTAL_VOICES_PER_RENDER
+        # voice-keyed layers, malformed/duplicate voice_ids. Layers without a
+        # voice_id are untouched (back-compat with B1 / PR #167 frontends).
+        voice_errors = validate_voice_layers(raw_layers)
+        if voice_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(voice_errors)}
 
         if not isinstance(raw_res, list) or len(raw_res) != 2:
             return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
@@ -979,9 +1028,20 @@ class ZMQServer:
                             frame, layer_transform, resolution
                         )
 
-                # Stable per-layer key for state cache. asset_path for video/image,
-                # synthesized for text. Reorder/swap → new signature → cache resets.
-                if layer_type == "text":
+                # Stable per-layer key for state cache. P5a.2: a voice_id (when
+                # present) wins — independent voices on the SAME clip must keep
+                # independent stateful-effect state, so the key must be the voice
+                # identity, not the shared asset path. Already validated at
+                # request entry by validate_voice_layers (charset/length/dupes),
+                # so any voice_id reaching here is safe to use as a cache key.
+                # Fall back to asset_path for video/image, synthesized id for
+                # text (back-compat: B1 / PR #167 frontends send no voice_id, so
+                # this branch is byte-identical to before). Reorder/swap → new
+                # signature → cache diffs (see _get_composite_states).
+                voice_id = layer_info.get("voice_id")
+                if voice_id is not None:
+                    layer_id = f"voice:{voice_id}"
+                elif layer_type == "text":
                     layer_id = f"text:{layer_info.get('text_config', {}).get('id', len(layers))}"
                 else:
                     layer_id = f"asset:{layer_info.get('asset_path', '')}"
