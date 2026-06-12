@@ -124,6 +124,8 @@
 
 ## PD.5 — Region-select on preview, part 1: marquee selection overlay (task #45a)
 
+> **SUPERSEDED by MK.4** (packets/masking.md, merged #204) — do not execute; the masking workstream owns this scope.
+
 - **ID:** PD.5 · **branch:** `feat/region-select-marquee` · **base:** `origin/main`
 - **depends-on:** none · **Model:** Sonnet · **Effort:** ~4h
 - **goal:** Marquee (rectangular) region selection on the preview canvas: drag draws a selection rect (canvas-space → frame-space coordinate mapping), Escape/click-off clears, selection state in a store, visible affordance (marching-ants or dim-outside). NO cut/paste yet (PD.6).
@@ -143,6 +145,8 @@
 - **EVIDENCE:** PR + tests + screenshot of active marquee in the RUNNING app (runtime path named — Gate 18).
 
 ## PD.6 — Region-select part 2: cut/paste-to-layer (task #45b)
+
+> **SUPERSEDED by MK.9** (packets/masking.md, merged #204) — do not execute; the masking workstream owns this scope.
 
 - **ID:** PD.6 · **branch:** `feat/region-cut-paste-layer` · **base:** `origin/main` (after PD.5)
 - **depends-on:** PD.5 · **Model:** Opus (render-path correctness) · **Effort:** ~4h

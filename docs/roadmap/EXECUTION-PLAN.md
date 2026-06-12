@@ -477,6 +477,8 @@ browser/layout component is an automatic FAIL.
 
 ---
 
+
+**Masking workstream (Phase 2.5):** MK.1–MK.9 + MK.CU per `packets/masking.md` — slot after Phase 2; MK.2 single-flight on compositor.py; MK.CU's J1–J5 joins the rule-9 live-smoke rotation once Phase A merges. D1–D7 locked in SELECTION-MASKING-SPEC §14.
 ## 6. Verification protocol for the orchestrator
 
 Per-packet, **never batch** — batch-then-verify produced the 170-finding audit
