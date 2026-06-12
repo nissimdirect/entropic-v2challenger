@@ -1,8 +1,12 @@
 /**
- * Effect browser store — favorites, user folders, collapsed categories.
- * Persisted to localStorage. Introduced in Phase 13B.
+ * Effect browser store — tab state, search, favorites, user folders, collapsed categories.
+ * Persisted to localStorage. Introduced in Phase 13B; tabs+search added in P3.2.
  */
 import { create } from 'zustand'
+
+// P3.2: tab identifiers for the 5-tab browser.
+export type BrowserTab = 'fx' | 'op' | 'composite' | 'tool' | 'instruments'
+export const BROWSER_TABS: BrowserTab[] = ['fx', 'op', 'composite', 'tool', 'instruments']
 
 interface UserFolder {
   name: string
@@ -10,6 +14,13 @@ interface UserFolder {
 }
 
 interface BrowserState {
+  // P3.2 additions: tab + search state
+  activeTab: BrowserTab
+  searchQuery: string
+  setActiveTab: (tab: BrowserTab) => void
+  setSearchQuery: (q: string) => void
+  clearSearch: () => void
+
   favorites: Set<string>        // effect type IDs
   userFolders: UserFolder[]
   collapsedCategories: Set<string>
@@ -67,6 +78,13 @@ function persist(state: { favorites: Set<string>; userFolders: UserFolder[]; col
 const saved = loadPersisted()
 
 export const useBrowserStore = create<BrowserState>((set, get) => ({
+  // P3.2: tab + search
+  activeTab: 'fx',
+  searchQuery: '',
+  setActiveTab: (tab) => set({ activeTab: tab }),
+  setSearchQuery: (q) => set({ searchQuery: q }),
+  clearSearch: () => set({ searchQuery: '' }),
+
   favorites: new Set(saved.favorites ?? []),
   userFolders: saved.userFolders ?? [],
   collapsedCategories: new Set(saved.collapsedCategories ?? []),

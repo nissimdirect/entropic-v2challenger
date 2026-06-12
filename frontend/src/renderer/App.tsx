@@ -116,6 +116,39 @@ function modulateChain(chain: EffectInstance[], frame: number): EffectInstance[]
   return out
 }
 
+/**
+ * P3.2: Statusbar chip showing the active cursor tool when the [tool] tab is active.
+ * Reads data-cursor-tool set by EffectBrowser's useEffect (avoids prop-drilling).
+ * Hidden when no tool attribute is present (i.e. tool tab not active).
+ */
+function CursorToolChip() {
+  const [tool, setTool] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    // Sync from DOM attribute set by EffectBrowser
+    const sync = () => {
+      const val = document.body.getAttribute('data-cursor-tool')
+      setTool(val)
+    }
+    sync()
+    // MutationObserver watches for attribute changes
+    const obs = new MutationObserver(sync)
+    obs.observe(document.body, { attributes: true, attributeFilter: ['data-cursor-tool'] })
+    return () => obs.disconnect()
+  }, [])
+
+  if (!tool) return null
+  return (
+    <span
+      className="status-bar__cursor-tool-chip"
+      title="Active cursor tool (set in [tool] tab)"
+      data-testid="statusbar-cursor-tool-chip"
+    >
+      tool: {tool}
+    </span>
+  )
+}
+
 function SpeedDialogHost() {
   const speedDialog = useTimelineStore((s) => s.speedDialog)
   const closeSpeedDialog = useTimelineStore((s) => s.closeSpeedDialog)
@@ -2912,6 +2945,8 @@ function AppInner() {
           {isPerformMode && (
             <span style={{ color: '#4ade80', fontSize: 11, fontWeight: 600 }}>PERFORM</span>
           )}
+          {/* P3.2: cursor tool chip — reads data-cursor-tool set by EffectBrowser tool tab */}
+          <CursorToolChip />
           {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>
