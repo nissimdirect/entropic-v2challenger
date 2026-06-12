@@ -12,6 +12,7 @@ function makeLane(
     paramPath,
     color: '#4ade80',
     isVisible: visible,
+    mode: 'smooth',
     points: points.map((p) => ({ time: p.time, value: p.value, curve: p.curve ?? 0 })),
   }
 }

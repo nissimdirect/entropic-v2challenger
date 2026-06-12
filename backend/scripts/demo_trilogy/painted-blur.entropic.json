@@ -1,0 +1,51 @@
+{
+  "_comment": "Demo 2 — Painted-Blur. Skeleton for the 2D-field-as-parameter demo. Requires source.mp4 (~5s clip with clear foreground/background separation — e.g., a person walking, a flower in a field) + initial-mask.png (1920x1080 grayscale, circular dark gradient over foreground area). The blur effect's `radius` param accepts EITHER scalar OR field reference (per SPEC-4 §3.3). Renderer samples field at (y, x) per pixel and uses the value as blur radius.",
+  "version": "3.0.0",
+  "name": "Painted-Blur",
+  "description": "Blur isn't one number — it's a painted field. Where the mask is dark, the frame is sharp. Light = blurred.",
+  "demoOrder": 2,
+  "tracks": [
+    {
+      "id": "v1",
+      "type": "video",
+      "name": "source",
+      "clips": [
+        {
+          "id": "v1c1",
+          "assetPath": "demos/painted-blur/source.mp4",
+          "startFrame": 0
+        }
+      ],
+      "effectChain": [
+        {
+          "id": "blur1",
+          "type": "blur",
+          "params": {
+            "radius": {
+              "field": {
+                "source": "asset",
+                "path": "demos/painted-blur/initial-mask.png"
+              }
+            },
+            "_comment_radius": "Field-typed param: renderer samples this grayscale image at (y, x) per pixel for the radius value. Range: 0 (black) → 32px (white). User can edit via in-app paint tool (SPEC-4 §3.4)."
+          }
+        }
+      ]
+    }
+  ],
+  "lanes": [],
+  "bpm": 120,
+  "transport": {
+    "loop": true,
+    "loopStart": 0,
+    "loopEnd": 150
+  },
+  "demoMetadata": {
+    "label": "Blur isn't just one number anymore. Paint where it's sharp.",
+    "primitive": "field-typed parameter (preview of C3)",
+    "viewingTimeSeconds": 30,
+    "interactionEnabled": true,
+    "interactionTool": "paint",
+    "interactionInstructions": "Paint over the foreground to keep it sharp. Erase to blur. The field updates the frame live."
+  }
+}

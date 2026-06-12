@@ -15,7 +15,7 @@ function makeEffect(id: string, effectId: string, params: Record<string, number>
   };
 }
 
-function makePad(id: string, mappings: Pad['mappings']): Pad {
+function makePad(id: string, modRoutes: Pad['modRoutes']): Pad {
   return {
     id,
     label: id,
@@ -23,7 +23,7 @@ function makePad(id: string, mappings: Pad['mappings']): Pad {
     mode: 'gate',
     chokeGroup: null,
     envelope: { attack: 0, decay: 0, sustain: 1.0, release: 0 },
-    mappings,
+    modRoutes,
     color: '#4ade80',
   };
 }

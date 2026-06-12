@@ -20,7 +20,7 @@ function makePad(overrides: Partial<Pad> = {}): Pad {
     mode: 'gate',
     chokeGroup: null,
     envelope: { attack: 0, decay: 0, sustain: 1, release: 0 } as Pad['envelope'],
-    mappings: [],
+    modRoutes: [],
     color: '#4ade80',
     ...overrides,
   }
@@ -42,10 +42,10 @@ afterEach(() => {
 })
 
 describe('PadCell — render states', () => {
-  it('renders idle (no mappings) with bare pad-cell class only', () => {
+  it('renders idle (no modRoutes) with bare pad-cell class only', () => {
     const { container } = render(
       <PadCell
-        pad={makePad({ mappings: [] })}
+        pad={makePad({ modRoutes: [] })}
         runtimeState={undefined}
         onTrigger={vi.fn()}
         onRelease={vi.fn()}
@@ -60,7 +60,7 @@ describe('PadCell — render states', () => {
   it('renders armed class when pad has at least one mapping (idle phase)', () => {
     const { container } = render(
       <PadCell
-        pad={makePad({ mappings: [{ targetEffectId: 'fx1' } as unknown as ModulationRoute] })}
+        pad={makePad({ modRoutes: [{ targetEffectId: 'fx1' } as unknown as ModulationRoute] })}
         runtimeState={runtime({ phase: 'idle' })}
         onTrigger={vi.fn()}
         onRelease={vi.fn()}
@@ -75,7 +75,7 @@ describe('PadCell — render states', () => {
       cleanup()
       const { container } = render(
         <PadCell
-          pad={makePad({ mappings: [{ targetEffectId: 'fx1' } as unknown as ModulationRoute] })}
+          pad={makePad({ modRoutes: [{ targetEffectId: 'fx1' } as unknown as ModulationRoute] })}
           runtimeState={runtime({ phase, currentValue: 0.5 })}
           onTrigger={vi.fn()}
           onRelease={vi.fn()}
@@ -89,7 +89,7 @@ describe('PadCell — render states', () => {
   it('renders releasing class during release phase (overrides armed)', () => {
     const { container } = render(
       <PadCell
-        pad={makePad({ mappings: [{ targetEffectId: 'fx1' } as unknown as ModulationRoute] })}
+        pad={makePad({ modRoutes: [{ targetEffectId: 'fx1' } as unknown as ModulationRoute] })}
         runtimeState={runtime({ phase: 'release', currentValue: 0.4 })}
         onTrigger={vi.fn()}
         onRelease={vi.fn()}

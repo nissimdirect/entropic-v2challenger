@@ -207,10 +207,10 @@ describe('Performance Store', () => {
       paramKey: 'amount',
     };
     usePerformanceStore.getState().addPadMapping('pad-0', mapping);
-    expect(usePerformanceStore.getState().drumRack.pads[0].mappings).toHaveLength(1);
+    expect(usePerformanceStore.getState().drumRack.pads[0].modRoutes).toHaveLength(1);
 
     useUndoStore.getState().undo();
-    expect(usePerformanceStore.getState().drumRack.pads[0].mappings).toHaveLength(0);
+    expect(usePerformanceStore.getState().drumRack.pads[0].modRoutes).toHaveLength(0);
   });
 
   it('P1-1: undo reverts removePadMapping', () => {
@@ -225,10 +225,10 @@ describe('Performance Store', () => {
     };
     usePerformanceStore.getState().addPadMapping('pad-0', mapping);
     usePerformanceStore.getState().removePadMapping('pad-0', 0);
-    expect(usePerformanceStore.getState().drumRack.pads[0].mappings).toHaveLength(0);
+    expect(usePerformanceStore.getState().drumRack.pads[0].modRoutes).toHaveLength(0);
 
     useUndoStore.getState().undo();
-    expect(usePerformanceStore.getState().drumRack.pads[0].mappings).toHaveLength(1);
+    expect(usePerformanceStore.getState().drumRack.pads[0].modRoutes).toHaveLength(1);
   });
 
   it('P1-1: undo reverts key binding steal', () => {
@@ -285,7 +285,7 @@ describe('Performance Store', () => {
         mode: 'toggle' as const,
         chokeGroup: null,
         envelope: { attack: 999, decay: -1, sustain: 5, release: NaN },
-        mappings: [],
+        modRoutes: [],
         color: '#ff0000',
       }],
     };

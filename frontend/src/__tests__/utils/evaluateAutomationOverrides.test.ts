@@ -8,6 +8,7 @@ function makeLane(overrides: Partial<AutomationLane> = {}): AutomationLane {
     paramPath: 'fx-1.amount',
     color: '#4ade80',
     isVisible: true,
+    mode: 'smooth',
     points: [
       { time: 0, value: 0, curve: 0 },
       { time: 10, value: 1, curve: 0 },

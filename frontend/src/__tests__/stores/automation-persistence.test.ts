@@ -56,8 +56,8 @@ describe('Automation Persistence', () => {
   it('loadAutomation skips lanes with missing id', () => {
     useAutomationStore.getState().loadAutomation({
       'track-1': [
-        { id: 'good', paramPath: 'fx.amt', color: '#fff', isVisible: true, points: [] },
-        { paramPath: 'fx.bad', color: '#000', isVisible: true, points: [] } as unknown as AutomationLane,
+        { id: 'good', paramPath: 'fx.amt', color: '#fff', isVisible: true, mode: 'smooth', points: [] },
+        { paramPath: 'fx.bad', color: '#000', isVisible: true, mode: 'smooth', points: [] } as unknown as AutomationLane,
       ],
     })
     expect(useAutomationStore.getState().getLanesForTrack('track-1')).toHaveLength(1)
@@ -69,7 +69,7 @@ describe('Automation Persistence', () => {
         id: 'lane-1',
         paramPath: 'fx.amt',
         color: '#fff',
-        isVisible: true,
+        isVisible: true, mode: 'smooth',
         points: [
           { time: 3.0, value: 0.5, curve: 0 },
           { time: 1.0, value: 0.2, curve: 0 },
@@ -89,7 +89,7 @@ describe('Automation Persistence', () => {
         id: 'lane-1',
         paramPath: 'fx.amt',
         color: '#fff',
-        isVisible: true,
+        isVisible: true, mode: 'smooth',
         points: [
           { time: 1.0, value: 0.5, curve: 0 },
           { time: NaN, value: 0.5, curve: 0 },
@@ -109,7 +109,7 @@ describe('Automation Persistence', () => {
         id: 'new-lane',
         paramPath: 'fx-new.value',
         color: '#fff',
-        isVisible: true,
+        isVisible: true, mode: 'smooth',
         points: [],
       }],
     }

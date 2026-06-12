@@ -1,0 +1,81 @@
+{
+  "_comment": "Demo 1 — Y-is-Time. Skeleton for paradigm-revealing onboarding demo. Requires source.jpg (high-contrast still, 1920x1080) + audio.wav (10s instrumental w/ clear onset pattern, e.g., kick+snare or simple synth pulse). Curve points below are placeholder — replace with values sampled from real audio onset envelope after sourcing audio asset.",
+  "version": "3.0.0",
+  "name": "Y-is-Time",
+  "description": "Each row of the frame is a moment in time. The audio's recent onset history is painted vertically.",
+  "demoOrder": 1,
+  "tracks": [
+    {
+      "id": "v1",
+      "type": "video",
+      "name": "still",
+      "clips": [
+        {
+          "id": "v1c1",
+          "assetPath": "demos/y-is-time/source.jpg",
+          "startFrame": 0,
+          "duration": 300
+        }
+      ],
+      "effectChain": [
+        {
+          "id": "hue1",
+          "type": "hue_shift",
+          "params": {
+            "shift": { "scalar": 0 }
+          }
+        }
+      ]
+    },
+    {
+      "id": "a1",
+      "type": "audio",
+      "name": "loop",
+      "clips": [
+        {
+          "id": "a1c1",
+          "assetPath": "demos/y-is-time/audio.wav",
+          "startFrame": 0
+        }
+      ]
+    }
+  ],
+  "lanes": [
+    {
+      "id": "L1",
+      "trackId": "v1",
+      "effectId": "hue1",
+      "paramPath": "shift",
+      "mode": "smooth",
+      "domain": "y",
+      "direction": 1,
+      "binding_rule": "broadcast",
+      "color": "#8ce4d4",
+      "_comment": "Points below are placeholder — sample from real audio onset envelope after sourcing audio. Curve must span [0,1] in t, mapping to perceptually-strong hue shifts. Try amplitude-followed peaks at every onset.",
+      "points": [
+        { "t": 0.00, "value": 0 },
+        { "t": 0.08, "value": 60 },
+        { "t": 0.12, "value": 180 },
+        { "t": 0.20, "value": 90 },
+        { "t": 0.30, "value": -90 },
+        { "t": 0.40, "value": 120 },
+        { "t": 0.50, "value": -60 },
+        { "t": 0.60, "value": 180 },
+        { "t": 0.75, "value": 0 },
+        { "t": 0.90, "value": 90 },
+        { "t": 1.00, "value": 0 }
+      ]
+    }
+  ],
+  "bpm": 120,
+  "transport": {
+    "loop": true,
+    "loopStart": 0,
+    "loopEnd": 300
+  },
+  "demoMetadata": {
+    "label": "Each row = a moment in time. The audio is painted vertically.",
+    "primitive": "domain='y'",
+    "viewingTimeSeconds": 30
+  }
+}

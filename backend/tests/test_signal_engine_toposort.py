@@ -6,9 +6,13 @@ a Fusion declared before its source returned 0.0 silently. The sort moves
 each Fusion after its sources; declaration order is preserved otherwise.
 """
 
-import logging
+import pytest
 
-from modulation.engine import SignalEngine, _topological_sort
+from modulation.engine import (
+    ModulationCycleError,
+    SignalEngine,
+    _topological_sort,
+)
 
 
 def _lfo(op_id: str) -> dict:
@@ -63,13 +67,15 @@ class TestTopologicalSort:
         ids = [o["id"] for o in sorted_ops]
         assert ids.index("a") < ids.index("f1") < ids.index("f2")
 
-    def test_cycle_falls_back_to_declaration_order(self, caplog):
+    def test_cycle_raises_modulation_cycle_error(self):
+        # INJ-2: the sort now RAISES on a cycle (was: warn + declaration-order
+        # fallback). Graceful degradation moved to the caller — see
+        # test_cycle_does_not_crash + test_toposort_inj2.py.
         # f1 -> f2 -> f1 (cycle)
         ops = [_fusion("f1", ["f2"]), _fusion("f2", ["f1"])]
-        with caplog.at_level(logging.WARNING):
-            sorted_ops = _topological_sort(ops)
-        assert [o["id"] for o in sorted_ops] == ["f1", "f2"]
-        assert any("cycle" in rec.message.lower() for rec in caplog.records)
+        with pytest.raises(ModulationCycleError) as exc:
+            _topological_sort(ops)
+        assert set(exc.value.unresolved_ids) == {"f1", "f2"}
 
     def test_self_reference_is_not_a_dependency(self):
         # Fusion that lists itself as a source (defensive): self-edge skipped

@@ -43,7 +43,7 @@ export function applyPadModulations(
     // C2: Guard against NaN envelope value
     if (!Number.isFinite(envValue)) continue;
 
-    for (const mapping of pad.mappings) {
+    for (const mapping of pad.modRoutes) {
       if (!mapping.effectId || !mapping.paramKey) continue;
 
       const range = mapping.max - mapping.min;

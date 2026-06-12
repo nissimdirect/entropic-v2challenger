@@ -3,6 +3,8 @@
 import av
 import numpy as np
 
+from video.codec_timeout import av_open_timeout
+
 
 class VideoWriter:
     def __init__(
@@ -18,7 +20,7 @@ class VideoWriter:
         crf: int | None = None,
         profile: int | None = None,
     ):
-        self.container = av.open(path, mode="w")
+        self.container = av_open_timeout(path, mode="w")
         self.stream = self.container.add_stream(codec, rate=fps)
         self.stream.width = width
         self.stream.height = height

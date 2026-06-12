@@ -10,6 +10,7 @@
  *   - stores/timeline.ts (removeTrack: prune + restore the track's full chain)
  */
 
+import type { AutomationLane } from '../../shared/types'
 import { useOperatorStore } from './operators'
 import { useAutomationStore } from './automation'
 import { useMIDIStore } from './midi'
@@ -22,7 +23,7 @@ import { useProjectStore } from './project'
 
 export interface PruneSnapshot {
   operators: Array<{ id: string; mappings: Array<{ targetEffectId: string; targetParamKey: string; depth: number; min: number; max: number; curve: string; blendMode?: string }> }>
-  lanes: Record<string, Array<{ id: string; paramPath: string; color: string; isVisible: boolean; points: Array<{ time: number; value: number; curve: number }>; isTrigger: boolean; triggerMode?: string; triggerADSR?: object }>>
+  lanes: Record<string, AutomationLane[]>
   ccMappings: Array<{ cc: number; effectId: string; paramKey: string }>
   deviceGroups: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>
 }
