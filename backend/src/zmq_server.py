@@ -17,7 +17,7 @@ from engine.cache import encode_mjpeg
 from engine.codecs import CODEC_REGISTRY
 from engine.export import ExportManager
 from engine.freeze import FreezeManager
-from engine.compositor import render_composite
+from engine.compositor import flatten_rgba, render_composite
 from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
     apply_chain,
@@ -1097,7 +1097,14 @@ class ZMQServer:
             )
             self._save_composite_states(new_layer_states, layer_signature, anchor_frame)
 
-            jpeg_bytes = encode_mjpeg(output)
+            # MK.2 (SPEC §7-2): the composite carries meaningful per-pixel alpha
+            # now (keyed-out / transparent regions). Flatten onto opaque surface-0
+            # (#0B0B10) before encode so encode_mjpeg's alpha-truncation does not
+            # leak the RGB that rode under alpha=0 — this is what makes
+            # fx.chroma_key / fx.luma_key visible in preview (GT-3). Export
+            # (MK.10) is NOT flattened; only this preview boundary is.
+            flattened = flatten_rgba(output)
+            jpeg_bytes = encode_mjpeg(flattened)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
 

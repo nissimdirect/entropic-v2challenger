@@ -4,6 +4,14 @@ Each layer has an effect chain applied individually, then layers are composited
 bottom-to-top using blend modes and per-layer opacity.
 
 CRITICAL: All blend math uses float32 to avoid uint8 overflow/wrap.
+
+MK.2 (SPEC GT-2, §7-2): per-pixel alpha is HONORED, not just carried. The blend
+weight is `w = layer_alpha · scalar_opacity` PER PIXEL (straight, unpremultiplied
+alpha). Output alpha is the standard straight-alpha over-composite. The legacy
+scalar code path is preserved byte-for-byte for fully-opaque layers (the hot path);
+only the partial-alpha case takes the per-pixel weighting branch. See
+`tests/test_alpha_composite.py::test_fully_opaque_layers_byte_identical_to_legacy`
+(THE golden no-regression gate).
 """
 
 import logging
@@ -15,55 +23,78 @@ from engine.pipeline import apply_chain
 
 logger = logging.getLogger(__name__)
 
+# Preview backdrop (DESIGN-SPEC surface-0). The final composited RGBA canvas is
+# flattened onto this opaque colour before MJPEG encode so keyed-out / transparent
+# regions show the backdrop, not whatever RGB happened to ride under alpha=0.
+SURFACE_0_BG: tuple[int, int, int] = (11, 11, 16)  # #0B0B10
 
-def _blend_normal(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
-    """Alpha-over composite with opacity."""
-    return base * (1.0 - opacity) + layer * opacity
+
+# ---------------------------------------------------------------------------
+# Blend modes.
+#
+# Each `_blend_*` function computes the per-pixel composite of `base` over which
+# `layer` is painted, weighted by `w`. `w` is EITHER a Python/np scalar (the
+# legacy fully-opaque fast path — `w == opacity`) OR a per-pixel weight array of
+# shape (H, W, 1) broadcasting across channels (the MK.2 partial-alpha path,
+# `w = layer_alpha · opacity`).
+#
+# The blend formula `base * (1 - w) + blended * w` is identical to the legacy
+# `base * (1 - opacity) + blended * opacity` when `w` is the scalar `opacity`,
+# which is what makes the golden byte-identity gate hold: for fully-opaque inputs
+# render_composite calls these with the scalar `opacity` exactly as before.
+#
+# DO-NOT-TOUCH: the BLEND_MODES dict KEYS and the _resolve_compositing /
+# _clamp_opacity SEMANTICS. The math INSIDE these functions is extended (scalar →
+# scalar-or-array weight); the contract is unchanged.
+# ---------------------------------------------------------------------------
 
 
-def _blend_add(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
+def _blend_normal(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
+    """Alpha-over composite with weight."""
+    return base * (1.0 - w) + layer * w
+
+
+def _blend_add(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     blended = base + layer
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
-def _blend_multiply(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
+def _blend_multiply(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     blended = (base * layer) / 255.0
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
-def _blend_screen(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
+def _blend_screen(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     blended = 255.0 - ((255.0 - base) * (255.0 - layer)) / 255.0
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
-def _blend_overlay(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
+def _blend_overlay(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     # Conditional: multiply where base < 128, screen where base >= 128
     low = (2.0 * base * layer) / 255.0
     high = 255.0 - (2.0 * (255.0 - base) * (255.0 - layer)) / 255.0
     blended = np.where(base < 128.0, low, high)
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
-def _blend_difference(
-    base: np.ndarray, layer: np.ndarray, opacity: float
-) -> np.ndarray:
+def _blend_difference(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     blended = np.abs(base - layer)
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
-def _blend_exclusion(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
+def _blend_exclusion(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     blended = base + layer - 2.0 * base * layer / 255.0
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
-def _blend_darken(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
+def _blend_darken(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     blended = np.minimum(base, layer)
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
-def _blend_lighten(base: np.ndarray, layer: np.ndarray, opacity: float) -> np.ndarray:
+def _blend_lighten(base: np.ndarray, layer: np.ndarray, w) -> np.ndarray:
     blended = np.maximum(base, layer)
-    return base * (1.0 - opacity) + blended * opacity
+    return base * (1.0 - w) + blended * w
 
 
 BLEND_MODES = {
@@ -120,7 +151,11 @@ def _resolve_compositing(layer_info: dict) -> tuple[float, str]:
     """
     chain = layer_info.get("chain") or []
     terminal = chain[-1] if chain else None
-    if isinstance(terminal, dict) and terminal.get("effect_id") == COMPOSITE_EFFECT_ID and terminal.get("enabled", True) is not False:
+    if (
+        isinstance(terminal, dict)
+        and terminal.get("effect_id") == COMPOSITE_EFFECT_ID
+        and terminal.get("enabled", True) is not False
+    ):
         # red-team RT-2: a forged IPC params=[..] / params=42 is truthy but has
         # no .get — coerce to {} unless it is genuinely a dict.
         raw_params = terminal.get("params")
@@ -156,6 +191,100 @@ def _clip_opacity(layer_info: dict) -> float:
     if not (value == value) or value in (float("inf"), float("-inf")):
         return 1.0
     return max(0.0, min(1.0, value))
+
+
+def _sanitize_alpha(alpha: np.ndarray) -> np.ndarray:
+    """Sanitize an alpha plane for use as a blend weight.
+
+    MK.2 trust boundary (SPEC §7-2): NaN/Inf in an alpha plane is treated as
+    OPAQUE (255), NEVER propagated into the weight. An effect that emits a NaN
+    alpha (a divide-by-zero in a key kernel, a corrupt decode) must not poison the
+    whole composite — the safe failure is "fully visible", not "transparent hole"
+    or "NaN smear". Returns a float32 plane in [0,255].
+    """
+    a = alpha.astype(np.float32)
+    # NaN and ±Inf → 255 (opaque). np.isfinite is False for both.
+    a = np.where(np.isfinite(a), a, 255.0)
+    return np.clip(a, 0.0, 255.0)
+
+
+def _composite_layer(
+    canvas: np.ndarray,
+    layer_f: np.ndarray,
+    opacity: float,
+    blend_fn,
+    is_opaque: bool | None = None,
+) -> np.ndarray:
+    """Composite one float32 RGBA layer onto the float32 RGBA canvas.
+
+    Scalar fast-path (legacy, byte-identical): when the layer is fully opaque
+    (`processed[:, :, 3].min() == 255`), run the legacy whole-RGBA blend with the
+    SCALAR opacity. This keeps the hot path allocation-free (no alpha extract, no
+    per-pixel weight array) and provably byte-identical to pre-MK.2 main.
+
+    `is_opaque` is the precomputed opacity verdict. render_composite computes it
+    ONCE on the uint8 `processed` alpha (cheaper than a float32 reduction) and
+    passes it in, so the fast path adds no per-layer float-domain scan. When None
+    (direct callers / tests) it is computed here from the float alpha.
+
+    Per-pixel path (MK.2): when the layer has partial alpha, weight the RGB blend
+    by `w = (layer_alpha / 255) · opacity` per pixel (straight alpha, §7-2) and set
+    the output alpha by straight-alpha over-composite
+    `a_out = a_layer + a_canvas · (1 - a_layer)`.
+    """
+    layer_alpha = layer_f[:, :, 3]
+    if is_opaque is None:
+        is_opaque = float(layer_alpha.min()) == 255.0
+    # Fast path: fully-opaque layer → legacy code path, scalar weight, byte-exact.
+    if is_opaque:
+        return blend_fn(canvas, layer_f, opacity)
+
+    # Partial-alpha path. Sanitize the layer alpha (NaN/Inf → opaque) BEFORE it
+    # becomes a weight, then normalise to [0,1] and fold in scalar opacity.
+    a_layer = _sanitize_alpha(layer_alpha) / 255.0  # (H, W)
+    w = (a_layer * opacity)[:, :, np.newaxis]  # (H, W, 1) broadcasts over channels
+
+    # RGB: per-pixel weighted blend. blend_fn operates on full RGBA, but we only
+    # keep its RGB result here; the alpha channel of the blend output is discarded
+    # and replaced by the explicit over-composite below.
+    blended = blend_fn(canvas, layer_f, w)
+    out = canvas.copy()
+    out[:, :, :3] = blended[:, :, :3]
+
+    # Output alpha = straight-alpha over-composite. a_canvas already in [0,255].
+    a_canvas = canvas[:, :, 3] / 255.0
+    a_out = a_layer + a_canvas * (1.0 - a_layer)  # (H, W), [0,1]
+    out[:, :, 3] = a_out * 255.0
+    return out
+
+
+def flatten_rgba(
+    frame: np.ndarray, bg: tuple[int, int, int] = SURFACE_0_BG
+) -> np.ndarray:
+    """Flatten an RGBA frame onto an opaque background (straight-alpha over).
+
+    Used at the PREVIEW boundary (zmq render reply) before `encode_mjpeg`, which
+    would otherwise drop alpha by truncation and leak the RGB that rode under
+    alpha=0. Flattening onto surface-0 (#0B0B10) makes keyed-out / transparent
+    regions show the backdrop — this is what makes `fx.chroma_key`/`fx.luma_key`
+    visible for the first time (SPEC GT-3).
+
+    Returns an (H, W, 4) uint8 frame whose alpha is uniformly 255. Export does NOT
+    call this (MK.10 owns the writer's alpha-aware slice); flatten lives only at the
+    preview encode boundary so export is never double-flattened.
+    """
+    if frame.ndim != 3 or frame.shape[2] != 4:
+        # Not RGBA (already RGB / unexpected) — return unchanged; encode handles it.
+        return frame
+    f = frame.astype(np.float32)
+    a = _sanitize_alpha(f[:, :, 3]) / 255.0  # (H, W), NaN/Inf-safe
+    a = a[:, :, np.newaxis]  # (H, W, 1)
+    bg_arr = np.array(bg, dtype=np.float32).reshape(1, 1, 3)
+    rgb = f[:, :, :3] * a + bg_arr * (1.0 - a)
+    out = np.empty_like(f)
+    out[:, :, :3] = rgb
+    out[:, :, 3] = 255.0
+    return np.clip(out, 0, 255).astype(np.uint8)
 
 
 def render_composite(
@@ -196,6 +325,11 @@ def render_composite(
         (legacy 1-tuple return). When `layer_states` is provided, returns
         `(frame, new_layer_states)` so callers can write the updated states
         back into their cache.
+
+        MK.2: per-pixel alpha is honored in the blend (SPEC GT-2) and the output
+        alpha is the straight-alpha over-composite of all layers. The result is
+        STILL an RGBA frame with meaningful alpha; the preview boundary
+        (zmq_server) flattens it onto surface-0 via `flatten_rgba` before encode.
     """
     width, height = resolution
 
@@ -248,14 +382,26 @@ def render_composite(
                 processed, (width, height), interpolation=cv2.INTER_LINEAR
             )
 
+        # Opacity verdict for the fast path — computed ONCE on the uint8 alpha
+        # (the spec's `processed[:, :, 3].min() == 255`), which is ~2x cheaper than
+        # a float32 reduction. Only an integer-typed, all-255 alpha is "opaque";
+        # any float frame (a NaN/Inf alpha can ride in float) takes the sanitizing
+        # per-pixel path so NaN/Inf is treated as opaque per-pixel, never as a
+        # whole-layer fast-path shortcut.
+        alpha_plane = processed[:, :, 3]
+        is_opaque = (
+            np.issubdtype(alpha_plane.dtype, np.integer)
+            and int(alpha_plane.min()) == 255
+        )
+
         # Convert to float32 for blend math
         layer_f = processed.astype(np.float32)
 
         # Get blend function
         blend_fn = BLEND_MODES.get(blend_mode, _blend_normal)
 
-        # Composite
-        canvas = blend_fn(canvas, layer_f, opacity)
+        # Composite (scalar fast-path for opaque layers; per-pixel alpha otherwise)
+        canvas = _composite_layer(canvas, layer_f, opacity, blend_fn, is_opaque)
 
     # Clip and convert back to uint8
     out = np.clip(canvas, 0, 255).astype(np.uint8)
