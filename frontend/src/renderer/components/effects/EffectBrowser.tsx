@@ -4,6 +4,8 @@ import type { EffectInfo, EffectInstance } from '../../../shared/types'
 import { LIMITS } from '../../../shared/limits'
 import { useBrowserStore, type BrowserTab, BROWSER_TABS } from '../../stores/browser'
 import { useToastStore } from '../../stores/toast'
+// P3.5: instruments tab now renders the real InstrumentsBrowser (INJ-4 fill).
+import InstrumentsBrowser from '../instruments/InstrumentsBrowser'
 
 /**
  * MIME-style identifier used to ferry an effect ID from the browser to the
@@ -118,8 +120,7 @@ const OPERATOR_STUBS = [
   'Sidechain', 'Gate', 'MIDI Envelope Stutter', 'Kentaro Cluster',
 ]
 
-// Instrument racks placeholder (P3.5 owns full content)
-const INSTRUMENT_RACKS = ['Drum Rack', 'Sampler', 'Wavetable']
+// Instrument racks list is now owned by InstrumentsBrowser (P3.5 fill).
 
 interface EffectBrowserProps {
   registry: EffectInfo[]
@@ -573,40 +574,9 @@ export default function EffectBrowser({
             </div>
           </div>
         ) : (
-          // [instruments] tab: placeholder RACKS folder (P3.5 owns full content)
-          <div className="effect-browser__folder" data-testid="instruments-tab-content">
-            <div className="effect-browser__folder-header effect-browser__folder-header--static">
-              <span>RACKS</span>
-              <span className="effect-browser__folder-count">{INSTRUMENT_RACKS.length}</span>
-            </div>
-            <div className="effect-browser__folder-list">
-              {INSTRUMENT_RACKS.map((name) => (
-                <button
-                  key={name}
-                  className="effect-browser__item"
-                  disabled={chainLength >= LIMITS.MAX_EFFECTS_PER_CHAIN}
-                  title={`Add ${name}`}
-                  data-testid={`instrument-item-${name.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
-            {/* USER folder — rejects zip/bundle per qa-redteam Real Tiger 1 */}
-            <div className="effect-browser__folder-header effect-browser__folder-header--static">
-              <span>USER</span>
-            </div>
-            <div className="effect-browser__folder-list">
-              <button
-                className="effect-browser__item effect-browser__item--user-import"
-                onClick={handleUserImport}
-                title="Import preset (requires hardening PR)"
-                data-testid="instruments-user-import"
-              >
-                + Import preset...
-              </button>
-            </div>
-          </div>
+          // [instruments] tab: P3.5 — real InstrumentsBrowser (INJ-4 fill).
+          // Constraint (PR #154): modified IN PLACE — no new sibling browser component.
+          <InstrumentsBrowser />
         )}
       </div>
 

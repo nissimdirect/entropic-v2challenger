@@ -63,6 +63,8 @@ interface Window {
     onMenuAction: (callback: (action: string) => void) => () => void
     onCloseRequested: (callback: () => void) => () => void
     confirmClose: () => void
+    // P3.5: demo paths resolved from the ONE runtime-dir constant (no hardcoded dirs in renderer)
+    getDemoPaths: () => Promise<Record<string, string | null>>
   }
 }
 

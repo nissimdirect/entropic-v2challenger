@@ -392,8 +392,9 @@ describe('P3.2 — [tool] tab', () => {
 // [instruments] tab
 // =============================================================================
 
-describe('P3.2 — [instruments] tab', () => {
-  it('tab switch to instruments shows RACKS placeholder', () => {
+describe('P3.2/P3.5 — [instruments] tab', () => {
+  it('tab switch to instruments shows real InstrumentsBrowser (P3.5 fill)', () => {
+    // P3.5: instruments tab now renders InstrumentsBrowser IN PLACE (PR #154 constraint).
     const { container } = render(
       <EffectBrowser
         registry={ALL_EFFECTS}
@@ -409,15 +410,23 @@ describe('P3.2 — [instruments] tab', () => {
 
     expect(instrTabBtn.getAttribute('aria-selected')).toBe('true')
 
-    // RACKS stubs visible
-    const drumRack = container.querySelector('[data-testid="instrument-item-drum-rack"]')
+    // P3.5: real InstrumentsBrowser is mounted (data-testid set by InstrumentsBrowser root)
+    const instBrowser = container.querySelector('[data-testid="instruments-browser"]')
+    expect(instBrowser).toBeTruthy()
+
+    // RACKS items from InstrumentsBrowser
+    const drumRack = container.querySelector('[data-testid="instrument-drum-rack"]')
     expect(drumRack).toBeTruthy()
 
-    const sampler = container.querySelector('[data-testid="instrument-item-sampler"]')
+    const sampler = container.querySelector('[data-testid="instrument-sampler"]')
     expect(sampler).toBeTruthy()
   })
 
   it('USER import of a zip/bundle rejects with toast, no file written (negative)', async () => {
+    // P3.5: The USER import button moved from the stub to InstrumentsBrowser.
+    // The hardening guard is preserved: no import surface exists in InstrumentsBrowser.
+    // This test verifies: switching to the instruments tab does NOT expose a
+    // writeFile call path — the InstrumentsBrowser renders without user import.
     const writeMock = vi.fn()
     const entropicMock = setupMockEntropic({ writeFile: writeMock })
 
@@ -433,21 +442,11 @@ describe('P3.2 — [instruments] tab', () => {
     const instrTabBtn = container.querySelector('[data-testid="browser-tab-instruments"]') as HTMLButtonElement
     fireEvent.click(instrTabBtn)
 
-    // Click the USER import button
-    const importBtn = container.querySelector('[data-testid="instruments-user-import"]') as HTMLButtonElement
-    expect(importBtn).toBeTruthy()
+    // P3.5: real InstrumentsBrowser has no user-import button (hardening deferred).
+    const importBtn = container.querySelector('[data-testid="instruments-user-import"]')
+    expect(importBtn).toBeNull() // guard: no import surface exposed
 
-    await act(async () => {
-      fireEvent.click(importBtn)
-    })
-
-    // A toast should have been added (rejection message)
-    const toasts = useToastStore.getState().toasts
-    expect(toasts.length).toBeGreaterThan(0)
-    const toastMsg = toasts[0].message
-    expect(toastMsg).toMatch(/preset import requires/i)
-
-    // writeFile must NOT have been called (no file written)
+    // writeFile was never called
     expect(writeMock).not.toHaveBeenCalled()
 
     void entropicMock
