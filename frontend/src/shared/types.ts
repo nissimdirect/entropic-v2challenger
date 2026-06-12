@@ -236,6 +236,17 @@ export interface Clip {
    * No PROJECT_VERSION bump required (UE.7 precedent).
    */
   maskStack?: MatteNode[];
+  /**
+   * MK.4: stack-consumption mode. Rides MK.3's render payload.
+   * - 'deleteInside':  alpha = a·(1−m)  — transparent inside the matte
+   * - 'deleteOutside': alpha = a·m       — transparent outside the matte
+   * - 'fill':          composite solid fill color through the matte
+   * Absent = no consumption (stack nodes route effects only, MK.3 behavior).
+   * Not persisted across sessions (ephemeral per edit session — set by delete/fill actions).
+   */
+  maskMode?: 'deleteInside' | 'deleteOutside' | 'fill';
+  /** MK.4: fill color (CSS hex, one of the 8 DESIGN-SPEC §8 swatches) when maskMode='fill'. */
+  maskFillColor?: string;
 }
 
 // --- Text ---

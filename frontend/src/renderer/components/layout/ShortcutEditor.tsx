@@ -3,7 +3,8 @@ import { shortcutRegistry, keyEventToString } from '../../utils/shortcuts'
 import type { ShortcutBinding } from '../../utils/shortcuts'
 
 // P3.4 adds 'Tool' category for cursor-mode shortcuts (Razor, Slip, Slide, etc.)
-const CATEGORIES = ['Transport', 'Edit', 'Timeline', 'View', 'Automation', 'Project', 'Tool'] as const
+// MK.4 adds 'Mask' category for selection/masking shortcuts (marquee, delete-outside, deselect).
+const CATEGORIES = ['Transport', 'Edit', 'Timeline', 'View', 'Automation', 'Project', 'Tool', 'Mask'] as const
 
 export default function ShortcutEditor() {
   const [bindings, setBindings] = useState<ShortcutBinding[]>([])
