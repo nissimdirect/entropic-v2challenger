@@ -54,21 +54,6 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'import_media',      keys: 'meta+i',         category: 'project',   label: 'Import Media',        context: 'normal' },
   { action: 'add_text_track',    keys: 'meta+t',         category: 'project',   label: 'Add Text Track',      context: 'normal' },
 
-  // --- Timeline (track header context-menu actions) ---
-  // PD.8: these actions appear in the track-header right-click menu; registering them here
-  // surfaces them in Preferences→Shortcuts so users can bind/rebind keys.
-  // No default key assigned — unbound actions render no shortcut hint in the menu.
-  { action: 'rename_track',    keys: 'f2',             category: 'timeline',  label: 'Rename Track',        context: 'normal' },
-  { action: 'duplicate_track', keys: 'meta+shift+t',   category: 'timeline',  label: 'Duplicate Track',     context: 'normal' },
-  { action: 'delete_track',    keys: 'meta+backspace',  category: 'timeline',  label: 'Delete Track',        context: 'normal' },
-  { action: 'move_track_up',   keys: 'meta+arrowup',   category: 'timeline',  label: 'Move Track Up',       context: 'normal' },
-  { action: 'move_track_down', keys: 'meta+arrowdown',  category: 'timeline',  label: 'Move Track Down',     context: 'normal' },
-
-  // --- Edit (device-chain / effects context-menu actions) ---
-  // PD.8: group_with_previous and ungroup appear in the DeviceChain right-click menu.
-  { action: 'group_with_previous', keys: 'meta+g',     category: 'edit',      label: 'Group with Previous', context: 'normal' },
-  { action: 'ungroup',             keys: 'meta+shift+g', category: 'edit',    label: 'Ungroup',             context: 'normal' },
-
   // --- P3.4: Tool mode (cursor mode) hotkeys — Ableton-parity, guarded against text inputs ---
   // Conflict-checked: all 12 keys are unique in this table.
   // Guard: shortcutRegistry.handleKeyEvent skips when target is INPUT/TEXTAREA/contenteditable.

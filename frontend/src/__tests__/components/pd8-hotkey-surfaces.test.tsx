@@ -33,6 +33,7 @@ const MOCK_TRACK: TrackType = {
   isSoloed: false,
   clips: [],
   effectChain: [],
+  automationLanes: [],
 }
 
 function resetRegistry() {
@@ -73,27 +74,17 @@ describe('PD.8 hotkey-discoverability — TrackHeader context menu', () => {
   /**
    * Hard oracle 2 (NEGATIVE): menu item without binding shows no shortcut text.
    *
-   * All track-header actions use DEFAULT_SHORTCUTS bindings. With defaults
-   * loaded and no override, the registry returns an empty string for actions
-   * that have no DEFAULT_SHORTCUTS entry (e.g. a hypothetical action).
-   * Verify no `.context-menu__shortcut` span renders, and the text
-   * "undefined" is NOT present anywhere in the menu.
-   *
-   * We reset to a clean slate (no overrides) so actions that DO have
-   * DEFAULT_SHORTCUTS entries still appear, but actions we clear via
-   * resetOverride will not render shortcuts.  To reliably test the
-   * "no binding" path we temporarily unload defaults for rename_track.
+   * Track-header actions (rename_track, etc.) have NO entry in
+   * DEFAULT_SHORTCUTS — this is intentional. PD.8 is a display-only packet:
+   * it does NOT introduce new key bindings. So in the clean default state
+   * (defaults loaded, no overrides), getEffectiveKey('rename_track') returns
+   * '' → prettyShortcut('') returns undefined → ContextMenu renders NO
+   * shortcut span. Verify that, and that the literal string "undefined"
+   * never appears in the menu.
    */
   it('menu item without binding shows no shortcut text', () => {
-    // Load defaults but then forcibly clear any binding for rename_track
-    // by resetting to defaults and then clearing the specific action.
-    // Since DEFAULT_SHORTCUTS now has rename_track with a key, we remove it
-    // by loading a filtered set that excludes rename_track.
-    const filteredDefaults = DEFAULT_SHORTCUTS.filter(
-      (b) => b.action !== 'rename_track',
-    )
-    shortcutRegistry.loadDefaults(filteredDefaults)
-
+    // Clean default state — no override set for rename_track, and it is not
+    // in DEFAULT_SHORTCUTS, so getEffectiveKey returns '' (no binding).
     const { container } = render(
       <TrackHeader track={MOCK_TRACK} isSelected={false} />,
     )
