@@ -25,6 +25,8 @@ from engine.pipeline import (
     get_effect_health,
     get_effect_stats,
 )
+from masking.routing import inject_device_masks, resolve_chain_mask
+from masking.stack import FrameCtx
 from memory.writer import SharedMemoryWriter
 from project.schema import V2_UNSUPPORTED_MESSAGE
 from security import (
@@ -591,12 +593,34 @@ class ZMQServer:
         if transform and isinstance(transform, dict):
             frame = self._apply_clip_transform(frame, transform, resolution)
 
+        # MK.3 universal mask routing (SPEC §4.2). Both scopes are additive and
+        # trust-boundary-guarded: bad/unknown refs skip + warn, never crash the
+        # frame. Absent mask_stack / refs → byte-identical legacy path.
+        #   frame_hw is the matte's required (H, W) — taken from the (possibly
+        #   transformed) frame so the matte always broadcasts against it.
+        frame_hw = (frame.shape[0], frame.shape[1])
+        mask_stack = message.get("mask_stack")
+        mask_ctx = FrameCtx(frame=frame, frame_index=frame_index, clip_id=str(path))
+        # Per-device: resolve each device's mask_ref → inject _mask param
+        # (consumes the orphaned container.py:58 seam, GT-6 — ZERO diff there).
+        chain = inject_device_masks(chain, mask_stack, mask_ctx, frame_hw)
+        # Per-chain: whole-chain wet/dry matte for apply_chain.
+        chain_mask = resolve_chain_mask(
+            message.get("chain_mask"), mask_stack, mask_ctx, frame_hw
+        )
+
         # Use pipeline engine — thread per-effect state across frames so
         # stateful effects (datamosh, reaction_mosh, frame_drop, etc.)
         # accumulate. Resets on path change or seek; see _get_render_states.
         states_in = self._get_render_states(path, frame_index)
         output, states_out = apply_chain(
-            frame, chain, project_seed, frame_index, resolution, states_in
+            frame,
+            chain,
+            project_seed,
+            frame_index,
+            resolution,
+            states_in,
+            chain_mask=chain_mask,
         )
         self._store_render_states(path, frame_index, states_out)
 

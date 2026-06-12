@@ -41,7 +41,7 @@ import { IDENTITY_TRANSFORM, getTrackCompositing } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
 import SnapGuides from './components/preview/SnapGuides'
 import type { WaveformPeaks } from './components/transport/useWaveform'
-import { serializeEffectChain, serializeTextConfig } from '../shared/ipc-serialize'
+import { serializeEffectChain, serializeMaskStack, serializeTextConfig } from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
@@ -1094,6 +1094,9 @@ function AppInner() {
           const singleTrackChain = chainOverride
             ? chainOverride
             : modulateChain(singleTrack.effectChain, frame)
+          // MK.3: ship the clip's matte stack so the backend can resolve each
+          // device's mask_ref. Omitted when the clip has no maskStack (additive).
+          const singleMaskStack = serializeMaskStack(singleClip.maskStack)
           res = await window.entropic.sendCommand({
             cmd: 'render_frame',
             path: singleAssetPath || activeAssetPath.current,
@@ -1104,6 +1107,7 @@ function AppInner() {
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
             ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
               ? { transform: ct } : {}),
+            ...(singleMaskStack ? { mask_stack: singleMaskStack } : {}),
           })
         }
 

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Asset, EffectInstance, Track } from '../../shared/types'
+import type { Asset, EffectInstance, MatteRef, Track } from '../../shared/types'
 import { COMPOSITE_EFFECT_ID } from '../../shared/types'
 import { randomUUID } from '../utils'
 import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
@@ -37,6 +37,8 @@ interface ProjectState {
   reorderEffect: (trackId: string, fromIndex: number, toIndex: number) => void
   updateParam: (trackId: string, effectId: string, paramName: string, value: number | string | boolean) => void
   setMix: (trackId: string, effectId: string, mix: number) => void
+  /** MK.3: assign (or clear, with null) a device's mask-routing ref. Undoable. */
+  setEffectMaskRef: (trackId: string, effectId: string, maskRef: MatteRef | null) => void
   toggleEffect: (trackId: string, effectId: string) => void
   selectEffect: (id: string | null) => void
   setCurrentFrame: (frame: number) => void
@@ -339,6 +341,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       ),
       () => setTrackChain(trackId, (prev) =>
         prev.map((e) => (e.id === effectId ? { ...e, mix: oldMix } : e)),
+      ),
+    )
+  },
+
+  setEffectMaskRef: (trackId, effectId, maskRef) => {
+    // MK.3: assign / clear a device's mask routing ref. Undoable so it round-
+    // trips with Cmd+Z like every other device edit. Guard: loud no-op on bad
+    // track (D8).
+    if (warnNoTrack(trackId)) return
+
+    // Snapshot PRE-undoable read from the track chain (CTO finding #3).
+    const chain = getTrackChain(trackId)
+    const effect = chain.find((e) => e.id === effectId)
+    if (!effect) return
+    const oldRef = effect.maskRef ?? null
+
+    undoable(
+      maskRef ? 'Assign device mask' : 'Clear device mask',
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) => (e.id === effectId ? { ...e, maskRef } : e)),
+      ),
+      () => setTrackChain(trackId, (prev) =>
+        prev.map((e) => (e.id === effectId ? { ...e, maskRef: oldRef } : e)),
       ),
     )
   },

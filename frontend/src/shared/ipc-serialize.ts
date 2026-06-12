@@ -10,25 +10,62 @@
  *
  * See: backend/src/engine/pipeline.py apply_chain() for the expected shape.
  */
-import type { EffectInstance, TextClipConfig } from './types'
+import type { EffectInstance, MatteNode, MatteRef, TextClipConfig } from './types'
+
+/**
+ * MK.3 — snake_case mask ref on the IPC wire. The backend resolves `node_id`
+ * against the layer's `mask_stack` and injects the matte as the container
+ * `_mask`. Omitted from the payload when the device has no maskRef (additive;
+ * absent → byte-identical unmasked render).
+ */
+export interface SerializedMatteRef {
+  node_id: string
+  invert: boolean
+}
 
 export interface SerializedEffectInstance {
   effect_id: string
   enabled: boolean
   params: Record<string, number | string | boolean>
   mix: number
+  /** MK.3 per-device mask routing. Present only when the device carries a maskRef. */
+  mask_ref?: SerializedMatteRef
 }
 
 /**
  * Serialize a single EffectInstance from frontend camelCase to backend snake_case.
  */
 export function serializeEffectInstance(effect: EffectInstance): SerializedEffectInstance {
-  return {
+  const out: SerializedEffectInstance = {
     effect_id: effect.effectId,
     enabled: effect.isEnabled,
     params: effect.parameters,
     mix: effect.mix,
   }
+  // MK.3: only attach mask_ref when a valid ref is present (omit when absent →
+  // legacy byte-identical path). nodeId must be a non-empty string.
+  if (effect.maskRef && typeof effect.maskRef.nodeId === 'string' && effect.maskRef.nodeId) {
+    out.mask_ref = { node_id: effect.maskRef.nodeId, invert: !!effect.maskRef.invert }
+  }
+  return out
+}
+
+/**
+ * MK.3 — serialize a clip's maskStack for the render payload (`mask_stack`).
+ * MatteNode fields already match the backend schema (`growShrink` etc. read
+ * verbatim by MatteNode.from_dict), so this is a structural pass-through that
+ * exists to (a) name the snake_case payload key and (b) drop the key entirely
+ * when the stack is empty/absent (additive — absent → unmasked legacy path).
+ * Returns undefined when there is nothing to send.
+ */
+export function serializeMaskStack(maskStack: MatteNode[] | undefined): MatteNode[] | undefined {
+  if (!maskStack || maskStack.length === 0) return undefined
+  return maskStack
+}
+
+/** Build a fresh MatteRef (used by the DeviceCard mask row). */
+export function makeMatteRef(nodeId: string, invert = false): MatteRef {
+  return { nodeId, invert }
 }
 
 /**

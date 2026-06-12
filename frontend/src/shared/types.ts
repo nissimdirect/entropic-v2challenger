@@ -281,6 +281,21 @@ export interface ABState {
   active: 'a' | 'b';
 }
 
+/**
+ * MK.3 — handle that routes a device (or chain) THROUGH a matte node from the
+ * clip's `maskStack`. The backend resolves `nodeId` against the clip's
+ * `mask_stack` payload and injects the resolved matte as the container `_mask`
+ * (per-device) — see SPEC §4.2. Optional + additive: absent → effect runs
+ * unmasked (byte-identical legacy behavior). `invert` flips the routing at the
+ * ref independently of the node's own invert.
+ */
+export interface MatteRef {
+  /** Id of a MatteNode in the clip's maskStack. ^[A-Za-z0-9_-]{1,64}$. */
+  nodeId: string;
+  /** Flip the matte (1−m) at the ref before routing. */
+  invert: boolean;
+}
+
 export interface EffectInstance {
   id: string;
   effectId: string;
@@ -290,6 +305,12 @@ export interface EffectInstance {
   modulations: Record<string, ModulationRoute[]>;
   mix: number;
   mask: MaskConfig | null;
+  /**
+   * MK.3 per-device mask routing. Optional, additive — absent = unmasked.
+   * Points at a node in the owning clip's `maskStack`. Rich assignment UI is
+   * MK.13's job; MK.3 ships a minimal "mask" row on DeviceCard.
+   */
+  maskRef?: MatteRef | null;
   abState?: ABState | null;
 }
 

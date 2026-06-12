@@ -359,6 +359,54 @@ describe('useProjectStore — per-track effect chain (Epic 01)', () => {
     expect(getChain(V2)[0].isEnabled).toBe(true) // unchanged
   })
 
+  // ── MK.3: device mask routing ─────────────────────────────────────────────
+  it('[MK.3] setEffectMaskRef assigns a mask ref to the device', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().setEffectMaskRef(V1, 'e1', { nodeId: 'rectL', invert: false })
+
+    expect(getChain(V1)[0].maskRef).toEqual({ nodeId: 'rectL', invert: false })
+  })
+
+  it('[MK.3] mask assignment is undoable', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useUndoStore.getState().clear()
+    expect(getChain(V1)[0].maskRef ?? null).toBeNull()
+
+    useProjectStore.getState().setEffectMaskRef(V1, 'e1', { nodeId: 'rectL', invert: true })
+    expect(getChain(V1)[0].maskRef).toEqual({ nodeId: 'rectL', invert: true })
+
+    useUndoStore.getState().undo()
+    expect(getChain(V1)[0].maskRef ?? null).toBeNull() // back to unmasked
+
+    useUndoStore.getState().redo()
+    expect(getChain(V1)[0].maskRef).toEqual({ nodeId: 'rectL', invert: true })
+  })
+
+  it('[MK.3] setEffectMaskRef(null) clears the ref (undoable)', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().setEffectMaskRef(V1, 'e1', { nodeId: 'rectL', invert: false })
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().setEffectMaskRef(V1, 'e1', null)
+    expect(getChain(V1)[0].maskRef ?? null).toBeNull()
+
+    useUndoStore.getState().undo()
+    expect(getChain(V1)[0].maskRef).toEqual({ nodeId: 'rectL', invert: false })
+  })
+
+  it('[MK.3] setEffectMaskRef on V1 leaves V2 intact', () => {
+    useProjectStore.getState().addEffect(V1, makeRealEffect('e1'))
+    useProjectStore.getState().addEffect(V2, makeRealEffect('dm'))
+    useUndoStore.getState().clear()
+
+    useProjectStore.getState().setEffectMaskRef(V1, 'e1', { nodeId: 'm1', invert: false })
+
+    expect(getChain(V1)[0].maskRef).toEqual({ nodeId: 'm1', invert: false })
+    expect(getChain(V2)[0].maskRef ?? null).toBeNull() // unchanged
+  })
+
   // ── Scenario: Per-track chain length limit ────────────────────────────────
   it('[effect-chain/Per-track chain length limit] V1 at max rejects extra, V2 still accepts', () => {
     for (let i = 0; i < LIMITS.MAX_EFFECTS_PER_CHAIN; i++) {
