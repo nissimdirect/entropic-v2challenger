@@ -22,6 +22,7 @@ try:
 except Exception:  # pragma: no cover — sd may not be importable in headless CI
     sd = None  # type: ignore[assignment]
 
+from audio import bake_log
 from audio.mixer import AudioMixer
 from audio.project_clock import ProjectClock
 from audio.streaming_decoder import PROJECT_CHANNELS, PROJECT_SAMPLE_RATE
@@ -60,6 +61,10 @@ class MixerPlayer:
         self._is_running = False
         self._underflow_count = 0
         self._callback_error_count = 0
+        # --- Bake-session logging state (PD.1, additive, fail-silent) ---
+        self._bake_ts_start: str | None = None
+        self._bake_error_baseline = 0
+        self._bake_device = ""
 
     # --- Properties ---
 
@@ -96,6 +101,7 @@ class MixerPlayer:
                 )
                 self._stream.start()
                 self._is_running = True
+                self._begin_bake_session()
                 return True
             except Exception as e:
                 log.warning("MixerPlayer.start: failed to open stream: %s", e)
@@ -112,6 +118,7 @@ class MixerPlayer:
                 except Exception as e:
                     log.warning("MixerPlayer.stop: %s", e)
             self._is_running = False
+            self._end_bake_session()
 
     def close(self) -> None:
         """Release the stream. Idempotent."""
@@ -123,6 +130,89 @@ class MixerPlayer:
                     log.warning("MixerPlayer.close: %s", e)
                 self._stream = None
             self._is_running = False
+
+    # --- Bake-session logging (PD.1) ---
+
+    def _begin_bake_session(self) -> None:
+        """Capture session start state for the bake log. Fail-silent.
+
+        Records ts_start, the device name, and the callback-error baseline so
+        ``_end_bake_session`` can emit the per-session delta. Any failure here is
+        swallowed — it must never break stream startup.
+        """
+        try:
+            self._bake_ts_start = bake_log.now_iso()
+            self._bake_error_baseline = self._callback_error_count
+            self._bake_device = self._query_device_name()
+        except Exception:  # pragma: no cover — defensive, must never raise
+            self._bake_ts_start = None
+
+    def _end_bake_session(self) -> None:
+        """Append one bake-log line for the just-ended session. Fail-silent.
+
+        No-op if no session was started (``stop()`` is idempotent and may be
+        called when not running). All I/O is swallowed by ``bake_log``.
+        """
+        try:
+            ts_start = self._bake_ts_start
+            if ts_start is None:
+                return
+            self._bake_ts_start = None  # consume so a double-stop logs once
+            ts_end = bake_log.now_iso()
+            duration_s = self._iso_delta_seconds(ts_start, ts_end)
+            errors = max(0, self._callback_error_count - self._bake_error_baseline)
+            bake_log.append_session(
+                ts_start=ts_start,
+                ts_end=ts_end,
+                duration_s=duration_s,
+                device=self._bake_device,
+                callback_errors=errors,
+                flag_on=self._read_flag_on(),
+            )
+        except Exception:  # pragma: no cover — defensive, must never raise
+            pass
+
+    @staticmethod
+    def _iso_delta_seconds(ts_start: str, ts_end: str) -> float:
+        try:
+            from datetime import datetime
+
+            return max(
+                0.0,
+                (
+                    datetime.fromisoformat(ts_end) - datetime.fromisoformat(ts_start)
+                ).total_seconds(),
+            )
+        except Exception:
+            return 0.0
+
+    @staticmethod
+    def _query_device_name() -> str:
+        """Best-effort sounddevice default-output device name. Fail-silent."""
+        try:
+            if sd is None:
+                return ""
+            default = sd.default.device
+            idx = default[1] if isinstance(default, (list, tuple)) else default
+            info = sd.query_devices(idx)
+            return str(info.get("name", "")) if isinstance(info, dict) else str(info)
+        except Exception:
+            return ""
+
+    @staticmethod
+    def _read_flag_on() -> bool:
+        """Read EXPERIMENTAL_AUDIO_TRACKS for the bake-log line. Fail-silent.
+
+        MixerPlayer only runs on the multi-track (flag-on) path, but reading the
+        env directly keeps the log honest if that ever changes.
+        """
+        try:
+            import os
+
+            val = os.environ.get("EXPERIMENTAL_AUDIO_TRACKS", "").strip().lower()
+            return val in ("true", "1", "yes", "on")
+        except Exception:
+            return True
 
     # --- Observability ---
 
