@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import type { EffectInstance, EffectInfo, ParamDef } from '../../../shared/types'
+import type { EffectInstance, EffectInfo, ParamDef, MatteNode, MatteRef } from '../../../shared/types'
 import Knob from '../common/Knob'
 import ParamChoice from '../effects/ParamChoice'
 import ParamToggle from '../effects/ParamToggle'
@@ -19,6 +19,10 @@ interface DeviceCardProps {
   onRemove: () => void
   onUpdateParam: (effectId: string, paramName: string, value: number | string | boolean) => void
   onSetMix: (effectId: string, mix: number) => void
+  /** MK.3: matte nodes assignable as this device's mask (from the active clip). */
+  maskNodes?: MatteNode[]
+  /** MK.3: assign (or clear, with null) this device's mask-routing ref. */
+  onSetMaskRef?: (effectId: string, maskRef: MatteRef | null) => void
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
@@ -32,6 +36,8 @@ export default function DeviceCard({
   onRemove,
   onUpdateParam,
   onSetMix,
+  maskNodes,
+  onSetMaskRef,
   onContextMenu,
 }: DeviceCardProps) {
   const handleKnobChange = useCallback(
@@ -64,6 +70,25 @@ export default function DeviceCard({
     },
     [effect.id, onSetMix],
   )
+
+  // MK.3: assign / clear the device's mask node from the dropdown.
+  const handleMaskNodeChange = useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const nodeId = e.target.value
+      if (!nodeId) {
+        onSetMaskRef?.(effect.id, null) // "None" → clear routing
+      } else {
+        onSetMaskRef?.(effect.id, { nodeId, invert: effect.maskRef?.invert ?? false })
+      }
+    },
+    [effect.id, effect.maskRef, onSetMaskRef],
+  )
+
+  // MK.3: flip the routing at the ref (keeps the assigned node).
+  const handleMaskInvertToggle = useCallback(() => {
+    if (!effect.maskRef) return
+    onSetMaskRef?.(effect.id, { nodeId: effect.maskRef.nodeId, invert: !effect.maskRef.invert })
+  }, [effect.id, effect.maskRef, onSetMaskRef])
 
   if (!effectInfo) {
     return (
@@ -185,6 +210,42 @@ export default function DeviceCard({
         />
         <span className="device-card__mix-value">{mixPercent}%</span>
       </div>
+
+      {/* MK.3: minimal mask-routing row. Shown when the clip has matte nodes to
+          assign, OR a maskRef is already set (so it remains editable even if the
+          source clip changed). Rich UI is MK.13's job. */}
+      {(((maskNodes?.length ?? 0) > 0) || effect.maskRef) && (
+        <div className="device-card__mask" data-testid="device-mask">
+          <span className="device-card__mask-label">Mask</span>
+          <select
+            className="device-card__mask-select"
+            data-testid="device-mask-select"
+            value={effect.maskRef?.nodeId ?? ''}
+            onChange={handleMaskNodeChange}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <option value="">None</option>
+            {(maskNodes ?? []).map((n) => (
+              <option key={n.id} value={n.id}>
+                {n.id} ({n.kind})
+              </option>
+            ))}
+            {/* Keep a stale assigned node visible even if it left the clip's stack. */}
+            {effect.maskRef && !(maskNodes ?? []).some((n) => n.id === effect.maskRef!.nodeId) && (
+              <option value={effect.maskRef.nodeId}>{effect.maskRef.nodeId} (missing)</option>
+            )}
+          </select>
+          <button
+            className={`device-card__mask-invert${effect.maskRef?.invert ? ' device-card__mask-invert--on' : ''}`}
+            data-testid="device-mask-invert"
+            disabled={!effect.maskRef}
+            onClick={(e) => { e.stopPropagation(); handleMaskInvertToggle() }}
+            title="Invert mask routing"
+          >
+            INV
+          </button>
+        </div>
+      )}
     </div>
   )
 }

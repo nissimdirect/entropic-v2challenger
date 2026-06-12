@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId } from '../../stores/project'
+import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
@@ -12,7 +13,10 @@ import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
 import { EFFECT_DRAG_TYPE, CREATRIX_NONCE_TYPE, SESSION_NONCE } from '../effects/EffectBrowser'
 import { randomUUID } from '../../utils'
-import type { EffectInstance } from '../../../shared/types'
+import type { EffectInstance, MatteNode, MatteRef } from '../../../shared/types'
+
+// Stable empty array for the no-mask-nodes case (avoid re-render churn).
+const EMPTY_MASK_NODES: MatteNode[] = []
 
 interface DeviceChainProps {
   modulatedValues?: Record<string, Record<string, number>>
@@ -178,6 +182,27 @@ export default function DeviceChain({
     const trackId = getActiveTrackId()
     if (!trackId) return
     useProjectStore.getState().setMix(trackId, effectId, mix)
+  }, [])
+
+  // MK.3: mask nodes available to assign on this track's devices. Derived from
+  // the active clip on the active track at the playhead. Reactive so adding a
+  // matte node (MK.4+) immediately populates the DeviceCard mask row.
+  const playheadTime = useTimelineStore((s) => s.playheadTime)
+  const maskNodes = useTimelineStore((s) => {
+    const tid = activeTrackId
+    if (!tid) return EMPTY_MASK_NODES
+    const track = s.tracks.find((t) => t.id === tid)
+    if (!track) return EMPTY_MASK_NODES
+    const clip = track.clips.find(
+      (c) => playheadTime >= c.position && playheadTime < c.position + c.duration,
+    )
+    return clip?.maskStack && clip.maskStack.length > 0 ? clip.maskStack : EMPTY_MASK_NODES
+  })
+
+  const handleSetMaskRef = useCallback((effectId: string, maskRef: MatteRef | null) => {
+    const trackId = getActiveTrackId()
+    if (!trackId) return
+    useProjectStore.getState().setEffectMaskRef(trackId, effectId, maskRef)
   }, [])
 
   const handleContextMenu = useCallback((e: React.MouseEvent, effectId: string, index: number) => {
@@ -372,6 +397,8 @@ export default function DeviceChain({
                 onRemove={() => handleRemove(effect.id)}
                 onUpdateParam={handleUpdateParam}
                 onSetMix={handleSetMix}
+                maskNodes={maskNodes}
+                onSetMaskRef={handleSetMaskRef}
                 onContextMenu={(e) => handleContextMenu(e, effect.id, index)}
               />
             </div>

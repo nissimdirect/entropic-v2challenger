@@ -116,6 +116,7 @@ def apply_chain(
     states: dict[str, dict | None] | None = None,
     freeze_cut: int | None = None,
     freeze_frame: np.ndarray | None = None,
+    chain_mask: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, dict | None]]:
     """Apply an ordered chain of effects to a frame.
 
@@ -129,6 +130,20 @@ def apply_chain(
         states:       Per-effect state from previous frame, keyed by effect_id.
         freeze_cut:   If set, skip effects 0..freeze_cut and use freeze_frame instead.
         freeze_frame: Cached RGBA frame to use when freeze_cut is active.
+        chain_mask:   MK.3 per-chain wet/dry matte, float32 (H, W) in [0, 1].
+                      When set, the WHOLE chain is wet/dry-blended against the
+                      chain's input snapshot: ``out = in·(1−m) + chain(in)·m``.
+                      This is the universal-wrapper routing scope and is NOT
+                      equivalent to per-device ``_mask`` injection on every stage
+                      (a 3-effect chain differs; see
+                      tests/test_mask_routing.py::test_chain_mask_whole_chain_wet_dry_not_per_device).
+                      Degenerate: all-ones → byte-identical to no chain_mask;
+                      all-zeros → byte-identical to the dry input snapshot.
+                      Interaction with freeze_cut: the snapshot is taken AFTER the
+                      freeze short-circuit resolves ``output`` (so a frozen prefix
+                      is the dry reference the live suffix blends against). When
+                      freeze_cut skips the entire chain, the snapshot equals the
+                      freeze_frame and the blend is the identity (wet == dry).
 
     Returns:
         Tuple of (output_frame, new_states).
@@ -167,6 +182,12 @@ def apply_chain(
             if eid and eid in states:
                 new_states[eid] = states[eid]
         chain = chain[freeze_cut + 1 :]
+
+    # MK.3 per-chain mask: snapshot the chain's dry input AFTER the freeze
+    # short-circuit resolves `output`. The whole chain runs wet, then blends
+    # against this snapshot once (out = in·(1−m) + chain(in)·m). Snapshot only
+    # when a chain_mask is actually present (zero cost on the legacy path).
+    chain_dry_snapshot = output.copy() if chain_mask is not None else None
 
     for i, effect_instance in enumerate(chain):
         # Skip disabled effects
@@ -256,5 +277,28 @@ def apply_chain(
             )
 
         new_states[effect_id] = state_out
+
+    # MK.3 per-chain wet/dry blend (universal wrapper). Applied once, after the
+    # whole chain has run, against the dry input snapshot. Degenerate masks are
+    # no-ops by construction: all-ones → output unchanged; all-zeros → dry
+    # snapshot. Broadcast (H, W) → (H, W, 1) over RGBA. A shape mismatch here
+    # (defensive — the resolver resizes to frame shape before this point) falls
+    # back to the unblended output rather than crashing the frame.
+    if chain_mask is not None and chain_dry_snapshot is not None:
+        try:
+            m = np.clip(chain_mask.astype(np.float32), 0.0, 1.0)
+            if m.ndim == 2:
+                m = m[:, :, np.newaxis]
+            output = np.clip(
+                chain_dry_snapshot.astype(np.float32) * (1.0 - m)
+                + output.astype(np.float32) * m,
+                0,
+                255,
+            ).astype(np.uint8)
+        except Exception as e:
+            logger.warning(
+                "chain_mask blend failed (%s) — returning unblended chain output",
+                type(e).__name__,
+            )
 
     return output, new_states

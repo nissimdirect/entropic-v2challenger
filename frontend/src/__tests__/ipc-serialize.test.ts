@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import type { EffectInstance, TextClipConfig } from '../shared/types'
+import type { EffectInstance, MatteNode, TextClipConfig } from '../shared/types'
 import {
   serializeEffectInstance,
   serializeEffectChain,
+  serializeMaskStack,
   serializeTextConfig,
   type SerializedEffectInstance,
 } from '../shared/ipc-serialize'
@@ -145,6 +146,53 @@ describe('IPC contract: field names match backend expectations', () => {
     expect(serialized).not.toHaveProperty('effectId')
     expect(serialized).not.toHaveProperty('isEnabled')
     expect(serialized).not.toHaveProperty('parameters')
+  })
+})
+
+describe('MK.3 — mask_ref serialization (snake_case on the wire)', () => {
+  it('assigning device mask sends mask_ref in render payload', () => {
+    const effect = makeEffect({
+      maskRef: { nodeId: 'rectL', invert: false },
+    })
+    const serialized = serializeEffectInstance(effect)
+    expect(serialized.mask_ref).toEqual({ node_id: 'rectL', invert: false })
+    // snake_case on the wire, never camelCase.
+    expect(serialized.mask_ref).not.toHaveProperty('nodeId')
+  })
+
+  it('serializes the invert flag through to the wire', () => {
+    const effect = makeEffect({ maskRef: { nodeId: 'm1', invert: true } })
+    expect(serializeEffectInstance(effect).mask_ref).toEqual({ node_id: 'm1', invert: true })
+  })
+
+  it('omits mask_ref entirely when the device has no maskRef (additive/legacy)', () => {
+    const serialized = serializeEffectInstance(makeEffect())
+    expect(serialized).not.toHaveProperty('mask_ref')
+    // The legacy key set is preserved byte-for-byte when no mask is assigned.
+    expect(Object.keys(serialized).sort()).toEqual(['effect_id', 'enabled', 'mix', 'params'])
+  })
+
+  it('omits mask_ref when maskRef is null or has an empty nodeId', () => {
+    expect(serializeEffectInstance(makeEffect({ maskRef: null }))).not.toHaveProperty('mask_ref')
+    expect(
+      serializeEffectInstance(makeEffect({ maskRef: { nodeId: '', invert: false } })),
+    ).not.toHaveProperty('mask_ref')
+  })
+
+  it('serializeMaskStack passes nodes through and drops empty/absent stacks', () => {
+    const node: MatteNode = {
+      id: 'rectL',
+      kind: 'rect',
+      params: { x: 0, y: 0, w: 0.5, h: 1 },
+      op: 'add',
+      invert: false,
+      feather: 0,
+      growShrink: 0,
+      enabled: true,
+    }
+    expect(serializeMaskStack([node])).toEqual([node])
+    expect(serializeMaskStack([])).toBeUndefined()
+    expect(serializeMaskStack(undefined)).toBeUndefined()
   })
 })
 
