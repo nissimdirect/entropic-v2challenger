@@ -202,8 +202,15 @@ export interface MatteNode {
   /** Unique node identity. Must match ^[A-Za-z0-9_-]{1,64}$. */
   id: string;
   kind: MatteNodeKind;
-  /** Kind-specific parameters (e.g. {x,y,w,h} for rect; {vertices:[]} for polygon). */
-  params: Record<string, number | string>;
+  /**
+   * Kind-specific parameters.
+   * - rect:    { x, y, w, h } — numbers
+   * - ellipse: { cx, cy, rx, ry } — numbers
+   * - polygon: { vertices: [x0,y0, x1,y1, ...] } — flat number[] or [[x,y],...] list
+   *   (MK.5: vertices stored as number[] flat array; backend _rasterize_polygon
+   *    receives the list as-is through JSON serialization)
+   */
+  params: Record<string, number | string | number[] | number[][]>;
   op: MatteOp;
   invert: boolean;
   /** Gaussian feather radius in px. Clamped [0, 100] at the persistence boundary. */
