@@ -208,7 +208,10 @@ body[data-disable-f-0512-30] .device-card {
   text-overflow: ellipsis;
 }
 
+/* PUX.5 — Device bypass toggle: 22×14 painted, ≥24×24 effective via
+ * ::before padding hit-extender (gap = 5px top/bottom, 1px sides). */
 .device-card__toggle {
+  position: relative;
   width: 22px;
   height: 14px;
   background: var(--cx-action);
@@ -220,6 +223,12 @@ body[data-disable-f-0512-30] .device-card {
   font-family: 'JetBrains Mono', monospace;
   cursor: pointer;
   flex-shrink: 0;
+}
+
+.device-card__toggle::before {
+  content: '';
+  position: absolute;
+  inset: -5px -1px;
 }
 
 .device-card__toggle--off {
