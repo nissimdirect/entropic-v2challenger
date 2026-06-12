@@ -1,11 +1,13 @@
 import { create } from 'zustand'
-import type { Asset, EffectInstance } from '../../shared/types'
+import type { Asset, EffectInstance, Track } from '../../shared/types'
+import { COMPOSITE_EFFECT_ID } from '../../shared/types'
 import { randomUUID } from '../utils'
 import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
-import { undoable } from './undo'
+import { undoable, useUndoStore, setCommitValidator } from './undo'
 import { useToastStore } from './toast'
 import { useTimelineStore } from './timeline'
 import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
+import { validateCompositeChain, rejectCompositeOnAudio } from './compositeValidator'
 
 // Stable empty array for the no-selection case (avoid re-render churn). (design D4)
 const EMPTY: EffectInstance[] = []
@@ -102,6 +104,27 @@ function getTrackChain(trackId: string): EffectInstance[] {
   return useTimelineStore.getState().tracks.find((t) => t.id === trackId)?.effectChain ?? []
 }
 
+/** Helper: read a track (full record) from the timeline store. */
+function getTrack(trackId: string): Track | undefined {
+  return useTimelineStore.getState().tracks.find((t) => t.id === trackId)
+}
+
+/**
+ * P2.2a: Run an effect-chain mutation inside an undo transaction whose COMMIT is
+ * gated by the terminal-composite validator. The mutation's `undoable()` entries
+ * buffer into the transaction; on commit, the validator inspects EVERY track chain
+ * (see the registered commit validator below). A violation aborts (rolls back) the
+ * whole transaction and toasts — so addEffect / reorderEffect can never leave an
+ * invalid terminal-composite shape. Intermediate states inside the transaction are
+ * never validated (validation runs only at commit).
+ */
+function withCompositeValidation(_trackId: string, description: string, mutate: () => void): void {
+  const undo = useUndoStore.getState()
+  undo.beginTransaction(description)
+  mutate()
+  undo.commitTransaction()
+}
+
 /** Helper: write a track's effectChain via the timeline store primitive. */
 function setTrackChain(trackId: string, updater: (chain: EffectInstance[]) => EffectInstance[]): void {
   useTimelineStore.getState().updateTrackEffectChain(trackId, updater)
@@ -146,6 +169,17 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     // Guard: no-op if track doesn't exist (D8 loud no-op)
     if (warnNoTrack(trackId)) return
 
+    // P2.2a (R3): reject a Composite added to an audio track up front (audio has
+    // no visual compositing). Toast + bail before mutating.
+    const track = getTrack(trackId)
+    if (track) {
+      const audioReject = rejectCompositeOnAudio(track.type, effect)
+      if (audioReject) {
+        useToastStore.getState().addToast({ level: 'warning', message: audioReject, source: 'composite-validator' })
+        return
+      }
+    }
+
     const chain = getTrackChain(trackId)
     if (chain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) {
       useToastStore.getState().addToast({ level: 'warning', message: `Effect chain limit (${LIMITS.MAX_EFFECTS_PER_CHAIN}) reached`, source: 'project' })
@@ -172,14 +206,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       }
     }
 
-    undoable(
-      'Add effect',
-      () => setTrackChain(trackId, (prev) => [...prev, effect]),
-      () => {
-        setTrackChain(trackId, (prev) => prev.filter((e) => e.id !== effect.id))
-        if (get().selectedEffectId === effect.id) set({ selectedEffectId: null })
-      },
-    )
+    // P2.2a: validate at transaction commit. If adding `effect` produces an
+    // invalid terminal-composite shape (mid-chain composite, second composite),
+    // the transaction aborts and rolls back.
+    withCompositeValidation(trackId, 'Add effect', () => {
+      undoable(
+        'Add effect',
+        () => setTrackChain(trackId, (prev) => [...prev, effect]),
+        () => {
+          setTrackChain(trackId, (prev) => prev.filter((e) => e.id !== effect.id))
+          if (get().selectedEffectId === effect.id) set({ selectedEffectId: null })
+        },
+      )
+    })
   },
 
   removeEffect: (trackId, id) => {
@@ -232,24 +271,29 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (fromIndex === toIndex) return
     const oldOrder = chain.map((e) => e.id)
 
-    undoable(
-      'Reorder effects',
-      () => {
-        setTrackChain(trackId, (prev) => {
-          const current = [...prev]
-          const [moved] = current.splice(fromIndex, 1)
-          current.splice(toIndex, 0, moved)
-          return current
-        })
-      },
-      () => {
-        setTrackChain(trackId, (prev) => {
-          return oldOrder
-            .map((id) => prev.find((e) => e.id === id))
-            .filter((e): e is EffectInstance => e !== undefined)
-        })
-      },
-    )
+    // P2.2a: validate at transaction commit. A reorder that moves the composite
+    // off the terminal position (mid-chain), or any composite on an audio track,
+    // aborts and rolls back. (R2 / R3 enforced at commit on the resulting chain.)
+    withCompositeValidation(trackId, 'Reorder effects', () => {
+      undoable(
+        'Reorder effects',
+        () => {
+          setTrackChain(trackId, (prev) => {
+            const current = [...prev]
+            const [moved] = current.splice(fromIndex, 1)
+            current.splice(toIndex, 0, moved)
+            return current
+          })
+        },
+        () => {
+          setTrackChain(trackId, (prev) => {
+            return oldOrder
+              .map((id) => prev.find((e) => e.id === id))
+              .filter((e): e is EffectInstance => e !== undefined)
+          })
+        },
+      )
+    })
   },
 
   updateParam: (trackId, effectId, paramName, value) => {
@@ -449,6 +493,18 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     const chain = getTrackChain(trackId)
     const validIds = effectIds.filter((id) => chain.some((e) => e.id === id))
 
+    // P2.2a (R4): a terminal composite must never live inside a device group.
+    // Reject the grouping if any selected id is the chain's composite effect.
+    const compositeIds = new Set(chain.filter((e) => e.effectId === COMPOSITE_EFFECT_ID).map((e) => e.id))
+    if (validIds.some((id) => compositeIds.has(id))) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: 'Composite effect cannot be placed inside a device group',
+        source: 'composite-validator',
+      })
+      return null
+    }
+
     if (validIds.length < 2) return null
 
     const groupId = randomUUID()
@@ -496,6 +552,21 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     undoable('Ungroup effects', forward, inverse)
   },
 }))
+
+// P2.2a: register the transaction-commit validator. Runs AFTER buffered mutations
+// are applied (so it sees the final chains); returns the FIRST error string found
+// across all tracks to abort and roll back the transaction. Validating every track
+// (not just one) means any committed transaction that leaves an invalid terminal-
+// composite shape anywhere is rejected, while intermediate in-transaction states
+// are never inspected.
+setCommitValidator((): string | null => {
+  const deviceGroups = useProjectStore.getState().deviceGroups
+  for (const track of useTimelineStore.getState().tracks) {
+    const error = validateCompositeChain(track, deviceGroups)
+    if (error) return error
+  }
+  return null
+})
 
 // ─── Epic 02: Active-track resolution (design D1) ────────────────────────────
 

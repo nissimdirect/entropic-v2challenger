@@ -62,8 +62,12 @@ export interface Track {
   color: string;
   isMuted: boolean;
   isSoloed: boolean;
-  opacity: number;
-  blendMode: BlendMode;
+  // P2.2a (slice 3c, Decision D1 clean break): `opacity` and `blendMode` were
+  // removed from Track. Compositing now lives in a TERMINAL `CompositeEffect`
+  // at the end of `effectChain` (see CompositeEffect / getTerminalComposite below).
+  // A track with no terminal composite renders fully opaque, blend mode 'normal'
+  // (COMPOSITE_DEFAULTS). v2 projects that carried these track-level fields are
+  // rejected at load by the backend schema validator ("v2 projects unsupported").
   clips: Clip[];
   effectChain: EffectInstance[];
   automationLanes: AutomationLane[];
@@ -486,6 +490,97 @@ export function flattenChain(chain: ChainItem[]): EffectInstance[] {
   return chain.flatMap(item =>
     isDeviceGroup(item) ? item.children : [item]
   );
+}
+
+// --- Composite as terminal effect (P2.2a, slice 3c) ---
+
+/**
+ * P2.2a (Decision D1 clean break): track compositing (`opacity` + blend `mode`)
+ * is no longer a Track field. It is expressed as a single TERMINAL effect at the
+ * END of a track's `effectChain`. Rules enforced by the timeline-store validator
+ * at transaction commit:
+ *   - at most ONE composite per chain;
+ *   - it MUST be the last item (mid-chain composite is rejected);
+ *   - never on an audio track (rejected in addEffect AND reorderEffect);
+ *   - never inside a DeviceGroup.
+ *
+ * Ship the 9 existing blend modes (Decision D4 / BlendMode union above).
+ */
+export const COMPOSITE_EFFECT_ID = 'composite';
+
+/** Default compositing for a track with no terminal composite. */
+export const COMPOSITE_DEFAULTS: { opacity: number; mode: BlendMode } = {
+  opacity: 1,
+  mode: 'normal',
+};
+
+/**
+ * A terminal composite is an EffectInstance whose `effectId === 'composite'` and
+ * whose `parameters` carry the compositing params `{ opacity, mode }`. Modelled as
+ * a narrowed EffectInstance so it lives in the existing `effectChain: EffectInstance[]`
+ * with no disruption to other chain entries (UE.7 / P2.1 fields untouched).
+ */
+export interface CompositeEffect extends EffectInstance {
+  effectId: typeof COMPOSITE_EFFECT_ID;
+  params: { opacity: number; mode: BlendMode };
+}
+
+/** The 9 shipped blend modes (Decision D4) as a runtime Set for validation. */
+export const VALID_BLEND_MODES: ReadonlySet<BlendMode> = new Set<BlendMode>([
+  'normal',
+  'add',
+  'multiply',
+  'screen',
+  'overlay',
+  'difference',
+  'exclusion',
+  'darken',
+  'lighten',
+]);
+
+/** Type guard: is this chain entry the terminal composite effect? */
+export function isCompositeEffect(e: EffectInstance): e is CompositeEffect {
+  return e.effectId === COMPOSITE_EFFECT_ID;
+}
+
+/**
+ * Read the terminal composite from a track's effect chain, or `null` when the
+ * track has no composite (renders with COMPOSITE_DEFAULTS). Only the LAST entry
+ * is considered the terminal composite — a composite anywhere else is invalid
+ * (the validator rejects it) and is NOT treated as the terminal one here.
+ */
+export function getTerminalComposite(chain: EffectInstance[]): CompositeEffect | null {
+  if (chain.length === 0) return null;
+  const last = chain[chain.length - 1];
+  return isCompositeEffect(last) ? last : null;
+}
+
+/**
+ * Resolve a track's effective compositing `{ opacity, mode }` from its chain
+ * terminal, falling back to COMPOSITE_DEFAULTS. Reads `params` when present
+ * (canonical), else falls back to the generic `parameters` bag, then defaults —
+ * every value passes a finite/validity guard (numeric trust boundary).
+ */
+export function getTrackCompositing(chain: EffectInstance[]): { opacity: number; mode: BlendMode } {
+  const composite = getTerminalComposite(chain);
+  if (!composite) return { ...COMPOSITE_DEFAULTS };
+
+  const rawOpacity =
+    composite.params?.opacity ??
+    (typeof composite.parameters?.opacity === 'number' ? composite.parameters.opacity : undefined);
+  const opacity =
+    typeof rawOpacity === 'number' && Number.isFinite(rawOpacity)
+      ? Math.max(0, Math.min(1, rawOpacity))
+      : COMPOSITE_DEFAULTS.opacity;
+
+  const rawMode =
+    composite.params?.mode ??
+    (typeof composite.parameters?.mode === 'string' ? composite.parameters.mode : undefined);
+  const mode = VALID_BLEND_MODES.has(rawMode as BlendMode)
+    ? (rawMode as BlendMode)
+    : COMPOSITE_DEFAULTS.mode;
+
+  return { opacity, mode };
 }
 
 // --- Presets (Phase 10) ---

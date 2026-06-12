@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, BlendMode, TextClipConfig, ClipTransform, AudioClip, EffectInstance } from '../../shared/types'
+import type { Track, Clip, Marker, TextClipConfig, ClipTransform, AudioClip, EffectInstance } from '../../shared/types'
 import { AUDIO_LIMITS, clampGainDb, clampNonNegSec } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
@@ -43,12 +43,12 @@ interface TimelineState {
   addTrack: (name: string, color: string, type?: 'video' | 'text' | 'performance') => string | undefined
   removeTrack: (id: string) => void
   reorderTrack: (fromIdx: number, toIdx: number) => void
-  setTrackOpacity: (id: string, opacity: number) => void
+  // P2.2a (slice 3c): setTrackOpacity / setTrackBlendMode removed — compositing
+  // is now a terminal CompositeEffect on the chain, edited via the effect's params.
   /** Functional update of one track's effectChain. Pure store write (NOT undoable here —
    * callers in project.ts wrap with `undoable` so cross-store undo stays atomic).
    * Unknown trackId → no-op (map matches nothing). (design D2) */
   updateTrackEffectChain: (trackId: string, updater: (chain: EffectInstance[]) => EffectInstance[]) => void
-  setTrackBlendMode: (id: string, mode: BlendMode) => void
   toggleMute: (id: string) => void
   toggleSolo: (id: string) => void
   renameTrack: (id: string, name: string) => void
@@ -154,8 +154,6 @@ function makeEmptyTrack(name: string, color: string, id?: string, type: 'video' 
     color,
     isMuted: false,
     isSoloed: false,
-    opacity: 1.0,
-    blendMode: 'normal',
     clips: [],
     effectChain: [],
     automationLanes: [],
@@ -452,41 +450,19 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     )
   },
 
-  setTrackOpacity: (id, opacity) => {
-    if (!Number.isFinite(opacity)) return
-    const track = get().tracks.find((t) => t.id === id)
-    if (!track) return
-    const oldOpacity = track.opacity
-    const clamped = Math.max(0, Math.min(1, opacity))
-
-    undoable(
-      `Set track opacity`,
-      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, opacity: clamped } : t)) }),
-      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, opacity: oldOpacity } : t)) }),
-    )
-  },
-
   // Epic 01: per-track effect chain primitive. Plain set (not undoable) —
   // callers in project.ts wrap with `undoable` so cross-store undo is atomic.
   // Unknown trackId → no-op. (design D2)
+  //
+  // P2.2a (slice 3c): setTrackOpacity / setTrackBlendMode removed. Track-level
+  // opacity/blend is now a terminal CompositeEffect on this chain; edit it via the
+  // effect's params (updateParam) instead of dedicated track setters.
   updateTrackEffectChain: (trackId, updater) =>
     set((state) => ({
       tracks: state.tracks.map((t) =>
         t.id === trackId ? { ...t, effectChain: updater(t.effectChain) } : t,
       ),
     })),
-
-  setTrackBlendMode: (id, mode) => {
-    const track = get().tracks.find((t) => t.id === id)
-    if (!track) return
-    const oldMode = track.blendMode
-
-    undoable(
-      `Set blend mode`,
-      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, blendMode: mode } : t)) }),
-      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, blendMode: oldMode } : t)) }),
-    )
-  },
 
   toggleMute: (id) => {
     const track = get().tracks.find((t) => t.id === id)
