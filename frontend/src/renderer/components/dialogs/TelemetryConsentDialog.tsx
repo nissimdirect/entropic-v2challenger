@@ -1,16 +1,31 @@
+import { useRef } from 'react'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
+
 interface TelemetryConsentDialogProps {
   isOpen: boolean
   onDecision: (consent: boolean) => void
 }
 
 export default function TelemetryConsentDialog({ isOpen, onDecision }: TelemetryConsentDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  // Escape = "No Thanks" (conservative safe path — no crash reporting).
+  useModalBehavior(dialogRef, () => onDecision(false))
+
   if (!isOpen) return null
 
   return (
     <div className="consent-dialog__overlay">
-      <div className="consent-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="consent-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="consent-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="consent-dialog__header">
-          <span>Help Improve Creatrix</span>
+          <span id="consent-dialog-title">Help Improve Creatrix</span>
         </div>
         <div className="consent-dialog__body">
           <p className="consent-dialog__text">

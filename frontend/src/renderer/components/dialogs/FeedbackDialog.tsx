@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 interface FeedbackDialogProps {
   isOpen: boolean
@@ -8,6 +9,9 @@ interface FeedbackDialogProps {
 export default function FeedbackDialog({ isOpen, onClose }: FeedbackDialogProps) {
   const [text, setText] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const dialogRef = useRef<HTMLDivElement>(null)
+
+  useModalBehavior(dialogRef, onClose)
 
   if (!isOpen) return null
 
@@ -35,8 +39,17 @@ export default function FeedbackDialog({ isOpen, onClose }: FeedbackDialogProps)
   if (submitted) {
     return (
       <div className="feedback-dialog__overlay">
-        <div className="feedback-dialog" onClick={(e) => e.stopPropagation()}>
-          <p className="feedback-dialog__thanks">Thank you for your feedback!</p>
+        <div
+          ref={dialogRef}
+          className="feedback-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="feedback-dialog-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p id="feedback-dialog-title" className="feedback-dialog__thanks">
+            Thank you for your feedback!
+          </p>
         </div>
       </div>
     )
@@ -44,9 +57,16 @@ export default function FeedbackDialog({ isOpen, onClose }: FeedbackDialogProps)
 
   return (
     <div className="feedback-dialog__overlay" onClick={handleClose}>
-      <div className="feedback-dialog" onClick={(e) => e.stopPropagation()}>
+      <div
+        ref={dialogRef}
+        className="feedback-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="feedback-dialog-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="feedback-dialog__header">
-          <span>Report a Bug</span>
+          <span id="feedback-dialog-title">Report a Bug</span>
           <button className="feedback-dialog__close" onClick={handleClose}>
             &times;
           </button>
