@@ -17,8 +17,9 @@ const mockEntropic = {
 }
 ;(globalThis as any).window = { entropic: mockEntropic }
 
-import { validateProjectStructure, loadProject } from '../../renderer/project-persistence'
+import { validateProjectStructure, loadProject, hydrateStores } from '../../renderer/project-persistence'
 import { useToastStore } from '../../renderer/stores/toast'
+import { useTimelineStore } from '../../renderer/stores/timeline'
 
 describe('validateProjectStructure', () => {
   it('accepts a normal v3.0.0 project shape', () => {
@@ -38,6 +39,17 @@ describe('validateProjectStructure', () => {
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
     expect(result.reason).toBe('v2 projects unsupported — start a new project')
+  })
+
+  // Red-team RT-2: "v2.0.0" (non-digit head) made parseInt return NaN and the
+  // version gate was SKIPPED — a forged version string carried a pre-v3 shape
+  // past the clean break. The head must be strictly numeric.
+  it('rejects a forged non-digit version prefix instead of skipping the gate', () => {
+    for (const forged of ['v2.0.0', 'x3.0.0', 'A2.0.0']) {
+      const result = validateProjectStructure({ version: forged, id: 'abc', timeline: { tracks: [] }, assets: {} })
+      expect(result.valid, `forged version ${forged} must be rejected`).toBe(false)
+      expect(result.reason).toMatch(/Invalid project version format/)
+    }
   })
 
   it('rejects nesting depth above 32', () => {
@@ -161,10 +173,14 @@ describe('validateProjectStructure', () => {
     expect(validateProjectStructure(undefined).valid).toBe(true)
   })
 
-  it('handles non-numeric version major silently', () => {
-    // Defensive: a malformed version like "abc.def.xyz" should not crash
+  it('rejects a non-numeric version major (was silently accepted pre-RT-2)', () => {
+    // Red-team RT-2 changed this contract: a malformed version like
+    // "abc.def.xyz" used to skip the version gate (the forged-"v2.0.0"
+    // evasion). It now rejects loudly — still no crash.
     const data = { version: 'abc.def.xyz', id: 'x' }
-    expect(validateProjectStructure(data).valid).toBe(true)
+    const result = validateProjectStructure(data)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toMatch(/Invalid project version format/)
   })
 
   it('handles version with leading zeros / numeric tail', () => {
@@ -225,5 +241,65 @@ describe('loadProject — hostile fixture rejection', () => {
     expect(ok).toBe(false)
     const toasts = useToastStore.getState().toasts
     expect(toasts[0].message).toMatch(/v99/)
+  })
+})
+
+// Red-team RT-1: hydrateStores writes chains via the raw store primitive,
+// bypassing the transaction-commit validator — load-time placement guards
+// must drop/normalize composites that violate R1/R2/R3 from hostile files.
+describe('hydrateStores — load-time composite placement guard (RT-1)', () => {
+  const compositeEntry = (id: string) => ({
+    id, effectId: 'composite', isEnabled: true, isFrozen: false,
+    parameters: { opacity: 0.5, mode: 'add' }, modulations: {}, mix: 1, mask: null,
+  })
+  const normalEffect = (id: string) => ({
+    id, effectId: 'pixel_sort', isEnabled: true, isFrozen: false,
+    parameters: {}, modulations: {}, mix: 1, mask: null,
+  })
+
+  function baseProject(tracks: unknown[]) {
+    return {
+      version: '3.0.0', id: 'p1', created: 1, modified: 1, author: '',
+      settings: { resolution: [1920, 1080], frameRate: 30, audioSampleRate: 44100, masterVolume: 1, seed: 42 },
+      assets: {}, timeline: { duration: 0, tracks, markers: [], loopRegion: null },
+    } as Parameters<typeof hydrateStores>[0]
+  }
+
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+    useToastStore.setState({ toasts: [] })
+  })
+
+  it('drops a composite found on an audio track in the saved file, with a toast', () => {
+    hydrateStores(baseProject([{
+      id: 't-audio', type: 'audio', name: 'A1', color: '#fff', clips: [],
+      effectChain: [compositeEntry('c1')],
+    }]))
+    const tracks = useTimelineStore.getState().tracks
+    const audio = tracks.find((t) => t.type === 'audio')
+    expect(audio?.effectChain ?? []).toHaveLength(0)
+    expect(useToastStore.getState().toasts.some((t) => /audio track/i.test(t.message))).toBe(true)
+  })
+
+  it('keeps only the terminal composite when the saved file has duplicates', () => {
+    hydrateStores(baseProject([{
+      id: 't-video', type: 'video', name: 'V1', color: '#fff', clips: [],
+      effectChain: [compositeEntry('c1'), normalEffect('e1'), compositeEntry('c2')],
+    }]))
+    const video = useTimelineStore.getState().tracks.find((t) => t.type === 'video')
+    const composites = (video?.effectChain ?? []).filter((e) => e.effectId === 'composite')
+    expect(composites).toHaveLength(1)
+    expect(composites[0].id).toBe('c2')
+    expect(video?.effectChain[video.effectChain.length - 1].effectId).toBe('composite')
+  })
+
+  it('moves a single mid-chain composite to the terminal position on load', () => {
+    hydrateStores(baseProject([{
+      id: 't-video', type: 'video', name: 'V1', color: '#fff', clips: [],
+      effectChain: [compositeEntry('c1'), normalEffect('e1')],
+    }]))
+    const video = useTimelineStore.getState().tracks.find((t) => t.type === 'video')
+    expect(video?.effectChain).toHaveLength(2)
+    expect(video?.effectChain[1].effectId).toBe('composite')
   })
 })

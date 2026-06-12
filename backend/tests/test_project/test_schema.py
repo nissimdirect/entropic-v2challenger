@@ -383,3 +383,32 @@ def test_v3_project_with_terminal_composite_validates():
         }
     ]
     assert validate(p) == []
+
+
+def test_forged_version_prefix_rejected_not_skipped():
+    """Red-team RT-2: "v2.0.0" must REJECT loudly, not skip the version gate.
+
+    int("v2") used to raise inside _major_version -> None -> gate skipped ->
+    a pre-v3 shape rode a forged version string past the clean break.
+    """
+    import copy
+    from project import schema
+
+    base = _load_v2_legacy_dict() if "_load_v2_legacy_dict" in dir() else None
+    for forged in ("v2.0.0", "x3.0.0", "A2.0.0", " v2.0.0"):
+        project = {"version": forged, "id": "p", "created": 1, "modified": 1,
+                   "settings": {}, "assets": {}, "timeline": {"duration": 0, "tracks": [], "markers": [], "loopRegion": None}}
+        errors = schema.validate(copy.deepcopy(project))
+        assert any("Invalid version format" in e for e in errors), (
+            f"forged version {forged!r} produced no version error: {errors}"
+        )
+
+
+def test_numeric_version_strings_still_parse():
+    """Sanity: digit-headed versions keep their existing semantics."""
+    from project import schema
+    assert schema._major_version("3.0.0") == 3
+    assert schema._major_version("2.0.0") == 2
+    assert schema._major_version("10.1") == 10
+    assert schema._major_version("v2.0.0") is None
+    assert schema._major_version("3a.0.0") is None

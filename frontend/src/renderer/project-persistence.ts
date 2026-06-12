@@ -4,7 +4,7 @@
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
 import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode } from '../shared/types'
-import { normalizeTransform } from '../shared/types'
+import { normalizeTransform, COMPOSITE_EFFECT_ID } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
 import { useUndoStore } from './stores/undo'
@@ -80,7 +80,14 @@ export function validateProjectStructure(data: unknown): StructureCheckResult {
       if (obj.version.length > MAX_VERSION_STRING_LENGTH) {
         return { valid: false, reason: `version field exceeds ${MAX_VERSION_STRING_LENGTH} chars` }
       }
-      const major = Number.parseInt(obj.version.split('.')[0], 10)
+      // Red-team RT-2: a non-digit-prefixed version ("v2.0.0") made parseInt
+      // return NaN and SKIPPED the version gate entirely — clean-break evasion.
+      // The version head must be strictly numeric; anything else is invalid.
+      const versionHead = obj.version.split('.')[0]
+      if (!/^\d+$/.test(versionHead)) {
+        return { valid: false, reason: `Invalid project version format: ${obj.version.slice(0, 16)}` }
+      }
+      const major = Number.parseInt(versionHead, 10)
       if (Number.isFinite(major) && major > PROJECT_VERSION_MAJOR) {
         return {
           valid: false,
@@ -482,8 +489,28 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
       })
       return acc
     }, [])
-    const savedChain = sanitized.slice(0, LIMITS.MAX_EFFECTS_PER_CHAIN)
-    if (savedChain.length < sanitized.length) {
+    // P2.2a load-time composite placement guard (red-team RT-1): hydration writes
+    // chains via the raw store primitive, BYPASSING the transaction-commit
+    // validator — so the placement rules (no composite on audio tracks, at most
+    // one composite, composite terminal) must also be enforced HERE, at the
+    // disk trust boundary. Drop/normalize with a toast, never crash.
+    let guarded = sanitized
+    if (isAudio && guarded.some((e) => e.effectId === COMPOSITE_EFFECT_ID)) {
+      guarded = guarded.filter((e) => e.effectId !== COMPOSITE_EFFECT_ID)
+      useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}": composite effect on an audio track removed on load`, source: 'project-load' })
+    } else {
+      const composites = guarded.filter((e) => e.effectId === COMPOSITE_EFFECT_ID)
+      if (composites.length > 1) {
+        const terminal = composites[composites.length - 1]
+        guarded = [...guarded.filter((e) => e.effectId !== COMPOSITE_EFFECT_ID), terminal]
+        useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}": duplicate composite effects — kept the terminal one`, source: 'project-load' })
+      } else if (composites.length === 1 && guarded[guarded.length - 1].effectId !== COMPOSITE_EFFECT_ID) {
+        guarded = [...guarded.filter((e) => e.effectId !== COMPOSITE_EFFECT_ID), composites[0]]
+        useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}": composite effect moved to the end of the chain on load`, source: 'project-load' })
+      }
+    }
+    const savedChain = guarded.slice(0, LIMITS.MAX_EFFECTS_PER_CHAIN)
+    if (savedChain.length < guarded.length) {
       useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}" effect chain truncated to ${LIMITS.MAX_EFFECTS_PER_CHAIN} on load`, source: 'project-load' })
     }
     if (savedChain.length) {

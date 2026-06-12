@@ -137,6 +137,11 @@ def _major_version(version: object) -> int | None:
     if not isinstance(version, str):
         return None
     head = version.split(".", 1)[0].strip()
+    # Red-team RT-2: int("v2") raised and the gate was SKIPPED — a crafted
+    # "v2.0.0" version string evaded the v2 clean-break rejection. The head
+    # must be strictly ASCII digits; anything else is unparseable.
+    if not head or any(c not in "0123456789" for c in head):
+        return None
     try:
         return int(head)
     except ValueError:
@@ -168,6 +173,11 @@ def validate(project: dict) -> list[str]:
     major = _major_version(version)
     if major is not None and major < MIN_SUPPORTED_MAJOR:
         errors.append(V2_UNSUPPORTED_MESSAGE)
+    # Red-team RT-2 (second half): a version KEY that exists but cannot be
+    # parsed ("v2.0.0", "x3.0.0") must REJECT — skipping the gate let forged
+    # version strings carry pre-v3 shapes past the clean break.
+    if major is None and isinstance(project.get("version"), str):
+        errors.append(f"Invalid version format: {project['version'][:16]!r}")
         return errors
 
     missing = REQUIRED_KEYS - set(project.keys())
