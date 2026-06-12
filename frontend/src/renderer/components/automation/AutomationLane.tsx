@@ -6,6 +6,7 @@
 import { useCallback, useRef } from 'react'
 import type { AutomationLane as LaneType, AutomationPoint } from '../../../shared/types'
 import { useAutomationStore } from '../../stores/automation'
+import { isTriggerLane } from '../../utils/automation-evaluate'
 import AutomationNode from './AutomationNode'
 import CurveSegment from './CurveSegment'
 
@@ -73,6 +74,7 @@ function TriggerBlocks({
 
 export default function AutomationLane({ lane, trackId, zoom, scrollX, height }: AutomationLaneProps) {
   const svgRef = useRef<SVGSVGElement>(null)
+  const trigger = isTriggerLane(lane)
 
   if (!lane.isVisible) return null
 
@@ -120,7 +122,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
       const y = e.clientY - rect.top
       const time = xToTime(x)
 
-      if (lane.isTrigger) {
+      if (trigger) {
         // For trigger lanes, click toggles between 0 and 1 at the clicked time
         const value = 1.0
         useAutomationStore.getState().addPoint(trackId, lane.id, time, value)
@@ -129,7 +131,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
         useAutomationStore.getState().addPoint(trackId, lane.id, time, value)
       }
     },
-    [trackId, lane.id, xToTime, yToValue, lane.isTrigger],
+    [trackId, lane.id, xToTime, yToValue, trigger],
   )
 
   const points = lane.points
@@ -137,14 +139,14 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
   return (
     <svg
       ref={svgRef}
-      className={`auto-lane${lane.isTrigger ? ' auto-lane--trigger' : ''}`}
+      className={`auto-lane${trigger ? ' auto-lane--trigger' : ''}`}
       width="100%"
       height={height}
       onClick={handleSvgClick}
       style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'all' }}
-      data-testid={lane.isTrigger ? 'trigger-lane' : 'automation-lane'}
+      data-testid={trigger ? 'trigger-lane' : 'automation-lane'}
     >
-      {lane.isTrigger ? (
+      {trigger ? (
         /* Trigger lanes: colored rectangular blocks */
         <TriggerBlocks
           points={points}

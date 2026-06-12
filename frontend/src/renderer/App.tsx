@@ -1862,7 +1862,10 @@ function AppInner() {
         input_path: activeAssetPath.current,
         output_path: settings.outputPath,
         chain: serializeEffectChain(activeExportChain),
-        project_seed: 42,
+        // PR-B Commit-3: use the real project seed (was hardcoded 42) so export is
+        // deterministic AND matches preview — stateful/seeded effects (datamosh,
+        // frame_drop, noise) now render identically in export and the live canvas.
+        project_seed: projectSeed,
         ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
         settings: {
           codec: settings.codec,

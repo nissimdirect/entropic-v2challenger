@@ -3,7 +3,7 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode } from '../shared/types'
 import { normalizeTransform } from '../shared/types'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
@@ -20,6 +20,12 @@ import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
 import { LIMITS } from '../shared/limits'
+
+// B1 mount: blend modes accepted on a persisted sampler (mirrors SamplerDevice).
+const VALID_BLEND_MODES = new Set<BlendMode>([
+  'normal', 'add', 'multiply', 'screen', 'overlay',
+  'difference', 'exclusion', 'darken', 'lighten',
+])
 
 const GLITCH_FILTERS = [{ name: 'Creatrix Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
@@ -159,6 +165,9 @@ function serializeProject(): string {
 
   const midiStore = useMIDIStore.getState()
 
+  // G10 resolution: B2's track-keyed `instruments` supersedes B1's global
+  // single `instrument` (#156). Legacy saves with `instrument` are dropped
+  // with a toast in hydrateStores — clean-break policy, never a throw.
   const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
@@ -299,6 +308,15 @@ function validateProject(data: unknown): data is Project {
     if (midi.padMidiNotes !== undefined && (typeof midi.padMidiNotes !== 'object' || midi.padMidiNotes === null)) return false
   }
 
+  // B1 mount: optional sampler instrument. Shape-check only — numeric ranges are
+  // clamped at hydrate (deserialization trust boundary). Absent = older project.
+  if (obj.instrument !== undefined) {
+    if (typeof obj.instrument !== 'object' || obj.instrument === null) return false
+    const ri = obj.instrument as Record<string, unknown>
+    if (ri.type !== 'sampler') return false
+    if (typeof ri.clipId !== 'string') return false
+  }
+
   return true
 }
 
@@ -330,6 +348,18 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Hydrate assets
   for (const asset of Object.values(project.assets)) {
     projectStore.addAsset(asset as Asset)
+  }
+
+  // G10 (B1→B2 seam): legacy saves carry a GLOBAL single `instrument` (#156's
+  // shape). B2's store is track-keyed and a global sampler has no track to bind
+  // to, so per clean-break policy it is DROPPED with a toast — never a throw.
+  const rawInst = (project as { instrument?: unknown }).instrument
+  if (rawInst && typeof rawInst === 'object') {
+    useToastStore.getState().addToast({
+      level: 'warning',
+      source: 'legacy-instrument',
+      message: 'Legacy single-sampler project: sampler dropped — re-add it to a Performance track',
+    })
   }
 
   // Epic 05 D2: masterEffectChain hydrate stub removed. Per-track effectChains
@@ -488,7 +518,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
         startFrame: Math.round(clampFinite(Number(s.startFrame), 0, 1_000_000, 0)),
         speed: clampFinite(Number(s.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
         opacity: clampFinite(Number(s.opacity), 0, 1, 1),
-        blendMode: s.blendMode,
+        blendMode: VALID_BLEND_MODES.has(s.blendMode as BlendMode) ? s.blendMode : 'normal',
       })
     }
   }
@@ -617,6 +647,9 @@ export function newProject(): void {
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
+  // B2: clear ALL per-track samplers (the old no-arg removeSampler() became a
+  // silent no-op when the store went track-keyed — samplers must not survive New Project)
+  useInstrumentsStore.setState({ instruments: {} })
 }
 
 export function startAutosave(): void {

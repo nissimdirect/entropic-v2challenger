@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useAutomationStore } from '../../renderer/stores/automation'
+import { isTriggerLane } from '../../renderer/utils/automation-evaluate'
 import { useUndoStore } from '../../renderer/stores/undo'
 
 function resetStores() {
@@ -19,8 +20,8 @@ describe('Trigger Lanes', () => {
     expect(laneId).toBeTruthy()
     const lanes = useAutomationStore.getState().getLanesForTrack('track-1')
     expect(lanes).toHaveLength(1)
-    expect(lanes[0].isTrigger).toBe(true)
-    expect(lanes[0].triggerMode).toBe('gate')
+    expect(isTriggerLane(lanes[0])).toBe(true)
+    expect(lanes[0].mode).toBe('gate')
     expect(lanes[0].triggerADSR).toEqual({ attack: 0, decay: 0, sustain: 1, release: 0 })
     expect(lanes[0].paramPath).toBe('fx-1.intensity')
   })
@@ -32,7 +33,7 @@ describe('Trigger Lanes', () => {
     )
     const lane = useAutomationStore.getState().getLanesForTrack('track-1')[0]
     expect(lane.triggerADSR).toEqual(adsr)
-    expect(lane.triggerMode).toBe('toggle')
+    expect(lane.mode).toBe('gate')  // 'toggle' now maps to gate
   })
 
   it('addTriggerLane blocks duplicate param mapping (exclusive ownership)', () => {
@@ -50,8 +51,17 @@ describe('Trigger Lanes', () => {
   it('regular addLane creates non-trigger lane', () => {
     useAutomationStore.getState().addLane('track-1', 'fx-1', 'amount', '#4ade80')
     const lane = useAutomationStore.getState().getLanesForTrack('track-1')[0]
-    expect(lane.isTrigger).toBe(false)
-    expect(lane.triggerMode).toBeUndefined()
+    expect(isTriggerLane(lane)).toBe(false)
+    expect(lane.mode).toBe('smooth')
+  })
+
+  it("addTriggerLane 'one-shot' maps to mode 'oneShot'", () => {
+    useAutomationStore.getState().addTriggerLane(
+      'track-1', 'fx-1', 'amount', '#ef4444', 'one-shot',
+    )
+    const lane = useAutomationStore.getState().getLanesForTrack('track-1')[0]
+    expect(lane.mode).toBe('oneShot')
+    expect(isTriggerLane(lane)).toBe(true)
   })
 
   it('addTriggerLane is undoable', () => {
@@ -65,7 +75,7 @@ describe('Trigger Lanes', () => {
     expect(useAutomationStore.getState().getAllLanes()).toHaveLength(1)
   })
 
-  it('loadAutomation defaults isTrigger to false for old data', () => {
+  it('loadAutomation defaults mode to smooth for old data', () => {
     // Simulate loading old project data without isTrigger field
     useAutomationStore.getState().loadAutomation({
       'track-1': [
@@ -75,11 +85,11 @@ describe('Trigger Lanes', () => {
           color: '#4ade80',
           isVisible: true,
           points: [{ time: 0, value: 0.5, curve: 0 }],
-        } as any, // missing isTrigger
+        } as any, // missing mode
       ],
     })
     const lane = useAutomationStore.getState().getLanesForTrack('track-1')[0]
-    expect(lane.isTrigger).toBe(false)
+    expect(isTriggerLane(lane)).toBe(false)
   })
 
   // --- 15B: Trigger Recording ---
