@@ -35,16 +35,22 @@ let nextEventIndex = 0;
 
 /** Push an event to the buffer. Auto-assigns eventIndex. Auto-prunes old events. */
 export function pushEvent(event: Omit<CapturedEvent, 'eventIndex'>): void {
-  // Time-based prune (uses timestamp for buffer hygiene — this is the ONLY valid use)
+  // Time-based prune from the FRONT (timestamp = the ONLY valid use of this
+  // field). Events are appended in non-decreasing performance.now() order, so
+  // expired ones cluster at the head — splice them once instead of filtering
+  // the whole array on every push. The old O(n)-per-push filter made a MIDI
+  // flood O(n²): the 10k-cap test timed out on slower CI runners.
   const cutoff = performance.now() - MAX_AGE_MS;
-  buffer = buffer.filter((e) => e.timestamp >= cutoff);
+  let expired = 0;
+  while (expired < buffer.length && buffer[expired].timestamp < cutoff) expired++;
+  if (expired > 0) buffer.splice(0, expired);
 
   const full: CapturedEvent = { ...event, eventIndex: nextEventIndex++ };
   buffer.push(full);
 
   // Cap-based prune (defense against MIDI flood)
   if (buffer.length > MAX_EVENTS) {
-    buffer = buffer.slice(buffer.length - MAX_EVENTS);
+    buffer.splice(0, buffer.length - MAX_EVENTS);
   }
 }
 

@@ -115,6 +115,19 @@ describe('retro-capture buffer', () => {
     expect(buf[buf.length - 1].frameIndex).toBe(10_000);
   });
 
+  it('cap-based prune stays linear under a 20k flood (no O(n^2) regression)', () => {
+    const spy = vi.spyOn(performance, 'now');
+    spy.mockReturnValue(100_000);
+    const t0 = Date.now();
+    for (let i = 0; i < 20_000; i++) pushEvent(makeEvent({ timestamp: 100_000, frameIndex: i }));
+    const elapsed = Date.now() - t0;
+    expect(getBufferLength()).toBe(10_000);
+    // Front-prune is O(1) when nothing expires; a full-array filter-per-push
+    // (the old O(n^2) bug) blew past the vitest 5s timeout on CI. 20k pushes
+    // must complete in well under a second on any runner.
+    expect(elapsed).toBeLessThan(2000);
+  });
+
   it('captureToAutomation returns empty for empty buffer', () => {
     const result = captureToAutomation(30, 10);
     expect(result).toEqual({});
