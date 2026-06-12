@@ -181,6 +181,8 @@ export interface Clip {
   isEnabled?: boolean;   // default true (undefined = enabled)
   reversed?: boolean;    // default false
   missing?: boolean;     // true when the referenced asset path is no longer resolvable (UE.5)
+  name?: string;         // UE.7: optional user-set label (≤ LIMITS.MAX_CLIP_NAME_LENGTH chars)
+  color?: string;        // UE.7: optional clip body tint (one of the 8 DESIGN-SPEC §8 swatches)
 }
 
 // --- Text ---
