@@ -884,21 +884,24 @@ function AppInner() {
               (srcTime * (clip.speed || 1) + clip.inPoint) * activeFps,
             ))
             const ct = clip.transform
-            // P2.2a (slice 3c): compositing now lives in the terminal CompositeEffect
-            // on the track's chain, not Track.opacity/blendMode. Read via the helper.
-            // (Full render rewire — pipeline/compositor consumption — is P2.2c.)
-            const { opacity: trackOpacity, mode: trackBlendMode } = getTrackCompositing(track.effectChain)
+            // P2.2c (slice 3c): track compositing (opacity + blend mode) now lives
+            // in the TERMINAL CompositeEffect on the track's chain — the backend
+            // compositor reads it from there (Decision D3/D4). We no longer send the
+            // v2-era top-level `opacity`/`blend_mode` fields (the backend rejects a
+            // video layer that carries them without a terminal composite). Per-clip
+            // opacity is a DISTINCT property and is forwarded as `clip_opacity`,
+            // which the compositor multiplies onto the resolved track opacity.
             const clipOpacity = clip.opacity ?? 1
             return {
               layer_type: 'video',
               asset_path: assetPath,
               frame_index: clipFrame,
               // D4 (Epic 02): per-track chain with per-track modulation. Drop `?? chain` global fallback.
+              // The chain includes the terminal composite, carrying track opacity/mode.
               chain: chainOverride
                 ? serializeEffectChain(chainOverride)
                 : serializeEffectChain(modulateChain(track.effectChain, frame)),
-              opacity: trackOpacity * clipOpacity,
-              blend_mode: trackBlendMode,
+              clip_opacity: clipOpacity,
               ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
                 ? { transform: ct } : {}),
             }
@@ -906,28 +909,29 @@ function AppInner() {
 
           const textLayers: Record<string, unknown>[] = activeTextClips.map((clip) => {
             const ct = clip.transform
+            // P2.2c: text layers composite in normal mode; their effective opacity
+            // (clip × textConfig) is a clip-level fade forwarded as `clip_opacity`.
             return {
               layer_type: 'text',
               text_config: serializeTextConfig(clip.textConfig!),
               frame_index: Math.max(0, Math.round((currentTime - clip.position) * 30)),
               fps: 30,
               chain: [],
-              opacity: (clip.opacity ?? 1) * (clip.textConfig!.opacity ?? 1),
-              blend_mode: 'normal',
+              clip_opacity: (clip.opacity ?? 1) * (clip.textConfig!.opacity ?? 1),
               ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV)
                 ? { transform: ct } : {}),
             }
           })
 
           // D4 (Epic 02): no-clip fallback layer — empty chain (no global chain read).
+          // P2.2c: no terminal composite (defaults apply); fully opaque via clip_opacity.
           if (videoLayers.length === 0 && activeAssetPath.current) {
             videoLayers.push({
               layer_type: 'video',
               asset_path: activeAssetPath.current,
               frame_index: frame,
               chain: [],
-              opacity: 1.0,
-              blend_mode: 'normal',
+              clip_opacity: 1.0,
             })
           }
 

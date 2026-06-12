@@ -47,6 +47,12 @@ ZERO_DEFAULT_EFFECT_IDS = {
     "util.levels",
     "util.hsl_adjust",
     "util.color_balance",
+    # P2.2c: `composite` is the TERMINAL compositing primitive, not a frame
+    # transform. Its `apply` is an identity no-op by design (Decision D3 — the
+    # compositor applies the blend; apply_chain skips this entry). It is exercised
+    # by the compositor render tests (test_composite_render_terminal.py), not the
+    # generic per-effect frame-mutation sweeps.
+    "composite",
 }
 
 # Effects whose default behavior depends on properties of the INPUT

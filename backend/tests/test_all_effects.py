@@ -140,6 +140,11 @@ class TestAllEffectsVisibleChange:
         "util.curves",
         "util.hsl_adjust",
         "util.color_balance",
+        # P2.2c: `composite` is the terminal compositing primitive — its `apply`
+        # is an identity no-op by design (Decision D3: the compositor applies the
+        # blend, apply_chain skips this entry). Frame mutation is asserted in
+        # test_composite_render_terminal.py, not the generic visible-change sweep.
+        "composite",
         "fx.chroma_key",
         "fx.luma_key",
         # Phase 8: sidechain effects need _sidechain_frame to produce visible change

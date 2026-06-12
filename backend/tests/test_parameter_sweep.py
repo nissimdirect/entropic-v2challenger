@@ -19,6 +19,12 @@ def _sweep_cases():
     """Generate (effect_id, param_name, low_value, high_value) test cases."""
     cases = []
     for eid, info in _REGISTRY.items():
+        # P2.2c: `composite` is the terminal compositing primitive with an identity
+        # no-op `apply` (Decision D3 — the compositor applies the blend, apply_chain
+        # skips the entry). No param sweep can change a frame it never transforms;
+        # its opacity/mode are exercised by test_composite_render_terminal.py.
+        if eid == "composite":
+            continue
         for pname, pspec in info["params"].items():
             ptype = pspec.get("type")
             if ptype in ("float", "int"):
