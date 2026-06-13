@@ -26,6 +26,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
+import { routeRackTrigger } from '../../stores/performanceFreeze'
 import { useToastStore } from '../../stores/toast'
 import { clampFinite } from '../../../shared/numeric'
 import {
@@ -141,6 +142,10 @@ export default function RackDevice({ trackId }: { trackId: string }) {
     // Empty path (top level) → '' → bare key → byte-identical to B4. A stale path
     // resolves to null → fall back to a flat trigger (defensive, no throw).
     const branchPath = rackEditPathToBranchPath(rack, editPath) ?? ''
+    // B10.1 — Freeze↔voice FSM: if THIS track is mid-freeze (FREEZING), the
+    // trigger is QUEUED by frameIndex (not applied), then drained on resolve.
+    // routeRackTrigger returns true iff it enqueued; otherwise apply as today.
+    if (routeRackTrigger(trackId, padId, frame, branchPath, group)) return
     triggerRackPad(trackId, padId, frame, siblings, group, branchPath)
   }
 
