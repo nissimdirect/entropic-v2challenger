@@ -34,6 +34,7 @@ import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
+import { resolveRackMacros } from './components/instruments/resolveRackMacros'
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
@@ -1115,7 +1116,14 @@ function AppInner() {
         // (no-rack regression-safe).
         const rackState = instrState.racks
         const rackLayers = Array.from(perfTrackIds).flatMap((trackId) => {
-          const rack = rackState[trackId]
+          const rawRack = rackState[trackId]
+          if (!rawRack) return []
+          // B4.2: resolve the rack's macros into the pads' instrument params
+          // BEFORE building layers — one-to-many fan-out, written into scrub/
+          // speed/opacity. No-macros / all-at-0 → rawRack returned unchanged
+          // (regression-safe). Fan-out caps are the backend trust boundary
+          // (security.validate_rack_macros); this is the pure local resolver.
+          const rack = resolveRackMacros(rawRack)
           if (!rack) return []
           const eventsByPad: Record<string, typeof perfState.trackEvents[string]> = {}
           for (const pad of rack.pads) {

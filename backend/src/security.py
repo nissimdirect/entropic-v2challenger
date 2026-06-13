@@ -87,6 +87,19 @@ MAX_VOICE_ID_LENGTH = 128
 MAX_AUTOMATION_FRAMES = MAX_FRAME_COUNT  # one entry per source frame, at most
 MAX_AUTOMATION_OVERRIDES_PER_FRAME = 256
 
+# B4.2: Sample Rack macro fan-out caps — the trust boundary of the macro slice.
+# A macro maps ONE control to MANY param destinations (routes); without caps a
+# hand-edited / hostile project could declare an unbounded modulation graph
+# (10k routes × 8 macros) and explode the per-frame resolve. These bound the
+# fan-out, enforced (enforce-before-resolve) in ``validate_rack_macros`` on load
+# and at the IPC/render boundary BEFORE ``resolve_rack_macros`` ever runs.
+#   - MAX_MACROS_PER_RACK : §B4 says 8 macros/rack; reject more.
+#   - MAX_MODROUTES_PER_MACRO : one macro may fan out to at most this many routes.
+#   - MAX_TOTAL_EDGES : the sum of all routes across all macros in a rack.
+MAX_MACROS_PER_RACK = 8
+MAX_MODROUTES_PER_MACRO = 32
+MAX_TOTAL_EDGES = 256
+
 # P2.3: the operator types the signal engine understands. An export payload
 # carrying an unknown operator type is a hand-edited / hostile project and is
 # REJECTED at export start (the engine would silently evaluate it to 0.0; the
@@ -579,6 +592,75 @@ def validate_export_modulation(
                     ]
 
     return errors
+
+
+def validate_rack_macros(rack: object) -> list[str]:
+    """Validate a Sample Rack's macro fan-out at the trust boundary (B4.2).
+
+    Trust boundary: a rack config arrives as an IPC payload / loaded project and
+    drives ``resolve_rack_macros`` (one macro → many param routes, written into
+    pad params BEFORE render). Without a cap a hand-edited / hostile project
+    could declare an unbounded modulation graph. This enforces the fan-out caps
+    BEFORE the resolver runs (enforce-before-resolve), so an over-cap rack fails
+    LOUDLY with a structured error instead of building an unbounded graph.
+
+    Mirrors ``validate_export_modulation`` / the ``MAX_OPERATORS`` check: returns
+    a list of error strings (empty == valid), first offender only, fail-closed.
+
+    Rejects (first offender only):
+    - ``rack`` not a dict (when present)
+    - ``macros`` present but not a list
+    - more than ``MAX_MACROS_PER_RACK`` macros
+    - a macro that is not a dict
+    - a macro whose ``routes`` is present but not a list
+    - a macro with more than ``MAX_MODROUTES_PER_MACRO`` routes (per-macro cap)
+    - total routes across all macros exceeding ``MAX_TOTAL_EDGES`` (rack cap)
+
+    A ``None`` rack, a rack with no ``macros`` field, or empty macros pass (a
+    no-macro rack renders byte-identical to B4.1). Per-route structural sanity
+    (unknown targetPath, NaN depth) is the RESOLVER's job (skip/clamp, never
+    raise) — this function ONLY enforces the COUNT caps that are the trust
+    boundary; it does not reject on a malformed individual route.
+    """
+    if rack is None:
+        return []
+    if not isinstance(rack, dict):
+        return ["rack must be an object"]
+
+    macros = rack.get("macros")
+    if macros is None:
+        return []
+    if not isinstance(macros, list):
+        return ["rack.macros must be a list"]
+    if len(macros) > MAX_MACROS_PER_RACK:
+        return [
+            f"rack has {len(macros)} macros, exceeds maximum "
+            f"{MAX_MACROS_PER_RACK} (MAX_MACROS_PER_RACK)"
+        ]
+
+    total_edges = 0
+    for i, macro in enumerate(macros):
+        if not isinstance(macro, dict):
+            return [f"macro[{i}] must be a dict (got {type(macro).__name__})"]
+        routes = macro.get("routes")
+        if routes is None:
+            continue
+        if not isinstance(routes, list):
+            return [f"macro[{i}].routes must be a list"]
+        if len(routes) > MAX_MODROUTES_PER_MACRO:
+            return [
+                f"macro[{i}] has {len(routes)} routes, exceeds maximum "
+                f"{MAX_MODROUTES_PER_MACRO} (MAX_MODROUTES_PER_MACRO)"
+            ]
+        total_edges += len(routes)
+
+    if total_edges > MAX_TOTAL_EDGES:
+        return [
+            f"rack has {total_edges} total macro routes, exceeds maximum "
+            f"{MAX_TOTAL_EDGES} (MAX_TOTAL_EDGES)"
+        ]
+
+    return []
 
 
 def _is_finite_int_in_range(x: object, lo: int, hi: int) -> bool:
