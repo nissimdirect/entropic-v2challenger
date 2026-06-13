@@ -13,7 +13,9 @@ Named tests (HARD ORACLE — all must be GREEN):
   test_export_prores4444_carries_alpha               (GT-4: exported file has alpha plane)
   test_export_rgb_codec_with_transparent_frame_flattens_not_crashes
   test_keyed_clip_prores4444_roundtrip_preserves_alpha  (THE headline GT-4 integration proof)
-  test_webm_vp9_alpha_roundtrip_or_skipped_with_reason   (conditional §14-3)
+  test_alpha_codec_only_offered_when_alpha_actually_survives  (HONEST gate invariant)
+  test_prores4444_alpha_probe_passes_and_is_offered     (gate sanity anchor)
+  test_webm_vp9_alpha_roundtrip_or_excluded_with_reason  (conditional §14-3, honestly gated)
 """
 
 from __future__ import annotations
@@ -505,56 +507,144 @@ def test_keyed_clip_prores4444_roundtrip_preserves_alpha(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-def test_webm_vp9_alpha_roundtrip_or_skipped_with_reason(tmp_path):
-    """§14-3 conditional: WebM/VP9-alpha round-trip if libvpx-vp9 available.
+def test_alpha_codec_only_offered_when_alpha_actually_survives():
+    """HONEST GATE — the core invariant (RULE: never offer a silently-opaque codec).
 
-    D3 decision (2026-06-12): INCLUDED in MK.10.
-    If libvpx-vp9 is not available on this machine, the test is skipped with
-    an explicit reason — this is NOT a failure (validate_codec_availability gate).
+    `list_available_codecs()` must include an alpha codec (registry pix_fmt has 'a')
+    ONLY when `alpha_codec_preserves_alpha(...)` proves the alpha plane survives a
+    real encode→decode round-trip on THIS build. For every alpha entry, the two
+    must agree: offered ⟺ probe passes. This is the dead-flag guard (cf. MK.8) — a
+    codec present-but-alpha-dropping is excluded from the export list.
     """
     import sys
 
     sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-    from engine.codecs import validate_codec_availability, CODEC_REGISTRY
-    from video.writer import VideoWriter
-    from video.reader import VideoReader
+    from engine.codecs import (
+        CODEC_REGISTRY,
+        alpha_codec_preserves_alpha,
+        list_available_codecs,
+        validate_codec_availability,
+    )
 
-    if not validate_codec_availability("libvpx-vp9"):
-        pytest.skip(
-            "libvpx-vp9 not available on this system — WebM/VP9-alpha deferred (§14-3)"
+    offered = set(list_available_codecs())
+
+    for name, cfg in CODEC_REGISTRY.items():
+        pix_fmt = cfg.get("pix_fmt", "")
+        if "a" not in pix_fmt:
+            continue  # RGB codec — not governed by the alpha gate
+        present = validate_codec_availability(cfg["pyav_codec"])
+        if not present:
+            # Codec backend absent → never offered (presence gate).
+            assert name not in offered, (
+                f"{name}: backend absent yet offered in export list"
+            )
+            continue
+        probe_passes = alpha_codec_preserves_alpha(cfg["pyav_codec"], pix_fmt)
+        # THE invariant: offered iff the alpha actually survives on this build.
+        assert (name in offered) == probe_passes, (
+            f"{name}: offered={name in offered} but alpha-probe={probe_passes} — "
+            "an alpha codec must be offered if and only if its alpha survives "
+            "(silently-opaque codecs must never appear in the export list)."
         )
+        print(f"alpha gate: {name} probe={probe_passes} offered={name in offered}")
 
-    # Verify registry entry exists
+
+def test_prores4444_alpha_probe_passes_and_is_offered():
+    """ProRes 4444 alpha is verified on this build → it MUST be offered.
+
+    Sanity anchor for the honest gate: the verified, lossless ProRes 4444 path
+    (the headline of this PR) passes the alpha probe and appears in the export list.
+    """
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+    from engine.codecs import (
+        CODEC_REGISTRY,
+        alpha_codec_preserves_alpha,
+        list_available_codecs,
+        validate_codec_availability,
+    )
+
+    cfg = CODEC_REGISTRY["prores_4444"]
+    if not validate_codec_availability(cfg["pyav_codec"]):
+        pytest.skip("prores_ks not available on this system")
+
+    assert alpha_codec_preserves_alpha(cfg["pyav_codec"], cfg["pix_fmt"]), (
+        "ProRes 4444 alpha probe failed — but the round-trip test proves it preserves "
+        "alpha; the probe (or its container inference) is broken."
+    )
+    assert "prores_4444" in list_available_codecs(), (
+        "ProRes 4444 preserves alpha but is not offered in the export list"
+    )
+
+
+def test_webm_vp9_alpha_roundtrip_or_excluded_with_reason(tmp_path):
+    """§14-3 conditional WebM/VP9-alpha — registry entry present, HONESTLY gated.
+
+    D3 decision (2026-06-12): INCLUDED in MK.10 (registry entry is the single
+    source of truth). The honest gate decides whether it is OFFERED:
+
+      - If libvpx-vp9 absent          → not offered (presence gate).
+      - If present but drops alpha     → not offered (alpha probe fails). This is
+                                         the current local build: yuva420p is
+                                         silently downgraded to yuv420p.
+      - If present AND preserves alpha → offered, and a full round-trip succeeds.
+
+    The codec is NEVER silently offered as transparent-capable when it isn't.
+    """
+    import sys
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+    from engine.codecs import (
+        CODEC_REGISTRY,
+        alpha_codec_preserves_alpha,
+        list_available_codecs,
+        validate_codec_availability,
+    )
+    from video.reader import VideoReader
+    from video.writer import VideoWriter
+
+    # Registry entry must exist (D3 — single source of truth).
     assert "webm_vp9_alpha" in CODEC_REGISTRY, (
         "webm_vp9_alpha entry missing from CODEC_REGISTRY (D3 decision — should be present)"
     )
     cfg = CODEC_REGISTRY["webm_vp9_alpha"]
     assert cfg["pix_fmt"] == "yuva420p", f"Expected yuva420p, got {cfg['pix_fmt']!r}"
-    assert "a" in cfg["pix_fmt"], "webm_vp9_alpha pix_fmt must contain 'a'"
 
+    if not validate_codec_availability(cfg["pyav_codec"]):
+        assert "webm_vp9_alpha" not in list_available_codecs(), (
+            "libvpx-vp9 absent yet webm_vp9_alpha offered"
+        )
+        pytest.skip(
+            "libvpx-vp9 not available — WebM/VP9-alpha not offered (presence gate)"
+        )
+
+    probe_passes = alpha_codec_preserves_alpha(cfg["pyav_codec"], cfg["pix_fmt"])
+
+    if not probe_passes:
+        # The honest gate's whole point: present-but-broken → NOT offered.
+        assert "webm_vp9_alpha" not in list_available_codecs(), (
+            "libvpx-vp9 drops alpha on this build but webm_vp9_alpha is still offered — "
+            "the honest gate failed; users would get a silently-opaque export."
+        )
+        pytest.skip(
+            "libvpx-vp9 on this build silently downgrades yuva420p → yuv420p (alpha "
+            "dropped at the encoder). Alpha probe correctly fails → codec NOT offered. "
+            "Registry entry present; runtime alpha support deferred to a real-alpha build."
+        )
+
+    # If we get here the build genuinely preserves VP9 alpha — prove the round-trip.
+    assert "webm_vp9_alpha" in list_available_codecs(), (
+        "VP9 alpha survives the probe but the codec is not offered"
+    )
     width, height = 160, 120
     p = str(tmp_path / "webm_vp9_alpha.webm")
-
     frame_in = _make_keyed_rgba_frame(height, width, key_alpha=0)
     w = VideoWriter(
         p, width, height, fps=30, codec=cfg["pyav_codec"], pix_fmt=cfg["pix_fmt"]
     )
     w.write_frame(frame_in)
     w.close()
-
-    # Verify the muxed file's actual pix_fmt.  Some PyAV+libvpx-vp9 builds
-    # silently downgrade yuva420p → yuv420p (alpha stripped at the encoder level,
-    # not in our writer).  If the muxed stream is opaque, skip rather than fail —
-    # the registry entry is correct; the runtime environment lacks yuva support.
-    with av.open(p) as _c:
-        _muxed_pix_fmt = _c.streams.video[0].codec_context.pix_fmt
-
-    if "a" not in _muxed_pix_fmt:
-        pytest.skip(
-            f"libvpx-vp9 on this system silently drops alpha (muxed pix_fmt={_muxed_pix_fmt!r}; "
-            "yuva420p requested but not honoured by this PyAV/libvpx-vp9 build). "
-            "Registry entry is present and correct; runtime alpha support deferred."
-        )
 
     r = VideoReader(p)
     frame_out = r.decode_frame(0)
@@ -563,8 +653,6 @@ def test_webm_vp9_alpha_roundtrip_or_skipped_with_reason(tmp_path):
     alpha_in = frame_in[:, :, 3].astype(float) / 255.0
     alpha_out = frame_out[:, :, 3].astype(float) / 255.0
     assert alpha_out.var() > 0, "VP9-alpha decode returned uniform alpha (alpha lost)"
-
-    # VP9/yuva420p is lossy; use a relaxed tolerance (5/255) for chroma subsampling
     delta = float(np.abs(alpha_in - alpha_out).mean())
     assert delta <= 5 / 255, (
         f"WebM/VP9-alpha mean alpha Δ={delta:.4f} exceeds 5/255 (yuva420p chroma tolerance)"
