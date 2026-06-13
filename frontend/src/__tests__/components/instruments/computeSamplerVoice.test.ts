@@ -1,12 +1,15 @@
 /**
  * B1 computeSamplerVoice — pure sampler→voice math (Gate 5 unit layer).
  * B3.1 loop engine + preview/export PARITY GUARD (see bottom of file).
+ * B3.3 RGB offset + glide (see bottom of file).
  */
 import { describe, it, expect } from 'vitest'
 import {
   computeSamplerVoice,
   computeLoopFrameIndex,
   computeLoopCrossfadeWeight,
+  computeRgbFrameIndices,
+  applyGlideRamp,
 } from '../../../renderer/components/instruments/computeSamplerVoice'
 import type { SamplerInstrumentV1 } from '../../../renderer/components/instruments/types'
 
@@ -498,5 +501,282 @@ describe('B3.2 PARITY GUARD: scrub-driven frame index matches backend reference'
       // Explicit undefined scrub is a no-op vs absent.
       expect(computeLoopFrameIndex(inst({ startFrame: 0, speed: 1, scrub: undefined }), ph, 100)).toBe(expectedPlain)
     }
+  })
+})
+
+// ===========================================================================
+// B3.3 — RGB offset + position/speed glide (portamento).
+//
+// REGRESSION GUARD 1: rgbOffset absent / {0,0,0} → computeRgbFrameIndices
+//   returns null → computeSamplerVoice omits rgb_frame_indices → byte-identical
+//   to B3.2.
+//
+// REGRESSION GUARD 2: glide absent / 0 → applyGlideRamp returns target
+//   unchanged → computeLoopFrameIndex byte-identical to B3.2.
+//
+// PARITY GUARD: expected values LIFTED from backend test_sampler_rgb_glide.py.
+// The backend is the reference; frontend must match exactly.
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// B3.3 REGRESSION GUARD — rgbOffset=0 / absent → byte-identical to B3.2
+// ---------------------------------------------------------------------------
+describe('B3.3 regression guard: rgbOffset absent or zero → null (no channel decode)', () => {
+  it('test_rgb_offset_zero_matches_b3_2 — absent → null', () => {
+    expect(computeRgbFrameIndices(inst({ startFrame: 0, speed: 1 }), 42, 100)).toBeNull()
+  })
+
+  it('rgbOffset={0,0,0} → null', () => {
+    expect(computeRgbFrameIndices(inst({ rgbOffset: { r: 0, g: 0, b: 0 } }), 42, 100)).toBeNull()
+  })
+
+  it('computeSamplerVoice: rgbOffset absent → no rgb_frame_indices on layer', () => {
+    const layer = computeSamplerVoice(inst(), '/a.mp4', 5, 100)
+    expect(layer.rgb_frame_indices).toBeUndefined()
+  })
+
+  it('computeSamplerVoice: rgbOffset={0,0,0} → no rgb_frame_indices on layer', () => {
+    const layer = computeSamplerVoice(inst({ rgbOffset: { r: 0, g: 0, b: 0 } }), '/a.mp4', 5, 100)
+    expect(layer.rgb_frame_indices).toBeUndefined()
+  })
+
+  it('frame_index with rgbOffset=zero equals B3.2 frame_index for all playheads', () => {
+    for (let ph = 0; ph < 30; ph++) {
+      const b32 = computeLoopFrameIndex(inst({ startFrame: 0, speed: 1 }), ph, 100)
+      const got = computeLoopFrameIndex(inst({ startFrame: 0, speed: 1, rgbOffset: { r: 0, g: 0, b: 0 } }), ph, 100)
+      expect(got).toBe(b32)
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// B3.3 RGB OFFSET — shifts channels to different frames
+// ---------------------------------------------------------------------------
+describe('B3.3 rgb offset: shifts channels to different footage frames', () => {
+  it('test_rgb_offset_shifts_channels_to_different_frames: r=-2,g=0,b=+2 at base=10', () => {
+    // Backend parity: expected {r:8, g:10, b:12}
+    const result = computeRgbFrameIndices(inst({ endFrame: 99, rgbOffset: { r: -2, g: 0, b: 2 } }), 10, 100)
+    expect(result).not.toBeNull()
+    expect(result!.r).toBe(8)
+    expect(result!.g).toBe(10)
+    expect(result!.b).toBe(12)
+  })
+
+  it('computeSamplerVoice: non-zero rgbOffset → rgb_frame_indices attached to layer', () => {
+    const layer = computeSamplerVoice(
+      inst({ endFrame: 99, rgbOffset: { r: -2, g: 0, b: 2 } }),
+      '/a.mp4', 10, 100
+    )
+    expect(layer.rgb_frame_indices).toBeDefined()
+    expect(layer.rgb_frame_indices!.r).toBe(8)
+    expect(layer.rgb_frame_indices!.g).toBe(10)
+    expect(layer.rgb_frame_indices!.b).toBe(12)
+  })
+
+  it('all three channels independently offset', () => {
+    // Backend parity: r=+3,g=-1,b=+7 at base=20 → r=23,g=19,b=27
+    const result = computeRgbFrameIndices(inst({ rgbOffset: { r: 3, g: -1, b: 7 } }), 20, 100)
+    expect(result).not.toBeNull()
+    expect(result!.r).toBe(23)
+    expect(result!.g).toBe(19)
+    expect(result!.b).toBe(27)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// B3.3 RGB OFFSET — clamps to loop/playable bounds
+// ---------------------------------------------------------------------------
+describe('B3.3 rgb offset: clamps channel indices to playable bounds', () => {
+  it('test_rgb_offset_clamps_to_loop_bounds: r=+5 at base=18 with loop in=10,out=20', () => {
+    // Backend parity: r=20 (clamped to loopOut), g=10 (clamped to loopIn), b=19
+    const s = inst({
+      loop: { enabled: true, in: 10, out: 20, dir: 'fwd' } as any,
+      rgbOffset: { r: 5, g: -10, b: 1 },
+    })
+    const result = computeRgbFrameIndices(s, 18, 100)
+    expect(result).not.toBeNull()
+    expect(result!.r).toBe(20)
+    expect(result!.g).toBe(10)
+    expect(result!.b).toBe(19)
+  })
+
+  it('no loop: clamps to [0, endFrame]', () => {
+    // Backend parity: r=+200 at base=25, endFrame=50 → r=50; b=-200 → b=0
+    const s = inst({ endFrame: 50, rgbOffset: { r: 200, g: 0, b: -200 } })
+    const result = computeRgbFrameIndices(s, 25, 100)
+    expect(result).not.toBeNull()
+    expect(result!.r).toBe(50)
+    expect(result!.b).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// B3.3 GLIDE — regression guard: glide=0 / absent → instant jump = B3.2
+// ---------------------------------------------------------------------------
+describe('B3.3 regression guard: glide=0 or absent → instant jump, byte-identical to B3.2', () => {
+  it('test_glide_zero_is_instant_jump: ph=10, start=5, speed=1, glide=0 → frame=15', () => {
+    // Backend parity: 5 + 10 = 15
+    expect(computeLoopFrameIndex(inst({ startFrame: 5, speed: 1, glide: 0 }), 10, 100)).toBe(15)
+  })
+
+  it('applyGlideRamp: glide=0 → returns targetOffset unchanged', () => {
+    expect(applyGlideRamp(50, 0, 5)).toBe(50)
+    expect(applyGlideRamp(0, 0, 0)).toBe(0)
+    expect(applyGlideRamp(100, 0, 100)).toBe(100)
+  })
+
+  it('glide absent → frame sequence identical to B3.2 across 30 playheads', () => {
+    const b32 = inst({ startFrame: 5, speed: 1 })
+    const g0 = inst({ startFrame: 5, speed: 1, glide: 0 })
+    for (let ph = 0; ph < 30; ph++) {
+      expect(computeLoopFrameIndex(b32, ph, 100)).toBe(computeLoopFrameIndex(g0, ph, 100))
+    }
+  })
+})
+
+// ---------------------------------------------------------------------------
+// B3.3 GLIDE — ramps position over N frames
+// ---------------------------------------------------------------------------
+describe('B3.3 glide ramps playhead offset over N frames (portamento)', () => {
+  it('test_glide_ramps_position_over_n_frames: glide=10,ph=10,elapsed=5,start=0,speed=1 → frame=5', () => {
+    // Backend parity: ramped_offset = 10*(5/10)=5 → round(5)=5 → frame=5
+    expect(computeLoopFrameIndex(inst({ startFrame: 0, speed: 1, glide: 10 }), 10, 100, 5)).toBe(5)
+  })
+
+  it('at elapsed=0 → offset is 0 → frame = startFrame', () => {
+    // Backend parity: glide=20, ph=50, elapsed=0 → frame=7
+    expect(computeLoopFrameIndex(inst({ startFrame: 7, speed: 1, glide: 20 }), 50, 100, 0)).toBe(7)
+  })
+
+  it('applyGlideRamp: midpoint returns 50% of target', () => {
+    // Backend parity: target=100, glide=20, elapsed=10 → 100*(10/20)=50
+    expect(applyGlideRamp(100, 20, 10)).toBe(50)
+  })
+
+  it('applyGlideRamp: linear ramp — equal steps per frame', () => {
+    const target = 30
+    const glide = 10
+    let prev: number | null = null
+    for (let ef = 1; ef < glide; ef++) {
+      const val = applyGlideRamp(target, glide, ef)
+      if (prev !== null) {
+        const step = val - prev
+        expect(Math.abs(step - target / glide)).toBeLessThan(1e-9)
+      }
+      prev = val
+    }
+  })
+
+  it('loop: glide ramps offset before loop wrapping — elapsed=0 → loopIn', () => {
+    // Backend parity: loop in=5 out=15, glide=10, ph=20, elapsed=0 → 5
+    const s = inst({
+      speed: 1,
+      glide: 10,
+      loop: { enabled: true, in: 5, out: 15, dir: 'fwd' } as any,
+    })
+    expect(computeLoopFrameIndex(s, 20, 100, 0)).toBe(5)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// B3.3 GLIDE — completes after N frames
+// ---------------------------------------------------------------------------
+describe('B3.3 glide completes after N frames and holds at target', () => {
+  it('test_glide_completes_after_n_frames: at elapsed=glide → frame == target', () => {
+    // Backend parity: glide=10, ph=10, elapsed=10 → frame=10
+    expect(computeLoopFrameIndex(inst({ startFrame: 0, speed: 1, glide: 10 }), 10, 100, 10)).toBe(10)
+  })
+
+  it('applyGlideRamp: elapsed >= glide → returns targetOffset exactly', () => {
+    expect(applyGlideRamp(50, 10, 10)).toBe(50)
+    expect(applyGlideRamp(50, 10, 11)).toBe(50)
+    expect(applyGlideRamp(50, 10, 100)).toBe(50)
+  })
+
+  it('compute at elapsed >= glide yields same result as no-glide for ph >= glide', () => {
+    const g = inst({ startFrame: 0, speed: 1, glide: 5 })
+    const plain = inst({ startFrame: 0, speed: 1 })
+    for (let ph = 5; ph < 25; ph++) {
+      // elapsed = ph (same-voice playback): glide completed when elapsed >= 5
+      expect(computeLoopFrameIndex(g, ph, 100, ph)).toBe(computeLoopFrameIndex(plain, ph, 100))
+    }
+  })
+})
+
+// ===========================================================================
+// B3.3 PARITY GUARD — frontend ⟷ backend lockstep.
+//
+// Expected values LIFTED from backend/tests/test_sampler_rgb_glide.py
+// (TestPreviewExportParityRgbGlide class). The backend is the reference;
+// if either side changes, these assertions break.
+// ===========================================================================
+describe('B3.3 PARITY GUARD: frontend rgb+glide frame indices match backend reference', () => {
+  // [label, instFields, baseFrame, frameCount, expectedR, expectedG, expectedB]
+  const RGB_PARITY: Array<[string, Partial<SamplerInstrumentV1>, number, number, number, number, number]> = [
+    // Backend test_parity_rgb_shifts_channels: r=-2,g=0,b=+2 at base=10 → r=8,g=10,b=12
+    ['r=-2,g=0,b=+2 base=10', { endFrame: 99, rgbOffset: { r: -2, g: 0, b: 2 } }, 10, 100, 8, 10, 12],
+    // Backend test_parity_rgb_clamp_loop: loop in=10,out=20; r=+5,g=0,b=-10 at base=18
+    // → r=20 (clamped), b=10 (clamped)
+    // NOTE: g=0 so the whole offset is non-zero because b=-10
+    // Using a separate row for loop clamp (matches backend test_parity_rgb_clamp_loop):
+  ]
+
+  it.each(RGB_PARITY)(
+    'rgb parity: %s',
+    (_label, extra, baseFrame, frameCount, expR, expG, expB) => {
+      const s = inst(extra)
+      const result = computeRgbFrameIndices(s, baseFrame, frameCount)
+      expect(result).not.toBeNull()
+      expect(result!.r).toBe(expR)
+      expect(result!.g).toBe(expG)
+      expect(result!.b).toBe(expB)
+    },
+  )
+
+  // Loop-clamp parity test (matches backend test_parity_rgb_clamp_loop)
+  it('rgb parity: loop in=10,out=20; r=+5,b=-10 at base=18 → r=20,b=10', () => {
+    const s = inst({
+      loop: { enabled: true, in: 10, out: 20, dir: 'fwd' } as any,
+      rgbOffset: { r: 5, g: 0, b: -10 },
+    })
+    const result = computeRgbFrameIndices(s, 18, 100)
+    expect(result).not.toBeNull()
+    expect(result!.r).toBe(20)
+    expect(result!.b).toBe(10)
+  })
+
+  it('rgb parity: null when absent (backend test_parity_rgb_zero_returns_none)', () => {
+    expect(computeRgbFrameIndices(inst(), 42, 100)).toBeNull()
+    expect(computeRgbFrameIndices(inst({ rgbOffset: { r: 0, g: 0, b: 0 } }), 42, 100)).toBeNull()
+  })
+
+  // [label, instFields, playhead, frameCount, elapsedFrames, expectedFrame]
+  const GLIDE_PARITY: Array<[string, Partial<SamplerInstrumentV1>, number, number, number | undefined, number]> = [
+    // Backend test_parity_glide_zero_instant_jump: glide=0, ph=10, start=0, speed=1 → 10
+    ['glide=0 instant jump ph=10', { glide: 0 }, 10, 100, undefined, 10],
+    // Backend test_parity_glide_midpoint: glide=10, ph=10, elapsed=5, start=0, speed=1 → 5
+    ['glide=10 midpoint elapsed=5', { glide: 10 }, 10, 100, 5, 5],
+    // Backend test_parity_glide_complete: glide=10, ph=10, elapsed=10 → 10
+    ['glide=10 complete elapsed=10', { glide: 10 }, 10, 100, 10, 10],
+    // Backend test_parity_glide_ramp_start: glide=20, ph=50, elapsed=0, start=7 → 7
+    ['glide=20 ramp start elapsed=0', { startFrame: 7, glide: 20 }, 50, 100, 0, 7],
+  ]
+
+  it.each(GLIDE_PARITY)(
+    'glide parity: %s',
+    (_label, extra, playhead, frameCount, elapsed, expected) => {
+      const s = inst(extra)
+      expect(computeLoopFrameIndex(s, playhead, frameCount, elapsed)).toBe(expected)
+    },
+  )
+
+  // Backend test_parity_glide_loop_ramp_start: loop in=5,out=15, glide=10, ph=20, elapsed=0 → 5
+  it('glide parity: loop in=5,out=15, elapsed=0 → loopIn=5', () => {
+    const s = inst({
+      speed: 1,
+      glide: 10,
+      loop: { enabled: true, in: 5, out: 15, dir: 'fwd' } as any,
+    })
+    expect(computeLoopFrameIndex(s, 20, 100, 0)).toBe(5)
   })
 })
