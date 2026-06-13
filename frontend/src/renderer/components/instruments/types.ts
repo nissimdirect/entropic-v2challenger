@@ -7,6 +7,34 @@
  */
 import type { BlendMode } from '../../../shared/types'
 
+/**
+ * B3.1 — Loop region descriptor for SamplerInstrumentV1.
+ *
+ * All fields optional with safe defaults:
+ *   enabled: false  → loop off; sampler behavior is byte-identical to B1/B2.
+ *   in / out        → frame indices inside [0, frameCount-1]; validated/clamped
+ *                     by the engine. Default: in=0, out=frameCount-1.
+ *   dir             → 'fwd' (default) | 'rev' | 'pingpong'.
+ *   crossfade       → blend frames near the seam (0 = hard cut). Clamp [0, 32].
+ *
+ * No PROJECT_VERSION bump required — all fields are additive optionals
+ * (UE.7 precedent: missing → undefined → engine uses safe defaults).
+ */
+export interface SamplerLoopConfig {
+  enabled: boolean
+  /** Loop-in point (inclusive). Defaults to 0. */
+  in?: number
+  /** Loop-out point (inclusive). Defaults to frameCount-1. */
+  out?: number
+  /** Playback direction within the loop. Default: 'fwd'. */
+  dir?: 'fwd' | 'rev' | 'pingpong'
+  /**
+   * Crossfade blend length in frames at the loop seam (0 = hard cut).
+   * Clamped to [0, 32].
+   */
+  crossfade?: number
+}
+
 export interface SamplerInstrumentV1 {
   id: string
   type: 'sampler'
@@ -15,6 +43,17 @@ export interface SamplerInstrumentV1 {
   speed: number // 1=native, 0=freeze, <0=reverse; clamp [-8, 8]
   opacity: number // per-voice value, clamp [0,1] — set on the layer dict
   blendMode: BlendMode
+  /**
+   * B3.1: Optional loop end frame (inclusive). Defaults to frameCount-1.
+   * Allows trimming the playback range without enabling the full loop engine.
+   * No PROJECT_VERSION bump (UE.7: additive optional).
+   */
+  endFrame?: number
+  /**
+   * B3.1: Optional loop configuration. When absent or loop.enabled=false,
+   * playback is byte-identical to B1/B2 (regression-safe).
+   */
+  loop?: SamplerLoopConfig
 }
 
 /**

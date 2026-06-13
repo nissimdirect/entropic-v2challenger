@@ -751,11 +751,21 @@ class ExportManager:
     ) -> int:
         """Mirror of frontend computeSamplerVoice's footage-frame math.
 
-        # MIRROR: computeSamplerVoice.ts
-        footageFrameIndex = clamp(startFrame + round(speed * playheadFrame),
-        0, frameCount-1). Speed clamps [-8, 8]; bad probe → freeze on 0.
+        B1/B2 (loop disabled / absent):
+          footageFrameIndex = clamp(startFrame + round(speed * playheadFrame),
+          0, frameCount-1). Speed clamps [-8, 8]; bad probe → freeze on 0.
+          Byte-identical to the original implementation.
+
+        B3.1 (loop.enabled = True):
+          The raw playhead offset is wrapped within [loopIn, loopOut] according
+          to loop.dir: 'fwd' → wraps out→in; 'rev' → plays in←out wrapping;
+          'pingpong' → bounces at in/out. Speed magnitude is respected; the sign
+          of speed interacts with dir (negative speed reverses travel direction).
+
+        # MIRROR: computeSamplerVoice.ts → computeLoopFrameIndex
         """
         SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX = -8.0, 8.0
+        LOOP_CROSSFADE_MAX = 32
         fc = frame_count if isinstance(frame_count, int) and frame_count > 0 else 1
         last_frame = max(0, fc - 1)
 
@@ -770,8 +780,105 @@ class ExportManager:
             inst.get("speed", 1), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1
         )
         start = clamp_finite(inst.get("startFrame", 0), 0, last_frame, 0)
-        raw = start + round(speed * playhead_frame)
-        return int(round(clamp_finite(raw, 0, last_frame, 0)))
+
+        # B1/B2 path: no loop or loop disabled → original formula, byte-identical.
+        loop = inst.get("loop")
+        if not loop or not loop.get("enabled"):
+            raw = start + round(speed * playhead_frame)
+            return int(round(clamp_finite(raw, 0, last_frame, 0)))
+
+        # B3.1 loop path.
+        loop_in_raw = loop.get("in", 0)
+        loop_out_raw = loop.get("out", last_frame)
+        loop_in = int(round(clamp_finite(loop_in_raw, 0, last_frame, 0)))
+        loop_out = int(round(clamp_finite(loop_out_raw, 0, last_frame, last_frame)))
+
+        # Enforce in <= out; if violated treat as degenerate → freeze at loop_in.
+        l_in = min(loop_in, loop_out)
+        l_out = max(loop_in, loop_out)
+        loop_len = l_out - l_in + 1  # always >= 1
+
+        # Raw offset from loopIn, incorporating speed magnitude.
+        abs_sp = abs(speed)
+        raw_offset = int(round(abs_sp * playhead_frame))
+        dir_flipped = speed < 0
+
+        direction = loop.get("dir", "fwd")
+        if direction not in ("fwd", "rev", "pingpong"):
+            direction = "fwd"
+
+        # Effective direction after speed-sign interaction.
+        if direction == "pingpong":
+            effective_dir = "pingpong"
+        elif dir_flipped:
+            effective_dir = "rev" if direction == "fwd" else "fwd"
+        else:
+            effective_dir = direction
+
+        if effective_dir == "fwd":
+            frame_index = l_in + (raw_offset % loop_len)
+        elif effective_dir == "rev":
+            frame_index = l_out - (raw_offset % loop_len)
+        else:
+            # pingpong: period = 2 * (loop_len - 1); bounce at boundaries.
+            period = max(1, 2 * (loop_len - 1))
+            phase = raw_offset % period
+            if phase < loop_len:
+                frame_index = l_in + phase
+            else:
+                frame_index = l_out - (phase - (loop_len - 1))
+
+        return int(round(clamp_finite(frame_index, 0, last_frame, 0)))
+
+    @staticmethod
+    def _compute_voice_crossfade_weight(
+        inst: dict, playhead_frame: int, frame_count: int
+    ) -> float:
+        """B3.1: Compute crossfade blend weight for the loop seam.
+
+        Returns a value in [0.0, 1.0] representing how much of the far-end
+        blend frame should be mixed in at this playhead position.
+        0.0 = pure current frame (no blend); 1.0 = at seam (maximum blend).
+
+        # MIRROR: computeSamplerVoice.ts → computeLoopCrossfadeWeight
+        """
+        LOOP_CROSSFADE_MAX = 32
+
+        loop = inst.get("loop")
+        if not loop or not loop.get("enabled"):
+            return 0.0
+
+        def clamp_finite(v, lo, hi, fallback):
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                return fallback
+            if v != v or v in (float("inf"), float("-inf")):
+                return fallback
+            return min(hi, max(lo, v))
+
+        crossfade = int(
+            round(clamp_finite(loop.get("crossfade", 0), 0, LOOP_CROSSFADE_MAX, 0))
+        )
+        if crossfade <= 0:
+            return 0.0
+
+        fc = frame_count if isinstance(frame_count, int) and frame_count > 0 else 1
+        last_frame = max(0, fc - 1)
+        loop_in_raw = loop.get("in", 0)
+        loop_out_raw = loop.get("out", last_frame)
+        l_in = int(round(clamp_finite(loop_in_raw, 0, last_frame, 0)))
+        l_out = int(round(clamp_finite(loop_out_raw, 0, last_frame, last_frame)))
+        l_in, l_out = min(l_in, l_out), max(l_in, l_out)
+
+        frame_index = ExportManager._compute_voice_footage_frame(
+            inst, playhead_frame, frame_count
+        )
+
+        dist_from_out = l_out - frame_index
+        dist_from_in = frame_index - l_in
+        min_dist = min(dist_from_out, dist_from_in)
+        if min_dist < 0:
+            return 0.0
+        return float(1 - min_dist / crossfade) if min_dist < crossfade else 0.0
 
     def _get_voice_reader(self, asset_path: str, voice_readers: dict):
         """Lazily open (and cache) a footage reader for the export's lifetime.
