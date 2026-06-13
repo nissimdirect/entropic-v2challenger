@@ -756,8 +756,105 @@ class ExportManager:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _apply_glide_ramp(
+        target_offset: float, glide_frames: int, elapsed_frames: int
+    ) -> float:
+        """B3.3 — Apply position/speed glide (portamento) ramp.
+
+        On retrigger (elapsed_frames = frames since the new voice was triggered),
+        the playhead offset LERPs from 0 → target_offset over `glide_frames`
+        instead of jumping instantly. After `glide_frames` it holds at target_offset.
+
+        glide_frames <= 0 → instant jump (returns target_offset).
+        Regression-safe: glide absent/0 → byte-identical to B3.2 behavior.
+
+        # MIRROR: computeSamplerVoice.ts → applyGlideRamp
+        """
+        SAMPLER_GLIDE_MAX = 300
+
+        def clamp_finite_local(v, lo, hi, fallback):
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                return fallback
+            if v != v or v in (float("inf"), float("-inf")):
+                return fallback
+            return min(hi, max(lo, v))
+
+        gf = int(round(clamp_finite_local(glide_frames, 0, SAMPLER_GLIDE_MAX, 0)))
+        if gf <= 0:
+            return target_offset
+        ef = max(0, elapsed_frames)
+        if ef >= gf:
+            return target_offset
+        t = ef / gf
+        return target_offset * t
+
+    @staticmethod
+    def _compute_voice_rgb_frame_indices(
+        inst: dict, base_frame: int, frame_count: int
+    ) -> dict | None:
+        """B3.3 — Compute per-channel R/G/B footage frame indices.
+
+        Each channel's frame index = clamp(base_frame + channelOffset, loBound, hiBound)
+        where [loBound, hiBound] is the sampler's playable bounds:
+          - loop.enabled  → [loopIn, loopOut]
+          - otherwise     → [0, endFrame|last]
+
+        Returns None when rgbOffset is absent or {0,0,0} → caller uses
+        base_frame for all channels (byte-identical to B3.2).
+
+        # MIRROR: computeSamplerVoice.ts → computeRgbFrameIndices
+        """
+        rgb_off = inst.get("rgbOffset")
+        if not rgb_off or not isinstance(rgb_off, dict):
+            return None
+        r_off = rgb_off.get("r", 0)
+        g_off = rgb_off.get("g", 0)
+        b_off = rgb_off.get("b", 0)
+        if r_off == 0 and g_off == 0 and b_off == 0:
+            return None
+
+        def clamp_finite_local(v, lo, hi, fallback):
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                return fallback
+            if v != v or v in (float("inf"), float("-inf")):
+                return fallback
+            return min(hi, max(lo, v))
+
+        fc = frame_count if isinstance(frame_count, int) and frame_count > 0 else 1
+        last_frame = max(0, fc - 1)
+
+        loop = inst.get("loop")
+        if loop and loop.get("enabled"):
+            li = int(round(clamp_finite_local(loop.get("in", 0), 0, last_frame, 0)))
+            lo_raw = int(
+                round(
+                    clamp_finite_local(
+                        loop.get("out", last_frame), 0, last_frame, last_frame
+                    )
+                )
+            )
+            lo_bound = min(li, lo_raw)
+            hi_bound = max(li, lo_raw)
+        else:
+            lo_bound = 0
+            end_raw = inst.get("endFrame", last_frame)
+            hi_bound = int(
+                round(clamp_finite_local(end_raw, 0, last_frame, last_frame))
+            )
+
+        def clamp_ch(offset):
+            raw = base_frame + offset
+            v = int(round(clamp_finite_local(raw, lo_bound, hi_bound, base_frame)))
+            return max(0, min(last_frame, v))
+
+        return {"r": clamp_ch(r_off), "g": clamp_ch(g_off), "b": clamp_ch(b_off)}
+
+    @staticmethod
     def _compute_voice_footage_frame(
-        inst: dict, playhead_frame: int, frame_count: int
+        inst: dict,
+        playhead_frame: int,
+        frame_count: int,
+        elapsed_frames: int | None = None,
     ) -> int:
         """Mirror of frontend computeSamplerVoice's footage-frame math.
 
@@ -771,6 +868,11 @@ class ExportManager:
           to loop.dir: 'fwd' → wraps out→in; 'rev' → plays in←out wrapping;
           'pingpong' → bounces at in/out. Speed magnitude is respected; the sign
           of speed interacts with dir (negative speed reverses travel direction).
+
+        B3.3 (glide > 0, elapsed_frames supplied):
+          The raw speed*playhead offset is ramped from 0 → target over `glide`
+          frames. elapsed_frames defaults to playhead_frame when None.
+          Regression-safe: glide absent/0 → instant jump = B3.2 behavior.
 
         # MIRROR: computeSamplerVoice.ts → computeLoopFrameIndex
         """
@@ -805,6 +907,13 @@ class ExportManager:
         )
         scrub = clamp_finite(scrub_raw, 0.0, 1.0, 0.0) if has_scrub else None
 
+        # B3.3 — glide ramp. When inst.glide > 0, the raw speed*playhead offset
+        # is ramped from 0 → target over `glide` frames.
+        # elapsed_frames defaults to playhead_frame (same-voice forward playback).
+        glide_frames_raw = inst.get("glide", 0)
+        glide_frames = int(round(clamp_finite(glide_frames_raw, 0, 300, 0)))
+        ef = elapsed_frames if elapsed_frames is not None else playhead_frame
+
         # B1/B2 path: no loop or loop disabled → original formula, byte-identical
         # when scrub is absent; scrub maps across [startFrame, endFrame|last].
         loop = inst.get("loop")
@@ -815,7 +924,12 @@ class ExportManager:
                 lo, hi = min(int(round(start)), end), max(int(round(start)), end)
                 raw = lo + scrub * (hi - lo)
                 return int(round(clamp_finite(raw, 0, last_frame, 0)))
-            raw = start + round(speed * playhead_frame)
+            # B3.3 glide: ramp the speed*playhead offset.
+            target_offset = speed * playhead_frame
+            ramped_offset = ExportManager._apply_glide_ramp(
+                target_offset, glide_frames, ef
+            )
+            raw = start + round(ramped_offset)
             return int(round(clamp_finite(raw, 0, last_frame, 0)))
 
         # B3.1 loop path.
@@ -836,8 +950,13 @@ class ExportManager:
             return int(round(clamp_finite(raw, 0, last_frame, 0)))
 
         # Raw offset from loopIn, incorporating speed magnitude.
+        # B3.3 glide: ramp the abs_speed * playhead_frame offset.
         abs_sp = abs(speed)
-        raw_offset = int(round(abs_sp * playhead_frame))
+        target_loop_offset = abs_sp * playhead_frame
+        ramped_loop_offset = ExportManager._apply_glide_ramp(
+            target_loop_offset, glide_frames, ef
+        )
+        raw_offset = int(round(ramped_loop_offset))
         dir_flipped = speed < 0
 
         direction = loop.get("dir", "fwd")
@@ -1072,7 +1191,42 @@ class ExportManager:
             # INJ-3 tail clamp parity with _handle_render_composite.
             if rfc and footage_idx >= rfc - 2:
                 footage_idx = max(0, rfc - 3)
-            vframe = reader.decode_frame(footage_idx)
+
+            # B3.3 — per-channel RGB offset (chromatic time-displacement).
+            # When rgbOffset is non-zero, decode a frame per channel and
+            # combine them into a single RGBA frame. rgbOffset absent/{0,0,0}
+            # → single decode from footage_idx (byte-identical to B3.2).
+            rgb_indices = self._compute_voice_rgb_frame_indices(
+                d["inst"], footage_idx, rfc
+            )
+            if rgb_indices is not None:
+                # Clamp each channel index with INJ-3 tail clamp.
+                def _tail_clamp(idx, rfc=rfc):
+                    if rfc and idx >= rfc - 2:
+                        return max(0, rfc - 3)
+                    return idx
+
+                r_idx = _tail_clamp(rgb_indices["r"])
+                g_idx = _tail_clamp(rgb_indices["g"])
+                b_idx = _tail_clamp(rgb_indices["b"])
+                vframe_r = reader.decode_frame(r_idx)
+                vframe_g = reader.decode_frame(g_idx)
+                vframe_b = reader.decode_frame(b_idx)
+                # Combine: R from vframe_r, G from vframe_g, B from vframe_b,
+                # alpha from base footage_idx frame.
+                vframe_base = reader.decode_frame(footage_idx)
+                vframe = np.stack(
+                    [
+                        vframe_r[:, :, 0],  # R channel from R-offset frame
+                        vframe_g[:, :, 1],  # G channel from G-offset frame
+                        vframe_b[:, :, 2],  # B channel from B-offset frame
+                        vframe_base[:, :, 3],  # Alpha from base frame
+                    ],
+                    axis=2,
+                )
+            else:
+                vframe = reader.decode_frame(footage_idx)
+
             layers.append(
                 {
                     "frame": vframe,

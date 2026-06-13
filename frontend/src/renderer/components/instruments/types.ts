@@ -63,6 +63,36 @@ export interface SamplerInstrumentV1 {
    * unchanged (regression-safe). No PROJECT_VERSION bump (additive optional).
    */
   scrub?: number
+  /**
+   * B3.3: Optional per-channel RGB frame offset (chromatic time-displacement).
+   *
+   * Each channel's output pixel is sampled from a footage frame offset by its
+   * channel's amount relative to the playhead-derived frame index:
+   *   R-channel ← clamp(playheadFrame + r, playableBounds)
+   *   G-channel ← clamp(playheadFrame + g, playableBounds)
+   *   B-channel ← clamp(playheadFrame + b, playableBounds)
+   *
+   * {r:0, g:0, b:0} (or absent) → output byte-identical to B3.2 (regression-
+   * safe). Interpolation for offset frames: nearest (integer clamped). The
+   * playable bounds used for clamping respect loop.in/out when loop is enabled,
+   * else [startFrame, endFrame|last]. No PROJECT_VERSION bump (additive optional).
+   *
+   * MIRROR: export.py ExportManager._compute_voice_rgb_frame_indices
+   */
+  rgbOffset?: { r: number; g: number; b: number }
+  /**
+   * B3.3: Optional position/speed glide (portamento) in frames.
+   *
+   * On a new voice trigger (retrigger), instead of the playhead origin jumping
+   * instantaneously to the new value, it LERPs from the previous playhead
+   * position to the new target over `glide` frames.
+   *
+   * glide=0 or absent → instant jump = exactly B3.2 behavior (regression-safe).
+   * Clamp [0, 300]. No PROJECT_VERSION bump (additive optional).
+   *
+   * MIRROR: export.py ExportManager._apply_glide_ramp
+   */
+  glide?: number
 }
 
 /**
@@ -85,6 +115,13 @@ export interface SamplerVoiceLayer {
   blend_mode: BlendMode
   /** P5a.3: per-voice state cache key for the backend. No colons (P5a.2 constraint). */
   voice_id?: string
+  /**
+   * B3.3: Per-channel frame indices for RGB offset (chromatic time-displacement).
+   * Present only when inst.rgbOffset is non-zero. When absent, the backend uses
+   * frame_index for all channels (byte-identical to B3.2).
+   * MIRROR: export.py ExportManager._compute_voice_rgb_frame_indices
+   */
+  rgb_frame_indices?: { r: number; g: number; b: number }
 }
 
 /** Hard speed bounds (reverse..forward), per B1 plan. */

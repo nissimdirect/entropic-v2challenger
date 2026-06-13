@@ -1071,7 +1071,41 @@ class ZMQServer:
                         and frame_index >= reader.frame_count - 2
                     ):
                         frame_index = max(0, reader.frame_count - 3)
-                    frame = reader.decode_frame(frame_index)
+
+                    # B3.3 — per-channel RGB offset (chromatic time-displacement).
+                    # When the layer carries rgb_frame_indices, decode a frame per
+                    # channel and combine them. Absent → single decode (B3.2 parity).
+                    rgb_fi = layer_info.get("rgb_frame_indices")
+                    if rgb_fi and isinstance(rgb_fi, dict):
+                        rfc_c = (
+                            reader.frame_count
+                            if hasattr(reader, "frame_count") and reader.frame_count
+                            else None
+                        )
+
+                        def _tail_clamp_zmq(idx, rfc_c=rfc_c):
+                            if rfc_c and idx >= rfc_c - 2:
+                                return max(0, rfc_c - 3)
+                            return max(0, idx)
+
+                        r_idx = _tail_clamp_zmq(int(rgb_fi.get("r", frame_index)))
+                        g_idx = _tail_clamp_zmq(int(rgb_fi.get("g", frame_index)))
+                        b_idx = _tail_clamp_zmq(int(rgb_fi.get("b", frame_index)))
+                        vframe_r = reader.decode_frame(r_idx)
+                        vframe_g = reader.decode_frame(g_idx)
+                        vframe_b = reader.decode_frame(b_idx)
+                        base_frame = reader.decode_frame(frame_index)
+                        frame = np.stack(
+                            [
+                                vframe_r[:, :, 0],
+                                vframe_g[:, :, 1],
+                                vframe_b[:, :, 2],
+                                base_frame[:, :, 3],
+                            ],
+                            axis=2,
+                        )
+                    else:
+                        frame = reader.decode_frame(frame_index)
 
                     # Apply per-layer clip transform if present
                     layer_transform = layer_info.get("transform")
