@@ -566,6 +566,18 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
             {displayName}
           </span>
         )}
+        {/* MK.13: mask-stack badge — shows the number of active matte nodes on this clip.
+            Renders only when at least one matte node is present (maskStack?.length > 0).
+            CSS in masking BEM namespace (no global.css grid edits). */}
+        {(clip.maskStack?.length ?? 0) > 0 && (
+          <span
+            className="masking__clip-badge"
+            data-testid="clip-mask-badge"
+            title={`${clip.maskStack!.length} matte node${clip.maskStack!.length !== 1 ? 's' : ''}`}
+          >
+            M{clip.maskStack!.length}
+          </span>
+        )}
         <div
           className="clip__trim-handle clip__trim-handle--right"
           onPointerDown={handleTrimRightDown}

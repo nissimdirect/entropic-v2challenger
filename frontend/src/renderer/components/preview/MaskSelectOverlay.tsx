@@ -1,9 +1,13 @@
 /**
  * MaskSelectOverlay — Preview canvas marquee for MK.4 + lasso modes for MK.5.
  *
- * Renders on top of the preview canvas. Captures pointer events exclusively
- * when previewToolMode is 'marquee-rect', 'marquee-ellipse', 'lasso-freehand',
- * or 'lasso-polygon'.
+ * MK.13 additions:
+ *   - Marching-ants SVG layer on committed selections (animated stroke-dashoffset,
+ *     MOD-violet #8F7DFF, ≤256-vertex RDP-decimated outline, pointer-events:none).
+ *     // Pattern: SVG z-order last = topmost layer (feedback_svg-zorder-hooks.md)
+ *   - prefers-reduced-motion: animation disabled (dashoffset stays static)
+ *   - Polygon outlines capped at ≤256 vertices (RDP-decimated, same as MK.5 freehand path)
+ *   - Rect/ellipse ants: approximated as a 64-point polyline (well under the 256 cap)
  *
  * Interaction model (rect/ellipse — MK.4, unchanged):
  *   pointerdown  → anchor the drag origin; setPointerCapture so mouseup outside still fires
@@ -29,7 +33,7 @@
  * computeCanvasLayout + the domToFrameCoords helper below.
  * // letterbox mapping from BoundingBoxOverlay.tsx:53 (computeCanvasLayout + ResizeObserver)
  */
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { rdpSimplify, samplePath } from '../../utils/rdp-simplify'
 import type { Point2D } from '../../utils/rdp-simplify'
 import { computeCanvasLayout } from '../../utils/transform-coords'
@@ -38,6 +42,106 @@ import { useTimelineStore } from '../../stores/timeline'
 import { useToastStore } from '../../stores/toast'
 import { randomUUID } from '../../utils'
 import type { MatteNode, MatteNodeKind, MatteOp } from '../../../shared/types'
+
+// MK.13: Marching-ants constants (MOD-violet per DESIGN-SPEC).
+const ANTS_COLOR = '#8F7DFF'
+const ANTS_DASH = '6 3'
+const ANTS_ANIMATION_DURATION = '0.5s'
+
+/**
+ * MK.13: Check prefers-reduced-motion at render time.
+ * Returns true if animation should be disabled.
+ */
+function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/**
+ * MK.13: Convert a committed rect (DOM-space) to an approximated polyline
+ * capped at ≤256 vertices. Uses 4 corners for a rect (well under cap).
+ * Returns points in SVG-space (same coordinate frame as the SVG element).
+ *
+ * Ants bound: rect = 4 points, ellipse approximated at ELLIPSE_POLY_STEPS points.
+ * Both are well under the 256-vertex cap. The cap is only relevant for polygon mattes.
+ */
+const ELLIPSE_POLY_STEPS = 64  // ≤256 — each point represents one step around the ellipse
+
+function rectToPolyline(r: { x: number; y: number; w: number; h: number }): Point2D[] {
+  return [
+    { x: r.x, y: r.y },
+    { x: r.x + r.w, y: r.y },
+    { x: r.x + r.w, y: r.y + r.h },
+    { x: r.x, y: r.y + r.h },
+    { x: r.x, y: r.y },  // close
+  ]
+}
+
+function ellipseToPolyline(
+  cx: number, cy: number, rx: number, ry: number,
+): Point2D[] {
+  const pts: Point2D[] = []
+  for (let i = 0; i <= ELLIPSE_POLY_STEPS; i++) {
+    const angle = (i / ELLIPSE_POLY_STEPS) * 2 * Math.PI
+    pts.push({ x: cx + rx * Math.cos(angle), y: cy + ry * Math.sin(angle) })
+  }
+  return pts
+}
+
+/**
+ * MK.13: Render the marching-ants animated SVG outline for a committed selection.
+ * pointer-events:none — never steals events from the canvas (feedback_svg-zorder-hooks.md).
+ * reduced-motion: stroke-dashoffset animation disabled when prefers-reduced-motion is set.
+ *
+ * The ants polyline is capped at ≤256 vertices (RDP-decimated for polygon mattes;
+ * rect=5pts, ellipse=64pts — both under the cap by construction).
+ */
+interface MarchingAntsProps {
+  /** SVG-space points for the outline polyline (already ≤256 vertices). */
+  points: Point2D[]
+  /** Whether this is a closed shape (polygon/ellipse/rect) — closed = use <polygon>-style repeat. */
+  closed?: boolean
+}
+
+function MarchingAnts({ points, closed = true }: MarchingAntsProps) {
+  const reduced = prefersReducedMotion()
+  // Unique animation ID per instance to avoid clashing with other overlays.
+  const animId = useMemo(() => `ants-anim-${Math.random().toString(36).slice(2, 6)}`, [])
+  const ptStr = points.map((p) => `${p.x},${p.y}`).join(' ')
+
+  if (points.length < 2) return null
+
+  return (
+    <>
+      {!reduced && (
+        <defs>
+          <style>{`
+            @keyframes ${animId} {
+              from { stroke-dashoffset: 0; }
+              to   { stroke-dashoffset: -18; }
+            }
+          `}</style>
+        </defs>
+      )}
+      <polyline
+        className="masking__ants-outline"
+        points={ptStr}
+        fill={closed ? 'none' : 'none'}
+        stroke={ANTS_COLOR}
+        strokeWidth={1}
+        strokeDasharray={ANTS_DASH}
+        strokeDashoffset={0}
+        strokeLinecap="round"
+        style={{
+          pointerEvents: 'none',
+          animation: reduced ? 'none' : `${animId} ${ANTS_ANIMATION_DURATION} linear infinite`,
+        }}
+        data-testid="masking-ants-polyline"
+        data-vertex-count={points.length}
+      />
+    </>
+  )
+}
 
 const DRAG_THRESHOLD_PX = 4
 
@@ -860,6 +964,13 @@ export default function MaskSelectOverlay({
                 strokeDasharray="4 2"
                 style={{ pointerEvents: 'none' }}
               />
+              {/* MK.13: marching-ants rect outline (4 pts, well under ≤256 cap) */}
+              <MarchingAnts
+                points={rectToPolyline({
+                  x: committedRect.x, y: committedRect.y,
+                  w: committedRect.w, h: committedRect.h,
+                })}
+              />
             </>
           ) : (
             <>
@@ -892,6 +1003,15 @@ export default function MaskSelectOverlay({
                 strokeDasharray="4 2"
                 style={{ pointerEvents: 'none' }}
               />
+              {/* MK.13: marching-ants ellipse outline (ELLIPSE_POLY_STEPS=64 pts ≤256 cap) */}
+              <MarchingAnts
+                points={ellipseToPolyline(
+                  committedRect.x + committedRect.w / 2,
+                  committedRect.y + committedRect.h / 2,
+                  committedRect.w / 2,
+                  committedRect.h / 2,
+                )}
+              />
             </>
           )}
         </>
@@ -923,6 +1043,20 @@ export default function MaskSelectOverlay({
             strokeWidth={1}
             strokeDasharray="4 2"
             style={{ pointerEvents: 'none' }}
+          />
+          {/* MK.13: marching-ants polygon outline — RDP-decimated to ≤256 vertices.
+              committedPolygon vertices are already DOM-space points from resolveCommittedPolygon().
+              The polygon was committed via MK.5's RDP simplification (≤256 vertices at commit);
+              resolveCommittedPolygon maps them back from normalized frame coords, so the
+              DOM-space vertex count equals the stored vertex count (same structure). */}
+          <MarchingAnts
+            points={(() => {
+              // RDP-decimate to ≤256 vertices (defensive — MK.5 already caps at commit)
+              const capped = committedPolygon.length > 256
+                ? rdpSimplify(committedPolygon, 1.0).slice(0, 256)
+                : committedPolygon
+              return [...capped, capped[0]!]  // close the polygon
+            })()}
           />
         </>
       )}

@@ -226,3 +226,71 @@
   outline: 2px solid var(--cx-acid);
   outline-offset: 1px;
 }
+
+/* ==========================================================================
+   MK.13 — Tool-mode stack additions, matte chip, clip badge, ants overlay
+   All rules scoped to masking__ BEM namespace. No global.css grid edits.
+   ========================================================================== */
+
+/* Mask tool section header in the [tool] tab */
+.masking__tool-section-header {
+  margin-top: 4px;
+  border-top: 1px solid var(--cx-line-1);
+}
+
+/* Mask tool item — inherits effect-browser__item; active gets MOD-violet accent */
+.masking__tool-item {
+  border-left: 2px solid transparent;
+}
+
+.masking__tool-item--active {
+  border-left-color: var(--cx-mod);
+  color: var(--cx-mod);
+}
+
+/* 64×36 matte-presence chip on masked DeviceCards.
+   No backend mask_thumbnail endpoint yet — renders a text badge instead.
+   (deferred per MK.13 spec note; chip dimensions match the spec stub size) */
+.masking__matte-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--cx-mod) 18%, var(--cx-surface-2) 82%);
+  border: 1px solid var(--cx-mod);
+  border-radius: 2px;
+  margin: 2px 6px;
+  flex-shrink: 0;
+}
+
+.masking__matte-chip-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-mod);
+  letter-spacing: 0.04em;
+}
+
+/* Mask-stack node count badge on clip headers in the timeline.
+   Position: absolute top-right corner inside the clip element. */
+.masking__clip-badge {
+  position: absolute;
+  top: 2px;
+  right: 20px;  /* leave room for right trim handle */
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cx-mod);
+  background: color-mix(in srgb, var(--cx-mod) 15%, transparent 85%);
+  border: 1px solid var(--cx-mod);
+  border-radius: 2px;
+  padding: 0 3px;
+  line-height: 14px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Marching-ants SVG polyline — animated via inline @keyframes injected by MarchingAnts.
+   pointer-events:none is set inline; this rule is a BEM fallback/overrideable anchor. */
+.masking__ants-outline {
+  pointer-events: none;
+}
