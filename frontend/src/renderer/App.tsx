@@ -330,6 +330,10 @@ function AppInner() {
   const [sidebarTab, setSidebarTab] = useState<'effects' | 'presets' | 'instruments'>('effects')
   // B2: reactive subscription so sampler add/edit/source/remove triggers a re-render (effect below).
   const instruments = useInstrumentsStore((s) => s.instruments)
+  // B6.2: reactive subscription so frameBank add/edit/position/remove triggers a
+  // preview re-render (effect below). Without it the frameBank preview payload is
+  // a dead flag — wired but never sent on a bank change (Gate 14 wiring check).
+  const frameBanks = useInstrumentsStore((s) => s.frameBanks)
   const selectedTrackId = useTimelineStore((s) => s.selectedTrackId)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
@@ -1163,8 +1167,20 @@ function AppInner() {
             adsr: rackAdsr,
           })
         })
+        // B6.2 — Frame-Bank (wavetable) PREVIEW serialization. A frameBank is
+        // decoded on the BACKEND (the byte-budget DecodedFrameCache + SG-8 degrade
+        // live there), so — unlike samplers/racks which resolve to layers client-
+        // side — the preview ships the frameBank DESCRIPTOR in a `performance`
+        // payload and the backend (_handle_render_composite) renders + appends the
+        // voice layer. EXACT mirror of the export serialization (buildPerformance-
+        // Payload): serialize the instruments-store frameBanks + register every
+        // slot's source clip into the SAME assets table. No frameBanks → empty
+        // payload → `performance` omitted → preview byte-identical (regression-safe).
+        const fbPreview = serializeFrameBanks(instrState.frameBanks, projectAssets, activeFps)
+        const hasFrameBanksPreview = Object.keys(fbPreview.frameBanks).length > 0
+
         const hasMultipleLayers =
-          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0
+          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0 || hasFrameBanksPreview
 
         if (hasMultipleLayers || activeVideoClips.length === 0) {
           // Use render_composite for multi-layer rendering
@@ -1253,11 +1269,19 @@ function AppInner() {
             ...samplerLayers.map((l) => ({ ...l })),
             ...rackLayers.map((l) => serializeGroupLayer(l as Record<string, unknown>)),
           ]
+          // B6.2 — frameBank preview payload: the backend reads
+          // `performance.frameBanks` + `performance.assets` and appends the
+          // resolved bank voice layer (mirror of export). Omitted entirely when no
+          // frameBanks are present so the preview request is byte-identical to B6.1.
+          const fbPerformance = hasFrameBanksPreview
+            ? { performance: { frameBanks: fbPreview.frameBanks, assets: fbPreview.assets } }
+            : {}
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',
             layers,
             resolution: [canvasW || frameWidth || 1920, canvasH || frameHeight || 1080],
             project_seed: projectSeed,
+            ...fbPerformance,
           })
         } else {
           // Single video clip — use fast render_frame path
@@ -1409,6 +1433,17 @@ function AppInner() {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
   }, [instruments, currentFrame, activeFps, requestRenderFrame])
+
+  // B6.2: re-render when any frameBank is added/edited/positioned/removed.
+  // Mirror of the sampler effect above — the frameBank descriptor is decoded on
+  // the backend (byte-budget cache + SG-8), so a position/slot change must re-
+  // issue the render_composite IPC (with the frameBank performance payload) or
+  // the live preview never repaints. activeFps is a dep so a project fps change
+  // re-resolves slot frameCounts (parity with the sampler/export serialization).
+  useEffect(() => {
+    if (!activeAssetPath.current) return
+    requestRenderFrame(currentFrame)
+  }, [frameBanks, currentFrame, activeFps, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
