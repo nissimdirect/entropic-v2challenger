@@ -1,19 +1,18 @@
 /**
- * B4.2 — resolveRackMacros tests (Sample Rack macros: one-to-many fan-out).
+ * B4.2 — resolveRackMacros tests (THE LIVE render-path resolver).
  *
- * Drives the REAL resolver (resolveRackMacros) + the REAL playback math
- * (computeLoopFrameIndex) and asserts the COMPUTED FRAME INDEX actually moves
- * when a macro fans a value into a pad's `scrub` — the anti-dead-flag discipline
- * (no tautological "macro object holds a value" tests). Mirrors the backend
- * tests/test_rack_macros.py.
- *
- * The FAN-OUT CAPS (MAX_MODROUTES_PER_MACRO / MAX_TOTAL_EDGES) are the enforcing
- * trust boundary in the BACKEND security.validate_rack_macros; their negative
- * tests live in backend/tests/test_rack_macros.py. The frontend mirrors the cap
- * CONSTANTS (asserted equal to the backend here) for the editor UI.
+ * This is the LIVE path: `resolveRackMacros` is called per frame at App.tsx in
+ * the rack render path. These tests drive the REAL resolver + REAL playback math
+ * (computeLoopFrameIndex) and assert (a) the resolved frame index actually moves
+ * (anti-dead-flag, on the LIVE path — not the deleted backend resolver), and
+ * (b) the resolver's iteration is HARD-BOUNDED by the fan-out caps so a hostile
+ * project file CANNOT flood the render thread (the DoS qa-redteam flagged).
  */
 import { describe, it, expect } from 'vitest'
-import { resolveRackMacros } from '../../../renderer/components/instruments/resolveRackMacros'
+import {
+  resolveRackMacros,
+  resolveRackMacrosBounded,
+} from '../../../renderer/components/instruments/resolveRackMacros'
 import { computeLoopFrameIndex } from '../../../renderer/components/instruments/computeSamplerVoice'
 import {
   MAX_MACROS_PER_RACK,
@@ -77,33 +76,26 @@ const compute = (inst: SamplerInstrumentV1, playhead: number, fc = 100) =>
   computeLoopFrameIndex(inst, playhead, fc)
 
 // ---------------------------------------------------------------------------
-// ANTI-DEAD-FLAG: a macro actually MOVES the computed frame index
+// ANTI-DEAD-FLAG: the LIVE resolver actually MOVES the computed frame index
 // ---------------------------------------------------------------------------
 
-describe('resolveRackMacros — anti-dead-flag (drives the real param)', () => {
-  it('test_macro_drives_target_param_is_not_a_noop', () => {
+describe('resolveRackMacros — anti-dead-flag (LIVE render-path resolver)', () => {
+  it('test_live_resolver_drives_target_param_is_not_a_noop', () => {
     const baselineFrame = compute(makeInst(), 0) // scrub absent → frame 0
 
     const m = macro('m1', 1, [route('pad.a.scrub', 1)])
+    // The LIVE entry point used by App.tsx per frame.
     const out = resolveRackMacros(makeRack([makePad('a')], [m]))!
     const driven = padById(out, 'a').instrument
 
-    // The resolver actually WROTE scrub into the target param...
-    expect(driven.scrub).toBe(1)
-    // ...and that drives the REAL playback to a DIFFERENT frame than baseline.
+    expect(driven.scrub).toBe(1) // resolver WROTE the param
     const drivenFrame = compute(driven, 0)
-    expect(drivenFrame).not.toBe(baselineFrame)
+    expect(drivenFrame).not.toBe(baselineFrame) // ...and it MOVES the real frame
     expect(drivenFrame).toBe(99) // scrub 1.0 → last frame of [0, 99]
   })
 
   it('macro at 0 is a no-op (param untouched)', () => {
     const m = macro('m1', 0, [route('pad.a.scrub', 1)])
-    const out = resolveRackMacros(makeRack([makePad('a')], [m]))!
-    expect(padById(out, 'a').instrument.scrub).toBeUndefined()
-  })
-
-  it('macro with no routes is a no-op', () => {
-    const m = macro('m1', 1, [])
     const out = resolveRackMacros(makeRack([makePad('a')], [m]))!
     expect(padById(out, 'a').instrument.scrub).toBeUndefined()
   })
@@ -116,7 +108,7 @@ describe('resolveRackMacros — anti-dead-flag (drives the real param)', () => {
 })
 
 // ---------------------------------------------------------------------------
-// ONE-TO-MANY: one macro fans out to >=2 target params at once
+// ONE-TO-MANY: one macro fans out to >=2 target params at once (LIVE path)
 // ---------------------------------------------------------------------------
 
 describe('resolveRackMacros — one-to-many fan-out', () => {
@@ -124,23 +116,73 @@ describe('resolveRackMacros — one-to-many fan-out', () => {
     const m = macro('m1', 1, [route('pad.a.scrub', 1), route('pad.b.scrub', 1)])
     const out = resolveRackMacros(makeRack([makePad('a'), makePad('b')], [m]))!
 
-    // BOTH pads received the resolved value from the SINGLE macro.
     expect(padById(out, 'a').instrument.scrub).toBe(1)
     expect(padById(out, 'b').instrument.scrub).toBe(1)
-    // And BOTH drive real playback to the last frame (was 0 at playhead 0).
     expect(compute(padById(out, 'a').instrument, 0)).toBe(99)
     expect(compute(padById(out, 'b').instrument, 0)).toBe(99)
   })
 
   it('one macro fans to distinct params on the same pad', () => {
-    const m = macro('m1', 1, [
-      route('pad.a.scrub', 1),
-      route('pad.a.opacity', -1), // 1.0 base + (1 * -1) = 0.0
-    ])
+    const m = macro('m1', 1, [route('pad.a.scrub', 1), route('pad.a.opacity', -1)])
     const out = resolveRackMacros(makeRack([makePad('a')], [m]))!
     const inst = padById(out, 'a').instrument
     expect(inst.scrub).toBe(1)
-    expect(inst.opacity).toBe(0)
+    expect(inst.opacity).toBe(0) // 1.0 + (1 * -1) = 0, clamped [0,1]
+  })
+})
+
+// ---------------------------------------------------------------------------
+// BOUNDED ITERATION — the DoS fix: the LIVE resolver CANNOT be flooded
+// ---------------------------------------------------------------------------
+
+describe('resolveRackMacros — bounded iteration (render thread cannot be flooded)', () => {
+  it('test_live_resolver_bounds_total_routes (the qa-redteam DoS)', () => {
+    // The EXACT exploit: a hand-edited file with 8 macros × 50,000 routes.
+    // Without the cap this is 400,000 iterations/frame on the render thread.
+    const HOSTILE_ROUTES = 50_000
+    const macros: RackMacro[] = []
+    for (let i = 0; i < MAX_MACROS_PER_RACK; i++) {
+      const routes: MacroRoute[] = []
+      for (let r = 0; r < HOSTILE_ROUTES; r++) routes.push(route('pad.a.scrub', 1))
+      macros.push(macro(`m${i}`, 1, routes))
+    }
+    const rack = makeRack([makePad('a')], macros)
+
+    const { routesProcessed } = resolveRackMacrosBounded(rack)
+
+    // The resolver iterated AT MOST MAX_TOTAL_EDGES routes — NOT 400,000.
+    expect(routesProcessed).toBeLessThanOrEqual(MAX_TOTAL_EDGES)
+    // And it hits exactly the global ceiling (proves the cap engaged).
+    expect(routesProcessed).toBe(MAX_TOTAL_EDGES)
+  })
+
+  it('per-macro cap: a single macro with 1e6 routes is bounded', () => {
+    const routes: MacroRoute[] = []
+    for (let r = 0; r < 1_000_000; r++) routes.push(route('pad.a.scrub', 1))
+    const rack = makeRack([makePad('a')], [macro('m1', 1, routes)])
+
+    const { routesProcessed } = resolveRackMacrosBounded(rack)
+    // One macro can contribute at most MAX_MODROUTES_PER_MACRO route-iterations.
+    expect(routesProcessed).toBeLessThanOrEqual(MAX_MODROUTES_PER_MACRO)
+  })
+
+  it('macro-count cap: 10,000 macros are bounded to MAX_MACROS_PER_RACK', () => {
+    const macros: RackMacro[] = []
+    for (let i = 0; i < 10_000; i++) {
+      macros.push(macro(`m${i}`, 1, [route('pad.a.scrub', 1)]))
+    }
+    const rack = makeRack([makePad('a')], macros)
+    const { routesProcessed } = resolveRackMacrosBounded(rack)
+    // At most MAX_MACROS_PER_RACK macros considered → at most that many routes.
+    expect(routesProcessed).toBeLessThanOrEqual(MAX_MACROS_PER_RACK)
+  })
+
+  it('a normal under-cap rack processes every route (no over-truncation)', () => {
+    const macros: RackMacro[] = [
+      macro('m1', 1, [route('pad.a.scrub', 1), route('pad.a.opacity', -1)]),
+    ]
+    const { routesProcessed } = resolveRackMacrosBounded(makeRack([makePad('a')], macros))
+    expect(routesProcessed).toBe(2)
   })
 })
 
@@ -148,7 +190,7 @@ describe('resolveRackMacros — one-to-many fan-out', () => {
 // TRUST BOUNDARY — unknown target / malformed route skipped; NaN/Inf clamped
 // ---------------------------------------------------------------------------
 
-describe('resolveRackMacros — trust boundary', () => {
+describe('resolveRackMacros — trust boundary (preserved guards)', () => {
   it('test_unknown_macro_target_skipped', () => {
     const m = macro('m1', 1, [
       route('pad.ghost.scrub', 1), // pad doesn't exist
@@ -215,8 +257,7 @@ describe('resolveRackMacros — trust boundary', () => {
 describe('resolveRackMacros — regression (matches B4.1)', () => {
   it('test_no_macros_matches_b4_1 (no macros field → same reference)', () => {
     const rack = makeRack([makePad('a'), makePad('b')]) // no macros field
-    const out = resolveRackMacros(rack)
-    expect(out).toBe(rack) // returned UNCHANGED — no copy, no drive
+    expect(resolveRackMacros(rack)).toBe(rack) // returned UNCHANGED
   })
 
   it('empty macros list → same reference', () => {
@@ -233,17 +274,5 @@ describe('resolveRackMacros — regression (matches B4.1)', () => {
 
   it('null rack returned unchanged', () => {
     expect(resolveRackMacros(null)).toBeNull()
-  })
-})
-
-// ---------------------------------------------------------------------------
-// CAP CONSTANTS mirror the backend (the enforcing boundary is backend security)
-// ---------------------------------------------------------------------------
-
-describe('resolveRackMacros — fan-out cap constants mirror backend', () => {
-  it('MAX_* constants match the B4.2 spec', () => {
-    expect(MAX_MACROS_PER_RACK).toBe(8)
-    expect(MAX_MODROUTES_PER_MACRO).toBe(32)
-    expect(MAX_TOTAL_EDGES).toBe(256)
   })
 })

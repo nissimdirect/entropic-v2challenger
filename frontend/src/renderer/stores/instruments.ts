@@ -12,7 +12,31 @@
  */
 import { create } from 'zustand'
 
-import type { SamplerInstrumentV1, RackNode, RackPad } from '../components/instruments/types'
+import type {
+  SamplerInstrumentV1,
+  RackNode,
+  RackPad,
+  RackMacro,
+  MacroRoute,
+} from '../components/instruments/types'
+import {
+  MAX_MACROS_PER_RACK,
+  MAX_MODROUTES_PER_MACRO,
+  MAX_TOTAL_EDGES,
+} from '../components/instruments/types'
+
+let _macroCounter = 0
+function nextMacroId(): string {
+  _macroCounter += 1
+  return `macro-${_macroCounter}`
+}
+
+/** Sum of all macro routes across a rack (the MAX_TOTAL_EDGES denominator). */
+function totalRackEdges(rack: RackNode): number {
+  let n = 0
+  for (const m of rack.macros ?? []) n += m.routes?.length ?? 0
+  return n
+}
 
 let _counter = 0
 function nextId(): string {
@@ -83,6 +107,34 @@ interface InstrumentsState {
     padId: string,
     patch: Partial<Omit<RackPad, 'id'>>,
   ) => void
+
+  // --- B4.2 Sample Rack macros (fan-out capped at the store-write boundary) ---
+  /**
+   * Add a macro to a track's rack. REJECTS (no-op) when the rack already has
+   * MAX_MACROS_PER_RACK macros — the store-write fan-out cap (layer 1). Returns
+   * the new macro id, or null if rejected / no rack.
+   */
+  addRackMacro: (trackId: string, name?: string) => string | null
+  /** Patch a macro's name/value (value clamped [0,1] by the resolver). */
+  updateRackMacro: (
+    trackId: string,
+    macroId: string,
+    patch: Partial<Pick<RackMacro, 'name' | 'value'>>,
+  ) => void
+  /** Remove a macro (and its routes) from a track's rack. */
+  removeRackMacro: (trackId: string, macroId: string) => void
+  /**
+   * Add a route to a macro. REJECTS (no-op, returns false) when the macro
+   * already has MAX_MODROUTES_PER_MACRO routes OR the rack is already at
+   * MAX_TOTAL_EDGES — the per-macro + total fan-out caps (layer 1).
+   */
+  addMacroRoute: (
+    trackId: string,
+    macroId: string,
+    route: MacroRoute,
+  ) => boolean
+  /** Remove a route (by index) from a macro. */
+  removeMacroRoute: (trackId: string, macroId: string, routeIndex: number) => void
 }
 
 export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
@@ -180,5 +232,92 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       const pads = rack.pads.slice()
       pads[idx] = merged
       return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
+    }),
+
+  // --- B4.2 Sample Rack macros — store-write fan-out caps (layer 1) ---
+  addRackMacro: (trackId, name) => {
+    const rack = get().racks[trackId]
+    if (!rack) return null
+    const macros = rack.macros ?? []
+    // FAN-OUT CAP (store-write): reject a 9th macro.
+    if (macros.length >= MAX_MACROS_PER_RACK) return null
+    const id = nextMacroId()
+    const macro: RackMacro = {
+      id,
+      name: name ?? `Macro ${macros.length + 1}`,
+      value: 0,
+      routes: [],
+    }
+    set((state) => {
+      const r = state.racks[trackId]
+      if (!r) return state
+      return {
+        racks: {
+          ...state.racks,
+          [trackId]: { ...r, macros: [...(r.macros ?? []), macro] },
+        },
+      }
+    })
+    return id
+  },
+
+  updateRackMacro: (trackId, macroId, patch) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack || !rack.macros) return state
+      const idx = rack.macros.findIndex((m) => m.id === macroId)
+      if (idx === -1) return state
+      const macros = rack.macros.slice()
+      // id + routes are not patched here (routes via addMacroRoute); value left
+      // as-is (the resolver clamps [0,1] at render — single source of truth).
+      const { name, value } = patch
+      macros[idx] = {
+        ...macros[idx],
+        ...(name !== undefined ? { name } : {}),
+        ...(value !== undefined ? { value } : {}),
+      }
+      return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
+    }),
+
+  removeRackMacro: (trackId, macroId) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack || !rack.macros) return state
+      const macros = rack.macros.filter((m) => m.id !== macroId)
+      if (macros.length === rack.macros.length) return state
+      return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
+    }),
+
+  addMacroRoute: (trackId, macroId, route) => {
+    const rack = get().racks[trackId]
+    if (!rack || !rack.macros) return false
+    const idx = rack.macros.findIndex((m) => m.id === macroId)
+    if (idx === -1) return false
+    const macro = rack.macros[idx]
+    // FAN-OUT CAPS (store-write): reject past the per-macro OR the rack total.
+    if ((macro.routes?.length ?? 0) >= MAX_MODROUTES_PER_MACRO) return false
+    if (totalRackEdges(rack) >= MAX_TOTAL_EDGES) return false
+    set((state) => {
+      const r = state.racks[trackId]
+      if (!r || !r.macros) return state
+      const mi = r.macros.findIndex((m) => m.id === macroId)
+      if (mi === -1) return state
+      const macros = r.macros.slice()
+      macros[mi] = { ...macros[mi], routes: [...(macros[mi].routes ?? []), route] }
+      return { racks: { ...state.racks, [trackId]: { ...r, macros } } }
+    })
+    return true
+  },
+
+  removeMacroRoute: (trackId, macroId, routeIndex) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack || !rack.macros) return state
+      const mi = rack.macros.findIndex((m) => m.id === macroId)
+      if (mi === -1) return state
+      const routes = (rack.macros[mi].routes ?? []).filter((_, i) => i !== routeIndex)
+      const macros = rack.macros.slice()
+      macros[mi] = { ...macros[mi], routes }
+      return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
     }),
 }))
