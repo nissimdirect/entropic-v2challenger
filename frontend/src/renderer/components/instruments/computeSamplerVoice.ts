@@ -48,9 +48,27 @@ export function computeLoopFrameIndex(
   const speed = clampFinite(inst.speed, SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1)
   const start = clampFinite(inst.startFrame, 0, lastFrame, 0)
 
-  // B1/B2 path: no loop or loop disabled → original formula, byte-identical.
+  // B3.2 — `scrub` modulation destination. When a finite scrub is present
+  // (written by resolveSamplerModulations), the playhead position is DRIVEN by
+  // scrub (0..1) across the sampler's playable range — overriding the
+  // playhead-derived offset. Absent scrub → null → B3.1 path unchanged
+  // (regression-safe). MIRROR: export.py _compute_voice_footage_frame.
+  const scrubRaw = inst.scrub
+  const hasScrub = typeof scrubRaw === 'number' && Number.isFinite(scrubRaw)
+  const scrub = hasScrub ? clampFinite(scrubRaw, 0, 1, 0) : null
+
+  // B1/B2 path: no loop or loop disabled → original formula, byte-identical
+  // when scrub is absent; scrub maps across [startFrame, endFrame|last].
   const loop = inst.loop
   if (!loop || !loop.enabled) {
+    if (scrub !== null) {
+      const end = Math.round(clampFinite(inst.endFrame ?? lastFrame, 0, lastFrame, lastFrame))
+      const startI = Math.round(start)
+      const lo = Math.min(startI, end)
+      const hi = Math.max(startI, end)
+      const raw = lo + scrub * (hi - lo)
+      return Math.round(clampFinite(raw, 0, lastFrame, 0))
+    }
     const raw = start + Math.round(speed * playheadFrame)
     return Math.round(clampFinite(raw, 0, lastFrame, 0))
   }
@@ -63,6 +81,13 @@ export function computeLoopFrameIndex(
   const lIn = Math.min(loopIn, loopOut)
   const lOut = Math.max(loopIn, loopOut)
   const loopLen = lOut - lIn + 1 // always >= 1
+
+  // B3.2 — scrub overrides the loop traversal: map scrub (0..1) directly onto
+  // [lIn, lOut]. The operator becomes the playhead.
+  if (scrub !== null) {
+    const raw = lIn + scrub * (lOut - lIn)
+    return Math.round(clampFinite(raw, 0, lastFrame, 0))
+  }
 
   // Raw offset from loopIn, incorporating speed magnitude.
   // Speed sign interacts with dir: positive speed travels "forward" in the dir

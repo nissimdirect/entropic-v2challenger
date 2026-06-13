@@ -33,6 +33,7 @@ import Inspector from './components/inspector/Inspector'
 import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
+import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
@@ -286,6 +287,10 @@ function AppInner() {
   const isTimerPlayingRef = useRef(false)
   const [transportSpeedMultiplier, setTransportSpeedMultiplier] = useState(1)
   const [operatorValues, setOperatorValues] = useState<Record<string, number>>({})
+  // B3.2: imperative mirror of operatorValues for the requestRenderFrame
+  // closure (deps [effectChain]); read at exec time so sampler scrub/speed
+  // modulation uses the latest per-frame values without re-creating the cb.
+  const operatorValuesRef = useRef<Record<string, number>>({})
   // Operators panel: re-mounted 2026-05-15 as floating overlay. Toggle with Cmd+Shift+O.
   const [showOperators, setShowOperators] = useState(false)
   // F-0514-18: HistoryPanel re-surfaced via Edit → Undo History.
@@ -1077,8 +1082,19 @@ function AppInner() {
         // One ADSREnvelope per track: use the first pad's envelope (all pads share
         // the same rack envelope for the sampler voice lifecycle in Phase 5a).
         const rackAdsr = perfState.drumRack.pads[0]?.envelope ?? { attack: 0, decay: 0, sustain: 1, release: 0 }
+        // B3.2: resolve `sampler.<id>.scrub|speed` operator modulation into the
+        // instruments map BEFORE computing footage frames — preview parity with
+        // the backend export path (_composite_export_frame). No operators / no
+        // matching mappings → SAME reference (no-op, regression-safe). Uses the
+        // imperative operatorValues mirror (latest per-frame values).
+        const samplerOperators = useOperatorStore.getState().operators
+        const modulatedInstruments = resolveSamplerModulations(
+          operatorValuesRef.current,
+          samplerOperators,
+          instrState.instruments,
+        )
         const samplerLayers = Array.from(perfTrackIds).flatMap((trackId) => {
-          const inst = instrState.instruments[trackId]
+          const inst = modulatedInstruments[trackId]
           if (!inst) return []
           const events = perfState.trackEvents[trackId] ?? []
           const voices = evaluateVoices(events, frame, { voiceCap: 4, adsr: rackAdsr })
@@ -1207,7 +1223,11 @@ function AppInner() {
           setRenderError(null)
           // Store operator values for UI indicators
           if (res.operator_values) {
-            setOperatorValues(res.operator_values as Record<string, number>)
+            const ov = res.operator_values as Record<string, number>
+            setOperatorValues(ov)
+            // B3.2: keep the imperative mirror fresh for next frame's sampler
+            // scrub/speed modulation (requestRenderFrame reads the ref).
+            operatorValuesRef.current = ov
           }
           // Wire disabled_effects to toast (deduplicated)
           if (res.disabled_effects) {
@@ -3143,6 +3163,9 @@ function AppInner() {
               operatorValues={operatorValues}
               maskNodes={(selectedClip?.maskStack ?? []).filter(
                 (n) => n.kind === 'chroma_key' || n.kind === 'luma_key',
+              )}
+              samplerInstruments={Object.values(instruments).filter(
+                (i) => i.type === 'sampler',
               )}
             />
           </div>

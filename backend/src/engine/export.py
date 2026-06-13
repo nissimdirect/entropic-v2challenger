@@ -449,6 +449,10 @@ class ExportManager:
             mod_active = bool(mod_operators) or bool(automation_by_frame)
             signal_engine = SignalEngine() if mod_active else None
             signal_state: dict = {}
+            # B3.2: the most recent per-frame operator values, captured so the
+            # composite path can resolve `sampler.<id>.<param>` modulations with
+            # the SAME values used for chain routing this frame (preview parity).
+            last_operator_values: dict = {}
 
             def modulate_chain_for_frame(
                 base_chain: list[dict], src_idx: int, video_frame
@@ -460,8 +464,9 @@ class ExportManager:
                 automation overrides replace). Returns the chain unchanged when no
                 modulation is active so the legacy export stays byte-identical.
                 """
-                nonlocal signal_state
+                nonlocal signal_state, last_operator_values
                 if not mod_active:
+                    last_operator_values = {}
                     return base_chain
                 auto_overrides = None
                 if automation_by_frame:
@@ -492,6 +497,7 @@ class ExportManager:
                         video_frame=video_frame,
                         state=signal_state,
                     )
+                last_operator_values = values
                 return signal_engine.apply_modulation(
                     mod_operators,
                     values,
@@ -522,6 +528,8 @@ class ExportManager:
                         project_seed=project_seed,
                         voice_states=voice_states,
                         voice_readers=voice_readers,
+                        operators=mod_operators,
+                        operator_values=last_operator_values,
                     )
                 else:
                     out, states = apply_chain(
@@ -611,6 +619,8 @@ class ExportManager:
                         project_seed=project_seed,
                         voice_states=voice_states,
                         voice_readers=voice_readers,
+                        operators=mod_operators,
+                        operator_values=last_operator_values,
                     )
                 else:
                     output, states = apply_chain(
@@ -781,9 +791,30 @@ class ExportManager:
         )
         start = clamp_finite(inst.get("startFrame", 0), 0, last_frame, 0)
 
-        # B1/B2 path: no loop or loop disabled → original formula, byte-identical.
+        # B3.2 — `scrub` modulation destination. When a finite scrub is present
+        # (written by resolve_sampler_modulations), the playhead position is
+        # DRIVEN by scrub (0..1) across the sampler's playable range — overriding
+        # the playhead-derived offset. Absent scrub → None → B3.1 path unchanged
+        # (regression-safe). The scrubbed frame still honors loop bounds.
+        scrub_raw = inst.get("scrub")
+        has_scrub = (
+            isinstance(scrub_raw, (int, float))
+            and not isinstance(scrub_raw, bool)
+            and scrub_raw == scrub_raw
+            and scrub_raw not in (float("inf"), float("-inf"))
+        )
+        scrub = clamp_finite(scrub_raw, 0.0, 1.0, 0.0) if has_scrub else None
+
+        # B1/B2 path: no loop or loop disabled → original formula, byte-identical
+        # when scrub is absent; scrub maps across [startFrame, endFrame|last].
         loop = inst.get("loop")
         if not loop or not loop.get("enabled"):
+            if scrub is not None:
+                end_raw = inst.get("endFrame", last_frame)
+                end = int(round(clamp_finite(end_raw, 0, last_frame, last_frame)))
+                lo, hi = min(int(round(start)), end), max(int(round(start)), end)
+                raw = lo + scrub * (hi - lo)
+                return int(round(clamp_finite(raw, 0, last_frame, 0)))
             raw = start + round(speed * playhead_frame)
             return int(round(clamp_finite(raw, 0, last_frame, 0)))
 
@@ -797,6 +828,12 @@ class ExportManager:
         l_in = min(loop_in, loop_out)
         l_out = max(loop_in, loop_out)
         loop_len = l_out - l_in + 1  # always >= 1
+
+        # B3.2 — scrub overrides the loop traversal: map scrub (0..1) directly
+        # onto [l_in, l_out]. The operator becomes the playhead.
+        if scrub is not None:
+            raw = l_in + scrub * (l_out - l_in)
+            return int(round(clamp_finite(raw, 0, last_frame, 0)))
 
         # Raw offset from loopIn, incorporating speed magnitude.
         abs_sp = abs(speed)
@@ -907,6 +944,8 @@ class ExportManager:
         project_seed: int,
         voice_states: dict,
         voice_readers: dict,
+        operators: list[dict] | None = None,
+        operator_values: dict | None = None,
     ) -> tuple[np.ndarray, dict]:
         """Build the composited frame for one output frame (O1 composite branch).
 
@@ -924,6 +963,19 @@ class ExportManager:
         events = performance.get("events") or []
         instruments = performance.get("instruments") or {}
         assets = performance.get("assets") or {}
+
+        # B3.2 — resolve `sampler.<id>.<param>` operator modulation into the
+        # instruments dict BEFORE any footage frame is computed, so the modulated
+        # scrub/speed reaches _compute_voice_footage_frame this frame (preview
+        # parity: the frontend applies the same resolver before buildVoiceLayers).
+        # No operators / empty values → instruments returned unchanged (no-op,
+        # regression-safe). Mirrors MK.8's resolve_mask_modulations placement.
+        if operators and isinstance(operators, list) and operator_values:
+            from modulation.routing import resolve_sampler_modulations
+
+            instruments = resolve_sampler_modulations(
+                operator_values, operators, instruments
+            )
 
         # Build the layer list bottom-to-top. Layer 0 = base clip with its chain.
         layers: list[dict] = [
