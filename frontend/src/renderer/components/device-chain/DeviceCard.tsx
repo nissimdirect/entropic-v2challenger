@@ -211,6 +211,23 @@ export default function DeviceCard({
         <span className="device-card__mix-value">{mixPercent}%</span>
       </div>
 
+      {/* MK.13: 64×36 matte-presence chip. Shown when this device has an active maskRef.
+          No backend mask_thumbnail endpoint exists yet (deferred per MK.13 spec note);
+          renders a simple matte-presence badge instead of a thumbnail image.
+          Unmasked devices (effect.maskRef === null | undefined) render nothing here. */}
+      {effect.maskRef && (
+        <div
+          className="masking__matte-chip"
+          data-testid="device-matte-chip"
+          title={`Masked: node ${effect.maskRef.nodeId}${effect.maskRef.invert ? ' (inverted)' : ''}`}
+          style={{ width: 64, height: 36 }}
+        >
+          <span className="masking__matte-chip-label">
+            {effect.maskRef.invert ? 'INV' : 'MSK'}
+          </span>
+        </div>
+      )}
+
       {/* MK.3: minimal mask-routing row. Shown when the clip has matte nodes to
           assign, OR a maskRef is already set (so it remains editable even if the
           source clip changed). Rich UI is MK.13's job. */}

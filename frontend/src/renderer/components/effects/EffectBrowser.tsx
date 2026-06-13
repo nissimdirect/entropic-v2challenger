@@ -4,6 +4,7 @@ import type { EffectInfo, EffectInstance } from '../../../shared/types'
 import { LIMITS } from '../../../shared/limits'
 import { useBrowserStore, type BrowserTab, BROWSER_TABS } from '../../stores/browser'
 import { useToastStore } from '../../stores/toast'
+import { useTimelineStore } from '../../stores/timeline'
 // P3.5: instruments tab now renders the real InstrumentsBrowser (INJ-4 fill).
 import InstrumentsBrowser from '../instruments/InstrumentsBrowser'
 
@@ -74,6 +75,11 @@ export function parseDragPayload(
 
 /**
  * Cursor tools for the [tool] tab (PLAN §3.7).
+ *
+ * MK.13: mask tools are added here following the existing P3.2 cursor-mode
+ * stack pattern. Selecting a mask tool also calls setPreviewToolMode on the
+ * timeline store so MaskSelectOverlay activates the correct drawing mode.
+ * Non-mask tools clear previewToolMode (null = normal pointer).
  */
 export type CursorTool =
   | 'select'
@@ -85,6 +91,13 @@ export type CursorTool =
   | 'loop-in'
   | 'loop-out'
   | 'range-select'
+  // MK.13: mask tool modes (mirror previewToolMode values in timeline store)
+  | 'mask-marquee-rect'
+  | 'mask-marquee-ellipse'
+  | 'mask-lasso-freehand'
+  | 'mask-lasso-polygon'
+  | 'mask-wand'
+  | 'mask-key-picker'
 
 const TOOL_ENTRIES: Array<{ id: CursorTool; label: string }> = [
   { id: 'select', label: 'Select' },
@@ -96,6 +109,26 @@ const TOOL_ENTRIES: Array<{ id: CursorTool; label: string }> = [
   { id: 'loop-in', label: 'Loop In' },
   { id: 'loop-out', label: 'Loop Out' },
   { id: 'range-select', label: 'Range Select' },
+]
+
+/**
+ * MK.13: Mask tool registrations in the P3.2 cursor-mode stack.
+ * Listed separately so tests can enumerate them with a stable reference.
+ *
+ * Maps each mask CursorTool id → the previewToolMode value the timeline store
+ * expects. 'mask-key-picker' = eyedropper (MK.6 color-range / key selection).
+ */
+export const MASK_TOOL_ENTRIES: Array<{
+  id: CursorTool
+  label: string
+  previewMode: 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | 'wand' | 'eyedropper'
+}> = [
+  { id: 'mask-marquee-rect',    label: 'Mask Rect',     previewMode: 'marquee-rect' },
+  { id: 'mask-marquee-ellipse', label: 'Mask Ellipse',  previewMode: 'marquee-ellipse' },
+  { id: 'mask-lasso-freehand',  label: 'Mask Lasso',    previewMode: 'lasso-freehand' },
+  { id: 'mask-lasso-polygon',   label: 'Mask Polygon',  previewMode: 'lasso-polygon' },
+  { id: 'mask-wand',            label: 'Mask Wand',     previewMode: 'wand' },
+  { id: 'mask-key-picker',      label: 'Key Picker',    previewMode: 'eyedropper' },
 ]
 
 /**
@@ -201,10 +234,20 @@ export default function EffectBrowser({
   }, [cursorTool])
 
   const handleToolSelect = useCallback((tool: CursorTool) => {
-    // Guard: do not fire if a text input is focused (qa-redteam H5)
+    // Guard: do not fire if a text input is focused (qa-redteam H5 + MK.13 bare-letter guard)
+    // This guard is inherited verbatim from P3.2 §3.7 — isTextInputActive() definition above.
     if (isTextInputActive()) return
     cursorStackRef.current = [...cursorStackRef.current, cursorTool]
     setCursorTool(tool)
+
+    // MK.13: wire mask tools → timeline previewToolMode.
+    // Non-mask tools clear the mode so MaskSelectOverlay deactivates.
+    const maskEntry = MASK_TOOL_ENTRIES.find((e) => e.id === tool)
+    if (maskEntry) {
+      useTimelineStore.getState().setPreviewToolMode(maskEntry.previewMode)
+    } else {
+      useTimelineStore.getState().setPreviewToolMode(null)
+    }
   }, [cursorTool])
 
   // Restore prior cursor mode (for modal close — PLAN §3.7)
@@ -551,7 +594,7 @@ export default function EffectBrowser({
             </div>
           )
         ) : activeTab === 'tool' ? (
-          // [tool] tab: cursor mode tools (PLAN §3.7)
+          // [tool] tab: cursor mode tools (PLAN §3.7) + MK.13 mask tools
           <div className="effect-browser__folder" data-testid="tool-tab-content">
             <div className="effect-browser__folder-header effect-browser__folder-header--static">
               <span>Cursor Tools</span>
@@ -563,6 +606,29 @@ export default function EffectBrowser({
                   className={`effect-browser__item effect-browser__item--tool${cursorTool === id ? ' effect-browser__item--tool-active' : ''}`}
                   onClick={() => handleToolSelect(id)}
                   title={`Switch to ${label} tool`}
+                  data-testid={`tool-item-${id}`}
+                >
+                  {label}
+                  {cursorTool === id && (
+                    <span className="effect-browser__tool-active-badge">●</span>
+                  )}
+                </button>
+              ))}
+            </div>
+            {/* MK.13: Mask tool registrations in the P3.2 cursor-mode stack.
+                Selecting a mask tool activates the corresponding previewToolMode so
+                MaskSelectOverlay begins accepting pointer events on the preview canvas.
+                isTextInputActive guard is inherited via handleToolSelect. */}
+            <div className="effect-browser__folder-header effect-browser__folder-header--static masking__tool-section-header">
+              <span>Mask Tools</span>
+            </div>
+            <div className="effect-browser__folder-list" data-testid="mask-tool-list">
+              {MASK_TOOL_ENTRIES.map(({ id, label }) => (
+                <button
+                  key={id}
+                  className={`effect-browser__item effect-browser__item--tool masking__tool-item${cursorTool === id ? ' effect-browser__item--tool-active masking__tool-item--active' : ''}`}
+                  onClick={() => handleToolSelect(id)}
+                  title={`Switch to ${label} mode`}
                   data-testid={`tool-item-${id}`}
                 >
                   {label}
