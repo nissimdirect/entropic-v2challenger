@@ -26,8 +26,13 @@ import { useState } from 'react'
 import { useInstrumentsStore } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
+import { useToastStore } from '../../stores/toast'
 import { clampFinite } from '../../../shared/numeric'
-import { RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX } from './types'
+import {
+  RACK_PAD_OPACITY_MIN,
+  RACK_PAD_OPACITY_MAX,
+  MAX_MACROS_PER_RACK,
+} from './types'
 import type { BlendMode } from '../../../shared/types'
 
 const BLEND_MODES: BlendMode[] = [
@@ -35,11 +40,20 @@ const BLEND_MODES: BlendMode[] = [
   'difference', 'exclusion', 'darken', 'lighten',
 ]
 
+/** Macro-able pad params — MUST match RACK_MACRO_PARAM_BOUNDS / the resolver. */
+const MACRO_PARAMS = ['scrub', 'speed', 'opacity'] as const
+type MacroParam = (typeof MACRO_PARAMS)[number]
+
 export default function RackDevice({ trackId }: { trackId: string }) {
   const rack = useInstrumentsStore((s) => s.racks[trackId])
   const setRackPadSource = useInstrumentsStore((s) => s.setRackPadSource)
   const updateRackPad = useInstrumentsStore((s) => s.updateRackPad)
   const addRackPad = useInstrumentsStore((s) => s.addRackPad)
+  const addRackMacro = useInstrumentsStore((s) => s.addRackMacro)
+  const updateRackMacro = useInstrumentsStore((s) => s.updateRackMacro)
+  const removeRackMacro = useInstrumentsStore((s) => s.removeRackMacro)
+  const addMacroRoute = useInstrumentsStore((s) => s.addMacroRoute)
+  const removeMacroRoute = useInstrumentsStore((s) => s.removeMacroRoute)
   const triggerRackPad = usePerformanceStore((s) => s.triggerRackPad)
   const assets = useProjectStore((s) => s.assets)
 
@@ -56,6 +70,22 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const onPadTrigger = (padId: string) => {
     const frame = useProjectStore.getState().currentFrame
     triggerRackPad(trackId, padId, frame)
+  }
+
+  const macros = rack.macros ?? []
+  const atMacroCap = macros.length >= MAX_MACROS_PER_RACK
+
+  // Add-macro respects MAX_MACROS_PER_RACK (trust boundary): the store returns
+  // null at the cap — surface it instead of silently no-opping.
+  const onAddMacro = () => {
+    const id = addRackMacro(trackId)
+    if (id === null) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: `Macro limit reached (max ${MAX_MACROS_PER_RACK} per rack).`,
+        source: 'instruments',
+      })
+    }
   }
 
   return (
@@ -164,6 +194,157 @@ export default function RackDevice({ trackId }: { trackId: string }) {
           </label>
         </div>
       )}
+
+      <div data-testid="rack-macros">
+        <button
+          type="button"
+          className="sampler-device__row"
+          data-testid="rack-add-macro"
+          disabled={atMacroCap}
+          onClick={onAddMacro}
+        >
+          + Add macro{atMacroCap ? ` (max ${MAX_MACROS_PER_RACK})` : ''}
+        </button>
+
+        {macros.map((macro) => (
+          <MacroRow
+            key={macro.id}
+            trackId={trackId}
+            macro={macro}
+            pads={rack.pads}
+            onUpdate={updateRackMacro}
+            onRemove={removeRackMacro}
+            onAddRoute={addMacroRoute}
+            onRemoveRoute={removeMacroRoute}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * One macro: name + value slider + remove, plus a route editor (pad/param/depth
+ * → addMacroRoute) and the existing-routes list (→ removeMacroRoute by index).
+ * The route-builder produces `pad.<padId>.<param>` — the EXACT targetPath the
+ * resolver (resolveRackMacros) matches, so a route created here actually drives
+ * the render (anti-dead-flag).
+ */
+function MacroRow({
+  trackId,
+  macro,
+  pads,
+  onUpdate,
+  onRemove,
+  onAddRoute,
+  onRemoveRoute,
+}: {
+  trackId: string
+  macro: import('./types').RackMacro
+  pads: import('./types').RackPad[]
+  onUpdate: (trackId: string, macroId: string, patch: { name?: string; value?: number }) => void
+  onRemove: (trackId: string, macroId: string) => void
+  onAddRoute: (
+    trackId: string,
+    macroId: string,
+    route: { targetPath: string; depth: number },
+  ) => boolean
+  onRemoveRoute: (trackId: string, macroId: string, routeIndex: number) => void
+}) {
+  const [routePadId, setRoutePadId] = useState<string>(pads[0]?.id ?? '')
+  const [routeParam, setRouteParam] = useState<MacroParam>('scrub')
+  const [routeDepth, setRouteDepth] = useState<string>('1')
+
+  const onAddRouteClick = () => {
+    const padId = routePadId || pads[0]?.id
+    if (!padId) return
+    // Trust boundary: clamp depth to a finite number (allow negative → invert).
+    const depth = clampFinite(Number(routeDepth), -1e6, 1e6, 0)
+    const targetPath = `pad.${padId}.${routeParam}`
+    const ok = onAddRoute(trackId, macro.id, { targetPath, depth })
+    if (!ok) {
+      // addMacroRoute returned false (per-macro OR total edge cap hit) — never
+      // silently drop; surface the cap to the user.
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: 'Route limit reached for this rack — remove a route to add another.',
+        source: 'instruments',
+      })
+    }
+  }
+
+  return (
+    <div data-testid={`rack-macro-${macro.id}`} className="sampler-device__row">
+      <input
+        type="text"
+        data-testid="rack-macro-name"
+        value={macro.name}
+        onChange={(e) => onUpdate(trackId, macro.id, { name: e.target.value })}
+      />
+      <input
+        type="range"
+        data-testid="rack-macro-value"
+        min={0}
+        max={1}
+        step={0.01}
+        value={macro.value}
+        onChange={(e) =>
+          // Store clamps [0,1] at render; clamp here too (defense in depth).
+          onUpdate(trackId, macro.id, { value: clampFinite(Number(e.target.value), 0, 1, 0) })
+        }
+      />
+      <button
+        type="button"
+        data-testid="rack-macro-remove"
+        onClick={() => onRemove(trackId, macro.id)}
+      >
+        ✕
+      </button>
+
+      <div className="sampler-device__row">
+        <select
+          data-testid="rack-route-pad"
+          value={routePadId}
+          onChange={(e) => setRoutePadId(e.target.value)}
+        >
+          {pads.map((p, i) => (
+            <option key={p.id} value={p.id}>Pad {i + 1}</option>
+          ))}
+        </select>
+        <select
+          data-testid="rack-route-param"
+          value={routeParam}
+          onChange={(e) => setRouteParam(e.target.value as MacroParam)}
+        >
+          {MACRO_PARAMS.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+        <input
+          type="number"
+          data-testid="rack-route-depth"
+          step={0.01}
+          value={routeDepth}
+          onChange={(e) => setRouteDepth(e.target.value)}
+        />
+        <button type="button" data-testid="rack-add-route" onClick={onAddRouteClick}>
+          + Add route
+        </button>
+      </div>
+
+      {macro.routes.map((route, i) => (
+        <div key={i} data-testid={`rack-route-${i}`} className="sampler-device__row">
+          <span>{route.targetPath}</span>
+          <span>×{route.depth}</span>
+          <button
+            type="button"
+            data-testid="rack-route-remove"
+            onClick={() => onRemoveRoute(trackId, macro.id, i)}
+          >
+            ✕
+          </button>
+        </div>
+      ))}
     </div>
   )
 }
