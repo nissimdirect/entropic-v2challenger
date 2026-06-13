@@ -84,6 +84,14 @@ interface PerformanceState {
    * This is the missing UI→render link that makes a rack pad audible.
    */
   triggerRackPad: (trackId: string, padId: string, frameIndex: number) => void;
+  /**
+   * B4-pad-delete — clear a deleted rack pad's trigger events. Immutably removes
+   * the composite key `${trackId}:${padId}` from `trackEvents` so a deleted pad
+   * leaves no orphaned events. The symmetric counterpart to triggerRackPad's
+   * composite-key write; called by RackDevice alongside removeRackPad. No-op if
+   * the key is absent.
+   */
+  clearRackPadEvents: (trackId: string, padId: string) => void;
   releasePad: (padId: string, frameIndex: number, trackId?: string) => void;
   forceOffPad: (padId: string) => void;
   panicAll: () => void;
@@ -176,6 +184,18 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     };
     const existing = get().trackEvents[key] ?? [];
     set({ trackEvents: { ...get().trackEvents, [key]: [...existing, ev] } });
+  },
+
+  clearRackPadEvents: (trackId, padId) => {
+    // B4-pad-delete — symmetric cleanup: drop the deleted pad's composite-key
+    // event log. No-op (and no re-render) when the key is absent.
+    if (!trackId || !padId) return;
+    const key = `${trackId}:${padId}`;
+    const events = get().trackEvents;
+    if (!(key in events)) return;
+    const next = { ...events };
+    delete next[key];
+    set({ trackEvents: next });
   },
 
   releasePad: (padId, frameIndex, trackId) => {

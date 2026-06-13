@@ -100,4 +100,41 @@ describe('RackDevice', () => {
     fireEvent.click(screen.getByTestId('rack-add-pad'))
     expect(useInstrumentsStore.getState().racks[T].pads.length).toBe(2)
   })
+
+  it('deleting the selected pad removes it + clears events + closes the editor (no crash)', () => {
+    useProjectStore.setState({ currentFrame: 3 })
+    useInstrumentsStore.getState().addRack(T)
+    useInstrumentsStore.getState().addRackPad(T) // 2 pads
+    const padId = firstPadId()
+    render(<RackDevice trackId={T} />)
+
+    // Select + trigger the pad (writes the composite-key event).
+    fireEvent.mouseDown(screen.getByTestId(`rack-pad-${padId}`))
+    fireEvent.click(screen.getByTestId(`rack-pad-${padId}`))
+    expect(screen.getByTestId('rack-pad-editor')).toBeTruthy()
+    expect(usePerformanceStore.getState().trackEvents[`${T}:${padId}`]?.length).toBe(1)
+
+    // Delete the selected pad — must not throw and must close the editor.
+    expect(() => fireEvent.click(screen.getByTestId(`rack-pad-delete-${padId}`))).not.toThrow()
+
+    // Pad gone from the store.
+    expect(useInstrumentsStore.getState().racks[T].pads.find((p) => p.id === padId)).toBeUndefined()
+    // Composite-key event cleared (symmetric cleanup).
+    expect(usePerformanceStore.getState().trackEvents[`${T}:${padId}`]).toBeUndefined()
+    // Editor closed (selection cleared → no dangling selectedPadId).
+    expect(screen.queryByTestId('rack-pad-editor')).toBeNull()
+    // Grid still renders the surviving pad.
+    expect(screen.getByTestId('rack-pad-grid')).toBeTruthy()
+  })
+
+  it('Add pad after delete keeps the grid functional', () => {
+    useInstrumentsStore.getState().addRack(T)
+    const padId = firstPadId()
+    render(<RackDevice trackId={T} />)
+    fireEvent.click(screen.getByTestId(`rack-pad-${padId}`))
+    fireEvent.click(screen.getByTestId(`rack-pad-delete-${padId}`))
+    expect(useInstrumentsStore.getState().racks[T].pads.length).toBe(0)
+    fireEvent.click(screen.getByTestId('rack-add-pad'))
+    expect(useInstrumentsStore.getState().racks[T].pads.length).toBe(1)
+  })
 })

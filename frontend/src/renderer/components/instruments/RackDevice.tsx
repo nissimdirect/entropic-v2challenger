@@ -49,12 +49,14 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const setRackPadSource = useInstrumentsStore((s) => s.setRackPadSource)
   const updateRackPad = useInstrumentsStore((s) => s.updateRackPad)
   const addRackPad = useInstrumentsStore((s) => s.addRackPad)
+  const removeRackPad = useInstrumentsStore((s) => s.removeRackPad)
   const addRackMacro = useInstrumentsStore((s) => s.addRackMacro)
   const updateRackMacro = useInstrumentsStore((s) => s.updateRackMacro)
   const removeRackMacro = useInstrumentsStore((s) => s.removeRackMacro)
   const addMacroRoute = useInstrumentsStore((s) => s.addMacroRoute)
   const removeMacroRoute = useInstrumentsStore((s) => s.removeMacroRoute)
   const triggerRackPad = usePerformanceStore((s) => s.triggerRackPad)
+  const clearRackPadEvents = usePerformanceStore((s) => s.clearRackPadEvents)
   const assets = useProjectStore((s) => s.assets)
 
   const [selectedPadId, setSelectedPadId] = useState<string | null>(null)
@@ -70,6 +72,16 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const onPadTrigger = (padId: string) => {
     const frame = useProjectStore.getState().currentFrame
     triggerRackPad(trackId, padId, frame)
+  }
+
+  // B4-pad-delete — SYMMETRIC cleanup: pad gone (+ its macro routes pruned) via
+  // removeRackPad, AND its composite-key trigger events cleared via
+  // clearRackPadEvents. If the deleted pad was selected, clear local selection
+  // so the editor falls back (no dangling selectedPadId → no crash).
+  const onPadDelete = (padId: string) => {
+    removeRackPad(trackId, padId)
+    clearRackPadEvents(trackId, padId)
+    if (selectedPadId === padId) setSelectedPadId(null)
   }
 
   const macros = rack.macros ?? []
@@ -121,6 +133,15 @@ export default function RackDevice({ trackId }: { trackId: string }) {
 
       {selectedPad && (
         <div data-testid="rack-pad-editor">
+          <button
+            type="button"
+            className="sampler-device__row"
+            data-testid={`rack-pad-delete-${selectedPad.id}`}
+            onClick={() => onPadDelete(selectedPad.id)}
+          >
+            Delete pad
+          </button>
+
           <label className="sampler-device__row">
             <span>Source</span>
             <select
