@@ -99,8 +99,8 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 |---|---|
 | B1 1-voice Sampler | ✅ core [#153](https://github.com/nissimdirect/entropic-v2challenger/pull/153) + mount [#155](https://github.com/nissimdirect/entropic-v2challenger/pull/155) + persistence ✅ [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) (B1 global shape superseded same-day by #167's track-keyed `instruments`; legacy saves drop-with-toast) |
 | B2 voice spine / Performance Track | 🔄 — B2-lite ✅ MERGED [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) 2026-06-12; full voice spine (polyphony/FSM) ❌ |
-| B3 full sampler · B4 sample rack · B5 grouping | B3 ✅ (loop/scrub/rgb/glide/melodic, [#233](https://github.com/nissimdirect/entropic-v2challenger/pull/233) + predecessors) · B4.1 channel summing ✅ [#234](https://github.com/nissimdirect/entropic-v2challenger/pull/234) · B4.2 macros ✅ [#235](https://github.com/nissimdirect/entropic-v2challenger/pull/235) · B4-export parity ✅ [#236](https://github.com/nissimdirect/entropic-v2challenger/pull/236) · B4-editor (creation + RackDevice + pad trigger) 🔄 · B5 ❌ |
-| B6 Frame-Bank · B7 RIFE morph · B8 Granulator · B9 tensor routing · B10 live affordances | ❌ (gated designs; B8 needs SG-3, B9 needs PR-C+SG-5) |
+| B3 full sampler · B4 sample rack · B5 grouping | **B3 ✅** (loop/scrub/rgb/glide/melodic, [#233](https://github.com/nissimdirect/entropic-v2challenger/pull/233)) · **B4 ✅ COMPLETE** — summing [#234](https://github.com/nissimdirect/entropic-v2challenger/pull/234) · macros [#235](https://github.com/nissimdirect/entropic-v2challenger/pull/235) · export-parity [#236](https://github.com/nissimdirect/entropic-v2challenger/pull/236) · editor [#237](https://github.com/nissimdirect/entropic-v2challenger/pull/237) · macro-editor [#238](https://github.com/nissimdirect/entropic-v2challenger/pull/238) · pad-delete [#239](https://github.com/nissimdirect/entropic-v2challenger/pull/239) · choke [#240](https://github.com/nissimdirect/entropic-v2challenger/pull/240) · pad-insert-chains (engine+UI) [#241](https://github.com/nissimdirect/entropic-v2challenger/pull/241)/[#242](https://github.com/nissimdirect/entropic-v2challenger/pull/242) · **B5 ✅ COMPLETE** — grouping/composite-tree [#243](https://github.com/nissimdirect/entropic-v2challenger/pull/243) · nested-rack UI [#244](https://github.com/nissimdirect/entropic-v2challenger/pull/244) · preview-trigger+eviction-fix [#245](https://github.com/nissimdirect/entropic-v2challenger/pull/245) |
+| B6 Frame-Bank · B7 RIFE morph · B8 Granulator · B9 tensor routing · B10 live affordances | **B6 ✅ COMPLETE** — model+LRU [#246](https://github.com/nissimdirect/entropic-v2challenger/pull/246) · preview+SG-8 [#247](https://github.com/nissimdirect/entropic-v2challenger/pull/247) · UI [#248](https://github.com/nissimdirect/entropic-v2challenger/pull/248) · persistence [#249](https://github.com/nissimdirect/entropic-v2challenger/pull/249) · **B7 🔄 flow-morph ✅** (CPU optical-flow [#250](https://github.com/nissimdirect/entropic-v2challenger/pull/250); real Metal/GPU path deferred — SG-1) · **B8 ❌** (needs SG-3) · **B9 ❌** (needs PR-C+SG-5) · **B10 ❌** (live affordances — UNBLOCKED, not yet built) |
 
 ### Vision PRDs (synth paradigm)
 | ID | Status |
@@ -122,20 +122,20 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 
 ### Selection / Masking / Alpha (MK — docs/roadmap/packets/masking.md, merged #204/#205)
 
-**Masking (MK) workstream integrated 2026-06-12 — Phase 2.5 slot, supersedes PD.5/task#45.**
+**Masking (MK) workstream — Phase 2.5 slot, supersedes PD.5/task#45. PHASE A (MK.1–MK.10) ✅ COMPLETE (ledger re-derived from git log 2026-06-13; rows below were stale ❌ — all merged).**
 
 | Item | Status | Notes |
 |---|---|---|
-| **MK.3 — Universal mask-routing wrapper (per-device + per-chain)** | ❌ **HEADLINE** | C4's spatial twin; orphaned `container.py:58/:130–133` seam activated; per-device `maskRef` + per-chain `chain_mask`; invertible. Opus. |
-| MK.1 — Matte data model, budget, cache, persistence | ❌ | Start-now parallel-safe (no engine deps); greenfield `backend/src/masking/`; schema both sides of IPC; SG-8 registered |
-| MK.2 — Per-pixel alpha in compositor path **[RISK:HIGH]** | ❌ | Single-flight owner of `compositor.py`; HARD-DEPENDS on P2.2c — **already satisfied** (SPEC GT-8: `_resolve_compositing` verified on main); extends shipped code |
-| MK.4 — Rect/ellipse marquee on preview → MatteNode + delete/fill | ❌ | **Supersedes PD.5** (task #45a); depends MK.1 + MK.2 |
-| MK.5 — Lasso: freehand + polygon | ❌ | Depends MK.4 |
-| MK.6 — Magic wand + Select Color Range | ❌ | Depends MK.4 |
-| MK.7 — Matte ops UI: invert / feather / grow-shrink / boolean editing | ❌ | Depends MK.1 |
-| MK.8 — Chroma + luma key as procedural mattes, spill suppression, key params as LANES | ❌ | Depends MK.1 |
-| MK.9 — Cut / copy region to new track | ❌ | **Supersedes PD.6** (task #45b); depends MK.4 |
-| MK.10 — Alpha decode + export round-trip (ProRes 4444; WebM/VP9 optional) | ❌ | Depends MK.2 |
+| **MK.3 — Universal mask-routing wrapper (per-device + per-chain)** | ✅ [#218](https://github.com/nissimdirect/entropic-v2challenger/pull/218) **HEADLINE** | per-device `maskRef` + per-chain `chain_mask` live (zmq_server/pipeline) |
+| MK.1 — Matte data model, budget, cache, persistence | ✅ [#215](https://github.com/nissimdirect/entropic-v2challenger/pull/215) | `backend/src/masking/` schema/matte_source/stack on main |
+| MK.2 — Per-pixel alpha in compositor path **[RISK:HIGH]** | ✅ | live in `compositor.py` (SPEC GT-2: per-pixel alpha honored, `w = layer_alpha·opacity`) |
+| MK.4 — Rect/ellipse marquee on preview → MatteNode + delete/fill | ✅ [#219](https://github.com/nissimdirect/entropic-v2challenger/pull/219) | supersedes PD.5 (task #45a) |
+| MK.5 — Lasso: freehand + polygon | ✅ [#220](https://github.com/nissimdirect/entropic-v2challenger/pull/220) | |
+| MK.6 — Magic wand + Select Color Range | ✅ [#223](https://github.com/nissimdirect/entropic-v2challenger/pull/223)/[#227](https://github.com/nissimdirect/entropic-v2challenger/pull/227) | wand.py |
+| MK.7 — Matte ops UI: invert / feather / grow-shrink / boolean editing | ✅ [#222](https://github.com/nissimdirect/entropic-v2challenger/pull/222) | |
+| MK.8 — Chroma + luma key as procedural mattes, spill suppression, key params as LANES | ✅ [#221](https://github.com/nissimdirect/entropic-v2challenger/pull/221) | key_kernels.py |
+| MK.9 — Cut / copy region to new track | ✅ [#225](https://github.com/nissimdirect/entropic-v2challenger/pull/225) | supersedes PD.6 (task #45b) |
+| MK.10 — Alpha decode + export round-trip (ProRes 4444; WebM/VP9 optional) | ✅ [#224](https://github.com/nissimdirect/entropic-v2challenger/pull/224) | `prores_4444` yuva444p10le in codecs.py; honest-alpha-gate fix |
 | MK.CU — CU regression suite J1–J5 (Phase A exit gate; reruns at Phase B exit) | ❌ | Gate: MK.1–MK.10 merged; joins rule-9 live-smoke rotation |
 | MK.11 — Phase B: mask params as lanes + matte-as-mod-source + keyframed transforms | ❌ specced | Phase B — Tier-3/Phase-6 era; mod-source half **hard-gated on SG-5** |
 | MK.12 — Subject/background dual-chain routing via local RVM | ❌ specced | Phase B — **MK.12 tool UI gate (PR-A tool-tab surfaces) NOW SATISFIED** (PR-A complete on main); buildable once Phase A merges |
@@ -250,7 +250,7 @@ Per `packets/masking.md` + `SELECTION-MASKING-SPEC.md` (§14 decisions D1–D7 L
 2. **Feature-request tasks**: #45 region-select on preview, #46 audio extraction, #35 per-track metering + dB readout (supersedes #47, which is CLOSED as a spec task; phases 1–2 ✅ [#102](https://github.com/nissimdirect/entropic-v2challenger/pull/102)/[#105](https://github.com/nissimdirect/entropic-v2challenger/pull/105)).
 3. **Hotkey discoverability epic** ([issue #65](https://github.com/nissimdirect/entropic-v2challenger/issues/65)): 6 unchecked surfaces in `docs/plans/2026-05-14-upcoming-ux-items.md`.
 4. **Cross-modal v1.1 F1–F4 decision** (see Gap G6).
-5. **Split-brain runtime dir (REAL BUG)**: `logger.ts`/`pop-out-window.ts` still write `~/.entropic` while backend + diagnostics path-validation use `~/.creatrix` — electron-main.log unreadable via in-app diagnostics IPC; PD.10 fixes with one-time migration. Remaining rename residue: `gh repo rename`, dir rename, `ENTROPIC_DIR` const, memory slugs.
+5. **Split-brain runtime dir** — ✅ **DONE on main (PD.10 shipped; verified 2026-06-13)**: `logger.ts`, `pop-out-window.ts`, `diagnostics-handlers.ts`, `file-handlers.ts`, `support-bundle.ts` all target `~/.creatrix`; the one-time `~/.entropic → ~/.creatrix` copy-if-absent migration runs first in main bootstrap (`index.ts:232`, `migrate-runtime-dir.ts`). Remaining (non-blocking) residue: `gh repo rename`, top-level dir rename.
 6. **F-0514-8** av/cv2 dylib warning (packaging, deferred to v1.1) · F-16 narrow-fix (disposition = PD.17 rider on PD.11, `packets/parallel-track.md`).
 7. **User-expectation P1 features** (MISSING-FUNCTIONS §1 items #1–#6+#8: snapping, ripple edit, marquee select, Save As + backups, media relink, still-frame export, clip rename/color) — `packets/user-expectations.md` **UE.1–UE.7**, schedulable Phase-1-adjacent (depend on P1.0 only). Item #7 transitions tier decision = **PD.13**; full 26-item §1 disposition = **PD.14**; internal-orphan wire-or-delete = **PD.15**; POST-V1-ROADMAP fold/supersede = **PD.16** (extends PD.9/G6).
 
