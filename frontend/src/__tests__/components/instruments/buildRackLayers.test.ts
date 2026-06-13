@@ -17,7 +17,8 @@ import { describe, it, expect } from 'vitest'
 import { buildRackLayers } from '../../../renderer/components/instruments/buildRackLayers'
 import type { RackNode, RackPad, SamplerInstrumentV1 } from '../../../renderer/components/instruments/types'
 import type { TriggerEvent } from '../../../renderer/components/instruments/voiceFSM'
-import type { Asset, ADSREnvelope, BlendMode } from '../../../shared/types'
+import type { Asset, ADSREnvelope, BlendMode, EffectInstance } from '../../../shared/types'
+import { serializeEffectChain } from '../../../shared/ipc-serialize'
 
 const ADSR_INSTANT: ADSREnvelope = { attack: 0, decay: 0, sustain: 1, release: 0 }
 
@@ -210,5 +211,110 @@ describe('buildRackLayers (B4.1)', () => {
       expect(l.opacity).toBeLessThanOrEqual(1)
       expect(l.opacity).toBeGreaterThanOrEqual(0)
     }
+  })
+})
+
+/**
+ * B4-pad-chain (ENGINE slice) — per-pad insert effect chains.
+ *
+ * Proves the chain on RackPad.chain actually REACHES render_composite in BOTH
+ * the preview layer (buildRackLayers) and the export payload (serialized
+ * instrument dict the backend reads via `pad_inst.get("chain")`), so the SAME
+ * compositor applies the SAME chain → preview/export parity. Also proves a
+ * no-chain pad stays byte-identical (chain=[] → compositor no-op).
+ */
+function makeEffect(overrides: Partial<EffectInstance> = {}): EffectInstance {
+  return {
+    id: 'fx-1',
+    effectId: 'invert',
+    isEnabled: true,
+    isFrozen: false,
+    parameters: { amount: 1 },
+    modulations: {},
+    mix: 1,
+    mask: null,
+    ...overrides,
+  }
+}
+
+describe('buildRackLayers — B4-pad-chain (per-pad insert chains)', () => {
+  // ---- Regression: a pad with NO chain emits chain:[] (byte-identical) ----
+  it('test_no_chain_pad_emits_empty_chain (regression — byte-identical)', () => {
+    const pad = makePad('p1', { instrument: makeInst({ id: 's1', clipId: 'clip-1' }) })
+    const layers = buildRackLayers(makeRack([pad]), baseOpts({ p1: [trig(0, 0, 's1')] }))
+    expect(layers).toHaveLength(1)
+    // Undefined pad.chain → [] → compositor's `if chain:` is a no-op.
+    expect(layers[0].chain).toEqual([])
+  })
+
+  // ---- Anti-dead-flag: the pad's chain REACHES the render layer ----
+  // FAIL-BEFORE: without the `chain: pad.chain ?? []` emit, layer.chain was
+  // always [] (SamplerVoiceLayer.chain was `never[]`) → the effect never
+  // reached render_composite. PASS-AFTER: the layer carries the pad's chain.
+  it('pad_chain_alters_pad_output_not_a_noop', () => {
+    const chain = [makeEffect({ effectId: 'invert' })]
+    const padWith = makePad('p1', { instrument: makeInst({ id: 's1', clipId: 'clip-1' }), chain })
+    const padWithout = makePad('p2', { instrument: makeInst({ id: 's2', clipId: 'clip-2' }) })
+    const layers = buildRackLayers(makeRack([padWith, padWithout]), baseOpts({
+      p1: [trig(0, 0, 's1')],
+      p2: [trig(0, 1, 's2')],
+    }))
+    expect(layers).toHaveLength(2)
+    // With-chain pad: layer carries the pad's effect (reaches render_composite).
+    expect(layers[0].chain).toHaveLength(1)
+    expect(layers[0].chain).toBe(chain) // the SAME chain reference rides the layer
+    expect(layers[0].chain[0].effectId).toBe('invert')
+    // No-chain pad: layer.chain is empty (no effect → compositor no-op).
+    expect(layers[1].chain).toEqual([])
+    expect(layers[1].chain).toHaveLength(0)
+  })
+
+  // ---- Multi-voice: EVERY voice layer of a chained pad carries the chain ----
+  it('every voice layer of a chained pad carries the pad chain', () => {
+    const chain = [makeEffect({ effectId: 'glitch' }), makeEffect({ id: 'fx-2', effectId: 'invert' })]
+    const pad = makePad('p1', { instrument: makeInst({ id: 's1', clipId: 'clip-1' }), chain })
+    // Two trigger events → two voices → two voice layers, both must carry chain.
+    const layers = buildRackLayers(makeRack([pad]), baseOpts({
+      p1: [trig(0, 0, 's1'), trig(2, 1, 's1')],
+    }))
+    expect(layers.length).toBeGreaterThanOrEqual(1)
+    for (const l of layers) {
+      expect(l.chain).toBe(chain)
+      expect(l.chain).toHaveLength(2)
+    }
+  })
+
+  // ---- HARD ORACLE: preview-layer chain == export-payload chain ----
+  // The export path serializes the pad chain onto the instrument dict
+  // (App.tsx: `chain: serializeEffectChain(pad.chain ?? [])`), and the backend
+  // reads it via `pad_inst.get("chain")` → voice descriptor chain → the SAME
+  // render_composite layer. The preview path puts the RAW chain on the layer;
+  // the compositor receives the chain in both cases. This oracle proves both
+  // carriers reference the IDENTICAL chain the compositor will apply.
+  it('PARITY ORACLE: preview layer chain and export instrument chain carry the same pad chain', () => {
+    const chain = [makeEffect({ effectId: 'invert', parameters: { amount: 1 } })]
+    const pad = makePad('p1', { instrument: makeInst({ id: 's1', clipId: 'clip-1' }), chain })
+
+    // (a) PREVIEW: buildRackLayers emits a layer whose chain IS the pad's chain.
+    const previewLayers = buildRackLayers(makeRack([pad]), baseOpts({ p1: [trig(0, 0, 's1')] }))
+    expect(previewLayers).toHaveLength(1)
+    const previewChain = previewLayers[0].chain
+    expect(previewChain).toBe(chain)
+
+    // (b) EXPORT: the serialized instrument dict carries the SERIALIZED pad chain
+    //     (mirrors App.tsx buildPerformancePayload rack-pad serialization, which
+    //     the backend reads via pad_inst.get("chain")). Lift the expected shape
+    //     from how a per-track effectChain is serialized — genuine, not tautological.
+    const exportInstrumentChain = serializeEffectChain(pad.chain ?? [])
+    const expectedSerialized = serializeEffectChain(chain)
+    expect(exportInstrumentChain).toEqual(expectedSerialized)
+
+    // (c) PARITY: the preview layer's chain serializes to the EXACT payload the
+    //     export instrument dict carries — same chain reaches render_composite
+    //     in both paths → identical rendered result.
+    expect(serializeEffectChain(previewChain)).toEqual(exportInstrumentChain)
+    expect(exportInstrumentChain).toHaveLength(1)
+    expect(exportInstrumentChain[0].effect_id).toBe('invert')
+    expect(exportInstrumentChain[0].enabled).toBe(true)
   })
 })

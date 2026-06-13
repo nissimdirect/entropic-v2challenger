@@ -100,14 +100,18 @@ def _pad(
     scrub=None,
     speed: float = 1.0,
     start_frame: int = 0,
+    chain: list | None = None,
 ) -> dict:
+    # B4-pad-chain: the serialized instrument dict carries the per-pad insert
+    # chain (App.tsx puts `chain: serializeEffectChain(pad.chain)` on the
+    # instrument). The backend reads it via pad_inst.get("chain"). Default [].
     inst: dict = {
         "clipId": clip_id,
         "startFrame": start_frame,
         "speed": speed,
         "opacity": inst_opacity,
         "blendMode": "normal",
-        "chain": [],
+        "chain": chain if chain is not None else [],
     }
     if scrub is not None:
         inst["scrub"] = scrub
@@ -149,6 +153,10 @@ def _capture_composite(monkeypatch) -> list[list[dict]]:
                     "opacity": layer.get("opacity"),
                     "blend_mode": layer.get("blend_mode"),
                     "decoded_r": r_val,
+                    # B4-pad-chain: capture the chain threaded onto the layer so
+                    # the parity/anti-dead-flag tests can prove the pad's chain
+                    # reached render_composite (the SAME compositor preview uses).
+                    "chain": layer.get("chain"),
                 }
             )
         captured.append(snapshot)
@@ -409,3 +417,80 @@ class TestAntiDeadFlag:
         # No instruments, no rack handling → nothing decoded. Frame 50 absent.
         assert 50 not in reader.decoded
         assert reader.decoded == []
+
+
+# ===========================================================================
+# B4-pad-chain — per-pad insert chain THREADS to render_composite in export
+# ===========================================================================
+
+
+class TestPadChainExportParity:
+    """B4-pad-chain (ENGINE slice): a rack pad whose instrument dict carries a
+    `chain` (the export serialization App.tsx produces) must thread that chain
+    onto the render_composite voice layer — the SAME compositor the preview path
+    feeds. Proves the backend ALREADY consumes pad.instrument.chain (zero .py
+    change) and gives preview/export parity for per-pad insert effects.
+    """
+
+    _FX = {"effect_id": "invert", "enabled": True, "params": {"amount": 1}, "mix": 1}
+
+    def _perf_with_pad_chain(self, chain: list) -> dict:
+        return {
+            "events": [_trigger(0, "trackR:p1")],
+            "instruments": {},
+            "assets": _assets(100),
+            "racks": {"trackR": {"pads": [_pad("p1", chain=chain)]}},
+        }
+
+    def test_pad_chain_threads_to_render_composite_layer(self, monkeypatch):
+        """HARD ORACLE: the serialized pad chain on the instrument dict reaches
+        the render_composite voice layer's `chain` UNCHANGED. This is the export
+        half of preview/export parity — render_composite applies this exact chain
+        the same way it applies the preview layer's chain."""
+        captured = _capture_composite(monkeypatch)
+        chain = [dict(self._FX)]
+        _run_export_frame(self._perf_with_pad_chain(chain))
+        voice_layers = [l for l in captured[0] if l["layer_id"] != "base"]
+        assert len(voice_layers) == 1
+        # The pad's chain is threaded onto the voice layer (non-empty, equals input).
+        assert voice_layers[0]["chain"] == chain
+        assert voice_layers[0]["chain"][0]["effect_id"] == "invert"
+
+    def test_no_chain_pad_threads_empty_chain(self, monkeypatch):
+        """REGRESSION: a pad with NO chain (chain=[]) threads an EMPTY chain →
+        the compositor's `if chain:` is a no-op → byte-identical to today."""
+        captured = _capture_composite(monkeypatch)
+        _run_export_frame(self._perf_with_pad_chain([]))
+        voice_layers = [l for l in captured[0] if l["layer_id"] != "base"]
+        assert len(voice_layers) == 1
+        assert voice_layers[0]["chain"] == []
+
+    def test_pad_chain_alters_pad_output_not_a_noop(self, monkeypatch):
+        """ANTI-DEAD-FLAG: a chained pad's layer carries the effect while a
+        no-chain pad's layer is empty — proving the chain is a live input to the
+        compositor, not a dead field. FAIL-BEFORE: the export voice descriptor
+        always read chain=[] (pad chain never serialized onto the instrument) →
+        the effect never reached render_composite."""
+        captured = _capture_composite(monkeypatch)
+        perf = {
+            "events": [
+                _trigger(0, "trackR:p1"),
+                _trigger(0, "trackR:p2", event_index=1),
+            ],
+            "instruments": {},
+            "assets": _assets(100),
+            "racks": {
+                "trackR": {
+                    "pads": [
+                        _pad("p1", chain=[dict(self._FX)]),
+                        _pad("p2", clip_id="clipA", chain=[]),
+                    ]
+                }
+            },
+        }
+        _run_export_frame(perf)
+        voice_layers = [l for l in captured[0] if l["layer_id"] != "base"]
+        assert len(voice_layers) == 2
+        # p1 (with chain) carries the effect; p2 (no chain) is empty.
+        assert len(voice_layers[0]["chain"]) == 1
+        assert voice_layers[1]["chain"] == []

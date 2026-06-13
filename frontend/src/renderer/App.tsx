@@ -2482,13 +2482,25 @@ function AppInner() {
               })
             }
             addPadAsset(pad.instrument.clipId)
+            // B4-pad-chain (ENGINE slice): the backend reads the pad's insert
+            // chain off the INSTRUMENT dict (`pad_inst.get("chain")`, export.py
+            // ~1300) and threads it into the render_composite layer — the SAME
+            // compositor the preview path uses, so export matches preview. The
+            // pad's chain lives on `pad.chain` (not `pad.instrument`), so we
+            // serialize it in the SAME shape as a track effectChain and place
+            // it on the serialized instrument object the backend reads.
+            // Absent pad.chain → [] → no chain reaches render_composite →
+            // byte-identical to a no-chain pad.
             padPayloads.push({
               id: pad.id,
               mute: pad.mute,
               solo: pad.solo,
               opacity: pad.opacity,
               blend: pad.blend,
-              instrument: serializeSamplerInstrument(pad.instrument),
+              instrument: {
+                ...serializeSamplerInstrument(pad.instrument),
+                chain: serializeEffectChain(pad.chain ?? []),
+              },
               voiceCap: 4,
               adsr: rackAdsr,
             })
