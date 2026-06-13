@@ -33,6 +33,7 @@ import Inspector from './components/inspector/Inspector'
 import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
+import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
@@ -1105,8 +1106,31 @@ function AppInner() {
           const legacy = buildSamplerLayer(inst, projectAssets, frame, activeFps)
           return legacy ? [legacy] : []
         })
+        // B4.1: Sample Rack channel summing. A performance track that hosts a rack
+        // emits its per-pad channels (summed into the rack output via the SAME
+        // backend compositor) into the layer list. Per-pad TriggerEvents are keyed
+        // `${trackId}:${padId}` in the perf store (trigger UI is a later B4 slice;
+        // absent → no active voices → the pad contributes nothing). A track with no
+        // rack appends nothing here, so the bare-sampler path above is untouched
+        // (no-rack regression-safe).
+        const rackState = instrState.racks
+        const rackLayers = Array.from(perfTrackIds).flatMap((trackId) => {
+          const rack = rackState[trackId]
+          if (!rack) return []
+          const eventsByPad: Record<string, typeof perfState.trackEvents[string]> = {}
+          for (const pad of rack.pads) {
+            eventsByPad[pad.id] = perfState.trackEvents[`${trackId}:${pad.id}`] ?? []
+          }
+          return buildRackLayers(rack, {
+            eventsByPad,
+            frame,
+            assets: projectAssets,
+            defaultFps: activeFps,
+            adsr: rackAdsr,
+          })
+        })
         const hasMultipleLayers =
-          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0
+          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0
 
         if (hasMultipleLayers || activeVideoClips.length === 0) {
           // Use render_composite for multi-layer rendering
@@ -1172,6 +1196,7 @@ function AppInner() {
             ...videoLayers,
             ...textLayers,
             ...samplerLayers.map((l) => ({ ...l })),
+            ...rackLayers.map((l) => ({ ...l })),
           ]
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',

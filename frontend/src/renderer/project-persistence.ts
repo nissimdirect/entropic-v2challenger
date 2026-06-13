@@ -14,8 +14,8 @@ import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
 import { useInstrumentsStore } from './stores/instruments'
-import type { SamplerInstrumentV1 } from './components/instruments/types'
-import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX } from './components/instruments/types'
+import type { SamplerInstrumentV1, RackNode, RackPad } from './components/instruments/types'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX } from './components/instruments/types'
 import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
@@ -131,6 +131,85 @@ function loadMaskStack(raw: unknown, clipId: string): MatteNode[] {
     }
   }
   return validated
+}
+
+// B4.1 — Sample Rack load-time validation (additive optional; no version bump).
+// Max pads per rack — a generous trust-boundary cap (far above any real rack).
+const MAX_PADS_PER_RACK = 64
+
+/**
+ * B4.1: Validate + sanitize a single RackPad from persisted JSON.
+ *
+ * Trust boundary (feedback_numeric-trust-boundary.md + P6.6 pattern):
+ *   - non-object → drop (null)
+ *   - missing/non-string id → drop (cross-store key must exist)
+ *   - instrument missing or type !== 'sampler' → drop (a pad IS a sampler leaf)
+ *   - opacity: NaN/Inf → 1, out-of-range → clamped [0,1]
+ *   - blend: unknown → 'normal'
+ *   - mute/solo: coerced to boolean
+ *   - instrument numerics clamped at the same bounds as a bare sampler.
+ *
+ * Returns a validated RackPad, or null if the pad must be DROPPED.
+ */
+function validateRackPad(raw: unknown): RackPad | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+
+  if (typeof r.id !== 'string' || r.id.length === 0) return null
+
+  const inst = r.instrument
+  if (typeof inst !== 'object' || inst === null) return null
+  const ri = inst as Record<string, unknown>
+  if (ri.type !== 'sampler') return null
+  if (typeof ri.clipId !== 'string') return null
+
+  const opacity = clampFinite(Number(r.opacity), RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, 1)
+  const blend: BlendMode = VALID_BLEND_MODES.has(r.blend as BlendMode) ? (r.blend as BlendMode) : 'normal'
+  const mute = Boolean(r.mute)
+  const solo = Boolean(r.solo)
+
+  const instrument: SamplerInstrumentV1 = {
+    id: typeof ri.id === 'string' ? ri.id : 'sampler',
+    type: 'sampler',
+    clipId: ri.clipId,
+    startFrame: Math.round(clampFinite(Number(ri.startFrame), 0, 1_000_000, 0)),
+    speed: clampFinite(Number(ri.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
+    opacity: clampFinite(Number(ri.opacity), 0, 1, 1),
+    blendMode: VALID_BLEND_MODES.has(ri.blendMode as BlendMode) ? (ri.blendMode as BlendMode) : 'normal',
+  }
+
+  return { id: r.id, instrument, opacity, blend, mute, solo }
+}
+
+/**
+ * B4.1: Validate + sanitize a RackNode from persisted JSON.
+ *   - non-object / non-array pads → drop the whole rack (null)
+ *   - malformed pads are DROPPED individually (with a toast), additive-safe
+ *   - pad list capped at MAX_PADS_PER_RACK
+ *   - a rack that ends up with zero valid pads is dropped (null)
+ */
+function validateRackNode(raw: unknown, trackId: string): RackNode | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!Array.isArray(r.pads)) return null
+
+  const pads: RackPad[] = []
+  for (const entry of r.pads) {
+    if (pads.length >= MAX_PADS_PER_RACK) break
+    const pad = validateRackPad(entry)
+    if (pad !== null) {
+      pads.push(pad)
+    } else {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        source: 'rack-load',
+        message: `Track ${trackId}: malformed rack pad dropped on load`,
+      })
+    }
+  }
+
+  if (pads.length === 0) return null
+  return { id: typeof r.id === 'string' ? r.id : 'rack', type: 'rack', pads }
 }
 
 // F-0514-10 + F-0514-11: numeric range guards mirrored from backend schema.py.
@@ -285,7 +364,7 @@ function serializeProject(): string {
   // G10 resolution: B2's track-keyed `instruments` supersedes B1's global
   // single `instrument` (#156). Legacy saves with `instrument` are dropped
   // with a toast in hydrateStores — clean-break policy, never a throw.
-  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1> } = {
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -315,6 +394,12 @@ function serializeProject(): string {
     automationLanes: automationStore.lanes,
     // B2: per-Performance-track samplers, keyed by trackId (remapped on load).
     instruments: useInstrumentsStore.getState().instruments,
+    // B4.1: per-Performance-track Sample Racks, keyed by trackId (remapped on
+    // load). Omitted entirely when there are no racks so a no-rack project's
+    // serialized JSON is byte-identical to today (regression-safe).
+    ...(Object.keys(useInstrumentsStore.getState().racks).length > 0
+      ? { racks: useInstrumentsStore.getState().racks }
+      : {}),
     midiMappings: midiStore.getMIDIPersistData(),
     deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
   }
@@ -432,6 +517,12 @@ function validateProject(data: unknown): data is Project {
     if (midi.padMidiNotes !== undefined && (typeof midi.padMidiNotes !== 'object' || midi.padMidiNotes === null)) return false
   }
 
+  // B4.1: optional racks. Shape-check only (object of objects) — per-pad
+  // validation + malformed-pad dropping happens at hydrate. Absent = no rack.
+  if ('racks' in obj && obj.racks !== undefined) {
+    if (typeof obj.racks !== 'object' || obj.racks === null || Array.isArray(obj.racks)) return false
+  }
+
   // B1 mount: optional sampler instrument. Shape-check only — numeric ranges are
   // clamped at hydrate (deserialization trust boundary). Absent = older project.
   if (obj.instrument !== undefined) {
@@ -444,7 +535,7 @@ function validateProject(data: unknown): data is Project {
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1> }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode> }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -457,7 +548,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
-  useInstrumentsStore.setState({ instruments: {} })
+  useInstrumentsStore.setState({ instruments: {}, racks: {} })
 
   // B2: saved trackId → freshly-created trackId (tracks get new ids on load).
   // Used to re-key the per-track samplers after the track loop.
@@ -686,6 +777,24 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
         opacity: clampFinite(Number(s.opacity), 0, 1, 1),
         blendMode: VALID_BLEND_MODES.has(s.blendMode as BlendMode) ? s.blendMode : 'normal',
       })
+    }
+  }
+
+  // B4.1: restore per-track Sample Racks, re-keyed to the new trackIds. Each rack
+  // is validated at this deserialization trust boundary — malformed pads are
+  // DROPPED individually (with a toast), a rack with zero valid pads is dropped,
+  // and a rack whose track didn't survive is dropped. Additive-safe: a project
+  // with no `racks` field leaves the racks store empty (no-rack regression).
+  if (project.racks && typeof project.racks === 'object') {
+    const restored: Record<string, RackNode> = {}
+    for (const [oldId, raw] of Object.entries(project.racks)) {
+      const newId = trackIdMap[oldId]
+      if (!newId) continue
+      const rack = validateRackNode(raw, oldId)
+      if (rack) restored[newId] = rack
+    }
+    if (Object.keys(restored).length > 0) {
+      useInstrumentsStore.setState((s) => ({ racks: { ...s.racks, ...restored } }))
     }
   }
 
@@ -943,7 +1052,8 @@ export function newProject(): void {
   useMIDIStore.getState().resetMIDI()
   // B2: clear ALL per-track samplers (the old no-arg removeSampler() became a
   // silent no-op when the store went track-keyed — samplers must not survive New Project)
-  useInstrumentsStore.setState({ instruments: {} })
+  // B4.1: also clear racks.
+  useInstrumentsStore.setState({ instruments: {}, racks: {} })
 }
 
 export function startAutosave(): void {
@@ -1212,4 +1322,4 @@ export function relinkAsset(assetId: string, newPath: string): void {
 }
 
 // Export for testing
-export { serializeProject, validateProject, hydrateStores }
+export { serializeProject, validateProject, hydrateStores, validateRackNode, validateRackPad }
