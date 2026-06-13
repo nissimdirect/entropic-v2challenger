@@ -79,4 +79,9 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'tool_lasso',            keys: 'w',              category: 'mask', label: 'Tool: Lasso',             context: 'normal' },
   { action: 'mask_delete_outside',   keys: 'alt+backspace',  category: 'mask', label: 'Mask: Delete Outside',    context: 'normal' },
   { action: 'mask_deselect_all',     keys: 'meta+shift+a',   category: 'mask', label: 'Mask: Deselect All',      context: 'normal' },
+  // MK.9: copy/cut the committed mask region to a NEW track above (§4/§8).
+  // Cmd+J / Cmd+Shift+J — both unbound @ 95e9b1b (bare 'j' is JKL transport_reverse,
+  // a DIFFERENT key combo; Cmd+Shift+C is automation_copy, also distinct). Clean.
+  { action: 'mask_copy_to_track',    keys: 'meta+j',         category: 'mask', label: 'Mask: Copy Region to New Track', context: 'normal' },
+  { action: 'mask_cut_to_track',     keys: 'meta+shift+j',   category: 'mask', label: 'Mask: Cut Region to New Track',  context: 'normal' },
 ]

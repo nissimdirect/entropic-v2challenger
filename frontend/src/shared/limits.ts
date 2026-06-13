@@ -12,6 +12,14 @@ export const LIMITS = {
   MAX_EFFECTS_PER_CHAIN: 10,
   /** UE.7: Maximum clip label length; clamped at trust boundary in renameClip. */
   MAX_CLIP_NAME_LENGTH: 100,
+  /**
+   * MK.9: composite-layer cap. MIRRORS the backend security boundary
+   * `backend/src/security.py:MAX_COMPOSITE_LAYERS` (= 50, INJ-3 OOM guard).
+   * The VALUE is owned by the backend (DO-NOT-TOUCH); this is a read-only mirror
+   * so cut/copy-to-track can REFUSE pre-flight before the render path would
+   * reject a 51-layer composite. Keep in lockstep with security.py.
+   */
+  MAX_COMPOSITE_LAYERS: 50,
 } as const
 
 /**
