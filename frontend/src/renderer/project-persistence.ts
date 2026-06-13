@@ -1105,7 +1105,8 @@ export function newProject(): void {
   // B2: clear ALL per-track samplers (the old no-arg removeSampler() became a
   // silent no-op when the store went track-keyed — samplers must not survive New Project)
   // B4.1: also clear racks.
-  useInstrumentsStore.setState({ instruments: {}, racks: {} })
+  // B6.3: also clear frameBanks (must not survive New Project — same reason).
+  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {} })
 }
 
 export function startAutosave(): void {

@@ -14,6 +14,7 @@
  */
 import { useInstrumentsStore } from '../../stores/instruments'
 import { useTimelineStore } from '../../stores/timeline'
+import { useProjectStore } from '../../stores/project'
 import { useToastStore } from '../../stores/toast'
 import {
   EFFECT_DRAG_TYPE,
@@ -38,16 +39,29 @@ const RACKS: RackEntry[] = [
   // (PadGrid/PadEditor) and would mislead. The id stays 'drum-rack' for drag/test
   // continuity; only the label changes. RackNode is the drumRack successor.
   { id: 'drum-rack', label: 'Sample Rack', enabled: true },
-  { id: 'wavetable', label: 'Wavetable', enabled: false },
+  // B6.3: the Wavetable IS the Frame-Bank (B6 = "Frame-Bank (Wavetable)"). Now
+  // ENABLED — double-click / drag onto a selected Performance track creates a
+  // Frame-Bank (addFrameBank). Like the Sampler it needs a video clip on the
+  // timeline (its slots scan footage), so it shares the hasVideoClips gate.
+  { id: 'wavetable', label: 'Wavetable', enabled: true },
 ]
 
 export default function InstrumentsBrowser() {
   const addSampler = useInstrumentsStore((s) => s.addSampler)
   const addRack = useInstrumentsStore((s) => s.addRack)
+  const addFrameBank = useInstrumentsStore((s) => s.addFrameBank)
   const selectedTrackId = useTimelineStore((s) => s.selectedTrackId)
   const tracks = useTimelineStore((s) => s.tracks)
+  const assets = useProjectStore((s) => s.assets)
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId)
+
+  // B6.3 — project video asset ids, used to SEED a new Frame-Bank's slots so it
+  // scans real footage immediately. The serializer resolves these clipIds → asset
+  // path for each slot decode.
+  const videoClipAssetIds = Object.values(assets)
+    .filter((a) => a.type === 'video')
+    .map((a) => a.id)
 
   // INJ-4: Sampler is disabled (with tooltip) when there are no video clips on
   // the timeline — the Sampler needs a base clip as source material.
@@ -57,22 +71,30 @@ export default function InstrumentsBrowser() {
 
   const handleDoubleClick = (entry: RackEntry) => {
     if (!entry.enabled) return
-    if (entry.id !== 'sampler' && entry.id !== 'drum-rack') return
+    if (entry.id !== 'sampler' && entry.id !== 'drum-rack' && entry.id !== 'wavetable') return
 
-    // The Sampler needs a base video clip; the Sample Rack does NOT (pads get
-    // sources individually via the RackDevice editor) — so only gate the sampler.
-    if (entry.id === 'sampler' && !hasVideoClips) {
+    // The Sampler + Frame-Bank (Wavetable) need a base video clip (their voices /
+    // slots scan footage); the Sample Rack does NOT (pads get sources individually
+    // via the RackDevice editor) — so gate only the clip-backed instruments.
+    const needsClip = entry.id === 'sampler' || entry.id === 'wavetable'
+    if (needsClip && !hasVideoClips) {
+      const what = entry.id === 'sampler' ? 'a Sampler' : 'a Frame-Bank'
       useToastStore.getState().addToast({
         level: 'warning',
-        message: 'Add a video clip to the timeline first, then add a Sampler.',
+        message: `Add a video clip to the timeline first, then add ${what}.`,
         source: 'instruments',
       })
       return
     }
 
-    // Both instruments require a selected Performance (MIDI) track — same guard/toast.
+    // All instruments require a selected Performance (MIDI) track — same guard/toast.
     if (!selectedTrack || selectedTrack.type !== 'performance') {
-      const what = entry.id === 'sampler' ? 'the Sampler' : 'the Sample Rack'
+      const what =
+        entry.id === 'sampler'
+          ? 'the Sampler'
+          : entry.id === 'wavetable'
+            ? 'the Frame-Bank'
+            : 'the Sample Rack'
       useToastStore.getState().addToast({
         level: 'warning',
         message: `Select a MIDI track first (Cmd+Shift+T to add one), then double-click — or drag ${what} onto it.`,
@@ -82,7 +104,14 @@ export default function InstrumentsBrowser() {
     }
 
     if (entry.id === 'sampler') addSampler(selectedTrack.id)
-    else addRack(selectedTrack.id)
+    else if (entry.id === 'drum-rack') addRack(selectedTrack.id)
+    else {
+      // B6.3 — seed a couple of slots from the first available video clips so the
+      // Frame-Bank scans real footage immediately (the user adds/removes more in
+      // the FrameBankDevice). Slot frameIndex defaults to 0.
+      const clipIds = videoClipAssetIds.slice(0, 2)
+      addFrameBank(selectedTrack.id, clipIds)
+    }
   }
 
   return (
@@ -90,18 +119,20 @@ export default function InstrumentsBrowser() {
       <div className="instruments-browser__group">RACKS</div>
       {RACKS.map((entry) => {
         // P3.5/INJ-4: Sampler is drag-disabled when no video clips on timeline.
-        const samplerDisabled = entry.id === 'sampler' && !hasVideoClips
-        const isDraggable = entry.enabled && !samplerDisabled
+        // B6.3: the Frame-Bank (Wavetable) shares that gate (slots scan footage).
+        const needsClip = entry.id === 'sampler' || entry.id === 'wavetable'
+        const clipDisabled = needsClip && !hasVideoClips
+        const isDraggable = entry.enabled && !clipDisabled
         const tooltip = !entry.enabled
           ? 'Coming soon'
-          : samplerDisabled
+          : clipDisabled
             ? 'Add a video clip to the timeline first'
             : 'Drag onto a MIDI track, or double-click to add to the selected MIDI track'
 
         return (
           <div
             key={entry.id}
-            className={`instruments-browser__item${(!entry.enabled || samplerDisabled) ? ' instruments-browser__item--disabled' : ''}`}
+            className={`instruments-browser__item${(!entry.enabled || clipDisabled) ? ' instruments-browser__item--disabled' : ''}`}
             data-testid={`instrument-${entry.id}`}
             draggable={isDraggable}
             onDragStart={(e) => {
@@ -118,7 +149,7 @@ export default function InstrumentsBrowser() {
             onDoubleClick={() => handleDoubleClick(entry)}
             title={tooltip}
           >
-            {entry.label}{entry.enabled ? (samplerDisabled ? '  (no clip)' : '') : '  (soon)'}
+            {entry.label}{entry.enabled ? (clipDisabled ? '  (no clip)' : '') : '  (soon)'}
           </div>
         )
       })}

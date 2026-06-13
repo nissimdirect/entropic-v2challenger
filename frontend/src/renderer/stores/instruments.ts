@@ -29,7 +29,13 @@ import {
   RACK_PAD_OPACITY_MAX,
   RACK_CHOKE_GROUP_MIN,
   RACK_CHOKE_GROUP_MAX,
+  MAX_FRAMEBANK_SLOTS,
+  FRAMEBANK_BYTE_BUDGET_MIN,
+  FRAMEBANK_BYTE_BUDGET_MAX,
+  FRAMEBANK_POSITION_MIN,
+  FRAMEBANK_POSITION_MAX,
 } from '../components/instruments/types'
+import type { SlotRef } from '../components/instruments/types'
 import { clampFinite } from '../../shared/numeric'
 import { LIMITS } from '../../shared/limits'
 import type { BlendMode, EffectInstance } from '../../shared/types'
@@ -75,6 +81,12 @@ let _branchCounter = 0
 function nextBranchId(): string {
   _branchCounter += 1
   return `branch-${_branchCounter}`
+}
+
+let _frameBankCounter = 0
+function nextFrameBankId(): string {
+  _frameBankCounter += 1
+  return `framebank-${_frameBankCounter}`
 }
 
 /**
@@ -269,6 +281,29 @@ interface InstrumentsState {
   removeSampler: (trackId: string) => void
   getSampler: (trackId: string) => SamplerInstrumentV1 | undefined
 
+  // --- B6.3 Frame-Bank (Wavetable) UI actions ---
+  /**
+   * Instantiate a Frame-Bank on a track (no-op if it already has one). Seeds a
+   * couple of slots from `seedClipIds` (frameIndex 0) when provided — else an
+   * empty bank. Defaults: position 0.5, interp 'blend', byteBudget MIN.
+   */
+  addFrameBank: (trackId: string, seedClipIds?: string[]) => void
+  /** Remove a track's frame-bank (also called on track delete for cleanup). */
+  removeFrameBank: (trackId: string) => void
+  getFrameBank: (trackId: string) => FrameBankInstrument | undefined
+  /** Append a slot to the bank (no-op if at MAX_FRAMEBANK_SLOTS or no bank). */
+  addFrameBankSlot: (trackId: string, slot: SlotRef) => void
+  /** Remove a slot by index (no-op if out of range or no bank). */
+  removeFrameBankSlot: (trackId: string, index: number) => void
+  /** Move a slot from→to (bounds-checked; no-op on bad index or no bank). */
+  reorderFrameBankSlot: (trackId: string, from: number, to: number) => void
+  /** Set the scan position, clamped [0,1] + finite-guarded. */
+  setFrameBankPosition: (trackId: string, pos: number) => void
+  /** Set the interpolation mode (nearest/blend/flow). */
+  setFrameBankInterp: (trackId: string, interp: FrameBankInstrument['interp']) => void
+  /** Set the resident-frame byte budget, clamped [MIN, MAX] + finite-guarded. */
+  setFrameBankByteBudget: (trackId: string, bytes: number) => void
+
   // --- B4.1 Sample Rack ---
   /** Instantiate a Rack on a track (no-op if it already has one). padCount default 1. */
   addRack: (trackId: string, padCount?: number) => void
@@ -449,6 +484,117 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
     }),
 
   getSampler: (trackId) => get().instruments[trackId],
+
+  // --- B6.3 Frame-Bank (Wavetable) UI actions ---
+  // All immutable; every numeric crossing the store-write boundary is clamped +
+  // finite-guarded (the backend security.validate_frame_bank re-enforces). Caps
+  // mirror the backend (MAX_FRAMEBANK_SLOTS / byte-budget MIN-MAX / position 0..1).
+  addFrameBank: (trackId, seedClipIds) =>
+    set((state) => {
+      if (state.frameBanks[trackId]) return state
+      const slots: SlotRef[] = []
+      for (const clipId of (seedClipIds ?? []).slice(0, MAX_FRAMEBANK_SLOTS)) {
+        if (clipId) slots.push({ clipId, frameIndex: 0 })
+      }
+      return {
+        frameBanks: {
+          ...state.frameBanks,
+          [trackId]: {
+            id: nextFrameBankId(),
+            type: 'frameBank',
+            slots,
+            position: 0.5,
+            interp: 'blend',
+            byteBudget: FRAMEBANK_BYTE_BUDGET_MIN,
+          },
+        },
+      }
+    }),
+
+  removeFrameBank: (trackId) =>
+    set((state) => {
+      if (!state.frameBanks[trackId]) return state
+      const next = { ...state.frameBanks }
+      delete next[trackId]
+      return { frameBanks: next }
+    }),
+
+  getFrameBank: (trackId) => get().frameBanks[trackId],
+
+  addFrameBankSlot: (trackId, slot) =>
+    set((state) => {
+      const fb = state.frameBanks[trackId]
+      if (!fb) return state
+      // SLOT CAP (trust boundary): refuse to grow past MAX_FRAMEBANK_SLOTS.
+      if (fb.slots.length >= MAX_FRAMEBANK_SLOTS) return state
+      if (!slot.clipId) return state
+      const frameIndex = Math.round(clampFinite(Number(slot.frameIndex), 0, 1_000_000, 0))
+      return {
+        frameBanks: {
+          ...state.frameBanks,
+          [trackId]: { ...fb, slots: [...fb.slots, { clipId: slot.clipId, frameIndex }] },
+        },
+      }
+    }),
+
+  removeFrameBankSlot: (trackId, index) =>
+    set((state) => {
+      const fb = state.frameBanks[trackId]
+      if (!fb) return state
+      if (index < 0 || index >= fb.slots.length) return state
+      return {
+        frameBanks: {
+          ...state.frameBanks,
+          [trackId]: { ...fb, slots: fb.slots.filter((_, i) => i !== index) },
+        },
+      }
+    }),
+
+  reorderFrameBankSlot: (trackId, from, to) =>
+    set((state) => {
+      const fb = state.frameBanks[trackId]
+      if (!fb) return state
+      if (from < 0 || from >= fb.slots.length) return state
+      if (to < 0 || to >= fb.slots.length) return state
+      if (from === to) return state
+      const slots = fb.slots.slice()
+      const [moved] = slots.splice(from, 1)
+      slots.splice(to, 0, moved)
+      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, slots } } }
+    }),
+
+  setFrameBankPosition: (trackId, pos) =>
+    set((state) => {
+      const fb = state.frameBanks[trackId]
+      if (!fb) return state
+      const position = clampFinite(pos, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, fb.position)
+      if (position === fb.position) return state
+      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, position } } }
+    }),
+
+  setFrameBankInterp: (trackId, interp) =>
+    set((state) => {
+      const fb = state.frameBanks[trackId]
+      if (!fb) return state
+      // Trust boundary: only known interp modes are accepted.
+      if (interp !== 'nearest' && interp !== 'blend' && interp !== 'flow') return state
+      if (interp === fb.interp) return state
+      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, interp } } }
+    }),
+
+  setFrameBankByteBudget: (trackId, bytes) =>
+    set((state) => {
+      const fb = state.frameBanks[trackId]
+      if (!fb) return state
+      const byteBudget = clampFinite(
+        bytes,
+        FRAMEBANK_BYTE_BUDGET_MIN,
+        FRAMEBANK_BYTE_BUDGET_MAX,
+        fb.byteBudget,
+      )
+      if (byteBudget === fb.byteBudget) return state
+      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, byteBudget } } }
+    }),
 
   // --- B4.1 Sample Rack ---
   addRack: (trackId, padCount = 1) =>

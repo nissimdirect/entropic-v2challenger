@@ -19,22 +19,43 @@ function setTracks(tracks: unknown, selectedTrackId: string | null) {
 const VIDEO_TRACK_WITH_CLIP = { id: 'v1', type: 'video', clips: [{ id: 'c1', assetPath: '/x.mp4', position: 0, duration: 30, trimStart: 0, trimEnd: 30 }] }
 
 beforeEach(() => {
-  useInstrumentsStore.setState({ instruments: {}, racks: {} })
+  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {} })
   setTracks([], null)
 })
 afterEach(() => cleanup())
 
 describe('InstrumentsBrowser', () => {
-  it('lists RACKS with Sample Rack enabled (labelled "Sample Rack") and Wavetable disabled', () => {
+  it('lists RACKS with Sample Rack enabled (labelled "Sample Rack"); Wavetable enabled with a clip (B6.3)', () => {
     // B4-editor: the rack entry (id drum-rack) is now ENABLED and labelled
     // "Sample Rack" (relabelled from "Drum Rack" to avoid colliding with the
-    // B2-lite performance drumRack). Only Wavetable remains disabled.
+    // B2-lite performance drumRack).
+    // B6.3: the Wavetable entry (the Frame-Bank) is now ENABLED too — clip-gated
+    // like the Sampler (its slots scan footage). With a video clip present it is
+    // NOT disabled.
     setTracks([VIDEO_TRACK_WITH_CLIP], null)
     render(<InstrumentsBrowser />)
     const rack = screen.getByTestId('instrument-drum-rack')
     expect(rack.className).not.toContain('--disabled')
     expect(rack.textContent).toContain('Sample Rack')
-    expect(screen.getByTestId('instrument-wavetable').className).toContain('--disabled')
+    const wavetable = screen.getByTestId('instrument-wavetable')
+    expect(wavetable.className).not.toContain('--disabled')
+    expect(wavetable.textContent).not.toContain('(soon)')
+  })
+
+  it('Wavetable (Frame-Bank) entry is clip-gated: disabled with tooltip when timeline empty (B6.3)', () => {
+    setTracks([], null)
+    render(<InstrumentsBrowser />)
+    const wavetable = screen.getByTestId('instrument-wavetable')
+    expect(wavetable.className).toContain('--disabled')
+    expect(wavetable.getAttribute('draggable')).not.toBe('true')
+    expect(wavetable.getAttribute('title')).toContain('video clip')
+  })
+
+  it('double-click adds a Frame-Bank to the selected Performance track (B6.3)', () => {
+    setTracks([VIDEO_TRACK_WITH_CLIP, { id: 'p1', type: 'performance', clips: [] }], 'p1')
+    render(<InstrumentsBrowser />)
+    fireEvent.doubleClick(screen.getByTestId('instrument-wavetable'))
+    expect(useInstrumentsStore.getState().frameBanks['p1']).toBeTruthy()
   })
 
   it('double-click adds a Sample Rack to the selected Performance track (no video-clip gate)', () => {
