@@ -82,8 +82,26 @@ interface PerformanceState {
    * reads in App.tsx — buildRackLayers reads `trackEvents[\`${trackId}:${padId}\`]`).
    * Event shape is identical to triggerPad's, with `instrumentId='${trackId}:${padId}'`.
    * This is the missing UI→render link that makes a rack pad audible.
+   *
+   * B4-choke — when `chokeSiblingPadIds` is a non-empty array, this ALSO writes a
+   * silencing `panic` event into EACH sibling pad's composite-key stream
+   * (`trackEvents['${trackId}:${siblingId}']`) at the SAME `frameIndex`. Because
+   * buildRackLayers evaluates each pad's stream INDEPENDENTLY (evaluateVoices per
+   * pad), a 'panic' event in a sibling's isolated single-pad stream idles that
+   * sibling's active voice atomically at the trigger frame (T9 — no release tail),
+   * which is exactly the per-pad-stream analogue of the drumRack choke-on-trigger.
+   *
+   * Decoupling: the rack model (pad chokeGroups) lives in the instruments store;
+   * THIS store does not import it. The COMPONENT (RackDevice) resolves the choke
+   * siblings and passes their ids in. Omitting `chokeSiblingPadIds` (or passing
+   * an empty array) = today's behavior exactly (regression-safe).
    */
-  triggerRackPad: (trackId: string, padId: string, frameIndex: number) => void;
+  triggerRackPad: (
+    trackId: string,
+    padId: string,
+    frameIndex: number,
+    chokeSiblingPadIds?: string[],
+  ) => void;
   /**
    * B4-pad-delete — clear a deleted rack pad's trigger events. Immutably removes
    * the composite key `${trackId}:${padId}` from `trackEvents` so a deleted pad
@@ -166,24 +184,57 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     set(updates);
   },
 
-  triggerRackPad: (trackId, padId, frameIndex) => {
+  triggerRackPad: (trackId, padId, frameIndex, chokeSiblingPadIds) => {
     // B4-editor — composite key the rack render path consumes (App.tsx:1131).
     // Non-finite / negative frameIndex is dropped (trust boundary — numeric guard,
     // mirrors triggerPad). No drumRack lookup: a rack pad is NOT a drumRack pad.
     if (!trackId || !padId) return;
     if (!Number.isFinite(frameIndex) || frameIndex < 0) return;
+    const frame = Math.round(frameIndex);
     const key = `${trackId}:${padId}`;
-    const idx = _eventIndex++;
     const ev: TriggerEvent = {
-      frameIndex: Math.round(frameIndex),
-      eventIndex: idx,
+      frameIndex: frame,
+      eventIndex: _eventIndex++,
       note: 60, // default MIDI note (mirrors triggerPad)
       velocity: 127,
       kind: 'trigger',
       instrumentId: key, // '${trackId}:${padId}' — matches evaluateVoices' instrumentId
     };
-    const existing = get().trackEvents[key] ?? [];
-    set({ trackEvents: { ...get().trackEvents, [key]: [...existing, ev] } });
+
+    // Build the next trackEvents immutably. Start with the triggered pad's append.
+    const current = get().trackEvents;
+    const existing = current[key] ?? [];
+    const next: Record<string, TriggerEvent[]> = {
+      ...current,
+      [key]: [...existing, ev],
+    };
+
+    // B4-choke — silence each SIBLING pad at the SAME frame. Each sibling has its
+    // OWN composite-key stream which buildRackLayers evaluates independently, so a
+    // 'panic' event in that isolated single-pad stream idles the sibling's active
+    // voice atomically (T9 — no release tail) without touching the triggered pad.
+    // Default (no siblings) = today's behavior exactly (regression-safe).
+    if (Array.isArray(chokeSiblingPadIds)) {
+      for (const siblingId of chokeSiblingPadIds) {
+        // Skip falsy / self ids (defensive — the component already excludes self).
+        if (!siblingId || siblingId === padId) continue;
+        const siblingKey = `${trackId}:${siblingId}`;
+        const silence: TriggerEvent = {
+          frameIndex: frame,
+          eventIndex: _eventIndex++,
+          note: 60,
+          velocity: 0,
+          // 'panic' idles all voices in this (isolated, single-pad) stream at the
+          // frame — the per-pad-stream analogue of drumRack choke (atomic, T9).
+          kind: 'panic',
+          instrumentId: siblingKey,
+        };
+        const sibExisting = next[siblingKey] ?? current[siblingKey] ?? [];
+        next[siblingKey] = [...sibExisting, silence];
+      }
+    }
+
+    set({ trackEvents: next });
   },
 
   clearRackPadEvents: (trackId, padId) => {

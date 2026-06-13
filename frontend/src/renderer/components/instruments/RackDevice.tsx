@@ -31,6 +31,8 @@ import { clampFinite } from '../../../shared/numeric'
 import {
   RACK_PAD_OPACITY_MIN,
   RACK_PAD_OPACITY_MAX,
+  RACK_CHOKE_GROUP_MIN,
+  RACK_CHOKE_GROUP_MAX,
   MAX_MACROS_PER_RACK,
 } from './types'
 import type { BlendMode } from '../../../shared/types'
@@ -48,6 +50,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const rack = useInstrumentsStore((s) => s.racks[trackId])
   const setRackPadSource = useInstrumentsStore((s) => s.setRackPadSource)
   const updateRackPad = useInstrumentsStore((s) => s.updateRackPad)
+  const setRackPadChokeGroup = useInstrumentsStore((s) => s.setRackPadChokeGroup)
   const addRackPad = useInstrumentsStore((s) => s.addRackPad)
   const removeRackPad = useInstrumentsStore((s) => s.removeRackPad)
   const addRackMacro = useInstrumentsStore((s) => s.addRackMacro)
@@ -69,9 +72,23 @@ export default function RackDevice({ trackId }: { trackId: string }) {
 
   // PATTERN: PadCell.tsx onMouseDown → onTrigger(pad.id). The current playhead
   // frame is useProjectStore.currentFrame — the frame the render loop evaluates.
+  //
+  // B4-choke — the COMPONENT (not the performance store) knows the rack, so it
+  // resolves the choke siblings here: every OTHER pad sharing the triggered pad's
+  // non-null chokeGroup. Their ids are handed to triggerRackPad, which writes a
+  // silencing event into each sibling's composite-key stream (keeps the stores
+  // decoupled — performance.ts never imports the instruments store).
   const onPadTrigger = (padId: string) => {
     const frame = useProjectStore.getState().currentFrame
-    triggerRackPad(trackId, padId, frame)
+    const pad = rack.pads.find((p) => p.id === padId)
+    const group = pad?.chokeGroup ?? null
+    const siblings =
+      group === null
+        ? undefined
+        : rack.pads
+            .filter((p) => p.id !== padId && p.chokeGroup === group)
+            .map((p) => p.id)
+    triggerRackPad(trackId, padId, frame, siblings)
   }
 
   // B4-pad-delete — SYMMETRIC cleanup: pad gone (+ its macro routes pruned) via
@@ -212,6 +229,27 @@ export default function RackDevice({ trackId }: { trackId: string }) {
               checked={selectedPad.solo}
               onChange={(e) => updateRackPad(trackId, selectedPad.id, { solo: e.target.checked })}
             />
+          </label>
+
+          <label className="sampler-device__row">
+            <span>Choke</span>
+            <select
+              data-testid="rack-pad-choke"
+              value={selectedPad.chokeGroup ?? ''}
+              onChange={(e) => {
+                const v = e.target.value
+                // '' = none → null; otherwise an int 1..8 (store re-validates).
+                setRackPadChokeGroup(trackId, selectedPad.id, v === '' ? null : Number(v))
+              }}
+            >
+              <option value="">none</option>
+              {Array.from(
+                { length: RACK_CHOKE_GROUP_MAX - RACK_CHOKE_GROUP_MIN + 1 },
+                (_, i) => RACK_CHOKE_GROUP_MIN + i,
+              ).map((g) => (
+                <option key={g} value={g}>{g}</option>
+              ))}
+            </select>
           </label>
         </div>
       )}

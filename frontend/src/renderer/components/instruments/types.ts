@@ -180,10 +180,20 @@ export interface RackPad {
   mute: boolean
   /** If ANY pad in the rack is soloed, only soloed pads render. */
   solo: boolean
+  /**
+   * B4-choke — choke-group membership. When a pad in group G triggers, every
+   * OTHER pad in group G has its currently-sounding voices SILENCED at the trigger
+   * frame (classic drum-machine hi-hat: closed hat cuts open hat). `null`/absent →
+   * the pad belongs to no group and neither chokes nor is choked.
+   *
+   * Additive optional: a rack saved before B4-choke has no `chokeGroup` field →
+   * undefined → no choke (renders byte-identical). Valid groups are small ints
+   * 1..8 (validated by setRackPadChokeGroup); null clears membership.
+   */
+  chokeGroup?: number | null
   // ---- LATER B4 slices (typed-but-unused; do NOT build behavior here) ----
   // TODO(B4.2+): per-pad effect chain.   chain?: EffectInstance[]
   // TODO(B4.3+): per-pad sends to return busses.   sends?: Send[]
-  // TODO(B4.4+): choke-group membership.   chokeGroup?: number | null
 }
 
 /**
@@ -242,6 +252,14 @@ export interface RackNode {
 /** Per-pad opacity bounds (mirrors sampler opacity clamp). */
 export const RACK_PAD_OPACITY_MIN = 0
 export const RACK_PAD_OPACITY_MAX = 1
+
+/**
+ * B4-choke — valid choke-group range. A pad's chokeGroup is null (no group) or a
+ * small int in [1, 8]. Mirrored by setRackPadChokeGroup (store-write trust
+ * boundary) and the RackDevice choke <select>.
+ */
+export const RACK_CHOKE_GROUP_MIN = 1
+export const RACK_CHOKE_GROUP_MAX = 8
 
 /**
  * B4.2 — Sample Rack macro fan-out caps. MIRROR of backend security.py
