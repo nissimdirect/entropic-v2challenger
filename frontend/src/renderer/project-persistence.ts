@@ -14,8 +14,8 @@ import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
 import { useInstrumentsStore } from './stores/instruments'
-import type { SamplerInstrumentV1, RackNode, RackPad } from './components/instruments/types'
-import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, MAX_BRANCH_DEPTH } from './components/instruments/types'
+import type { SamplerInstrumentV1, RackNode, RackPad, FrameBankInstrument } from './components/instruments/types'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, MAX_BRANCH_DEPTH, MAX_FRAMEBANK_SLOTS, FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX } from './components/instruments/types'
 import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
@@ -416,7 +416,7 @@ function serializeProject(): string {
   // G10 resolution: B2's track-keyed `instruments` supersedes B1's global
   // single `instrument` (#156). Legacy saves with `instrument` are dropped
   // with a toast in hydrateStores — clean-break policy, never a throw.
-  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode> } = {
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode>; frameBanks?: Record<string, FrameBankInstrument> } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -451,6 +451,12 @@ function serializeProject(): string {
     // serialized JSON is byte-identical to today (regression-safe).
     ...(Object.keys(useInstrumentsStore.getState().racks).length > 0
       ? { racks: useInstrumentsStore.getState().racks }
+      : {}),
+    // B6.4: per-Performance-track Frame Banks, keyed by trackId (remapped on
+    // load). Omitted entirely when there are no frameBanks so a no-frameBank
+    // project's serialized JSON is byte-identical to today (regression-safe).
+    ...(Object.keys(useInstrumentsStore.getState().frameBanks).length > 0
+      ? { frameBanks: useInstrumentsStore.getState().frameBanks }
       : {}),
     midiMappings: midiStore.getMIDIPersistData(),
     deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
@@ -575,6 +581,12 @@ function validateProject(data: unknown): data is Project {
     if (typeof obj.racks !== 'object' || obj.racks === null || Array.isArray(obj.racks)) return false
   }
 
+  // B6.4: optional frameBanks. Shape-check only (object, not array/null) —
+  // field-level clamping happens at hydrate. Absent = legacy project (no frameBanks).
+  if ('frameBanks' in obj && obj.frameBanks !== undefined) {
+    if (typeof obj.frameBanks !== 'object' || obj.frameBanks === null || Array.isArray(obj.frameBanks)) return false
+  }
+
   // B1 mount: optional sampler instrument. Shape-check only — numeric ranges are
   // clamped at hydrate (deserialization trust boundary). Absent = older project.
   if (obj.instrument !== undefined) {
@@ -587,7 +599,7 @@ function validateProject(data: unknown): data is Project {
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode> }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode>; frameBanks?: Record<string, FrameBankInstrument> }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -600,7 +612,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
-  useInstrumentsStore.setState({ instruments: {}, racks: {} })
+  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {} })
 
   // B2: saved trackId → freshly-created trackId (tracks get new ids on load).
   // Used to re-key the per-track samplers after the track loop.
@@ -847,6 +859,49 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     }
     if (Object.keys(restored).length > 0) {
       useInstrumentsStore.setState((s) => ({ racks: { ...s.racks, ...restored } }))
+    }
+  }
+
+  // B6.4: restore per-track Frame Banks, re-keyed to the new trackIds. Each bank
+  // is clamped at this deserialization trust boundary (numeric-trust-boundary rule):
+  // position → [0,1], byteBudget → [MIN,MAX], slots are filtered for valid clipId
+  // (string) + frameIndex (finite integer ≥ 0), and the bank is capped at
+  // MAX_FRAMEBANK_SLOTS. A bank whose track didn't survive is dropped silently.
+  // Additive-safe: a project with no `frameBanks` field (legacy) leaves the store
+  // empty — no error, no crash.
+  if (project.frameBanks && typeof project.frameBanks === 'object') {
+    const restoredBanks: Record<string, FrameBankInstrument> = {}
+    for (const [oldId, raw] of Object.entries(project.frameBanks)) {
+      const newId = trackIdMap[oldId]
+      if (!newId || !raw || typeof raw !== 'object') continue
+      const r = raw as Record<string, unknown>
+      if (r.type !== 'frameBank') continue
+      // Clamp and validate each slot (drop invalid ones).
+      const rawSlots = Array.isArray(r.slots) ? r.slots : []
+      const slots = (rawSlots as unknown[]).reduce<{ clipId: string; frameIndex: number }[]>((acc, s) => {
+        if (!s || typeof s !== 'object') return acc
+        const slot = s as Record<string, unknown>
+        if (typeof slot.clipId !== 'string' || !slot.clipId) return acc
+        const fi = Number(slot.frameIndex)
+        if (!Number.isFinite(fi) || fi < 0) return acc
+        acc.push({ clipId: slot.clipId, frameIndex: Math.round(fi) })
+        return acc
+      }, []).slice(0, MAX_FRAMEBANK_SLOTS)
+      const position = clampFinite(Number(r.position), FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, 0)
+      const byteBudget = clampFinite(Number(r.byteBudget), FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_BYTE_BUDGET_MIN)
+      const VALID_INTERP = new Set(['nearest', 'blend', 'flow'])
+      const interp: FrameBankInstrument['interp'] = VALID_INTERP.has(String(r.interp)) ? (r.interp as FrameBankInstrument['interp']) : 'nearest'
+      restoredBanks[newId] = {
+        id: typeof r.id === 'string' ? r.id : newId,
+        type: 'frameBank',
+        slots,
+        position,
+        interp,
+        byteBudget,
+      }
+    }
+    if (Object.keys(restoredBanks).length > 0) {
+      useInstrumentsStore.setState((s) => ({ frameBanks: { ...s.frameBanks, ...restoredBanks } }))
     }
   }
 
