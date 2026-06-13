@@ -19,6 +19,7 @@ from engine.export import ExportManager
 from engine.freeze import FreezeManager
 from engine.compositor import flatten_rgba, render_composite
 from engine.composite_tree import (
+    collect_group_state_keys,
     expand_group_layer,
     is_group_layer,
     validate_composite_tree,
@@ -878,7 +879,10 @@ class ZMQServer:
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _get_composite_states(
-        self, layer_signature: tuple, frame_index: int
+        self,
+        layer_signature: tuple,
+        frame_index: int,
+        extra_live_ids: set | None = None,
     ) -> dict[str, dict]:
         """Return per-layer state cache for composite rendering.
 
@@ -903,6 +907,19 @@ class ZMQServer:
         Returns the layer_states dict to pass into `render_composite`. After the
         render the caller should write the returned `new_states` back via
         `_save_composite_states`.
+
+        B5.3 (#69 — nested-state eviction fix): ``extra_live_ids`` is the set of
+        NESTED composite-state keys a group layer writes when expanded
+        (``collect_group_state_keys``). The pre-expansion ``layer_signature``
+        carries only the TOP-LEVEL group id (``group:{group_id}``), not its nested
+        descendants (``voice:{path}`` leaves / nested ``group:{path}`` keys), so
+        without this union those nested keys would be evicted EVERY frame —
+        resetting nested stateful effects per-frame. ``extra_live_ids`` is added to
+        the eviction live-id SET only; it does NOT alter the
+        signature-change detection (add/remove/reorder of the top-level layer set
+        is still keyed off ``layer_signature`` exactly as before). FLAT PATH:
+        ``extra_live_ids`` defaults to ``None`` → the live-id set is the bare
+        ``set(layer_signature)`` → byte-identical flat eviction.
         """
         # Lazy init — keeps __init__ untouched and avoids merge conflicts with
         # PR #51 which adds parallel `_render_states` for the single-frame path.
@@ -926,7 +943,14 @@ class ZMQServer:
         #    is what state keys must intersect with (reorder alone keeps state,
         #    which is correct — per-layer effect state is order-independent).
         if layer_signature != self._composite_last_signature:
+            # B5.3 (#69): the live-id set is the top-level signature ids UNION the
+            # nested descendant keys a group writes this frame. Flat path:
+            # extra_live_ids is None → `live_ids == set(layer_signature)` exactly
+            # (byte-identical flat eviction). Nested path: the nested voice:/group:
+            # keys are RETAINED so nested stateful effects don't reset per-frame.
             live_ids = set(layer_signature)
+            if extra_live_ids:
+                live_ids |= extra_live_ids
             # Mutate in place so survivor state dicts keep object identity (the
             # acceptance gate asserts `is`-level survival across a steal).
             for stale_id in [k for k in self._composite_states if k not in live_ids]:
@@ -1260,7 +1284,23 @@ class ZMQServer:
             anchor_frame = min(
                 (layer.get("frame_index", 0) for layer in layers), default=0
             )
-            layer_states = self._get_composite_states(layer_signature, anchor_frame)
+            # B5.3 (#69 — nested-state eviction fix): collect the NESTED descendant
+            # state keys every staged group will write when expanded
+            # (`voice:{path}` leaves + nested `group:{path}` branch-chain keys).
+            # These are NOT in `layer_signature` (built pre-expansion from
+            # top-level ids only), so the eviction live-id set must be augmented
+            # with them — otherwise a group's nested state is dropped every frame
+            # and nested stateful effects reset per-frame. Flat render → no
+            # `__group__` layers → empty set → byte-identical flat eviction.
+            extra_live_ids: set[str] = set()
+            for layer in layers:
+                if "__group__" in layer:
+                    extra_live_ids |= collect_group_state_keys(layer["__group__"])
+            layer_states = self._get_composite_states(
+                layer_signature,
+                anchor_frame,
+                extra_live_ids=extra_live_ids or None,
+            )
 
             # B5.1 — second pass: expand any staged GROUP placeholders into
             # frame-bearing layers. Each group recursively composites its children
