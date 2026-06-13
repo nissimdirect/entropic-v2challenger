@@ -36,7 +36,7 @@ import RackDevice from './components/instruments/RackDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveRackMacros } from './components/instruments/resolveRackMacros'
-import type { SamplerInstrumentV1 } from './components/instruments/types'
+import type { SamplerInstrumentV1, RackPad } from './components/instruments/types'
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
@@ -1128,9 +1128,32 @@ function AppInner() {
           const rack = resolveRackMacros(rawRack)
           if (!rack) return []
           const eventsByPad: Record<string, typeof perfState.trackEvents[string]> = {}
-          for (const pad of rack.pads) {
-            eventsByPad[pad.id] = perfState.trackEvents[`${trackId}:${pad.id}`] ?? []
+          // B5.1 — recursively gather per-pad events keyed by PATH-FROM-ROOT so a
+          // nested branch child's events resolve under `flattenRackTree`'s
+          // `padEventKey(branchPath, pad.id)`. A flat pad's key is its bare id
+          // (UNCHANGED from B4 → flat byte-identical). Nested branches have no
+          // trigger UI in this slice, so their path keys simply find no events
+          // (the branch renders nothing in preview until the trigger UI lands).
+          const gatherPadEvents = (
+            pads: typeof rack.pads,
+            branchPath: string,
+          ) => {
+            pads.forEach((pad, padIndex) => {
+              if (pad.branch) {
+                const seg = `b${padIndex}`
+                const childPath = branchPath === '' ? seg : `${branchPath}_${seg}`
+                gatherPadEvents(pad.branch.pads, childPath)
+                return
+              }
+              const key = branchPath === '' ? pad.id : `${branchPath}_${pad.id}`
+              const storeKey =
+                branchPath === ''
+                  ? `${trackId}:${pad.id}`
+                  : `${trackId}:${branchPath}_${pad.id}`
+              eventsByPad[key] = perfState.trackEvents[storeKey] ?? []
+            })
           }
+          gatherPadEvents(rack.pads, '')
           return buildRackLayers(rack, {
             eventsByPad,
             frame,
@@ -1202,11 +1225,32 @@ function AppInner() {
             })
           }
 
+          // B5.1 — serialize a GROUP layer's chains (branch chain + nested child
+          // chains) to the backend `{effect_id, params, enabled}` shape, deeply.
+          // Flat (non-group) layers are forwarded verbatim — UNCHANGED from B4
+          // (flat byte-identical). A group's branch chain runs on the composited
+          // children sub-frame in the backend, so it must reach apply_chain in the
+          // serialized shape (same as export's serializeEffectChain).
+          const serializeGroupLayer = (l: Record<string, unknown>): Record<string, unknown> => {
+            if (l.layer_type !== 'group') {
+              // A leaf child INSIDE a group is composited via the backend
+              // sub-frame render_composite → apply_chain, so its chain must reach
+              // the backend serialized. (Top-level flat leaves keep B4 behavior;
+              // this branch only runs for children reached via a group recursion.)
+              return { ...l, chain: serializeEffectChain((l.chain as EffectInstance[]) ?? []) }
+            }
+            const children = Array.isArray(l.children) ? l.children : []
+            return {
+              ...l,
+              chain: serializeEffectChain((l.chain as EffectInstance[]) ?? []),
+              children: children.map((c) => serializeGroupLayer(c as Record<string, unknown>)),
+            }
+          }
           const layers = [
             ...videoLayers,
             ...textLayers,
             ...samplerLayers.map((l) => ({ ...l })),
-            ...rackLayers.map((l) => ({ ...l })),
+            ...rackLayers.map((l) => serializeGroupLayer(l as Record<string, unknown>)),
           ]
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',
@@ -2458,53 +2502,84 @@ function AppInner() {
             fps,
           }
         }
+        // B5.1 — recursively serialize ONE pad. A LEAF pad serializes its
+        // sampler + chain exactly as B4. A BRANCH pad (pad.branch present)
+        // serializes the nested rack (recursively) under a `branch` key + the
+        // branch-level chain/composite, so the backend export walk mirrors
+        // flattenRackTree's post-order. `branchPath` is the PATH-FROM-ROOT prefix
+        // ('' at the top level) that seeds the per-pad event key — IDENTICAL to
+        // the preview `padEventKey(branchPath, pad.id)`, so preview == export.
+        const serializePad = (
+          pad: RackPad,
+          padIndex: number,
+          trackId: string,
+          branchPath: string,
+        ): Record<string, unknown> => {
+          if (pad.branch) {
+            // BRANCH: the leaf instrument is ignored; serialize the nested rack.
+            const seg = `b${padIndex}`
+            const childPath = branchPath === '' ? seg : `${branchPath}_${seg}`
+            const childPads = pad.branch.pads.map((cp, i) =>
+              serializePad(cp, i, trackId, childPath),
+            )
+            const comp = pad.branch.composite ?? { opacity: 1, blend: 'normal' }
+            return {
+              id: pad.id,
+              mute: pad.mute,
+              solo: pad.solo,
+              opacity: pad.opacity,
+              blend: pad.blend,
+              branch: {
+                pads: childPads,
+                chain: serializeEffectChain(pad.branch.chain ?? []),
+                composite: { opacity: comp.opacity, blend: comp.blend },
+              },
+              adsr: rackAdsr,
+            }
+          }
+          // LEAF (B4 path). Stamp this pad's events with the PATH-FROM-ROOT
+          // event key so nested sibling pads don't collide (a flat pad's key is
+          // just `${trackId}:${pad.id}` — UNCHANGED from B4, export byte-identical).
+          const padEventKey =
+            branchPath === ''
+              ? `${trackId}:${pad.id}`
+              : `${trackId}:${branchPath}_${pad.id}`
+          const padEvents = perfState.trackEvents[padEventKey] ?? []
+          for (const e of padEvents) {
+            events.push({
+              frameIndex: e.frameIndex,
+              eventIndex: e.eventIndex,
+              note: e.note,
+              velocity: e.velocity,
+              kind: e.kind,
+              instrumentId: padEventKey,
+              ...(e.chokeGroup != null ? { chokeGroup: e.chokeGroup } : {}),
+            })
+          }
+          addPadAsset(pad.instrument.clipId)
+          return {
+            id: pad.id,
+            mute: pad.mute,
+            solo: pad.solo,
+            opacity: pad.opacity,
+            blend: pad.blend,
+            instrument: {
+              ...serializeSamplerInstrument(pad.instrument),
+              chain: serializeEffectChain(pad.chain ?? []),
+            },
+            voiceCap: 4,
+            adsr: rackAdsr,
+          }
+        }
         for (const trackId of perfTrackIds) {
           const rawRack = instrState.racks[trackId]
           if (!rawRack) continue
           // Resolve macros ONCE (preview parity) — static at export time.
           const rack = resolveRackMacros(rawRack)
           if (!rack) continue
-          const padPayloads: Record<string, unknown>[] = []
-          for (const pad of rack.pads) {
-            // Stamp each pad event with the composite instrumentId so the
-            // backend buckets events per pad (`${trackId}:${padId}`).
-            const padEventKey = `${trackId}:${pad.id}`
-            const padEvents = perfState.trackEvents[padEventKey] ?? []
-            for (const e of padEvents) {
-              events.push({
-                frameIndex: e.frameIndex,
-                eventIndex: e.eventIndex,
-                note: e.note,
-                velocity: e.velocity,
-                kind: e.kind,
-                instrumentId: padEventKey,
-                ...(e.chokeGroup != null ? { chokeGroup: e.chokeGroup } : {}),
-              })
-            }
-            addPadAsset(pad.instrument.clipId)
-            // B4-pad-chain (ENGINE slice): the backend reads the pad's insert
-            // chain off the INSTRUMENT dict (`pad_inst.get("chain")`, export.py
-            // ~1300) and threads it into the render_composite layer — the SAME
-            // compositor the preview path uses, so export matches preview. The
-            // pad's chain lives on `pad.chain` (not `pad.instrument`), so we
-            // serialize it in the SAME shape as a track effectChain and place
-            // it on the serialized instrument object the backend reads.
-            // Absent pad.chain → [] → no chain reaches render_composite →
-            // byte-identical to a no-chain pad.
-            padPayloads.push({
-              id: pad.id,
-              mute: pad.mute,
-              solo: pad.solo,
-              opacity: pad.opacity,
-              blend: pad.blend,
-              instrument: {
-                ...serializeSamplerInstrument(pad.instrument),
-                chain: serializeEffectChain(pad.chain ?? []),
-              },
-              voiceCap: 4,
-              adsr: rackAdsr,
-            })
-          }
+          const padPayloads = rack.pads.map((pad, i) =>
+            serializePad(pad, i, trackId, ''),
+          )
           racks[trackId] = { pads: padPayloads }
         }
         const hasRacks = Object.keys(racks).length > 0

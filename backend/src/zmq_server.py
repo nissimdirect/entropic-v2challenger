@@ -18,6 +18,11 @@ from engine.codecs import CODEC_REGISTRY
 from engine.export import ExportManager
 from engine.freeze import FreezeManager
 from engine.compositor import flatten_rgba, render_composite
+from engine.composite_tree import (
+    expand_group_layer,
+    is_group_layer,
+    validate_composite_tree,
+)
 from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
     apply_chain,
@@ -982,6 +987,75 @@ class ZMQServer:
         )
         return not has_terminal_composite
 
+    def _decode_composite_leaf(
+        self, child: dict, resolution: tuple[int, int]
+    ) -> np.ndarray:
+        """B5.1 — decode ONE leaf-voice child of a composite-tree group → RGBA.
+
+        Mirrors the video/image decode branch of `_handle_render_composite`'s
+        layer loop (asset validation, INJ-3 tail clamp, B3.3 per-channel RGB
+        offset) so a branch child renders byte-identically to the SAME leaf on the
+        flat path. Used by `engine.composite_tree.expand_group_layer` via a
+        `decode_leaf` closure. Text children are not supported inside a branch in
+        this slice (branches hold sampler leaves); a text child decodes as a
+        transparent frame (no-op).
+        """
+        layer_type = child.get("layer_type", "video")
+        frame_index = max(0, int(child.get("frame_index", 0)))
+        if layer_type == "text":
+            # Branch children are sampler leaves in B5.1; a text child is not
+            # produced by flattenRackTree. Render nothing (transparent) defensively.
+            w, h = resolution
+            return np.zeros((h, w, 4), dtype=np.uint8)
+
+        asset_path = child.get("asset_path")
+        if not asset_path:
+            w, h = resolution
+            return np.zeros((h, w, 4), dtype=np.uint8)
+        # SEC-5: validate the child asset path (trust boundary — same as flat).
+        errors = validate_upload(asset_path)
+        if errors:
+            raise ValueError("; ".join(errors))
+        reader = self._get_reader(asset_path)
+        # INJ-3 tail clamp (parity with the flat leaf path).
+        if (
+            hasattr(reader, "frame_count")
+            and reader.frame_count
+            and frame_index >= reader.frame_count - 2
+        ):
+            frame_index = max(0, reader.frame_count - 3)
+
+        rgb_fi = child.get("rgb_frame_indices")
+        if rgb_fi and isinstance(rgb_fi, dict):
+            rfc_c = (
+                reader.frame_count
+                if hasattr(reader, "frame_count") and reader.frame_count
+                else None
+            )
+
+            def _tail_clamp_zmq(idx, rfc_c=rfc_c):
+                if rfc_c and idx >= rfc_c - 2:
+                    return max(0, rfc_c - 3)
+                return max(0, idx)
+
+            r_idx = _tail_clamp_zmq(int(rgb_fi.get("r", frame_index)))
+            g_idx = _tail_clamp_zmq(int(rgb_fi.get("g", frame_index)))
+            b_idx = _tail_clamp_zmq(int(rgb_fi.get("b", frame_index)))
+            vframe_r = reader.decode_frame(r_idx)
+            vframe_g = reader.decode_frame(g_idx)
+            vframe_b = reader.decode_frame(b_idx)
+            base_frame = reader.decode_frame(frame_index)
+            return np.stack(
+                [
+                    vframe_r[:, :, 0],
+                    vframe_g[:, :, 1],
+                    vframe_b[:, :, 2],
+                    base_frame[:, :, 3],
+                ],
+                axis=2,
+            )
+        return reader.decode_frame(frame_index)
+
     def _handle_render_composite(self, message: dict, msg_id: str | None) -> dict:
         raw_layers = message.get("layers", [])
         raw_res = message.get("resolution", [1920, 1080])
@@ -1004,6 +1078,15 @@ class ZMQServer:
         if voice_errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(voice_errors)}
 
+        # B5.1 — Sample Rack grouping (composite-tree) caps. A render carrying
+        # GROUP layers (nested branches) is validated BEFORE the decode loop:
+        # MAX_BRANCH_DEPTH / MAX_BRANCH_VOICES_PER_RENDER (the recursion trust
+        # boundary). A render with NO group layers passes through untouched —
+        # flat byte-identical (this is a no-op for the flat path).
+        tree_errors = validate_composite_tree(raw_layers)
+        if tree_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(tree_errors)}
+
         if not isinstance(raw_res, list) or len(raw_res) != 2:
             return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
         res_w: int = max(1, min(8192, int(raw_res[0])))
@@ -1013,6 +1096,21 @@ class ZMQServer:
         try:
             layers = []
             for layer_info in raw_layers:
+                # B5.1 — Sample Rack grouping (composite-tree): a GROUP layer
+                # (nested branch) is expanded AFTER the state cache is gathered
+                # (its sub-frame composite + branch chain need layer_states). Stage
+                # a placeholder here to preserve z-order; expand in the second pass
+                # below. The group's signature contribution is its `group_id`.
+                if is_group_layer(layer_info):
+                    grp_id = str(layer_info.get("group_id", ""))
+                    layers.append(
+                        {
+                            "__group__": layer_info,
+                            "frame_index": int(layer_info.get("frame_index", 0)),
+                            "layer_id": f"group:{grp_id}",
+                        }
+                    )
+                    continue
                 layer_type = layer_info.get("layer_type", "video")
                 chain = layer_info.get("chain", [])
                 # SEC-7: Validate chain depth per layer
@@ -1164,10 +1262,45 @@ class ZMQServer:
             )
             layer_states = self._get_composite_states(layer_signature, anchor_frame)
 
+            # B5.1 — second pass: expand any staged GROUP placeholders into
+            # frame-bearing layers. Each group recursively composites its children
+            # into a sub-frame (the SAME render_composite), applies the branch
+            # chain to that sub-frame, and emits ONE layer the parent composite
+            # blends upward. State is threaded through layer_states/group_new_states
+            # keyed by the PATH-FROM-ROOT ids so sibling branches don't alias.
+            # A flat render has no placeholders → this loop is a no-op.
+            group_new_states: dict[str, dict] = {}
+            if any("__group__" in layer for layer in layers):
+
+                def _decode_leaf(child: dict) -> np.ndarray:
+                    return self._decode_composite_leaf(child, resolution)
+
+                expanded: list[dict] = []
+                for layer in layers:
+                    if "__group__" in layer:
+                        expanded.append(
+                            expand_group_layer(
+                                layer["__group__"],
+                                decode_leaf=_decode_leaf,
+                                resolution=resolution,
+                                project_seed=project_seed,
+                                frame_index=layer["frame_index"],
+                                layer_states=layer_states,
+                                new_states=group_new_states,
+                            )
+                        )
+                    else:
+                        expanded.append(layer)
+                layers = expanded
+
             t0 = time.time()
             output, new_layer_states = render_composite(
                 layers, resolution, project_seed, layer_states=layer_states
             )
+            # Fold the sub-frame / branch-chain states into the saved cache so
+            # nested stateful effects persist across frames (B5.1).
+            if group_new_states:
+                new_layer_states = {**new_layer_states, **group_new_states}
             self._save_composite_states(new_layer_states, layer_signature, anchor_frame)
 
             # MK.2 (SPEC §7-2): the composite carries meaningful per-pixel alpha

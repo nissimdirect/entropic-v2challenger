@@ -181,6 +181,61 @@ describe('Sample Rack persistence (B4.1)', () => {
     expect(ok.pads).toHaveLength(1)
   })
 
+  // B5.1 — branch (composite-tree) persistence recursion.
+  it('B5.1: a branch pad round-trips its nested rack (recurse into children)', () => {
+    const branchPadJson = {
+      id: 'group-pad',
+      opacity: 0.8,
+      blend: 'screen',
+      mute: false,
+      solo: false,
+      // A pad with a BRANCH (nested rack) instead of a leaf-only render.
+      instrument: { id: 'placeholder', type: 'sampler', clipId: '', startFrame: 0, speed: 1, opacity: 1, blendMode: 'normal' },
+      branch: {
+        id: 'inner-rack',
+        type: 'rack',
+        composite: { opacity: 0.5, blend: 'add' },
+        pads: [
+          makePadJson('child-1', { instrument: { id: 'c1', type: 'sampler', clipId: 'asset-A', startFrame: 0, speed: 1, opacity: 1, blendMode: 'normal' } }),
+          makePadJson('child-2'),
+        ],
+      },
+    }
+    const pad = validateRackPad(branchPadJson)
+    expect(pad).not.toBeNull()
+    expect(pad!.branch).toBeDefined()
+    expect(pad!.branch!.pads).toHaveLength(2)
+    expect(pad!.branch!.pads[0].id).toBe('child-1')
+    expect(pad!.branch!.pads[0].instrument.clipId).toBe('asset-A')
+    expect(pad!.branch!.composite).toEqual({ opacity: 0.5, blend: 'add' })
+  })
+
+  it('B5.1: a branch nested past MAX_BRANCH_DEPTH falls back to a leaf (no stack blowup)', () => {
+    // Build a pad whose branch nests far deeper than MAX_BRANCH_DEPTH.
+    let deepBranch: Record<string, unknown> = {
+      id: 'deepest',
+      type: 'rack',
+      pads: [makePadJson('leaf')],
+    }
+    for (let i = 0; i < 10; i++) {
+      deepBranch = {
+        id: `w${i}`,
+        type: 'rack',
+        pads: [{ id: `pw${i}`, opacity: 1, blend: 'normal', mute: false, solo: false,
+          instrument: { id: 's', type: 'sampler', clipId: '', startFrame: 0, speed: 1, opacity: 1, blendMode: 'normal' },
+          branch: deepBranch }],
+      }
+    }
+    const padJson = { id: 'top', opacity: 1, blend: 'normal', mute: false, solo: false,
+      instrument: { id: 's', type: 'sampler', clipId: 'asset-A', startFrame: 0, speed: 1, opacity: 1, blendMode: 'normal' },
+      branch: deepBranch }
+    // Must NOT throw / blow the stack — over-cap branches are pruned.
+    const pad = validateRackPad(padJson)
+    expect(pad).not.toBeNull()
+    // The leaf instrument is preserved so the over-cap pad still renders something.
+    expect(pad!.instrument.clipId).toBe('asset-A')
+  })
+
   it('a rack whose track did not survive load is dropped', () => {
     const project = makeValidProject({
       // No tracks → trackIdMap is empty → the rack has no track to bind to.

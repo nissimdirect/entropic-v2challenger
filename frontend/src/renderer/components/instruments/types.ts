@@ -153,6 +153,35 @@ export interface SamplerVoiceLayer {
   rgb_frame_indices?: { r: number; g: number; b: number }
 }
 
+/**
+ * B5.1 — a GROUP layer descriptor (composite-tree node). Emitted by
+ * buildRackLayers/flattenRackTree for a pad that holds a `branch`. The backend
+ * compositor expands a group by recursively `render_composite`-ing its
+ * `children` into a sub-frame, applying the group's `chain` to that sub-frame,
+ * then compositing the result upward with the group's `composite` (opacity/blend).
+ *
+ * `children` is an ordered bottom-to-top list of EITHER SamplerVoiceLayer (a leaf
+ * child's voice layers) OR nested RackGroupLayer (a deeper branch) — recursive.
+ *
+ * `group_id` is a PATH-FROM-ROOT id (e.g. `b0` / `b0_b2`) used as the sub-frame's
+ * state key so two sibling branches' stateful chains do NOT alias. Colon-free,
+ * `[A-Za-z0-9_-]`. Every descendant leaf voice_id is ALSO path-prefixed with the
+ * branch path so nested stateful effects key independently per branch.
+ */
+export interface RackGroupLayer {
+  layer_type: 'group'
+  /** Path-from-root group identity (state key for the sub-frame). */
+  group_id: string
+  /** Bottom-to-top children: leaf voice layers and/or nested groups. */
+  children: (SamplerVoiceLayer | RackGroupLayer)[]
+  /** Branch chain — runs on the COMPOSITED children sub-frame (not per-child). */
+  chain: EffectInstance[]
+  /** Branch composite opacity (multiplies onto the emitted group layer). */
+  opacity: number
+  /** Branch composite blend (how the group layer blends into its parent). */
+  blend_mode: BlendMode
+}
+
 /** Hard speed bounds (reverse..forward), per B1 plan. */
 export const SAMPLER_SPEED_MIN = -8
 export const SAMPLER_SPEED_MAX = 8
@@ -212,6 +241,23 @@ export interface RackPad {
    * PROJECT_VERSION bump (UE.7 precedent).
    */
   chain?: EffectInstance[]
+  /**
+   * B5.1 — Sample Rack grouping (composite-tree). A pad may hold a BRANCH (a
+   * nested RackNode) INSTEAD of a leaf instrument: "one note fires an ensemble."
+   * When `branch` is present the pad is a GROUP — its `instrument` leaf is IGNORED
+   * for rendering and the branch's children are composited into a sub-frame, the
+   * branch's chain + composite folded in, and ONE layer emitted upward.
+   *
+   * MUTUALLY EXCLUSIVE with leaf rendering: a pad with a `branch` renders the
+   * branch; a pad without renders its `instrument` leaf EXACTLY as today.
+   *
+   * Additive optional: a rack saved before B5 has no `branch` field → undefined →
+   * every pad is a flat leaf → buildRackLayers emits the SAME flat voice layers
+   * with the SAME voice_ids as today (flat byte-identical). NO PROJECT_VERSION
+   * bump (UE.7 precedent). The nested-rack EDITING UI is a LATER slice; this slice
+   * builds the model + recursive render + export parity + caps + path-keys.
+   */
+  branch?: RackNode
   // ---- LATER B4 slices (typed-but-unused; do NOT build behavior here) ----
   // TODO(B4.3+): per-pad sends to return busses.   sends?: Send[]
 }
@@ -267,6 +313,22 @@ export interface RackNode {
    * before B4.2 renders byte-identical). NO PROJECT_VERSION bump.
    */
   macros?: RackMacro[]
+  /**
+   * B5.1 — branch-level insert chain. When this RackNode is used as a pad's
+   * `branch`, this chain runs on the COMPOSITED children sub-frame (NOT per-child)
+   * before the branch emits its single layer upward. Folded in by the backend
+   * sub-frame composite (compositor.py group expansion) so it matches preview ==
+   * export. Absent/empty → no chain on the branch (children composite straight up).
+   * Ignored for a top-level (per-track) rack — only meaningful on a branch.
+   */
+  chain?: EffectInstance[]
+  /**
+   * B5.1 — branch-level composite (how the branch's composited sub-frame blends
+   * upward into its PARENT). opacity multiplies onto the branch's emitted layer;
+   * blend is the branch layer's blend mode. Absent → {opacity:1, blend:'normal'}
+   * (the branch composites straight up). Ignored for a top-level rack.
+   */
+  composite?: { opacity: number; blend: BlendMode }
 }
 
 /** Per-pad opacity bounds (mirrors sampler opacity clamp). */
@@ -290,6 +352,29 @@ export const RACK_CHOKE_GROUP_MAX = 8
 export const MAX_MACROS_PER_RACK = 8
 export const MAX_MODROUTES_PER_MACRO = 32
 export const MAX_TOTAL_EDGES = 256
+
+/**
+ * B5.1 — Sample Rack grouping (composite-tree) caps. MIRROR of backend
+ * security.py (MAX_BRANCH_DEPTH / MAX_TOTAL_VOICES_PER_RENDER). These are the
+ * recursion trust boundary: a hostile/deep tree must be REJECTED or TRUNCATED,
+ * never OOM or infinite-recurse. The frontend traversal (flattenRackTree) counts
+ * depth + total voices and stops; the backend re-enforces on the IPC/render +
+ * load boundary (fail-closed, mirroring MAX_OPERATORS / MAX_TOTAL_EDGES).
+ *
+ * MAX_BRANCH_DEPTH: how many levels of nested branches a tree may have. The
+ * TOP-LEVEL rack is depth 0; a branch one level down is depth 1; the cap bounds
+ * the deepest branch (a leaf pad does not increment depth). Depth 4 ⇒ at most 4
+ * levels of nesting under the root.
+ *
+ * MAX_BRANCH_VOICES_PER_RENDER bounds the SUM of voice layers across the WHOLE
+ * tree (all branches + leaves), so a deep fan-out cannot grow the state cache
+ * without bound. This is a SEPARATE, tree-wide ceiling — the existing flat
+ * per-track polyphony cap (backend MAX_TOTAL_VOICES_PER_RENDER = 4) is UNCHANGED;
+ * a flat rack still emits ≤4 voices per pad exactly as today. B5 adds this
+ * higher tree-wide ceiling only for the grouped (branch) case (an ensemble).
+ */
+export const MAX_BRANCH_DEPTH = 4
+export const MAX_BRANCH_VOICES_PER_RENDER = 64
 
 /** Pad-instrument params a macro route may drive → [min, max] clamp bounds. */
 export const RACK_MACRO_PARAM_BOUNDS: Record<string, [number, number]> = {
