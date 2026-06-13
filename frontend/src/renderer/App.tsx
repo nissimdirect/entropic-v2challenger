@@ -742,6 +742,24 @@ function AppInner() {
       useTimelineStore.getState().clearMaskSelection()
     })
 
+    // MK.9: Cmd+J → copy the committed mask region to a new track above.
+    // The store action self-guards (no selection → no-op toast; layer cap → refuse toast).
+    shortcutRegistry.register('mask_copy_to_track', () => {
+      const ts = useTimelineStore.getState()
+      if (ts.committedMaskSelection) {
+        ts.copyRegionToTrack(ts.committedMaskSelection.clipId)
+      }
+    })
+
+    // MK.9: Cmd+Shift+J → cut the committed mask region to a new track above
+    // (original gains the inverse delete-inside hole). Same self-guarding.
+    shortcutRegistry.register('mask_cut_to_track', () => {
+      const ts = useTimelineStore.getState()
+      if (ts.committedMaskSelection) {
+        ts.cutRegionToTrack(ts.committedMaskSelection.clipId)
+      }
+    })
+
     // UE.2: Ripple delete — Shift+Backspace. Ripple-deletes each selected clip in
     // ascending position order so earlier clips shift before later ones are evaluated.
     shortcutRegistry.register('ripple_delete', () => {

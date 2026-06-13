@@ -77,6 +77,24 @@ interface TimelineState {
   setClipTransform: (clipId: string, transform: ClipTransform) => void
   setClipOpacity: (clipId: string, opacity: number) => void
   duplicateClip: (clipId: string) => void
+  /**
+   * MK.9 — Copy the committed mask region to a NEW track above the source.
+   * Duplicates the clip onto a fresh (empty-chain) video track inserted directly
+   * above the source track, carrying a COPY of the committed matte node and
+   * maskMode='deleteOutside' (only the masked region shows). The ORIGINAL is
+   * untouched. One undo entry (restores tracks + selection deep-equal on undo).
+   * No-op + toast if there is no committed selection on `clipId`.
+   * Refuses + toast if the composite-layer cap (MAX_COMPOSITE_LAYERS) is reached.
+   */
+  copyRegionToTrack: (clipId: string) => void
+  /**
+   * MK.9 — Cut the committed mask region to a NEW track above the source.
+   * Same as copyRegionToTrack PLUS the ORIGINAL gains the inverse matte
+   * (maskMode='deleteInside') so the region visually "lifts" to its own layer,
+   * leaving a hole below. One undo entry restoring BOTH clips deep-equal on undo.
+   * Same no-op / cap-refusal guards as copyRegionToTrack.
+   */
+  cutRegionToTrack: (clipId: string) => void
   toggleClipEnabled: (clipId: string) => void
   reverseClip: (clipId: string) => void
   /** UE.7: Set or clear clip label. Empty string clears it (falls back to asset name). Clamped to MAX_CLIP_NAME_LENGTH. */
@@ -209,6 +227,28 @@ function countAudioTracks(tracks: Track[]): number {
   return tracks.filter((t) => t.type === 'audio').length
 }
 
+/**
+ * MK.9 — pre-flight composite-layer count for the cut/copy-to-track cap.
+ *
+ * Mirrors what the backend `_handle_render_composite` would have to composite:
+ * every visual clip on a video/text track plus every performance track is one
+ * potential RGBA layer. Audio tracks contribute no composite layer. This is a
+ * conservative upper bound (total visual clips, not just the ones live at the
+ * current playhead) — deliberately so: the guard must refuse BEFORE any reachable
+ * frame would exceed the backend INJ-3 cap, not only the current frame.
+ */
+function countCompositeLayers(tracks: Track[]): number {
+  let n = 0
+  for (const t of tracks) {
+    if (t.type === 'video' || t.type === 'text') {
+      n += t.clips.length
+    } else if (t.type === 'performance') {
+      n += 1
+    }
+  }
+  return n
+}
+
 /** Find the audio clip by id across all audio tracks. Returns null if not found. */
 function findAudioClip(tracks: Track[], clipId: string): { track: Track; clip: AudioClip } | null {
   for (const t of tracks) {
@@ -239,6 +279,165 @@ function normalizeAudioClip(clip: Omit<AudioClip, 'id' | 'trackId'>, id: string,
     muted: Boolean(clip.muted),
     missing: clip.missing ? true : undefined,
   }
+}
+
+/**
+ * MK.9 — shared implementation for copyRegionToTrack / cutRegionToTrack.
+ *
+ * Pre-flight (NO state change, NO undo entry):
+ *   1. There must be a committedMaskSelection on `clipId` and the referenced
+ *      MatteNode must still exist in the clip's maskStack — else no-op + toast.
+ *   2. The composite-layer count must be < MAX_COMPOSITE_LAYERS (a cut/copy adds
+ *      exactly one layer) — else REFUSE + toast.
+ *
+ * The whole operation is ONE undoable() entry: forward captures the composed
+ * post-state; inverse restores the captured pre-state tracks + selection
+ * verbatim, guaranteeing deep-equal on undo (the cut/copy is reversible in a
+ * single HistoryPanel row).
+ */
+function cutOrCopyRegionToTrack(
+  get: () => TimelineState,
+  set: (partial: Partial<TimelineState>) => void,
+  clipId: string,
+  mode: 'cut' | 'copy',
+): void {
+  const sel = get().committedMaskSelection
+  const toast = useToastStore.getState()
+
+  // Guard 1: must have a committed selection on THIS clip.
+  if (!sel || sel.clipId !== clipId) {
+    toast.addToast({
+      level: 'warning',
+      message: `${mode === 'cut' ? 'Cut' : 'Copy'} to new track: select a region first`,
+      source: 'mk9-region-to-track',
+    })
+    return
+  }
+
+  // Locate the source clip + its track, and the committed node in its stack.
+  let sourceClip: Clip | undefined
+  let sourceTrackId: string | undefined
+  let sourceTrackIdx = -1
+  const prevTracks = get().tracks
+  for (let i = 0; i < prevTracks.length; i++) {
+    const c = prevTracks[i].clips.find((cl) => cl.id === clipId)
+    if (c) { sourceClip = c; sourceTrackId = prevTracks[i].id; sourceTrackIdx = i; break }
+  }
+  const sourceNode = sourceClip?.maskStack?.find((n) => n.id === sel.nodeId)
+
+  // Guard 1b: stale selection (clip or node gone) → no-op + toast.
+  if (!sourceClip || !sourceTrackId || sourceTrackIdx === -1 || !sourceNode) {
+    toast.addToast({
+      level: 'warning',
+      message: `${mode === 'cut' ? 'Cut' : 'Copy'} to new track: selection is no longer valid`,
+      source: 'mk9-region-to-track',
+    })
+    return
+  }
+
+  // Guard 2: layer cap — a cut/copy adds exactly ONE composite layer.
+  if (countCompositeLayers(prevTracks) >= LIMITS.MAX_COMPOSITE_LAYERS) {
+    toast.addToast({
+      level: 'warning',
+      message: `Composite layer limit (${LIMITS.MAX_COMPOSITE_LAYERS}) reached — cannot ${mode === 'cut' ? 'cut' : 'copy'} to a new track`,
+      source: 'mk9-region-to-track',
+    })
+    return
+  }
+
+  // Guard 3: respect the track cap too (addTrack's own contract). Compose, not bypass.
+  if (prevTracks.length >= LIMITS.MAX_TRACKS) {
+    toast.addToast({
+      level: 'warning',
+      message: `Track limit (${LIMITS.MAX_TRACKS}) reached`,
+      source: 'mk9-region-to-track',
+    })
+    return
+  }
+
+  // Pre-generate all IDs OUTSIDE the undoable (deterministic redo — undo.ts contract).
+  const newTrackId = randomUUID()
+  const newClipId = randomUUID()
+  const newNodeId = randomUUID()
+
+  // Build the duplicated matte node — a DEEP copy (own params object) so the
+  // top-layer matte and the original's inverse matte never alias one node object
+  // (the documented aliasing failure mode; the deep-equal undo test catches it).
+  const dupNode: MatteNode = {
+    ...sourceNode,
+    id: newNodeId,
+    params: { ...sourceNode.params },
+  }
+
+  // The lifted duplicate clip: same media/timing, carrying only the dup matte,
+  // maskMode = deleteOutside (only the region shows). Fresh id, on the new track.
+  const dupClip: Clip = {
+    ...sourceClip,
+    id: newClipId,
+    trackId: newTrackId,
+    maskStack: [dupNode],
+    maskMode: 'deleteOutside',
+    // The lifted clip carries no inherited fill color from a prior fill op.
+    maskFillColor: undefined,
+    ...(sourceClip.transform ? { transform: { ...sourceClip.transform } } : {}),
+    ...(sourceClip.textConfig ? { textConfig: { ...sourceClip.textConfig } } : {}),
+  }
+
+  // New track: EMPTY chain (independent processing is the whole point — asserted
+  // failure mode: must NOT inherit the source chain). Inserted directly ABOVE the
+  // source (lower array index = topmost UI row = top of composite, App.tsx:1029).
+  const newTrack = makeEmptyTrack(`${sourceClip.name ?? 'Region'}`, prevTracks[sourceTrackIdx].color, newTrackId, 'video')
+  newTrack.clips = [dupClip]
+
+  // Capture FULL pre-state for the inverse (deep-equal restore). Snapshot the
+  // selection too — forward clears it (the region has been consumed).
+  const capturedTracks = prevTracks
+  const capturedSelection = get().committedMaskSelection
+  const capturedSelClipId = get().selectedClipId
+  const capturedSelClipIds = get().selectedClipIds
+
+  undoable(
+    mode === 'cut' ? 'Cut region to new track' : 'Copy region to new track',
+    () => {
+      // Insert the new track directly above the source track.
+      const cur = [...get().tracks]
+      const insertAt = cur.findIndex((t) => t.id === sourceTrackId)
+      const idx = insertAt === -1 ? cur.length : insertAt
+      cur.splice(idx, 0, newTrack)
+
+      // CUT only: the original gains the inverse matte (deleteInside → hole).
+      // COPY: original is untouched.
+      const tracks = mode === 'cut'
+        ? cur.map((t) =>
+            t.id === sourceTrackId
+              ? {
+                  ...t,
+                  clips: t.clips.map((c) =>
+                    c.id === clipId ? { ...c, maskMode: 'deleteInside' as const } : c,
+                  ),
+                }
+              : t,
+          )
+        : cur
+
+      set({
+        tracks,
+        duration: recalcDuration(tracks),
+        // The region has lifted — clear the now-consumed selection.
+        committedMaskSelection: null,
+      })
+    },
+    () => {
+      // Restore the captured pre-state verbatim → deep-equal pre-state.
+      set({
+        tracks: capturedTracks,
+        duration: recalcDuration(capturedTracks),
+        committedMaskSelection: capturedSelection,
+        selectedClipId: capturedSelClipId,
+        selectedClipIds: capturedSelClipIds,
+      })
+    },
+  )
 }
 
 function defaultTextConfig(): TextClipConfig {
@@ -1067,6 +1266,27 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         set({ tracks, duration: recalcDuration(tracks) })
       },
     )
+  },
+
+  // --- MK.9: Cut / copy mask region to a new track ---
+  //
+  // Both ops are composed from the SAME primitives MK.1–MK.8 already render
+  // (addTrack-style empty-chain track, clip duplication, maskStack assignment,
+  // maskMode) but are expressed as ONE undoable() transaction so the whole
+  // operation is a single HistoryPanel row whose inverse restores the exact
+  // pre-state (deep-equal). We do NOT modify addTrack/removeClip/moveClip — we
+  // build on top: the forward composes their effect (a new track above + a
+  // masked duplicate clip), the inverse restores the captured pre-state tracks
+  // array verbatim (UE.2 precedent: compose, never mutate the contracts).
+  //
+  // `mode` selects copy vs cut: 'cut' additionally stamps the inverse matte
+  // (deleteInside) onto the ORIGINAL so the region lifts and leaves a hole.
+  copyRegionToTrack: (clipId) => {
+    cutOrCopyRegionToTrack(get, set, clipId, 'copy')
+  },
+
+  cutRegionToTrack: (clipId) => {
+    cutOrCopyRegionToTrack(get, set, clipId, 'cut')
   },
 
   toggleClipEnabled: (clipId) => {
