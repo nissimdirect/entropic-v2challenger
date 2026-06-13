@@ -234,3 +234,56 @@ describe('GATE 4 — freeze/export stay track-scoped; pad-delete clears selectio
     expect(screen.getByTestId('device-chain')).toBeTruthy()
   })
 })
+
+// ─── GATE 5 (Tiger): pad target is scoped to the ACTIVE track ─────────────────
+//
+// The track-SWITCH transition the original 4 gates missed: a pad selected on
+// rack-track A must NOT hijack the DeviceChain editor when a DIFFERENT track B
+// is active. Display AND mutation must both fall back to the active track when
+// the selection's trackId ≠ the active track; switching back to A restores the
+// pad target (selection persists per-rack, Ableton-correct).
+
+describe('GATE 5 — pad_target_scoped_to_active_track', () => {
+  it('selection on A does not target while B is active; restores when A re-activates', () => {
+    // Track A = a rack-track with a selected pad P.
+    useInstrumentsStore.getState().addRack(TRACK_ID)
+    const padId = useInstrumentsStore.getState().racks[TRACK_ID].pads[0].id
+    useProjectStore.getState().setSelectedRackPad(TRACK_ID, padId)
+    useInstrumentsStore.getState().addEffectToPad(TRACK_ID, padId, makeEffect('pad-P-fx'))
+    // Track B = a second video track; seed its track chain to prove the fallback.
+    const TRACK_B = useTimelineStore.getState().addTrack('V2', '#00ff00')!
+    useTimelineStore.getState().updateTrackEffectChain(TRACK_B, () => [makeEffect('b-track-fx')])
+    // Re-select A as the active track (addTrack auto-selected B).
+    useTimelineStore.getState().selectTrack(TRACK_ID)
+
+    // (1) A active → DeviceChain targets pad P's chain (pad label shown).
+    const { rerender } = render(<DeviceChain />)
+    expect(screen.getByTestId('device-chain-context').textContent).toBe('Pad 1')
+
+    // (2) Switch the ACTIVE track to B (selection {A,P} still stored).
+    useTimelineStore.getState().selectTrack(TRACK_B)
+    rerender(<DeviceChain />)
+    // Display falls back to B's TRACK chain — NOT pad P's. No pad label.
+    expect(screen.queryByTestId('device-chain-context')).toBeNull()
+    // Selection is PRESERVED (scoping, not clearing).
+    expect(useProjectStore.getState().selectedRackPad).toEqual({ trackId: TRACK_ID, padId })
+
+    // A dispatched add while B is active lands on B's TRACK chain, NOT on the
+    // hidden racks[A].pads[P].chain. Drive it through the real drop path.
+    fireEvent.drop(screen.getByTestId('device-chain'), { dataTransfer: fxDataTransfer('pixelsort') })
+    const bChain = useTimelineStore.getState().tracks.find((t) => t.id === TRACK_B)!.effectChain
+    expect(bChain).toHaveLength(2) // seeded 'b-track-fx' + new 'pixelsort'
+    expect(bChain.some((e) => e.effectId === 'pixelsort')).toBe(true)
+    // The hidden pad P chain is UNTOUCHED.
+    expect((useInstrumentsStore.getState().racks[TRACK_ID].pads[0].chain ?? []).map((e) => e.id)).toEqual(['pad-P-fx'])
+
+    // (3) Switch back to A → pad P selection re-targets (label back, mutation hits pad).
+    useTimelineStore.getState().selectTrack(TRACK_ID)
+    rerender(<DeviceChain />)
+    expect(screen.getByTestId('device-chain-context').textContent).toBe('Pad 1')
+    fireEvent.drop(screen.getByTestId('device-chain'), { dataTransfer: fxDataTransfer('pixelsort') })
+    expect((useInstrumentsStore.getState().racks[TRACK_ID].pads[0].chain ?? [])).toHaveLength(2)
+    // Track A's own chain was NEVER mis-targeted.
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === TRACK_ID)!.effectChain).toHaveLength(0)
+  })
+})
