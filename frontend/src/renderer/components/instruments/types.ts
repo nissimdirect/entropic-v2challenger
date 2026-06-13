@@ -186,14 +186,76 @@ export interface RackPad {
   // TODO(B4.4+): choke-group membership.   chokeGroup?: number | null
 }
 
+/**
+ * B4.2 — a single macro route: ONE macro destination.
+ *
+ * `targetPath` addresses a param on one of the rack's pads, in the form
+ * `pad.<padId>.<param>` where <param> is a macro-able instrument param
+ * (`scrub` | `speed` | `opacity`). `depth` scales the macro value into the
+ * target (`resolved = macro.value * depth`). A route whose path is unknown /
+ * malformed is SKIPPED by the resolver, never throws (trust boundary).
+ */
+export interface MacroRoute {
+  targetPath: string
+  /** Scales the macro value into the target param. May be negative (invert). */
+  depth: number
+}
+
+/**
+ * B4.2 — a Sample Rack macro: ONE control (0..1) → MANY param destinations.
+ *
+ * A rack hosts up to MAX_MACROS_PER_RACK (8) macros. Each macro's `value` is
+ * fanned out across its `routes` (one-to-many): for each route the resolved
+ * value `value * route.depth` is written into the route's target pad param
+ * BEFORE render (see resolveRackMacros — mirrors backend resolve_rack_macros).
+ * A macro at 0, or with no routes, has NO effect (regression-safe).
+ *
+ * The FAN-OUT CAPS (per-macro routes, total edges across the rack) are the
+ * trust boundary and are enforced in the backend `security.validate_rack_macros`
+ * on the IPC/render + load boundary. MAX_* mirrored below for the editor UI.
+ */
+export interface RackMacro {
+  /** Stable macro identity. */
+  id: string
+  /** User-facing macro name (e.g. "Chaos", "Decay"). */
+  name: string
+  /** The macro's control value, clamped [0, 1]. */
+  value: number
+  /** The macro's destinations — one-to-many fan-out. */
+  routes: MacroRoute[]
+}
+
 export interface RackNode {
   /** Stable rack identity. */
   id: string
   type: 'rack'
   /** The pad channels, in display order. Each is summed to the rack output. */
   pads: RackPad[]
+  /**
+   * B4.2: up to 8 macros, each fanning one value across many pad params.
+   * Additive optional — absent → undefined → no macro modulation (a rack saved
+   * before B4.2 renders byte-identical). NO PROJECT_VERSION bump.
+   */
+  macros?: RackMacro[]
 }
 
 /** Per-pad opacity bounds (mirrors sampler opacity clamp). */
 export const RACK_PAD_OPACITY_MIN = 0
 export const RACK_PAD_OPACITY_MAX = 1
+
+/**
+ * B4.2 — Sample Rack macro fan-out caps. MIRROR of backend security.py
+ * (MAX_MACROS_PER_RACK / MAX_MODROUTES_PER_MACRO / MAX_TOTAL_EDGES). The backend
+ * is the enforcing trust boundary; the frontend mirrors these for the editor UI
+ * (disable "add route" past the cap) and the local resolveRackMacros guard.
+ */
+export const MAX_MACROS_PER_RACK = 8
+export const MAX_MODROUTES_PER_MACRO = 32
+export const MAX_TOTAL_EDGES = 256
+
+/** Pad-instrument params a macro route may drive → [min, max] clamp bounds. */
+export const RACK_MACRO_PARAM_BOUNDS: Record<string, [number, number]> = {
+  scrub: [0, 1],
+  speed: [-8, 8],
+  opacity: [0, 1],
+}

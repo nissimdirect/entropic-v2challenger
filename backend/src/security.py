@@ -87,6 +87,7 @@ MAX_VOICE_ID_LENGTH = 128
 MAX_AUTOMATION_FRAMES = MAX_FRAME_COUNT  # one entry per source frame, at most
 MAX_AUTOMATION_OVERRIDES_PER_FRAME = 256
 
+
 # P2.3: the operator types the signal engine understands. An export payload
 # carrying an unknown operator type is a hand-edited / hostile project and is
 # REJECTED at export start (the engine would silently evaluate it to 0.0; the
