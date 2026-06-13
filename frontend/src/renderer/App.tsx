@@ -33,6 +33,7 @@ import Inspector from './components/inspector/Inspector'
 import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
 import RackDevice from './components/instruments/RackDevice'
+import FrameBankDevice from './components/instruments/FrameBankDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveRackMacros } from './components/instruments/resolveRackMacros'
@@ -3507,6 +3508,14 @@ function AppInner() {
         {selectedTrackId
           && tracks.find((t) => t.id === selectedTrackId)?.type === 'performance' && (
           <RackDevice trackId={selectedTrackId} />
+        )}
+        {/* B6.3: a selected Performance track that hosts a Frame-Bank (Wavetable)
+            shows its FrameBankDevice (slot strip + position + interp + budget).
+            FrameBankDevice returns null when the track has no frameBank, so this
+            mount is safe for non-frameBank tracks. */}
+        {selectedTrackId
+          && tracks.find((t) => t.id === selectedTrackId)?.type === 'performance' && (
+          <FrameBankDevice trackId={selectedTrackId} />
         )}
         <DeviceChain
           onFreezeUpTo={handleFreezeUpTo}
