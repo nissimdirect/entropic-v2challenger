@@ -165,6 +165,11 @@ interface TimelineState {
   updateMatteNode: (clipId: string, nodeId: string, patch: Partial<MatteNode>) => void
   /** MK.4: Set clip maskMode + optional fill color. Undoable. */
   setClipMaskMode: (clipId: string, mode: 'deleteInside' | 'deleteOutside' | 'fill', fillColor?: string) => void
+  // --- MK.7: Matte stack reorder + enable/disable (undoable) ---
+  /** Move a node one position toward index 0 (up) or away from 0 (down). No-op at boundaries. */
+  reorderMatteNode: (clipId: string, nodeId: string, direction: 'up' | 'down') => void
+  /** Toggle the `enabled` field of a single matte node. */
+  toggleMatteNode: (clipId: string, nodeId: string) => void
 
   // Helpers
   getActiveClipsAtTime: (time: number) => { track: Track; clip: Clip }[]
@@ -1925,6 +1930,85 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           ...t,
           clips: t.clips.map((c) =>
             c.id === clipId ? { ...c, maskMode: prevMode as any, maskFillColor: prevFillColor } : c,
+          ),
+        })),
+      }),
+    )
+  },
+
+  // --- MK.7: Matte stack reorder + enable/disable (undoable) ---
+
+  reorderMatteNode: (clipId, nodeId, direction) => {
+    let prevStack: MatteNode[] | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { prevStack = clip.maskStack ? [...clip.maskStack] : []; break }
+    }
+    if (!prevStack || prevStack.length === 0) return
+
+    const idx = prevStack.findIndex((n) => n.id === nodeId)
+    if (idx === -1) return
+    const targetIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (targetIdx < 0 || targetIdx >= prevStack.length) return  // at boundary — no-op
+
+    const nextStack = [...prevStack]
+    ;[nextStack[idx], nextStack[targetIdx]] = [nextStack[targetIdx], nextStack[idx]]
+
+    const capturedPrev = prevStack
+
+    undoable(
+      'Reorder matte node',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: nextStack } : c,
+          ),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: capturedPrev } : c,
+          ),
+        })),
+      }),
+    )
+  },
+
+  toggleMatteNode: (clipId, nodeId) => {
+    let prevStack: MatteNode[] | undefined
+    let prevNode: MatteNode | undefined
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) {
+        prevStack = clip.maskStack ? [...clip.maskStack] : []
+        prevNode = prevStack.find((n) => n.id === nodeId)
+        break
+      }
+    }
+    if (!prevStack || !prevNode) return
+
+    const capturedPrev = prevStack
+    const toggled: MatteNode = { ...prevNode, enabled: !prevNode.enabled }
+    const nextStack = prevStack.map((n) => n.id === nodeId ? toggled : n)
+
+    undoable(
+      'Toggle matte node',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: nextStack } : c,
+          ),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, maskStack: capturedPrev } : c,
           ),
         })),
       }),

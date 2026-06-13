@@ -96,6 +96,9 @@ import './styles/toast.css'
 import './styles/export.css'
 import './styles/text.css'
 import './styles/device-chain.css'
+import './styles/masking.css'
+// MK.7: Mask stack editing panel
+import MaskStackPanel from './components/masking/MaskStackPanel'
 // P3.5: Demos drawer + first-launch onboarding
 import DemosDrawer, { type DemoId } from './components/demos/DemosDrawer'
 import BootLine from './components/demos/BootLine'
@@ -3191,6 +3194,12 @@ function AppInner() {
           onSaveAsPreset={(instanceId) => setShowPresetSave({ mode: 'single_effect', instanceId })}
           onSaveChainAsPreset={() => setShowPresetSave({ mode: 'effect_chain' })}
         />
+        {/* MK.7: Mask stack editing panel — visible when exactly one clip is selected.
+            Mounts INSIDE the existing device-chain region; no grid-template-rows modification.
+            MK.13 will polish layout and thumbnail previews. */}
+        {selectedClip && (
+          <MaskStackPanel clipId={selectedClip.id} />
+        )}
       </div>
       {/* P3.1: end cx-right-col wrapper */}
       </div>
