@@ -1142,6 +1142,17 @@ class ExportManager:
         events = performance.get("events") or []
         instruments = performance.get("instruments") or {}
         assets = performance.get("assets") or {}
+        # B4-export — Sample Rack channel summing in the EXPORT path.
+        # A rack is N pads; each pad is a CHANNEL whose Sampler renders one-or-
+        # more voice layers via the SAME B3 sampler math the per-instrument loop
+        # uses. The pad channels are summed into the SAME `layers` list (the
+        # existing compositor reads each layer's opacity + blend_mode). Macros
+        # are STATIC at export time and are already resolved on the FRONTEND
+        # (resolveRackMacros) before serialization — there is no per-frame macro
+        # automation, so the backend does NOT re-resolve macros. Absent / empty
+        # `racks` → no rack descriptors appended → export byte-identical to the
+        # per-instrument path (regression-safe). Mirrors buildRackLayers.ts.
+        racks = performance.get("racks") or {}
 
         # B3.2 — resolve `sampler.<id>.<param>` operator modulation into the
         # instruments dict BEFORE any footage frame is computed, so the modulated
@@ -1233,6 +1244,115 @@ class ExportManager:
                         "note": voice.get("note"),
                     }
                 )
+
+        # B4-export — Sample Rack channel summing (mirror of buildRackLayers.ts).
+        # Each rack hosts pads (channels); pads are emitted in array order so
+        # later pads composite ON TOP of earlier pads (z-order). Within a pad,
+        # voices keep ascending-triggerFrame order (evaluate_voices). The summing
+        # gates EXACTLY mirror the frontend:
+        #   MUTE:  a muted pad emits NOTHING.
+        #   SOLO:  if ANY pad is soloed, only soloed pads render (a muted pad is
+        #          still silent even if soloed — mute is the harder gate).
+        #   OPACITY: per-pad opacity MULTIPLIES onto each voice layer's opacity
+        #            (which already folds instrument opacity × ADSR env),
+        #            clamped [0, 1] (trust boundary).
+        #   BLEND: per-pad blend REPLACES the layer's blend_mode.
+        # Pad voices reuse the SAME B3 sampler render math (footage frame via
+        # _compute_voice_footage_frame, rgb/glide/melodic via the inst dict) as
+        # the per-instrument loop. Descriptors are appended to the SAME
+        # voice_descriptors list, so they flow through the budget validation +
+        # PHASE 2 decode unchanged.
+        def _clamp_finite(v, lo, hi, fallback):
+            if not isinstance(v, (int, float)) or isinstance(v, bool):
+                return fallback
+            if v != v or v in (float("inf"), float("-inf")):
+                return fallback
+            return min(hi, max(lo, v))
+
+        for rack_track_id, rack in racks.items():
+            if not isinstance(rack, dict):
+                continue
+            pads = rack.get("pads")
+            if not isinstance(pads, list) or not pads:
+                continue
+            # SOLO gate: if ANY pad is soloed, only soloed pads are audible.
+            any_solo = any(isinstance(p, dict) and p.get("solo") is True for p in pads)
+            for pad in pads:
+                if not isinstance(pad, dict):
+                    continue
+                # MUTE is the harder gate — muted pad is silent regardless of solo.
+                if pad.get("mute"):
+                    continue
+                # SOLO: when any pad is soloed, non-soloed pads are silenced.
+                if any_solo and not pad.get("solo"):
+                    continue
+                pad_inst = pad.get("instrument")
+                if not isinstance(pad_inst, dict):
+                    continue
+                pad_id = pad.get("id")
+                pad_adsr = pad.get("adsr") or {
+                    "attack": 0,
+                    "decay": 0,
+                    "sustain": 1,
+                    "release": 0,
+                }
+                pad_voice_cap = pad.get("voiceCap", 4)
+                pad_chain = pad_inst.get("chain") or []
+                pad_clip_id = pad_inst.get("clipId")
+                pad_asset = assets.get(pad_clip_id) if pad_clip_id is not None else None
+                if not pad_asset or not pad_asset.get("path"):
+                    # Unsourced pad — no layers (mirrors buildRackLayers early-out).
+                    continue
+                pad_asset_path = pad_asset["path"]
+                pad_frame_count = pad_asset.get("frameCount") or 1
+                # Per-pad event bucket: events stamped with the pad's composite
+                # instrumentId `${trackId}:${padId}` PLUS global panic.
+                pad_event_key = (
+                    f"{rack_track_id}:{pad_id}" if pad_id is not None else None
+                )
+                pad_events = [
+                    e
+                    for e in events
+                    if isinstance(e, dict)
+                    and (
+                        e.get("instrumentId") == pad_event_key
+                        or e.get("kind") == "panic"
+                    )
+                ]
+                pad_voices = evaluate_voices(
+                    pad_events,
+                    frame_index,
+                    {"voiceCap": pad_voice_cap, "adsr": pad_adsr},
+                )
+                if not pad_voices:
+                    continue
+                # Per-pad channel opacity (trust boundary clamp [0,1]).
+                pad_opacity = _clamp_finite(pad.get("opacity", 1.0), 0.0, 1.0, 1.0)
+                pad_blend = pad.get("blend", "normal")
+                for voice in pad_voices:
+                    playhead = voice.get("footagePos", 0)
+                    env = envelope_value(voice, frame_index, pad_adsr)
+                    inst_op = pad_inst.get("opacity", 1.0)
+                    # OPACITY: inst_opacity × env × pad_opacity, clamped [0,1].
+                    op = inst_op * env * pad_opacity
+                    if not isinstance(op, (int, float)) or op != op:
+                        op = 0.0
+                    op = max(0.0, min(1.0, op))
+                    vid = encode_voice_id(voice["voiceId"])
+                    voice_descriptors.append(
+                        {
+                            "asset_path": pad_asset_path,
+                            "frame_count": pad_frame_count,
+                            "inst": pad_inst,
+                            "playhead": playhead,
+                            "chain": pad_chain,
+                            "voice_id": vid,
+                            "opacity": op,
+                            # BLEND: per-pad blend REPLACES the layer's mode.
+                            "blend_mode": pad_blend,
+                            "note": voice.get("note"),
+                        }
+                    )
 
         # ENFORCE-BEFORE-DECODE (design Memory-strategy): validate the per-frame
         # voice budget and the composite layer cap BEFORE opening/decoding any
