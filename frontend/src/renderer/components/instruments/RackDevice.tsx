@@ -36,6 +36,7 @@ import {
   MAX_MACROS_PER_RACK,
   MAX_BRANCH_DEPTH,
 } from './types'
+import { rackEditPathToBranchPath } from './buildRackLayers'
 import type { RackNode } from './types'
 import type { BlendMode } from '../../../shared/types'
 
@@ -128,13 +129,19 @@ export default function RackDevice({ trackId }: { trackId: string }) {
     const frame = useProjectStore.getState().currentFrame
     const pad = currentNode.pads.find((p) => p.id === padId)
     const group = pad?.chokeGroup ?? null
+    // B4-choke — siblings resolved against the CURRENT level's pads.
     const siblings =
       group === null
         ? undefined
         : currentNode.pads
             .filter((p) => p.id !== padId && p.chokeGroup === group)
             .map((p) => p.id)
-    triggerRackPad(trackId, padId, frame, siblings, group)
+    // B5.3 — convert the UI edit path (pad ids) into the INDEX-based `bN_` branch
+    // path the preview render keys events under, so a nested pad FIRES IN PREVIEW.
+    // Empty path (top level) → '' → bare key → byte-identical to B4. A stale path
+    // resolves to null → fall back to a flat trigger (defensive, no throw).
+    const branchPath = rackEditPathToBranchPath(rack, editPath) ?? ''
+    triggerRackPad(trackId, padId, frame, siblings, group, branchPath)
   }
 
   // B4-pad-delete — SYMMETRIC cleanup (path-aware). If the deleted pad is the

@@ -81,6 +81,38 @@ export function padEventKey(branchPath: string, padId: string): string {
   return branchPath === '' ? padId : `${branchPath}_${padId}`
 }
 
+/**
+ * B5.3 — convert a UI edit path (an array of branch PAD IDS, as held in
+ * `useProjectStore.rackEditPath`) into the INDEX-based `bN_`-joined branch path
+ * that `walkRack` / `gatherPadEvents` use as the event-key prefix.
+ *
+ * The render walk keys nested branches by their pad INDEX (`b${padIndex}`,
+ * joined with `_`), NOT their pad id — so a UI trigger at a nested level must
+ * resolve the SAME index path to write events under the key the render expects.
+ * This walks the rack tree following the pad ids, emitting `b${index}` per hop.
+ *
+ * Returns '' for the top level (empty path → flat, byte-identical to B4). Returns
+ * null if any hop is stale (a pad id not found, or the pad has no branch) — the
+ * caller falls back to a flat trigger (defensive; mirrors `resolveRackNode`).
+ */
+export function rackEditPathToBranchPath(
+  top: RackNode,
+  editPath: string[],
+): string | null {
+  if (editPath.length === 0) return ''
+  let node: RackNode = top
+  const segs: string[] = []
+  for (const padId of editPath) {
+    const idx = node.pads.findIndex((p) => p.id === padId)
+    if (idx === -1) return null
+    const pad = node.pads[idx]
+    if (!pad.branch) return null
+    segs.push(`b${idx}`)
+    node = pad.branch
+  }
+  return segs.join('_')
+}
+
 const DEFAULT_COMPOSITE: { opacity: number; blend: BlendMode } = {
   opacity: 1,
   blend: 'normal',

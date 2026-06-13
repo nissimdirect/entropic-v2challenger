@@ -110,6 +110,16 @@ interface PerformanceState {
    * THIS store does not import it. The COMPONENT (RackDevice) resolves the group +
    * sibling ids and passes them in. Omitting them (or a null group / empty array)
    * = today's behavior exactly (regression-safe).
+   *
+   * B5.3 — `branchPath` (the INDEX-based `bN_`-joined path from
+   * `rackEditPathToBranchPath`) makes a NESTED branch-child pad fire in LIVE
+   * PREVIEW. When non-empty, the composite key (and each sibling's choke key) is
+   * PATH-PREFIXED — `${trackId}:${branchPath}_${padId}` — matching the key the
+   * preview render path reads (App.tsx gatherPadEvents →
+   * `padEventKey(branchPath, pad.id)` → buildRackLayers). The triggered event's
+   * `instrumentId` carries that SAME prefixed key so evaluateVoices matches it.
+   * OMITTED / EMPTY branchPath → the bare `${trackId}:${padId}` key, BYTE-IDENTICAL
+   * to B4/B5.1/B5.2 (flat trigger unchanged).
    */
   triggerRackPad: (
     trackId: string,
@@ -117,6 +127,7 @@ interface PerformanceState {
     frameIndex: number,
     chokeSiblingPadIds?: string[],
     chokeGroup?: number | null,
+    branchPath?: string,
   ) => void;
   /**
    * B4-pad-delete — clear a deleted rack pad's trigger events. Immutably removes
@@ -200,14 +211,20 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     set(updates);
   },
 
-  triggerRackPad: (trackId, padId, frameIndex, chokeSiblingPadIds, chokeGroup) => {
+  triggerRackPad: (trackId, padId, frameIndex, chokeSiblingPadIds, chokeGroup, branchPath) => {
     // B4-editor — composite key the rack render path consumes (App.tsx:1131).
     // Non-finite / negative frameIndex is dropped (trust boundary — numeric guard,
     // mirrors triggerPad). No drumRack lookup: a rack pad is NOT a drumRack pad.
     if (!trackId || !padId) return;
     if (!Number.isFinite(frameIndex) || frameIndex < 0) return;
     const frame = Math.round(frameIndex);
-    const key = `${trackId}:${padId}`;
+    // B5.3 — for a NESTED branch-child pad the render reads the PATH-PREFIXED key
+    // `${trackId}:${branchPath}_${padId}` (gatherPadEvents → padEventKey). The pad
+    // portion of the key is the branch path joined to the pad id; siblings use the
+    // SAME prefix. EMPTY / undefined branchPath → bare `padId` (B4 byte-identical).
+    const prefix = branchPath ? `${branchPath}_` : '';
+    const padKey = `${prefix}${padId}`;
+    const key = `${trackId}:${padKey}`;
 
     // B4-choke — a valid choke group is a finite int (the component passes the
     // triggered pad's chokeGroup; null/undefined → no choke). When present it is
@@ -249,7 +266,9 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       for (const siblingId of chokeSiblingPadIds) {
         // Skip falsy / self ids (defensive — the component already excludes self).
         if (!siblingId || siblingId === padId) continue;
-        const siblingKey = `${trackId}:${siblingId}`;
+        // B5.3 — siblings at the SAME nested level share the branch prefix so the
+        // silencing 'choke' lands under each sibling's path-prefixed stream.
+        const siblingKey = `${trackId}:${prefix}${siblingId}`;
         const silence: TriggerEvent = {
           frameIndex: frame,
           eventIndex: _eventIndex++,

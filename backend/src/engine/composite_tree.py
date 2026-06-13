@@ -77,6 +77,47 @@ def count_group_voices(layer: dict) -> int:
     return total
 
 
+def collect_group_state_keys(group: dict) -> set[str]:
+    """Collect every composite-state key a group writes when expanded (recursive).
+
+    B5.3 — the preview state cache (``ZMQServer._get_composite_states``) evicts any
+    cached key NOT present in the per-frame ``layer_signature``. The signature is
+    built BEFORE group expansion, so a top-level group contributes only its own
+    ``group:{group_id}`` id — NOT the nested descendant keys that
+    ``expand_group_layer`` actually writes (sub-composite ``voice:{voice_id}`` leaf
+    keys + nested ``group:{group_id}`` branch-chain keys). Without those in the
+    live-id set the nested state is dropped EVERY frame → nested stateful effects
+    reset per-frame (the #69 Hidden Tiger).
+
+    This returns the EXACT set of keys ``expand_group_layer`` threads through
+    ``new_states`` for one group subtree, keyed PATH-FROM-ROOT (matching the keys
+    written in ``expand_group_layer``):
+      * ``group:{group_id}`` for THIS group (its branch-chain state) and every
+        nested-group descendant.
+      * ``voice:{voice_id}`` for every leaf-voice child at any depth.
+
+    The caller unions these into the eviction live-id set so a key written THIS
+    frame survives into the next. ADDITIVE: a flat layer list has no groups → this
+    is never called → the flat eviction live-id set is byte-identical.
+    """
+    keys: set[str] = set()
+    if not is_group_layer(group):
+        return keys
+    group_id = str(group.get("group_id", ""))
+    # THIS group's branch-chain state key (written iff the branch has a chain, but
+    # we include it unconditionally — a key never written is simply absent from the
+    # cache, so retaining it in live_ids is a harmless no-op).
+    keys.add(f"group:{group_id}")
+    for child in group.get("children") or []:
+        if is_group_layer(child):
+            keys |= collect_group_state_keys(child)
+        else:
+            voice_id = child.get("voice_id") if isinstance(child, dict) else None
+            if voice_id is not None:
+                keys.add(f"voice:{voice_id}")
+    return keys
+
+
 def _validate_tree_caps(layer: dict, depth: int, counter: dict) -> None:
     """Fail-closed re-enforcement of the recursion caps (trust boundary).
 
