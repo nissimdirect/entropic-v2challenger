@@ -111,6 +111,14 @@ export function buildRackLayers(
           0,
         ),
         blend_mode: pad.blend,
+        // B4-pad-chain (ENGINE slice): carry the pad's per-pad insert chain onto
+        // each voice layer so it reaches `render_composite` in PREVIEW. The
+        // base voice layer from buildVoiceLayers always has chain=[] (no
+        // per-voice chain on the per-track path); the rack OVERRIDES it per-pad.
+        // Absent pad.chain → [] → compositor's `if chain:` no-op → byte-identical
+        // to a no-chain pad. EXPORT carries the SAME chain via the serialized
+        // instrument dict (App.tsx), giving preview/export parity.
+        chain: pad.chain ?? [],
       })
     }
   }

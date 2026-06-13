@@ -5,7 +5,7 @@
  * Creatrix PR-A/PR-B schema work. PR-B may later promote SamplerInstrumentV1
  * into the shared instrument union.
  */
-import type { BlendMode } from '../../../shared/types'
+import type { BlendMode, EffectInstance } from '../../../shared/types'
 
 /**
  * B3.1 — Loop region descriptor for SamplerInstrumentV1.
@@ -131,7 +131,15 @@ export interface SamplerVoiceLayer {
   layer_type: 'video'
   asset_path: string
   frame_index: number
-  chain: never[]
+  /**
+   * B4-pad-chain: per-pad insert effect chain applied by render_composite
+   * (`apply_chain` only `if chain:`). Widened from `never[]` so a rack pad's
+   * chain can ride on its voice layer. The per-track sampler render path still
+   * emits `chain: []` (no per-voice chain there) and typechecks unchanged
+   * (`[]` is assignable to `EffectInstance[]`). Empty → no-op (byte-identical
+   * to a pad with no chain).
+   */
+  chain: EffectInstance[]
   opacity: number
   blend_mode: BlendMode
   /** P5a.3: per-voice state cache key for the backend. No colons (P5a.2 constraint). */
@@ -191,8 +199,20 @@ export interface RackPad {
    * 1..8 (validated by setRackPadChokeGroup); null clears membership.
    */
   chokeGroup?: number | null
+  /**
+   * B4-pad-chain (ENGINE slice) — per-pad insert effect chain. The pad's voice
+   * layers carry this chain to `render_composite`, which applies it via
+   * `apply_chain` (preview) and the SAME compositor in export (parity). The
+   * DeviceChain UI that POPULATES this chain is a LATER slice; this slice only
+   * makes a populated chain RENDER + EXPORT identically.
+   *
+   * Additive optional: a rack saved before B4-pad-chain has no `chain` field →
+   * undefined → buildRackLayers emits `chain: []` and export serializes `[]` →
+   * no chain reaches render_composite → byte-identical render. NO
+   * PROJECT_VERSION bump (UE.7 precedent).
+   */
+  chain?: EffectInstance[]
   // ---- LATER B4 slices (typed-but-unused; do NOT build behavior here) ----
-  // TODO(B4.2+): per-pad effect chain.   chain?: EffectInstance[]
   // TODO(B4.3+): per-pad sends to return busses.   sends?: Send[]
 }
 
