@@ -146,6 +146,86 @@ def sidecar_path_for_node(node_id: str) -> tuple[Path | None, list[str]]:
     return path, []
 
 
+# Node-id pattern reused for GC stem validation (defence-in-depth).
+import re as _re
+
+_NODE_ID_PATTERN = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def gc_orphan_sidecars(active_node_ids: set[str]) -> int:
+    """Delete PNG sidecars in _ALLOWED_SIDECAR_DIR whose stem is NOT in *active_node_ids*.
+
+    Safety invariants — this function ONLY ever:
+      - Deletes files whose resolved path is inside _ALLOWED_SIDECAR_DIR.
+      - Deletes files with suffix .png (case-insensitive).
+      - Deletes files whose stem matches the node-id regex (^[A-Za-z0-9_-]{1,64}$).
+      - Never follows a symlink out of the sanctioned dir.
+      - Never deletes a file that is in *active_node_ids*.
+
+    Trigger: call from project close/load, or via the ``mask_gc_sidecars`` IPC
+    command (see zmq_server._handle_mask_gc_sidecars).  Callers pass the full set
+    of node IDs currently live in the project — any .png not in that set is orphaned
+    and will be removed.
+
+    Returns the count of files deleted.  Never raises.
+    """
+    if not _ALLOWED_SIDECAR_DIR.exists():
+        return 0
+
+    # Resolve the sanctioned dir once, to guard against TOCTOU on the dir itself.
+    try:
+        allowed_resolved_str = str(_ALLOWED_SIDECAR_DIR.resolve())
+    except (OSError, RuntimeError):
+        return 0
+
+    deleted = 0
+    try:
+        candidates = list(_ALLOWED_SIDECAR_DIR.iterdir())
+    except OSError:
+        return 0
+
+    for entry in candidates:
+        # Only .png files
+        if entry.suffix.lower() != ".png":
+            continue
+
+        # Stem must look like a node id (defence-in-depth — no exotic filenames)
+        stem = entry.stem
+        if not _NODE_ID_PATTERN.match(stem):
+            continue
+
+        # Skip if this node is still active
+        if stem in active_node_ids:
+            continue
+
+        # Resolve to catch symlinks; must still be inside sanctioned dir
+        try:
+            resolved = entry.resolve()
+        except (OSError, RuntimeError):
+            continue
+
+        resolved_str = str(resolved)
+        if not (
+            resolved_str.startswith(allowed_resolved_str + "/")
+            or resolved_str == allowed_resolved_str
+        ):
+            # Symlink or otherwise escaped the sanctioned dir — never delete
+            continue
+
+        # Re-run the write-path validator as a final gate (reuses existing confinement logic)
+        errors = validate_sidecar_write_path(resolved)
+        if errors:
+            continue
+
+        try:
+            resolved.unlink()
+            deleted += 1
+        except OSError:
+            pass
+
+    return deleted
+
+
 # --------------------------------------------------------------------------- #
 #  Shared helper
 # --------------------------------------------------------------------------- #
