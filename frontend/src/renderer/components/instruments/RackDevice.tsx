@@ -62,7 +62,18 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const clearRackPadEvents = usePerformanceStore((s) => s.clearRackPadEvents)
   const assets = useProjectStore((s) => s.assets)
 
-  const [selectedPadId, setSelectedPadId] = useState<string | null>(null)
+  // B4-pad-chain UI: pad selection is LIFTED to the project store so the bottom
+  // DeviceChain can read it and edit THIS pad's insert chain (Ableton drum-rack).
+  // `selectedRackPad` is global ({trackId, padId}); this rack only treats a pad
+  // as selected when the selection's trackId is OURS (so two racks don't cross-
+  // select). UX is identical to the old local useState: click selects, the
+  // editor shows for the selected pad, delete clears.
+  const selectedRackPad = useProjectStore((s) => s.selectedRackPad)
+  const selectedPadId =
+    selectedRackPad && selectedRackPad.trackId === trackId ? selectedRackPad.padId : null
+  const setSelectedPad = (padId: string) =>
+    useProjectStore.getState().setSelectedRackPad(trackId, padId)
+  const clearSelectedPad = () => useProjectStore.getState().clearSelectedRackPad()
 
   // Mirror SamplerDevice: return null when the track has no rack (mount-safe).
   if (!rack) return null
@@ -101,7 +112,9 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const onPadDelete = (padId: string) => {
     removeRackPad(trackId, padId)
     clearRackPadEvents(trackId, padId)
-    if (selectedPadId === padId) setSelectedPadId(null)
+    // B4-pad-chain UI: clear the lifted selection so the DeviceChain editor
+    // target never dangles at a deleted pad (it falls back to the track chain).
+    if (selectedPadId === padId) clearSelectedPad()
   }
 
   const macros = rack.macros ?? []
@@ -134,7 +147,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
               aria-pressed={pad.id === selectedPadId}
               // Mirror PadCell.tsx: onMouseDown triggers; click also selects for editing.
               onMouseDown={() => onPadTrigger(pad.id)}
-              onClick={() => setSelectedPadId(pad.id)}
+              onClick={() => setSelectedPad(pad.id)}
             >
               <span className="pad-cell__label">Pad {i + 1}</span>
             </div>

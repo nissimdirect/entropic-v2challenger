@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
-import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId } from '../../stores/project'
+import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId, useActivePadEffectChain } from '../../stores/project'
+import { useInstrumentsStore } from '../../stores/instruments'
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
@@ -40,10 +41,39 @@ export default function DeviceChain({
   onSaveAsPreset,
   onSaveChainAsPreset,
 }: DeviceChainProps) {
-  // D2 (Epic 02): display the ACTIVE track's chain via the active-track rule (D1).
-  const effectChain = useActiveEffectChain()
-  // Epic 3 (D3): read active trackId reactively so isFrozenAt queries the correct per-track state.
+  // B4-pad-chain UI: when a rack pad is selected, the bottom DeviceChain edits
+  // THAT PAD's insert chain (Ableton drum-rack); otherwise it edits the active
+  // TRACK's chain exactly as before. `selectedRackPad` is the single decision
+  // point — every display + mutation below routes through `chainTarget`.
+  const selectedRackPad = useProjectStore((s) => s.selectedRackPad)
+  // Epic 3 (D3): read active trackId reactively so isFrozenAt queries the correct
+  // per-track state. ALSO the scoping key for the pad target below — declared here
+  // (above isPadTarget) so display + mutation share one active-track predicate.
   const activeTrackId = useActiveTrackId()
+  // Both hooks subscribe unconditionally (rules-of-hooks); only the relevant one
+  // is read into `effectChain` below. The track chain is the render/freeze/export
+  // source and stays decoupled from this editor retarget.
+  const trackEffectChain = useActiveEffectChain()
+  const padEffectChain = useActivePadEffectChain()
+  // qa-redteam Tiger fix: the pad target is ACTIVE-TRACK-SCOPED. A selected pad on
+  // track A must NOT hijack the editor when track B is active (B's RackDevice may
+  // even be unmounted). Only treat it as a pad target when the selection belongs
+  // to the active track. Switching away → fall back to the track path; switching
+  // back to A → the {A,P} selection re-targets (Ableton-correct, persists per-rack).
+  // Also makes a deleted track's dangling selection a no-op (deleted ≠ active).
+  const isPadTarget = selectedRackPad != null && selectedRackPad.trackId === activeTrackId
+  // D2 (Epic 02): display the ACTIVE track's chain, OR the selected pad's chain.
+  const effectChain = isPadTarget ? padEffectChain : trackEffectChain
+  // B4-pad-chain UI: a header label so the user knows which device's chain is
+  // shown (Ableton shows the device name). Reactive 1-based pad index, or null
+  // when not on the pad's rack-track / the pad is gone (label hides → track title).
+  const padLabel = useInstrumentsStore((s) => {
+    if (!isPadTarget || !selectedRackPad) return null
+    const rack = s.racks[selectedRackPad.trackId]
+    if (!rack) return null
+    const idx = rack.pads.findIndex((p) => p.id === selectedRackPad.padId)
+    return idx === -1 ? null : `Pad ${idx + 1}`
+  })
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
   const deviceGroups = useProjectStore((s) => s.deviceGroups)
   const registry = useEffectsStore((s) => s.registry)
@@ -79,17 +109,64 @@ export default function DeviceChain({
     resizeRef.current = null
   }, [])
 
-  const handleToggle = useCallback((id: string) => {
-    const trackId = getActiveTrackId()
-    if (!trackId) return
-    useProjectStore.getState().toggleEffect(trackId, id)
+  // B4-pad-chain UI: SINGLE resolution point for every chain mutation. When a
+  // rack pad is selected ON THE ACTIVE TRACK, dispatch to the pad-scoped
+  // instruments-store actions (write racks[trackId].pads[i].chain); otherwise to
+  // the track-scoped project-store actions (write track.effectChain) — byte-
+  // identical to before. Reads BOTH `selectedRackPad` AND the active trackId LIVE
+  // from the stores so a handler always sees the current target and never edits a
+  // hidden pad on a non-active track (qa-redteam Tiger): the pad path fires only
+  // when sel.trackId === the active track — the SAME predicate the display uses.
+  const dispatchChain = useCallback(() => {
+    const sel = useProjectStore.getState().selectedRackPad
+    const activeTid = getActiveTrackId()
+    const inst = useInstrumentsStore.getState()
+    const proj = useProjectStore.getState()
+    if (sel && sel.trackId === activeTid) {
+      const { trackId, padId } = sel
+      return {
+        add: (effect: EffectInstance) => inst.addEffectToPad(trackId, padId, effect),
+        remove: (id: string) => inst.removeEffectFromPad(trackId, padId, id),
+        reorder: (from: number, to: number) => inst.reorderPadEffect(trackId, padId, from, to),
+        updateParam: (id: string, key: string, value: number | string | boolean) =>
+          inst.updatePadEffectParam(trackId, padId, id, key, value),
+        toggle: (id: string) => inst.togglePadEffect(trackId, padId, id),
+      }
+    }
+    // Track path: selection absent OR pointing at a non-active track → edit the
+    // active track's chain (also covers the deleted-track dangling case).
+    const trackId = activeTid
+    return {
+      add: (effect: EffectInstance) => {
+        if (!trackId) return
+        proj.addEffect(trackId, effect)
+      },
+      remove: (id: string) => {
+        if (!trackId) return
+        proj.removeEffect(trackId, id)
+      },
+      reorder: (from: number, to: number) => {
+        if (!trackId) return
+        proj.reorderEffect(trackId, from, to)
+      },
+      updateParam: (id: string, key: string, value: number | string | boolean) => {
+        if (!trackId) return
+        proj.updateParam(trackId, id, key, value)
+      },
+      toggle: (id: string) => {
+        if (!trackId) return
+        proj.toggleEffect(trackId, id)
+      },
+    }
   }, [])
 
+  const handleToggle = useCallback((id: string) => {
+    dispatchChain().toggle(id)
+  }, [dispatchChain])
+
   const handleRemove = useCallback((id: string) => {
-    const trackId = getActiveTrackId()
-    if (!trackId) return
-    useProjectStore.getState().removeEffect(trackId, id)
-  }, [])
+    dispatchChain().remove(id)
+  }, [dispatchChain])
 
   // F-0514-7: drag-add from EffectBrowser. Accepts only our custom MIME type
   // so drags from outside the app (files, browser links, other apps) are
@@ -150,8 +227,6 @@ export default function DeviceChain({
 
       const info = registry.find((r) => r.id === effectId)
       if (!info) return
-      const trackId = getActiveTrackId()
-      if (!trackId) return
       const instance: EffectInstance = {
         id: randomUUID(),
         effectId: info.id,
@@ -164,18 +239,18 @@ export default function DeviceChain({
         mix: 1.0,
         mask: null,
       }
-      useProjectStore.getState().addEffect(trackId, instance)
+      // B4-pad-chain UI: route the add to the selected pad's chain or the track's
+      // chain via the single adapter (the no-track guard is inside the adapter).
+      dispatchChain().add(instance)
     },
-    [effectChain.length, registry],
+    [effectChain.length, registry, dispatchChain],
   )
 
   const handleUpdateParam = useCallback(
     (effectId: string, paramName: string, value: number | string | boolean) => {
-      const trackId = getActiveTrackId()
-      if (!trackId) return
-      useProjectStore.getState().updateParam(trackId, effectId, paramName, value)
+      dispatchChain().updateParam(effectId, paramName, value)
     },
-    [],
+    [dispatchChain],
   )
 
   const handleSetMix = useCallback((effectId: string, mix: number) => {
@@ -346,6 +421,11 @@ export default function DeviceChain({
         {resizeHandle}
         <div className="device-chain__header">
           <span className="device-chain__title">Device Chain</span>
+          {padLabel && (
+            <span className="device-chain__context" data-testid="device-chain-context">
+              {padLabel}
+            </span>
+          )}
         </div>
         <div className="device-chain__empty">
           <span>{isDragOver ? 'Release to add effect' : 'Add effects from the browser (click or drag)'}</span>
@@ -359,6 +439,11 @@ export default function DeviceChain({
       {resizeHandle}
       <div className="device-chain__header">
         <span className="device-chain__title">Device Chain</span>
+        {padLabel && (
+          <span className="device-chain__context" data-testid="device-chain-context">
+            {padLabel}
+          </span>
+        )}
         <span className="device-chain__info">
           <span
             className="device-chain__depth"

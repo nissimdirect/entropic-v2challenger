@@ -55,6 +55,21 @@
   letter-spacing: 0.8px;
 }
 
+/* B4-pad-chain UI: which device's chain the editor targets (e.g. "Pad 2").
+   Ableton shows the device name; this is the rack-pad equivalent so the user
+   knows the bottom chain edits the selected pad, not the active track. */
+.device-chain__context {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cx-mod);
+  background: var(--cx-mod-wash);
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
 .device-chain__info {
   display: flex;
   align-items: center;

@@ -29,7 +29,8 @@ import {
   RACK_CHOKE_GROUP_MAX,
 } from '../components/instruments/types'
 import { clampFinite } from '../../shared/numeric'
-import type { BlendMode } from '../../shared/types'
+import { LIMITS } from '../../shared/limits'
+import type { BlendMode, EffectInstance } from '../../shared/types'
 
 /** Valid blend modes a rack pad channel may use (trust-boundary allowlist). */
 const BLEND_MODES = new Set<BlendMode>([
@@ -172,6 +173,30 @@ interface InstrumentsState {
   ) => boolean
   /** Remove a route (by index) from a macro. */
   removeMacroRoute: (trackId: string, macroId: string, routeIndex: number) => void
+
+  // --- B4-pad-chain UI — pad-scoped insert-chain mutations ---
+  // These mirror the TRACK-scoped chain actions in project.ts (add/remove/
+  // reorder/updateParam/toggle), but write to `racks[trackId].pads[i].chain`
+  // (the instruments store) instead of `track.effectChain` (the timeline store).
+  // The bottom DeviceChain dispatches these when a rack pad is selected, so the
+  // user edits the SELECTED PAD's insert chain (Ableton drum-rack model). All
+  // are immutable + no-op when track/rack/pad is absent.
+  /** Append an effect to a pad's insert chain (capped at MAX_EFFECTS_PER_CHAIN). */
+  addEffectToPad: (trackId: string, padId: string, effect: EffectInstance) => void
+  /** Remove an effect from a pad's insert chain by instance id. */
+  removeEffectFromPad: (trackId: string, padId: string, instanceId: string) => void
+  /** Move an effect within a pad's insert chain (bounds-checked). */
+  reorderPadEffect: (trackId: string, padId: string, fromIndex: number, toIndex: number) => void
+  /** Patch one parameter of an effect in a pad's insert chain. */
+  updatePadEffectParam: (
+    trackId: string,
+    padId: string,
+    instanceId: string,
+    paramName: string,
+    value: number | string | boolean,
+  ) => void
+  /** Toggle an effect's enabled flag in a pad's insert chain. */
+  togglePadEffect: (trackId: string, padId: string, instanceId: string) => void
 }
 
 export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
@@ -467,4 +492,72 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       macros[mi] = { ...macros[mi], routes }
       return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
     }),
+
+  // --- B4-pad-chain UI — pad-scoped insert-chain mutations ---
+  // Shared shape: locate the pad in racks[trackId], immutably transform its
+  // `chain` (default [] when absent), write the new pads array back. A missing
+  // track/rack/pad is a no-op. Mirrors the project.ts track-chain semantics.
+  addEffectToPad: (trackId, padId, effect) =>
+    set((state) => mutatePadChain(state, trackId, padId, (chain) => {
+      // Trust boundary: mirror addEffect's chain-length cap.
+      if (chain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return chain
+      return [...chain, effect]
+    })),
+
+  removeEffectFromPad: (trackId, padId, instanceId) =>
+    set((state) => mutatePadChain(state, trackId, padId, (chain) =>
+      chain.filter((e) => e.id !== instanceId),
+    )),
+
+  reorderPadEffect: (trackId, padId, fromIndex, toIndex) =>
+    set((state) => mutatePadChain(state, trackId, padId, (chain) => {
+      if (fromIndex < 0 || fromIndex >= chain.length) return chain
+      if (toIndex < 0 || toIndex >= chain.length) return chain
+      if (fromIndex === toIndex) return chain
+      const next = chain.slice()
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+      return next
+    })),
+
+  updatePadEffectParam: (trackId, padId, instanceId, paramName, value) =>
+    set((state) => mutatePadChain(state, trackId, padId, (chain) =>
+      chain.map((e) =>
+        e.id === instanceId
+          ? { ...e, parameters: { ...e.parameters, [paramName]: value } }
+          : e,
+      ),
+    )),
+
+  togglePadEffect: (trackId, padId, instanceId) =>
+    set((state) => mutatePadChain(state, trackId, padId, (chain) =>
+      chain.map((e) => (e.id === instanceId ? { ...e, isEnabled: !e.isEnabled } : e)),
+    )),
 }))
+
+/**
+ * B4-pad-chain UI — immutably transform `racks[trackId].pads[i].chain`.
+ *
+ * Returns a NEW InstrumentsState slice ({ racks }) when the chain changes, or
+ * the unchanged `state` when the track/rack/pad is absent OR the updater returns
+ * a chain referentially equal to the old one (no-op → no re-render churn).
+ * `pad.chain` defaults to [] when absent (a rack saved before B4-pad-chain).
+ */
+function mutatePadChain(
+  state: InstrumentsState,
+  trackId: string,
+  padId: string,
+  updater: (chain: EffectInstance[]) => EffectInstance[],
+): InstrumentsState | Pick<InstrumentsState, 'racks'> {
+  const rack = state.racks[trackId]
+  if (!rack) return state
+  const idx = rack.pads.findIndex((p) => p.id === padId)
+  if (idx === -1) return state
+  const old = rack.pads[idx]
+  const oldChain = old.chain ?? []
+  const nextChain = updater(oldChain)
+  if (nextChain === oldChain) return state // no-op guard
+  const pads = rack.pads.slice()
+  pads[idx] = { ...old, chain: nextChain }
+  return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
+}
