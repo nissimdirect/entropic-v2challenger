@@ -44,6 +44,42 @@ const LOOP_CROSSFADE_MAX = 32
 /** B3.3: clamp glide to [0, 300] frames. */
 const SAMPLER_GLIDE_MAX = 300
 
+/**
+ * B3.4 — Apply the melodic (note → param) transform to start/speed.
+ *
+ * When `inst.melodic.enabled` AND a finite MIDI `note` is supplied, the voice is
+ * transposed relative to `melodic.rootNote`:
+ *   mode='startFrame' → start += (note - rootNote)   (1 frame per semitone)
+ *   mode='speed'      → speed *= 2 ** ((note - rootNote) / 12)  (chromatic rate)
+ *
+ * melodic absent/disabled OR note undefined/non-finite → returns {start, speed}
+ * UNCHANGED → byte-identical to B3.3 (regression-safe). The caller re-clamps the
+ * returned values to the existing bounds, so the transform never widens them.
+ *
+ * Pure + deterministic.
+ * MIRROR: export.py ExportManager._apply_melodic
+ */
+export function applyMelodic(
+  inst: SamplerInstrumentV1,
+  start: number,
+  speed: number,
+  note: number | undefined,
+): { start: number; speed: number } {
+  const m = inst.melodic
+  if (!m || !m.enabled) return { start, speed }
+  if (typeof note !== 'number' || !Number.isFinite(note)) return { start, speed }
+
+  const rootRaw = m.rootNote
+  const root = typeof rootRaw === 'number' && Number.isFinite(rootRaw) ? rootRaw : 60
+  const semitones = note - root
+
+  if (m.mode === 'speed') {
+    return { start, speed: speed * 2 ** (semitones / 12) }
+  }
+  // 'startFrame' (default / unknown) — 1 frame per semitone.
+  return { start: start + semitones, speed }
+}
+
 // ---------------------------------------------------------------------------
 // B3.3 helpers — exported for unit tests + export parity
 // ---------------------------------------------------------------------------
@@ -146,13 +182,23 @@ export function computeLoopFrameIndex(
   playheadFrame: number,
   frameCount: number,
   elapsedFrames?: number,
+  note?: number,
 ): number {
   // frameCount may be 0/undefined for a bad probe → freeze on frame 0, never NaN.
   const fc = Number.isFinite(frameCount) && frameCount > 0 ? frameCount : 1
   const lastFrame = fc - 1
 
-  const speed = clampFinite(inst.speed, SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1)
-  const start = clampFinite(inst.startFrame, 0, lastFrame, 0)
+  const speedBase = clampFinite(inst.speed, SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1)
+  const startBase = clampFinite(inst.startFrame, 0, lastFrame, 0)
+
+  // B3.4 — melodic note→param transform. Applied AFTER the base clamp of
+  // speed/start but BEFORE the loop/glide/scrub math, then re-clamped to the
+  // existing bounds (the transform never widens them). melodic absent/off or
+  // note undefined → start/speed unchanged → byte-identical to B3.3.
+  // MIRROR: export.py ExportManager._apply_melodic
+  const transposed = applyMelodic(inst, startBase, speedBase, note)
+  const speed = clampFinite(transposed.speed, SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1)
+  const start = clampFinite(transposed.start, 0, lastFrame, 0)
 
   // B3.2 — `scrub` modulation destination. When a finite scrub is present
   // (written by resolveSamplerModulations), the playhead position is DRIVEN by
@@ -264,8 +310,9 @@ export function computeSamplerVoice(
   playheadFrame: number,
   frameCount: number,
   elapsedFrames?: number,
+  note?: number,
 ): SamplerVoiceLayer {
-  const frameIndex = computeLoopFrameIndex(inst, playheadFrame, frameCount, elapsedFrames)
+  const frameIndex = computeLoopFrameIndex(inst, playheadFrame, frameCount, elapsedFrames, note)
 
   // B3.3 — per-channel RGB offset (chromatic time-displacement).
   // Compute channel frame indices; attach to layer when non-trivial.

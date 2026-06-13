@@ -850,11 +850,58 @@ class ExportManager:
         return {"r": clamp_ch(r_off), "g": clamp_ch(g_off), "b": clamp_ch(b_off)}
 
     @staticmethod
+    def _apply_melodic(inst: dict, start: float, speed: float, note) -> tuple:
+        """B3.4 — Apply the melodic (note → param) transform to start/speed.
+
+        When ``inst.melodic`` is present AND ``melodic.enabled`` is truthy AND a
+        finite ``note`` (MIDI 0–127) is supplied, the voice's startFrame OR speed
+        is transposed relative to ``melodic.rootNote``:
+
+          mode == 'startFrame' → start += (note - rootNote)
+              Each semitone shifts the playback start by exactly 1 frame. Clean,
+              integral mapping (documented choice; no fractional-frame ambiguity).
+          mode == 'speed'      → speed *= 2 ** ((note - rootNote) / 12)
+              Chromatic pitch-shift via playback rate. note == rootNote + 12 → 2×.
+
+        ``melodic`` absent / ``enabled`` falsy / ``note`` absent-or-non-finite →
+        returns (start, speed) UNCHANGED → byte-identical to B3.3 (regression-
+        safe). The caller clamps the returned values exactly as before, so the
+        melodic transform never widens the existing [-8,8] speed / [0,last] start
+        bounds.
+
+        # MIRROR: computeSamplerVoice.ts → applyMelodic
+        """
+        melodic = inst.get("melodic")
+        if not melodic or not isinstance(melodic, dict) or not melodic.get("enabled"):
+            return start, speed
+        # note must be a finite MIDI number; bool is not a note.
+        if isinstance(note, bool) or not isinstance(note, (int, float)):
+            return start, speed
+        if note != note or note in (float("inf"), float("-inf")):
+            return start, speed
+
+        root = melodic.get("rootNote", 60)
+        if isinstance(root, bool) or not isinstance(root, (int, float)):
+            root = 60
+        if root != root or root in (float("inf"), float("-inf")):
+            root = 60
+        semitones = note - root
+
+        mode = melodic.get("mode", "startFrame")
+        if mode == "speed":
+            speed = speed * (2.0 ** (semitones / 12.0))
+        else:
+            # 'startFrame' (default / unknown) — 1 frame per semitone.
+            start = start + semitones
+        return start, speed
+
+    @staticmethod
     def _compute_voice_footage_frame(
         inst: dict,
         playhead_frame: int,
         frame_count: int,
         elapsed_frames: int | None = None,
+        note=None,
     ) -> int:
         """Mirror of frontend computeSamplerVoice's footage-frame math.
 
@@ -874,6 +921,11 @@ class ExportManager:
           frames. elapsed_frames defaults to playhead_frame when None.
           Regression-safe: glide absent/0 → instant jump = B3.2 behavior.
 
+        B3.4 (melodic.enabled, note supplied):
+          The voice's startFrame OR speed is transposed relative to
+          melodic.rootNote before all existing math (see _apply_melodic).
+          melodic absent/disabled or note absent → no transpose = B3.3 behavior.
+
         # MIRROR: computeSamplerVoice.ts → computeLoopFrameIndex
         """
         SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX = -8.0, 8.0
@@ -892,6 +944,14 @@ class ExportManager:
             inst.get("speed", 1), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1
         )
         start = clamp_finite(inst.get("startFrame", 0), 0, last_frame, 0)
+
+        # B3.4 — melodic note→param transform. Applied AFTER the base clamp of
+        # speed/start but BEFORE the loop/glide/scrub math, then re-clamped to the
+        # existing bounds (the transform never widens them). melodic absent/off or
+        # note absent → start/speed unchanged → byte-identical to B3.3.
+        start, speed = ExportManager._apply_melodic(inst, start, speed, note)
+        speed = clamp_finite(speed, SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1)
+        start = clamp_finite(start, 0, last_frame, 0)
 
         # B3.2 — `scrub` modulation destination. When a finite scrub is present
         # (written by resolve_sampler_modulations), the playhead position is
@@ -1166,6 +1226,11 @@ class ExportManager:
                         "voice_id": vid,
                         "opacity": op,
                         "blend_mode": inst.get("blendMode", "normal"),
+                        # B3.4 — carry the voice's MIDI note so the melodic
+                        # note→startFrame/speed transform can be applied per-voice
+                        # in PHASE 2. The FSM voice always carries `note` (used for
+                        # release matching); melodic absent/off → ignored.
+                        "note": voice.get("note"),
                     }
                 )
 
@@ -1186,7 +1251,7 @@ class ExportManager:
             reader = self._get_voice_reader(d["asset_path"], voice_readers)
             rfc = getattr(reader, "frame_count", d["frame_count"]) or d["frame_count"]
             footage_idx = self._compute_voice_footage_frame(
-                d["inst"], d["playhead"], rfc
+                d["inst"], d["playhead"], rfc, note=d.get("note")
             )
             # INJ-3 tail clamp parity with _handle_render_composite.
             if rfc and footage_idx >= rfc - 2:

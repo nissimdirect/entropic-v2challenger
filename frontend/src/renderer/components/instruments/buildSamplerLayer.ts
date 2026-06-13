@@ -80,8 +80,18 @@ export function buildVoiceLayers(
   )
 
   return sorted.map((voice) => {
-    // Per-voice footage position: voiceFSM footagePos is the playhead into the clip
-    const baseLayer = computeSamplerVoice(inst, asset.path, voice.footagePos, frameCount)
+    // Per-voice footage position: voiceFSM footagePos is the playhead into the clip.
+    // B3.4 — pass the voice's MIDI note so the melodic note→startFrame/speed
+    // transform can transpose this voice. melodic absent/off → note ignored →
+    // byte-identical to B3.3.
+    const baseLayer = computeSamplerVoice(
+      inst,
+      asset.path,
+      voice.footagePos,
+      frameCount,
+      undefined,
+      voice.note,
+    )
 
     // Per-voice opacity = instrument opacity × ADSR envelope value at current frame
     const env = envelopeValue(voice, frameIndex, adsr)

@@ -93,6 +93,27 @@ export interface SamplerInstrumentV1 {
    * MIRROR: export.py ExportManager._apply_glide_ramp
    */
   glide?: number
+  /**
+   * B3.4: Optional melodic (pitch-tracking) configuration.
+   *
+   * When `enabled`, a voice triggered by MIDI note `n` is transposed relative to
+   * `rootNote`:
+   *   mode='startFrame' → startFrame += (n - rootNote)   (1 frame per semitone)
+   *   mode='speed'      → speed *= 2 ** ((n - rootNote) / 12)  (chromatic rate)
+   *
+   * `enabled=false` (or `melodic` absent) → NO transposition → playback is
+   * byte-identical to B3.3 (regression-safe). A voice whose note == rootNote is
+   * never transposed in either mode. No PROJECT_VERSION bump (additive optional).
+   *
+   * MIRROR: export.py ExportManager._apply_melodic
+   */
+  melodic?: {
+    enabled: boolean
+    /** 'startFrame' → semitone→frame offset; 'speed' → chromatic playback rate. */
+    mode: 'startFrame' | 'speed'
+    /** MIDI note that plays untransposed (the sample's native pitch). Default 60. */
+    rootNote: number
+  }
 }
 
 /**
