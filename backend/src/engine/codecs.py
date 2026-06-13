@@ -38,6 +38,15 @@ CODEC_REGISTRY: dict[str, dict] = {
         "bitrate_range": None,
         "quality_presets": {"fast": 4, "medium": 4, "slow": 4},
     },
+    # §14-3 decision: INCLUDED (D3 — user approved 2026-06-12 "your recs are good").
+    # Gated behind validate_codec_availability("libvpx-vp9") at export-job creation;
+    # the entry exists so the registry is the single source of truth.
+    "webm_vp9_alpha": {
+        "pyav_codec": "libvpx-vp9",
+        "pix_fmt": "yuva420p",
+        "bitrate_range": (500_000, 20_000_000),
+        "quality_presets": {"fast": "realtime", "medium": "good", "slow": "best"},
+    },
 }
 
 # ---------------------------------------------------------------------------
