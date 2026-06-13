@@ -23,6 +23,7 @@ import {
   MAX_MACROS_PER_RACK,
   MAX_MODROUTES_PER_MACRO,
   MAX_TOTAL_EDGES,
+  MAX_BRANCH_DEPTH,
   RACK_PAD_OPACITY_MIN,
   RACK_PAD_OPACITY_MAX,
   RACK_CHOKE_GROUP_MIN,
@@ -67,6 +68,155 @@ let _padCounter = 0
 function nextPadId(): string {
   _padCounter += 1
   return `rackpad-${_padCounter}`
+}
+
+let _branchCounter = 0
+function nextBranchId(): string {
+  _branchCounter += 1
+  return `branch-${_branchCounter}`
+}
+
+/**
+ * B5.2 — resolve the nested RackNode addressed by `branchPath` (an array of pad
+ * ids). An EMPTY path returns `top` itself (the per-track rack — flat behavior
+ * byte-identical). For each id in the path, find that pad in the current node's
+ * pads and descend into its `branch`; if any hop is missing (bad pad id, or the
+ * pad has no branch), return null so the caller no-ops/falls back (trust boundary
+ * — a stale path never throws). Pure read; does NOT mutate.
+ */
+export function resolveRackNode(top: RackNode, branchPath: string[]): RackNode | null {
+  let node: RackNode = top
+  for (const padId of branchPath) {
+    const pad = node.pads.find((p) => p.id === padId)
+    if (!pad || !pad.branch) return null
+    node = pad.branch
+  }
+  return node
+}
+
+/**
+ * B5.2 — immutably transform the RackNode at `branchPath` and rebuild the spine
+ * of new node objects from the leaf back up to the top rack (so React/Zustand
+ * sees a fresh reference at every level on the edited path; untouched siblings
+ * keep their identity → no needless re-render). `updater` receives the resolved
+ * node and returns a new node (or the SAME node to signal a no-op). Returns the
+ * new TOP rack, or null when the path is stale OR the updater no-ops.
+ */
+function updateRackNodeAt(
+  top: RackNode,
+  branchPath: string[],
+  updater: (node: RackNode) => RackNode | null,
+): RackNode | null {
+  if (branchPath.length === 0) {
+    const next = updater(top)
+    return next && next !== top ? next : null
+  }
+  const [padId, ...rest] = branchPath
+  const idx = top.pads.findIndex((p) => p.id === padId)
+  if (idx === -1) return null
+  const pad = top.pads[idx]
+  if (!pad.branch) return null
+  const nextBranch = updateRackNodeAt(pad.branch, rest, updater)
+  if (!nextBranch) return null
+  const pads = top.pads.slice()
+  pads[idx] = { ...pad, branch: nextBranch }
+  return { ...top, pads }
+}
+
+/**
+ * B5.2 — pure pad transforms on a single RackNode (one rack LEVEL). Each returns
+ * a NEW node when the pad changes, or the SAME node (referentially equal) on a
+ * no-op (missing pad / no change). These are the level-local logic the B4
+ * top-level actions and the B5.2 path-aware actions BOTH reuse, so a top-level
+ * (empty-path) edit is byte-identical to the pre-B5.2 inlined code.
+ */
+function applyPadSource(node: RackNode, padId: string, clipId: string): RackNode {
+  const idx = node.pads.findIndex((p) => p.id === padId)
+  if (idx === -1) return node
+  const old = node.pads[idx]
+  const pads = node.pads.slice()
+  pads[idx] = { ...old, instrument: { ...old.instrument, clipId } }
+  return { ...node, pads }
+}
+
+function applyPadUpdate(
+  node: RackNode,
+  padId: string,
+  patch: Partial<Omit<RackPad, 'id'>>,
+): RackNode {
+  const idx = node.pads.findIndex((p) => p.id === padId)
+  if (idx === -1) return node
+  const old = node.pads[idx]
+  // id is immutable; instrument merged shallowly when patched.
+  const { id: _ignore, instrument: patchInst, ...rest } = patch as Record<string, unknown> & {
+    instrument?: Partial<SamplerInstrumentV1>
+  }
+  // Trust-boundary guards (mirror B4 updateRackPad): clamp opacity, validate
+  // blend, coerce mute/solo to bool.
+  const safeRest = { ...(rest as Partial<RackPad>) }
+  if ('opacity' in safeRest) {
+    safeRest.opacity = clampFinite(
+      Number((safeRest as { opacity: unknown }).opacity),
+      RACK_PAD_OPACITY_MIN,
+      RACK_PAD_OPACITY_MAX,
+      old.opacity,
+    )
+  }
+  if ('blend' in safeRest && !BLEND_MODES.has(safeRest.blend as BlendMode)) {
+    delete safeRest.blend
+  }
+  if ('mute' in safeRest) safeRest.mute = Boolean(safeRest.mute)
+  if ('solo' in safeRest) safeRest.solo = Boolean(safeRest.solo)
+  const merged: RackPad = {
+    ...old,
+    ...safeRest,
+    id: old.id,
+    instrument: patchInst
+      ? { ...old.instrument, ...patchInst, id: old.instrument.id, type: 'sampler' }
+      : old.instrument,
+  }
+  const pads = node.pads.slice()
+  pads[idx] = merged
+  return { ...node, pads }
+}
+
+function applyPadChokeGroup(node: RackNode, padId: string, group: number | null): RackNode {
+  const idx = node.pads.findIndex((p) => p.id === padId)
+  if (idx === -1) return node
+  let next: number | null
+  if (group === null) {
+    next = null
+  } else if (
+    Number.isInteger(group) &&
+    group >= RACK_CHOKE_GROUP_MIN &&
+    group <= RACK_CHOKE_GROUP_MAX
+  ) {
+    next = group
+  } else {
+    return node // invalid → no-op
+  }
+  const old = node.pads[idx]
+  if (old.chokeGroup === next) return node // no change
+  const pads = node.pads.slice()
+  pads[idx] = { ...old, chokeGroup: next }
+  return { ...node, pads }
+}
+
+function applyPadRemove(node: RackNode, padId: string): RackNode {
+  const idx = node.pads.findIndex((p) => p.id === padId)
+  if (idx === -1) return node
+  const pads = node.pads.filter((p) => p.id !== padId)
+  // Prune macro routes pointed at the deleted pad (`pad.<padId>.<param>`).
+  const prefix = `pad.${padId}.`
+  let macros = node.macros
+  if (node.macros) {
+    macros = node.macros.map((m) => {
+      const routes = m.routes ?? []
+      const kept = routes.filter((r) => !r.targetPath.startsWith(prefix))
+      return kept.length === routes.length ? m : { ...m, routes: kept }
+    })
+  }
+  return { ...node, pads, ...(macros ? { macros } : {}) }
 }
 
 /** B4.1 — a fresh pad channel with an unsourced sampler leaf. */
@@ -138,6 +288,42 @@ interface InstrumentsState {
    */
   removeRackPad: (trackId: string, padId: string) => void
 
+  // --- B5.2 nested-rack editing (branch create + path-aware pad CRUD) ---
+  /**
+   * B5.2 — convert a LEAF pad (addressed by `branchPath` + `padId`) into a BRANCH:
+   * set `pad.branch = { id, type:'rack', pads:[<1 default leaf>], macros:[] }`.
+   * When `branch` is present the pad is a GROUP (B5.1 model: the leaf `instrument`
+   * is ignored for rendering — kept on the object, inert). No-op if the pad is
+   * already a branch. REJECTS (no-op, returns false) when the new branch would
+   * exceed MAX_BRANCH_DEPTH (the new branch sits at depth `branchPath.length + 1`).
+   * Returns true on success.
+   */
+  convertPadToBranch: (trackId: string, branchPath: string[], padId: string) => boolean
+  /**
+   * B5.2 — append a fresh leaf pad to the RackNode addressed by `branchPath`
+   * (empty path = the top rack, byte-identical to addRackPad). No-op if the path
+   * is stale or the node is at the 64-pad ceiling.
+   */
+  addRackPadAt: (trackId: string, branchPath: string[]) => void
+  /** B5.2 — path-aware setRackPadSource (empty path = top rack). */
+  setRackPadSourceAt: (trackId: string, branchPath: string[], padId: string, clipId: string) => void
+  /** B5.2 — path-aware updateRackPad (empty path = top rack). */
+  updateRackPadAt: (
+    trackId: string,
+    branchPath: string[],
+    padId: string,
+    patch: Partial<Omit<RackPad, 'id'>>,
+  ) => void
+  /** B5.2 — path-aware setRackPadChokeGroup (empty path = top rack). */
+  setRackPadChokeGroupAt: (
+    trackId: string,
+    branchPath: string[],
+    padId: string,
+    group: number | null,
+  ) => void
+  /** B5.2 — path-aware removeRackPad (empty path = top rack). Prunes that level's macro routes. */
+  removeRackPadAt: (trackId: string, branchPath: string[], padId: string) => void
+
   /**
    * B4-choke — set a rack pad's choke-group membership. `group` is null (clear) or
    * a small int in [RACK_CHOKE_GROUP_MIN, RACK_CHOKE_GROUP_MAX]; an out-of-range or
@@ -181,12 +367,16 @@ interface InstrumentsState {
   // The bottom DeviceChain dispatches these when a rack pad is selected, so the
   // user edits the SELECTED PAD's insert chain (Ableton drum-rack model). All
   // are immutable + no-op when track/rack/pad is absent.
+  //
+  // B5.2: each takes an OPTIONAL trailing `branchPath` (array of pad ids). Omitted
+  // / `[]` → the TOP rack pad, byte-identical to B4. A non-empty path addresses a
+  // pad nested inside `pad.branch` so a nested pad's insert chain is editable too.
   /** Append an effect to a pad's insert chain (capped at MAX_EFFECTS_PER_CHAIN). */
-  addEffectToPad: (trackId: string, padId: string, effect: EffectInstance) => void
+  addEffectToPad: (trackId: string, padId: string, effect: EffectInstance, branchPath?: string[]) => void
   /** Remove an effect from a pad's insert chain by instance id. */
-  removeEffectFromPad: (trackId: string, padId: string, instanceId: string) => void
+  removeEffectFromPad: (trackId: string, padId: string, instanceId: string, branchPath?: string[]) => void
   /** Move an effect within a pad's insert chain (bounds-checked). */
-  reorderPadEffect: (trackId: string, padId: string, fromIndex: number, toIndex: number) => void
+  reorderPadEffect: (trackId: string, padId: string, fromIndex: number, toIndex: number, branchPath?: string[]) => void
   /** Patch one parameter of an effect in a pad's insert chain. */
   updatePadEffectParam: (
     trackId: string,
@@ -194,9 +384,10 @@ interface InstrumentsState {
     instanceId: string,
     paramName: string,
     value: number | string | boolean,
+    branchPath?: string[],
   ) => void
   /** Toggle an effect's enabled flag in a pad's insert chain. */
-  togglePadEffect: (trackId: string, padId: string, instanceId: string) => void
+  togglePadEffect: (trackId: string, padId: string, instanceId: string, branchPath?: string[]) => void
 }
 
 export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
@@ -378,6 +569,93 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       }
     }),
 
+  // --- B5.2 nested-rack editing ----------------------------------------------
+  // All path-aware actions resolve the RackNode at `branchPath` via
+  // updateRackNodeAt (rebuilds the spine immutably) and reuse the SAME pure pad
+  // transforms the B4 top-level actions use → flat behavior is byte-identical.
+  convertPadToBranch: (trackId, branchPath, padId) => {
+    const rack = get().racks[trackId]
+    if (!rack) return false
+    // DEPTH CAP (trust boundary): the new branch sits at depth path.length + 1.
+    // Reject if that exceeds MAX_BRANCH_DEPTH (fail-closed; no mutation).
+    if (branchPath.length + 1 > MAX_BRANCH_DEPTH) return false
+    let didConvert = false
+    const nextTop = updateRackNodeAt(rack, branchPath, (node) => {
+      const idx = node.pads.findIndex((p) => p.id === padId)
+      if (idx === -1) return node // pad absent at this level — no-op
+      const pad = node.pads[idx]
+      if (pad.branch) return node // already a branch — no-op
+      const pads = node.pads.slice()
+      // B5.1 model: a pad with a `branch` is a GROUP; its leaf instrument is kept
+      // (inert) and the branch starts with ONE default leaf pad + empty macros.
+      pads[idx] = {
+        ...pad,
+        branch: { id: nextBranchId(), type: 'rack', pads: [createRackPad()], macros: [] },
+      }
+      didConvert = true
+      return { ...node, pads }
+    })
+    if (!nextTop || !didConvert) return false
+    set((state) => ({ racks: { ...state.racks, [trackId]: nextTop } }))
+    return true
+  },
+
+  addRackPadAt: (trackId, branchPath) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const nextTop = updateRackNodeAt(rack, branchPath, (node) => {
+        if (node.pads.length >= 64) return node // 64-pad ceiling (mirrors addRackPad)
+        return { ...node, pads: [...node.pads, createRackPad()] }
+      })
+      if (!nextTop) return state
+      return { racks: { ...state.racks, [trackId]: nextTop } }
+    }),
+
+  setRackPadSourceAt: (trackId, branchPath, padId, clipId) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
+        applyPadSource(node, padId, clipId),
+      )
+      if (!nextTop) return state
+      return { racks: { ...state.racks, [trackId]: nextTop } }
+    }),
+
+  updateRackPadAt: (trackId, branchPath, padId, patch) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
+        applyPadUpdate(node, padId, patch),
+      )
+      if (!nextTop) return state
+      return { racks: { ...state.racks, [trackId]: nextTop } }
+    }),
+
+  setRackPadChokeGroupAt: (trackId, branchPath, padId, group) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
+        applyPadChokeGroup(node, padId, group),
+      )
+      if (!nextTop) return state
+      return { racks: { ...state.racks, [trackId]: nextTop } }
+    }),
+
+  removeRackPadAt: (trackId, branchPath, padId) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
+        applyPadRemove(node, padId),
+      )
+      if (!nextTop) return state
+      return { racks: { ...state.racks, [trackId]: nextTop } }
+    }),
+
   // B4-choke — set a pad's choke-group membership (null or small int [1,8]).
   setRackPadChokeGroup: (trackId, padId, group) =>
     set((state) => {
@@ -497,20 +775,20 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
   // Shared shape: locate the pad in racks[trackId], immutably transform its
   // `chain` (default [] when absent), write the new pads array back. A missing
   // track/rack/pad is a no-op. Mirrors the project.ts track-chain semantics.
-  addEffectToPad: (trackId, padId, effect) =>
-    set((state) => mutatePadChain(state, trackId, padId, (chain) => {
+  addEffectToPad: (trackId, padId, effect, branchPath) =>
+    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) => {
       // Trust boundary: mirror addEffect's chain-length cap.
       if (chain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return chain
       return [...chain, effect]
     })),
 
-  removeEffectFromPad: (trackId, padId, instanceId) =>
-    set((state) => mutatePadChain(state, trackId, padId, (chain) =>
+  removeEffectFromPad: (trackId, padId, instanceId, branchPath) =>
+    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) =>
       chain.filter((e) => e.id !== instanceId),
     )),
 
-  reorderPadEffect: (trackId, padId, fromIndex, toIndex) =>
-    set((state) => mutatePadChain(state, trackId, padId, (chain) => {
+  reorderPadEffect: (trackId, padId, fromIndex, toIndex, branchPath) =>
+    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) => {
       if (fromIndex < 0 || fromIndex >= chain.length) return chain
       if (toIndex < 0 || toIndex >= chain.length) return chain
       if (fromIndex === toIndex) return chain
@@ -520,8 +798,8 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       return next
     })),
 
-  updatePadEffectParam: (trackId, padId, instanceId, paramName, value) =>
-    set((state) => mutatePadChain(state, trackId, padId, (chain) =>
+  updatePadEffectParam: (trackId, padId, instanceId, paramName, value, branchPath) =>
+    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) =>
       chain.map((e) =>
         e.id === instanceId
           ? { ...e, parameters: { ...e.parameters, [paramName]: value } }
@@ -529,35 +807,40 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       ),
     )),
 
-  togglePadEffect: (trackId, padId, instanceId) =>
-    set((state) => mutatePadChain(state, trackId, padId, (chain) =>
+  togglePadEffect: (trackId, padId, instanceId, branchPath) =>
+    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) =>
       chain.map((e) => (e.id === instanceId ? { ...e, isEnabled: !e.isEnabled } : e)),
     )),
 }))
 
 /**
- * B4-pad-chain UI — immutably transform `racks[trackId].pads[i].chain`.
- *
- * Returns a NEW InstrumentsState slice ({ racks }) when the chain changes, or
- * the unchanged `state` when the track/rack/pad is absent OR the updater returns
- * a chain referentially equal to the old one (no-op → no re-render churn).
- * `pad.chain` defaults to [] when absent (a rack saved before B4-pad-chain).
+ * B4-pad-chain UI / B5.2 — immutably transform a pad's `chain` at the RackNode
+ * addressed by `branchPath` (empty/undefined → the TOP rack, byte-identical to
+ * B4). Returns a NEW InstrumentsState slice ({ racks }) when the chain changes,
+ * or the unchanged `state` when the track/rack/pad is absent, the path is stale,
+ * OR the updater returns a chain referentially equal to the old one (no-op → no
+ * re-render churn). `pad.chain` defaults to [] when absent.
  */
 function mutatePadChain(
   state: InstrumentsState,
   trackId: string,
+  branchPath: string[] | undefined,
   padId: string,
   updater: (chain: EffectInstance[]) => EffectInstance[],
 ): InstrumentsState | Pick<InstrumentsState, 'racks'> {
   const rack = state.racks[trackId]
   if (!rack) return state
-  const idx = rack.pads.findIndex((p) => p.id === padId)
-  if (idx === -1) return state
-  const old = rack.pads[idx]
-  const oldChain = old.chain ?? []
-  const nextChain = updater(oldChain)
-  if (nextChain === oldChain) return state // no-op guard
-  const pads = rack.pads.slice()
-  pads[idx] = { ...old, chain: nextChain }
-  return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
+  const nextTop = updateRackNodeAt(rack, branchPath ?? [], (node) => {
+    const idx = node.pads.findIndex((p) => p.id === padId)
+    if (idx === -1) return node // pad absent at this level — no-op
+    const old = node.pads[idx]
+    const oldChain = old.chain ?? []
+    const nextChain = updater(oldChain)
+    if (nextChain === oldChain) return node // no-op guard (no spine churn)
+    const pads = node.pads.slice()
+    pads[idx] = { ...old, chain: nextChain }
+    return { ...node, pads }
+  })
+  if (!nextTop) return state // stale path or no-op → unchanged
+  return { racks: { ...state.racks, [trackId]: nextTop } }
 }
