@@ -18,6 +18,7 @@ import type {
   RackPad,
   RackMacro,
   MacroRoute,
+  FrameBankInstrument,
 } from '../components/instruments/types'
 import {
   MAX_MACROS_PER_RACK,
@@ -248,6 +249,16 @@ interface InstrumentsState {
    * Persisted alongside `instruments` (additive optional, no version bump).
    */
   racks: Record<string, RackNode>
+  /**
+   * B6.1 — trackId → its Frame-Bank (wavetable) instrument. A track with no entry
+   * has no frame-bank. Additive to `instruments`/`racks` (a track holds a bare
+   * sampler OR a rack OR a frame-bank). Persisted alongside them (additive
+   * optional, no version bump). The editing UI is a LATER slice — this slice ships
+   * the model + the export-path render + serialization, so a frame-bank reaches
+   * the backend. Absent / empty → no `frameBanks` in the export payload → render
+   * byte-identical (regression-safe).
+   */
+  frameBanks: Record<string, FrameBankInstrument>
   /** Instantiate a Sampler on a track (no-op if it already has one). clipId '' = unsourced. */
   addSampler: (trackId: string, clipId?: string) => void
   /** Set/replace the source clip (called when a video is dropped on the sampler). */
@@ -393,6 +404,7 @@ interface InstrumentsState {
 export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
   instruments: {},
   racks: {},
+  frameBanks: {},
 
   addSampler: (trackId, clipId = '') =>
     set((state) =>

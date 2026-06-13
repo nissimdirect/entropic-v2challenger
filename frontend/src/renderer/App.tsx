@@ -36,6 +36,7 @@ import RackDevice from './components/instruments/RackDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveRackMacros } from './components/instruments/resolveRackMacros'
+import { serializeFrameBanks } from './components/instruments/serializeFrameBanks'
 import type { SamplerInstrumentV1, RackPad } from './components/instruments/types'
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { evaluateVoices } from './components/instruments/voiceFSM'
@@ -2397,6 +2398,7 @@ function AppInner() {
             instruments: Record<string, unknown>
             assets: Record<string, unknown>
             racks?: Record<string, unknown>
+            frameBanks?: Record<string, unknown>
           }
         | undefined => {
         const timelineState = useTimelineStore.getState()
@@ -2584,12 +2586,30 @@ function AppInner() {
         }
         const hasRacks = Object.keys(racks).length > 0
 
-        if (events.length === 0 && !hasRacks) return undefined
+        // B6.1 — Frame-Bank (wavetable) export serialization. Mirror of the rack
+        // path: serialize the instruments-store frameBanks + register every slot's
+        // source clip into the SAME `assets` table. A Frame-Bank is a CONTINUOUS
+        // scanner with NO trigger events, so it activates the composite export
+        // branch on its own (perf_active also keys off frameBanks on the backend).
+        // No frameBanks → `frameBanks` omitted → export byte-identical
+        // (regression-safe). Per-frame `position` modulation is DEFERRED (SG-8).
+        const fbResult = serializeFrameBanks(
+          instrState.frameBanks,
+          projectAssets,
+          settings.fps,
+        )
+        for (const [clipId, asset] of Object.entries(fbResult.assets)) {
+          if (!assets[clipId]) assets[clipId] = asset
+        }
+        const hasFrameBanks = Object.keys(fbResult.frameBanks).length > 0
+
+        if (events.length === 0 && !hasRacks && !hasFrameBanks) return undefined
         return {
           events,
           instruments,
           assets,
           ...(hasRacks ? { racks } : {}),
+          ...(hasFrameBanks ? { frameBanks: fbResult.frameBanks } : {}),
         }
       }
       const performancePayload = buildPerformancePayload()
