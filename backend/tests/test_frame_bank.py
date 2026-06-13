@@ -47,6 +47,10 @@ import engine.export as export_mod
 from engine.decoded_frame_cache import DecodedFrameCache, _downscale_to_fit
 from engine.export import ExportManager
 from engine.frame_bank import (
+    FLOW_MAX_DIM,
+    _blend_frames,
+    _downscaled_flow,
+    _flow_morph,
     resolve_frame_bank_frame,
     resolve_position_indices,
 )
@@ -175,8 +179,10 @@ def test_nearest_emits_exact_slot_frame():
     assert out[0, 0, 0] == 20
 
 
-def test_flow_interp_renders_as_blend_no_raise():
-    # flow is DEFERRED (B7). It must render (as blend), never raise.
+def test_flow_interp_uniform_frames_degenerates_to_crossfade():
+    # B7-partial: flow now MORPHS (was DEFERRED→blend). With UNIFORM frames there
+    # is no feature to warp, so the flow morph degenerates to a crossfade and the
+    # midpoint is still 127/128 — and it must never raise.
     cache = DecodedFrameCache(FRAMEBANK_BYTE_BUDGET_MIN)
 
     def decode(clip_id, frame_index):
@@ -191,7 +197,135 @@ def test_flow_interp_renders_as_blend_no_raise():
         "byteBudget": FRAMEBANK_BYTE_BUDGET_MIN,
     }
     out = resolve_frame_bank_frame(inst, 0.5, cache, decode)
-    assert out[0, 0, 0] in (127, 128)  # blended, not crashed
+    assert out[0, 0, 0] in (127, 128)  # morphed (degenerate), not crashed
+
+
+# ===========================================================================
+# B7-partial — FLOW MORPH (CPU optical-flow) — the four enforced gates
+# ===========================================================================
+
+
+def _tex_square(h, w, cx, cy, size=20):
+    """An RGBA frame: black bg with a TEXTURED square at (cx, cy). The internal
+    texture (a 2-D sinusoid) gives Farneback features to localize horizontal
+    motion — a flat square is the aperture-problem worst case (edges only)."""
+    f = np.zeros((h, w, 4), dtype=np.uint8)
+    f[:, :, 3] = 255
+    ys, xs = np.indices((size, size))
+    tex = (128 + 127 * np.sin(xs * 0.6) * np.cos(ys * 0.6)).astype(np.uint8)
+    y0, x0 = cy - size // 2, cx - size // 2
+    for ch in range(3):
+        f[y0 : y0 + size, x0 : x0 + size, ch] = tex
+    return f
+
+
+def _moving_square_inst(a_xy, b_xy, h=80, w=80):
+    """Build a 2-slot frameBank decode: slot0 = textured square at a_xy, slot1 = b_xy."""
+    ax, ay = a_xy
+    bx, by = b_xy
+
+    def decode(clip_id, frame_index):
+        if frame_index == 0:
+            return _tex_square(h, w, ax, ay)
+        return _tex_square(h, w, bx, by)
+
+    inst = {
+        "type": "frameBank",
+        "slots": [{"clipId": "c", "frameIndex": 0}, {"clipId": "c", "frameIndex": 1}],
+        "interp": "flow",
+        "byteBudget": 16 * 1024 * 1024,
+    }
+    return inst, decode
+
+
+def test_flow_boundary_frac0_is_exact_slot_lo():
+    # GATE 1 (regression/boundary): flow at frac==0 (position 0) → exactly slot[lo].
+    cache = DecodedFrameCache(16 * 1024 * 1024)
+    inst, decode = _moving_square_inst((28, 40), (40, 40))
+    out = resolve_frame_bank_frame(inst, 0.0, cache, decode)
+    expected = decode("c", 0)
+    assert np.array_equal(out, expected)
+
+
+def test_flow_boundary_frac1_is_exact_slot_hi():
+    # GATE 1 (boundary): flow at position 1 → exactly slot[hi], no morph.
+    cache = DecodedFrameCache(16 * 1024 * 1024)
+    inst, decode = _moving_square_inst((28, 40), (40, 40))
+    out = resolve_frame_bank_frame(inst, 1.0, cache, decode)
+    expected = decode("c", 1)
+    assert np.array_equal(out, expected)
+
+
+def test_flow_morph_differs_from_blend_and_displaces_feature():
+    # GATE 2 (HARD ORACLE): a flow morph at frac=0.5 of a textured square moving
+    # x=28→x=40 must (a) DIFFER from the linear blend (a warp, not a crossfade),
+    # and (b) be driven by a NON-ZERO flow field that displaces the feature toward
+    # the midpoint (the warp actually tracked the motion — not a degenerate
+    # crossfade). A flat blend would have ZERO flow and equal blend == flow.
+    cache = DecodedFrameCache(16 * 1024 * 1024)
+    inst, decode = _moving_square_inst((28, 40), (40, 40))
+    flow_out = resolve_frame_bank_frame(inst, 0.5, cache, decode)
+
+    a = decode("c", 0)
+    b = decode("c", 1)
+    blend_out = _blend_frames(a, b, 0.5)
+
+    # (a) flow morph is NOT the same image as the linear blend.
+    assert not np.array_equal(flow_out, blend_out), "flow must differ from blend"
+
+    # (b) the morph was driven by a real, non-trivial forward flow field that
+    # tracked the rightward motion (the feature was WARPED, not double-exposed).
+    flow_ab = _downscaled_flow(_gray_rgb(a), _gray_rgb(b), FLOW_MAX_DIM)
+    max_disp = float(np.abs(flow_ab[:, :, 0]).max())
+    assert max_disp > 2.0, (
+        f"flow field should track the ~12px motion; max horizontal disp={max_disp}"
+    )
+    # The dominant tracked motion is rightward (A→B moves +x), confirming the
+    # warp pulls A's feature toward B (a real morph direction).
+    mean_signed = float(flow_ab[:, :, 0].mean())
+    assert mean_signed != 0.0
+
+
+def _gray_rgb(frame):
+    """Local helper mirroring engine._gray for the test's flow-field assertion."""
+    import cv2
+
+    return cv2.cvtColor(np.ascontiguousarray(frame[:, :, :3]), cv2.COLOR_RGB2GRAY)
+
+
+def test_flow_morph_memory_bound_downscaled_regardless_of_input_size():
+    # GATE 3 (memory/CPU bound): feed a LARGE frame (1920px wide) and assert the
+    # flow field was computed at <= FLOW_MAX_DIM (downscaled), never full-res.
+    h, w = 1080, 1920
+    a = _tex_square(h, w, 400, 540, size=120)
+    b = _tex_square(h, w, 1400, 540, size=120)
+    out = _flow_morph(a, b, 0.5)
+    # Output is full-res (the morph result is at the slot resolution).
+    assert out.shape[:2] == (h, w)
+    # But the FLOW FIELD was computed downscaled: its larger dim <= FLOW_MAX_DIM.
+    fh, fw = _downscaled_flow.last_flow_shape[:2]
+    assert max(fh, fw) <= FLOW_MAX_DIM, (
+        f"flow field {fw}x{fh} exceeds FLOW_MAX_DIM={FLOW_MAX_DIM}"
+    )
+    # And it is genuinely smaller than the input (proves downscale happened).
+    assert max(fh, fw) < max(h, w)
+
+
+def test_flow_morph_deterministic_two_runs_byte_identical():
+    # GATE 4 (determinism): same input → byte-identical output across two runs
+    # (fixed Farneback params, no randomness / seed drift).
+    a = _tex_square(80, 80, 28, 40)
+    b = _tex_square(80, 80, 40, 40)
+    out1 = _flow_morph(a, b, 0.5)
+    out2 = _flow_morph(a, b, 0.5)
+    assert np.array_equal(out1, out2)
+    # Also deterministic through the resolve path.
+    cache1 = DecodedFrameCache(16 * 1024 * 1024)
+    cache2 = DecodedFrameCache(16 * 1024 * 1024)
+    inst, decode = _moving_square_inst((28, 40), (40, 40))
+    r1 = resolve_frame_bank_frame(inst, 0.5, cache1, decode)
+    r2 = resolve_frame_bank_frame(inst, 0.5, cache2, decode)
+    assert np.array_equal(r1, r2)
 
 
 # ===========================================================================
