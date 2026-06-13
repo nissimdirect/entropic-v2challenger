@@ -6,15 +6,37 @@ import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
 import { undoable, useUndoStore, setCommitValidator } from './undo'
 import { useToastStore } from './toast'
 import { useTimelineStore } from './timeline'
+import { useInstrumentsStore } from './instruments'
 import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
 import { validateCompositeChain, rejectCompositeOnAudio } from './compositeValidator'
 
 // Stable empty array for the no-selection case (avoid re-render churn). (design D4)
 const EMPTY: EffectInstance[] = []
 
+/**
+ * B4-pad-chain UI — the rack pad whose insert chain the bottom DeviceChain
+ * editor currently targets (Ableton drum-rack model). `null` → DeviceChain
+ * edits the active TRACK's chain (today's behavior, unchanged).
+ *
+ * NOTE: this is the EDITOR TARGET only. It is DECOUPLED from the render/freeze/
+ * export chain source (`getActiveEffectChain`, track-scoped) — selecting a pad
+ * retargets the editor, NOT what the main render composites (the render reads
+ * `pad.chain` directly via buildRackLayers).
+ */
+export interface SelectedRackPad {
+  trackId: string
+  padId: string
+}
+
 interface ProjectState {
   assets: Record<string, Asset>
   selectedEffectId: string | null
+  /** B4-pad-chain UI: the rack pad the DeviceChain editor targets, or null (track). */
+  selectedRackPad: SelectedRackPad | null
+  /** B4-pad-chain UI: point the DeviceChain editor at a rack pad's insert chain. */
+  setSelectedRackPad: (trackId: string, padId: string) => void
+  /** B4-pad-chain UI: clear the pad target → DeviceChain falls back to the track. */
+  clearSelectedRackPad: () => void
   currentFrame: number
   totalFrames: number
   isIngesting: boolean
@@ -86,6 +108,8 @@ interface ProjectState {
 const PROJECT_DEFAULTS = {
   assets: {} as Record<string, Asset>,
   selectedEffectId: null as string | null,
+  // B4-pad-chain UI: DeviceChain editor target. null → active track's chain.
+  selectedRackPad: null as SelectedRackPad | null,
   currentFrame: 0,
   totalFrames: 0,
   isIngesting: false,
@@ -409,6 +433,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     set({ effectiveBpm: get().bpm })
   },
   selectEffect: (id) => set({ selectedEffectId: id }),
+  // B4-pad-chain UI: retarget the DeviceChain editor onto a rack pad's chain.
+  // NOT undoable (a view-selection, like selectEffect/selectedTrackId).
+  setSelectedRackPad: (trackId, padId) => set({ selectedRackPad: { trackId, padId } }),
+  clearSelectedRackPad: () => set({ selectedRackPad: null }),
   setCurrentFrame: (frame) => set({ currentFrame: frame }),
   setTotalFrames: (total) => set({ totalFrames: total }),
   setIngesting: (ingesting) => set({ isIngesting: ingesting }),
@@ -645,3 +673,39 @@ export const useActiveEffectChain = () =>
     const t = activeId ? s.tracks.find((trk) => trk.id === activeId) : null
     return t?.effectChain ?? EMPTY
   })
+
+// ─── B4-pad-chain UI: pad-scoped chain resolution (Ableton drum-rack) ─────────
+//
+// These resolve the SELECTED RACK PAD's insert chain from the instruments store
+// (`racks[trackId].pads[i].chain`). They are SEPARATE from the track-scoped
+// getActiveEffectChain/useActiveEffectChain above (which freeze/export/render use
+// and MUST stay track-scoped). When no pad is selected, OR the selected pad/track
+// is gone, they return a stable empty array (graceful fallback — no crash).
+
+/**
+ * Non-reactive: the selected rack pad's insert chain, or [] when no pad is
+ * selected (or the pad/track no longer exists). Call in event handlers.
+ */
+export const getActivePadChain = (): EffectInstance[] => {
+  const sel = useProjectStore.getState().selectedRackPad
+  if (!sel) return EMPTY
+  const rack = useInstrumentsStore.getState().racks[sel.trackId]
+  if (!rack) return EMPTY
+  return rack.pads.find((p) => p.id === sel.padId)?.chain ?? EMPTY
+}
+
+/**
+ * Reactive hook: the selected rack pad's insert chain, or a stable empty array
+ * when no pad is selected (or the pad/track no longer exists). Subscribes to
+ * BOTH the project store (selection) and the instruments store (the pad chain)
+ * so a mutation to either re-renders the DeviceChain.
+ */
+export const useActivePadEffectChain = (): EffectInstance[] => {
+  const sel = useProjectStore((s) => s.selectedRackPad)
+  return useInstrumentsStore((s) => {
+    if (!sel) return EMPTY
+    const rack = s.racks[sel.trackId]
+    if (!rack) return EMPTY
+    return rack.pads.find((p) => p.id === sel.padId)?.chain ?? EMPTY
+  })
+}
