@@ -187,6 +187,73 @@ export const SAMPLER_SPEED_MIN = -8
 export const SAMPLER_SPEED_MAX = 8
 
 /**
+ * B6.1 — Frame-Bank (wavetable) instrument (INSTRUMENTS-BUILD-PLAN.md §B6).
+ *
+ * The video analog of a wavetable oscillator: an indexed BANK of frames that a
+ * modulatable POSITION (0..1) scans + interpolates through. An LFO over
+ * `position` = a "wavetable sweep" through footage.
+ *
+ * This slice ships the MODEL + the BACKEND render (export path) + the byte-budget
+ * decoded-frame LRU (the OOM guard) + caps. The UI, per-frame `position`
+ * modulation (SG-8), and `interp:'flow'` (needs B7 optical flow) are LATER slices.
+ * `interp:'flow'` is ACCEPTED by the schema but the backend renders it as `blend`
+ * (a documented TODO) — it never errors.
+ *
+ * Additive optional — NO PROJECT_VERSION bump (UE.7 precedent: a project with no
+ * frameBank renders byte-identical to today; the export payload omits `frameBanks`
+ * when empty).
+ */
+export interface SlotRef {
+  /** Source asset id (resolves to assetPath via the project assets table). */
+  clipId: string
+  /** Frame index within that clip (>= 0; clamped to the clip's range by the engine). */
+  frameIndex: number
+}
+
+export interface FrameBankInstrument {
+  id: string
+  type: 'frameBank'
+  /** The indexed bank of frames the position scans through (ordered). */
+  slots: SlotRef[]
+  /** Scan position, 0..1 — a modulation DESTINATION. Clamped [0,1] + finite-guarded. */
+  position: number
+  /**
+   * Frame selection / interpolation:
+   *   nearest → round(idx) → that slot's frame.
+   *   blend   → linear interpolate slot[lo] and slot[lo+1] by frac (per-pixel uint8).
+   *   flow    → DEFERRED (needs B7); backend renders it as `blend` (documented TODO).
+   */
+  interp: 'nearest' | 'blend' | 'flow'
+  /**
+   * Resident DECODED-frame ceiling in BYTES (the OOM guard). A REQUEST — the
+   * backend renderer is the AUTHORITY and CLAMPS this to
+   * [FRAMEBANK_BYTE_BUDGET_MIN, MAX] then honors it via LRU eviction +
+   * downscale-proxy. 256 slots × 4K RGBA ≈ 8.5 GB if all decoded at once, so this
+   * bound is the freeze guard, NOT the slot count.
+   */
+  byteBudget: number
+  /** Which axis the position scans (reserved; default 't'). DEFER behavior to a later slice. */
+  timeAxis?: 't' | 'y' | 'x'
+  /** Per-voice opacity, clamp [0,1] — rides on the emitted layer (mirrors sampler). */
+  opacity?: number
+  /** Layer blend mode (how the bank's frame composites). Default 'normal'. */
+  blendMode?: BlendMode
+}
+
+/**
+ * B6.1 — Frame-Bank caps. MIRROR of backend security.py (MAX_FRAMEBANK_SLOTS /
+ * FRAMEBANK_BYTE_BUDGET_{MIN,MAX}). The backend is the enforcing trust boundary
+ * (validate_frame_bank clamps position + byteBudget and rejects over-cap slots);
+ * the frontend mirrors these for the editor UI (disable "add slot" past the cap)
+ * and the local request guard.
+ */
+export const MAX_FRAMEBANK_SLOTS = 256
+export const FRAMEBANK_BYTE_BUDGET_MIN = 16 * 1024 * 1024 // 16 MB
+export const FRAMEBANK_BYTE_BUDGET_MAX = 2 * 1024 * 1024 * 1024 // 2 GB
+export const FRAMEBANK_POSITION_MIN = 0
+export const FRAMEBANK_POSITION_MAX = 1
+
+/**
  * B4.1 — Sample Rack data model (INSTRUMENTS-BUILD-PLAN.md §B4).
  *
  * A rack hosts N pads; each pad is a CHANNEL holding one Sampler leaf. All pad

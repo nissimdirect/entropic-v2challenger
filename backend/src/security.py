@@ -77,6 +77,27 @@ MAX_TOTAL_VOICES_PER_RENDER = 4
 MAX_BRANCH_DEPTH = 4
 MAX_BRANCH_VOICES_PER_RENDER = 64
 
+# B6.1 (INSTRUMENTS-BUILD-PLAN.md §B6): Frame-Bank (wavetable) instrument caps.
+# A Frame-Bank is an indexed BANK of frames a modulatable `position` (0..1) scans
+# through. The MEMORY CRUX: 256 slots × 4K RGBA ≈ 8.5 GB if every frame is decoded
+# resident — instant OOM freeze on a 16 GB Mac. Two SEPARATE bounds:
+#
+#   MAX_FRAMEBANK_SLOTS — caps how many slots a bank may DECLARE. Bounds the slot
+#   list crossing the IPC trust boundary; a hand-edited / hostile project carrying
+#   100k slots is REJECTED at the boundary (enforce-before-decode), never buffered.
+#
+#   FRAMEBANK_BYTE_BUDGET_{MIN,MAX} — the resident-DECODED-frame ceiling in BYTES
+#   is clamped to this hard range. The model's `byteBudget` is a REQUEST; the
+#   renderer (DecodedFrameCache) is the AUTHORITY — it evicts LRU / serves a
+#   downscale-proxy to honor the clamped budget. The hard MAX (2 GB) is the true
+#   OOM guard; the MIN (16 MB) keeps the cache big enough for at least a couple of
+#   4K frames so blend always has its two adjacent frames + a downscale headroom.
+#   This is a NEW bound — `_max_readers=10` caps open FILE HANDLES, not decoded RAM.
+MAX_FRAMEBANK_SLOTS = 256
+FRAMEBANK_BYTE_BUDGET_MIN = 16 * 1024 * 1024  # 16 MB
+FRAMEBANK_BYTE_BUDGET_MAX = 2 * 1024 * 1024 * 1024  # 2 GB
+FRAMEBANK_VALID_INTERP = frozenset({"nearest", "blend", "flow"})
+
 # P5a.4 (INSTRUMENTS.md §10 P1-2): cap the serialized performance event list an
 # export may replay. A capture buffer of N events crosses the IPC trust boundary
 # as one JSON payload; ~48 B/event × 10_000 ≈ 480 KB, comfortably one ZMQ
@@ -423,6 +444,96 @@ def validate_voice_layers(layers: list) -> list[str]:
         )
 
     return errors
+
+
+def validate_frame_bank(inst: object) -> tuple[dict | None, list[str]]:
+    """Validate + sanitize ONE Frame-Bank instrument at the render/IPC boundary.
+
+    Trust boundary (B6.1): the frameBank dict arrives as part of the export
+    `performance` payload and drives footage decode through the byte-budget cache.
+    This enforces caps + numeric guards BEFORE any decode (enforce-before-decode),
+    and RETURNS a sanitized copy so the renderer uses clamped values, never the
+    raw request:
+
+      - `position` is CLAMPED to [0,1] and finite-guarded (NaN/inf/2.0 → clamped).
+        A non-numeric position falls back to 0.0 (never raises mid-decode).
+      - `byteBudget` is CLAMPED to [FRAMEBANK_BYTE_BUDGET_MIN, MAX]. The model's
+        value is a REQUEST; this is the hard OOM ceiling. Non-numeric / NaN / inf
+        → the MIN (smallest safe budget). The renderer is the authority and honors
+        the clamped budget via LRU eviction + downscale-proxy.
+      - `interp` must be in FRAMEBANK_VALID_INTERP; unknown → REJECTED.
+      - slots must be a non-empty list of <= MAX_FRAMEBANK_SLOTS entries, each a
+        dict with a non-empty string `clipId` and a finite int `frameIndex` >= 0.
+        Over-cap slot count, or any malformed slot ref, is REJECTED.
+
+    Returns (sanitized_inst | None, errors). On any error the sanitized inst is
+    None and the caller MUST refuse the render. On success the returned dict is a
+    shallow copy with clamped position/byteBudget/interp + validated slots — safe
+    to pass straight to engine.frame_bank.
+    """
+    errors: list[str] = []
+    if not isinstance(inst, dict):
+        return None, [f"frameBank must be an object (got {type(inst).__name__})"]
+
+    slots = inst.get("slots")
+    if not isinstance(slots, list) or len(slots) == 0:
+        return None, ["frameBank.slots must be a non-empty list"]
+    if len(slots) > MAX_FRAMEBANK_SLOTS:
+        return None, [
+            f"frameBank.slots length {len(slots)} exceeds maximum "
+            f"{MAX_FRAMEBANK_SLOTS} (MAX_FRAMEBANK_SLOTS)"
+        ]
+
+    clean_slots: list[dict] = []
+    for i, slot in enumerate(slots):
+        if not isinstance(slot, dict):
+            return None, [f"frameBank.slots[{i}] must be an object"]
+        clip_id = slot.get("clipId")
+        if not isinstance(clip_id, str) or not clip_id:
+            return None, [
+                f"frameBank.slots[{i}].clipId must be a non-empty string, "
+                f"got {clip_id!r}"
+            ]
+        fidx = slot.get("frameIndex")
+        if isinstance(fidx, bool) or not isinstance(fidx, int) or fidx < 0:
+            return None, [
+                f"frameBank.slots[{i}].frameIndex must be an int >= 0, got {fidx!r}"
+            ]
+        clean_slots.append({"clipId": clip_id, "frameIndex": fidx})
+
+    interp = inst.get("interp", "blend")
+    if interp not in FRAMEBANK_VALID_INTERP:
+        return None, [
+            f"frameBank.interp {interp!r} is unknown "
+            f"(must be one of {sorted(FRAMEBANK_VALID_INTERP)})"
+        ]
+
+    # CLAMP position [0,1] + finite guard (non-numeric / NaN / inf → 0.0).
+    raw_pos = inst.get("position", 0.0)
+    if not _is_finite_number(raw_pos):
+        position = 0.0
+    else:
+        position = max(0.0, min(1.0, float(raw_pos)))
+
+    # CLAMP byteBudget to the hard [MIN, MAX] OOM range (non-finite → MIN).
+    raw_budget = inst.get("byteBudget", FRAMEBANK_BYTE_BUDGET_MIN)
+    if not _is_finite_number(raw_budget):
+        byte_budget = FRAMEBANK_BYTE_BUDGET_MIN
+    else:
+        byte_budget = int(
+            max(
+                FRAMEBANK_BYTE_BUDGET_MIN,
+                min(FRAMEBANK_BYTE_BUDGET_MAX, float(raw_budget)),
+            )
+        )
+
+    sanitized = dict(inst)
+    sanitized["type"] = "frameBank"
+    sanitized["slots"] = clean_slots
+    sanitized["interp"] = interp
+    sanitized["position"] = position
+    sanitized["byteBudget"] = byte_budget
+    return sanitized, errors
 
 
 def validate_capture_events(events: object) -> list[str]:

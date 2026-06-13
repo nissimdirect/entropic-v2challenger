@@ -29,8 +29,11 @@ from modulation.engine import SignalEngine
 from security import (
     MAX_BRANCH_DEPTH,
     validate_composite_layer_count,
+    validate_frame_bank,
     validate_voice_layers,
 )
+from engine.decoded_frame_cache import DecodedFrameCache
+from engine.frame_bank import resolve_frame_bank_layer
 from engine.gif_export import export_gif_from_generator
 from engine.image_sequence import export_image_sequence_from_generator
 from engine.voice_replay import encode_voice_id, evaluate_voices
@@ -399,6 +402,12 @@ class ExportManager:
         # same clip share one reader across the whole export (opened lazily,
         # closed in `finally`) so we never re-open footage per frame.
         voice_readers: dict[str, object] = {}
+        # B6.1: per-frame-bank byte-budget decoded-frame caches (the OOM guard).
+        # One DecodedFrameCache per frameBank id, created lazily in
+        # _composite_export_frame, sized to that bank's CLAMPED byteBudget. Lives
+        # for the whole export (a continuous position-scan reuses decoded slots
+        # across output frames); the readers it decodes through are voice_readers.
+        frame_bank_caches: dict[str, object] = {}
         try:
             if is_image_file(input_path):
                 reader = ImageReader(input_path)
@@ -431,7 +440,13 @@ class ExportManager:
             # the legacy single-input path (ROLLBACK contract: old clients
             # unchanged).
             perf_events = (performance or {}).get("events") or []
-            perf_active = bool(perf_events)
+            # B6.1: a Frame-Bank is a CONTINUOUS scanner with NO trigger events,
+            # so the composite-replay branch must also activate when frameBanks
+            # are present (else a frameBank-only project falls into the legacy
+            # single-input path and never renders). Absent both → byte-identical
+            # legacy path (regression-safe).
+            perf_frame_banks = (performance or {}).get("frameBanks") or {}
+            perf_active = bool(perf_events) or bool(perf_frame_banks)
             # Per-voice layer state cache (keyed `voice:{encoded_voice_id}` — the
             # P5a.2 contract). Threaded across frames exactly like preview's
             # _get_composite_states, but a LOCAL dict (no server singleton),
@@ -535,6 +550,7 @@ class ExportManager:
                         voice_readers=voice_readers,
                         operators=mod_operators,
                         operator_values=last_operator_values,
+                        frame_bank_caches=frame_bank_caches,
                     )
                 else:
                     out, states = apply_chain(
@@ -626,6 +642,7 @@ class ExportManager:
                         voice_readers=voice_readers,
                         operators=mod_operators,
                         operator_values=last_operator_values,
+                        frame_bank_caches=frame_bank_caches,
                     )
                 else:
                     output, states = apply_chain(
@@ -1130,6 +1147,7 @@ class ExportManager:
         voice_readers: dict,
         operators: list[dict] | None = None,
         operator_values: dict | None = None,
+        frame_bank_caches: dict | None = None,
     ) -> tuple[np.ndarray, dict]:
         """Build the composited frame for one output frame (O1 composite branch).
 
@@ -1427,9 +1445,13 @@ class ExportManager:
         # branch GROUP descriptors. Mirrors the PREVIEW path's validate_composite_tree
         # (enforce-before-decode). Empty group_descriptors → no-op (flat parity).
         budget_errors += validate_composite_tree(group_descriptors)
-        # +1 for the base layer; +1 per top-level group (one emitted layer each).
+        # +1 for the base layer; +1 per top-level group (one emitted layer each);
+        # +1 per frameBank (each emits exactly ONE position-scan voice layer).
         budget_errors += validate_composite_layer_count(
-            len(voice_descriptors) + len(group_descriptors) + 1
+            len(voice_descriptors)
+            + len(group_descriptors)
+            + len(performance.get("frameBanks") or {})
+            + 1
         )
         if budget_errors:
             raise ValueError("; ".join(budget_errors))
@@ -1474,6 +1496,70 @@ class ExportManager:
                     new_states=group_new_states,
                 )
             )
+
+        # B6.1 — Frame-Bank (wavetable) instrument layers. A frameBank is a
+        # CONTINUOUS position-scanner (NO trigger events): for each declared bank,
+        # the CLAMPED position selects/interpolates slot frames decoded through a
+        # per-bank byte-budget cache (the OOM guard) and emits ONE voice layer that
+        # composites through the SAME render_composite path as every other voice.
+        # Caps are enforced at the boundary BEFORE decode (validate_frame_bank);
+        # the cache bounds resident decoded RAM regardless of slot count. Absent /
+        # empty `frameBanks` → no layers appended → export byte-identical
+        # (regression-safe). Per-frame `position` modulation is DEFERRED (SG-8 /
+        # later slice) — this slice scans the static clamped position.
+        frame_banks = performance.get("frameBanks") or {}
+        if frame_banks:
+            fb_caches = frame_bank_caches if frame_bank_caches is not None else {}
+
+            def _fb_decode(clip_id: str, slot_frame_index: int) -> np.ndarray:
+                # Resolve clipId → asset path via the SAME assets table samplers
+                # use, then decode through the shared per-asset reader cache.
+                fb_asset = assets.get(clip_id)
+                if not fb_asset or not fb_asset.get("path"):
+                    raise ValueError(
+                        f"frameBank slot clipId {clip_id!r} has no asset path"
+                    )
+                reader = self._get_voice_reader(fb_asset["path"], voice_readers)
+                rfc = getattr(reader, "frame_count", None)
+                idx = int(slot_frame_index)
+                if rfc:
+                    # Clamp the slot frameIndex into the clip's real range (a
+                    # stale project may reference a frame past a re-imported,
+                    # shorter clip — clamp, never IndexError mid-export).
+                    idx = max(0, min(rfc - 1, idx))
+                return reader.decode_frame(idx)
+
+            for fb_id, raw_fb in frame_banks.items():
+                # ENFORCE-BEFORE-DECODE: validate + sanitize (clamp position /
+                # byteBudget, reject over-cap slots / bad refs) BEFORE any decode.
+                sanitized, fb_errors = validate_frame_bank(raw_fb)
+                if fb_errors or sanitized is None:
+                    raise ValueError("; ".join(fb_errors) or "invalid frameBank")
+                # One byte-budget cache per bank id, sized to its CLAMPED budget,
+                # persisted across output frames (the position-scan reuses slots).
+                cache = fb_caches.get(fb_id)
+                if (
+                    cache is None
+                    or getattr(cache, "byte_budget", None) != sanitized["byteBudget"]
+                ):
+                    cache = DecodedFrameCache(sanitized["byteBudget"])
+                    fb_caches[fb_id] = cache
+                # voice_id keys per-voice compositor state; encode colon-free and
+                # bounded so a hostile fb_id can't escape the cache key namespace.
+                vid = f"framebank_{fb_id}"[:128]
+                vid = "".join(c if c.isalnum() or c in "_-" else "_" for c in vid)
+                layers.append(
+                    resolve_frame_bank_layer(
+                        sanitized,
+                        sanitized["position"],
+                        cache,
+                        _fb_decode,
+                        frame_index=frame_index,
+                        voice_id=vid,
+                        opacity=sanitized.get("opacity", 1.0),
+                        blend_mode=sanitized.get("blendMode", "normal"),
+                    )
+                )
 
         # Reuse the merged compositor verbatim, threading per-voice state.
         out, new_states = render_composite(
