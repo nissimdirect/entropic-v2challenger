@@ -35,6 +35,7 @@ import SamplerDevice from './components/instruments/SamplerDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveRackMacros } from './components/instruments/resolveRackMacros'
+import type { SamplerInstrumentV1 } from './components/instruments/types'
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
@@ -2346,7 +2347,12 @@ function AppInner() {
       // byte-identical across runs and survive edit-after-capture. Absent when
       // there are no performance tracks → legacy single-input export, unchanged.
       const buildPerformancePayload = ():
-        | { events: unknown[]; instruments: Record<string, unknown>; assets: Record<string, unknown> }
+        | {
+            events: unknown[]
+            instruments: Record<string, unknown>
+            assets: Record<string, unknown>
+            racks?: Record<string, unknown>
+          }
         | undefined => {
         const timelineState = useTimelineStore.getState()
         const perfState = usePerformanceStore.getState()
@@ -2404,8 +2410,99 @@ function AppInner() {
           }
         }
 
-        if (events.length === 0) return undefined
-        return { events, instruments, assets }
+        // B4-export — Sample Rack channel summing in the EXPORT path.
+        // Mirror the LIVE preview rack render (App.tsx render loop): for each
+        // performance track that hosts a rack, resolve its macros ONCE
+        // (resolveRackMacros — macros are STATIC at export time, no per-frame
+        // macro automation), then serialize the macro-resolved pads. Each pad's
+        // events are keyed `${trackId}:${padId}` in the perf store; we stamp
+        // that composite id onto each event so the backend buckets per pad. Pad
+        // clip assets are added to the SAME `assets` table (per-track shape).
+        // No racks → `racks` omitted → export byte-identical (regression-safe).
+        const racks: Record<string, unknown> = {}
+        const serializeSamplerInstrument = (
+          inst: SamplerInstrumentV1,
+        ): Record<string, unknown> => {
+          const out: Record<string, unknown> = {
+            clipId: inst.clipId,
+            startFrame: inst.startFrame,
+            speed: inst.speed,
+            opacity: inst.opacity,
+            blendMode: inst.blendMode,
+            chain: [],
+          }
+          // Additive optional B3 configs — only emit when present (mirrors the
+          // additive-optional schema; absent → backend uses safe defaults).
+          if (inst.endFrame !== undefined) out.endFrame = inst.endFrame
+          if (inst.loop !== undefined) out.loop = inst.loop
+          if (inst.scrub !== undefined) out.scrub = inst.scrub
+          if (inst.rgbOffset !== undefined) out.rgbOffset = inst.rgbOffset
+          if (inst.glide !== undefined) out.glide = inst.glide
+          if (inst.melodic !== undefined) out.melodic = inst.melodic
+          return out
+        }
+        const addPadAsset = (clipId: string) => {
+          if (!clipId || assets[clipId]) return
+          const asset = projectAssets[clipId]
+          if (!asset?.path) return
+          const metaFps = asset.meta?.fps
+          const fps =
+            Number.isFinite(metaFps) && metaFps! > 0 ? metaFps! : settings.fps
+          const dur = Number.isFinite(asset.meta?.duration)
+            ? asset.meta!.duration
+            : 0
+          assets[clipId] = {
+            path: asset.path,
+            frameCount: Math.max(1, Math.round(dur * fps)),
+            fps,
+          }
+        }
+        for (const trackId of perfTrackIds) {
+          const rawRack = instrState.racks[trackId]
+          if (!rawRack) continue
+          // Resolve macros ONCE (preview parity) — static at export time.
+          const rack = resolveRackMacros(rawRack)
+          if (!rack) continue
+          const padPayloads: Record<string, unknown>[] = []
+          for (const pad of rack.pads) {
+            // Stamp each pad event with the composite instrumentId so the
+            // backend buckets events per pad (`${trackId}:${padId}`).
+            const padEventKey = `${trackId}:${pad.id}`
+            const padEvents = perfState.trackEvents[padEventKey] ?? []
+            for (const e of padEvents) {
+              events.push({
+                frameIndex: e.frameIndex,
+                eventIndex: e.eventIndex,
+                note: e.note,
+                velocity: e.velocity,
+                kind: e.kind,
+                instrumentId: padEventKey,
+                ...(e.chokeGroup != null ? { chokeGroup: e.chokeGroup } : {}),
+              })
+            }
+            addPadAsset(pad.instrument.clipId)
+            padPayloads.push({
+              id: pad.id,
+              mute: pad.mute,
+              solo: pad.solo,
+              opacity: pad.opacity,
+              blend: pad.blend,
+              instrument: serializeSamplerInstrument(pad.instrument),
+              voiceCap: 4,
+              adsr: rackAdsr,
+            })
+          }
+          racks[trackId] = { pads: padPayloads }
+        }
+        const hasRacks = Object.keys(racks).length > 0
+
+        if (events.length === 0 && !hasRacks) return undefined
+        return {
+          events,
+          instruments,
+          assets,
+          ...(hasRacks ? { racks } : {}),
+        }
       }
       const performancePayload = buildPerformancePayload()
 
