@@ -10,7 +10,7 @@
  *     "visualization IS the interface": the marker tracks the scan live).
  *   - a POSITION slider [0,1] → setFrameBankPosition (the modulation destination
  *     the existing B6.2 serialization sends to the backend → renders).
- *   - an INTERP dropdown (nearest / blend / flow; flow previews as blend).
+ *   - an INTERP dropdown (nearest / blend / flow; flow = CPU optical-flow morph).
  *   - a BYTE-BUDGET readout (the OOM ceiling) → setFrameBankByteBudget.
  *
  * Mirrors SamplerDevice/RackDevice: reads its instrument from the store keyed by
@@ -31,7 +31,7 @@ import {
 const INTERP_MODES: { value: 'nearest' | 'blend' | 'flow'; label: string }[] = [
   { value: 'nearest', label: 'nearest' },
   { value: 'blend', label: 'blend' },
-  { value: 'flow', label: 'flow (preview: blend)' },
+  { value: 'flow', label: 'flow (CPU morph)' },
 ]
 
 const MB = 1024 * 1024
