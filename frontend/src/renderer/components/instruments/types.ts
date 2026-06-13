@@ -54,6 +54,15 @@ export interface SamplerInstrumentV1 {
    * playback is byte-identical to B1/B2 (regression-safe).
    */
   loop?: SamplerLoopConfig
+  /**
+   * B3.2: Optional scrub position — a modulation DESTINATION (not persisted in
+   * the saved project). When a finite scrub is present (written per-frame by
+   * resolveSamplerModulations / resolve_sampler_modulations), the playhead
+   * position is DRIVEN by scrub (0..1) across the sampler's playable range,
+   * overriding the playhead-derived offset. Absent → undefined → B3.1 behavior
+   * unchanged (regression-safe). No PROJECT_VERSION bump (additive optional).
+   */
+  scrub?: number
 }
 
 /**

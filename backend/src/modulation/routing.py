@@ -219,6 +219,108 @@ def resolve_mask_modulations(
     return modulated
 
 
+# --------------------------------------------------------------------------- #
+#  B3.2 — sampler-params-as-lanes: resolve `sampler.<id>.<param>` modulation
+# --------------------------------------------------------------------------- #
+
+# Lane-addressable sampler params → (min, max) bounds for the base+offset map.
+# `scrub` is a normalized playhead position [0,1] across the sampler's range;
+# `speed` mirrors SAMPLER_SPEED_MIN/MAX (types.ts) and the export clamp.
+_SAMPLER_PARAM_BOUNDS: dict[str, tuple[float, float]] = {
+    "scrub": (0.0, 1.0),
+    "speed": (-8.0, 8.0),
+}
+
+# Only these params may be modulated. Anything else (clipId, opacity, loop, …)
+# is NOT lane-able and is SKIPPED — never raises.
+_SAMPLER_LANE_PARAMS: frozenset[str] = frozenset({"scrub", "speed"})
+
+
+def resolve_sampler_modulations(
+    operator_values: dict[str, float],
+    operators: list[dict],
+    instruments: dict[str, dict] | None,
+) -> dict[str, dict] | None:
+    """Apply operator modulation to sampler params in *instruments* (B3.2).
+
+    Recognizes modulation targets of the form ``sampler.<id>.<param>`` and
+    writes the resolved (LFO / envelope / velocity) value into the matching
+    sampler instrument's ``scrub`` / ``speed`` for THAT frame — so the modulated
+    value feeds the footage-frame computation (``_compute_voice_footage_frame``)
+    BEFORE the consumer decodes the frame. This mirrors MK.8's
+    ``resolve_mask_modulations`` exactly.
+
+      * ``scrub`` → a normalized playhead position in [0, 1] across the sampler's
+        playable range ([loopIn, loopOut] when looping, else [startFrame,
+        endFrame|lastFrame]). The footage-frame math maps it onto a frame index.
+      * ``speed`` → the resolved value REPLACES the sampler's base playback speed
+        for the frame (base + modulated offset within [-8, 8]).
+
+    Trust boundary (same discipline as MK.8 / MK.3): a target whose prefix isn't
+    ``sampler``, whose id isn't a live sampler instrument, or whose param isn't
+    ``scrub``/``speed`` is SKIPPED — never raises. ``id`` parsing is safe to
+    split on '.' because sampler ids match ``^[A-Za-z0-9_-]`` (MK.1 schema id
+    regex forbids dots), so ``target.split('.', 2)`` is unambiguous.
+
+    Returns a deep-copied, modulated instruments dict (or the input unchanged
+    when there is nothing to modulate / no instruments).
+    """
+    if not instruments or not isinstance(instruments, dict):
+        return instruments
+
+    # Accumulate deltas per (inst_id, param) — reuse the chain blend semantics.
+    deltas: dict[tuple[str, str], list[tuple[float, float, float, float, str]]] = (
+        defaultdict(list)
+    )
+
+    for op in operators:
+        if not op.get("is_enabled", op.get("isEnabled", True)):
+            continue
+        signal = operator_values.get(op.get("id", ""), 0.0)
+
+        for mapping in op.get("mappings", []):
+            target = mapping.get("target_param_key", mapping.get("targetParamKey", ""))
+            if not target or not target.startswith("sampler."):
+                continue
+            # sampler.<id>.<param> — split into exactly 3 (ids have no dots).
+            parts = target.split(".", 2)
+            if len(parts) != 3 or parts[0] != "sampler":
+                continue
+            _, inst_id, param = parts
+            if inst_id not in instruments or param not in _SAMPLER_LANE_PARAMS:
+                continue
+
+            depth = float(mapping.get("depth", 1.0))
+            m_min = float(mapping.get("min", 0.0))
+            m_max = float(mapping.get("max", 1.0))
+            blend = mapping.get("blend_mode", mapping.get("blendMode", "add"))
+            deltas[(inst_id, param)].append((signal, depth, m_min, m_max, blend))
+
+    if not deltas:
+        return instruments
+
+    modulated = copy.deepcopy(instruments)
+
+    for (inst_id, param), contributions in deltas.items():
+        inst = modulated.get(inst_id)
+        if not isinstance(inst, dict):
+            continue
+
+        p_min, p_max = _SAMPLER_PARAM_BOUNDS.get(param, (0.0, 1.0))
+        # Base value: the param's current value if numeric, else the range min.
+        # `scrub` has no persisted base (it's a pure modulation destination) so
+        # it starts at 0.0; `speed`'s base is the instrument's set speed.
+        base_value = inst.get(param)
+        if not isinstance(base_value, (int, float)) or isinstance(base_value, bool):
+            base_value = p_min
+
+        mod_value = _blend_contributions(contributions)
+        new_value = base_value + mod_value * (p_max - p_min)
+        inst[param] = max(p_min, min(p_max, new_value))
+
+    return modulated
+
+
 def _blend_contributions(
     contributions: list[tuple[float, float, float, float, str]],
 ) -> float:

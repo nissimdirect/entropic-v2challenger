@@ -1,5 +1,6 @@
 import { useOperatorStore } from '../../stores/operators'
 import type { EffectInfo, MatteNode } from '../../../shared/types'
+import type { SamplerInstrumentV1 } from '../instruments/types'
 
 interface ModulationMatrixProps {
   effectChain: { id: string; effectId: string }[]
@@ -13,7 +14,25 @@ interface ModulationMatrixProps {
    * Optional — absent / empty = no key targets (legacy behavior).
    */
   maskNodes?: MatteNode[]
+  /**
+   * B3.2 — live sampler instruments. Their scrub/speed params are prepended as
+   * synthetic targets `sampler.<id>.scrub` / `sampler.<id>.speed`, so an
+   * operator (LFO / envelope / velocity) can drive the playhead position
+   * (scrub-by-LFO) or scale playback speed. Backend routing.py reads them via
+   * resolve_sampler_modulations. Optional — absent / empty = no sampler targets.
+   */
+  samplerInstruments?: SamplerInstrumentV1[]
 }
+
+/**
+ * B3.2 — which sampler params are lane-addressable (float scalars). `scrub` is
+ * the normalized playhead position [0,1]; `speed` is playback rate [-8,8].
+ * Order defines column order.
+ */
+const SAMPLER_LANE_PARAMS: { key: string; label: string }[] = [
+  { key: 'scrub', label: 'Scrub' },
+  { key: 'speed', label: 'Speed' },
+]
 
 /**
  * MK.8 — which params of each key kind are lane-addressable (float scalars
@@ -37,6 +56,7 @@ export default function ModulationMatrix({
   registry,
   operatorValues,
   maskNodes,
+  samplerInstruments,
 }: ModulationMatrixProps) {
   const operators = useOperatorStore((s) => s.operators)
   const removeMapping = useOperatorStore((s) => s.removeMapping)
@@ -64,6 +84,25 @@ export default function ModulationMatrix({
         effectId: `mask.${node.id}`,
         effectName: `Key: ${node.id}`,
         paramKey: `mask.${node.id}.${p.key}`,
+        paramLabel: p.label,
+      })
+    }
+  }
+
+  // B3.2 — sampler-as-performance: prepend each live sampler's scrub/speed as
+  // synthetic targets `sampler.<id>.<param>`. The backend resolve_sampler_-
+  // modulations reads them per frame, so an LFO/env/velocity can drive the
+  // playhead (scrub) or speed. Namespaced under `sampler.` so the paramKey
+  // never collides with `_mix`, a real effect param, or a `mask.` target.
+  for (const inst of samplerInstruments ?? []) {
+    if (inst.type !== 'sampler') continue
+    for (const p of SAMPLER_LANE_PARAMS) {
+      targets.push({
+        // `effectId` carries the namespaced sampler id; backend routing keys
+        // off the `sampler.` prefix to route into the instrument.
+        effectId: `sampler.${inst.id}`,
+        effectName: `Sampler: ${inst.id}`,
+        paramKey: `sampler.${inst.id}.${p.key}`,
         paramLabel: p.label,
       })
     }

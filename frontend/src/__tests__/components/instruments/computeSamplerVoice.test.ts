@@ -426,3 +426,77 @@ describe('B3.1 PARITY GUARD: frontend frame index matches backend reference valu
     },
   )
 })
+
+// ===========================================================================
+// B3.2 — scrub modulation destination: frontend ⟷ backend PARITY.
+//
+// Expected values LIFTED from backend/tests/test_sampler_scrub_speed_modulation.py.
+// The backend _compute_voice_footage_frame is the tested reference; here the
+// frontend computeLoopFrameIndex must produce the IDENTICAL frame for the same
+// (inst-with-scrub, playhead, frameCount). Diverge → preview ≠ export.
+//
+// NOTE: in B3.2 the resolver WRITES the resolved scrub/speed onto the inst
+// (computed identically by routing.py / resolveSamplerModulations); these tests
+// supply the already-resolved inst and assert the frame math matches. The
+// resolver-math parity is covered by resolveSamplerModulations.test.ts.
+// ===========================================================================
+describe('B3.2 PARITY GUARD: scrub-driven frame index matches backend reference', () => {
+  // [label, instFields(with scrub), playhead, frameCount, expectedFrameIndex]
+  const SCRUB_PARITY: Array<[string, Partial<SamplerInstrumentV1>, number, number, number]> = [
+    // scrub overrides playhead even when speed=0 (frozen). Range [start,end].
+    ['scrub=1 frozen → endFrame 99', { startFrame: 0, endFrame: 99, speed: 0, scrub: 1 }, 37, 100, 99],
+    ['scrub=0 frozen → startFrame 0', { startFrame: 0, endFrame: 99, speed: 0, scrub: 0 }, 37, 100, 0],
+    ['scrub=0.5 → mid range', { startFrame: 0, endFrame: 100, speed: 0, scrub: 0.5 }, 0, 100, Math.round(0.5 * 99)],
+    // scrub maps across [loopIn, loopOut] when loop enabled.
+    ['scrub=0 loop → loopIn 20', { startFrame: 0, speed: 1, loop: { enabled: true, in: 20, out: 40, dir: 'fwd' }, scrub: 0 }, 5, 100, 20],
+    ['scrub=1 loop → loopOut 40', { startFrame: 0, speed: 1, loop: { enabled: true, in: 20, out: 40, dir: 'fwd' }, scrub: 1 }, 5, 100, 40],
+    ['scrub=0.5 loop → 30', { startFrame: 0, speed: 1, loop: { enabled: true, in: 20, out: 40, dir: 'fwd' }, scrub: 0.5 }, 5, 100, 30],
+    // absent scrub → B3.1 behavior (regression).
+    ['no scrub → B3.1 plain', { startFrame: 10, speed: 1 }, 5, 100, 15],
+  ]
+
+  it.each(SCRUB_PARITY)(
+    'scrub frame parity: %s',
+    (_label, extra, playhead, frameCount, expected) => {
+      const s = inst(extra)
+      expect(computeSamplerVoice(s, '/a.mp4', playhead, frameCount).frame_index).toBe(expected)
+      expect(computeLoopFrameIndex(s, playhead, frameCount)).toBe(expected)
+    },
+  )
+
+  // Speed modulation: the resolver writes the scaled speed onto inst.speed; the
+  // frame math then steps at that rate. Parity with backend
+  // test_sampler_speed_modulation_scales_playback (speed 2 → 2x step).
+  const SPEED_PARITY: Array<[string, Partial<SamplerInstrumentV1>, number, number, number]> = [
+    ['speed1 ph10 → 10', { startFrame: 0, speed: 1 }, 10, 100, 10],
+    ['speed2 ph10 → 20', { startFrame: 0, speed: 2 }, 10, 100, 20],
+    ['speed0 frozen → startFrame', { startFrame: 5, speed: 0 }, 30, 100, 5],
+  ]
+
+  it.each(SPEED_PARITY)(
+    'speed frame parity: %s',
+    (_label, extra, playhead, frameCount, expected) => {
+      const s = inst(extra)
+      expect(computeLoopFrameIndex(s, playhead, frameCount)).toBe(expected)
+    },
+  )
+
+  it('regression: absent scrub leaves the full B3.1 frame sequence intact', () => {
+    // Capture the B3.1 sequence (scrub undefined), then confirm adding an
+    // explicitly-undefined scrub does not change a single frame.
+    const plain = inst({ startFrame: 0, speed: 1 })
+    const looped = inst({ startFrame: 0, speed: 1, loop: { enabled: true, in: 0, out: 9, dir: 'pingpong' } })
+    for (let ph = 0; ph < 40; ph++) {
+      // Plain path: byte-identical to the legacy formula (clamped to last frame).
+      const lastFrame = 99
+      const expectedPlain = Math.min(lastFrame, 0 + Math.round(1 * ph))
+      expect(computeLoopFrameIndex(plain, ph, 100)).toBe(expectedPlain)
+      // pingpong sequence still bounces within [0,9] (scrub absent).
+      const f = computeLoopFrameIndex(looped, ph, 100)
+      expect(f).toBeGreaterThanOrEqual(0)
+      expect(f).toBeLessThanOrEqual(9)
+      // Explicit undefined scrub is a no-op vs absent.
+      expect(computeLoopFrameIndex(inst({ startFrame: 0, speed: 1, scrub: undefined }), ph, 100)).toBe(expectedPlain)
+    }
+  })
+})
