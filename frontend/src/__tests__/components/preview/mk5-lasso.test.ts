@@ -275,9 +275,12 @@ describe('freehand path simplifies to at most 256 vertices', () => {
   })
 
   it('vertex cap is enforced even for adversarial zig-zag with epsilon=2', () => {
-    // Worst case for RDP: every point is a local maximum deviation.
-    // 10,000-point zig-zag with amplitude > 2 at every step.
-    const zigzag: Point2D[] = Array.from({ length: 10_000 }, (_, i) => ({
+    // Worst case for RDP: every point is a local maximum deviation, so RDP
+    // cannot simplify and the hard vertex cap must engage. 2,000 points (>> the
+    // 256 cap) proves the cap under the adversarial worst case while keeping the
+    // O(n^2) RDP recursion fast — the prior 10,000-point input took ~1s and
+    // intermittently exceeded the CI runner's test timeout (flaky).
+    const zigzag: Point2D[] = Array.from({ length: 2_000 }, (_, i) => ({
       x: i,
       y: (i % 2 === 0) ? 0 : 10,  // alternates 0/10 — every segment deviates by 5px
     }))

@@ -435,6 +435,8 @@ class ZMQServer:
             return self._handle_inline_actions_invoke(message, msg_id)
         elif cmd == "mask_wand_sample":
             return self._handle_mask_wand_sample(message, msg_id)
+        elif cmd == "mask_gc_sidecars":
+            return self._handle_mask_gc_sidecars(message, msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -2475,6 +2477,51 @@ class ZMQServer:
             _sentry.capture_exception(e)
             logging.getLogger(__name__).error(f"mask_wand_sample error: {e}")
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_mask_gc_sidecars(self, message: dict, msg_id: str | None) -> dict:
+        """IPC handler for ``mask_gc_sidecars``.
+
+        Expected payload::
+
+            {
+                "cmd": "mask_gc_sidecars",
+                "active_node_ids": ["node-abc", "node-xyz", ...]
+            }
+
+        The frontend sends the full set of node IDs that are currently live in
+        the project.  The handler deletes any ``~/.creatrix/mask-bitmaps/*.png``
+        whose stem is NOT in *active_node_ids*.
+
+        Typical trigger: the frontend calls this after removing a MatteNode
+        (e.g. from ``removeMatteNode``) or on project close/load.
+
+        Returns::
+
+            {"id": ..., "ok": true, "deleted": <count>}
+        """
+        from masking.wand import gc_orphan_sidecars
+
+        raw_ids = message.get("active_node_ids")
+        if not isinstance(raw_ids, list):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_gc_sidecars: active_node_ids must be a list",
+            }
+
+        # Accept only safe strings; silently discard anything else
+        active: set[str] = set()
+        for item in raw_ids:
+            if isinstance(item, str) and item:
+                active.add(item)
+
+        try:
+            deleted = gc_orphan_sidecars(active)
+        except Exception as e:  # noqa: BLE001
+            logging.getLogger(__name__).error(f"mask_gc_sidecars error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal GC error"}
+
+        return {"id": msg_id, "ok": True, "deleted": deleted}
 
     def run(self):
         self.running = True

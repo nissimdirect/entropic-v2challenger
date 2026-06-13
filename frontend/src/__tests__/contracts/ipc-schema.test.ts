@@ -147,6 +147,7 @@ describe('IPC Contract', () => {
       'invalidate_cache',
       'list_effects',
       'list_fonts',
+      'mask_gc_sidecars',
       'mask_wand_sample',
       'memory_status',
       'ping',

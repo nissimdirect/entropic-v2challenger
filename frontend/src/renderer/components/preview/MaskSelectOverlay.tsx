@@ -35,6 +35,7 @@ import type { Point2D } from '../../utils/rdp-simplify'
 import { computeCanvasLayout } from '../../utils/transform-coords'
 import type { CanvasLayout } from '../../utils/transform-coords'
 import { useTimelineStore } from '../../stores/timeline'
+import { useToastStore } from '../../stores/toast'
 import { randomUUID } from '../../utils'
 import type { MatteNode, MatteNodeKind, MatteOp } from '../../../shared/types'
 
@@ -174,9 +175,19 @@ export default function MaskSelectOverlay({
         }
         useTimelineStore.getState().addMatteNode(clipId, node)
         useTimelineStore.setState({ committedMaskSelection: { nodeId: node.id, clipId } })
+      } else if (!res?.ok) {
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: 'Wand sample failed — try again',
+          source: 'wand-sample-failure',
+        })
       }
     } catch {
-      // Wand sample failed silently — no toast here (let caller handle)
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: 'Wand sample failed — try again',
+        source: 'wand-sample-failure',
+      })
     } finally {
       setWandPending(false)
     }
