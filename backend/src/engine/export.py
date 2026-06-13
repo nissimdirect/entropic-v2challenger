@@ -24,8 +24,13 @@ from engine.codecs import (
 )
 from effects import registry
 from engine.compositor import render_composite
+from engine.composite_tree import expand_group_layer, validate_composite_tree
 from modulation.engine import SignalEngine
-from security import validate_composite_layer_count, validate_voice_layers
+from security import (
+    MAX_BRANCH_DEPTH,
+    validate_composite_layer_count,
+    validate_voice_layers,
+)
 from engine.gif_export import export_gif_from_generator
 from engine.image_sequence import export_image_sequence_from_generator
 from engine.voice_replay import encode_voice_id, evaluate_voices
@@ -1185,6 +1190,10 @@ class ExportManager:
         # caps each instrument at its voiceCap, so the descriptor count is
         # bounded by (num_instruments × voiceCap) — never unbounded.
         voice_descriptors: list[dict] = []
+        # B5.1 — branch GROUP descriptors (composite-tree). Populated by the
+        # recursive rack walk below; expanded after PHASE 2 decode. Empty for a
+        # flat project (no branch pads) → export byte-identical.
+        group_descriptors: list[dict] = []
         for inst_id, inst in instruments.items():
             adsr = inst.get("adsr") or {
                 "attack": 0,
@@ -1269,90 +1278,143 @@ class ExportManager:
                 return fallback
             return min(hi, max(lo, v))
 
+        # B5.1 — build ONE leaf pad's voice descriptors (extracted so the flat
+        # loop and the recursive branch walk share ONE leaf path → flat output is
+        # byte-identical). `event_key` is the PATH-FROM-ROOT pad event key (flat
+        # pad → `${trackId}:${padId}`, UNCHANGED); `voice_id_prefix` path-prefixes
+        # nested leaf voice_ids so sibling branches don't alias.
+        def _leaf_pad_descriptors(
+            pad, rack_track_id, event_key, voice_id_prefix
+        ) -> list[dict]:
+            pad_inst = pad.get("instrument")
+            if not isinstance(pad_inst, dict):
+                return []
+            pad_adsr = pad.get("adsr") or {
+                "attack": 0,
+                "decay": 0,
+                "sustain": 1,
+                "release": 0,
+            }
+            pad_voice_cap = pad.get("voiceCap", 4)
+            pad_chain = pad_inst.get("chain") or []
+            pad_clip_id = pad_inst.get("clipId")
+            pad_asset = assets.get(pad_clip_id) if pad_clip_id is not None else None
+            if not pad_asset or not pad_asset.get("path"):
+                return []
+            pad_asset_path = pad_asset["path"]
+            pad_frame_count = pad_asset.get("frameCount") or 1
+            pad_events = [
+                e
+                for e in events
+                if isinstance(e, dict)
+                and (e.get("instrumentId") == event_key or e.get("kind") == "panic")
+            ]
+            pad_voices = evaluate_voices(
+                pad_events,
+                frame_index,
+                {"voiceCap": pad_voice_cap, "adsr": pad_adsr},
+            )
+            if not pad_voices:
+                return []
+            pad_opacity = _clamp_finite(pad.get("opacity", 1.0), 0.0, 1.0, 1.0)
+            pad_blend = pad.get("blend", "normal")
+            descs: list[dict] = []
+            for voice in pad_voices:
+                playhead = voice.get("footagePos", 0)
+                env = envelope_value(voice, frame_index, pad_adsr)
+                inst_op = pad_inst.get("opacity", 1.0)
+                op = inst_op * env * pad_opacity
+                if not isinstance(op, (int, float)) or op != op:
+                    op = 0.0
+                op = max(0.0, min(1.0, op))
+                vid = encode_voice_id(voice["voiceId"])
+                # NESTED only: path-prefix the voice_id (flat prefix '' →
+                # UNCHANGED → byte-identical). Cap to MAX_VOICE_ID_LENGTH.
+                if voice_id_prefix:
+                    vid = f"{voice_id_prefix}_{vid}"[:128]
+                descs.append(
+                    {
+                        "asset_path": pad_asset_path,
+                        "frame_count": pad_frame_count,
+                        "inst": pad_inst,
+                        "playhead": playhead,
+                        "chain": pad_chain,
+                        "voice_id": vid,
+                        "opacity": op,
+                        "blend_mode": pad_blend,
+                        "note": voice.get("note"),
+                    }
+                )
+            return descs
+
+        # B5.1 — recursive rack walk (post-order, mirror of flattenRackTree.ts).
+        # Leaf pads append to `voice_descriptors` (flat path, byte-identical);
+        # branch pads build a GROUP descriptor (children + branch chain/composite)
+        # appended to `group_descriptors`, expanded after PHASE 2 decode. Depth is
+        # bounded by MAX_BRANCH_DEPTH (fail-closed — a branch past the cap is
+        # dropped, never recursed → no stack overflow).
+        def _walk_rack_export(rack_node, rack_track_id, depth, branch_path):
+            pads = rack_node.get("pads")
+            if not isinstance(pads, list) or not pads:
+                return []
+            any_solo = any(isinstance(p, dict) and p.get("solo") is True for p in pads)
+            out_nodes: list = []  # ordered: leaf descriptor lists / group dicts
+            for pad_index, pad in enumerate(pads):
+                if not isinstance(pad, dict):
+                    continue
+                if pad.get("mute"):
+                    continue
+                if any_solo and not pad.get("solo"):
+                    continue
+                branch = pad.get("branch")
+                if isinstance(branch, dict):
+                    # BRANCH pad — depth cap (fail-closed, no recursion past cap).
+                    if depth + 1 > MAX_BRANCH_DEPTH:
+                        continue
+                    seg = f"b{pad_index}"
+                    child_path = seg if branch_path == "" else f"{branch_path}_{seg}"
+                    children = _walk_rack_export(
+                        branch, rack_track_id, depth + 1, child_path
+                    )
+                    if not children:
+                        continue
+                    comp = branch.get("composite") or {}
+                    branch_op = _clamp_finite(comp.get("opacity", 1.0), 0.0, 1.0, 1.0)
+                    pad_op = _clamp_finite(pad.get("opacity", 1.0), 0.0, 1.0, 1.0)
+                    group = {
+                        "layer_type": "group",
+                        "group_id": child_path,
+                        "children": children,
+                        "chain": branch.get("chain") or [],
+                        "opacity": max(0.0, min(1.0, branch_op * pad_op)),
+                        "blend_mode": comp.get("blend", "normal"),
+                    }
+                    out_nodes.append(group)
+                    continue
+                # LEAF pad.
+                pad_id = pad.get("id")
+                if pad_id is None:
+                    continue
+                event_key = (
+                    f"{rack_track_id}:{pad_id}"
+                    if branch_path == ""
+                    else f"{rack_track_id}:{branch_path}_{pad_id}"
+                )
+                for d in _leaf_pad_descriptors(
+                    pad, rack_track_id, event_key, branch_path
+                ):
+                    out_nodes.append(d)
+            return out_nodes
+
         for rack_track_id, rack in racks.items():
             if not isinstance(rack, dict):
                 continue
-            pads = rack.get("pads")
-            if not isinstance(pads, list) or not pads:
-                continue
-            # SOLO gate: if ANY pad is soloed, only soloed pads are audible.
-            any_solo = any(isinstance(p, dict) and p.get("solo") is True for p in pads)
-            for pad in pads:
-                if not isinstance(pad, dict):
-                    continue
-                # MUTE is the harder gate — muted pad is silent regardless of solo.
-                if pad.get("mute"):
-                    continue
-                # SOLO: when any pad is soloed, non-soloed pads are silenced.
-                if any_solo and not pad.get("solo"):
-                    continue
-                pad_inst = pad.get("instrument")
-                if not isinstance(pad_inst, dict):
-                    continue
-                pad_id = pad.get("id")
-                pad_adsr = pad.get("adsr") or {
-                    "attack": 0,
-                    "decay": 0,
-                    "sustain": 1,
-                    "release": 0,
-                }
-                pad_voice_cap = pad.get("voiceCap", 4)
-                pad_chain = pad_inst.get("chain") or []
-                pad_clip_id = pad_inst.get("clipId")
-                pad_asset = assets.get(pad_clip_id) if pad_clip_id is not None else None
-                if not pad_asset or not pad_asset.get("path"):
-                    # Unsourced pad — no layers (mirrors buildRackLayers early-out).
-                    continue
-                pad_asset_path = pad_asset["path"]
-                pad_frame_count = pad_asset.get("frameCount") or 1
-                # Per-pad event bucket: events stamped with the pad's composite
-                # instrumentId `${trackId}:${padId}` PLUS global panic.
-                pad_event_key = (
-                    f"{rack_track_id}:{pad_id}" if pad_id is not None else None
-                )
-                pad_events = [
-                    e
-                    for e in events
-                    if isinstance(e, dict)
-                    and (
-                        e.get("instrumentId") == pad_event_key
-                        or e.get("kind") == "panic"
-                    )
-                ]
-                pad_voices = evaluate_voices(
-                    pad_events,
-                    frame_index,
-                    {"voiceCap": pad_voice_cap, "adsr": pad_adsr},
-                )
-                if not pad_voices:
-                    continue
-                # Per-pad channel opacity (trust boundary clamp [0,1]).
-                pad_opacity = _clamp_finite(pad.get("opacity", 1.0), 0.0, 1.0, 1.0)
-                pad_blend = pad.get("blend", "normal")
-                for voice in pad_voices:
-                    playhead = voice.get("footagePos", 0)
-                    env = envelope_value(voice, frame_index, pad_adsr)
-                    inst_op = pad_inst.get("opacity", 1.0)
-                    # OPACITY: inst_opacity × env × pad_opacity, clamped [0,1].
-                    op = inst_op * env * pad_opacity
-                    if not isinstance(op, (int, float)) or op != op:
-                        op = 0.0
-                    op = max(0.0, min(1.0, op))
-                    vid = encode_voice_id(voice["voiceId"])
-                    voice_descriptors.append(
-                        {
-                            "asset_path": pad_asset_path,
-                            "frame_count": pad_frame_count,
-                            "inst": pad_inst,
-                            "playhead": playhead,
-                            "chain": pad_chain,
-                            "voice_id": vid,
-                            "opacity": op,
-                            # BLEND: per-pad blend REPLACES the layer's mode.
-                            "blend_mode": pad_blend,
-                            "note": voice.get("note"),
-                        }
-                    )
+            nodes = _walk_rack_export(rack, rack_track_id, 0, "")
+            for node in nodes:
+                if isinstance(node, dict) and node.get("layer_type") == "group":
+                    group_descriptors.append(node)
+                else:
+                    voice_descriptors.append(node)
 
         # ENFORCE-BEFORE-DECODE (design Memory-strategy): validate the per-frame
         # voice budget and the composite layer cap BEFORE opening/decoding any
@@ -1361,57 +1423,20 @@ class ExportManager:
         budget_errors = validate_voice_layers(
             [{"voice_id": d["voice_id"]} for d in voice_descriptors]
         )
-        # +1 for the base layer.
-        budget_errors += validate_composite_layer_count(len(voice_descriptors) + 1)
+        # B5.1 — composite-tree caps (depth + tree-wide voice count) for the
+        # branch GROUP descriptors. Mirrors the PREVIEW path's validate_composite_tree
+        # (enforce-before-decode). Empty group_descriptors → no-op (flat parity).
+        budget_errors += validate_composite_tree(group_descriptors)
+        # +1 for the base layer; +1 per top-level group (one emitted layer each).
+        budget_errors += validate_composite_layer_count(
+            len(voice_descriptors) + len(group_descriptors) + 1
+        )
         if budget_errors:
             raise ValueError("; ".join(budget_errors))
 
         # PHASE 2 — decode footage + assemble the final layer list (now safe).
         for d in voice_descriptors:
-            reader = self._get_voice_reader(d["asset_path"], voice_readers)
-            rfc = getattr(reader, "frame_count", d["frame_count"]) or d["frame_count"]
-            footage_idx = self._compute_voice_footage_frame(
-                d["inst"], d["playhead"], rfc, note=d.get("note")
-            )
-            # INJ-3 tail clamp parity with _handle_render_composite.
-            if rfc and footage_idx >= rfc - 2:
-                footage_idx = max(0, rfc - 3)
-
-            # B3.3 — per-channel RGB offset (chromatic time-displacement).
-            # When rgbOffset is non-zero, decode a frame per channel and
-            # combine them into a single RGBA frame. rgbOffset absent/{0,0,0}
-            # → single decode from footage_idx (byte-identical to B3.2).
-            rgb_indices = self._compute_voice_rgb_frame_indices(
-                d["inst"], footage_idx, rfc
-            )
-            if rgb_indices is not None:
-                # Clamp each channel index with INJ-3 tail clamp.
-                def _tail_clamp(idx, rfc=rfc):
-                    if rfc and idx >= rfc - 2:
-                        return max(0, rfc - 3)
-                    return idx
-
-                r_idx = _tail_clamp(rgb_indices["r"])
-                g_idx = _tail_clamp(rgb_indices["g"])
-                b_idx = _tail_clamp(rgb_indices["b"])
-                vframe_r = reader.decode_frame(r_idx)
-                vframe_g = reader.decode_frame(g_idx)
-                vframe_b = reader.decode_frame(b_idx)
-                # Combine: R from vframe_r, G from vframe_g, B from vframe_b,
-                # alpha from base footage_idx frame.
-                vframe_base = reader.decode_frame(footage_idx)
-                vframe = np.stack(
-                    [
-                        vframe_r[:, :, 0],  # R channel from R-offset frame
-                        vframe_g[:, :, 1],  # G channel from G-offset frame
-                        vframe_b[:, :, 2],  # B channel from B-offset frame
-                        vframe_base[:, :, 3],  # Alpha from base frame
-                    ],
-                    axis=2,
-                )
-            else:
-                vframe = reader.decode_frame(footage_idx)
-
+            vframe = self._decode_voice_descriptor(d, voice_readers)
             layers.append(
                 {
                     "frame": vframe,
@@ -1424,11 +1449,83 @@ class ExportManager:
                 }
             )
 
+        # B5.1 — expand any branch GROUP descriptors (composite-tree). Each group
+        # recursively composites its children into a sub-frame, applies the branch
+        # chain to that sub-frame, and emits ONE layer the parent composite blends
+        # upward — the SAME engine.composite_tree.expand_group_layer the PREVIEW
+        # path uses (preview == export). The leaf children are decoded via the
+        # SAME _decode_voice_descriptor (footage parity). State keys are the
+        # PATH-FROM-ROOT ids (no sibling aliasing). No branch pads → no groups →
+        # export byte-identical to the flat path.
+        group_new_states: dict = {}
+        for group in group_descriptors:
+
+            def _decode_leaf(child: dict) -> np.ndarray:
+                return self._decode_voice_descriptor(child, voice_readers)
+
+            layers.append(
+                expand_group_layer(
+                    group,
+                    decode_leaf=_decode_leaf,
+                    resolution=resolution,
+                    project_seed=project_seed,
+                    frame_index=frame_index,
+                    layer_states=voice_states,
+                    new_states=group_new_states,
+                )
+            )
+
         # Reuse the merged compositor verbatim, threading per-voice state.
         out, new_states = render_composite(
             layers, resolution, project_seed, voice_states
         )
+        if group_new_states:
+            new_states = {**new_states, **group_new_states}
         return out, new_states
+
+    def _decode_voice_descriptor(self, d: dict, voice_readers: dict) -> np.ndarray:
+        """B5.1 — decode ONE voice descriptor to an RGBA frame (extracted PHASE 2).
+
+        Footage frame via ``_compute_voice_footage_frame`` + INJ-3 tail clamp +
+        B3.3 per-channel RGB offset, exactly as the flat PHASE 2 loop did. Used
+        both by the flat loop and by the composite-tree group expander's
+        ``decode_leaf`` callback so a branch child decodes byte-identically to the
+        same leaf on the flat path (export parity).
+        """
+        reader = self._get_voice_reader(d["asset_path"], voice_readers)
+        rfc = getattr(reader, "frame_count", d["frame_count"]) or d["frame_count"]
+        footage_idx = self._compute_voice_footage_frame(
+            d["inst"], d["playhead"], rfc, note=d.get("note")
+        )
+        # INJ-3 tail clamp parity with _handle_render_composite.
+        if rfc and footage_idx >= rfc - 2:
+            footage_idx = max(0, rfc - 3)
+
+        rgb_indices = self._compute_voice_rgb_frame_indices(d["inst"], footage_idx, rfc)
+        if rgb_indices is not None:
+
+            def _tail_clamp(idx, rfc=rfc):
+                if rfc and idx >= rfc - 2:
+                    return max(0, rfc - 3)
+                return idx
+
+            r_idx = _tail_clamp(rgb_indices["r"])
+            g_idx = _tail_clamp(rgb_indices["g"])
+            b_idx = _tail_clamp(rgb_indices["b"])
+            vframe_r = reader.decode_frame(r_idx)
+            vframe_g = reader.decode_frame(g_idx)
+            vframe_b = reader.decode_frame(b_idx)
+            vframe_base = reader.decode_frame(footage_idx)
+            return np.stack(
+                [
+                    vframe_r[:, :, 0],
+                    vframe_g[:, :, 1],
+                    vframe_b[:, :, 2],
+                    vframe_base[:, :, 3],
+                ],
+                axis=2,
+            )
+        return reader.decode_frame(footage_idx)
 
     # ------------------------------------------------------------------
     # GIF export

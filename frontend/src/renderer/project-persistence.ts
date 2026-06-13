@@ -15,7 +15,7 @@ import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
 import { useInstrumentsStore } from './stores/instruments'
 import type { SamplerInstrumentV1, RackNode, RackPad } from './components/instruments/types'
-import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX } from './components/instruments/types'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, MAX_BRANCH_DEPTH } from './components/instruments/types'
 import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
@@ -151,34 +151,86 @@ const MAX_PADS_PER_RACK = 64
  *
  * Returns a validated RackPad, or null if the pad must be DROPPED.
  */
-function validateRackPad(raw: unknown): RackPad | null {
+function validateRackPad(raw: unknown, depth = 0): RackPad | null {
   if (typeof raw !== 'object' || raw === null) return null
   const r = raw as Record<string, unknown>
 
   if (typeof r.id !== 'string' || r.id.length === 0) return null
-
-  const inst = r.instrument
-  if (typeof inst !== 'object' || inst === null) return null
-  const ri = inst as Record<string, unknown>
-  if (ri.type !== 'sampler') return null
-  if (typeof ri.clipId !== 'string') return null
 
   const opacity = clampFinite(Number(r.opacity), RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, 1)
   const blend: BlendMode = VALID_BLEND_MODES.has(r.blend as BlendMode) ? (r.blend as BlendMode) : 'normal'
   const mute = Boolean(r.mute)
   const solo = Boolean(r.solo)
 
-  const instrument: SamplerInstrumentV1 = {
-    id: typeof ri.id === 'string' ? ri.id : 'sampler',
-    type: 'sampler',
-    clipId: ri.clipId,
-    startFrame: Math.round(clampFinite(Number(ri.startFrame), 0, 1_000_000, 0)),
-    speed: clampFinite(Number(ri.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
-    opacity: clampFinite(Number(ri.opacity), 0, 1, 1),
-    blendMode: VALID_BLEND_MODES.has(ri.blendMode as BlendMode) ? (ri.blendMode as BlendMode) : 'normal',
+  // B5.1 — a pad may hold a BRANCH (nested RackNode) instead of a leaf sampler.
+  // Recurse into the branch (depth-capped: a branch nested past MAX_BRANCH_DEPTH
+  // is DROPPED to the leaf, fail-closed — a weaponized .glitch can't blow the
+  // stack). A pad with a valid branch is a GROUP; its leaf `instrument` is still
+  // validated (model invariant — present but ignored for rendering) but may be a
+  // placeholder. When `branch` is absent → flat leaf pad, byte-identical to B4.
+  let branch: RackNode | undefined
+  if (typeof r.branch === 'object' && r.branch !== null && depth < MAX_BRANCH_DEPTH) {
+    const validated = validateRackNodeBranch(r.branch, r.id, depth + 1)
+    if (validated) branch = validated
   }
 
-  return { id: r.id, instrument, opacity, blend, mute, solo }
+  // The leaf instrument. A BRANCH pad's instrument may be a placeholder, so when
+  // a branch is present an invalid/absent instrument falls back to a default
+  // placeholder (the pad is still a valid group). A LEAF pad with no valid
+  // sampler instrument is dropped exactly as B4.
+  const inst = r.instrument
+  let instrument: SamplerInstrumentV1 | null = null
+  if (typeof inst === 'object' && inst !== null) {
+    const ri = inst as Record<string, unknown>
+    if (ri.type === 'sampler' && typeof ri.clipId === 'string') {
+      instrument = {
+        id: typeof ri.id === 'string' ? ri.id : 'sampler',
+        type: 'sampler',
+        clipId: ri.clipId,
+        startFrame: Math.round(clampFinite(Number(ri.startFrame), 0, 1_000_000, 0)),
+        speed: clampFinite(Number(ri.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
+        opacity: clampFinite(Number(ri.opacity), 0, 1, 1),
+        blendMode: VALID_BLEND_MODES.has(ri.blendMode as BlendMode) ? (ri.blendMode as BlendMode) : 'normal',
+      }
+    }
+  }
+  if (!instrument) {
+    if (!branch) return null // LEAF pad with no valid sampler → drop (B4 behavior).
+    // BRANCH pad placeholder leaf (ignored for rendering).
+    instrument = { id: 'sampler', type: 'sampler', clipId: '', startFrame: 0, speed: 1, opacity: 1, blendMode: 'normal' }
+  }
+
+  return { id: r.id, instrument, opacity, blend, mute, solo, ...(branch ? { branch } : {}) }
+}
+
+/**
+ * B5.1 — validate a branch RackNode (a pad's nested rack). Recurses into pads
+ * (which may themselves hold deeper branches — bounded by MAX_BRANCH_DEPTH).
+ * Carries the branch-level chain/composite. A branch with zero valid pads is
+ * dropped (the pad falls back to a leaf). Trust boundary: opacity clamped, blend
+ * validated, depth-capped.
+ */
+function validateRackNodeBranch(raw: unknown, parentId: string, depth: number): RackNode | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const r = raw as Record<string, unknown>
+  if (!Array.isArray(r.pads)) return null
+  const pads: RackPad[] = []
+  for (const entry of r.pads) {
+    if (pads.length >= MAX_PADS_PER_RACK) break
+    const pad = validateRackPad(entry, depth)
+    if (pad !== null) pads.push(pad)
+  }
+  if (pads.length === 0) return null
+  const node: RackNode = { id: typeof r.id === 'string' ? r.id : 'rack', type: 'rack', pads }
+  // Branch-level composite (how the branch blends into its parent).
+  if (typeof r.composite === 'object' && r.composite !== null) {
+    const c = r.composite as Record<string, unknown>
+    node.composite = {
+      opacity: clampFinite(Number(c.opacity), RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, 1),
+      blend: VALID_BLEND_MODES.has(c.blend as BlendMode) ? (c.blend as BlendMode) : 'normal',
+    }
+  }
+  return node
 }
 
 /**

@@ -56,6 +56,27 @@ MAX_COMPOSITE_LAYERS = 50
 # _handle_render_composite BEFORE the per-layer decode loop, mirroring INJ-3.
 MAX_TOTAL_VOICES_PER_RENDER = 4
 
+# B5.1 (INSTRUMENTS-BUILD-PLAN.md §B5): Sample Rack grouping (composite-tree)
+# recursion caps. A pad may hold a BRANCH (a nested RackNode), making the render
+# recursive ("one note fires an ensemble"). These are the recursion trust
+# boundary — a hand-edited / hostile project carrying a deeply-nested or
+# fan-out-heavy tree must be REJECTED (not OOM / infinite-recurse). Enforced
+# fail-closed in engine/composite_tree.validate_composite_tree BEFORE any decode
+# (enforce-before-decode, mirroring INJ-3 / MAX_TOTAL_VOICES_PER_RENDER), and
+# re-checked in expand_group_layer during the recursive walk.
+#
+# MAX_BRANCH_DEPTH: levels of nested branches under the top-level rack (root =
+# depth 0; one branch down = depth 1). Bounds the deepest branch; a leaf pad does
+# NOT increment depth.
+#
+# MAX_BRANCH_VOICES_PER_RENDER: the tree-wide SUM of leaf-voice layers (all
+# branches + leaves). SEPARATE from the flat MAX_TOTAL_VOICES_PER_RENDER (4) so
+# the flat per-track polyphony cap is UNCHANGED — a flat rack still emits ≤4
+# voices per pad exactly as today; only a grouped render uses this higher ceiling.
+# MIRROR of frontend types.ts (MAX_BRANCH_DEPTH / MAX_BRANCH_VOICES_PER_RENDER).
+MAX_BRANCH_DEPTH = 4
+MAX_BRANCH_VOICES_PER_RENDER = 64
+
 # P5a.4 (INSTRUMENTS.md §10 P1-2): cap the serialized performance event list an
 # export may replay. A capture buffer of N events crosses the IPC trust boundary
 # as one JSON payload; ~48 B/event × 10_000 ≈ 480 KB, comfortably one ZMQ
