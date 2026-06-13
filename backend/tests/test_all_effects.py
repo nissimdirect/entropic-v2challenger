@@ -130,6 +130,87 @@ class TestAllEffectsDeterminism:
         )
 
 
+def _visible_change_or_warmup(
+    fn, params, *, threshold: float = 0.5, max_warmup: int = 8
+) -> float:
+    """Apply an effect for up to ``max_warmup`` frames and return the highest
+    mean-absolute-diff observed relative to the *original* frame.
+
+    WHY WARM-UP EXISTS
+    ------------------
+    Some effects are intentionally stateful: they seed their internal state on
+    frame 0 and return the frame **unchanged** (a "first-frame passthrough").
+    Examples: cellular_pixel_sort seeds its CA grid; reaction_mosh initialises
+    its Gray-Scott A/B fields; temporal_dispersion fills its phase buffer.
+    This passthrough is *correct* — the effect needs a baseline before it can
+    apply its transformation.  Testing only frame 0 would falsely flag these
+    effects as broken.
+
+    The right test semantics are: "does this effect produce visible change
+    within the first N frames of a stream?"  That is exactly what this helper
+    checks.  State is threaded across calls (state_out → state_in), frame_index
+    is advanced, and a non-repeating moving-gradient input is used so that
+    temporal effects have genuinely varying content to act on.
+
+    The helper is GENERAL — it relies only on the diff being ≥ threshold on
+    *some* frame within the window.  No effect names are hardcoded.
+
+    ANTI-GAMING GUARANTEE
+    ---------------------
+    ``max_warmup`` frames of identical passthrough still yield diff=0, so a
+    truly-static effect (one that returns frame.copy() for all frames) will
+    score 0.0 and the caller's assert will fail.  This is verified by
+    ``TestAllEffectsVisibleChange.test_visible_change_test_still_catches_static_effect``.
+    """
+    h, w = 64, 64
+    rng = np.random.default_rng(42)
+
+    state: dict | None = None
+    best_diff: float = 0.0
+
+    for fi in range(max_warmup):
+        # Vary the input frame per iteration so temporal effects (which compare
+        # consecutive frames) always have something new to act on.  Use a
+        # deterministic moving gradient: base noise + a shifted sine ramp.
+        base = rng.integers(0, 256, (h, w, 4), dtype=np.uint8)
+        shift = float(fi * 16)
+        ramp = np.clip(
+            np.linspace(shift, shift + 255, w, dtype=np.float32)[
+                np.newaxis, :, np.newaxis
+            ]
+            * np.ones((h, 1, 1), dtype=np.float32),
+            0,
+            255,
+        ).astype(np.uint8)
+        ramp_rgba = np.concatenate(
+            [ramp, ramp, ramp, np.full((h, w, 1), 255, np.uint8)], axis=2
+        )
+        frame = np.clip(
+            base.astype(np.int32) + ramp_rgba.astype(np.int32), 0, 255
+        ).astype(np.uint8)
+
+        # Reference is the *original* un-effected frame for this iteration.
+        ref = frame.copy()
+
+        kw = {"frame_index": fi, "seed": 42, "resolution": (w, h)}
+        result, state = fn(frame, params, state, **kw)
+
+        diff = float(
+            np.mean(
+                np.abs(
+                    result[:, :, :3].astype(np.float64)
+                    - ref[:, :, :3].astype(np.float64)
+                )
+            )
+        )
+        if diff > best_diff:
+            best_diff = diff
+        if best_diff >= threshold:
+            break
+
+    return best_diff
+
+
 class TestAllEffectsVisibleChange:
     """Effects with non-trivial default params should visibly change the frame."""
 
@@ -213,25 +294,95 @@ class TestAllEffectsVisibleChange:
         "fx.subliminal_spray",
     }
 
+    # Visible-change threshold (mean absolute diff over RGB channels, 0-255 scale).
+    DIFF_THRESHOLD: float = 0.5
+    # Maximum frames to feed an effect when frame-0 diff is below threshold.
+    WARMUP_FRAMES: int = 8
+
     def test_visible_change_with_defaults(self, effect_entry):
-        """Effect with non-zero default params produces a different frame."""
+        """Effect with non-zero default params produces a different frame.
+
+        Stateful effects (e.g. cellular_pixel_sort, reaction_mosh,
+        temporal_dispersion) legitimately return the frame UNCHANGED on frame 0
+        while seeding their internal state.  This is correct behaviour — the
+        effect needs a baseline (CA grid, Gray-Scott A/B fields, phase buffer)
+        before it can apply its transformation.
+
+        When the first-frame diff is below threshold we run a short warm-up
+        sequence (up to WARMUP_FRAMES), threading state_out → state_in and
+        advancing frame_index with varied input, then assert visible change
+        appeared within that window.  This is the right test semantics: "does
+        the effect produce visible change in the first N frames of a stream?"
+
+        The warm-up is GENERAL — no effect names are hardcoded.  A truly-static
+        effect (one that always returns frame.copy()) will score 0.0 through the
+        entire window and still fail this test.  That guarantee is verified by
+        test_visible_change_test_still_catches_static_effect below.
+        """
         eid, info = effect_entry
         if eid in self.IDENTITY_BY_DEFAULT:
             pytest.skip(f"{eid} is identity-by-default (color correction tool)")
-        frame = _frame()
+
         params = _default_params(info)
 
-        # Some effects like channelshift with g_offset=0 may not change
-        # if only some channels have zero offsets, but overall should differ.
-        result, _ = info["fn"](frame, params, None, **KW)
-        diff = np.mean(
-            np.abs(result[:, :, :3].astype(float) - frame[:, :, :3].astype(float))
+        # First attempt — single frame, no prior state (existing behaviour).
+        frame = _frame()
+        result, state_out = info["fn"](frame, params, None, **KW)
+        diff = float(
+            np.mean(
+                np.abs(
+                    result[:, :, :3].astype(np.float64)
+                    - frame[:, :, :3].astype(np.float64)
+                )
+            )
         )
 
-        # Every effect should modify the frame with default params.
-        # Even invert (no params) changes pixels.
-        assert diff > 0.5, (
-            f"{eid}: mean absolute diff = {diff:.4f}, expected visible change"
+        if diff >= self.DIFF_THRESHOLD:
+            # Fast path: effect already produces visible change on frame 0.
+            return
+
+        # Slow path: effect returned ~0 diff on frame 0.  This is expected for
+        # stateful effects that seed state before transforming.  Run the warm-up
+        # window to verify that visible change appears on a subsequent frame.
+        best_diff = _visible_change_or_warmup(
+            info["fn"],
+            params,
+            threshold=self.DIFF_THRESHOLD,
+            max_warmup=self.WARMUP_FRAMES,
+        )
+
+        assert best_diff >= self.DIFF_THRESHOLD, (
+            f"{eid}: no visible change in {self.WARMUP_FRAMES} warm-up frames "
+            f"(best mean abs diff = {best_diff:.4f}, threshold = {self.DIFF_THRESHOLD}). "
+            f"Either add {eid!r} to IDENTITY_BY_DEFAULT (if identity-by-design) "
+            f"or fix the effect so it produces visible change within the warm-up window."
+        )
+
+    def test_visible_change_test_still_catches_static_effect(self):
+        """Anti-gaming guard: warm-up helper must FAIL a truly-static effect.
+
+        A deliberately-static effect that returns frame.copy() for ALL frames
+        (including warm-up frames) must NOT pass the visible-change check.
+        If this test fails it means the warm-up logic is too lenient — a static
+        passthrough would slip through and the CI check would be meaningless.
+        """
+
+        def static_apply(frame, params, state_in, *, frame_index, seed, resolution):
+            """Trivially static: always returns the input frame unchanged."""
+            return frame.copy(), state_in  # no-op for every frame
+
+        params: dict = {}
+        best_diff = _visible_change_or_warmup(
+            static_apply,
+            params,
+            threshold=self.DIFF_THRESHOLD,
+            max_warmup=self.WARMUP_FRAMES,
+        )
+
+        # The guard must score below threshold — static effects must not pass.
+        assert best_diff < self.DIFF_THRESHOLD, (
+            f"Anti-gaming guard BROKEN: static passthrough effect scored diff={best_diff:.4f} "
+            f">= threshold={self.DIFF_THRESHOLD}. The warm-up helper is too lenient."
         )
 
 
