@@ -25,6 +25,8 @@ import {
   MAX_TOTAL_EDGES,
   RACK_PAD_OPACITY_MIN,
   RACK_PAD_OPACITY_MAX,
+  RACK_CHOKE_GROUP_MIN,
+  RACK_CHOKE_GROUP_MAX,
 } from '../components/instruments/types'
 import { clampFinite } from '../../shared/numeric'
 import type { BlendMode } from '../../shared/types'
@@ -134,6 +136,14 @@ interface InstrumentsState {
    * circularly) — the COMPONENT calls `clearRackPadEvents` alongside this.
    */
   removeRackPad: (trackId: string, padId: string) => void
+
+  /**
+   * B4-choke — set a rack pad's choke-group membership. `group` is null (clear) or
+   * a small int in [RACK_CHOKE_GROUP_MIN, RACK_CHOKE_GROUP_MAX]; an out-of-range or
+   * non-finite value is a no-op (trust boundary — the membership is unchanged
+   * rather than silently coerced). No-op if track/rack/pad absent. Immutable.
+   */
+  setRackPadChokeGroup: (trackId: string, padId: string, group: number | null) => void
 
   // --- B4.2 Sample Rack macros (fan-out capped at the store-write boundary) ---
   /**
@@ -341,6 +351,34 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
           [trackId]: { ...rack, pads, ...(macros ? { macros } : {}) },
         },
       }
+    }),
+
+  // B4-choke — set a pad's choke-group membership (null or small int [1,8]).
+  setRackPadChokeGroup: (trackId, padId, group) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const idx = rack.pads.findIndex((p) => p.id === padId)
+      if (idx === -1) return state
+      // Trust boundary: only null or an in-range integer is accepted. Anything
+      // else (NaN, out-of-range, fractional) leaves membership unchanged.
+      let next: number | null
+      if (group === null) {
+        next = null
+      } else if (
+        Number.isInteger(group) &&
+        group >= RACK_CHOKE_GROUP_MIN &&
+        group <= RACK_CHOKE_GROUP_MAX
+      ) {
+        next = group
+      } else {
+        return state // invalid → no-op
+      }
+      const old = rack.pads[idx]
+      if (old.chokeGroup === next) return state // no change
+      const pads = rack.pads.slice()
+      pads[idx] = { ...old, chokeGroup: next }
+      return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
     }),
 
   // --- B4.2 Sample Rack macros — store-write fan-out caps (layer 1) ---

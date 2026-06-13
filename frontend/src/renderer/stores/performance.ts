@@ -82,8 +82,42 @@ interface PerformanceState {
    * reads in App.tsx — buildRackLayers reads `trackEvents[\`${trackId}:${padId}\`]`).
    * Event shape is identical to triggerPad's, with `instrumentId='${trackId}:${padId}'`.
    * This is the missing UI→render link that makes a rack pad audible.
+   *
+   * B4-choke — when `chokeGroup` is a non-null int AND `chokeSiblingPadIds` is a
+   * non-empty array, this:
+   *   (1) STAMPS the triggered pad's own trigger event with `chokeGroup` (so the
+   *       voice carries `_chokeGroup` — frontend voiceFSM ~315 and backend
+   *       voice_replay.py ~305-308 both read it onto the voice); and
+   *   (2) writes a silencing `kind:'choke'` event (carrying that same `chokeGroup`
+   *       + `instrumentId='${trackId}:${siblingId}'`) into EACH sibling pad's
+   *       composite-key stream (`trackEvents['${trackId}:${siblingId}']`) at the
+   *       SAME `frameIndex`.
+   *
+   * Because buildRackLayers evaluates each pad's stream INDEPENDENTLY
+   * (evaluateVoices per pad), a 'choke' event in a sibling's isolated single-pad
+   * stream idles that sibling's active voice atomically at the trigger frame
+   * (T8 — voiceFSM matches voices by `_chokeGroup === group`). This is the
+   * per-pad-stream analogue of the drumRack choke-on-trigger.
+   *
+   * Why 'choke' not 'panic': the backend buckets 'panic' GLOBALLY
+   * (export.py ~1212/1319: `... or kind=='panic'`), so a synthetic panic written
+   * into a sibling stream would over-choke EVERY pad and EVERY per-track sampler
+   * in EXPORT. 'choke' is bucketed PER-INSTRUMENTID (no global clause), so a choke
+   * stamped with the sibling's composite key reaches ONLY that sibling's bucket —
+   * correct in BOTH preview and export, with ZERO backend changes.
+   *
+   * Decoupling: the rack model (pad chokeGroups) lives in the instruments store;
+   * THIS store does not import it. The COMPONENT (RackDevice) resolves the group +
+   * sibling ids and passes them in. Omitting them (or a null group / empty array)
+   * = today's behavior exactly (regression-safe).
    */
-  triggerRackPad: (trackId: string, padId: string, frameIndex: number) => void;
+  triggerRackPad: (
+    trackId: string,
+    padId: string,
+    frameIndex: number,
+    chokeSiblingPadIds?: string[],
+    chokeGroup?: number | null,
+  ) => void;
   /**
    * B4-pad-delete — clear a deleted rack pad's trigger events. Immutably removes
    * the composite key `${trackId}:${padId}` from `trackEvents` so a deleted pad
@@ -166,24 +200,71 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     set(updates);
   },
 
-  triggerRackPad: (trackId, padId, frameIndex) => {
+  triggerRackPad: (trackId, padId, frameIndex, chokeSiblingPadIds, chokeGroup) => {
     // B4-editor — composite key the rack render path consumes (App.tsx:1131).
     // Non-finite / negative frameIndex is dropped (trust boundary — numeric guard,
     // mirrors triggerPad). No drumRack lookup: a rack pad is NOT a drumRack pad.
     if (!trackId || !padId) return;
     if (!Number.isFinite(frameIndex) || frameIndex < 0) return;
+    const frame = Math.round(frameIndex);
     const key = `${trackId}:${padId}`;
-    const idx = _eventIndex++;
+
+    // B4-choke — a valid choke group is a finite int (the component passes the
+    // triggered pad's chokeGroup; null/undefined → no choke). When present it is
+    // (a) STAMPED onto the triggered pad's own trigger event so the voice carries
+    // `_chokeGroup`, and (b) carried on each sibling's silencing 'choke' event.
+    const hasGroup =
+      chokeGroup != null && Number.isInteger(chokeGroup);
+
     const ev: TriggerEvent = {
-      frameIndex: Math.round(frameIndex),
-      eventIndex: idx,
+      frameIndex: frame,
+      eventIndex: _eventIndex++,
       note: 60, // default MIDI note (mirrors triggerPad)
       velocity: 127,
       kind: 'trigger',
       instrumentId: key, // '${trackId}:${padId}' — matches evaluateVoices' instrumentId
+      // Stamp the group so the triggered voice carries `_chokeGroup` (voiceFSM ~315
+      // / voice_replay.py ~305-308). Without this, a later 'choke' couldn't match.
+      ...(hasGroup ? { chokeGroup: chokeGroup as number } : {}),
     };
-    const existing = get().trackEvents[key] ?? [];
-    set({ trackEvents: { ...get().trackEvents, [key]: [...existing, ev] } });
+
+    // Build the next trackEvents immutably. Start with the triggered pad's append.
+    const current = get().trackEvents;
+    const existing = current[key] ?? [];
+    const next: Record<string, TriggerEvent[]> = {
+      ...current,
+      [key]: [...existing, ev],
+    };
+
+    // B4-choke — silence each SIBLING pad at the SAME frame. Each sibling has its
+    // OWN composite-key stream which buildRackLayers evaluates independently, so a
+    // 'choke' event (carrying the group + the sibling's own instrumentId) in that
+    // isolated single-pad stream idles the sibling's active voice atomically (T8 —
+    // voiceFSM matches `_chokeGroup === group`). We use 'choke' (NOT 'panic')
+    // because the backend buckets 'panic' GLOBALLY but 'choke' PER-INSTRUMENTID:
+    // a panic written here would over-choke every pad + every sampler in EXPORT,
+    // whereas a choke stamped with the sibling's key reaches only that bucket.
+    // Default (no group / no siblings) = today's behavior exactly (regression-safe).
+    if (hasGroup && Array.isArray(chokeSiblingPadIds)) {
+      for (const siblingId of chokeSiblingPadIds) {
+        // Skip falsy / self ids (defensive — the component already excludes self).
+        if (!siblingId || siblingId === padId) continue;
+        const siblingKey = `${trackId}:${siblingId}`;
+        const silence: TriggerEvent = {
+          frameIndex: frame,
+          eventIndex: _eventIndex++,
+          note: 60,
+          velocity: 0,
+          kind: 'choke',
+          instrumentId: siblingKey, // per-instrumentId bucketing → reaches only this sibling
+          chokeGroup: chokeGroup as number,
+        };
+        const sibExisting = next[siblingKey] ?? current[siblingKey] ?? [];
+        next[siblingKey] = [...sibExisting, silence];
+      }
+    }
+
+    set({ trackEvents: next });
   },
 
   clearRackPadEvents: (trackId, padId) => {
