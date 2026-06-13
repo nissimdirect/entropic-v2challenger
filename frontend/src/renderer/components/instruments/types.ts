@@ -148,3 +148,52 @@ export interface SamplerVoiceLayer {
 /** Hard speed bounds (reverse..forward), per B1 plan. */
 export const SAMPLER_SPEED_MIN = -8
 export const SAMPLER_SPEED_MAX = 8
+
+/**
+ * B4.1 — Sample Rack data model (INSTRUMENTS-BUILD-PLAN.md §B4).
+ *
+ * A rack hosts N pads; each pad is a CHANNEL holding one Sampler leaf. All pad
+ * channels are SUMMED to ONE rack output (composited via the existing backend
+ * compositor — opacity/blend per pad). This slice (B4.1) builds ONLY the data
+ * model + per-pad channel summing (opacity / blend / mute / solo). Sends,
+ * macros, choke-groups and the editor UI are LATER B4 slices.
+ *
+ * The full §B4 leaf is `{ instrument, chain: EffectInstance[], sends: Send[] }`.
+ * B4.1 ships `instrument` + a typed-but-unused `chain`/`sends` placeholder (see
+ * RackPad below). Per the plan, those fields are left absent/unused with a TODO;
+ * their BEHAVIOR is NOT built here.
+ *
+ * Additive optional — NO PROJECT_VERSION bump (UE.7 precedent: missing →
+ * undefined → engine uses safe defaults; a project with no rack renders
+ * byte-identical to today).
+ */
+export interface RackPad {
+  /** Stable pad identity (cross-store key; survives reorder). */
+  id: string
+  /** The pad's sample leaf. clipId '' = unsourced (renders nothing). */
+  instrument: SamplerInstrumentV1
+  /** Per-pad channel opacity, clamped [0,1]. Multiplies onto the voice opacity. */
+  opacity: number
+  /** Per-pad channel blend mode (how this channel composites onto the sum). */
+  blend: BlendMode
+  /** Muted pad contributes NOTHING to the rack output. */
+  mute: boolean
+  /** If ANY pad in the rack is soloed, only soloed pads render. */
+  solo: boolean
+  // ---- LATER B4 slices (typed-but-unused; do NOT build behavior here) ----
+  // TODO(B4.2+): per-pad effect chain.   chain?: EffectInstance[]
+  // TODO(B4.3+): per-pad sends to return busses.   sends?: Send[]
+  // TODO(B4.4+): choke-group membership.   chokeGroup?: number | null
+}
+
+export interface RackNode {
+  /** Stable rack identity. */
+  id: string
+  type: 'rack'
+  /** The pad channels, in display order. Each is summed to the rack output. */
+  pads: RackPad[]
+}
+
+/** Per-pad opacity bounds (mirrors sampler opacity clamp). */
+export const RACK_PAD_OPACITY_MIN = 0
+export const RACK_PAD_OPACITY_MAX = 1
