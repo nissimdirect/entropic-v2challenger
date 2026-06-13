@@ -32,6 +32,7 @@ import Inspector from './components/inspector/Inspector'
 //        buildSamplerLayer kept for legacy callers outside the voice path.
 import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
+import RackDevice from './components/instruments/RackDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveRackMacros } from './components/instruments/resolveRackMacros'
@@ -3357,6 +3358,13 @@ function AppInner() {
         {selectedTrackId && instruments[selectedTrackId]
           && tracks.find((t) => t.id === selectedTrackId)?.type === 'performance' && (
           <SamplerDevice trackId={selectedTrackId} />
+        )}
+        {/* B4-editor: a selected Performance track that hosts a Sample Rack shows
+            its RackDevice (pad grid + per-pad editor). RackDevice returns null
+            when the track has no rack, so this mount is safe for non-rack tracks. */}
+        {selectedTrackId
+          && tracks.find((t) => t.id === selectedTrackId)?.type === 'performance' && (
+          <RackDevice trackId={selectedTrackId} />
         )}
         <DeviceChain
           onFreezeUpTo={handleFreezeUpTo}

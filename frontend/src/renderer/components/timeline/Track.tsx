@@ -308,6 +308,11 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           if (id === 'sampler') {
             useInstrumentsStore.getState().addSampler(track.id)
             useTimelineStore.getState().selectTrack(track.id)
+          } else if (id === 'drum-rack') {
+            // B4-editor: dropping the "Sample Rack" entry creates a RackNode on
+            // the track (mirrors the sampler drop path; no video-clip gate).
+            useInstrumentsStore.getState().addRack(track.id)
+            useTimelineStore.getState().selectTrack(track.id)
           }
         }}
       >

@@ -76,6 +76,14 @@ interface PerformanceState {
 
   // Pad trigger actions
   triggerPad: (padId: string, frameIndex: number, trackId?: string) => void;
+  /**
+   * B4-editor — trigger a Sample Rack pad. Writes a TriggerEvent to
+   * `trackEvents['${trackId}:${padId}']` (the COMPOSITE key the rack render path
+   * reads in App.tsx — buildRackLayers reads `trackEvents[\`${trackId}:${padId}\`]`).
+   * Event shape is identical to triggerPad's, with `instrumentId='${trackId}:${padId}'`.
+   * This is the missing UI→render link that makes a rack pad audible.
+   */
+  triggerRackPad: (trackId: string, padId: string, frameIndex: number) => void;
   releasePad: (padId: string, frameIndex: number, trackId?: string) => void;
   forceOffPad: (padId: string) => void;
   panicAll: () => void;
@@ -148,6 +156,26 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     }
 
     set(updates);
+  },
+
+  triggerRackPad: (trackId, padId, frameIndex) => {
+    // B4-editor — composite key the rack render path consumes (App.tsx:1131).
+    // Non-finite / negative frameIndex is dropped (trust boundary — numeric guard,
+    // mirrors triggerPad). No drumRack lookup: a rack pad is NOT a drumRack pad.
+    if (!trackId || !padId) return;
+    if (!Number.isFinite(frameIndex) || frameIndex < 0) return;
+    const key = `${trackId}:${padId}`;
+    const idx = _eventIndex++;
+    const ev: TriggerEvent = {
+      frameIndex: Math.round(frameIndex),
+      eventIndex: idx,
+      note: 60, // default MIDI note (mirrors triggerPad)
+      velocity: 127,
+      kind: 'trigger',
+      instrumentId: key, // '${trackId}:${padId}' — matches evaluateVoices' instrumentId
+    };
+    const existing = get().trackEvents[key] ?? [];
+    set({ trackEvents: { ...get().trackEvents, [key]: [...existing, ev] } });
   },
 
   releasePad: (padId, frameIndex, trackId) => {

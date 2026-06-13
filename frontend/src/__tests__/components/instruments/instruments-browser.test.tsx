@@ -19,17 +19,38 @@ function setTracks(tracks: unknown, selectedTrackId: string | null) {
 const VIDEO_TRACK_WITH_CLIP = { id: 'v1', type: 'video', clips: [{ id: 'c1', assetPath: '/x.mp4', position: 0, duration: 30, trimStart: 0, trimEnd: 30 }] }
 
 beforeEach(() => {
-  useInstrumentsStore.setState({ instruments: {} })
+  useInstrumentsStore.setState({ instruments: {}, racks: {} })
   setTracks([], null)
 })
 afterEach(() => cleanup())
 
 describe('InstrumentsBrowser', () => {
-  it('lists RACKS with Drum Rack and Wavetable disabled', () => {
+  it('lists RACKS with Sample Rack enabled (labelled "Sample Rack") and Wavetable disabled', () => {
+    // B4-editor: the rack entry (id drum-rack) is now ENABLED and labelled
+    // "Sample Rack" (relabelled from "Drum Rack" to avoid colliding with the
+    // B2-lite performance drumRack). Only Wavetable remains disabled.
     setTracks([VIDEO_TRACK_WITH_CLIP], null)
     render(<InstrumentsBrowser />)
-    expect(screen.getByTestId('instrument-drum-rack').className).toContain('--disabled')
+    const rack = screen.getByTestId('instrument-drum-rack')
+    expect(rack.className).not.toContain('--disabled')
+    expect(rack.textContent).toContain('Sample Rack')
     expect(screen.getByTestId('instrument-wavetable').className).toContain('--disabled')
+  })
+
+  it('double-click adds a Sample Rack to the selected Performance track (no video-clip gate)', () => {
+    // The rack does NOT require video clips on the timeline (pads get sources
+    // individually) — create with an empty timeline + a selected perf track.
+    setTracks([{ id: 'p1', type: 'performance', clips: [] }], 'p1')
+    render(<InstrumentsBrowser />)
+    fireEvent.doubleClick(screen.getByTestId('instrument-drum-rack'))
+    expect(useInstrumentsStore.getState().racks['p1']).toBeTruthy()
+  })
+
+  it('double-click does NOT add a rack when no performance track is selected', () => {
+    setTracks([{ id: 'v2', type: 'video', clips: [] }], 'v2')
+    render(<InstrumentsBrowser />)
+    fireEvent.doubleClick(screen.getByTestId('instrument-drum-rack'))
+    expect(useInstrumentsStore.getState().racks['v2']).toBeUndefined()
   })
 
   it('sampler entry disabled with tooltip when timeline empty (INJ-4 spec)', () => {
