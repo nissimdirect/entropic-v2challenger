@@ -10,6 +10,7 @@ import {
   computeLoopCrossfadeWeight,
   computeRgbFrameIndices,
   applyGlideRamp,
+  applyMelodic,
 } from '../../../renderer/components/instruments/computeSamplerVoice'
 import type { SamplerInstrumentV1 } from '../../../renderer/components/instruments/types'
 
@@ -778,5 +779,140 @@ describe('B3.3 PARITY GUARD: frontend rgb+glide frame indices match backend refe
       loop: { enabled: true, in: 5, out: 15, dir: 'fwd' } as any,
     })
     expect(computeLoopFrameIndex(s, 20, 100, 0)).toBe(5)
+  })
+})
+
+// ===========================================================================
+// B3.4 — melodic mode (note → startFrame offset OR speed scale).
+// REGRESSION GUARD (melodic off → B3.3), unit math, and preview/export PARITY:
+// the expected values below are LIFTED from the backend reference
+// (backend/tests/test_sampler_melodic.py TestMelodicParityReference) — the
+// frontend computeLoopFrameIndex MUST produce the IDENTICAL indices.
+// ===========================================================================
+describe('B3.4 melodic mode', () => {
+  // --- REGRESSION GUARD: melodic absent/disabled → byte-identical to B3.3 ---
+  it('melodic absent → note ignored → identical to B3.3', () => {
+    const s = inst({ startFrame: 10, speed: 2 })
+    for (let ph = 0; ph < 50; ph += 3) {
+      const b33 = computeLoopFrameIndex(s, ph, 100)
+      const withNote = computeLoopFrameIndex(s, ph, 100, undefined, 72)
+      expect(withNote).toBe(b33)
+    }
+  })
+
+  it('melodic.enabled=false → note ignored → identical to B3.3', () => {
+    const plain = inst({ startFrame: 10, speed: 2 })
+    const disabled = inst({
+      startFrame: 10,
+      speed: 2,
+      melodic: { enabled: false, mode: 'startFrame', rootNote: 60 },
+    })
+    for (let ph = 0; ph < 50; ph += 3) {
+      expect(computeLoopFrameIndex(disabled, ph, 100, undefined, 84)).toBe(
+        computeLoopFrameIndex(plain, ph, 100),
+      )
+    }
+  })
+
+  it('note undefined (no note) → melodic no-op even when enabled (additive-safe)', () => {
+    const s = inst({
+      startFrame: 10,
+      speed: 2,
+      melodic: { enabled: true, mode: 'startFrame', rootNote: 60 },
+    })
+    const plain = inst({ startFrame: 10, speed: 2 })
+    for (let ph = 0; ph < 40; ph += 5) {
+      expect(computeLoopFrameIndex(s, ph, 100, undefined, undefined)).toBe(
+        computeLoopFrameIndex(plain, ph, 100),
+      )
+    }
+  })
+
+  // --- applyMelodic unit math ---
+  it('applyMelodic: off → unchanged', () => {
+    expect(applyMelodic(inst(), 10, 2, 72)).toEqual({ start: 10, speed: 2 })
+  })
+
+  it('applyMelodic startFrame: start += (note - rootNote)', () => {
+    const s = inst({ melodic: { enabled: true, mode: 'startFrame', rootNote: 60 } })
+    expect(applyMelodic(s, 10, 2, 72)).toEqual({ start: 22, speed: 2 })
+    expect(applyMelodic(s, 10, 2, 54)).toEqual({ start: 4, speed: 2 })
+  })
+
+  it('applyMelodic speed: speed × 2^(semis/12), 2× at octave', () => {
+    const s = inst({ melodic: { enabled: true, mode: 'speed', rootNote: 60 } })
+    const up = applyMelodic(s, 0, 1, 72)
+    expect(up.start).toBe(0)
+    expect(up.speed).toBeCloseTo(2, 9)
+    const down = applyMelodic(s, 0, 1, 48)
+    expect(down.speed).toBeCloseTo(0.5, 9)
+  })
+
+  it('applyMelodic: rootNote → no transpose', () => {
+    const s = inst({ melodic: { enabled: true, mode: 'speed', rootNote: 64 } })
+    expect(applyMelodic(s, 10, 3, 64)).toEqual({ start: 10, speed: 3 })
+  })
+
+  // --- startFrame-mode frame math ---
+  it('startFrame mode: +12 semis → start +12 frames (speed=0 freeze)', () => {
+    const s = inst({
+      startFrame: 10,
+      speed: 0,
+      melodic: { enabled: true, mode: 'startFrame', rootNote: 60 },
+    })
+    expect(computeLoopFrameIndex(s, 5, 100, undefined, 72)).toBe(22)
+    expect(computeLoopFrameIndex(s, 5, 100, undefined, 48)).toBe(0) // clamp
+    expect(computeLoopFrameIndex(s, 5, 100, undefined, 61)).toBe(11)
+  })
+
+  // --- speed-mode frame math ---
+  it('speed mode: n=root+12 → 2× speed → 2× offset', () => {
+    const s = inst({
+      startFrame: 0,
+      speed: 1,
+      melodic: { enabled: true, mode: 'speed', rootNote: 60 },
+    })
+    expect(computeLoopFrameIndex(s, 10, 100, undefined, 60)).toBe(10)
+    expect(computeLoopFrameIndex(s, 10, 100, undefined, 72)).toBe(20)
+    expect(computeLoopFrameIndex(s, 10, 100, undefined, 48)).toBe(5)
+  })
+
+  // --- PREVIEW/EXPORT PARITY (values lifted from backend reference) ---
+  const STARTFRAME_PARITY: Array<[number, number, number, number]> = [
+    // [note, playhead, frameCount, expected]  (startFrame=10, speed=0, root=60)
+    [72, 5, 100, 22],
+    [48, 5, 100, 0],
+    [60, 5, 100, 10],
+    [67, 5, 100, 17],
+  ]
+  it.each(STARTFRAME_PARITY)(
+    'parity startFrame: note=%i ph=%i → %i',
+    (note, ph, fc, expected) => {
+      const s = inst({
+        startFrame: 10,
+        speed: 0,
+        melodic: { enabled: true, mode: 'startFrame', rootNote: 60 },
+      })
+      // computeSamplerVoice (full preview path) AND computeLoopFrameIndex must
+      // BOTH equal the backend reference.
+      expect(computeSamplerVoice(s, '/a.mp4', ph, fc, undefined, note).frame_index).toBe(expected)
+      expect(computeLoopFrameIndex(s, ph, fc, undefined, note)).toBe(expected)
+    },
+  )
+
+  const SPEED_PARITY: Array<[number, number, number, number]> = [
+    // [note, playhead, frameCount, expected]  (startFrame=0, speed=1, root=60)
+    [60, 10, 100, 10],
+    [72, 10, 100, 20],
+    [48, 10, 100, 5],
+  ]
+  it.each(SPEED_PARITY)('parity speed: note=%i ph=%i → %i', (note, ph, fc, expected) => {
+    const s = inst({
+      startFrame: 0,
+      speed: 1,
+      melodic: { enabled: true, mode: 'speed', rootNote: 60 },
+    })
+    expect(computeSamplerVoice(s, '/a.mp4', ph, fc, undefined, note).frame_index).toBe(expected)
+    expect(computeLoopFrameIndex(s, ph, fc, undefined, note)).toBe(expected)
   })
 })
