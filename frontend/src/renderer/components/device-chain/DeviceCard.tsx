@@ -1,4 +1,4 @@
-import { useCallback } from 'react'
+import { useCallback, useState, useEffect, useRef } from 'react'
 import type { EffectInstance, EffectInfo, ParamDef, MatteNode, MatteRef } from '../../../shared/types'
 import Knob from '../common/Knob'
 import ParamChoice from '../effects/ParamChoice'
@@ -21,6 +21,8 @@ interface DeviceCardProps {
   onSetMix: (effectId: string, mix: number) => void
   /** MK.3: matte nodes assignable as this device's mask (from the active clip). */
   maskNodes?: MatteNode[]
+  /** MK.13: clip id of the clip that owns the mask stack (used for mask_thumbnail IPC). */
+  maskClipId?: string
   /** MK.3: assign (or clear, with null) this device's mask-routing ref. */
   onSetMaskRef?: (effectId: string, maskRef: MatteRef | null) => void
   onContextMenu?: (e: React.MouseEvent) => void
@@ -37,9 +39,66 @@ export default function DeviceCard({
   onUpdateParam,
   onSetMix,
   maskNodes,
+  maskClipId,
   onSetMaskRef,
   onContextMenu,
 }: DeviceCardProps) {
+  // MK.13: matte-presence thumbnail. Keyed by (nodeId, invert) so toggling
+  // invert re-fetches with inverted CSS filter; nodeId change also re-fetches.
+  // null = not yet fetched or procedural/error → keep text badge.
+  const [matteThumbnail, setMatteThumbnail] = useState<string | null>(null)
+  // Track the last fetch key to avoid stale-state races.
+  const thumbnailKeyRef = useRef<string>('')
+
+  useEffect(() => {
+    const maskRef = effect.maskRef
+    if (!maskRef || !maskClipId) {
+      setMatteThumbnail(null)
+      thumbnailKeyRef.current = ''
+      return
+    }
+
+    const key = `${maskRef.nodeId}:${String(maskRef.invert)}:${maskClipId}`
+    if (thumbnailKeyRef.current === key) return  // already fetched for this state
+    thumbnailKeyRef.current = key
+
+    // Find the node in maskNodes to include in the IPC payload.
+    const node = (maskNodes ?? []).find((n) => n.id === maskRef.nodeId)
+    if (!node) {
+      setMatteThumbnail(null)
+      return
+    }
+
+    if (
+      typeof window === 'undefined' ||
+      typeof window.entropic?.sendCommand !== 'function'
+    ) {
+      return
+    }
+
+    window.entropic
+      .sendCommand({
+        cmd: 'mask_thumbnail',
+        clip_id: maskClipId,
+        node: node as unknown as Record<string, unknown>,
+        width: 64,
+        height: 36,
+      })
+      .then((res) => {
+        // Guard: only apply if the key hasn't changed (no stale-state overwrite).
+        if (thumbnailKeyRef.current !== key) return
+        if (res.ok && typeof res.thumbnail === 'string') {
+          setMatteThumbnail(res.thumbnail)
+        } else {
+          // procedural node or error → keep text badge
+          setMatteThumbnail(null)
+        }
+      })
+      .catch(() => {
+        if (thumbnailKeyRef.current === key) setMatteThumbnail(null)
+      })
+  }, [effect.maskRef, maskClipId, maskNodes])
+
   const handleKnobChange = useCallback(
     (key: string, def: ParamDef, value: number) => {
       onUpdateParam(effect.id, key, value)
@@ -212,9 +271,9 @@ export default function DeviceCard({
       </div>
 
       {/* MK.13: 64×36 matte-presence chip. Shown when this device has an active maskRef.
-          No backend mask_thumbnail endpoint exists yet (deferred per MK.13 spec note);
-          renders a simple matte-presence badge instead of a thumbnail image.
-          Unmasked devices (effect.maskRef === null | undefined) render nothing here. */}
+          Static mattes (rect/ellipse/polygon/bitmap) render a real grayscale thumbnail
+          fetched via mask_thumbnail IPC. Procedural mattes and error cases fall back to
+          the text badge ("MSK"/"INV"). Unmasked devices render nothing here. */}
       {effect.maskRef && (
         <div
           className="masking__matte-chip"
@@ -222,9 +281,21 @@ export default function DeviceCard({
           title={`Masked: node ${effect.maskRef.nodeId}${effect.maskRef.invert ? ' (inverted)' : ''}`}
           style={{ width: 64, height: 36 }}
         >
-          <span className="masking__matte-chip-label">
-            {effect.maskRef.invert ? 'INV' : 'MSK'}
-          </span>
+          {matteThumbnail ? (
+            <img
+              className="masking__matte-chip-img"
+              src={`data:image/png;base64,${matteThumbnail}`}
+              width={64}
+              height={36}
+              alt="matte thumbnail"
+              style={effect.maskRef.invert ? { filter: 'invert(1)' } : undefined}
+              data-testid="device-matte-chip-img"
+            />
+          ) : (
+            <span className="masking__matte-chip-label">
+              {effect.maskRef.invert ? 'INV' : 'MSK'}
+            </span>
+          )}
         </div>
       )}
 

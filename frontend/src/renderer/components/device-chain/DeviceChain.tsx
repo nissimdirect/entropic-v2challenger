@@ -280,6 +280,18 @@ export default function DeviceChain({
     return clip?.maskStack && clip.maskStack.length > 0 ? clip.maskStack : EMPTY_MASK_NODES
   })
 
+  // MK.13: clip_id of the clip that owns the mask stack above (for mask_thumbnail IPC).
+  const maskClipId = useTimelineStore((s) => {
+    const tid = activeTrackId
+    if (!tid) return undefined
+    const track = s.tracks.find((t) => t.id === tid)
+    if (!track) return undefined
+    const clip = track.clips.find(
+      (c) => playheadTime >= c.position && playheadTime < c.position + c.duration,
+    )
+    return clip?.id
+  })
+
   const handleSetMaskRef = useCallback((effectId: string, maskRef: MatteRef | null) => {
     const trackId = getActiveTrackId()
     if (!trackId) return
@@ -489,6 +501,7 @@ export default function DeviceChain({
                 onUpdateParam={handleUpdateParam}
                 onSetMix={handleSetMix}
                 maskNodes={maskNodes}
+                maskClipId={maskClipId}
                 onSetMaskRef={handleSetMaskRef}
                 onContextMenu={(e) => handleContextMenu(e, effect.id, index)}
               />

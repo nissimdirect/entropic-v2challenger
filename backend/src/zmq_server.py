@@ -452,6 +452,8 @@ class ZMQServer:
             return self._handle_mask_wand_sample(message, msg_id)
         elif cmd == "mask_gc_sidecars":
             return self._handle_mask_gc_sidecars(message, msg_id)
+        elif cmd == "mask_thumbnail":
+            return self._handle_mask_thumbnail(message, msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -2833,6 +2835,117 @@ class ZMQServer:
             return {"id": msg_id, "ok": False, "error": "Internal GC error"}
 
         return {"id": msg_id, "ok": True, "deleted": deleted}
+
+    def _handle_mask_thumbnail(self, message: dict, msg_id: str | None) -> dict:
+        """IPC handler for the MK.13 matte-presence thumbnail.
+
+        Rasterizes a static MatteNode to a 64×36 (default) grayscale PNG and
+        returns it as a base64 string.  Procedural kinds (chroma_key, luma_key,
+        color_range, ai_matte) return ``thumbnail: null, kind: 'procedural'``
+        because they need per-frame context — the frontend keeps its text badge
+        for those nodes.
+
+        Expected payload::
+
+            {
+                "cmd":     "mask_thumbnail",
+                "clip_id": str,              # ^[A-Za-z0-9_-]{1,64}$ (cache key)
+                "node":    dict,             # full MatteNode payload (validated here)
+                "width":   int | None,       # default 64; clamped [1, 512]
+                "height":  int | None        # default 36; clamped [1, 512]
+            }
+
+        Returns::
+
+            {ok: true,  thumbnail: "<base64-png>", width: int, height: int}
+            {ok: true,  thumbnail: null, kind: "procedural"}   # procedural node
+            {ok: false, error: str}                            # validation failure
+        """
+        import base64 as _b64
+        import math as _math
+        import re as _re
+
+        import cv2
+        from masking.schema import MatteNode as _MatteNode
+        from masking.matte_source import rasterize as _rasterize
+
+        _STATIC_KINDS = frozenset({"rect", "ellipse", "polygon", "bitmap"})
+        _ID_RE = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+        # --- clip_id --------------------------------------------------------
+        clip_id = message.get("clip_id", "")
+        if not isinstance(clip_id, str) or not _ID_RE.match(clip_id):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_thumbnail: clip_id must match ^[A-Za-z0-9_-]{1,64}$",
+            }
+
+        # --- node (trust-boundary validated via MatteNode.from_dict) --------
+        node_raw = message.get("node")
+        if not isinstance(node_raw, dict):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_thumbnail: node must be a dict",
+            }
+        node = _MatteNode.from_dict(node_raw)
+        if node is None:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_thumbnail: node failed validation (bad id or unknown kind)",
+            }
+
+        # --- width / height (optional, default 64×36) -----------------------
+        def _parse_dim(value: object, default: int) -> int:
+            if value is None:
+                return default
+            try:
+                n = int(value)
+            except (TypeError, ValueError):
+                return default
+            if _math.isnan(float(n)) or _math.isinf(float(n)):
+                return default
+            return max(1, min(512, n))
+
+        width = _parse_dim(message.get("width"), 64)
+        height = _parse_dim(message.get("height"), 36)
+
+        # --- procedural fallback --------------------------------------------
+        if node.kind not in _STATIC_KINDS:
+            return {
+                "id": msg_id,
+                "ok": True,
+                "thumbnail": None,
+                "kind": "procedural",
+            }
+
+        # --- rasterize (cached by matte_source LRU) -------------------------
+        try:
+            matte_f32 = _rasterize(node, height, width, clip_id)
+        except Exception as e:  # noqa: BLE001
+            logging.getLogger(__name__).error(f"mask_thumbnail rasterize error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal rasterize error"}
+
+        # float32 [0,1] → uint8 [0,255] grayscale, encode PNG, base64
+        try:
+            gray_u8 = (matte_f32 * 255.0).clip(0, 255).astype(np.uint8)
+            ok_enc, buf = cv2.imencode(".png", gray_u8)
+            if not ok_enc:
+                return {"id": msg_id, "ok": False, "error": "PNG encode failed"}
+            thumbnail_b64 = _b64.b64encode(buf.tobytes()).decode("ascii")
+        except Exception as e:  # noqa: BLE001
+            logging.getLogger(__name__).error(f"mask_thumbnail encode error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal encode error"}
+
+        return {
+            "id": msg_id,
+            "ok": True,
+            "thumbnail": thumbnail_b64,
+            "width": width,
+            "height": height,
+        }
 
     def run(self):
         self.running = True

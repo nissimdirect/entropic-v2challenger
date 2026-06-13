@@ -148,6 +148,7 @@ describe('IPC Contract', () => {
       'list_effects',
       'list_fonts',
       'mask_gc_sidecars',
+      'mask_thumbnail',
       'mask_wand_sample',
       'memory_status',
       'ping',
