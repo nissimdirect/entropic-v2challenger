@@ -272,13 +272,26 @@ def _rasterize_polygon(height: int, width: int, params: dict[str, Any]) -> np.nd
     return matte
 
 
-def _rasterize_bitmap(_height: int, _width: int, _params: dict[str, Any]) -> np.ndarray:
-    """Bitmap matte placeholder — returns a full-white matte.
+def _rasterize_bitmap(height: int, width: int, params: dict[str, Any]) -> np.ndarray:
+    """Bitmap matte — loads from PNG sidecar written by the MK.6 wand IPC handler.
 
-    Full bitmap loading (PNG sidecar) is wired in MK.6; this stub allows
-    schema + stack tests to exercise bitmap nodes without file I/O.
+    Expected params:
+      sidecar_path — absolute path to the PNG file within ~/.creatrix/mask-bitmaps/
+
+    Validated and loaded via masking.wand.load_bitmap_sidecar (path-validation
+    re-checked on load as defence-in-depth). Falls back to a full-white matte
+    when the sidecar is absent or invalid.
     """
-    return np.ones((_height, _width), dtype=np.float32)
+    sidecar_path = params.get("sidecar_path")
+    if not sidecar_path or not isinstance(sidecar_path, str):
+        # No sidecar yet (e.g. node created but not yet rendered) → white matte
+        return np.ones((height, width), dtype=np.float32)
+
+    # Lazy import avoids a circular import at module load time
+    # (matte_source ← stack ← wand ← matte_source would cycle).
+    from masking.wand import load_bitmap_sidecar  # noqa: PLC0415
+
+    return load_bitmap_sidecar(sidecar_path, height, width)
 
 
 _RASTERIZERS = {
