@@ -152,10 +152,16 @@ interface TimelineState {
    */
   committedMaskSelection: { nodeId: string; clipId: string } | null
   /** Currently active preview tool mode. Null = normal (select/transform). */
-  previewToolMode: 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | null
+  previewToolMode: 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | 'wand' | 'eyedropper' | null
 
   // Preview tool actions
-  setPreviewToolMode: (mode: 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | null) => void
+  setPreviewToolMode: (mode: 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | 'wand' | 'eyedropper' | null) => void
+  /** MK.6: wand tolerance (RGB Euclidean distance, [0, 441.67]). Default 30. */
+  wandTolerance: number
+  setWandTolerance: (tol: number) => void
+  /** MK.6: eyedropper picked color (r, g, b in [0, 255]). Null = not set. */
+  eyedropperColor: { r: number; g: number; b: number } | null
+  setEyedropperColor: (color: { r: number; g: number; b: number } | null) => void
   setMarqueeInProgress: (rect: { x1: number; y1: number; x2: number; y2: number } | null) => void
   clearMaskSelection: () => void
 
@@ -286,7 +292,10 @@ const INITIAL_STATE = {
   // MK.4: preview interaction state
   marqueeInProgress: null as { x1: number; y1: number; x2: number; y2: number } | null,
   committedMaskSelection: null as { nodeId: string; clipId: string } | null,
-  previewToolMode: null as 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | null,
+  previewToolMode: null as 'marquee-rect' | 'marquee-ellipse' | 'lasso-freehand' | 'lasso-polygon' | 'wand' | 'eyedropper' | null,
+  // MK.6: wand + eyedropper state
+  wandTolerance: 30,
+  eyedropperColor: null as { r: number; g: number; b: number } | null,
 }
 
 /** Get all clips in track order (top track first, then by position within track). */
@@ -1793,6 +1802,19 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   setPreviewToolMode: (mode) => {
     // Switching tool clears any in-progress drag and committed selection (ephemeral UI)
     set({ previewToolMode: mode, marqueeInProgress: null, committedMaskSelection: null })
+  },
+
+  // --- MK.6: Wand + eyedropper state ---
+
+  setWandTolerance: (tol) => {
+    // Clamp to [0, 441.67] (max RGB Euclidean distance) before storing.
+    // Finite guard: NaN/Inf → 30 (default).
+    const safe = Number.isFinite(tol) ? Math.max(0, Math.min(441.67, tol)) : 30
+    set({ wandTolerance: safe })
+  },
+
+  setEyedropperColor: (color) => {
+    set({ eyedropperColor: color })
   },
 
   setMarqueeInProgress: (rect) => {

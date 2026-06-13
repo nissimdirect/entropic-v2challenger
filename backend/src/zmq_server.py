@@ -433,6 +433,8 @@ class ZMQServer:
             return self._handle_inline_actions_list(message, msg_id)
         elif cmd == "inline_actions_invoke":
             return self._handle_inline_actions_invoke(message, msg_id)
+        elif cmd == "mask_wand_sample":
+            return self._handle_mask_wand_sample(message, msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -2299,6 +2301,180 @@ class ZMQServer:
             "message": result.message,
             "payload": result.payload,
         }
+
+    def _handle_mask_wand_sample(self, message: dict, msg_id: str | None) -> dict:
+        """IPC handler for the MK.6 magic wand tool.
+
+        Performs a contiguous flood-fill at (x, y) in the frame at *frame_index*,
+        bakes the resulting matte to a PNG sidecar, and returns a bitmap MatteNode
+        payload ready for addMatteNode on the frontend.
+
+        Expected payload (all fields trust-boundary validated before use):
+          {
+            cmd:         "mask_wand_sample",
+            path:        str  — asset file path (SEC-5 validated)
+            clip_id:     str  — ^[A-Za-z0-9_-]{1,64}$  (used to name the sidecar)
+            node_id:     str  — ^[A-Za-z0-9_-]{1,64}$  (the new MatteNode id)
+            frame_index: int  — in [0, frame_count)
+            x:           int  — pixel column in [0, width)
+            y:           int  — pixel row in [0, height)
+            tolerance:   float — RGB Euclidean distance [0, 441.67]; clamped
+          }
+
+        Returns:
+          {ok: true, node: {id, kind:"bitmap", params:{sidecar_path:...}, ...}}
+          {ok: false, error: str}
+
+        Security:
+          - path: validated via validate_upload (SEC-5)
+          - clip_id, node_id: ^[A-Za-z0-9_-]{1,64}$ pattern enforced
+          - frame_index: must be int in [0, frame_count)
+          - x, y: must be ints within [0, width/height) — out-of-bounds → error
+          - tolerance: finite float, clamped to [0, 441.67]
+          - sidecar write path: validated via masking.wand.validate_sidecar_write_path
+        """
+        import math as _math
+        import re as _re
+
+        _ID_PATTERN = _re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+        # --- path (SEC-5) ---
+        path = message.get("path")
+        if not path or not isinstance(path, str):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: missing path",
+            }
+        upload_errors = validate_upload(path)
+        if upload_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(upload_errors)}
+
+        # --- clip_id ---
+        clip_id = message.get("clip_id")
+        if not isinstance(clip_id, str) or not _ID_PATTERN.match(clip_id):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: clip_id must match ^[A-Za-z0-9_-]{1,64}$",
+            }
+
+        # --- node_id ---
+        node_id = message.get("node_id")
+        if not isinstance(node_id, str) or not _ID_PATTERN.match(node_id):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: node_id must match ^[A-Za-z0-9_-]{1,64}$",
+            }
+
+        # --- frame_index ---
+        frame_index_raw = message.get("frame_index")
+        if isinstance(frame_index_raw, bool) or not isinstance(frame_index_raw, int):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: frame_index must be an int",
+            }
+
+        # --- x, y ---
+        x_raw = message.get("x")
+        y_raw = message.get("y")
+        if isinstance(x_raw, bool) or not isinstance(x_raw, int):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: x must be an int",
+            }
+        if isinstance(y_raw, bool) or not isinstance(y_raw, int):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: y must be an int",
+            }
+
+        # --- tolerance ---
+        tol_raw = message.get("tolerance", 30.0)
+        if isinstance(tol_raw, bool):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: tolerance must be a finite number",
+            }
+        try:
+            tol = float(tol_raw)
+        except (TypeError, ValueError):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "mask_wand_sample: tolerance must be a finite number",
+            }
+        if not _math.isfinite(tol):
+            tol = 0.0  # NaN/Inf → 0 (clamped)
+        # Clamp to sane range [0, 441.67]
+        tol = max(0.0, min(441.67, tol))
+
+        try:
+            reader = self._get_reader(path)
+            frame_count = reader.frame_count or 0
+            width = reader.width
+            height = reader.height
+
+            # --- frame_index range check ---
+            if frame_index_raw < 0 or (
+                frame_count > 0 and frame_index_raw >= frame_count
+            ):
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": f"mask_wand_sample: frame_index {frame_index_raw} out of range [0, {frame_count})",
+                }
+
+            # --- x, y bounds check ---
+            if not (0 <= x_raw < width):
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": f"mask_wand_sample: x={x_raw} out of range [0, {width})",
+                }
+            if not (0 <= y_raw < height):
+                return {
+                    "id": msg_id,
+                    "ok": False,
+                    "error": f"mask_wand_sample: y={y_raw} out of range [0, {height})",
+                }
+
+            frame = reader.decode_frame(frame_index_raw)
+
+            # Perform flood-fill
+            from masking.wand import flood_fill, save_bitmap_sidecar  # noqa: PLC0415
+
+            matte = flood_fill(frame, (x_raw, y_raw), tol)
+
+            # Save sidecar
+            sidecar_path_str, save_errors = save_bitmap_sidecar(matte, node_id)
+            if save_errors:
+                return {"id": msg_id, "ok": False, "error": "; ".join(save_errors)}
+
+            # Build node payload (MatteNode shape, bitmap kind)
+            node_payload = {
+                "id": node_id,
+                "kind": "bitmap",
+                "params": {"sidecar_path": sidecar_path_str},
+                "op": "add",
+                "invert": False,
+                "feather": 0.0,
+                "growShrink": 0.0,
+                "enabled": True,
+            }
+            return {"id": msg_id, "ok": True, "node": node_payload}
+
+        except Exception as e:
+            import sentry_sdk as _sentry  # noqa: PLC0415
+
+            _sentry.capture_exception(e)
+            logging.getLogger(__name__).error(f"mask_wand_sample error: {e}")
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def run(self):
         self.running = True

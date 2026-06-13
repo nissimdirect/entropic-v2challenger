@@ -45,6 +45,10 @@ interface Props {
   canvasWidth: number
   canvasHeight: number
   clipId: string | null
+  /** MK.6: asset path for wand IPC call. Required for wand mode. */
+  assetPath?: string | null
+  /** MK.6: current frame index for wand IPC call. */
+  frameIndex?: number
 }
 
 /**
@@ -82,6 +86,8 @@ export default function MaskSelectOverlay({
   canvasWidth,
   canvasHeight,
   clipId,
+  assetPath = null,
+  frameIndex = 0,
 }: Props) {
   // // letterbox mapping from BoundingBoxOverlay.tsx:53 (computeCanvasLayout + ResizeObserver)
   const [layout, setLayout] = useState<CanvasLayout | null>(null)
@@ -101,6 +107,9 @@ export default function MaskSelectOverlay({
   const toolMode = useTimelineStore((s) => s.previewToolMode)
   const marqueeInProgress = useTimelineStore((s) => s.marqueeInProgress)
   const committedMaskSelection = useTimelineStore((s) => s.committedMaskSelection)
+  // MK.6: wand + eyedropper state
+  const wandTolerance = useTimelineStore((s) => s.wandTolerance)
+  const [wandPending, setWandPending] = useState(false)
 
   // Track drag state (ref, not state — must not re-render during drag)
   const isDragging = useRef(false)
@@ -109,6 +118,136 @@ export default function MaskSelectOverlay({
   const opAtDown = useRef<MatteOp>('add')
 
   const svgRef = useRef<SVGSVGElement>(null)
+
+  // ── MK.6: wand click handler ──────────────────────────────────────────────
+  /**
+   * Handles a click in 'wand' tool mode.
+   *
+   * Converts DOM-space click to frame-pixel coordinates, sends the
+   * mask_wand_sample IPC command, and adds the resulting bitmap MatteNode
+   * to the clip's mask stack.
+   *
+   * Trust boundary (frontend side):
+   *   - x, y are derived from the DOM event and clamped to valid frame bounds
+   *     before sending — the backend validates them again (defence-in-depth).
+   *   - frameIndex is the integer frame the preview is currently showing.
+   */
+  const handleWandClick = useCallback(async (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!layout || !clipId || !assetPath || !containerRef.current) return
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const { fx, fy } = domToFrameCoords(e.clientX, e.clientY, layout, containerRect)
+
+    // Convert normalized [0,1] frame coords → integer pixel coords
+    const px = Math.max(0, Math.min(canvasWidth - 1, Math.round(fx * canvasWidth)))
+    const py = Math.max(0, Math.min(canvasHeight - 1, Math.round(fy * canvasHeight)))
+
+    const nodeId = randomUUID()
+    const tolerance = wandTolerance
+
+    setWandPending(true)
+    try {
+      const res = await (window as any).entropic?.sendCommand({
+        cmd: 'mask_wand_sample',
+        path: assetPath,
+        clip_id: clipId,
+        node_id: nodeId,
+        frame_index: frameIndex,
+        x: px,
+        y: py,
+        tolerance,
+      })
+
+      if (res?.ok && res.node) {
+        const node: MatteNode = {
+          id: res.node.id ?? nodeId,
+          kind: 'bitmap',
+          params: res.node.params ?? {},
+          op: 'add',
+          invert: false,
+          feather: 0,
+          growShrink: 0,
+          enabled: true,
+        }
+        useTimelineStore.getState().addMatteNode(clipId, node)
+        useTimelineStore.setState({ committedMaskSelection: { nodeId: node.id, clipId } })
+      }
+    } catch {
+      // Wand sample failed silently — no toast here (let caller handle)
+    } finally {
+      setWandPending(false)
+    }
+  }, [layout, clipId, assetPath, frameIndex, canvasWidth, canvasHeight, wandTolerance, containerRef])
+
+  // ── MK.6: eyedropper click handler ───────────────────────────────────────
+  /**
+   * Handles a click in 'eyedropper' tool mode.
+   *
+   * Converts click to frame coords, reads the pixel color from the frame
+   * at the given position, and creates a color_range MatteNode with those params.
+   *
+   * Color is sampled from the rendered frame via an offscreen canvas read.
+   * If canvas readback is unavailable, falls back to (0, 0, 0).
+   */
+  const handleEyedropperClick = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    if (!layout || !clipId || !containerRef.current) return
+    if (e.button !== 0) return
+    e.preventDefault()
+    e.stopPropagation()
+
+    const containerRect = containerRef.current.getBoundingClientRect()
+    const { fx, fy } = domToFrameCoords(e.clientX, e.clientY, layout, containerRect)
+
+    // Store the picked color (r, g, b) as the eyedropper result.
+    // Actual RGB value is sampled from the preview image element.
+    // We use a canvas to read the pixel from the preview <img>.
+    let r = 0, g = 0, b = 0
+    try {
+      const previewImg = containerRef.current.querySelector('img') as HTMLImageElement | null
+      if (previewImg && previewImg.complete) {
+        const canvas = document.createElement('canvas')
+        canvas.width = previewImg.naturalWidth || canvasWidth
+        canvas.height = previewImg.naturalHeight || canvasHeight
+        const ctx2d = canvas.getContext('2d')
+        if (ctx2d) {
+          ctx2d.drawImage(previewImg, 0, 0, canvas.width, canvas.height)
+          const px = Math.max(0, Math.min(canvas.width - 1, Math.round(fx * canvas.width)))
+          const py = Math.max(0, Math.min(canvas.height - 1, Math.round(fy * canvas.height)))
+          const data = ctx2d.getImageData(px, py, 1, 1).data
+          r = data[0]; g = data[1]; b = data[2]
+        }
+      }
+    } catch {
+      // Canvas readback failed (cross-origin or security) — use (0,0,0)
+    }
+
+    // Store the picked color in the timeline store
+    useTimelineStore.getState().setEyedropperColor({ r, g, b })
+
+    // Create a color_range MatteNode with the picked color and current wand tolerance
+    const nodeId = randomUUID()
+    const node: MatteNode = {
+      id: nodeId,
+      kind: 'color_range',
+      params: {
+        r,
+        g,
+        b,
+        tolerance: wandTolerance,
+        softness: 10,
+      },
+      op: 'add',
+      invert: false,
+      feather: 0,
+      growShrink: 0,
+      enabled: true,
+    }
+    useTimelineStore.getState().addMatteNode(clipId, node)
+    useTimelineStore.setState({ committedMaskSelection: { nodeId: node.id, clipId } })
+  }, [layout, clipId, canvasWidth, canvasHeight, wandTolerance, containerRef])
 
   // ── MK.5: freehand lasso state ───────────────────────────────────────────
   // Raw pointer points sampled at ≥4px intervals during a freehand drag.
@@ -454,6 +593,35 @@ export default function MaskSelectOverlay({
       })
       .filter((pt) => Number.isFinite(pt.x) && Number.isFinite(pt.y))
     return pts.length >= 3 ? pts : null
+  }
+
+  // ── MK.6: Route to wand / eyedropper render path ─────────────────────────
+  const isWandMode = toolMode === 'wand'
+  const isEyedropperMode = toolMode === 'eyedropper'
+
+  if (isWandMode || isEyedropperMode) {
+    return (
+      <svg
+        className="mask-select-overlay"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          cursor: isWandMode
+            ? (wandPending ? 'wait' : 'crosshair')
+            : 'cell',
+          pointerEvents: 'all',
+          userSelect: 'none',
+          overflow: 'visible',
+        }}
+        onClick={isWandMode ? handleWandClick : handleEyedropperClick}
+      >
+        {/* Wand/eyedropper: no in-progress rubber-band; committed selection affordance shown
+            once the node is committed (same dashed-violet style as MK.4/5). */}
+      </svg>
+    )
   }
 
   // ── MK.5: Route to lasso render path ─────────────────────────────────────
