@@ -37,6 +37,18 @@
 import { create } from 'zustand'
 import type { TriggerEvent } from '../components/instruments/voiceFSM'
 import { usePerformanceStore } from './performance'
+import { useToastStore } from './toast'
+
+/**
+ * Hard cap on the per-track trigger queue during FREEZING (defense-in-depth,
+ * independent of the upstream MIDI rate-limit). A slow async bake opens a
+ * FREEZING window; a stuck controller / flood-trigger could otherwise balloon
+ * `queue[trackId]` unboundedly (memory + a huge drain) — the spec's explicit
+ * "stuck controller can't balloon the capture buffer" risk (B10 MIDI note).
+ * 4096 is generous: a real bake queues far fewer. Past the cap, NEW triggers are
+ * DROPPED (the queue is hard-bounded, so the drain stays bounded → no OOM).
+ */
+export const MAX_FREEZE_QUEUE = 4096
 
 export type PerfFreezeState = 'idle' | 'freezing' | 'frozen'
 
@@ -115,8 +127,18 @@ interface PerformanceFreezeState {
 
   /**
    * Enqueue a trigger that arrived during FREEZING. Captures the frameIndex
-   * (the deterministic drain key) and the verbatim event. Returns true iff
-   * enqueued (track was FREEZING); false otherwise (caller applies normally).
+   * (the deterministic drain key) and the verbatim event.
+   *
+   * Return value (the caller — routeRackTrigger / RackDevice — uses this to
+   * decide whether to ALSO apply the trigger live):
+   *   - `true`  → HANDLED by the freeze path. The caller must NOT apply live.
+   *               This covers BOTH the enqueued case AND the capped/dropped case
+   *               (a dropped trigger is still "handled" — intentionally lost, not
+   *               leaked into the live store mid-bake, which would corrupt the
+   *               bake snapshot's intent). The queue is bounded at
+   *               MAX_FREEZE_QUEUE; past the cap the trigger is dropped and a
+   *               ONE-TIME warning toast fires (2s-dedup by `source`).
+   *   - `false` → NOT handled (track was NOT FREEZING). The caller applies live.
    */
   enqueueTrigger: (trackId: string, event: TriggerEvent) => boolean
 
@@ -145,9 +167,22 @@ export const usePerformanceFreezeStore = create<PerformanceFreezeState>((set, ge
 
   enqueueTrigger: (trackId, event) => {
     if ((get().fsm[trackId] ?? 'idle') !== 'freezing') return false
+    const q = get().queue[trackId] ?? []
+    // Defense-in-depth: hard-bound the queue. Past MAX_FREEZE_QUEUE, DROP the
+    // new trigger (queue + drain stay bounded → no OOM) and fire a ONE-TIME
+    // warning toast. The toast store dedups by `source` over 2s, so a flood
+    // collapses to a single toast per freeze. Return `true` (HANDLED — dropped,
+    // NOT applied live: the caller must not double-apply mid-bake).
+    if (q.length >= MAX_FREEZE_QUEUE) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: `Freeze queue full (${MAX_FREEZE_QUEUE}) — extra triggers dropped during bake.`,
+        source: 'perf-freeze-queue',
+      })
+      return true
+    }
     // Capture frameIndex from the EVENT (the deterministic frame), never
     // performance.now() / promise order. Stamp the queue entry with it.
-    const q = get().queue[trackId] ?? []
     set({ queue: { ...get().queue, [trackId]: [...q, { frameIndex: event.frameIndex, event }] } })
     return true
   },

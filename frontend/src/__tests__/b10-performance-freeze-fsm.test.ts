@@ -31,7 +31,7 @@ const mockSendCommand = vi.fn()
   },
 }
 
-import { usePerformanceFreezeStore } from '../renderer/stores/performanceFreeze'
+import { usePerformanceFreezeStore, MAX_FREEZE_QUEUE } from '../renderer/stores/performanceFreeze'
 import type { BakeSnapshot } from '../renderer/stores/performanceFreeze'
 import { usePerformanceStore } from '../renderer/stores/performance'
 import { useFreezeStore } from '../renderer/stores/freeze'
@@ -316,5 +316,45 @@ describe('Gate 5: double-bake guard — bake snapshot excludes queued voices', (
     const applied = usePerformanceStore.getState().trackEvents[TRACK]!
     expect(applied.map((e) => e.eventIndex)).toEqual([999])
     expect(applied[0].frameIndex).toBe(77)
+  })
+})
+
+// ─── Queue-bound (defense-in-depth) — flood during FREEZING is capped ─────────
+
+describe('queue-bound: a flood during FREEZING is capped at MAX_FREEZE_QUEUE (no unbounded growth)', () => {
+  beforeEach(resetAll)
+
+  it('[queue-bound] enqueuing MAX_FREEZE_QUEUE+N during FREEZING caps at the limit, bake still resolves, drain applies exactly the capped set', async () => {
+    const d = deferred<{ clipId: string }>()
+    usePerformanceFreezeStore.getState().setBakeFn(() => d.promise)
+
+    const freezePromise = usePerformanceFreezeStore.getState().freezePerformanceTrack(TRACK)
+    expect(usePerformanceFreezeStore.getState().isFreezing(TRACK)).toBe(true)
+
+    // Flood: MAX_FREEZE_QUEUE + N triggers, all at distinct frames so the drain
+    // count is unambiguous. Each call returns true (HANDLED — caller never
+    // double-applies, whether enqueued or dropped-past-cap).
+    const N = 50
+    const total = MAX_FREEZE_QUEUE + N
+    for (let i = 0; i < total; i++) {
+      const handled = usePerformanceFreezeStore.getState().enqueueTrigger(TRACK, mkEvent(i, i))
+      expect(handled).toBe(true)
+    }
+
+    // CAPPED at MAX_FREEZE_QUEUE — NOT total (+N). FAIL-BEFORE would be `total`.
+    expect(usePerformanceFreezeStore.getState().queue[TRACK]).toHaveLength(MAX_FREEZE_QUEUE)
+
+    // Bake still resolves cleanly (no crash from the huge-but-bounded queue).
+    d.resolve({ clipId: 'baked' })
+    const finalState = await freezePromise
+    expect(finalState).toBe('frozen')
+
+    // Drain applied EXACTLY the capped set (the first MAX_FREEZE_QUEUE triggers,
+    // frames 0..MAX_FREEZE_QUEUE-1 in deterministic frameIndex order). Voices
+    // were released on success, so the track holds only the drained capped set.
+    const applied = usePerformanceStore.getState().trackEvents[TRACK]!
+    expect(applied).toHaveLength(MAX_FREEZE_QUEUE)
+    expect(applied[0].frameIndex).toBe(0)
+    expect(applied[MAX_FREEZE_QUEUE - 1].frameIndex).toBe(MAX_FREEZE_QUEUE - 1)
   })
 })
