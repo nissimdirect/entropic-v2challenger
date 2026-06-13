@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId, useActivePadEffectChain } from '../../stores/project'
-import { useInstrumentsStore } from '../../stores/instruments'
+import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
@@ -71,7 +71,11 @@ export default function DeviceChain({
     if (!isPadTarget || !selectedRackPad) return null
     const rack = s.racks[selectedRackPad.trackId]
     if (!rack) return null
-    const idx = rack.pads.findIndex((p) => p.id === selectedRackPad.padId)
+    // B5.2: resolve the nested RackNode the selected pad lives in (top rack when
+    // branchPath is empty/absent → byte-identical to B4).
+    const node = resolveRackNode(rack, selectedRackPad.branchPath ?? [])
+    if (!node) return null
+    const idx = node.pads.findIndex((p) => p.id === selectedRackPad.padId)
     return idx === -1 ? null : `Pad ${idx + 1}`
   })
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
@@ -123,14 +127,16 @@ export default function DeviceChain({
     const inst = useInstrumentsStore.getState()
     const proj = useProjectStore.getState()
     if (sel && sel.trackId === activeTid) {
-      const { trackId, padId } = sel
+      const { trackId, padId, branchPath } = sel
+      // B5.2: forward the selection's branchPath so a NESTED pad's chain is the
+      // mutation target (undefined/empty → the top-rack pad, byte-identical to B4).
       return {
-        add: (effect: EffectInstance) => inst.addEffectToPad(trackId, padId, effect),
-        remove: (id: string) => inst.removeEffectFromPad(trackId, padId, id),
-        reorder: (from: number, to: number) => inst.reorderPadEffect(trackId, padId, from, to),
+        add: (effect: EffectInstance) => inst.addEffectToPad(trackId, padId, effect, branchPath),
+        remove: (id: string) => inst.removeEffectFromPad(trackId, padId, id, branchPath),
+        reorder: (from: number, to: number) => inst.reorderPadEffect(trackId, padId, from, to, branchPath),
         updateParam: (id: string, key: string, value: number | string | boolean) =>
-          inst.updatePadEffectParam(trackId, padId, id, key, value),
-        toggle: (id: string) => inst.togglePadEffect(trackId, padId, id),
+          inst.updatePadEffectParam(trackId, padId, id, key, value, branchPath),
+        toggle: (id: string) => inst.togglePadEffect(trackId, padId, id, branchPath),
       }
     }
     // Track path: selection absent OR pointing at a non-active track → edit the

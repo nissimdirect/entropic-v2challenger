@@ -1,29 +1,29 @@
 /**
- * B4-editor — Sample Rack device tile for a Performance track.
+ * B4-editor / B5.2 — Sample Rack device tile for a Performance track.
  *
  * The Sample Rack RENDER pipeline (B4.1 channel summing, B4.2 macros, B4-export
- * parity) shipped HEADLESS — no UI created, triggered, or edited a rack. This is
- * the MINIMAL user-facing surface that makes a rack reachable:
- *   - a PAD GRID: one clickable cell per rack pad → triggers the pad's voice
- *   - a SELECTED-PAD EDITOR: source / opacity / blend / mute / solo
- *   - an "Add pad" button
+ * parity, B5.1 nested-rack render/export) shipped HEADLESS. This is the
+ * user-facing surface that makes a rack — including NESTED branches — reachable:
+ *   - a PAD GRID for the CURRENT rack level (top rack OR a branch)
+ *   - a BREADCRUMB to drill in/out of branches (B5.2)
+ *   - a "Group" action per pad → convertPadToBranch (B5.2)
+ *   - a SELECTED-PAD EDITOR: source / opacity / blend / mute / solo / choke
+ *   - an "Add pad" button (scoped to the current level)
  *
- * Store-driven (mirrors SamplerDevice exactly): reads `racks[trackId]`, returns
- * null when absent, writes via setRackPadSource / updateRackPad / triggerRackPad.
- * No drag interactions (click-to-trigger only — later B4 slice).
+ * B5.2 NAV: `rackEditPath` (project store) is the array of branch pad ids the
+ * user is currently inside. EMPTY → the top rack, byte-identical to B4 (the pad
+ * grid, selection, editor, and pad-chain targeting behave EXACTLY as before).
+ * A non-empty path resolves a nested RackNode (resolveRackNode) and renders THAT
+ * level. All pad CRUD routes through the path-aware store actions (…At), and the
+ * selected-pad lift (selectedRackPad) carries the current branchPath so the
+ * bottom DeviceChain edits the RIGHT pad's insert chain at any depth.
  *
- * PAD TRIGGER PATTERN: mirrors performance/PadCell.tsx
- * (`onMouseDown={() => onTrigger(pad.id)}`) — the proven pad-trigger gesture in
- * this codebase. The triggered frame is `useProjectStore.currentFrame`, the SAME
- * frame `requestRenderFrame(currentFrame)` evaluates voices against in App.tsx,
- * so a click immediately drives the render (anti-dead-flag: the button is wired
- * end-to-end UI → triggerRackPad → composite-key event → buildRackLayers).
- *
- * We do NOT touch the B2-lite drumRack / PadGrid / PadEditor — RackNode is the
- * successor (USER DECISION); this is a NEW minimal editor.
+ * STALE-PATH SAFETY: when the active track changes, or the branch pad the user
+ * is inside is deleted, the path is RESET to a valid level (no dangling path →
+ * no crash) — mirrors the selectedRackPad stale-guard discipline (B4-pad-chain).
  */
-import { useState } from 'react'
-import { useInstrumentsStore } from '../../stores/instruments'
+import { useState, useEffect, useRef } from 'react'
+import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
 import { useToastStore } from '../../stores/toast'
@@ -34,7 +34,9 @@ import {
   RACK_CHOKE_GROUP_MIN,
   RACK_CHOKE_GROUP_MAX,
   MAX_MACROS_PER_RACK,
+  MAX_BRANCH_DEPTH,
 } from './types'
+import type { RackNode } from './types'
 import type { BlendMode } from '../../../shared/types'
 
 const BLEND_MODES: BlendMode[] = [
@@ -48,11 +50,12 @@ type MacroParam = (typeof MACRO_PARAMS)[number]
 
 export default function RackDevice({ trackId }: { trackId: string }) {
   const rack = useInstrumentsStore((s) => s.racks[trackId])
-  const setRackPadSource = useInstrumentsStore((s) => s.setRackPadSource)
-  const updateRackPad = useInstrumentsStore((s) => s.updateRackPad)
-  const setRackPadChokeGroup = useInstrumentsStore((s) => s.setRackPadChokeGroup)
-  const addRackPad = useInstrumentsStore((s) => s.addRackPad)
-  const removeRackPad = useInstrumentsStore((s) => s.removeRackPad)
+  const setRackPadSourceAt = useInstrumentsStore((s) => s.setRackPadSourceAt)
+  const updateRackPadAt = useInstrumentsStore((s) => s.updateRackPadAt)
+  const setRackPadChokeGroupAt = useInstrumentsStore((s) => s.setRackPadChokeGroupAt)
+  const addRackPadAt = useInstrumentsStore((s) => s.addRackPadAt)
+  const removeRackPadAt = useInstrumentsStore((s) => s.removeRackPadAt)
+  const convertPadToBranch = useInstrumentsStore((s) => s.convertPadToBranch)
   const addRackMacro = useInstrumentsStore((s) => s.addRackMacro)
   const updateRackMacro = useInstrumentsStore((s) => s.updateRackMacro)
   const removeRackMacro = useInstrumentsStore((s) => s.removeRackMacro)
@@ -62,66 +65,120 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const clearRackPadEvents = usePerformanceStore((s) => s.clearRackPadEvents)
   const assets = useProjectStore((s) => s.assets)
 
-  // B4-pad-chain UI: pad selection is LIFTED to the project store so the bottom
-  // DeviceChain can read it and edit THIS pad's insert chain (Ableton drum-rack).
-  // `selectedRackPad` is global ({trackId, padId}); this rack only treats a pad
-  // as selected when the selection's trackId is OURS (so two racks don't cross-
-  // select). UX is identical to the old local useState: click selects, the
-  // editor shows for the selected pad, delete clears.
+  // B5.2 — the branch path the RackDevice is currently editing. EMPTY → top rack
+  // (B4 behavior). Reactive so drilling in/out re-renders the right level.
+  const rackEditPath = useProjectStore((s) => s.rackEditPath)
+  const enterBranch = useProjectStore((s) => s.enterBranch)
+  const setRackEditPathDepth = useProjectStore((s) => s.setRackEditPathDepth)
+  const resetRackEditPath = useProjectStore((s) => s.resetRackEditPath)
+
+  // B5.2 — STALE-PATH SAFETY: reset the edit path whenever the active track
+  // CHANGES (the path's pad ids belong to a DIFFERENT rack). Mirrors the
+  // selectedRackPad active-track scoping (B4-pad-chain Tiger fix). We compare
+  // against the PREVIOUS trackId (ref) so the reset fires only on a real switch,
+  // NOT on first mount (mounting with a pre-set path — e.g. restored UI state —
+  // must be preserved). Effect, not render-time set, to avoid setState-in-render.
+  const prevTrackId = useRef(trackId)
+  useEffect(() => {
+    if (prevTrackId.current !== trackId) {
+      prevTrackId.current = trackId
+      if (useProjectStore.getState().rackEditPath.length > 0) resetRackEditPath()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackId])
+
+  // B4-pad-chain UI: pad selection is LIFTED to the project store (B4). B5.2 —
+  // it now ALSO carries the current branchPath so the bottom DeviceChain edits
+  // the pad at the CURRENT level (nested insert-chain targeting). Empty path →
+  // omitted branchPath → byte-identical to B4.
   const selectedRackPad = useProjectStore((s) => s.selectedRackPad)
   const selectedPadId =
     selectedRackPad && selectedRackPad.trackId === trackId ? selectedRackPad.padId : null
   const setSelectedPad = (padId: string) =>
-    useProjectStore.getState().setSelectedRackPad(trackId, padId)
+    useProjectStore.getState().setSelectedRackPad(
+      trackId,
+      padId,
+      useProjectStore.getState().rackEditPath,
+    )
   const clearSelectedPad = () => useProjectStore.getState().clearSelectedRackPad()
 
   // Mirror SamplerDevice: return null when the track has no rack (mount-safe).
   if (!rack) return null
 
+  // B5.2 — resolve the RackNode at the current edit path. A STALE path (a pad in
+  // the chain was deleted out from under us) resolves to null → fall back to the
+  // top rack AND reset the path (no dangling path → no crash). The reset is done
+  // in an effect-free guard: render the top rack THIS frame; the path is corrected
+  // by the delete handler / track-switch effect, so we just coalesce here.
+  const currentNode: RackNode = resolveRackNode(rack, rackEditPath) ?? rack
+  const editPath = resolveRackNode(rack, rackEditPath) ? rackEditPath : []
+
   const videoAssets = Object.values(assets).filter((a) => a.type === 'video')
-  const selectedPad = rack.pads.find((p) => p.id === selectedPadId) ?? null
+  const selectedPad =
+    // Only show the editor for a pad that lives at the CURRENT level.
+    currentNode.pads.find((p) => p.id === selectedPadId) ?? null
 
   // PATTERN: PadCell.tsx onMouseDown → onTrigger(pad.id). The current playhead
-  // frame is useProjectStore.currentFrame — the frame the render loop evaluates.
+  // frame is useProjectStore.currentFrame.
   //
-  // B4-choke — the COMPONENT (not the performance store) knows the rack, so it
-  // resolves the choke siblings here: every OTHER pad sharing the triggered pad's
-  // non-null chokeGroup. Their ids are handed to triggerRackPad, which writes a
-  // silencing event into each sibling's composite-key stream (keeps the stores
-  // decoupled — performance.ts never imports the instruments store).
+  // B4-choke — choke siblings resolved against the CURRENT level's pads. (A
+  // branch pad has no leaf voice to trigger; triggering it is a no-op-ish event
+  // — render uses its branch. We still trigger for parity with B4 leaf pads.)
   const onPadTrigger = (padId: string) => {
     const frame = useProjectStore.getState().currentFrame
-    const pad = rack.pads.find((p) => p.id === padId)
+    const pad = currentNode.pads.find((p) => p.id === padId)
     const group = pad?.chokeGroup ?? null
     const siblings =
       group === null
         ? undefined
-        : rack.pads
+        : currentNode.pads
             .filter((p) => p.id !== padId && p.chokeGroup === group)
             .map((p) => p.id)
-    // Pass the triggered pad's group so triggerRackPad stamps it on the trigger
-    // event (the voice carries `_chokeGroup`) AND emits 'choke' (not 'panic')
-    // events into the siblings' streams — correct in preview AND export.
     triggerRackPad(trackId, padId, frame, siblings, group)
   }
 
-  // B4-pad-delete — SYMMETRIC cleanup: pad gone (+ its macro routes pruned) via
-  // removeRackPad, AND its composite-key trigger events cleared via
-  // clearRackPadEvents. If the deleted pad was selected, clear local selection
-  // so the editor falls back (no dangling selectedPadId → no crash).
+  // B4-pad-delete — SYMMETRIC cleanup (path-aware). If the deleted pad is the
+  // branch the user is currently INSIDE (i.e. it's the last segment of the edit
+  // path), exit that level first (stale-path safety — no dangling path).
   const onPadDelete = (padId: string) => {
-    removeRackPad(trackId, padId)
+    // B5.2 — if we're deleting the branch pad we drilled INTO at this level's
+    // parent, this can't happen here (we only delete pads AT the current level).
+    // But if a CHILD branch pad currently in our path is deleted, reset to a safe
+    // level. The simplest correct guard: if the deleted pad id appears anywhere in
+    // the edit path, truncate the path to JUST ABOVE it.
+    const inPathIdx = editPath.indexOf(padId)
+    if (inPathIdx !== -1) {
+      setRackEditPathDepth(inPathIdx)
+    }
+    removeRackPadAt(trackId, editPath, padId)
     clearRackPadEvents(trackId, padId)
-    // B4-pad-chain UI: clear the lifted selection so the DeviceChain editor
-    // target never dangles at a deleted pad (it falls back to the track chain).
     if (selectedPadId === padId) clearSelectedPad()
   }
 
-  const macros = rack.macros ?? []
+  // B5.2 — convert a leaf pad into a branch (group). Rejected at MAX_BRANCH_DEPTH
+  // (the store enforces depth = editPath.length + 1 > cap → false). Surface the
+  // cap with a toast (mirrors the macro-cap UX) instead of silently no-opping.
+  const onGroupPad = (padId: string) => {
+    const ok = convertPadToBranch(trackId, editPath, padId)
+    if (!ok) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: `Max nesting depth reached (${MAX_BRANCH_DEPTH} levels).`,
+        source: 'instruments',
+      })
+    }
+  }
+
+  const atMaxDepth = editPath.length >= MAX_BRANCH_DEPTH
+
+  const macros = currentNode.macros ?? []
   const atMacroCap = macros.length >= MAX_MACROS_PER_RACK
 
-  // Add-macro respects MAX_MACROS_PER_RACK (trust boundary): the store returns
-  // null at the cap — surface it instead of silently no-opping.
+  // Macros are edited at the TOP rack only (B4.2 model is per-track). Keep the
+  // macro editor visible only at the top level to avoid implying per-branch
+  // macros (B5.1 branches use chain + composite, not macros).
+  const showMacros = editPath.length === 0
+
   const onAddMacro = () => {
     const id = addRackMacro(trackId)
     if (id === null) {
@@ -133,25 +190,111 @@ export default function RackDevice({ trackId }: { trackId: string }) {
     }
   }
 
+  // B5.2 — breadcrumb labels: "Rack" then "Pad N" for each branch segment. The
+  // index for each segment is resolved by walking the tree to that depth.
+  const crumbs: { label: string; depth: number }[] = [{ label: 'Rack', depth: 0 }]
+  {
+    let node: RackNode = rack
+    for (let i = 0; i < editPath.length; i++) {
+      const padId = editPath[i]
+      const idx = node.pads.findIndex((p) => p.id === padId)
+      crumbs.push({ label: `Pad ${idx === -1 ? '?' : idx + 1}`, depth: i + 1 })
+      const next = node.pads[idx]?.branch
+      if (!next) break
+      node = next
+    }
+  }
+
   return (
     <div className="sampler-device" data-testid="rack-device">
+      {/* B5.2 — breadcrumb (always rendered; flat rack shows just "Rack"). */}
+      <div className="sampler-device__row" data-testid="rack-breadcrumb">
+        {crumbs.map((c, i) => (
+          <span key={c.depth}>
+            {i > 0 && <span> › </span>}
+            <button
+              type="button"
+              data-testid={`rack-breadcrumb-${c.depth}`}
+              className="rack-breadcrumb__crumb"
+              disabled={c.depth === editPath.length}
+              onClick={() => setRackEditPathDepth(c.depth)}
+            >
+              {c.label}
+            </button>
+          </span>
+        ))}
+        {editPath.length > 0 && (
+          <button
+            type="button"
+            data-testid="rack-breadcrumb-up"
+            className="rack-breadcrumb__up"
+            onClick={() => setRackEditPathDepth(editPath.length - 1)}
+          >
+            ↑ up
+          </button>
+        )}
+      </div>
+
       <div className="sampler-device__row">
         <span>Pads</span>
         <div className="pad-grid" data-testid="rack-pad-grid">
-          {rack.pads.map((pad, i) => (
-            <div
-              key={pad.id}
-              className={`pad-cell${pad.id === selectedPadId ? ' pad-cell--armed' : ''}`}
-              data-testid={`rack-pad-${pad.id}`}
-              role="button"
-              aria-pressed={pad.id === selectedPadId}
-              // Mirror PadCell.tsx: onMouseDown triggers; click also selects for editing.
-              onMouseDown={() => onPadTrigger(pad.id)}
-              onClick={() => setSelectedPad(pad.id)}
-            >
-              <span className="pad-cell__label">Pad {i + 1}</span>
-            </div>
-          ))}
+          {currentNode.pads.map((pad, i) => {
+            const isBranch = !!pad.branch
+            return (
+              <div
+                key={pad.id}
+                className={
+                  `pad-cell` +
+                  `${pad.id === selectedPadId ? ' pad-cell--armed' : ''}` +
+                  `${isBranch ? ' pad-cell--branch' : ''}`
+                }
+                data-testid={`rack-pad-${pad.id}`}
+                role="button"
+                aria-pressed={pad.id === selectedPadId}
+                // Mirror PadCell.tsx: onMouseDown triggers; click also selects.
+                // B5.2 — double-click a branch pad drills INTO it.
+                onMouseDown={() => onPadTrigger(pad.id)}
+                onClick={() => setSelectedPad(pad.id)}
+                onDoubleClick={() => {
+                  if (isBranch) enterBranch(pad.id)
+                }}
+              >
+                <span className="pad-cell__label">
+                  Pad {i + 1}
+                  {isBranch && <span data-testid={`rack-pad-branch-marker-${pad.id}`}> ▣</span>}
+                </span>
+                {isBranch ? (
+                  <button
+                    type="button"
+                    data-testid={`rack-pad-enter-${pad.id}`}
+                    className="pad-cell__enter"
+                    // Stop the cell's onClick (select) / onMouseDown (trigger).
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      enterBranch(pad.id)
+                    }}
+                  >
+                    enter →
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    data-testid={`rack-pad-group-${pad.id}`}
+                    className="pad-cell__group"
+                    disabled={atMaxDepth}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onGroupPad(pad.id)
+                    }}
+                  >
+                    group
+                  </button>
+                )}
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -159,7 +302,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
         type="button"
         className="sampler-device__row"
         data-testid="rack-add-pad"
-        onClick={() => addRackPad(trackId)}
+        onClick={() => addRackPadAt(trackId, editPath)}
       >
         + Add pad
       </button>
@@ -175,125 +318,153 @@ export default function RackDevice({ trackId }: { trackId: string }) {
             Delete pad
           </button>
 
-          <label className="sampler-device__row">
-            <span>Source</span>
-            <select
-              data-testid="rack-pad-source"
-              value={selectedPad.instrument.clipId}
-              onChange={(e) => setRackPadSource(trackId, selectedPad.id, e.target.value)}
+          {/* B5.2 — a leaf pad can become a group; a branch pad can be entered. */}
+          {selectedPad.branch ? (
+            <button
+              type="button"
+              className="sampler-device__row"
+              data-testid={`rack-pad-enter-editor-${selectedPad.id}`}
+              onClick={() => enterBranch(selectedPad.id)}
             >
-              <option value="">— no source —</option>
-              {videoAssets.map((a) => (
-                <option key={a.id} value={a.id}>{a.path.split('/').pop() ?? a.id}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="sampler-device__row">
-            <span>Opacity</span>
-            <input
-              type="number"
-              data-testid="rack-pad-opacity"
-              value={selectedPad.opacity}
-              min={RACK_PAD_OPACITY_MIN}
-              max={RACK_PAD_OPACITY_MAX}
-              step={0.01}
-              onChange={(e) =>
-                // Trust boundary: clamp [0,1] + finite (store also clamps — defense in depth).
-                updateRackPad(trackId, selectedPad.id, {
-                  opacity: clampFinite(
-                    Number(e.target.value),
-                    RACK_PAD_OPACITY_MIN,
-                    RACK_PAD_OPACITY_MAX,
-                    1,
-                  ),
-                })
-              }
-            />
-          </label>
-
-          <label className="sampler-device__row">
-            <span>Blend</span>
-            <select
-              data-testid="rack-pad-blend"
-              value={selectedPad.blend}
-              onChange={(e) =>
-                updateRackPad(trackId, selectedPad.id, { blend: e.target.value as BlendMode })
-              }
+              Enter branch →
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="sampler-device__row"
+              data-testid="rack-add-branch"
+              disabled={atMaxDepth}
+              onClick={() => onGroupPad(selectedPad.id)}
             >
-              {BLEND_MODES.map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </label>
+              Group → branch{atMaxDepth ? ` (max depth ${MAX_BRANCH_DEPTH})` : ''}
+            </button>
+          )}
 
-          <label className="sampler-device__row">
-            <span>Mute</span>
-            <input
-              type="checkbox"
-              data-testid="rack-pad-mute"
-              checked={selectedPad.mute}
-              onChange={(e) => updateRackPad(trackId, selectedPad.id, { mute: e.target.checked })}
-            />
-          </label>
+          {/* A branch pad's leaf params are inert (B5.1: branch renders, leaf is
+              ignored) — only show the leaf editor for a non-branch pad. */}
+          {!selectedPad.branch && (
+            <>
+              <label className="sampler-device__row">
+                <span>Source</span>
+                <select
+                  data-testid="rack-pad-source"
+                  value={selectedPad.instrument.clipId}
+                  onChange={(e) => setRackPadSourceAt(trackId, editPath, selectedPad.id, e.target.value)}
+                >
+                  <option value="">— no source —</option>
+                  {videoAssets.map((a) => (
+                    <option key={a.id} value={a.id}>{a.path.split('/').pop() ?? a.id}</option>
+                  ))}
+                </select>
+              </label>
 
-          <label className="sampler-device__row">
-            <span>Solo</span>
-            <input
-              type="checkbox"
-              data-testid="rack-pad-solo"
-              checked={selectedPad.solo}
-              onChange={(e) => updateRackPad(trackId, selectedPad.id, { solo: e.target.checked })}
-            />
-          </label>
+              <label className="sampler-device__row">
+                <span>Opacity</span>
+                <input
+                  type="number"
+                  data-testid="rack-pad-opacity"
+                  value={selectedPad.opacity}
+                  min={RACK_PAD_OPACITY_MIN}
+                  max={RACK_PAD_OPACITY_MAX}
+                  step={0.01}
+                  onChange={(e) =>
+                    updateRackPadAt(trackId, editPath, selectedPad.id, {
+                      opacity: clampFinite(
+                        Number(e.target.value),
+                        RACK_PAD_OPACITY_MIN,
+                        RACK_PAD_OPACITY_MAX,
+                        1,
+                      ),
+                    })
+                  }
+                />
+              </label>
 
-          <label className="sampler-device__row">
-            <span>Choke</span>
-            <select
-              data-testid="rack-pad-choke"
-              value={selectedPad.chokeGroup ?? ''}
-              onChange={(e) => {
-                const v = e.target.value
-                // '' = none → null; otherwise an int 1..8 (store re-validates).
-                setRackPadChokeGroup(trackId, selectedPad.id, v === '' ? null : Number(v))
-              }}
-            >
-              <option value="">none</option>
-              {Array.from(
-                { length: RACK_CHOKE_GROUP_MAX - RACK_CHOKE_GROUP_MIN + 1 },
-                (_, i) => RACK_CHOKE_GROUP_MIN + i,
-              ).map((g) => (
-                <option key={g} value={g}>{g}</option>
-              ))}
-            </select>
-          </label>
+              <label className="sampler-device__row">
+                <span>Blend</span>
+                <select
+                  data-testid="rack-pad-blend"
+                  value={selectedPad.blend}
+                  onChange={(e) =>
+                    updateRackPadAt(trackId, editPath, selectedPad.id, { blend: e.target.value as BlendMode })
+                  }
+                >
+                  {BLEND_MODES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="sampler-device__row">
+                <span>Mute</span>
+                <input
+                  type="checkbox"
+                  data-testid="rack-pad-mute"
+                  checked={selectedPad.mute}
+                  onChange={(e) => updateRackPadAt(trackId, editPath, selectedPad.id, { mute: e.target.checked })}
+                />
+              </label>
+
+              <label className="sampler-device__row">
+                <span>Solo</span>
+                <input
+                  type="checkbox"
+                  data-testid="rack-pad-solo"
+                  checked={selectedPad.solo}
+                  onChange={(e) => updateRackPadAt(trackId, editPath, selectedPad.id, { solo: e.target.checked })}
+                />
+              </label>
+
+              <label className="sampler-device__row">
+                <span>Choke</span>
+                <select
+                  data-testid="rack-pad-choke"
+                  value={selectedPad.chokeGroup ?? ''}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    setRackPadChokeGroupAt(trackId, editPath, selectedPad.id, v === '' ? null : Number(v))
+                  }}
+                >
+                  <option value="">none</option>
+                  {Array.from(
+                    { length: RACK_CHOKE_GROUP_MAX - RACK_CHOKE_GROUP_MIN + 1 },
+                    (_, i) => RACK_CHOKE_GROUP_MIN + i,
+                  ).map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
+              </label>
+            </>
+          )}
         </div>
       )}
 
-      <div data-testid="rack-macros">
-        <button
-          type="button"
-          className="sampler-device__row"
-          data-testid="rack-add-macro"
-          disabled={atMacroCap}
-          onClick={onAddMacro}
-        >
-          + Add macro{atMacroCap ? ` (max ${MAX_MACROS_PER_RACK})` : ''}
-        </button>
+      {showMacros && (
+        <div data-testid="rack-macros">
+          <button
+            type="button"
+            className="sampler-device__row"
+            data-testid="rack-add-macro"
+            disabled={atMacroCap}
+            onClick={onAddMacro}
+          >
+            + Add macro{atMacroCap ? ` (max ${MAX_MACROS_PER_RACK})` : ''}
+          </button>
 
-        {macros.map((macro) => (
-          <MacroRow
-            key={macro.id}
-            trackId={trackId}
-            macro={macro}
-            pads={rack.pads}
-            onUpdate={updateRackMacro}
-            onRemove={removeRackMacro}
-            onAddRoute={addMacroRoute}
-            onRemoveRoute={removeMacroRoute}
-          />
-        ))}
-      </div>
+          {macros.map((macro) => (
+            <MacroRow
+              key={macro.id}
+              trackId={trackId}
+              macro={macro}
+              pads={currentNode.pads}
+              onUpdate={updateRackMacro}
+              onRemove={removeRackMacro}
+              onAddRoute={addMacroRoute}
+              onRemoveRoute={removeMacroRoute}
+            />
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -338,8 +509,6 @@ function MacroRow({
     const targetPath = `pad.${padId}.${routeParam}`
     const ok = onAddRoute(trackId, macro.id, { targetPath, depth })
     if (!ok) {
-      // addMacroRoute returned false (per-macro OR total edge cap hit) — never
-      // silently drop; surface the cap to the user.
       useToastStore.getState().addToast({
         level: 'warning',
         message: 'Route limit reached for this rack — remove a route to add another.',
@@ -364,7 +533,6 @@ function MacroRow({
         step={0.01}
         value={macro.value}
         onChange={(e) =>
-          // Store clamps [0,1] at render; clamp here too (defense in depth).
           onUpdate(trackId, macro.id, { value: clampFinite(Number(e.target.value), 0, 1, 0) })
         }
       />

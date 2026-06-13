@@ -6,7 +6,7 @@ import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
 import { undoable, useUndoStore, setCommitValidator } from './undo'
 import { useToastStore } from './toast'
 import { useTimelineStore } from './timeline'
-import { useInstrumentsStore } from './instruments'
+import { useInstrumentsStore, resolveRackNode } from './instruments'
 import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
 import { validateCompositeChain, rejectCompositeOnAudio } from './compositeValidator'
 
@@ -26,6 +26,14 @@ const EMPTY: EffectInstance[] = []
 export interface SelectedRackPad {
   trackId: string
   padId: string
+  /**
+   * B5.2 — the branch path (array of pad ids) the selected pad lives under.
+   * Empty/absent → the pad is in the TOP rack (B4 behavior, byte-identical). A
+   * non-empty path means the DeviceChain edits a NESTED pad's insert chain — the
+   * pad-chain resolvers/mutations walk `pad.branch` along this path before
+   * locating `padId`.
+   */
+  branchPath?: string[]
 }
 
 interface ProjectState {
@@ -33,10 +41,31 @@ interface ProjectState {
   selectedEffectId: string | null
   /** B4-pad-chain UI: the rack pad the DeviceChain editor targets, or null (track). */
   selectedRackPad: SelectedRackPad | null
-  /** B4-pad-chain UI: point the DeviceChain editor at a rack pad's insert chain. */
-  setSelectedRackPad: (trackId: string, padId: string) => void
+  /**
+   * B4-pad-chain UI: point the DeviceChain editor at a rack pad's insert chain.
+   * B5.2 — optional `branchPath` addresses a pad NESTED inside `pad.branch`
+   * (empty/omitted → a TOP-rack pad, byte-identical to B4).
+   */
+  setSelectedRackPad: (trackId: string, padId: string, branchPath?: string[]) => void
   /** B4-pad-chain UI: clear the pad target → DeviceChain falls back to the track. */
   clearSelectedRackPad: () => void
+
+  // --- B5.2 nested-rack navigation ---
+  /**
+   * B5.2 — the branch path (array of pad ids) the RackDevice is currently editing.
+   * Empty = the TOP rack (flat behavior, byte-identical to B4). enterBranch pushes
+   * a pad id; exitBranch pops; resetRackEditPath clears (called on track-switch or
+   * when the branch the user is inside is deleted — no dangling path → no crash).
+   */
+  rackEditPath: string[]
+  /** B5.2 — drill INTO the branch held by `padId` (push onto rackEditPath). */
+  enterBranch: (padId: string) => void
+  /** B5.2 — drill OUT one level (pop the last segment of rackEditPath). */
+  exitBranch: () => void
+  /** B5.2 — jump to an arbitrary prefix length of the current path (breadcrumb click). */
+  setRackEditPathDepth: (depth: number) => void
+  /** B5.2 — clear the edit path back to the top rack (track-switch / stale-path reset). */
+  resetRackEditPath: () => void
   currentFrame: number
   totalFrames: number
   isIngesting: boolean
@@ -110,6 +139,8 @@ const PROJECT_DEFAULTS = {
   selectedEffectId: null as string | null,
   // B4-pad-chain UI: DeviceChain editor target. null → active track's chain.
   selectedRackPad: null as SelectedRackPad | null,
+  // B5.2: nested-rack edit path (array of branch pad ids). [] → top rack.
+  rackEditPath: [] as string[],
   currentFrame: 0,
   totalFrames: 0,
   isIngesting: false,
@@ -435,8 +466,25 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   selectEffect: (id) => set({ selectedEffectId: id }),
   // B4-pad-chain UI: retarget the DeviceChain editor onto a rack pad's chain.
   // NOT undoable (a view-selection, like selectEffect/selectedTrackId).
-  setSelectedRackPad: (trackId, padId) => set({ selectedRackPad: { trackId, padId } }),
+  // B5.2: optional branchPath addresses a nested pad; omitted → top-rack pad.
+  setSelectedRackPad: (trackId, padId, branchPath) =>
+    set({
+      selectedRackPad: { trackId, padId, ...(branchPath && branchPath.length ? { branchPath } : {}) },
+    }),
   clearSelectedRackPad: () => set({ selectedRackPad: null }),
+
+  // B5.2: nested-rack navigation — view state, NOT undoable (like selectEffect).
+  rackEditPath: PROJECT_DEFAULTS.rackEditPath,
+  enterBranch: (padId) => set((state) => ({ rackEditPath: [...state.rackEditPath, padId] })),
+  exitBranch: () => set((state) => ({ rackEditPath: state.rackEditPath.slice(0, -1) })),
+  setRackEditPathDepth: (depth) =>
+    set((state) => {
+      // Trust boundary: clamp to a valid prefix length of the current path.
+      const d = Math.max(0, Math.min(state.rackEditPath.length, Math.floor(depth)))
+      if (d === state.rackEditPath.length) return state
+      return { rackEditPath: state.rackEditPath.slice(0, d) }
+    }),
+  resetRackEditPath: () => set({ rackEditPath: [] }),
   setCurrentFrame: (frame) => set({ currentFrame: frame }),
   setTotalFrames: (total) => set({ totalFrames: total }),
   setIngesting: (ingesting) => set({ isIngesting: ingesting }),
@@ -691,7 +739,10 @@ export const getActivePadChain = (): EffectInstance[] => {
   if (!sel) return EMPTY
   const rack = useInstrumentsStore.getState().racks[sel.trackId]
   if (!rack) return EMPTY
-  return rack.pads.find((p) => p.id === sel.padId)?.chain ?? EMPTY
+  // B5.2: walk to the RackNode at the selection's branchPath (null → stale path).
+  const node = resolveRackNode(rack, sel.branchPath ?? [])
+  if (!node) return EMPTY
+  return node.pads.find((p) => p.id === sel.padId)?.chain ?? EMPTY
 }
 
 /**
@@ -706,6 +757,9 @@ export const useActivePadEffectChain = (): EffectInstance[] => {
     if (!sel) return EMPTY
     const rack = s.racks[sel.trackId]
     if (!rack) return EMPTY
-    return rack.pads.find((p) => p.id === sel.padId)?.chain ?? EMPTY
+    // B5.2: resolve the nested RackNode at the selection's branchPath.
+    const node = resolveRackNode(rack, sel.branchPath ?? [])
+    if (!node) return EMPTY
+    return node.pads.find((p) => p.id === sel.padId)?.chain ?? EMPTY
   })
 }
