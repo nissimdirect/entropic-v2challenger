@@ -23,7 +23,17 @@ import {
   MAX_MACROS_PER_RACK,
   MAX_MODROUTES_PER_MACRO,
   MAX_TOTAL_EDGES,
+  RACK_PAD_OPACITY_MIN,
+  RACK_PAD_OPACITY_MAX,
 } from '../components/instruments/types'
+import { clampFinite } from '../../shared/numeric'
+import type { BlendMode } from '../../shared/types'
+
+/** Valid blend modes a rack pad channel may use (trust-boundary allowlist). */
+const BLEND_MODES = new Set<BlendMode>([
+  'normal', 'add', 'multiply', 'screen', 'overlay',
+  'difference', 'exclusion', 'darken', 'lighten',
+])
 
 let _macroCounter = 0
 function nextMacroId(): string {
@@ -101,6 +111,10 @@ interface InstrumentsState {
   /** Remove a track's rack (also called on track delete for cleanup). */
   removeRack: (trackId: string) => void
   getRack: (trackId: string) => RackNode | undefined
+  /** B4-editor — append a fresh (unsourced) pad channel to a track's rack. */
+  addRackPad: (trackId: string) => void
+  /** B4-editor — set a rack pad's sample source clipId (no-op if rack/pad absent). */
+  setRackPadSource: (trackId: string, padId: string, clipId: string) => void
   /** Patch a single pad's channel controls (opacity/blend/mute/solo) or its instrument. */
   updateRackPad: (
     trackId: string,
@@ -210,6 +224,38 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
 
   getRack: (trackId) => get().racks[trackId],
 
+  // B4-editor — append a fresh (unsourced) pad channel to a track's rack.
+  addRackPad: (trackId) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      // Mirror addRack's 64-pad ceiling — refuse to grow past it.
+      if (rack.pads.length >= 64) return state
+      return {
+        racks: {
+          ...state.racks,
+          [trackId]: { ...rack, pads: [...rack.pads, createRackPad()] },
+        },
+      }
+    }),
+
+  // B4-editor — set a rack pad's sample source (clipId). Immutable update;
+  // mirrors the bare-sampler `setSource`. A missing rack / pad is a no-op.
+  setRackPadSource: (trackId, padId, clipId) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const idx = rack.pads.findIndex((p) => p.id === padId)
+      if (idx === -1) return state
+      const old = rack.pads[idx]
+      const pads = rack.pads.slice()
+      pads[idx] = {
+        ...old,
+        instrument: { ...old.instrument, clipId },
+      }
+      return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
+    }),
+
   updateRackPad: (trackId, padId, patch) =>
     set((state) => {
       const rack = state.racks[trackId]
@@ -221,9 +267,26 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       const { id: _ignore, instrument: patchInst, ...rest } = patch as Record<string, unknown> & {
         instrument?: Partial<SamplerInstrumentV1>
       }
+      // B4-editor — trust-boundary guards on channel-control patches (every
+      // numeric crossing the store boundary is clamped + finite-guarded; blend
+      // must be a known BlendMode; mute/solo coerced to bool).
+      const safeRest = { ...(rest as Partial<RackPad>) }
+      if ('opacity' in safeRest) {
+        safeRest.opacity = clampFinite(
+          Number((safeRest as { opacity: unknown }).opacity),
+          RACK_PAD_OPACITY_MIN,
+          RACK_PAD_OPACITY_MAX,
+          old.opacity,
+        )
+      }
+      if ('blend' in safeRest && !BLEND_MODES.has(safeRest.blend as BlendMode)) {
+        delete safeRest.blend
+      }
+      if ('mute' in safeRest) safeRest.mute = Boolean(safeRest.mute)
+      if ('solo' in safeRest) safeRest.solo = Boolean(safeRest.solo)
       const merged: RackPad = {
         ...old,
-        ...(rest as Partial<RackPad>),
+        ...safeRest,
         id: old.id,
         instrument: patchInst
           ? { ...old.instrument, ...patchInst, id: old.instrument.id, type: 'sampler' }

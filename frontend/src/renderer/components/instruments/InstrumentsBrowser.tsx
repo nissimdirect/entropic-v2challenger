@@ -33,12 +33,17 @@ interface RackEntry {
 
 const RACKS: RackEntry[] = [
   { id: 'sampler', label: 'Sampler', enabled: true },
-  { id: 'drum-rack', label: 'Drum Rack', enabled: false },
+  // B4-editor: the rack entry is now ENABLED. Its visible label is "Sample Rack"
+  // (not "Drum Rack") — "Drum Rack" collides with the B2-lite performance drumRack
+  // (PadGrid/PadEditor) and would mislead. The id stays 'drum-rack' for drag/test
+  // continuity; only the label changes. RackNode is the drumRack successor.
+  { id: 'drum-rack', label: 'Sample Rack', enabled: true },
   { id: 'wavetable', label: 'Wavetable', enabled: false },
 ]
 
 export default function InstrumentsBrowser() {
   const addSampler = useInstrumentsStore((s) => s.addSampler)
+  const addRack = useInstrumentsStore((s) => s.addRack)
   const selectedTrackId = useTimelineStore((s) => s.selectedTrackId)
   const tracks = useTimelineStore((s) => s.tracks)
 
@@ -51,8 +56,12 @@ export default function InstrumentsBrowser() {
   )
 
   const handleDoubleClick = (entry: RackEntry) => {
-    if (!entry.enabled || entry.id !== 'sampler') return
-    if (!hasVideoClips) {
+    if (!entry.enabled) return
+    if (entry.id !== 'sampler' && entry.id !== 'drum-rack') return
+
+    // The Sampler needs a base video clip; the Sample Rack does NOT (pads get
+    // sources individually via the RackDevice editor) — so only gate the sampler.
+    if (entry.id === 'sampler' && !hasVideoClips) {
       useToastStore.getState().addToast({
         level: 'warning',
         message: 'Add a video clip to the timeline first, then add a Sampler.',
@@ -60,15 +69,20 @@ export default function InstrumentsBrowser() {
       })
       return
     }
+
+    // Both instruments require a selected Performance (MIDI) track — same guard/toast.
     if (!selectedTrack || selectedTrack.type !== 'performance') {
+      const what = entry.id === 'sampler' ? 'the Sampler' : 'the Sample Rack'
       useToastStore.getState().addToast({
         level: 'warning',
-        message: 'Select a MIDI track first (Cmd+Shift+T to add one), then double-click — or drag the Sampler onto it.',
+        message: `Select a MIDI track first (Cmd+Shift+T to add one), then double-click — or drag ${what} onto it.`,
         source: 'instruments',
       })
       return
     }
-    addSampler(selectedTrack.id)
+
+    if (entry.id === 'sampler') addSampler(selectedTrack.id)
+    else addRack(selectedTrack.id)
   }
 
   return (

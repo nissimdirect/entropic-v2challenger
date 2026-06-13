@@ -99,7 +99,7 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 |---|---|
 | B1 1-voice Sampler | ✅ core [#153](https://github.com/nissimdirect/entropic-v2challenger/pull/153) + mount [#155](https://github.com/nissimdirect/entropic-v2challenger/pull/155) + persistence ✅ [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) (B1 global shape superseded same-day by #167's track-keyed `instruments`; legacy saves drop-with-toast) |
 | B2 voice spine / Performance Track | 🔄 — B2-lite ✅ MERGED [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) 2026-06-12; full voice spine (polyphony/FSM) ❌ |
-| B3 full sampler · B4 sample rack · B5 grouping | ❌ (plans ready) |
+| B3 full sampler · B4 sample rack · B5 grouping | B3 ✅ (loop/scrub/rgb/glide/melodic, [#233](https://github.com/nissimdirect/entropic-v2challenger/pull/233) + predecessors) · B4.1 channel summing ✅ [#234](https://github.com/nissimdirect/entropic-v2challenger/pull/234) · B4.2 macros ✅ [#235](https://github.com/nissimdirect/entropic-v2challenger/pull/235) · B4-export parity ✅ [#236](https://github.com/nissimdirect/entropic-v2challenger/pull/236) · B4-editor (creation + RackDevice + pad trigger) 🔄 · B5 ❌ |
 | B6 Frame-Bank · B7 RIFE morph · B8 Granulator · B9 tensor routing · B10 live affordances | ❌ (gated designs; B8 needs SG-3, B9 needs PR-C+SG-5) |
 
 ### Vision PRDs (synth paradigm)
