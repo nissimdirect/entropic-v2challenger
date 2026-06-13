@@ -24,6 +24,8 @@ from engine.composite_tree import (
     is_group_layer,
     validate_composite_tree,
 )
+from engine.decoded_frame_cache import DecodedFrameCache
+from engine.frame_bank import resolve_frame_bank_layer
 from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
     apply_chain,
@@ -42,6 +44,7 @@ from security import (
     validate_chain_depth,
     validate_export_modulation,
     validate_composite_layer_count,
+    validate_frame_bank,
     validate_frame_count,
     validate_output_directory,
     validate_output_path,
@@ -209,6 +212,12 @@ class ZMQServer:
             self._composite_last_signature = None
         if hasattr(self, "_composite_last_frame"):
             self._composite_last_frame = None
+
+        # B6.2 — reset the per-frameBank preview decoded-frame caches (mirror of
+        # export's `frame_bank_caches`, but persisted on the server across preview
+        # frames). Leaking these would hold decoded RAM resident across a reset.
+        if hasattr(self, "_frame_bank_caches"):
+            self._frame_bank_caches = {}
 
         # Reset freeze caches
         self.freeze_manager.reset()
@@ -1275,6 +1284,101 @@ class ZMQServer:
                 if "blend_mode" in layer_info:
                     layer_dict["blend_mode"] = layer_info["blend_mode"]
                 layers.append(layer_dict)
+
+            # B6.2 — Frame-Bank (wavetable) PREVIEW render. EXACT mirror of the
+            # EXPORT path (_composite_export_frame): when the render request carries
+            # `performance.frameBanks`, each declared bank's CLAMPED position
+            # selects/interpolates slot frames decoded through a per-bank byte-
+            # budget DecodedFrameCache (the OOM guard + SG-8 pressure-degrade), and
+            # ONE voice layer per bank is appended — so preview == export (same
+            # resolved frame, same compositor path). The cache is PERSISTED on the
+            # server (`self._frame_bank_caches`, keyed by bank id) across preview
+            # frames, exactly as export persists `frame_bank_caches` across output
+            # frames (a continuous position-scan reuses decoded slots). Absent /
+            # empty `frameBanks` → no layers appended → preview byte-identical
+            # (regression-safe). Caps are enforced BEFORE decode (validate_frame_bank).
+            performance = message.get("performance")
+            frame_banks = (performance or {}).get("frameBanks") or {}
+            # B6.2 NO-LEAK: drop caches for banks no longer present in this render
+            # (a removed frameBank must not retain its decoded RAM). Runs OUTSIDE
+            # the `if frame_banks:` guard so that emptying the bank set (last bank
+            # removed → `frameBanks` absent/empty) ALSO evicts the now-stale caches
+            # — otherwise a deleted bank's decoded RAM would leak indefinitely.
+            if hasattr(self, "_frame_bank_caches"):
+                live_fb_ids = set(frame_banks.keys())
+                for stale_id in [
+                    k for k in self._frame_bank_caches if k not in live_fb_ids
+                ]:
+                    del self._frame_bank_caches[stale_id]
+            if frame_banks:
+                fb_assets = (performance or {}).get("assets") or {}
+                if not hasattr(self, "_frame_bank_caches"):
+                    self._frame_bank_caches: dict[str, DecodedFrameCache] = {}
+                fb_caches = self._frame_bank_caches
+
+                fb_anchor_frame = min(
+                    (int(layer.get("frame_index", 0)) for layer in layers),
+                    default=0,
+                )
+
+                def _fb_decode(clip_id: str, slot_frame_index: int) -> np.ndarray:
+                    # Resolve clipId → asset path via the SAME assets table the
+                    # export path uses, decode through the shared reader cache.
+                    fb_asset = fb_assets.get(clip_id)
+                    if not fb_asset or not fb_asset.get("path"):
+                        raise ValueError(
+                            f"frameBank slot clipId {clip_id!r} has no asset path"
+                        )
+                    # SEC-5: validate each slot asset path (mirror video layers).
+                    path_errors = validate_upload(fb_asset["path"])
+                    if path_errors:
+                        raise ValueError("; ".join(path_errors))
+                    reader = self._get_reader(fb_asset["path"])
+                    rfc = getattr(reader, "frame_count", None)
+                    idx = int(slot_frame_index)
+                    if rfc:
+                        # Clamp the slot frameIndex into the clip's real range (a
+                        # stale project may reference a frame past a shorter clip).
+                        idx = max(0, min(rfc - 1, idx))
+                    return reader.decode_frame(idx)
+
+                for fb_id, raw_fb in frame_banks.items():
+                    # ENFORCE-BEFORE-DECODE: validate + sanitize (clamp position /
+                    # byteBudget, reject over-cap slots / bad refs) BEFORE decode.
+                    sanitized, fb_errors = validate_frame_bank(raw_fb)
+                    if fb_errors or sanitized is None:
+                        return {
+                            "id": msg_id,
+                            "ok": False,
+                            "error": "; ".join(fb_errors) or "invalid frameBank",
+                        }
+                    # One byte-budget cache per bank id, sized to its CLAMPED
+                    # budget, persisted across preview frames (position-scan reuse).
+                    cache = fb_caches.get(fb_id)
+                    if (
+                        cache is None
+                        or getattr(cache, "byte_budget", None)
+                        != sanitized["byteBudget"]
+                    ):
+                        cache = DecodedFrameCache(sanitized["byteBudget"])
+                        fb_caches[fb_id] = cache
+                    # voice_id keys per-voice compositor state; encode colon-free
+                    # and bounded so a hostile fb_id can't escape the namespace
+                    # (mirror export's encoding exactly so preview == export).
+                    vid = f"framebank_{fb_id}"[:128]
+                    vid = "".join(c if c.isalnum() or c in "_-" else "_" for c in vid)
+                    layers.append(
+                        resolve_frame_bank_layer(
+                            sanitized,
+                            sanitized["position"],
+                            cache,
+                            _fb_decode,
+                            frame_index=fb_anchor_frame,
+                            voice_id=vid,
+                            opacity=sanitized.get("opacity", 1.0),
+                            blend_mode=sanitized.get("blendMode", "normal"),
+                        )
+                    )
 
             # Build a layer signature from ordered layer_ids — invalidates cache
             # on add/remove/reorder. Use the smallest frame_index across layers
