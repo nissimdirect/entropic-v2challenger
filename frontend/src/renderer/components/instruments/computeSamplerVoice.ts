@@ -72,7 +72,11 @@ export function computeLoopFrameIndex(
   // Direction multiplier: speed<0 inverts the loop direction.
   const dirFlipped = speed < 0
 
-  const dir = loop.dir ?? 'fwd'
+  // Validate dir against the known set; anything else → 'fwd' (mirrors the
+  // backend `if direction not in ("fwd","rev","pingpong"): direction = "fwd"`).
+  const rawDir = loop.dir ?? 'fwd'
+  const dir: 'fwd' | 'rev' | 'pingpong' =
+    rawDir === 'rev' || rawDir === 'pingpong' ? rawDir : 'fwd'
 
   // Effective direction after speed-sign interaction.
   let effectiveDir: 'fwd' | 'rev' | 'pingpong'
