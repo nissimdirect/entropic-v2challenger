@@ -11,14 +11,23 @@
  * mocks). It proves the choke removes the sibling's RENDER layer, not just a flag:
  *
  *   padA + padB both in chokeGroup=1, both sourced, sustaining ADSR.
- *   triggerRackPad(padA, frame=0)            → padA voice active, sustains.
- *   triggerRackPad(padB, frame=10, [padA])   → silencing event into padA's stream.
+ *   triggerRackPad(padA, frame=0, _, 1)        → padA voice active (carries group 1).
+ *   triggerRackPad(padB, frame=10, [padA], 1)  → 'choke' event into padA's stream.
  *   At frame ≥10: buildRackLayers(padA's stream) yields 0 layers (choked),
  *                 buildRackLayers(padB's stream) yields ≥1 layer (sounding).
  *
- * FAIL-BEFORE: without the sibling silencing event (chokeSiblingPadIds omitted),
+ * SILENCING EVENT KIND: 'choke' (NOT 'panic'). The backend buckets 'panic'
+ * GLOBALLY (export.py ~1212/1319: `... or kind=='panic'`), so a synthetic panic
+ * written into a sibling stream would over-choke EVERY pad + EVERY per-track
+ * sampler in EXPORT. 'choke' is bucketed PER-INSTRUMENTID (no global clause), so a
+ * choke stamped with the sibling's composite key reaches ONLY that sibling's
+ * bucket — correct in preview AND export, with ZERO backend changes. voiceFSM
+ * applies 'choke' by idling voices whose `_chokeGroup === group`; the triggered
+ * voice carries `_chokeGroup` because the trigger event is stamped with the group.
+ *
+ * FAIL-BEFORE: without the sibling 'choke' event (no group / siblings passed),
  * padA's sustaining voice is STILL active at frame 10 → padA layer count ≥1.
- * PASS-AFTER: with the sibling event, padA's layer count at frame 10 is 0.
+ * PASS-AFTER: with the 'choke' event, padA's layer count at frame 10 is 0.
  */
 import { describe, it, expect, beforeEach } from 'vitest'
 import { buildRackLayers } from '../../../renderer/components/instruments/buildRackLayers'
@@ -95,35 +104,68 @@ describe('rack_choke_silences_group_sibling (HARD ORACLE)', () => {
     inst.setRackPadChokeGroup(TRACK, padB, 1)
 
     const perf = usePerformanceStore.getState()
-    perf.triggerRackPad(TRACK, padA, 0)
+    // padA triggers in group 1 (its only group-1 sibling, padB, isn't sounding yet).
+    // RackDevice always passes the triggered pad's group, so its trigger carries it.
+    perf.triggerRackPad(TRACK, padA, 0, [padB], 1)
     // Sanity: before padB triggers, padA is active at frame 5.
     expect(padLayerCount(padA, 5)).toBeGreaterThanOrEqual(1)
 
-    // padB triggers in the same group → silences padA at frame 10.
-    perf.triggerRackPad(TRACK, padB, 10, [padA])
+    // padB triggers in the same group → 'choke' event silences padA at frame 10.
+    perf.triggerRackPad(TRACK, padB, 10, [padA], 1)
+
+    // The silencing event is 'choke' (per-instrumentId bucketing — export-safe),
+    // NOT 'panic' (global bucketing — would over-choke in export). It carries the
+    // group and is stamped with padA's composite key.
+    const padAEvents = usePerformanceStore.getState().trackEvents[`${TRACK}:${padA}`]
+    const chokeEv = padAEvents.find((e) => e.kind === 'choke')
+    expect(chokeEv).toBeDefined()
+    expect(chokeEv!.kind).toBe('choke')
+    expect(chokeEv!.chokeGroup).toBe(1)
+    expect(chokeEv!.instrumentId).toBe(`${TRACK}:${padA}`)
+    // No 'panic' event was written (the export-corruption guard).
+    expect(padAEvents.some((e) => e.kind === 'panic')).toBe(false)
+    // padA's own trigger carries the group so its voice has `_chokeGroup`.
+    expect(padAEvents.find((e) => e.kind === 'trigger')!.chokeGroup).toBe(1)
 
     // THE ORACLE: padA's render layer is gone at frame 10 (choked); padB sounds.
     expect(padLayerCount(padA, 10)).toBe(0)
     expect(padLayerCount(padB, 10)).toBeGreaterThanOrEqual(1)
   })
 
-  it('DECOUPLE-REGRESSION: a pad in a DIFFERENT group is NOT choked', () => {
+  it('NON_SIBLING_UNAFFECTED: a choke for group 1 does NOT silence a group-2 or no-group pad', () => {
+    // Three pads: A in group 1, B in group 1 (A's sibling), C in group 2, D no group.
     const inst = useInstrumentsStore.getState()
-    inst.addRack(TRACK)
-    inst.addRackPad(TRACK)
-    const [padA, padB] = inst.getRack(TRACK)!.pads.map((p) => p.id)
-    inst.setRackPadSource(TRACK, padA, 'clip-1')
-    inst.setRackPadSource(TRACK, padB, 'clip-1')
-    inst.setRackPadChokeGroup(TRACK, padA, 2) // group 2
-    inst.setRackPadChokeGroup(TRACK, padB, 1) // group 1
+    inst.addRack(TRACK) // pad 0 = A
+    inst.addRackPad(TRACK) // pad 1 = B
+    inst.addRackPad(TRACK) // pad 2 = C
+    inst.addRackPad(TRACK) // pad 3 = D
+    const [padA, padB, padC, padD] = inst.getRack(TRACK)!.pads.map((p) => p.id)
+    for (const id of [padA, padB, padC, padD]) inst.setRackPadSource(TRACK, id, 'clip-1')
+    inst.setRackPadChokeGroup(TRACK, padA, 1)
+    inst.setRackPadChokeGroup(TRACK, padB, 1)
+    inst.setRackPadChokeGroup(TRACK, padC, 2)
+    // padD left with no group (null).
 
     const perf = usePerformanceStore.getState()
-    perf.triggerRackPad(TRACK, padA, 0)
-    // padB triggers in group 1; padA is in group 2 → NOT a sibling, no silencing.
-    perf.triggerRackPad(TRACK, padB, 10, [] /* no group-1 siblings present */)
+    // A, C and D all sounding before B fires.
+    perf.triggerRackPad(TRACK, padA, 0, undefined, 1)
+    perf.triggerRackPad(TRACK, padC, 0, undefined, 2)
+    perf.triggerRackPad(TRACK, padD, 0) // no group
+    expect(padLayerCount(padA, 9)).toBeGreaterThanOrEqual(1)
 
-    // padA (group 2) is untouched by a group-1 trigger.
-    expect(padLayerCount(padA, 10)).toBeGreaterThanOrEqual(1)
+    // B triggers in group 1 → its ONLY group-1 sibling is A.
+    perf.triggerRackPad(TRACK, padB, 10, [padA], 1)
+
+    // PARITY: A (the group-1 sibling) is silenced; C (group 2) and D (no group)
+    // are UNTOUCHED — the group-1 choke event only landed in A's stream.
+    expect(padLayerCount(padA, 10)).toBe(0) // choked
+    expect(padLayerCount(padB, 10)).toBeGreaterThanOrEqual(1) // the trigger
+    expect(padLayerCount(padC, 10)).toBeGreaterThanOrEqual(1) // different group
+    expect(padLayerCount(padD, 10)).toBeGreaterThanOrEqual(1) // no group
+    // No 'choke' event leaked into C's or D's stream.
+    const evs = usePerformanceStore.getState().trackEvents
+    expect((evs[`${TRACK}:${padC}`] ?? []).some((e) => e.kind === 'choke')).toBe(false)
+    expect((evs[`${TRACK}:${padD}`] ?? []).some((e) => e.kind === 'choke')).toBe(false)
   })
 
   it('REGRESSION: triggerRackPad with no siblings behaves exactly as today', () => {

@@ -88,7 +88,10 @@ export default function RackDevice({ trackId }: { trackId: string }) {
         : rack.pads
             .filter((p) => p.id !== padId && p.chokeGroup === group)
             .map((p) => p.id)
-    triggerRackPad(trackId, padId, frame, siblings)
+    // Pass the triggered pad's group so triggerRackPad stamps it on the trigger
+    // event (the voice carries `_chokeGroup`) AND emits 'choke' (not 'panic')
+    // events into the siblings' streams — correct in preview AND export.
+    triggerRackPad(trackId, padId, frame, siblings, group)
   }
 
   // B4-pad-delete — SYMMETRIC cleanup: pad gone (+ its macro routes pruned) via
