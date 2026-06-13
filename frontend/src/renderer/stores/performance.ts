@@ -131,12 +131,13 @@ interface PerformanceState {
   ) => void;
   /**
    * B4-pad-delete — clear a deleted rack pad's trigger events. Immutably removes
-   * the composite key `${trackId}:${padId}` from `trackEvents` so a deleted pad
-   * leaves no orphaned events. The symmetric counterpart to triggerRackPad's
+   * the composite key `${trackId}:${padId}` (flat) or
+   * `${trackId}:${branchPath}_${padId}` (nested) from `trackEvents` so a deleted
+   * pad leaves no orphaned events. The symmetric counterpart to triggerRackPad's
    * composite-key write; called by RackDevice alongside removeRackPad. No-op if
-   * the key is absent.
+   * the key is absent. `branchPath` defaults to `''` (flat, byte-identical to B4).
    */
-  clearRackPadEvents: (trackId: string, padId: string) => void;
+  clearRackPadEvents: (trackId: string, padId: string, branchPath?: string) => void;
   releasePad: (padId: string, frameIndex: number, trackId?: string) => void;
   forceOffPad: (padId: string) => void;
   panicAll: () => void;
@@ -286,11 +287,15 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     set({ trackEvents: next });
   },
 
-  clearRackPadEvents: (trackId, padId) => {
+  clearRackPadEvents: (trackId, padId, branchPath = '') => {
     // B4-pad-delete — symmetric cleanup: drop the deleted pad's composite-key
-    // event log. No-op (and no re-render) when the key is absent.
+    // event log. Uses the SAME key format as triggerRackPad (B5.3):
+    //   flat  (branchPath === '') → `${trackId}:${padId}`          (byte-identical to B4)
+    //   nested (branchPath !== '') → `${trackId}:${branchPath}_${padId}`
+    // No-op (and no re-render) when the key is absent.
     if (!trackId || !padId) return;
-    const key = `${trackId}:${padId}`;
+    const padKey = branchPath ? `${branchPath}_${padId}` : padId;
+    const key = `${trackId}:${padKey}`;
     const events = get().trackEvents;
     if (!(key in events)) return;
     const next = { ...events };

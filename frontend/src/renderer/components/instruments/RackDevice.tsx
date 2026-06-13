@@ -158,7 +158,12 @@ export default function RackDevice({ trackId }: { trackId: string }) {
       setRackEditPathDepth(inPathIdx)
     }
     removeRackPadAt(trackId, editPath, padId)
-    clearRackPadEvents(trackId, padId)
+    // B5.3 — use the same path-prefixed key that triggerRackPad writes. For a
+    // NESTED pad (editPath non-empty) this is `${trackId}:${branchPath}_${padId}`;
+    // for a flat pad (editPath empty) branchPath is '' → bare key (byte-identical
+    // to pre-B5.3). Stale path → null → fall back to '' (flat, defensive).
+    const branchPath = rackEditPathToBranchPath(rack, editPath) ?? ''
+    clearRackPadEvents(trackId, padId, branchPath)
     if (selectedPadId === padId) clearSelectedPad()
   }
 
