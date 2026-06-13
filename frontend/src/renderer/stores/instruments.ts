@@ -121,6 +121,19 @@ interface InstrumentsState {
     padId: string,
     patch: Partial<Omit<RackPad, 'id'>>,
   ) => void
+  /**
+   * B4-pad-delete — remove a pad from a track's rack with SYMMETRIC route
+   * cleanup. Drops the pad from `racks[trackId].pads` AND prunes every macro
+   * route whose `targetPath` points at the deleted pad (`pad.<padId>.<param>`),
+   * so no route is left dangling at a gone pad. No-op if track/rack/pad absent;
+   * other pads, other macros' unrelated routes, and other tracks are untouched.
+   * An emptied rack keeps an empty pads array (the rack itself is NOT deleted).
+   *
+   * The performance-store event cleanup (`trackEvents['${trackId}:${padId}']`)
+   * is NOT done here (instruments.ts must not import the performance store
+   * circularly) — the COMPONENT calls `clearRackPadEvents` alongside this.
+   */
+  removeRackPad: (trackId: string, padId: string) => void
 
   // --- B4.2 Sample Rack macros (fan-out capped at the store-write boundary) ---
   /**
@@ -295,6 +308,39 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       const pads = rack.pads.slice()
       pads[idx] = merged
       return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
+    }),
+
+  // B4-pad-delete — remove a pad + prune any macro route pointed at it.
+  removeRackPad: (trackId, padId) =>
+    set((state) => {
+      const rack = state.racks[trackId]
+      if (!rack) return state
+      const idx = rack.pads.findIndex((p) => p.id === padId)
+      if (idx === -1) return state // pad absent — no-op (guard).
+
+      // (a) Drop the pad (immutable; other pads untouched).
+      const pads = rack.pads.filter((p) => p.id !== padId)
+
+      // (b) Prune macro routes pointed at the deleted pad. A route targets a pad
+      // via `pad.<padId>.<param>` — drop only those whose path starts with the
+      // deleted pad's prefix. Surviving routes (other pads) are left intact.
+      const prefix = `pad.${padId}.`
+      let macros = rack.macros
+      if (rack.macros) {
+        macros = rack.macros.map((m) => {
+          const routes = m.routes ?? []
+          const kept = routes.filter((r) => !r.targetPath.startsWith(prefix))
+          // Only allocate a new macro object when a route was actually pruned.
+          return kept.length === routes.length ? m : { ...m, routes: kept }
+        })
+      }
+
+      return {
+        racks: {
+          ...state.racks,
+          [trackId]: { ...rack, pads, ...(macros ? { macros } : {}) },
+        },
+      }
     }),
 
   // --- B4.2 Sample Rack macros — store-write fan-out caps (layer 1) ---
