@@ -62,6 +62,45 @@ function defaultPadState(): PadRuntimeState {
 /** Monotonic event index counter — increments per append, unique within a session. */
 let _eventIndex = 0;
 
+// ---------------------------------------------------------------------------
+// B10.3 — Rolling retro-capture buffer
+// ---------------------------------------------------------------------------
+
+/**
+ * Hard cap on the retro-capture ring buffer (defense-in-depth — mirrors
+ * MAX_FREEZE_QUEUE in performanceFreeze.ts). A flood of triggers will NOT
+ * grow the buffer unboundedly: once full, the OLDEST event is dropped (ring).
+ * 512 events covers ~60 s of human-speed playing at 8 events/s.
+ */
+export const RETRO_BUFFER_CAP = 512;
+
+/**
+ * Global retro-capture ring buffer.
+ * Populated by triggerRackPad / triggerPad (additive — does NOT change those
+ * call paths). Flushed into trackEvents by captureRetroBuffer.
+ * Events-only: each entry is a verbatim TriggerEvent — no performance.now(),
+ * no wall-clock, only {frameIndex, eventIndex, note, velocity, kind, instrumentId}.
+ */
+let _retroBuffer: TriggerEvent[] = [];
+
+/** Push one event into the retro ring buffer. Drops the oldest when at cap. */
+function retroPush(ev: TriggerEvent): void {
+  if (_retroBuffer.length >= RETRO_BUFFER_CAP) {
+    _retroBuffer.shift(); // drop oldest (ring semantics)
+  }
+  _retroBuffer.push(ev);
+}
+
+/** Read the current retro buffer (snapshot — does NOT clear it). */
+export function getRetroBuffer(): TriggerEvent[] {
+  return _retroBuffer.slice();
+}
+
+/** Clear the retro buffer (for test reset). */
+export function clearRetroBuffer(): void {
+  _retroBuffer = [];
+}
+
 interface PerformanceState {
   drumRack: DrumRack;
   isPadEditorOpen: boolean;
@@ -158,6 +197,22 @@ interface PerformanceState {
 
   // Envelope evaluation
   getEnvelopeValues: (frameIndex: number) => Record<string, number>;
+
+  /**
+   * B10.3 — Capture the rolling retro buffer onto a Performance Track.
+   *
+   * Dumps the current global retro buffer's events onto `trackEvents` for
+   * `trackId` (APPEND — preserves any existing track events). Events are sorted
+   * by [frameIndex, eventIndex] before appending so replay is deterministic
+   * regardless of the order they entered the buffer. The buffer is NOT cleared
+   * after capture (capture is non-destructive — capturing again includes the same
+   * events plus any new ones). Returns the number of events captured.
+   *
+   * Events-only: each captured event is the verbatim TriggerEvent from the buffer
+   * ({frameIndex, eventIndex, note, velocity, kind, instrumentId}). No performance.now()
+   * / wall-clock field — only frameIndex drives replay (B10 spec §6.4).
+   */
+  captureRetroBuffer: (trackId: string) => number;
 }
 
 export const usePerformanceStore = create<PerformanceState>((set, get) => ({
@@ -207,6 +262,8 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       };
       const existing = get().trackEvents[trackId] ?? [];
       updates.trackEvents = { ...get().trackEvents, [trackId]: [...existing, ev] };
+      // B10.3 — also push into the always-on retro ring buffer (additive).
+      retroPush(ev);
     }
 
     set(updates);
@@ -245,6 +302,9 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       // / voice_replay.py ~305-308). Without this, a later 'choke' couldn't match.
       ...(hasGroup ? { chokeGroup: chokeGroup as number } : {}),
     };
+
+    // B10.3 — push the trigger event into the always-on retro ring buffer (additive).
+    retroPush(ev);
 
     // Build the next trackEvents immutably. Start with the triggered pad's append.
     const current = get().trackEvents;
@@ -564,5 +624,26 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     }
 
     return values;
+  },
+
+  captureRetroBuffer: (trackId) => {
+    // B10.3 — dump the rolling retro buffer onto trackEvents[trackId].
+    // Events-only: each captured event is the verbatim TriggerEvent from the buffer
+    // ({frameIndex, eventIndex, note, velocity, kind, instrumentId}).
+    // NO performance.now() / wall-clock — only frameIndex drives replay.
+    // Sort ascending by [frameIndex, eventIndex] for deterministic replay.
+    const snapshot = getRetroBuffer();
+    if (snapshot.length === 0) return 0;
+
+    const sorted = snapshot.slice().sort((a, b) =>
+      a.frameIndex !== b.frameIndex
+        ? a.frameIndex - b.frameIndex
+        : a.eventIndex - b.eventIndex,
+    );
+
+    const current = get().trackEvents;
+    const existing = current[trackId] ?? [];
+    set({ trackEvents: { ...current, [trackId]: [...existing, ...sorted] } });
+    return sorted.length;
   },
 }));
