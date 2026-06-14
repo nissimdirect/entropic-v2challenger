@@ -18,6 +18,13 @@ import sentry_sdk
 from effects import registry
 from effects.field_top25 import is_field_capable
 from engine.container import EffectContainer
+from modulation.field_eval import (
+    BAND_COUNT_MIN,
+    apply_effect_banded,
+    budget_n_bands,
+    evaluate_axis_lane_bands,
+)
+from modulation.schema import Lane, LaneDomain
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +125,7 @@ def apply_chain(
     freeze_cut: int | None = None,
     freeze_frame: np.ndarray | None = None,
     chain_mask: np.ndarray | None = None,
+    axis_lanes: list[dict] | None = None,
 ) -> tuple[np.ndarray, dict[str, dict | None]]:
     """Apply an ordered chain of effects to a frame.
 
@@ -145,6 +153,22 @@ def apply_chain(
                       is the dry reference the live suffix blends against). When
                       freeze_cut skips the entire chain, the snapshot equals the
                       freeze_frame and the blend is the identity (wet == dry).
+        axis_lanes:   P6.1 optional list of per-effect axis-lane modulations.
+                      Each entry: {
+                        "effect_id": str,
+                        "param": str,
+                        "curve": [float, ...],
+                        "domain": "y" | "x",
+                        "direction": float,    # default 1.0
+                        "interp_mode": str,    # default "linear"
+                        "loop_mode": str,      # default "off"
+                        "n_bands": int,        # default 32, clamped to [2, 128]
+                      }
+                      ABSENT (None or []) → EXACT current behavior (byte-identical).
+                      Only Y/X domains are accepted; T-domain entries are skipped
+                      with a warning (T stays in automation_overrides path).
+                      unknown effect_id → skipped with warning, never crash.
+                      NaN/Inf in curve → sanitized via nan_to_num + clamp.
 
     Returns:
         Tuple of (output_frame, new_states).
@@ -189,6 +213,79 @@ def apply_chain(
     # against this snapshot once (out = in·(1−m) + chain(in)·m). Snapshot only
     # when a chain_mask is actually present (zero cost on the legacy path).
     chain_dry_snapshot = output.copy() if chain_mask is not None else None
+
+    # P6.1 axis_lanes pre-processing: build a lookup keyed by effect_id.
+    # Each entry maps effect_id → parsed axis-lane spec (Lane + param + scalars).
+    # Only Y/X domains are accepted; T-domain entries are skipped + warned.
+    # unknown effect_id in axis_lanes is skipped+warned (never crash).
+    # NaN/Inf curves are sanitized inside evaluate_axis_lane_bands.
+    _axis_lane_map: dict[str, dict] = {}
+    if axis_lanes:
+        # Compute effective n_bands under the perf budget.
+        # Find n_bands from first valid entry (all entries should agree, but
+        # we honour the first one and apply the budget guard globally).
+        _raw_n_bands: int = 32
+        for _al in axis_lanes:
+            if isinstance(_al, dict):
+                _raw_n_bands = int(_al.get("n_bands", 32))
+                break
+        _n_bands_budgeted = budget_n_bands(len(axis_lanes), _raw_n_bands)
+
+        # Normalised clip time for axis sampling.
+        # We derive it from frame_index + resolution; pipeline doesn't know fps
+        # so we pass 0.0 here — callers that know t_norm should inject it via
+        # the curve itself (Vision §6 design: curve encodes temporal shape).
+        # For P6.1 the t_norm is always 0.0 within a single frame evaluation.
+        _t_norm: float = 0.0
+
+        for _al_entry in axis_lanes:
+            if not isinstance(_al_entry, dict):
+                continue
+            _al_effect_id = str(_al_entry.get("effect_id", ""))
+            _al_param = str(_al_entry.get("param", ""))
+            _al_curve = _al_entry.get("curve", [])
+            if not isinstance(_al_curve, list):
+                _al_curve = []
+
+            # Parse the Lane from the entry (reuse schema.Lane.from_dict).
+            _al_lane = Lane.from_dict(
+                {
+                    "domain": _al_entry.get("domain", "y"),
+                    "direction": float(_al_entry.get("direction", 1.0)),
+                    "interp_mode": _al_entry.get("interp_mode", "linear"),
+                    "loop_mode": _al_entry.get("loop_mode", "off"),
+                }
+            )
+
+            # Reject T-domain axis lanes — T stays in automation_overrides.
+            if _al_lane.domain == LaneDomain.T:
+                logger.warning(
+                    "axis_lanes: effect %r has domain='t' — "
+                    "T-domain automation belongs in automation_overrides; skipping",
+                    _al_effect_id,
+                )
+                continue
+
+            # Evaluate band scalars now (before the effect loop).
+            try:
+                _scalars = evaluate_axis_lane_bands(
+                    _al_curve, _al_lane, _t_norm, _n_bands_budgeted
+                )
+            except Exception as _eval_exc:
+                logger.warning(
+                    "axis_lanes: evaluate_axis_lane_bands failed for effect %r "
+                    "param %r (%s) — skipping",
+                    _al_effect_id,
+                    _al_param,
+                    type(_eval_exc).__name__,
+                )
+                continue
+
+            _axis_lane_map[_al_effect_id] = {
+                "param": _al_param,
+                "lane": _al_lane,
+                "scalars": _scalars,
+            }
 
     for i, effect_instance in enumerate(chain):
         # Skip disabled effects
@@ -239,36 +336,67 @@ def apply_chain(
         if effect_info is None:
             raise ValueError(f"unknown effect: {effect_id}")
 
-        container = EffectContainer(effect_info["fn"], effect_id)
         state_in = states.get(effect_id)
-
         t0 = time.monotonic()
 
-        output, state_out = container.process(
-            output,
-            params,
-            state_in,
-            frame_index=frame_index,
-            project_seed=project_seed,
-            resolution=resolution,
-        )
-
-        elapsed_ms = (time.monotonic() - t0) * 1000
-
-        # Record timing stats (Item 6)
-        record_timing(effect_id, elapsed_ms)
-
-        # Track health based on container's error flag
-        if container.last_error is not None:
-            just_disabled = _record_failure(effect_id)
-            if just_disabled:
-                logger.warning(
-                    "Effect %s auto-disabled after %d consecutive failures",
+        # P6.1 banded path: if this effect has an axis_lane spec, apply banded.
+        _al_spec = _axis_lane_map.get(effect_id) if _axis_lane_map else None
+        if _al_spec is not None:
+            try:
+                output, state_out = apply_effect_banded(
+                    output,
+                    effect_info["fn"],
                     effect_id,
-                    DISABLE_THRESHOLD,
+                    params,
+                    _al_spec["param"],
+                    _al_spec["scalars"],
+                    state_in,
+                    frame_index=frame_index,
+                    project_seed=project_seed,
+                    resolution=resolution,
+                    axis=_al_spec["lane"].domain,
                 )
-        else:
-            _record_success(effect_id)
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                record_timing(effect_id, elapsed_ms)
+                _record_success(effect_id)
+            except Exception as _banded_exc:
+                logger.warning(
+                    "apply_effect_banded: effect %s failed (%s) — "
+                    "falling back to standard apply",
+                    effect_id,
+                    type(_banded_exc).__name__,
+                )
+                _al_spec = None  # fall through to standard path below
+
+        if _al_spec is None:
+            # Standard (non-banded) path — unchanged from pre-P6.1.
+            container = EffectContainer(effect_info["fn"], effect_id)
+
+            output, state_out = container.process(
+                output,
+                params,
+                state_in,
+                frame_index=frame_index,
+                project_seed=project_seed,
+                resolution=resolution,
+            )
+
+            elapsed_ms = (time.monotonic() - t0) * 1000
+
+            # Record timing stats (Item 6)
+            record_timing(effect_id, elapsed_ms)
+
+            # Track health based on container's error flag
+            if container.last_error is not None:
+                just_disabled = _record_failure(effect_id)
+                if just_disabled:
+                    logger.warning(
+                        "Effect %s auto-disabled after %d consecutive failures",
+                        effect_id,
+                        DISABLE_THRESHOLD,
+                    )
+            else:
+                _record_success(effect_id)
 
         if elapsed_ms > EFFECT_ABORT_MS:
             logger.error(

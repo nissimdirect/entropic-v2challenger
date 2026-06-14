@@ -650,6 +650,15 @@ class ZMQServer:
         # Use pipeline engine — thread per-effect state across frames so
         # stateful effects (datamosh, reaction_mosh, frame_drop, etc.)
         # accumulate. Resets on path change or seek; see _get_render_states.
+        # P6.1: extract optional axis_lanes from message.
+        # Each entry: {effect_id, param, curve:[float], domain, direction,
+        #              interp_mode, loop_mode, n_bands}.
+        # Trust boundary: must be a list; non-list → silently ignored.
+        raw_axis_lanes = message.get("axis_lanes")
+        axis_lanes: list[dict] | None = None
+        if isinstance(raw_axis_lanes, list) and raw_axis_lanes:
+            axis_lanes = raw_axis_lanes
+
         states_in = self._get_render_states(path, frame_index)
         output, states_out = apply_chain(
             frame,
@@ -659,6 +668,7 @@ class ZMQServer:
             resolution,
             states_in,
             chain_mask=chain_mask,
+            axis_lanes=axis_lanes,
         )
         self._store_render_states(path, frame_index, states_out)
 
