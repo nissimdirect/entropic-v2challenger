@@ -27,6 +27,12 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 MAX_HISTORY_PER_PROBE = 32
+# Hard ceiling on registered probes.
+# Worst-case resident memory = MAX_PROBES × MAX_HISTORY_PER_PROBE ×
+# ~80 B/ProbeReading ≈ 64 × 32 × 80 = 163,840 B ≈ 160 KiB (hard ceiling
+# ≈ 200 KiB). Probe-recordings-to-disk are deferred per SG-H1 (not built);
+# this cap makes the in-memory-only design safe.
+MAX_PROBES = 64
 
 
 class ProbeKind(str, Enum):
@@ -89,11 +95,20 @@ class ProbeRegistry:
         effect_id: Optional[str] = None,
         param_path: Optional[str] = None,
     ) -> Probe:
-        """Register or get-or-create a probe; idempotent."""
+        """Register or get-or-create a probe; idempotent.
+
+        Raises ValueError if registering a NEW probe would exceed MAX_PROBES.
+        Idempotent for already-registered ids (re-registration is always safe).
+        """
         with self._lock:
             existing = self._probes.get(probe_id)
             if existing is not None:
                 return existing
+            if len(self._probes) >= MAX_PROBES:
+                raise ValueError(
+                    f"probe registry full: cannot register {probe_id!r} "
+                    f"(limit {MAX_PROBES})"
+                )
             probe = Probe(
                 id=probe_id,
                 kind=kind,
