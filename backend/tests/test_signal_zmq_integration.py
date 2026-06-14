@@ -200,3 +200,133 @@ class TestRenderFrameWithOperators:
         assert mod["frame_data"] != base["frame_data"], (
             "kentaroCluster sub-LFO modulation must alter the rendered frame"
         )
+
+    def test_render_with_gate_chained_after_lfo_modulates_param_end_to_end(
+        self, standalone_server, synthetic_video_path
+    ):
+        """P4.3 E2E: lfo → gate (via sources[].operator_id) → mapping on an effect
+        param. The gate's binary output rides the hue_shift `amount` param through
+        the real render_frame path. When the LFO is ABOVE threshold the gate opens
+        (1.0) and the frame differs from unmodulated; when BELOW, the gate closes
+        (0.0) and the frame matches unmodulated.
+        """
+        chain = [
+            {
+                "effect_id": "fx.hue_shift",
+                "enabled": True,
+                "params": {"amount": 0.0},
+                "mix": 1.0,
+            }
+        ]
+
+        def _operators():
+            return [
+                {
+                    # LFO source: saw, 1Hz. At fps the saw rises 0→1 across a cycle.
+                    "id": "lfo-src",
+                    "type": "lfo",
+                    "is_enabled": True,
+                    "parameters": {
+                        "waveform": "saw",
+                        "rate_hz": 1.0,
+                        "phase_offset": 0.0,
+                    },
+                    "processing": [],
+                    "mappings": [],
+                },
+                {
+                    # Gate consumes the LFO via sources[].operator_id, maps onto amount.
+                    "id": "gate-mod",
+                    "type": "gate",
+                    "is_enabled": True,
+                    "parameters": {
+                        "sources": [{"operator_id": "lfo-src"}],
+                        "threshold": 0.5,
+                    },
+                    "processing": [],
+                    "mappings": [
+                        {
+                            "target_effect_id": "fx.hue_shift",
+                            "target_param_key": "amount",
+                            "source_key": "",
+                            "depth": 1.0,
+                            # max 0.5 → gate-open (1.0) maps to mod 0.5 → amount
+                            # 180° → int(90) hue shift (a 360° wrap = no shift, so
+                            # 0.5 keeps the change visible). gate-closed → 0 → 0°.
+                            "min": 0.0,
+                            "max": 0.5,
+                            "blend_mode": "add",
+                        }
+                    ],
+                },
+            ]
+
+        # Frame where the saw LFO is ABOVE threshold 0.5 → gate opens → param changes.
+        # Frame where the saw LFO is BELOW threshold → gate closed → matches base.
+        # At rate 1Hz the synthetic fps determines frames_per_cycle; pick frames at
+        # the same render fps by probing the engine to find above/below frames.
+        engine = standalone_server._get_signal_engine()
+
+        above_frame = None
+        below_frame = None
+        for fi in range(0, 60):
+            vals, _ = engine.evaluate_all(_operators(), frame_index=fi, fps=30.0)
+            g = vals.get("gate-mod", 0.0)
+            if g == 1.0 and above_frame is None:
+                above_frame = fi
+            if g == 0.0 and below_frame is None:
+                below_frame = fi
+            if above_frame is not None and below_frame is not None:
+                break
+        assert above_frame is not None, "expected a frame where the gate opens"
+        assert below_frame is not None, "expected a frame where the gate is closed"
+
+        # Baseline render at the ABOVE frame with NO operators.
+        base_msg = _make_msg(
+            "render_frame",
+            path=synthetic_video_path,
+            chain=chain,
+            frame_index=above_frame,
+        )
+        base = standalone_server.handle_message(base_msg)
+        assert base["ok"] is True, base.get("error")
+
+        # ABOVE-threshold frame WITH gate operators → frame must differ from base.
+        above_msg = _make_msg(
+            "render_frame",
+            path=synthetic_video_path,
+            chain=chain,
+            frame_index=above_frame,
+            operators=_operators(),
+        )
+        above = standalone_server.handle_message(above_msg)
+        assert above["ok"] is True, above.get("error")
+        assert above.get("operator_values", {}).get("gate-mod") == 1.0
+        assert above["frame_data"] != base["frame_data"], (
+            "gate-open (LFO above threshold) must alter the rendered frame"
+        )
+
+        # BELOW-threshold frame WITH gate operators → gate closed (0.0) → the param
+        # equals its base 0.0, so the modulated frame matches the unmodulated frame.
+        below_base_msg = _make_msg(
+            "render_frame",
+            path=synthetic_video_path,
+            chain=chain,
+            frame_index=below_frame,
+        )
+        below_base = standalone_server.handle_message(below_base_msg)
+        assert below_base["ok"] is True, below_base.get("error")
+
+        below_msg = _make_msg(
+            "render_frame",
+            path=synthetic_video_path,
+            chain=chain,
+            frame_index=below_frame,
+            operators=_operators(),
+        )
+        below = standalone_server.handle_message(below_msg)
+        assert below["ok"] is True, below.get("error")
+        assert below.get("operator_values", {}).get("gate-mod") == 0.0
+        assert below["frame_data"] == below_base["frame_data"], (
+            "gate-closed (LFO below threshold) must leave the frame unmodulated"
+        )
