@@ -29,6 +29,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.0.0",
+    "@xyflow/react": "^12.11.0",
     "electron": "^40.0.0",
     "electron-playwright-helpers": "^2.1.0",
     "electron-vite": "^5.0.0",
