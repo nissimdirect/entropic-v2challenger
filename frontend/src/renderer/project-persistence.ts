@@ -518,10 +518,13 @@ function validateProject(data: unknown): data is Project {
     if (typeof t.id !== 'string') return false
     if (typeof t.name !== 'string') return false
     if (!Array.isArray(t.clips)) return false
-    // Track type validation — accept video, performance, text, audio
-    if (t.type !== undefined && typeof t.type === 'string') {
-      if (!['video', 'performance', 'text', 'audio'].includes(t.type)) return false
-    }
+    // Track type validation — accept video, performance, text, audio, inspector.
+    // P6.8 (I1) forward-tolerance: an UNKNOWN type (e.g. a project saved by a
+    // newer build, or this project opened on a build where 'inspector' was
+    // reverted) must NOT reject the whole project — the hydrate loop drops the
+    // unknown track with a toast instead. So the validator only rejects a
+    // non-string type here; string types pass and are sorted out at hydrate.
+    if (t.type !== undefined && typeof t.type !== 'string') return false
     for (const clip of t.clips as unknown[]) {
       if (typeof clip !== 'object' || clip === null) return false
       const c = clip as Record<string, unknown>
@@ -657,13 +660,28 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     useProjectStore.setState({ deviceGroups: project.deviceGroups })
   }
 
+  // P6.8 (I1) forward-tolerance: the set of track types THIS build understands.
+  // A type outside this set (newer/reverted build) is dropped with a toast so a
+  // project saved elsewhere still opens. This is the rollback-safety guarantee.
+  const KNOWN_TRACK_TYPES = new Set(['video', 'performance', 'text', 'audio', 'inspector'])
+  let unknownTrackTypeDropped = false
+
   // Hydrate timeline tracks
   for (const track of project.timeline.tracks) {
     const tls = useTimelineStore.getState()
+    // Treat a legacy track with no `type` as 'video' (matches makeEmptyTrack
+    // default); only an explicitly-present unrecognized string is dropped.
+    if (track.type !== undefined && !KNOWN_TRACK_TYPES.has(track.type)) {
+      unknownTrackTypeDropped = true
+      continue
+    }
     const isAudio = track.type === 'audio'
+    const isInspector = track.type === 'inspector'
     let addedTrackId: string | undefined
     if (isAudio) {
       addedTrackId = tls.addAudioTrack(track.name, track.color)
+    } else if (isInspector) {
+      addedTrackId = tls.addInspectorTrack(track.name, track.color)
     } else {
       // B2: preserve performance/text type on reload (was collapsing → video).
       const addType = track.type === 'text' ? 'text' : track.type === 'performance' ? 'performance' : undefined
@@ -676,6 +694,26 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     // Set shared track properties
     if (track.isMuted) useTimelineStore.getState().toggleMute(addedTrackId)
     if (track.isSoloed) useTimelineStore.getState().toggleSolo(addedTrackId)
+    if (isInspector) {
+      // Restore probe bindings (trust boundary: drop malformed entries). Effect
+      // INSTANCE ids are preserved verbatim on hydrate (see `id: e.id` in the
+      // chain restore below), so a probe's `effectId` reference stays valid
+      // across save/load with no remap needed.
+      const rawBindings = Array.isArray((track as unknown as { probeBindings?: unknown[] }).probeBindings)
+        ? (track as unknown as { probeBindings: unknown[] }).probeBindings
+        : []
+      for (const raw of rawBindings) {
+        if (typeof raw !== 'object' || raw === null) continue
+        const b = raw as Record<string, unknown>
+        if (typeof b.effectId !== 'string' || typeof b.paramPath !== 'string') continue
+        useTimelineStore.getState().addProbeBinding(addedTrackId, {
+          kind: 'param_postmod',
+          effectId: b.effectId,
+          paramPath: b.paramPath,
+          label: typeof b.label === 'string' ? b.label : b.paramPath,
+        })
+      }
+    }
     if (isAudio) {
       // Restore audio track gain
       const gainDb = (track as unknown as { gainDb?: number }).gainDb
@@ -804,6 +842,16 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     if (savedChain.length) {
       useTimelineStore.getState().updateTrackEffectChain(addedTrackId, () => savedChain)
     }
+  }
+
+  // P6.8 (I1): one toast if any unrecognized track type was dropped (rollback
+  // forward-tolerance — a project saved by a newer build still opens here).
+  if (unknownTrackTypeDropped) {
+    useToastStore.getState().addToast({
+      level: 'warning',
+      message: 'Some tracks use an unknown type from a newer version and were skipped on load',
+      source: 'project-load',
+    })
   }
 
   // Hydrate markers

@@ -27,6 +27,12 @@ export const LIMITS = {
    * reject a 51-layer composite. Keep in lockstep with security.py.
    */
   MAX_COMPOSITE_LAYERS: 50,
+  /**
+   * P6.8 (I1): max probes on the single inspector track. UI cap of 16 leaves
+   * deliberate headroom under the backend `MAX_PROBES` (= 64, registry.py:35)
+   * which is the registry-wide hard limit. The 17th drag is rejected with a toast.
+   */
+  MAX_PROBES_PER_TRACK: 16,
 } as const
 
 /**

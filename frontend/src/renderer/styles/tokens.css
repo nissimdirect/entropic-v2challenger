@@ -52,6 +52,11 @@
   --cx-acid-wash: rgba(200, 243, 33, 0.10);
   --cx-acid-on: #0B0B10;           /* on-color text on ACID fill */
 
+  /* --- PROBE mint (P6.8 / I1) — inspector probes + live scopes --- */
+  --cx-probe: #5FD7A8;
+  --cx-probe-muted: #3A5A4D;
+  --cx-probe-wash: rgba(95, 215, 168, 0.10);
+
   /* --- MOD violet (DESIGN-SPEC §2) — selection / routing / inspector --- */
   --cx-mod: #8F7DFF;
   --cx-mod-hover: #A693FF;

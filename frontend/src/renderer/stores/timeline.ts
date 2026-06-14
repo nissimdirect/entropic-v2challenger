@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, TextClipConfig, ClipTransform, AudioClip, EffectInstance, MatteNode } from '../../shared/types'
+import type { Track, Clip, Marker, TextClipConfig, ClipTransform, AudioClip, EffectInstance, MatteNode, ProbeBinding } from '../../shared/types'
 import { AUDIO_LIMITS, clampGainDb, clampNonNegSec } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
@@ -41,6 +41,15 @@ interface TimelineState {
 
   // Track actions
   addTrack: (name: string, color: string, type?: 'video' | 'text' | 'performance') => string | undefined
+  /** P6.8 (I1): create the single inspector track (max 1 per project, v1). Returns
+   * the new track id, or the existing inspector track's id if one already exists. */
+  addInspectorTrack: (name?: string, color?: string) => string | undefined
+  /** P6.8 (I1): add a probe binding to the inspector track (max 16 per track).
+   * Returns the probeId on success, or undefined (with a toast) when at the cap,
+   * the track is missing/not-inspector, or the same effect+param is already bound. */
+  addProbeBinding: (trackId: string, binding: Omit<ProbeBinding, 'probeId'>) => string | undefined
+  /** P6.8 (I1): remove a probe binding by probeId from its inspector track. */
+  removeProbeBinding: (trackId: string, probeId: string) => void
   removeTrack: (id: string) => void
   reorderTrack: (fromIdx: number, toIdx: number) => void
   // P2.2a (slice 3c): setTrackOpacity / setTrackBlendMode removed — compositing
@@ -203,7 +212,7 @@ interface TimelineState {
   reset: () => void
 }
 
-function makeEmptyTrack(name: string, color: string, id?: string, type: 'video' | 'performance' | 'text' | 'audio' = 'video'): Track {
+function makeEmptyTrack(name: string, color: string, id?: string, type: Track['type'] = 'video'): Track {
   const base: Track = {
     id: id ?? randomUUID(),
     type,
@@ -218,6 +227,10 @@ function makeEmptyTrack(name: string, color: string, id?: string, type: 'video' 
   if (type === 'audio') {
     base.gainDb = 0
     base.audioClips = []
+  }
+  if (type === 'inspector') {
+    // P6.8 (I1): inspector tracks carry probe bindings, no clips.
+    base.probeBindings = []
   }
   return base
 }
@@ -537,6 +550,82 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       },
     )
     return trackId
+  },
+
+  // --- Inspector track actions (P6.8 / I1) ---
+
+  addInspectorTrack: (name, color) => {
+    // v1 simplification: exactly one inspector track per project. A second
+    // request is a no-op that returns the existing track's id (idempotent).
+    const existing = get().tracks.find((t) => t.type === 'inspector')
+    if (existing) {
+      useTimelineStore.getState().selectTrack(existing.id)
+      return existing.id
+    }
+    if (get().tracks.length >= LIMITS.MAX_TRACKS) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Track limit (${LIMITS.MAX_TRACKS}) reached`, source: 'timeline' })
+      return undefined
+    }
+    const trackId = randomUUID()
+    const prevSelectedTrackId = get().selectedTrackId
+    undoable(
+      'Add inspector track',
+      () => {
+        const track = makeEmptyTrack(name ?? 'Inspector', color ?? '#5fd7a8', trackId, 'inspector')
+        set({ tracks: [...get().tracks, track] })
+        if (!get().selectedTrackId) set({ selectedTrackId: trackId })
+      },
+      () => {
+        const tracks = get().tracks.filter((t) => t.id !== trackId)
+        set({ tracks, duration: recalcDuration(tracks), selectedTrackId: prevSelectedTrackId })
+      },
+    )
+    return trackId
+  },
+
+  addProbeBinding: (trackId, binding) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track || track.type !== 'inspector') return undefined
+    const bindings = track.probeBindings ?? []
+    // Dedup: one probe per effect+param. Re-adding the same target is a no-op
+    // (returns the existing probeId) so a double-drop doesn't create a phantom.
+    const dup = bindings.find((b) => b.effectId === binding.effectId && b.paramPath === binding.paramPath)
+    if (dup) return dup.probeId
+    if (bindings.length >= LIMITS.MAX_PROBES_PER_TRACK) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: `Probe limit (${LIMITS.MAX_PROBES_PER_TRACK}) reached on inspector track`,
+        source: 'inspector-probes',
+      })
+      return undefined
+    }
+    // Deterministic probeId. CRITICAL: it MUST equal the key the backend's
+    // render-time recording site writes to so live values actually populate this
+    // probe's history. P6.7 records post-modulation lane outputs under
+    // `{effectId}.{param}:lane_output` (zmq_server.py probe site 4 — DO-NOT-TOUCH),
+    // so the binding registers under that exact key. The backend
+    // `probe_register` is idempotent on it, so a mount-after-reload reuses the
+    // same registry slot.
+    const probeId = `${binding.effectId}.${binding.paramPath}:lane_output`
+    const newBinding: ProbeBinding = { probeId, ...binding }
+    undoable(
+      'Add probe',
+      () => set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, probeBindings: [...(t.probeBindings ?? []), newBinding] } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, probeBindings: (t.probeBindings ?? []).filter((b) => b.probeId !== probeId) } : t)) }),
+    )
+    return probeId
+  },
+
+  removeProbeBinding: (trackId, probeId) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track || track.type !== 'inspector') return
+    const removed = (track.probeBindings ?? []).find((b) => b.probeId === probeId)
+    if (!removed) return
+    undoable(
+      'Remove probe',
+      () => set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, probeBindings: (t.probeBindings ?? []).filter((b) => b.probeId !== probeId) } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, probeBindings: [...(t.probeBindings ?? []), removed] } : t)) }),
+    )
   },
 
   // --- Text track actions ---

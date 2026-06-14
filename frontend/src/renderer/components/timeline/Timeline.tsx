@@ -5,6 +5,7 @@ import TimeRuler from './TimeRuler'
 import Playhead from './Playhead'
 import { TrackHeader, TrackLane } from './Track'
 import { AudioTrackHeader, AudioTrackLane } from './AudioTrack'
+import { InspectorTrackHeader, InspectorTrackLane } from './InspectorTrack'
 import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
 import { FF } from '../../../shared/feature-flags'
@@ -92,6 +93,12 @@ export default function Timeline({
     const id = useTimelineStore.getState().addTrack(`MIDI ${n}`, '#3b82f6', 'performance')
     if (id) useTimelineStore.getState().selectTrack(id)
   }, [tracks])
+
+  // P6.8 (I1): create the single inspector track (max 1) and select it.
+  const handleAddInspectorTrack = useCallback(() => {
+    const id = useTimelineStore.getState().addInspectorTrack()
+    if (id) useTimelineStore.getState().selectTrack(id)
+  }, [])
 
   // Track-headers column needs to follow the lanes' vertical scroll so the
   // left/right halves of each row stay aligned when the user has more tracks
@@ -203,6 +210,14 @@ export default function Timeline({
             <button className="timeline__add-track-btn" onClick={handleAddMidiTrack} title="Add MIDI track">
               +M
             </button>
+            <button
+              className="timeline__add-track-btn"
+              onClick={handleAddInspectorTrack}
+              disabled={tracks.some((t) => t.type === 'inspector')}
+              title="Add inspector track"
+            >
+              +I
+            </button>
           </div>
           <div
             className="timeline__track-headers"
@@ -219,6 +234,12 @@ export default function Timeline({
             {tracks.map((track) =>
               track.type === 'audio' ? (
                 <AudioTrackHeader
+                  key={track.id}
+                  track={track}
+                  isSelected={track.id === selectedTrackId}
+                />
+              ) : track.type === 'inspector' ? (
+                <InspectorTrackHeader
                   key={track.id}
                   track={track}
                   isSelected={track.id === selectedTrackId}
@@ -282,6 +303,12 @@ export default function Timeline({
                     scrollX={scrollX}
                     isSelected={track.id === selectedTrackId}
                     onSeek={onSeek}
+                  />
+                ) : track.type === 'inspector' ? (
+                  <InspectorTrackLane
+                    key={track.id}
+                    track={track}
+                    isSelected={track.id === selectedTrackId}
                   />
                 ) : (
                   <TrackLane
