@@ -58,7 +58,7 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
     expect(queryByText('Fusion')).not.toBeNull()
   })
 
-  it('menu renders exactly 6 enabled entries + 4 disabled (P4.1)', () => {
+  it('menu renders exactly 7 enabled entries + 3 disabled (P4.4: Kentaro Cluster now available)', () => {
     const { getByText, container } = render(<OperatorRack {...baseProps} />)
     fireEvent.click(getByText('+ Add'))
     const allButtons = container.querySelectorAll('.operator-rack__add-option')
@@ -68,12 +68,14 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
     const disabledButtons = container.querySelectorAll(
       '.operator-rack__add-option:disabled',
     )
-    expect(allButtons).toHaveLength(10) // 6 existing + 4 new
-    expect(enabledButtons).toHaveLength(6)
-    expect(disabledButtons).toHaveLength(4)
-    // Verify the 4 disabled labels
+    expect(allButtons).toHaveLength(10) // 6 base + 4 P4.1 (one now enabled)
+    expect(enabledButtons).toHaveLength(7)
+    expect(disabledButtons).toHaveLength(3)
+    // P4.4: Kentaro Cluster is now enabled.
+    const enabledLabels = Array.from(enabledButtons).map((b) => b.textContent)
+    expect(enabledLabels).toContain('Kentaro Cluster')
+    // The 3 still-disabled labels (sidechain/gate/stutter stay available:false).
     const disabledLabels = Array.from(disabledButtons).map((b) => b.textContent)
-    expect(disabledLabels).toContain('Kentaro Cluster')
     expect(disabledLabels).toContain('Sidechain')
     expect(disabledLabels).toContain('Gate')
     expect(disabledLabels).toContain('MIDI Env Stutter')

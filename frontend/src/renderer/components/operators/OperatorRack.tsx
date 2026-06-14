@@ -7,6 +7,7 @@ import StepSequencerEditor from './StepSequencerEditor'
 import AudioFollowerEditor from './AudioFollowerEditor'
 import VideoAnalyzerEditor from './VideoAnalyzerEditor'
 import FusionEditor from './FusionEditor'
+import OperatorKentaroCluster from './OperatorKentaroCluster'
 
 interface OperatorRackProps {
   effectChain: { id: string; effectId: string }[]
@@ -23,7 +24,7 @@ const TYPE_OPTIONS: { type: OperatorType; label: string; available: boolean }[] 
   { type: 'video_analyzer', label: 'Video', available: true },
   { type: 'fusion', label: 'Fusion', available: true },
   // P4.1: new operator types — visible but not yet evaluable (available: false)
-  { type: 'kentaroCluster', label: 'Kentaro Cluster', available: false },
+  { type: 'kentaroCluster', label: 'Kentaro Cluster', available: true },
   { type: 'sidechain', label: 'Sidechain', available: false },
   { type: 'gate', label: 'Gate', available: false },
   { type: 'midiEnvStutter', label: 'MIDI Env Stutter', available: false },
@@ -36,6 +37,7 @@ const TYPE_BADGE: Record<string, string> = {
   audio_follower: 'A',
   video_analyzer: 'V',
   fusion: 'F',
+  kentaroCluster: 'K',
 }
 
 const TYPE_CSS: Record<string, string> = {
@@ -45,6 +47,7 @@ const TYPE_CSS: Record<string, string> = {
   audio_follower: 'audio',
   video_analyzer: 'video',
   fusion: 'fusion',
+  kentaroCluster: 'kentaro',
 }
 
 export default function OperatorRack({ effectChain, registry, operatorValues, hasAudio }: OperatorRackProps) {
@@ -165,6 +168,14 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
                     availableOperators={operators
                       .filter((o) => o.id !== op.id)
                       .map((o) => ({ id: o.id, label: o.label }))}
+                  />
+                )}
+                {op.type === 'kentaroCluster' && (
+                  <OperatorKentaroCluster
+                    operator={op}
+                    effectChain={effectChain}
+                    registry={registry}
+                    operatorValues={operatorValues}
                   />
                 )}
               </div>

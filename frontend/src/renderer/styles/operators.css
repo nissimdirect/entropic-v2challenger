@@ -478,3 +478,88 @@
   pointer-events: none;
   z-index: 0;
 }
+
+/* --- P4.4: Kentaro Cluster editor (token-only; no hardcoded hex) --- */
+.operator-card__type-badge--kentaro,
+.operator-card--kentaro .operator-card__type-badge {
+  background: var(--cx-mod);
+}
+.operator-card--kentaro {
+  border-left: 3px solid var(--cx-mod);
+}
+.operator-kentaro__master {
+  border-bottom: 1px solid var(--cx-line-1);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.operator-kentaro__master-depth {
+  flex: 1;
+}
+.operator-kentaro__lfos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.operator-kentaro__lfo-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--cx-line-1);
+  border-radius: 2px;
+}
+.operator-kentaro__lfo-head {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.operator-kentaro__lfo-head .operator-card__param-input {
+  width: 44px;
+}
+.operator-kentaro__wave {
+  position: relative;
+  height: 32px;
+  background: var(--cx-surface-0);
+  border-radius: 2px;
+  cursor: ns-resize;
+  overflow: hidden;
+  touch-action: none;
+}
+.operator-kentaro__wave-set {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background: var(--cx-action-wash);
+  pointer-events: none;
+}
+.operator-kentaro__wave-effective {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background: var(--cx-action);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: height 60ms linear;
+}
+.operator-kentaro__wave .operator-depth-arc {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  pointer-events: none;
+}
+.operator-kentaro__lfo-map {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.operator-kentaro__lfo-map .operator-card__param-select {
+  flex: 1;
+  font-size: 9px;
+}
+.mod-matrix__source-key {
+  font-size: 8px;
+  color: var(--cx-mod);
+  margin-left: 2px;
+}
