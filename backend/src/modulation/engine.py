@@ -339,10 +339,47 @@ class SignalEngine:
         Signal order: Base → +OpMod → AutoReplace → Clamp.
         Delegates operator modulation to routing.resolve_routings,
         then applies automation overrides (replace, not add).
+
+        Probe recording (P6.7):
+          Probe IDs follow the convention  "<effect_id>:<param_key>:<kind>"
+          where kind is one of param_input / param_postmod / mod_amount.
+          record() is a guard-gated no-op when the inspector is not mounted
+          or no probe is registered for that id — zero cost when inactive.
         """
+        # P6.7 probe recording — guarded by is_mounted() at the top level.
+        # When inspector is not mounted: one attr check, then straight to
+        # resolve_routings — zero per-frame overhead (no pre_mod copy, no loops).
+        from inspector.registry import global_probe_registry
+
+        _registry = global_probe_registry()
+        _probing = _registry.is_mounted()
+
+        # Snapshot pre-mod values for param_input + mod_amount probes.
+        # Only built when the inspector is mounted (guard above).
+        pre_mod: dict[str, dict[str, float]] = {}
+        if _probing:
+            for effect in chain:
+                eid = effect.get("effect_id", "")
+                if eid:
+                    pre_mod[eid] = dict(effect.get("params", {}))
+
         modulated = resolve_routings(
             operator_values, operators, chain, effect_registry_fn
         )
+
+        # --- P6.7 probe sites 1 (param_input) + 3 (mod_amount) ---
+        if _probing:
+            for effect in modulated:
+                eid = effect.get("effect_id", "")
+                if not eid:
+                    continue
+                params_after_op = effect.get("params", {})
+                params_before = pre_mod.get(eid, {})
+                for param_key, postop_val in params_after_op.items():
+                    input_val = params_before.get(param_key, postop_val)
+                    _registry.record(f"{eid}:{param_key}:param_input", float(input_val))
+                    mod_delta = float(postop_val) - float(input_val)
+                    _registry.record(f"{eid}:{param_key}:mod_amount", mod_delta)
 
         # Phase 7: Apply automation overrides AFTER operator modulation
         if automation_overrides:
@@ -364,5 +401,16 @@ class SignalEngine:
                             eid, param_key, effect_registry_fn
                         )
                         params[param_key] = max(p_min, min(p_max, float(value)))
+
+        # --- P6.7 probe site 2 (param_postmod) — after ALL modulation applied ---
+        if _probing:
+            for effect in modulated:
+                eid = effect.get("effect_id", "")
+                if not eid:
+                    continue
+                for param_key, final_val in effect.get("params", {}).items():
+                    _registry.record(
+                        f"{eid}:{param_key}:param_postmod", float(final_val)
+                    )
 
         return modulated

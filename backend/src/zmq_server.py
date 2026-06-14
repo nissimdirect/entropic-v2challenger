@@ -71,6 +71,11 @@ from inspector.inline_actions import (
     reset_global_inline_actions_for_testing as _reset_inline_actions,
 )
 from inspector.routing_graph import global_routing_graph
+from inspector.registry import (
+    MAX_PROBES,
+    ProbeKind,
+    global_probe_registry,
+)
 
 
 def _experimental_audio_tracks_enabled() -> bool:
@@ -429,7 +434,20 @@ class ZMQServer:
             return self._handle_check_dag(message, msg_id)
         elif cmd == "flush_state":
             flush_timing()
+            # P6.7: clear probe history on project unload so stale readings
+            # from a previous project don't bleed into the next session.
+            global_probe_registry().clear_history()
             return {"id": msg_id, "ok": True}
+        elif cmd == "probe_register":
+            return self._handle_probe_register(message, msg_id)
+        elif cmd == "probe_unregister":
+            return self._handle_probe_unregister(message, msg_id)
+        elif cmd == "probe_mount":
+            return self._handle_probe_mount(msg_id)
+        elif cmd == "probe_unmount":
+            return self._handle_probe_unmount(msg_id)
+        elif cmd == "probe_snapshot":
+            return self._handle_probe_snapshot(msg_id)
         elif cmd == "freeze_prefix":
             return self._handle_freeze_prefix(message, msg_id)
         elif cmd == "read_freeze":
@@ -606,6 +624,15 @@ class ZMQServer:
             auto_overrides = message.get("automation_overrides")
             if auto_overrides and not isinstance(auto_overrides, dict):
                 auto_overrides = None
+
+            # P6.7 probe site 4 — lane_output: auto_overrides are the
+            # frontend-evaluated T-domain lane values (one per effect.param).
+            # Record each before apply_modulation consumes them.
+            # Guard: no-op when inspector not mounted (one attr check).
+            _probe_reg = global_probe_registry()
+            if _probe_reg.is_mounted() and auto_overrides:
+                for _lane_key, _lane_val in auto_overrides.items():
+                    _probe_reg.record(f"{_lane_key}:lane_output", float(_lane_val))
 
             chain = engine.apply_modulation(
                 operators,
@@ -3135,6 +3162,117 @@ class ZMQServer:
 
                 self.socket.send_json(response)
         self.close()
+
+    # ── P6.7 I1 Probe handlers ───────────────────────────────────────────────
+
+    def _handle_probe_register(self, message: dict, msg_id: str | None) -> dict:
+        """Register a named probe.
+
+        Expected payload:
+          {cmd: "probe_register", probe_id: str, kind: str, label: str,
+           track_id?: str, effect_id?: str, param_path?: str}
+
+        Trust boundary: all string fields length-capped ≤ 256 chars.
+        Returns {ok: True, probe_id: str} or {ok: False, error: str}.
+        Returns the same probe when re-registering an existing probe_id (idempotent).
+        Returns {ok: False} when MAX_PROBES (64) would be exceeded.
+        """
+        _MAX_FIELD = 256
+
+        def _cap(val: object) -> str | None:
+            if val is None:
+                return None
+            s = str(val)[:_MAX_FIELD]
+            return s if s else None
+
+        probe_id = _cap(message.get("probe_id"))
+        kind_str = _cap(message.get("kind"))
+        label = _cap(message.get("label")) or ""
+
+        if not probe_id:
+            return {"id": msg_id, "ok": False, "error": "missing probe_id"}
+        if not kind_str:
+            return {"id": msg_id, "ok": False, "error": "missing kind"}
+
+        try:
+            kind = ProbeKind(kind_str)
+        except ValueError:
+            valid = [k.value for k in ProbeKind]
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": f"unknown probe kind {kind_str!r}; valid: {valid}",
+            }
+
+        try:
+            global_probe_registry().register(
+                probe_id,
+                kind,
+                label,
+                track_id=_cap(message.get("track_id")),
+                effect_id=_cap(message.get("effect_id")),
+                param_path=_cap(message.get("param_path")),
+            )
+        except ValueError as exc:
+            return {"id": msg_id, "ok": False, "error": str(exc)}
+
+        return {"id": msg_id, "ok": True, "probeId": probe_id}
+
+    def _handle_probe_unregister(self, message: dict, msg_id: str | None) -> dict:
+        """Unregister a probe by id.
+
+        Returns {ok: True, removed: bool}.
+        """
+        probe_id = message.get("probe_id")
+        if not probe_id:
+            return {"id": msg_id, "ok": False, "error": "missing probe_id"}
+        removed = global_probe_registry().unregister(str(probe_id))
+        return {"id": msg_id, "ok": True, "removed": removed}
+
+    def _handle_probe_mount(self, msg_id: str | None) -> dict:
+        """Mount the inspector — enables probe recording."""
+        global_probe_registry().mount()
+        return {"id": msg_id, "ok": True, "mounted": True}
+
+    def _handle_probe_unmount(self, msg_id: str | None) -> dict:
+        """Unmount the inspector — disables probe recording (history preserved)."""
+        global_probe_registry().unmount()
+        return {"id": msg_id, "ok": True, "mounted": False}
+
+    def _handle_probe_snapshot(self, msg_id: str | None) -> dict:
+        """Return a snapshot of all probes and their most-recent readings.
+
+        The snapshot is serialized to camelCase per IPC conventions.
+        Each probe carries id, kind, label, track_id, effect_id, param_path,
+        the bounded history (≤ 32 readings), and the latest reading.
+        """
+        snap = global_probe_registry().snapshot()
+
+        probes_payload = {}
+        for probe_id, probe in snap.probes.items():
+            latest = probe.latest()
+            probes_payload[probe_id] = {
+                "id": probe.id,
+                "kind": probe.kind.value,
+                "label": probe.label,
+                "trackId": probe.track_id,
+                "effectId": probe.effect_id,
+                "paramPath": probe.param_path,
+                "history": [
+                    {"value": r.value, "timestampS": r.timestamp_s}
+                    for r in probe.history
+                ],
+                "latestValue": latest.value if latest is not None else None,
+                "latestTimestampS": latest.timestamp_s if latest is not None else None,
+            }
+
+        return {
+            "id": msg_id,
+            "ok": True,
+            "mounted": snap.mounted,
+            "capturedAtS": snap.captured_at_s,
+            "probes": probes_payload,
+        }
 
     def close(self):
         self.audio_player.close()

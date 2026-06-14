@@ -153,6 +153,12 @@ describe('IPC Contract', () => {
       'mask_wand_sample',
       'memory_status',
       'ping',
+      // P6.7 probe commands (I1 backend)
+      'probe_mount',
+      'probe_register',
+      'probe_snapshot',
+      'probe_unmount',
+      'probe_unregister',
       'project_clock_pause',
       'project_clock_play',
       'project_clock_seek',
