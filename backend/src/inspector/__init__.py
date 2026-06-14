@@ -9,6 +9,7 @@ in non-inspecting renders).
 """
 
 from .registry import (
+    MAX_PROBES,
     Probe,
     ProbeKind,
     ProbeRegistry,
@@ -18,6 +19,7 @@ from .registry import (
 )
 
 __all__ = [
+    "MAX_PROBES",
     "Probe",
     "ProbeKind",
     "ProbeRegistry",
