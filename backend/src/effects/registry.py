@@ -35,14 +35,33 @@ def _validate_params(effect_id: str, params: dict) -> None:
         )
 
 
-def register(effect_id: str, fn: EffectFn, params: dict, name: str, category: str):
-    """Register an effect."""
+def register(
+    effect_id: str,
+    fn: EffectFn,
+    params: dict,
+    name: str,
+    category: str,
+    field_capable: set[str] | None = None,
+) -> None:
+    """Register an effect.
+
+    Args:
+        effect_id:     Unique effect identifier.
+        fn:            The effect callable.
+        params:        Parameter schema dict.
+        name:          Human-readable display name.
+        category:      Effect category string.
+        field_capable: Optional set of param names that accept a FieldRef value
+                       (P6.2 field-param schema).  Default: empty set (no field
+                       params).  Only float params with min < max are eligible.
+    """
     _validate_params(effect_id, params)
     _REGISTRY[effect_id] = {
         "fn": fn,
         "params": params,
         "name": name,
         "category": category,
+        "field_capable": set(field_capable) if field_capable else set(),
     }
 
 
@@ -52,13 +71,19 @@ def get(effect_id: str) -> dict | None:
 
 
 def list_all() -> list[dict]:
-    """List all registered effects with metadata."""
+    """List all registered effects with metadata.
+
+    Each entry includes a ``fieldParams`` key — a sorted list of param names
+    that accept a FieldRef value (empty list for effects with no field-capable
+    params).  Added in P6.2.
+    """
     return [
         {
             "id": eid,
             "name": info["name"],
             "category": info["category"],
             "params": info["params"],
+            "fieldParams": sorted(info.get("field_capable", set())),
         }
         for eid, info in _REGISTRY.items()
     ]
