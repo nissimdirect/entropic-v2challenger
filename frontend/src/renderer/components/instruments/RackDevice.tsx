@@ -28,7 +28,10 @@ import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
 import { routeRackTrigger, usePerformanceFreezeStore } from '../../stores/performanceFreeze'
 import { useToastStore } from '../../stores/toast'
+import { useLayoutStore } from '../../stores/layout'
+import { useAudioStore } from '../../stores/audio'
 import { clampFinite } from '../../../shared/numeric'
+import { quantizeFrame } from '../../utils/launch-quantize'
 import {
   RACK_PAD_OPACITY_MIN,
   RACK_PAD_OPACITY_MAX,
@@ -110,6 +113,13 @@ export default function RackDevice({ trackId }: { trackId: string }) {
     )
   const clearSelectedPad = () => useProjectStore.getState().clearSelectedRackPad()
 
+  // B10.2 — launch-quantize: snap the trigger frame to the next division of the
+  // edit/slice grid when enabled. Uses the SAME grid division as the timeline
+  // quantize (quantizeDivision). OFF by default.
+  const launchQuantizeEnabled = useLayoutStore((s) => s.launchQuantizeEnabled)
+  const toggleLaunchQuantize = useLayoutStore((s) => s.toggleLaunchQuantize)
+  const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
+
   // Mirror SamplerDevice: return null when the track has no rack (mount-safe).
   if (!rack) return null
 
@@ -133,7 +143,20 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   // branch pad has no leaf voice to trigger; triggering it is a no-op-ish event
   // — render uses its branch. We still trigger for parity with B4 leaf pads.)
   const onPadTrigger = (padId: string) => {
-    const frame = useProjectStore.getState().currentFrame
+    const rawFrame = useProjectStore.getState().currentFrame
+    // B10.2 — launch-quantize: snap to the next division of the edit/slice grid
+    // when enabled. When OFF (the default), rawFrame is passed UNCHANGED —
+    // byte-identical to pre-B10.2 behavior. Only the trigger frameIndex snaps;
+    // footage playback/speed is NOT affected.
+    // Formula source: Timeline.tsx line 249 — (60/bpm)*(4/division)*fps
+    const frame = launchQuantizeEnabled
+      ? quantizeFrame(
+          rawFrame,
+          quantizeDivision,
+          useProjectStore.getState().effectiveBpm,
+          useAudioStore.getState().fps,
+        )
+      : rawFrame
     const pad = currentNode.pads.find((p) => p.id === padId)
     const group = pad?.chokeGroup ?? null
     // B4-choke — siblings resolved against the CURRENT level's pads.
@@ -276,6 +299,23 @@ export default function RackDevice({ trackId }: { trackId: string }) {
           }}
         >
           {freezeFsm === 'frozen' ? '❄ Unfreeze' : freezeFsm === 'freezing' ? '… Freezing' : '❄ Freeze'}
+        </button>
+        {/* B10.2 — launch-quantize toggle: snaps pad triggers to the next
+            division of the edit/slice grid. OFF by default. Uses the same
+            grid division as the timeline quantize (quantizeDivision). */}
+        <button
+          type="button"
+          data-testid="launch-quantize-toggle"
+          className={`rack-breadcrumb__launch-q${launchQuantizeEnabled ? ' rack-breadcrumb__launch-q--active' : ''}`}
+          aria-pressed={launchQuantizeEnabled}
+          title={
+            launchQuantizeEnabled
+              ? 'Launch quantize ON — triggers snap to next grid division'
+              : 'Launch quantize OFF — triggers fire immediately'
+          }
+          onClick={toggleLaunchQuantize}
+        >
+          Q
         </button>
       </div>
 
