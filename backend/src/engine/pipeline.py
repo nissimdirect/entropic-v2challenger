@@ -16,6 +16,7 @@ import numpy as np
 import sentry_sdk
 
 from effects import registry
+from effects.field_top25 import is_field_capable
 from engine.container import EffectContainer
 
 logger = logging.getLogger(__name__)
@@ -196,6 +197,19 @@ def apply_chain(
 
         effect_id = effect_instance.get("effect_id")
         params = dict(effect_instance.get("params", {}))
+
+        # P6.2 field-param guard: reject __field__ values for params not in FIELD_TOP25.
+        # This is a schema guard only — no field evaluation happens here (that is P6.1/P6.5).
+        for param_name, param_value in params.items():
+            if isinstance(param_value, dict) and "__field__" in param_value:
+                if not is_field_capable(effect_id, param_name):
+                    raise ValueError(
+                        f"Effect {effect_id!r} param {param_name!r} received a field "
+                        f"reference (__field__) but is not in the FIELD_TOP25 allow-list. "
+                        f"Add it to backend/src/effects/field_top25.py to enable field "
+                        f"modulation for this param, then re-run "
+                        f"python3 backend/scripts/gen_field_top25.py --check."
+                    )
 
         # Skip auto-disabled effects
         with _health_lock:
