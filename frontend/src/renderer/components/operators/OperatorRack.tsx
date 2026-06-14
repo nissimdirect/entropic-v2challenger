@@ -8,6 +8,7 @@ import AudioFollowerEditor from './AudioFollowerEditor'
 import VideoAnalyzerEditor from './VideoAnalyzerEditor'
 import FusionEditor from './FusionEditor'
 import OperatorKentaroCluster from './OperatorKentaroCluster'
+import OperatorTopologyGraph from './OperatorTopologyGraph'
 
 interface OperatorRackProps {
   effectChain: { id: string; effectId: string }[]
@@ -58,6 +59,10 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
   const reorderOperators = useOperatorStore((s) => s.reorderOperators)
 
   const [showAddMenu, setShowAddMenu] = useState(false)
+  // P4.5: topology graph lives in a collapsible section, COLLAPSED by default.
+  // When collapsed the graph subtree is UNMOUNTED (not display:none) so it
+  // costs zero rAF / zero render while hidden.
+  const [showTopology, setShowTopology] = useState(false)
 
   return (
     <div className="operator-rack">
@@ -183,6 +188,25 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
           })}
         </div>
       )}
+
+      {/* P4.5 — operator→effect topology graph. Collapsed by default; the graph
+          subtree is UNMOUNTED while collapsed (rule 5: zero cost). */}
+      <div className="operator-rack__topology-section">
+        <button
+          className="operator-rack__topology-toggle"
+          aria-expanded={showTopology}
+          onClick={() => setShowTopology((v) => !v)}
+        >
+          {showTopology ? '▼' : '▶'} Topology
+        </button>
+        {showTopology && (
+          <OperatorTopologyGraph
+            effectChain={effectChain}
+            registry={registry}
+            operatorValues={operatorValues}
+          />
+        )}
+      </div>
     </div>
   )
 }

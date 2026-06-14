@@ -417,6 +417,24 @@ function AppInner() {
     // Initialize store (reads localStorage, decides whether to auto-open drawer).
     onboardingInit()
 
+    // P4.5 (test-only): expose the operator store so the topology-graph E2E can
+    // seed the exact "1 LFO mapped to an effect param" fixture deterministically
+    // (the Zustand stores are module-scoped and otherwise unreachable from
+    // Playwright). Gated on the preload's runtime test flag (set from the main
+    // process NODE_ENV the Playwright fixture injects) — this survives the
+    // production renderer build, unlike a build-inlined process.env check, and
+    // is absent in real launches where isTestMode is false.
+    if (window.entropic?.isTestMode) {
+      ;(window as unknown as { __creatrixTest?: Record<string, unknown> }).__creatrixTest = {
+        operatorStore: useOperatorStore,
+        // The topology graph consumes the SAME `operatorValues` state the live
+        // render loop feeds. Exposing the setter lets the E2E drive live values
+        // deterministically (no wall-clock timer flake) while exercising the
+        // identical prop → rAF → DOM animation path the real loop drives.
+        setOperatorValues,
+      }
+    }
+
     // Load demo file paths from main process via the ONE runtime-dir constant.
     if (window.entropic?.getDemoPaths) {
       window.entropic.getDemoPaths().then((paths) => {
