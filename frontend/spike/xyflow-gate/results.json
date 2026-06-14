@@ -1,0 +1,220 @@
+P40_RESULTS_JSON_START
+[
+  {
+    "impl": "xyflow",
+    "variant": "32",
+    "worst": {
+      "run": 1,
+      "rafP50": 10,
+      "rafP95": 11.9,
+      "rafMax": 12.1,
+      "dropped": 0,
+      "samples": 600,
+      "workMsPerFrame": 0.127,
+      "scriptMs": 0.065,
+      "layoutMs": 0,
+      "styleMs": 0.061
+    },
+    "runs": [
+      {
+        "run": 1,
+        "rafP50": 10,
+        "rafP95": 11.9,
+        "rafMax": 12.1,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.127,
+        "scriptMs": 0.065,
+        "layoutMs": 0,
+        "styleMs": 0.061
+      },
+      {
+        "run": 2,
+        "rafP50": 10,
+        "rafP95": 11.4,
+        "rafMax": 12.1,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.114,
+        "scriptMs": 0.058,
+        "layoutMs": 0,
+        "styleMs": 0.056
+      },
+      {
+        "run": 3,
+        "rafP50": 10,
+        "rafP95": 11.3,
+        "rafMax": 11.9,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.11,
+        "scriptMs": 0.052,
+        "layoutMs": 0,
+        "styleMs": 0.058
+      }
+    ]
+  },
+  {
+    "impl": "bare-svg",
+    "variant": "32",
+    "worst": {
+      "run": 1,
+      "rafP50": 10,
+      "rafP95": 11.5,
+      "rafMax": 12,
+      "dropped": 0,
+      "samples": 600,
+      "workMsPerFrame": 0.161,
+      "scriptMs": 0.066,
+      "layoutMs": 0.039,
+      "styleMs": 0.056
+    },
+    "runs": [
+      {
+        "run": 1,
+        "rafP50": 10,
+        "rafP95": 11.5,
+        "rafMax": 12,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.161,
+        "scriptMs": 0.066,
+        "layoutMs": 0.039,
+        "styleMs": 0.056
+      },
+      {
+        "run": 2,
+        "rafP50": 10,
+        "rafP95": 11.7,
+        "rafMax": 12.1,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.158,
+        "scriptMs": 0.061,
+        "layoutMs": 0.04,
+        "styleMs": 0.057
+      },
+      {
+        "run": 3,
+        "rafP50": 10,
+        "rafP95": 12,
+        "rafMax": 12.1,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.145,
+        "scriptMs": 0.054,
+        "layoutMs": 0.038,
+        "styleMs": 0.053
+      }
+    ]
+  },
+  {
+    "impl": "xyflow",
+    "variant": "64",
+    "worst": {
+      "run": 1,
+      "rafP50": 10,
+      "rafP95": 11.9,
+      "rafMax": 12.1,
+      "dropped": 0,
+      "samples": 600,
+      "workMsPerFrame": 0.129,
+      "scriptMs": 0.065,
+      "layoutMs": 0,
+      "styleMs": 0.064
+    },
+    "runs": [
+      {
+        "run": 1,
+        "rafP50": 10,
+        "rafP95": 11.9,
+        "rafMax": 12.1,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.129,
+        "scriptMs": 0.065,
+        "layoutMs": 0,
+        "styleMs": 0.064
+      },
+      {
+        "run": 2,
+        "rafP50": 10,
+        "rafP95": 11.9,
+        "rafMax": 12.1,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.123,
+        "scriptMs": 0.063,
+        "layoutMs": 0,
+        "styleMs": 0.059
+      },
+      {
+        "run": 3,
+        "rafP50": 10,
+        "rafP95": 11.9,
+        "rafMax": 12,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.124,
+        "scriptMs": 0.062,
+        "layoutMs": 0,
+        "styleMs": 0.061
+      }
+    ]
+  },
+  {
+    "impl": "bare-svg",
+    "variant": "64",
+    "worst": {
+      "run": 1,
+      "rafP50": 10,
+      "rafP95": 11.9,
+      "rafMax": 12,
+      "dropped": 0,
+      "samples": 600,
+      "workMsPerFrame": 0.189,
+      "scriptMs": 0.078,
+      "layoutMs": 0.047,
+      "styleMs": 0.065
+    },
+    "runs": [
+      {
+        "run": 1,
+        "rafP50": 10,
+        "rafP95": 11.9,
+        "rafMax": 12,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.189,
+        "scriptMs": 0.078,
+        "layoutMs": 0.047,
+        "styleMs": 0.065
+      },
+      {
+        "run": 2,
+        "rafP50": 10,
+        "rafP95": 11.8,
+        "rafMax": 12,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.188,
+        "scriptMs": 0.077,
+        "layoutMs": 0.047,
+        "styleMs": 0.064
+      },
+      {
+        "run": 3,
+        "rafP50": 10,
+        "rafP95": 11.5,
+        "rafMax": 12,
+        "dropped": 0,
+        "samples": 600,
+        "workMsPerFrame": 0.168,
+        "scriptMs": 0.072,
+        "layoutMs": 0.04,
+        "styleMs": 0.056
+      }
+    ]
+  }
+]
+P40_RESULTS_JSON_END
