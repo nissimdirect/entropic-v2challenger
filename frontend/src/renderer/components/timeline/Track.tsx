@@ -3,6 +3,8 @@ import type { Track as TrackType, BlendMode, TriggerMode } from '../../../shared
 import { getTrackCompositing, getTerminalComposite, makeCompositeEffect, COMPOSITE_EFFECT_ID } from '../../../shared/types'
 import { randomUUID } from '../../utils'
 import { EFFECT_DRAG_TYPE } from '../effects/EffectBrowser'
+import { parseOperatorDrop, dragHasOperatorChannel } from '../effects/operator-drag'
+import { useOperatorStore } from '../../stores/operators'
 import { useTimelineStore } from '../../stores/timeline'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
@@ -263,6 +265,13 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         // primary gesture per DECISIONS.md:43) — only onto a Performance/MIDI track.
         // Note: onMouseEnter/Leave removed by two-row header — opacity/blend always visible.
         onDragOver={(e) => {
+          // P4.6: accept an operator dragged from the browser op tab. The operator
+          // rack is global (not per-track), so this is allowed on any track header.
+          if (dragHasOperatorChannel(e.dataTransfer)) {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = 'copy'
+            return
+          }
           if (track.type === 'performance' && e.dataTransfer.types.includes(INSTRUMENT_DRAG_TYPE)) {
             e.preventDefault()
             e.dataTransfer.dropEffect = 'copy'
@@ -281,6 +290,16 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           }
         }}
         onDrop={(e) => {
+          // P4.6: operator dragged from the op tab → addOperator(type). Checked
+          // FIRST: parseOperatorDrop validates kind==='operator' + the session
+          // nonce, so fx/composite drops (also on EFFECT_DRAG_TYPE) fall through.
+          const opType = parseOperatorDrop(e.dataTransfer)
+          if (opType) {
+            e.preventDefault()
+            useTimelineStore.getState().selectTrack(track.id)
+            useOperatorStore.getState().addOperator(opType)
+            return
+          }
           // P2.2b: Composite dropped on the track header → create it terminal in one
           // undo transaction (see handleAddComposite). Checked BEFORE the instrument
           // branch so an effect-typed drop is never misread as an instrument drop.

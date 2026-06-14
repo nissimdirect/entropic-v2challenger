@@ -58,7 +58,7 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
     expect(queryByText('Fusion')).not.toBeNull()
   })
 
-  it('menu renders exactly 7 enabled entries + 3 disabled (P4.4: Kentaro Cluster now available)', () => {
+  it('menu renders all 10 entries enabled, 0 disabled (P4.6: sidechain/gate/stutter now available)', () => {
     const { getByText, container } = render(<OperatorRack {...baseProps} />)
     fireEvent.click(getByText('+ Add'))
     const allButtons = container.querySelectorAll('.operator-rack__add-option')
@@ -68,17 +68,26 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
     const disabledButtons = container.querySelectorAll(
       '.operator-rack__add-option:disabled',
     )
-    expect(allButtons).toHaveLength(10) // 6 base + 4 P4.1 (one now enabled)
-    expect(enabledButtons).toHaveLength(7)
-    expect(disabledButtons).toHaveLength(3)
-    // P4.4: Kentaro Cluster is now enabled.
+    expect(allButtons).toHaveLength(10) // 6 base + 4 P4.1, all now enabled
+    expect(enabledButtons).toHaveLength(10)
+    expect(disabledButtons).toHaveLength(0) // P4.6: ZERO available:false remain
+    // P4.6: the previously-disabled three are now enabled.
     const enabledLabels = Array.from(enabledButtons).map((b) => b.textContent)
     expect(enabledLabels).toContain('Kentaro Cluster')
-    // The 3 still-disabled labels (sidechain/gate/stutter stay available:false).
-    const disabledLabels = Array.from(disabledButtons).map((b) => b.textContent)
-    expect(disabledLabels).toContain('Sidechain')
-    expect(disabledLabels).toContain('Gate')
-    expect(disabledLabels).toContain('MIDI Env Stutter')
+    expect(enabledLabels).toContain('Sidechain')
+    expect(enabledLabels).toContain('Gate')
+    expect(enabledLabels).toContain('MIDI Env Stutter')
+  })
+
+  it('adds sidechain/gate/midiEnvStutter without crashing the rack (Gate 14: graceful card-only fallback)', () => {
+    for (const t of ['sidechain', 'gate', 'midiEnvStutter'] as const) {
+      resetStores()
+      useOperatorStore.getState().addOperator(t)
+      const { container, unmount } = render(<OperatorRack {...baseProps} />)
+      // Card mounts (header-only fallback — no dedicated editor branch yet).
+      expect(container.querySelector('.operator-card')).not.toBeNull()
+      unmount()
+    }
   })
 
   it('adds an LFO operator when LFO option is clicked', () => {

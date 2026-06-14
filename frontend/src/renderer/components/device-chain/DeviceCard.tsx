@@ -6,7 +6,11 @@ import ParamToggle from '../effects/ParamToggle'
 import { useAutomationStore } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
+import { useOperatorStore } from '../../stores/operators'
+import { useToastStore } from '../../stores/toast'
+import { LIMITS } from '../../../shared/limits'
 import { recordPoint } from '../../utils/automation-record'
+import { parseOperatorDrop, dragHasOperatorChannel } from '../effects/operator-drag'
 import ABSwitch from './ABSwitch'
 
 interface DeviceCardProps {
@@ -130,6 +134,53 @@ export default function DeviceCard({
     [effect.id, onSetMix],
   )
 
+  // P4.6: accept an operator dragged from the browser op tab onto a param knob.
+  // dropEffect 'copy' lights the target only when our drag channel carries an
+  // operator (parseOperatorDrop rejects fx/composite/instruments/external drags).
+  const handleParamDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    if (!dragHasOperatorChannel(e.dataTransfer)) return
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'copy'
+  }, [])
+
+  // Drop on a param knob → addOperator(type) + auto-mapping at depth 1.0 linear
+  // targeting THIS effect/param. Gate 14 chaos: invalid drop = no-op (0 mutations,
+  // 0 console.error); at the 64-operator cap = no-op + exactly ONE visible toast.
+  const handleParamDrop = useCallback(
+    (key: string, e: React.DragEvent<HTMLDivElement>) => {
+      const type = parseOperatorDrop(e.dataTransfer)
+      if (!type) return // not an operator drag → clean no-op (invalid target)
+      e.preventDefault()
+      e.stopPropagation()
+
+      const store = useOperatorStore.getState()
+      // Cap refusal: at MAX_OPERATORS, addOperator no-ops silently — we surface
+      // ONE rate-limited toast (source field) so the refusal is never silent.
+      if (store.operators.length >= LIMITS.MAX_OPERATORS) {
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: `Operator limit reached (${LIMITS.MAX_OPERATORS}) — remove one to add more`,
+          source: 'operator-cap',
+        })
+        return
+      }
+
+      const before = new Set(store.operators.map((o) => o.id))
+      store.addOperator(type)
+      const created = useOperatorStore.getState().operators.find((o) => !before.has(o.id))
+      if (!created) return // defensive: add was refused → no mapping
+      useOperatorStore.getState().addMapping(created.id, {
+        targetEffectId: effect.id,
+        targetParamKey: key,
+        depth: 1.0,
+        min: 0,
+        max: 1,
+        curve: 'linear',
+      })
+    },
+    [effect.id],
+  )
+
   // MK.3: assign / clear the device's mask node from the dropdown.
   const handleMaskNodeChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -209,7 +260,13 @@ export default function DeviceCard({
           )
 
           return (
-            <div key={key} className="device-card__param">
+            <div
+              key={key}
+              className="device-card__param"
+              data-testid={`param-knob-${effect.id}-${key}`}
+              onDragOver={handleParamDragOver}
+              onDrop={(e) => handleParamDrop(key, e)}
+            >
               <Knob
                 value={value as number}
                 min={def.min ?? 0}

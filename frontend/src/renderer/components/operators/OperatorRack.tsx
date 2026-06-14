@@ -24,11 +24,14 @@ const TYPE_OPTIONS: { type: OperatorType; label: string; available: boolean }[] 
   { type: 'audio_follower', label: 'Audio', available: true },
   { type: 'video_analyzer', label: 'Video', available: true },
   { type: 'fusion', label: 'Fusion', available: true },
-  // P4.1: new operator types — visible but not yet evaluable (available: false)
+  // P4.1: new operator types. P4.4 enabled kentaroCluster; P4.6 enables the
+  // remaining three (backend landed in P4.3). After this, ZERO available:false
+  // entries remain. These three have no dedicated editor branch yet — the rack
+  // renders them card-only (graceful fallback, no crash — Gate 14).
   { type: 'kentaroCluster', label: 'Kentaro Cluster', available: true },
-  { type: 'sidechain', label: 'Sidechain', available: false },
-  { type: 'gate', label: 'Gate', available: false },
-  { type: 'midiEnvStutter', label: 'MIDI Env Stutter', available: false },
+  { type: 'sidechain', label: 'Sidechain', available: true },
+  { type: 'gate', label: 'Gate', available: true },
+  { type: 'midiEnvStutter', label: 'MIDI Env Stutter', available: true },
 ]
 
 const TYPE_BADGE: Record<string, string> = {
