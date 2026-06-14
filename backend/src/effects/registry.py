@@ -76,14 +76,30 @@ def list_all() -> list[dict]:
     Each entry includes a ``fieldParams`` key — a sorted list of param names
     that accept a FieldRef value (empty list for effects with no field-capable
     params).  Added in P6.2.
+
+    ``fieldParams`` is the union of any explicitly-registered ``field_capable``
+    set and the params named for that effect in the frozen ``FIELD_TOP25`` list
+    — the same source of truth the render-path guard (``is_field_capable``)
+    uses, so the frontend "Field…" control lights up exactly on the params the
+    backend will accept.  (P6.6 follow-up: registration never populated
+    ``field_capable``, so without this the list was always empty.)
     """
+    # Lazy import to avoid any import-cycle with the effects package.
+    from effects.field_top25 import FIELD_TOP25
+
+    top25_fields: dict[str, set[str]] = {}
+    for entry in FIELD_TOP25:
+        top25_fields.setdefault(entry["effect_id"], set()).update(entry["params"])
+
     return [
         {
             "id": eid,
             "name": info["name"],
             "category": info["category"],
             "params": info["params"],
-            "fieldParams": sorted(info.get("field_capable", set())),
+            "fieldParams": sorted(
+                set(info.get("field_capable", set())) | top25_fields.get(eid, set())
+            ),
         }
         for eid, info in _REGISTRY.items()
     ]
