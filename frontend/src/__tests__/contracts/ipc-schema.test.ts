@@ -129,6 +129,7 @@ describe('IPC Contract', () => {
       'audio_tracks_clear',
       'audio_tracks_set',
       'audio_volume',
+      'bake_performance_track',
       'check_dag',
       'clock_set_fps',
       'clock_sync',

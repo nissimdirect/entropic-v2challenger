@@ -26,7 +26,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
-import { routeRackTrigger } from '../../stores/performanceFreeze'
+import { routeRackTrigger, usePerformanceFreezeStore } from '../../stores/performanceFreeze'
 import { useToastStore } from '../../stores/toast'
 import { clampFinite } from '../../../shared/numeric'
 import {
@@ -66,6 +66,12 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const triggerRackPad = usePerformanceStore((s) => s.triggerRackPad)
   const clearRackPadEvents = usePerformanceStore((s) => s.clearRackPadEvents)
   const assets = useProjectStore((s) => s.assets)
+
+  // B10.1b — Ableton-style FREEZE state for THIS track (reactive). FROZEN → the
+  // render loop plays the baked clip; the button toggles freeze ↔ unfreeze.
+  const freezeFsm = usePerformanceFreezeStore((s) => s.fsm[trackId] ?? 'idle')
+  const freezePerformanceTrack = usePerformanceFreezeStore((s) => s.freezePerformanceTrack)
+  const unfreezePerformanceTrack = usePerformanceFreezeStore((s) => s.unfreezePerformanceTrack)
 
   // B5.2 — the branch path the RackDevice is currently editing. EMPTY → top rack
   // (B4 behavior). Reactive so drilling in/out re-renders the right level.
@@ -250,6 +256,27 @@ export default function RackDevice({ trackId }: { trackId: string }) {
             ↑ up
           </button>
         )}
+        {/* B10.1b — Ableton-style FREEZE toggle. FROZEN plays the baked clip
+            (live voices released); UNFREEZE restores live voices. Disabled
+            while a bake is in flight (FREEZING). */}
+        <button
+          type="button"
+          data-testid="rack-freeze-toggle"
+          className="rack-breadcrumb__freeze"
+          disabled={freezeFsm === 'freezing'}
+          aria-pressed={freezeFsm === 'frozen'}
+          title={
+            freezeFsm === 'frozen'
+              ? 'Unfreeze — restore live voices'
+              : 'Freeze — bake voices to a clip'
+          }
+          onClick={() => {
+            if (freezeFsm === 'frozen') unfreezePerformanceTrack(trackId)
+            else if (freezeFsm === 'idle') void freezePerformanceTrack(trackId)
+          }}
+        >
+          {freezeFsm === 'frozen' ? '❄ Unfreeze' : freezeFsm === 'freezing' ? '… Freezing' : '❄ Freeze'}
+        </button>
       </div>
 
       <div className="sampler-device__row">

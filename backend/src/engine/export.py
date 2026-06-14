@@ -25,6 +25,7 @@ from engine.codecs import (
 from effects import registry
 from engine.compositor import render_composite
 from engine.composite_tree import expand_group_layer, validate_composite_tree
+from engine.guards import clamp_finite
 from modulation.engine import SignalEngine
 from security import (
     MAX_BRANCH_DEPTH,
@@ -296,6 +297,120 @@ class ExportManager:
         thread.start()
 
         return job
+
+    # ------------------------------------------------------------------
+    # B10.1b — Ableton-style performance-track FREEZE bake (synchronous).
+    # ------------------------------------------------------------------
+
+    def bake_performance_track(
+        self,
+        *,
+        track_id: str,
+        performance: dict,
+        output_path: str,
+        resolution: tuple[int, int],
+        start_frame: int,
+        end_frame: int,
+        project_seed: int = 0,
+        fps: int = 30,
+    ) -> dict:
+        """Bake ONE performance track's voices to a video clip, SYNCHRONOUSLY.
+
+        This is the REAL bake behind the B10.1 freeze FSM (Ableton-style:
+        freeze → bake the track's current voice output to a clip → the track
+        plays the baked clip while live voices are released). Unlike `start`
+        (the async, base-video export job), this renders a *single* track's
+        voices over a TRANSPARENT/BLACK base across ``[start_frame, end_frame]``
+        and returns when the file is written.
+
+        It REUSES ``_composite_export_frame`` verbatim (the SAME compositor the
+        export path uses) — there is NO parallel renderer. The performance
+        payload is scoped to ``track_id`` by the caller (``_handle_bake_perf``)
+        so only that track's instruments/racks/events bake.
+
+        Returns ``{"ok": bool, "clipId": str, "path": str, "frames": int}``.
+        Raises on a hard failure (unknown reader, encode error) so the IPC
+        handler maps it to ``ok: false`` without crashing the sidecar.
+        """
+        events = (performance or {}).get("events") or []
+        racks = (performance or {}).get("racks") or {}
+        frame_banks = (performance or {}).get("frameBanks") or {}
+        instruments = (performance or {}).get("instruments") or {}
+        # Nothing to bake (no voices on this track) is NOT an error — but it is
+        # a no-op clip. The caller validates trackId presence; here we just
+        # honor whatever scoped payload arrived.
+        res_w = max(1, min(8192, int(resolution[0])))
+        res_h = max(1, min(8192, int(resolution[1])))
+        safe_fps = int(clamp_finite(float(fps), 1.0, 240.0, 30.0))
+        sf = max(0, int(start_frame))
+        ef = max(sf, int(end_frame))
+
+        voice_readers: dict[str, object] = {}
+        frame_bank_caches: dict[str, object] = {}
+        voice_states: dict[str, dict] = {}
+        writer = None
+        frames_written = 0
+        try:
+            # H.264 over a black base; alpha is flattened (the baked clip is a
+            # normal video the render loop plays as a video layer). Reuse the
+            # project's default codec config so the file is broadly decodable.
+            codec_cfg = get_codec_config(DEFAULT_SETTINGS["codec"])
+            writer = VideoWriter(
+                output_path,
+                res_w,
+                res_h,
+                fps=safe_fps,
+                codec=codec_cfg["pyav_codec"],
+                pix_fmt=codec_cfg["pix_fmt"],
+            )
+            scoped_perf = {
+                "events": events,
+                "instruments": instruments,
+                "racks": racks,
+                "frameBanks": frame_banks,
+                "assets": (performance or {}).get("assets") or {},
+            }
+            for src_idx in range(sf, ef + 1):
+                # Black RGBA base — the track's voices composite on top of it.
+                base = np.zeros((res_h, res_w, 4), dtype=np.uint8)
+                base[:, :, 3] = 255
+                out, voice_states = self._composite_export_frame(
+                    base_frame=base,
+                    base_chain=[],
+                    performance=scoped_perf,
+                    frame_index=src_idx,
+                    resolution=(res_w, res_h),
+                    project_seed=project_seed,
+                    voice_states=voice_states,
+                    voice_readers=voice_readers,
+                    operators=None,
+                    operator_values=None,
+                    frame_bank_caches=frame_bank_caches,
+                )
+                writer.write_frame(out)
+                frames_written += 1
+            writer.close()
+            writer = None
+        finally:
+            if writer is not None:
+                try:
+                    writer.close()
+                except Exception:  # noqa: BLE001 — best-effort cleanup
+                    pass
+            for _vr in voice_readers.values():
+                close = getattr(_vr, "close", None)
+                if callable(close):
+                    try:
+                        close()
+                    except Exception:  # noqa: BLE001
+                        pass
+
+        return {
+            "ok": True,
+            "clipId": f"perf-bake:{track_id}",
+            "path": output_path,
+            "frames": frames_written,
+        }
 
     # ------------------------------------------------------------------
     # Internal: resolve settings into concrete values
