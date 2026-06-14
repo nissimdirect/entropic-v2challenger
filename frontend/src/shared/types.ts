@@ -66,9 +66,33 @@ export interface Timeline {
   zoom?: number;
 }
 
+/**
+ * P6.8 (I1) — a probe binding lives on an inspector track. It pins one
+ * post-modulation parameter value so the backend probe registry records its
+ * history; the frontend draws the live sparkline. `probeId` matches the backend
+ * registry key (`probe_register`/`probe_snapshot`). Bindings are pure data and
+ * round-trip through project save/load like any other additive Track field.
+ */
+export interface ProbeBinding {
+  probeId: string;
+  /** Probe kind. v1 only emits `'param_postmod'`; the union mirrors the backend
+   * `ProbeKind` so a future kind from disk validates instead of being dropped. */
+  kind: "param_postmod";
+  /** EffectInstance.id (NOT effectId) — instance identity, matches CC/operator refs. */
+  effectId: string;
+  /** Param key on the effect (e.g. `"radius"`). */
+  paramPath: string;
+  /** Human label shown on the probe row (e.g. `"Blur · radius"`). */
+  label: string;
+}
+
 export interface Track {
   id: string;
-  type: "video" | "performance" | "text" | "audio";
+  // P6.8 (I1): `"inspector"` is a first-class track type carrying probe rows
+  // (no clips). Adding it touches save/load — the persistence validator accepts
+  // it and unknown future types are dropped (forward-tolerance) rather than
+  // rejecting the whole project.
+  type: "video" | "performance" | "text" | "audio" | "inspector";
   name: string;
   color: string;
   isMuted: boolean;
@@ -85,6 +109,8 @@ export interface Track {
   // Audio track only (undefined for video/performance/text)
   gainDb?: number;
   audioClips?: AudioClip[];
+  // Inspector track only (P6.8 / I1) — undefined for all other track types.
+  probeBindings?: ProbeBinding[];
 }
 
 /**

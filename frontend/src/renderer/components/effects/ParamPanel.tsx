@@ -9,6 +9,13 @@ import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
 import { recordPoint } from '../../utils/automation-record'
 
+/**
+ * P6.8 (I1) — drag MIME type for "drag a param onto the inspector track to
+ * create a probe". The payload is JSON `{ effectId, paramPath, label }` where
+ * effectId is the EffectInstance.id (instance identity).
+ */
+export const PARAM_PROBE_DRAG_TYPE = 'application/x-creatrix-param-probe'
+
 interface ParamPanelProps {
   effect: EffectInstance | null
   effectInfo: EffectInfo | null
@@ -78,6 +85,24 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
       <div
         key={key}
         style={{ position: 'relative' }}
+        // P6.8 (I1): drag-source — drop onto the inspector track to add a probe.
+        // We mark the drag with a dedicated MIME type so the inspector track's
+        // drop handler can recognize it without colliding with effect/operator
+        // drags. The Knob's own pointer-drag (value change) still works because
+        // HTML5 drag only starts from this wrapper's draggable surface, and the
+        // Knob stops propagation on its interactive handle.
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.effectAllowed = 'copy'
+          e.dataTransfer.setData(
+            PARAM_PROBE_DRAG_TYPE,
+            JSON.stringify({
+              effectId: effect.id,
+              paramPath: key,
+              label: `${effectInfo.name} · ${def.label}`,
+            }),
+          )
+        }}
         onContextMenu={(e) => {
           e.preventDefault()
           useMIDIStore.getState().setLearnTarget({

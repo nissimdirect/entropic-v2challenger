@@ -137,13 +137,35 @@ describe('Text Track Persistence', () => {
     expect(validateProject(project)).toBe(false)
   })
 
-  it('rejects track with invalid type', () => {
+  // P6.8 (I1) forward-tolerance: a track with an unrecognized *string* type is
+  // NO LONGER rejected at validation — the whole project would fail to load,
+  // which breaks rollback safety (a project saved by a newer build must still
+  // open). Instead the unknown track is dropped at hydrate with a toast. The
+  // validator only rejects a NON-STRING type (a structurally hostile shape).
+  it('accepts a track with an unknown string type (dropped at hydrate, not rejected)', () => {
     const project = makeValidProject({
       timeline: {
         duration: 10,
         tracks: [
           {
             id: 't1', type: 'invalid', name: 'Bad', color: '#ff0000',
+            clips: [], effectChain: [], automationLanes: [],
+          },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(validateProject(project)).toBe(true)
+  })
+
+  it('rejects a track with a non-string type (hostile shape)', () => {
+    const project = makeValidProject({
+      timeline: {
+        duration: 10,
+        tracks: [
+          {
+            id: 't1', type: 42, name: 'Bad', color: '#ff0000',
             clips: [], effectChain: [], automationLanes: [],
           },
         ],

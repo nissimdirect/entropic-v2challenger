@@ -51,6 +51,8 @@ const ALLOWED_COMMANDS = new Set([
   'flush_state', 'memory_status',
   // Routing
   'check_dag',
+  // P6.8 (I1) Inspector probes — registry lifecycle + snapshot polling
+  'probe_register', 'probe_unregister', 'probe_mount', 'probe_unmount', 'probe_snapshot',
   // Health
   'ping',
 ])
