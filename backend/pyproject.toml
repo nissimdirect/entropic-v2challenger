@@ -20,6 +20,12 @@ dev = [
     "pytest-rerunfailures>=14.0",
     "hypothesis>=6.100",
 ]
+# Real Metal/GPU backend (Apple Silicon only). Optional: non-Apple CI omits
+# this extra and the `metal`-marked tests skip cleanly via mlx_available().
+metal = [
+    "mlx>=0.30",
+    "psutil>=5.9",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

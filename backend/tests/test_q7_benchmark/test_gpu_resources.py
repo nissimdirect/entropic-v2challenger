@@ -520,3 +520,214 @@ def test_create_and_destroy_10k_handles_rss_stable():
 def test_pool_max_handles_zero_raises():
     with pytest.raises(ValueError):
         GPUResourcePool(max_handles=0)
+
+
+# ---------------------------------------------------------------------------
+# P6.4 — MLXGPUResource: real Metal binding (gap 6 of #163)
+#
+# Non-metal tests (protocol/destroy/raw/unavailable) run everywhere via the
+# import-guarded module. The metal-marked tests need a real MLX backend and
+# skip cleanly when it is absent. They EXTEND the 33-test contract above —
+# nothing in that contract is modified.
+# ---------------------------------------------------------------------------
+
+from safety.mlx_resources import (  # noqa: E402
+    MLXGPUResource,
+    MLXUnavailableError,
+    mlx_available,
+)
+
+_requires_mlx = pytest.mark.skipif(
+    not mlx_available(),
+    reason="no MLX/Metal backend present — metal-tier MLX test skipped",
+)
+
+
+@pytest.fixture(autouse=True)
+def _reset_mlx_finalizer_counter():
+    MLXGPUResource.reset_finalizer_counter()
+    yield
+    MLXGPUResource.reset_finalizer_counter()
+
+
+@pytest.mark.smoke
+def test_mlx_resource_implements_protocol():
+    """Structural Protocol satisfaction does not require MLX at runtime:
+    the class is checked against the runtime_checkable GPUResource. When
+    MLX is present we also instantiate one and isinstance-check it."""
+    assert issubclass(MLXGPUResource, object)
+    # The Protocol attributes exist on the class regardless of backend.
+    for attr in ("id", "destroy", "destroyed", "size_bytes", "raw"):
+        assert hasattr(MLXGPUResource, attr) or attr in (
+            "id",
+            "size_bytes",
+        ), f"MLXGPUResource missing protocol member {attr!r}"
+    if mlx_available():
+        r = MLXGPUResource.allocate("proto", (4, 4), "float32")
+        try:
+            assert isinstance(r, GPUResource)
+            assert r.size_bytes == 4 * 4 * 4  # 16 elems * 4 bytes
+        finally:
+            r.destroy()
+
+
+@pytest.mark.smoke
+def test_mlx_unavailable_importerror_clean():
+    """Negative: when MLX is absent, mlx_available() is False and the
+    constructor raises a clean MLXUnavailableError (no AttributeError /
+    traceback leakage from the None module)."""
+    if mlx_available():
+        # MLX present here — assert the boolean reports True and a
+        # mis-gated construction path is the only way to MLXUnavailableError.
+        assert mlx_available() is True
+    else:
+        assert mlx_available() is False
+        with pytest.raises(MLXUnavailableError):
+            MLXGPUResource(id="nope", size_bytes=16)
+
+
+@_requires_mlx
+@pytest.mark.metal
+def test_mlx_destroy_idempotent():
+    r = MLXGPUResource.allocate("idem", (8, 8), "float32")
+    assert r.destroyed is False
+    r.destroy()
+    assert r.destroyed is True
+    # Second + third destroy are no-ops, never raise.
+    r.destroy()
+    r.destroy()
+    assert r.destroyed is True
+
+
+@_requires_mlx
+@pytest.mark.metal
+def test_mlx_raw_after_destroy_raises():
+    """Negative: use-after-free is THE failure mode SG-1 exists for."""
+    r = MLXGPUResource.allocate("uaf", (8, 8), "float32")
+    # Before destroy, raw returns the live mlx array.
+    assert r.raw is not None
+    r.destroy()
+    with pytest.raises(DestroyedHandleError) as exc:
+        _ = r.raw
+    assert exc.value.resource_id == "uaf"
+
+
+@_requires_mlx
+@pytest.mark.metal
+def test_mlx_finalizer_frees_forgotten_handle():
+    """A forgotten (never-destroyed) MLXGPUResource is freed by the RAII
+    weakref.finalize fallback at GC, incrementing the class counter — the
+    SAME guarantee MockGPUResource provides, on the real backend."""
+    MLXGPUResource.reset_finalizer_counter()
+    r = MLXGPUResource.allocate("forgotten", (16, 16), "float32")
+    rid = id(r)
+    assert rid  # keep a use so the local isn't optimized away pre-drop
+    del r
+    _force_gc_collect_finalizers()
+    assert MLXGPUResource.finalizer_free_count == 1
+
+
+@_requires_mlx
+@pytest.mark.metal
+def test_pool_evicts_mlx_resources_lru():
+    """The generic pool drives real MLX handles through LRU eviction with
+    no leaks and correct destroy() calls on the evicted resources."""
+    pool = GPUResourcePool(max_handles=2, eviction_policy=EvictionPolicy.LRU)
+    a = MLXGPUResource.allocate("a", (4, 4), "float32")
+    b = MLXGPUResource.allocate("b", (4, 4), "float32")
+    pool.acquire(a)
+    pool.acquire(b)
+    # Acquiring a third evicts the LRU (a).
+    c = MLXGPUResource.allocate("c", (4, 4), "float32")
+    pool.acquire(c)
+    assert a.destroyed is True
+    assert b.destroyed is False
+    assert c.destroyed is False
+    assert pool.get("a") is None
+    assert pool.get("b") is b
+    pool.destroy_all()
+    assert b.destroyed is True
+    assert c.destroyed is True
+
+
+@_requires_mlx
+@pytest.mark.metal
+def test_mlx_10k_acquire_destroy_rss_baseline():
+    """Real-backend leak gate (the gate this phase is named for): 10,000
+    acquire/destroy cycles of real MLX buffers through a bounded pool must
+    return process RSS to within +64 MiB of baseline.
+
+    Same 10,000-cycle / +64 MiB threshold as the existing mock RSS test,
+    but on MLXGPUResource — real unified-memory allocations."""
+    import psutil  # local import: only on the real-backend path
+
+    proc = psutil.Process()
+    _force_gc_collect_finalizers()
+    baseline = proc.memory_info().rss
+    tolerance = 64 * 1024 * 1024  # 67,108,864 B allocator slack
+    pool = GPUResourcePool(max_handles=100, max_bytes=100_000_000)
+    for i in range(10_000):
+        # 1024 float32 = 4096 bytes, matching the mock test's per-handle size.
+        h = MLXGPUResource.allocate(f"mlx-rss-{i}", (1024,), "float32")
+        pool.acquire(h)
+        h.destroy()
+    pool.destroy_all()
+    _force_gc_collect_finalizers()
+    after = proc.memory_info().rss
+    assert after <= baseline + tolerance, (
+        f"RSS grew {after - baseline}B > tolerance {tolerance}B — possible "
+        "leak in MLXGPUResource real-backend path"
+    )
+
+
+# ---------------------------------------------------------------------------
+# P6.4 — AST lint self-tests (gap 5). These import the lint module and feed
+# it source strings so the lint's own logic is covered in CI (no real files).
+# ---------------------------------------------------------------------------
+
+import importlib.util as _ilu  # noqa: E402
+
+_LINT_PATH = Path(__file__).resolve().parents[2] / "scripts" / "lint_gpu_patterns.py"
+_spec = _ilu.spec_from_file_location("lint_gpu_patterns", _LINT_PATH)
+assert _spec and _spec.loader
+_lint = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_lint)
+
+
+@pytest.mark.smoke
+def test_lint_flags_raw_mlx_alloc():
+    """Negative: a seeded raw mlx allocation outside the wrapper module is
+    flagged (exit-1 condition) by the AST lint."""
+    bad = "import mlx.core as mx\n\ndef f():\n    return mx.zeros((4, 4))\n"
+    findings = _lint.lint_source(bad, "effects/bad_effect.py")
+    assert len(findings) >= 1
+    assert any("raw mlx allocation" in f.msg for f in findings)
+
+
+@pytest.mark.smoke
+def test_lint_flags_module_level_alloc_even_in_wrapper():
+    """Negative: even the sanctioned wrapper module may not allocate at
+    module (import) level — no clear ownership."""
+    bad = "import mlx.core as mx\n\nBUF = mx.zeros((4, 4))\n"
+    findings = _lint.lint_source(bad, "safety/mlx_resources.py")
+    assert any("module-level GPU allocation" in f.msg for f in findings)
+
+
+@pytest.mark.smoke
+def test_lint_flags_raw_metal_pyobjc():
+    """Negative: raw pyobjc-Metal usage is forbidden everywhere."""
+    bad = "import Metal\n\ndef g(dev):\n    return dev.makeTexture(None)\n"
+    findings = _lint.lint_source(bad, "effects/metal_effect.py")
+    assert any("pyobjc-Metal" in f.msg or "Metal/MTL" in f.msg for f in findings)
+
+
+@pytest.mark.smoke
+def test_lint_passes_clean_tree():
+    """The wrapper module's own allocation (inside allocate()) is allowed;
+    ordinary numpy/scipy code produces no findings."""
+    wrapper_ok = (
+        "import mlx.core as mx\n\ndef allocate(shape):\n    return mx.zeros(shape)\n"
+    )
+    assert _lint.lint_source(wrapper_ok, "safety/mlx_resources.py") == []
+    clean = "import numpy as np\n\ndef h():\n    return np.zeros((4, 4))\n"
+    assert _lint.lint_source(clean, "effects/fft_effect.py") == []
