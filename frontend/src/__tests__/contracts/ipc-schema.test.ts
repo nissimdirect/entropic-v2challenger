@@ -159,6 +159,9 @@ describe('IPC Contract', () => {
       'probe_snapshot',
       'probe_unmount',
       'probe_unregister',
+      // P6.9 routing canvas backend (I2)
+      'routing_edge_update',
+      'routing_graph_get',
       'project_clock_pause',
       'project_clock_play',
       'project_clock_seek',

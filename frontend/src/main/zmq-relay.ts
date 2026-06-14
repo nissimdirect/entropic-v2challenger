@@ -53,6 +53,8 @@ const ALLOWED_COMMANDS = new Set([
   'check_dag',
   // P6.8 (I1) Inspector probes — registry lifecycle + snapshot polling
   'probe_register', 'probe_unregister', 'probe_mount', 'probe_unmount', 'probe_snapshot',
+  // P6.9 (I2) Routing Canvas — graph projection + edge update round-trip
+  'routing_graph_get', 'routing_edge_update',
   // Health
   'ping',
 ])
