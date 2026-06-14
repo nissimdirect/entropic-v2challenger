@@ -434,6 +434,8 @@ class ZMQServer:
             return self._handle_freeze_prefix(message, msg_id)
         elif cmd == "read_freeze":
             return self._handle_read_freeze(message, msg_id)
+        elif cmd == "bake_performance_track":
+            return self._handle_bake_performance_track(message, msg_id)
         elif cmd == "flatten":
             return self._handle_flatten(message, msg_id)
         elif cmd == "invalidate_cache":
@@ -2467,6 +2469,109 @@ class ZMQServer:
             }
         except (KeyError, IndexError) as e:
             return {"id": msg_id, "ok": False, "error": str(e)}
+
+    def _handle_bake_performance_track(self, message: dict, msg_id: str | None) -> dict:
+        """B10.1b — bake ONE performance track's voices to a clip (Ableton freeze).
+
+        Mirrors `_handle_export_start`'s trust-boundary validation (the
+        performance payload is replayed by evaluate_voices + every asset path is
+        decoded), but renders SYNCHRONOUSLY via
+        `ExportManager.bake_performance_track` (a single track over a black
+        base) and returns `{ok, clipId, path, frames}`. Reuses the export
+        compositor — no parallel renderer.
+        """
+        track_id = message.get("track_id")
+        if not track_id or not isinstance(track_id, str):
+            return {"id": msg_id, "ok": False, "error": "missing track_id"}
+
+        output_path = message.get("output_path")
+        if not output_path or not isinstance(output_path, str):
+            return {"id": msg_id, "ok": False, "error": "output_path required"}
+        path_errors = validate_output_path(output_path)
+        if path_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(path_errors)}
+
+        performance = message.get("performance")
+        if not isinstance(performance, dict):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "performance must be an object",
+            }
+
+        # Trust boundary — identical to _handle_export_start's performance gate:
+        # the event list is replayed (evaluate_voices), every asset path is
+        # decoded into the artifact, and per-instrument chains bypass the
+        # top-level depth check. Reject a malformed/oversized/hostile payload
+        # BEFORE any render (never a partial file, never path-traversal exfil).
+        ev_errors = validate_capture_events(performance.get("events", []))
+        if ev_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(ev_errors)}
+        assets = performance.get("assets") or {}
+        if isinstance(assets, dict):
+            for a in assets.values():
+                apath = a.get("path") if isinstance(a, dict) else None
+                if apath:
+                    a_errors = validate_upload(apath)
+                    if a_errors:
+                        return {
+                            "id": msg_id,
+                            "ok": False,
+                            "error": "; ".join(a_errors),
+                        }
+        instruments = performance.get("instruments") or {}
+        if isinstance(instruments, dict):
+            for inst in instruments.values():
+                inst_chain = (inst.get("chain") or []) if isinstance(inst, dict) else []
+                c_errors = validate_chain_depth(inst_chain)
+                if c_errors:
+                    return {"id": msg_id, "ok": False, "error": "; ".join(c_errors)}
+
+        # Resolution + frame range — clamp the numeric trust boundary (IPC
+        # numerics: every value crossing here passes a clamp/guard).
+        raw_res = message.get("resolution", [1920, 1080])
+        if not isinstance(raw_res, (list, tuple)) or len(raw_res) != 2:
+            return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
+        res_w = max(1, min(8192, int(clamp_finite(float(raw_res[0]), 1, 8192, 1920))))
+        res_h = max(1, min(8192, int(clamp_finite(float(raw_res[1]), 1, 8192, 1080))))
+        start_frame = max(
+            0, int(clamp_finite(float(message.get("start_frame", 0)), 0, 1e9, 0))
+        )
+        end_frame = max(
+            start_frame,
+            int(
+                clamp_finite(
+                    float(message.get("end_frame", start_frame)), 0, 1e9, start_frame
+                )
+            ),
+        )
+        project_seed = int(message.get("project_seed", 0))
+        fps = int(clamp_finite(float(message.get("fps", 30)), 1.0, 240.0, 30.0))
+
+        try:
+            result = self.export_manager.bake_performance_track(
+                track_id=track_id,
+                performance=performance,
+                output_path=output_path,
+                resolution=(res_w, res_h),
+                start_frame=start_frame,
+                end_frame=end_frame,
+                project_seed=project_seed,
+                fps=fps,
+            )
+            return {
+                "id": msg_id,
+                "ok": bool(result.get("ok", False)),
+                "clipId": result.get("clipId"),
+                "path": result.get("path"),
+                "frames": result.get("frames", 0),
+            }
+        except Exception as e:
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "bake_performance_track error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _handle_flatten(self, message: dict, msg_id: str | None) -> dict:
         """Flatten a freeze cache to a new video file."""

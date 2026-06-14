@@ -67,6 +67,7 @@ import UnsavedChangesDialog from './components/dialogs/UnsavedChangesDialog'
 import PerformancePanel from './components/performance/PerformancePanel'
 import PadEditor from './components/performance/PadEditor'
 import { usePerformanceStore } from './stores/performance'
+import { usePerformanceFreezeStore, buildBakePayload } from './stores/performanceFreeze'
 import { applyPadModulations } from './components/performance/applyPadModulations'
 import { applyCCModulations } from './components/performance/applyCCModulations'
 import { useMIDIStore } from './stores/midi'
@@ -1089,6 +1090,29 @@ function AppInner() {
         )
         const perfState = usePerformanceStore.getState()
         const instrState = useInstrumentsStore.getState()
+        // B10.1b — Ableton-style FREEZE. A FROZEN perf track plays its BAKED CLIP
+        // (frozenClipPaths[trackId]) as a video layer INSTEAD of its live voices;
+        // its live voices were already released by the freeze FSM, so the
+        // buildVoiceLayers / buildRackLayers paths below skip it. Reading the
+        // store imperatively here (same rationale as perfState) keeps a coalesced
+        // render in sync with the latest freeze state.
+        const freezeState = usePerformanceFreezeStore.getState()
+        const frozenLayers = Array.from(perfTrackIds).flatMap((trackId) => {
+          if (!freezeState.isFrozen(trackId)) return []
+          const clipPath = freezeState.getFrozenClipPath(trackId)
+          if (!clipPath) return []
+          // The baked clip is a normal video file rendered from frame 0; play it
+          // back at the current playhead frame (clamped non-negative).
+          return [
+            {
+              layer_type: 'video',
+              asset_path: clipPath,
+              frame_index: Math.max(0, frame),
+              chain: [],
+              clip_opacity: 1.0,
+            } as Record<string, unknown>,
+          ]
+        })
         // One ADSREnvelope per track: use the first pad's envelope (all pads share
         // the same rack envelope for the sampler voice lifecycle in Phase 5a).
         const rackAdsr = perfState.drumRack.pads[0]?.envelope ?? { attack: 0, decay: 0, sustain: 1, release: 0 }
@@ -1104,6 +1128,8 @@ function AppInner() {
           instrState.instruments,
         )
         const samplerLayers = Array.from(perfTrackIds).flatMap((trackId) => {
+          // B10.1b — FROZEN track plays its baked clip (frozenLayers), not live voices.
+          if (freezeState.isFrozen(trackId)) return []
           const inst = modulatedInstruments[trackId]
           if (!inst) return []
           const events = perfState.trackEvents[trackId] ?? []
@@ -1124,6 +1150,8 @@ function AppInner() {
         // (no-rack regression-safe).
         const rackState = instrState.racks
         const rackLayers = Array.from(perfTrackIds).flatMap((trackId) => {
+          // B10.1b — FROZEN track plays its baked clip (frozenLayers), not live voices.
+          if (freezeState.isFrozen(trackId)) return []
           const rawRack = rackState[trackId]
           if (!rawRack) return []
           // B4.2: resolve the rack's macros into the pads' instrument params
@@ -1181,7 +1209,7 @@ function AppInner() {
         const hasFrameBanksPreview = Object.keys(fbPreview.frameBanks).length > 0
 
         const hasMultipleLayers =
-          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0 || hasFrameBanksPreview
+          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0 || frozenLayers.length > 0 || hasFrameBanksPreview
 
         if (hasMultipleLayers || activeVideoClips.length === 0) {
           // Use render_composite for multi-layer rendering
@@ -1269,6 +1297,10 @@ function AppInner() {
             ...textLayers,
             ...samplerLayers.map((l) => ({ ...l })),
             ...rackLayers.map((l) => serializeGroupLayer(l as Record<string, unknown>)),
+            // B10.1b — FROZEN perf-track baked clips composite as plain video
+            // layers (the track's live voices were released, so this REPLACES
+            // them). Empty when no track is frozen (regression-safe).
+            ...frozenLayers.map((l) => ({ ...l })),
           ]
           // B6.2 — frameBank preview payload: the backend reads
           // `performance.frameBanks` + `performance.assets` and appends the
@@ -2056,6 +2088,40 @@ function AppInner() {
     const trackId = getActiveTrackId()
     if (!trackId) return
     if (!window.entropic?.selectSavePath) return
+
+    // B10.1b — FLATTEN a FROZEN performance track makes its bake PERMANENT.
+    // The track is already baked (frozen-clip playback); flatten re-renders the
+    // SAME track's voices to the user-chosen path via bake_performance_track
+    // (the existing bake render — no parallel path) so the result is a saved
+    // file the user owns. This precedes the effect-chain flatten so a frozen
+    // perf track flattens its bake, not an (absent) effect-chain freeze cache.
+    const freeze = usePerformanceFreezeStore.getState()
+    if (freeze.isFrozen(trackId)) {
+      const outputPath = await window.entropic.selectSavePath('frozen-track.mp4')
+      if (!outputPath) return
+      const perfEvents = usePerformanceStore.getState().trackEvents[trackId] ?? []
+      let maxFrame = 0
+      for (const e of perfEvents) {
+        if (Number.isFinite(e.frameIndex) && e.frameIndex > maxFrame) maxFrame = e.frameIndex
+      }
+      const res = (await window.entropic.sendCommand({
+        cmd: 'bake_performance_track',
+        track_id: trackId,
+        performance: buildBakePayload(trackId, perfEvents),
+        output_path: outputPath,
+        resolution: [1920, 1080],
+        start_frame: 0,
+        end_frame: Math.max(0, Math.round(maxFrame) + 30),
+        fps: 30,
+      })) as { ok?: boolean; path?: string; error?: string }
+      useToastStore.getState().addToast(
+        res?.ok
+          ? { level: 'info', message: `Flattened frozen track to ${res.path || outputPath}`, source: 'freeze' }
+          : { level: 'error', message: 'Flatten failed — see logs.', source: 'freeze' },
+      )
+      return
+    }
+
     const outputPath = await window.entropic.selectSavePath('flattened.mp4')
     if (!outputPath) return
     const result = await useFreezeStore.getState().flattenPrefix(
