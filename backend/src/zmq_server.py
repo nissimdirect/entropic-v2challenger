@@ -76,6 +76,7 @@ from inspector.registry import (
     ProbeKind,
     global_probe_registry,
 )
+from inspector.graph_sync import build_graph_from_project, serialize_graph
 
 
 def _experimental_audio_tracks_enabled() -> bool:
@@ -454,6 +455,11 @@ class ZMQServer:
             return self._handle_probe_unmount(msg_id)
         elif cmd == "probe_snapshot":
             return self._handle_probe_snapshot(msg_id)
+        # P6.9 — I2 Routing Canvas backend
+        elif cmd == "routing_graph_get":
+            return self._handle_routing_graph_get(message, msg_id)
+        elif cmd == "routing_edge_update":
+            return self._handle_routing_edge_update(message, msg_id)
         elif cmd == "freeze_prefix":
             return self._handle_freeze_prefix(message, msg_id)
         elif cmd == "read_freeze":
@@ -3278,6 +3284,188 @@ class ZMQServer:
             "mounted": snap.mounted,
             "capturedAtS": snap.captured_at_s,
             "probes": probes_payload,
+        }
+
+    def _handle_routing_graph_get(self, message: dict, msg_id: str | None) -> dict:
+        """Build a RoutingGraph projection and return it serialized.
+
+        Expected payload:
+          {
+            cmd: "routing_graph_get",
+            operators: [...],          # operator config list (same shape as render_frame)
+            lanesByTrack: {            # track_id -> list of lane dicts
+              "<track_id>": [
+                {laneId, effectId, paramKey, label?}, ...
+              ]
+            },
+            chainByTrack: {            # track_id -> effect chain list (backend snake_case)
+              "<track_id>": [
+                {effect_id, params: {...}, ...}, ...
+              ]
+            }
+          }
+
+        The frontend is the source of truth for all project stores. This command
+        does NOT cache state server-side; every call is a fresh projection.
+
+        Returns:
+          {ok: True, nodes: [...], edges: [...], hasCycle: bool, cycleNodeIds: [...]}
+          or {ok: False, error: str}
+        """
+        operators = message.get("operators")
+        lanes_by_track_raw = message.get("lanesByTrack", {})
+        chain_by_track_raw = message.get("chainByTrack", {})
+
+        if not isinstance(operators, list):
+            operators = []
+        if not isinstance(lanes_by_track_raw, dict):
+            lanes_by_track_raw = {}
+        if not isinstance(chain_by_track_raw, dict):
+            chain_by_track_raw = {}
+
+        # Normalize: ensure values are lists
+        lanes_by_track: dict[str, list[dict]] = {}
+        for tid, lanes in lanes_by_track_raw.items():
+            if isinstance(lanes, list):
+                lanes_by_track[str(tid)] = lanes
+
+        chain_by_track: dict[str, list[dict]] = {}
+        for tid, chain in chain_by_track_raw.items():
+            if isinstance(chain, list):
+                chain_by_track[str(tid)] = chain
+
+        try:
+            graph = build_graph_from_project(operators, lanes_by_track, chain_by_track)
+            payload = serialize_graph(graph)
+        except Exception as exc:
+            logging.getLogger(__name__).error(
+                "routing_graph_get: unexpected error: %s", exc
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal error building graph"}
+
+        return {"id": msg_id, "ok": True, **payload}
+
+    def _handle_routing_edge_update(self, message: dict, msg_id: str | None) -> dict:
+        """Validate an edge depth/amount change and return the updated mapping.
+
+        The graph is a PROJECTION — this command validates range and maps the
+        edge id back to the underlying operator mapping fields so the frontend
+        can commit the change to its store. No server-side state is mutated.
+
+        Expected payload:
+          {
+            cmd: "routing_edge_update",
+            edgeId: str,               # e.g. "op-edge:{op_id}:{effect_id}:{param}"
+            amount: float,             # new depth/amount in [-1, 1]
+            operators: [...],          # current operators (to locate the mapping)
+            lanesByTrack: {...},
+            chainByTrack: {...}
+          }
+
+        Returns:
+          {ok: True, edgeId, amount, operatorId, targetEffectId, targetParamKey}
+          or {ok: False, error: str}
+
+        Trust boundary: edgeId is parsed; unknown edge id → error reply (no crash).
+        Amount must be in [-1, 1]; out-of-range → rejected with error reply.
+        """
+        edge_id = message.get("edgeId") or message.get("edge_id")
+        raw_amount = message.get("amount")
+
+        if not edge_id:
+            return {"id": msg_id, "ok": False, "error": "missing edgeId"}
+        edge_id = str(edge_id)[:512]
+
+        if raw_amount is None:
+            return {"id": msg_id, "ok": False, "error": "missing amount"}
+        try:
+            amount = float(raw_amount)
+        except (TypeError, ValueError):
+            return {"id": msg_id, "ok": False, "error": "amount must be a number"}
+
+        import math as _math
+
+        if not _math.isfinite(amount):
+            return {"id": msg_id, "ok": False, "error": "amount must be finite"}
+        if not (-1.0 <= amount <= 1.0):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": f"amount {amount!r} out of range [-1, 1]",
+            }
+
+        # Parse the edge id to recover operator_id / effect_id / param_key.
+        # Format: "op-edge:{op_id}:{effect_id}:{param_key}"
+        if not edge_id.startswith("op-edge:"):
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": f"unknown edge id {edge_id!r}; only operator edges are updatable",
+            }
+
+        # Rebuild the graph to validate the edge actually exists in the current state
+        operators = message.get("operators")
+        lanes_by_track_raw = message.get("lanesByTrack", {})
+        chain_by_track_raw = message.get("chainByTrack", {})
+
+        if not isinstance(operators, list):
+            operators = []
+        if not isinstance(lanes_by_track_raw, dict):
+            lanes_by_track_raw = {}
+        if not isinstance(chain_by_track_raw, dict):
+            chain_by_track_raw = {}
+
+        lanes_by_track: dict[str, list[dict]] = {}
+        for tid, lanes in lanes_by_track_raw.items():
+            if isinstance(lanes, list):
+                lanes_by_track[str(tid)] = lanes
+
+        chain_by_track: dict[str, list[dict]] = {}
+        for tid, chain in chain_by_track_raw.items():
+            if isinstance(chain, list):
+                chain_by_track[str(tid)] = chain
+
+        try:
+            graph = build_graph_from_project(operators, lanes_by_track, chain_by_track)
+        except Exception as exc:
+            logging.getLogger(__name__).error(
+                "routing_edge_update: error building graph: %s", exc
+            )
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": "Internal error validating edge",
+            }
+
+        existing_edge = graph.get_edge(edge_id)
+        if existing_edge is None:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": f"edge id {edge_id!r} not found in current project state",
+            }
+
+        # Decompose: "op-edge:{op_id}:{effect_id}:{param_key}"
+        # op_id may contain colons? No — operator IDs are alphanumeric per schema.
+        # Split on first 3 colons after "op-edge:"
+        remainder = edge_id[len("op-edge:") :]
+        parts = remainder.split(":", 2)
+        if len(parts) < 3:
+            return {
+                "id": msg_id,
+                "ok": False,
+                "error": f"malformed edge id {edge_id!r}",
+            }
+        op_id_part, effect_id_part, param_key_part = parts
+
+        return {
+            "id": msg_id,
+            "ok": True,
+            "edgeId": edge_id,
+            "amount": amount,
+            "operatorId": op_id_part,
+            "targetEffectId": effect_id_part,
+            "targetParamKey": param_key_part,
         }
 
     def close(self):

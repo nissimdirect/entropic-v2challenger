@@ -168,6 +168,9 @@ describe('IPC Contract', () => {
       'render_composite',
       'render_frame',
       'render_text_frame',
+      // P6.9 routing canvas backend (I2)
+      'routing_edge_update',
+      'routing_graph_get',
       'seek',
       'shutdown',
       'thumbnails',
