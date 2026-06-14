@@ -10,6 +10,9 @@ from modulation.step_sequencer import evaluate_step_seq
 from modulation.audio_follower import evaluate_audio
 from modulation.video_analyzer import downscale_proxy, evaluate_video_analyzer
 from modulation.fusion import evaluate_fusion
+from modulation.sidechain import evaluate_sidechain
+from modulation.gate import evaluate_gate
+from modulation.midi_env_stutter import evaluate_midi_env_stutter
 from modulation.processor import process_signal
 from modulation.routing import resolve_routings
 
@@ -258,9 +261,33 @@ class SignalEngine:
                         if sub_key == "":
                             continue
                         values[f"{op_id}/{sub_key}"] = sub_val
+                elif op_type == "sidechain":
+                    # P4.3: amplitude follower via the shared RMS kernel.
+                    # v1 keys off PROJECT audio only (source_track_id reserved).
+                    value, op_state = evaluate_sidechain(
+                        pcm=audio_pcm,
+                        params=params,
+                        sample_rate=audio_sample_rate,
+                        state_in=op_state,
+                    )
+                elif op_type == "gate":
+                    # P4.3: threshold a source operator's value. Reads the
+                    # already-evaluated `values` dict (mirrors fusion) — the
+                    # toposort guarantees the source resolved first.
+                    value, op_state = evaluate_gate(
+                        params=params,
+                        operator_values=values,
+                        state_in=op_state,
+                    )
+                elif op_type == "midiEnvStutter":
+                    # P4.3: retriggerable ADSR via the shared envelope kernel.
+                    value, op_state = evaluate_midi_env_stutter(
+                        params=params,
+                        frame_index=frame_index,
+                        state_in=op_state,
+                    )
                 else:
-                    # Unknown operator type (e.g. kentaroCluster, sidechain, gate,
-                    # midiEnvStutter) — evaluates to 0.0 without crashing.
+                    # Unknown operator type — evaluates to 0.0 without crashing.
                     value = 0.0
 
                 # Apply processing chain (thread state for smooth/slew)
