@@ -1,5 +1,6 @@
 import { useCallback, useState, useEffect, useRef } from 'react'
-import type { EffectInstance, EffectInfo, ParamDef, MatteNode, MatteRef } from '../../../shared/types'
+import type { EffectInstance, EffectInfo, ParamDef, ParamValue, MatteNode, MatteRef } from '../../../shared/types'
+import { isFieldRef, makeFieldRef, clampGain, type FieldKind } from '../../../shared/field-param'
 import Knob from '../common/Knob'
 import ParamChoice from '../effects/ParamChoice'
 import ParamToggle from '../effects/ParamToggle'
@@ -21,8 +22,14 @@ interface DeviceCardProps {
   onSelect: () => void
   onToggle: () => void
   onRemove: () => void
-  onUpdateParam: (effectId: string, paramName: string, value: number | string | boolean) => void
+  onUpdateParam: (effectId: string, paramName: string, value: ParamValue) => void
   onSetMix: (effectId: string, mix: number) => void
+  /**
+   * P6.6: image/video media items selectable as a 2D field source for a
+   * field-capable param. Empty/absent → no sources to assign (the Field…
+   * control still appears for field-capable params but offers no options).
+   */
+  fieldSources?: { id: string; label: string; kind: 'image' | 'video' }[]
   /** MK.3: matte nodes assignable as this device's mask (from the active clip). */
   maskNodes?: MatteNode[]
   /** MK.13: clip id of the clip that owns the mask stack (used for mask_thumbnail IPC). */
@@ -42,11 +49,16 @@ export default function DeviceCard({
   onRemove,
   onUpdateParam,
   onSetMix,
+  fieldSources,
   maskNodes,
   maskClipId,
   onSetMaskRef,
   onContextMenu,
 }: DeviceCardProps) {
+  // P6.6: remember the last scalar value per param so "Clear field" can restore
+  // it (the field assignment replaces the scalar in the store, so we stash it
+  // here in component state). Keyed by param name.
+  const lastScalarRef = useRef<Record<string, number | string | boolean>>({})
   // MK.13: matte-presence thumbnail. Keyed by (nodeId, invert) so toggling
   // invert re-fetches with inverted CSS filter; nodeId change also re-fetches.
   // null = not yet fetched or procedural/error → keep text badge.
@@ -123,6 +135,50 @@ export default function DeviceCard({
       const normalized = pMax > pMin ? (value - pMin) / (pMax - pMin) : 0
       const newPoints = recordPoint(lane.points, time, Math.max(0, Math.min(1, normalized)))
       autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
+    },
+    [effect.id, onUpdateParam],
+  )
+
+  // P6.6: assign a media source as a 2D field on a field-capable param.
+  // The param value becomes {__field__: {kind, source_id, gain, invert}}.
+  // We stash the current scalar first so "Clear field" can restore it.
+  const handleAssignField = useCallback(
+    (key: string, def: ParamDef, sourceId: string, kind: FieldKind) => {
+      const cur = effect.parameters[key]
+      if (!isFieldRef(cur)) {
+        lastScalarRef.current[key] = (cur ?? def.default) as number | string | boolean
+      }
+      onUpdateParam(effect.id, key, makeFieldRef(kind, sourceId, 1, false))
+    },
+    [effect.id, effect.parameters, onUpdateParam],
+  )
+
+  // P6.6: change gain (clamped [-4,4]) or invert on an existing field value.
+  const handleFieldGain = useCallback(
+    (key: string, gain: number) => {
+      const cur = effect.parameters[key]
+      if (!isFieldRef(cur)) return
+      const inner = cur.__field__
+      onUpdateParam(effect.id, key, makeFieldRef(inner.kind, inner.source_id, clampGain(gain), inner.invert))
+    },
+    [effect.id, effect.parameters, onUpdateParam],
+  )
+
+  const handleFieldInvert = useCallback(
+    (key: string) => {
+      const cur = effect.parameters[key]
+      if (!isFieldRef(cur)) return
+      const inner = cur.__field__
+      onUpdateParam(effect.id, key, makeFieldRef(inner.kind, inner.source_id, inner.gain, !inner.invert))
+    },
+    [effect.id, effect.parameters, onUpdateParam],
+  )
+
+  // P6.6: clear the field, restoring the last scalar (or the param default).
+  const handleClearField = useCallback(
+    (key: string, def: ParamDef) => {
+      const restore = lastScalarRef.current[key] ?? def.default
+      onUpdateParam(effect.id, key, restore)
     },
     [effect.id, onUpdateParam],
   )
@@ -215,6 +271,9 @@ export default function DeviceCard({
   const numericParams = paramEntries.filter(([, def]) => def.type === 'float' || def.type === 'int')
   const otherParams = paramEntries.filter(([, def]) => def.type !== 'float' && def.type !== 'int')
   const mixPercent = Math.round(effect.mix * 100)
+  // P6.6: which params accept a FieldRef (from the backend fieldParams list).
+  const fieldParamSet = new Set(effectInfo.fieldParams ?? [])
+  const sources = fieldSources ?? []
 
   return (
     <div
@@ -253,7 +312,54 @@ export default function DeviceCard({
       {/* Params */}
       <div className="device-card__params" data-testid="device-params">
         {numericParams.map(([key, def]) => {
-          const value = effect.parameters[key] ?? def.default
+          const rawValue = effect.parameters[key] ?? def.default
+          const isFieldCapable = fieldParamSet.has(key)
+          const fieldVal = isFieldRef(rawValue) ? rawValue.__field__ : null
+
+          // P6.6: a field-valued param renders a field badge + inline controls
+          // instead of a knob (the value is an object, not a scalar).
+          if (fieldVal) {
+            return (
+              <div
+                key={key}
+                className="device-card__param device-card__param--field"
+                data-testid={`param-field-${effect.id}-${key}`}
+              >
+                <span className="device-card__param-label">{def.label}</span>
+                <span className="device-card__field-badge" data-testid={`field-badge-${effect.id}-${key}`}>field</span>
+                <input
+                  className="device-card__field-gain"
+                  data-testid={`field-gain-${effect.id}-${key}`}
+                  type="range"
+                  min={-4}
+                  max={4}
+                  step={0.1}
+                  value={fieldVal.gain}
+                  onChange={(e) => handleFieldGain(key, Number(e.target.value))}
+                  onClick={(e) => e.stopPropagation()}
+                  title={`Field gain ×${fieldVal.gain.toFixed(2)}`}
+                />
+                <button
+                  className={`device-card__field-invert${fieldVal.invert ? ' device-card__field-invert--on' : ''}`}
+                  data-testid={`field-invert-${effect.id}-${key}`}
+                  onClick={(e) => { e.stopPropagation(); handleFieldInvert(key) }}
+                  title="Invert field"
+                >
+                  INV
+                </button>
+                <button
+                  className="device-card__field-clear"
+                  data-testid={`field-clear-${effect.id}-${key}`}
+                  onClick={(e) => { e.stopPropagation(); handleClearField(key, def) }}
+                  title="Clear field (restore value)"
+                >
+                  Clear field
+                </button>
+              </div>
+            )
+          }
+
+          const value = rawValue
           const ghostValue = modulatedValues?.[key] ?? (value as number)
           const hasCCMapping = useMIDIStore.getState().ccMappings.some(
             (m) => m.effectId === effect.id && m.paramKey === key
@@ -281,6 +387,26 @@ export default function DeviceCard({
                 onChange={(v) => handleKnobChange(key, def, v)}
               />
               {hasCCMapping && <span className="device-card__cc-badge">CC</span>}
+              {isFieldCapable && (
+                <select
+                  className="device-card__field-assign"
+                  data-testid={`field-assign-${effect.id}-${key}`}
+                  value=""
+                  onChange={(e) => {
+                    const sid = e.target.value
+                    if (!sid) return
+                    const src = sources.find((s) => s.id === sid)
+                    if (src) handleAssignField(key, def, src.id, src.kind)
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Assign an image/video as a 2D field"
+                >
+                  <option value="">Field…</option>
+                  {sources.map((s) => (
+                    <option key={s.id} value={s.id}>{s.label}</option>
+                  ))}
+                </select>
+              )}
             </div>
           )
         })}

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId, useActivePadEffectChain } from '../../stores/project'
 import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
 import { useTimelineStore } from '../../stores/timeline'
@@ -14,7 +14,7 @@ import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
 import { EFFECT_DRAG_TYPE, CREATRIX_NONCE_TYPE, SESSION_NONCE } from '../effects/EffectBrowser'
 import { randomUUID } from '../../utils'
-import type { EffectInstance, MatteNode, MatteRef } from '../../../shared/types'
+import type { EffectInstance, MatteNode, MatteRef, ParamValue } from '../../../shared/types'
 
 // Stable empty array for the no-mask-nodes case (avoid re-render churn).
 const EMPTY_MASK_NODES: MatteNode[] = []
@@ -81,6 +81,16 @@ export default function DeviceChain({
   const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
   const deviceGroups = useProjectStore((s) => s.deviceGroups)
   const registry = useEffectsStore((s) => s.registry)
+  // P6.6: image/video media items selectable as a 2D field source for a
+  // field-capable param. Derived from project assets (id + path + type).
+  const projectAssets = useProjectStore((s) => s.assets)
+  const fieldSources = useMemo(
+    () =>
+      Object.values(projectAssets)
+        .filter((a) => a.type === 'image' || a.type === 'video')
+        .map((a) => ({ id: a.id, label: a.path.split('/').pop() || a.id, kind: a.type as 'image' | 'video' })),
+    [projectAssets],
+  )
   const lastFrameMs = useEngineStore((s) => s.lastFrameMs) ?? 0
   const isFrozenAt = useFreezeStore((s) => s.isFrozen)
   const freezeOpState = useFreezeStore((s) => s.operationState)
@@ -134,7 +144,7 @@ export default function DeviceChain({
         add: (effect: EffectInstance) => inst.addEffectToPad(trackId, padId, effect, branchPath),
         remove: (id: string) => inst.removeEffectFromPad(trackId, padId, id, branchPath),
         reorder: (from: number, to: number) => inst.reorderPadEffect(trackId, padId, from, to, branchPath),
-        updateParam: (id: string, key: string, value: number | string | boolean) =>
+        updateParam: (id: string, key: string, value: ParamValue) =>
           inst.updatePadEffectParam(trackId, padId, id, key, value, branchPath),
         toggle: (id: string) => inst.togglePadEffect(trackId, padId, id, branchPath),
       }
@@ -155,7 +165,7 @@ export default function DeviceChain({
         if (!trackId) return
         proj.reorderEffect(trackId, from, to)
       },
-      updateParam: (id: string, key: string, value: number | string | boolean) => {
+      updateParam: (id: string, key: string, value: ParamValue) => {
         if (!trackId) return
         proj.updateParam(trackId, id, key, value)
       },
@@ -253,7 +263,7 @@ export default function DeviceChain({
   )
 
   const handleUpdateParam = useCallback(
-    (effectId: string, paramName: string, value: number | string | boolean) => {
+    (effectId: string, paramName: string, value: ParamValue) => {
       dispatchChain().updateParam(effectId, paramName, value)
     },
     [dispatchChain],
@@ -500,6 +510,7 @@ export default function DeviceChain({
                 onRemove={() => handleRemove(effect.id)}
                 onUpdateParam={handleUpdateParam}
                 onSetMix={handleSetMix}
+                fieldSources={fieldSources}
                 maskNodes={maskNodes}
                 maskClipId={maskClipId}
                 onSetMaskRef={handleSetMaskRef}

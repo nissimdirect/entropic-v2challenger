@@ -4,12 +4,13 @@
  *
  * Signal order: Base → +ModDelta → AutoReplace → CCReplace → Clamp
  */
-import type { Operator, ParamDef } from '../../shared/types'
+import type { Operator, ParamDef, ParamValue } from '../../shared/types'
+import { isFieldRef } from '../../shared/field-param'
 
 export function resolveGhostValues(
   effectId: string,
   paramDefs: Record<string, ParamDef>,
-  baseParams: Record<string, number | string | boolean>,
+  baseParams: Record<string, ParamValue>,
   operators: Operator[],
   operatorValues: Record<string, number>,
   automationOverrides?: Record<string, number>,
@@ -20,6 +21,11 @@ export function resolveGhostValues(
   // For each numeric param, accumulate modulation from all operators
   for (const [key, def] of Object.entries(paramDefs)) {
     if (def.type !== 'float' && def.type !== 'int') continue
+
+    // P6.6: a field-valued param has no scalar ghost — the UI shows a "field"
+    // badge instead of a number. Skip it so we never produce NaN from object
+    // arithmetic. The result map simply omits this key.
+    if (isFieldRef(baseParams[key])) continue
 
     const baseValue = (baseParams[key] ?? def.default) as number
     const pMin = def.min ?? 0

@@ -3,6 +3,17 @@
  * Matches DATA-SCHEMAS.md. Python must serialize/deserialize these exact shapes.
  */
 import type { LaneAxisBinding } from './axis-binding'
+import type { FieldRefValue } from './field-param'
+
+// --- Param values ---
+
+/**
+ * P6.6 — a single effect-parameter value. Scalars (the legacy shape) OR a
+ * FieldRef wrapper ({__field__: {...}}) when the param is image/video-driven.
+ * Only params present in the effect's `fieldParams` allow-list may carry a
+ * FieldRef; scalar params are completely unaffected (additive / backward-compat).
+ */
+export type ParamValue = number | string | boolean | FieldRefValue
 
 // --- Project ---
 
@@ -319,7 +330,12 @@ export interface EffectInstance {
   effectId: string;
   isEnabled: boolean;
   isFrozen: boolean;
-  parameters: Record<string, number | string | boolean>;
+  /**
+   * P6.6: a param value is a scalar OR a FieldRef wrapper. The FieldRef shape is
+   * only produced for params in the effect's `fieldParams` allow-list; all other
+   * params remain scalar (legacy byte-identical).
+   */
+  parameters: Record<string, ParamValue>;
   modulations: Record<string, ModulationRoute[]>;
   mix: number;
   mask: MaskConfig | null;
@@ -424,6 +440,13 @@ export interface EffectInfo {
   name: string;
   category: string;
   params: Record<string, ParamDef>;
+  /**
+   * P6.2/P6.6: sorted list of param names that accept a FieldRef value (the
+   * "field-capable" params from the backend FIELD_TOP25 allow-list). The
+   * "Field…" assignment control is shown only for params in this list.
+   * Optional / may be absent on registries served before P6.2 (treated as []).
+   */
+  fieldParams?: string[];
 }
 
 export type ParamCurve = "linear" | "logarithmic" | "exponential" | "s-curve";

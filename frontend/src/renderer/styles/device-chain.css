@@ -407,6 +407,72 @@ body[data-disable-f-0512-30] .device-card {
   cursor: default;
 }
 
+/* P6.6 — field-param assignment control (image/video as a 2D field). */
+.device-card__field-assign {
+  margin-top: 2px;
+  width: 100%;
+  font-size: 8px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-3);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: 2px;
+  padding: 1px 2px;
+  outline: none;
+}
+
+.device-card__field-assign:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+.device-card__param--field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  flex-wrap: wrap;
+}
+
+.device-card__param-label {
+  font-size: 8px;
+  color: var(--cx-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-card__field-badge {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  background: var(--cx-selection);
+  color: var(--cx-bg);
+  border-radius: 2px;
+  padding: 1px 4px;
+  text-transform: uppercase;
+}
+
+.device-card__field-gain {
+  flex: 1;
+  min-width: 40px;
+}
+
+.device-card__field-invert,
+.device-card__field-clear {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-3);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: 2px;
+  padding: 1px 4px;
+  cursor: pointer;
+}
+
+.device-card__field-invert--on {
+  background: var(--cx-selection);
+  color: var(--cx-bg);
+  border-color: var(--cx-selection);
+}
+
 /* Scrollbar in device chain */
 .device-chain__strip::-webkit-scrollbar {
   height: 4px;

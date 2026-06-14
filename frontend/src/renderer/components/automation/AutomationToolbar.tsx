@@ -11,8 +11,9 @@ import type { TriggerMode } from '../../../shared/types'
 import type { Axis } from '../../../shared/axis-binding'
 import { FF } from '../../../shared/feature-flags'
 
-// PR-B Commit-2: Tier-1 selectable axis domains. y/x persist + validate now but
-// only render once C2/C3 (per-pixel parameter fields) lands; 't' = today's behavior.
+// PR-B Commit-2: Tier-1 selectable axis domains. P6.6 (C2/C3): Y/X now render
+// live — a Y/X-domain lane drives a per-band spatial gradient via the backend
+// banded render. 't' = today's behavior (time-domain automation_overrides).
 const TIER1_DOMAINS: { value: Axis; label: string }[] = [
   { value: 't', label: 'Time' },
   { value: 'y', label: 'Y (scanline)' },
@@ -234,7 +235,7 @@ export default function AutomationToolbar() {
           <div className="auto-toolbar__picker-title">
             {pickerMode === 'trigger' ? 'Add Trigger Lane' : 'Add Automation Lane'}
           </div>
-          <label className="auto-toolbar__picker-domain" title="Axis the lane's curve reads along. Y/X are schema-ready but render once per-pixel fields (C2/C3) land.">
+          <label className="auto-toolbar__picker-domain" title="Axis the lane's curve reads along. Y/X render live as a spatial gradient across the frame; T is time-domain automation.">
             Domain:{' '}
             <select
               data-testid="lane-domain-select"
