@@ -98,6 +98,7 @@ import './styles/transport.css'
 import './styles/timeline.css'
 import './styles/performance.css'
 import './styles/operators.css'
+import './styles/routing-canvas.css'
 import './styles/floating-panel.css'
 import './styles/automation.css'
 import './styles/library.css'
@@ -117,6 +118,7 @@ import WelcomeScreen from './components/layout/WelcomeScreen'
 import Preferences from './components/layout/Preferences'
 import AboutDialog from './components/layout/AboutDialog'
 import RenderQueue from './components/export/RenderQueue'
+import { RoutingCanvas } from './components/routing-canvas'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
 
@@ -276,6 +278,8 @@ function AppInner() {
   const [showPreferences, setShowPreferences] = useState(false)
   const [preferencesInitialTab, setPreferencesInitialTab] = useState<'general' | 'shortcuts' | 'performance' | 'paths'>('general')
   const [showAbout, setShowAbout] = useState(false)
+  // P6.10 (I2): Routing Canvas overlay (⌘⇧I toggles).
+  const [showRoutingCanvas, setShowRoutingCanvas] = useState(false)
   const [showRenderQueue, setShowRenderQueue] = useState(false)
   const [recentProjects, setRecentProjects] = useState<RecentProject[]>([])
   const [isExporting, setIsExporting] = useState(false)
@@ -597,6 +601,8 @@ function AppInner() {
     shortcutRegistry.register('export', () => setShowExportDialog(true))
     shortcutRegistry.register('preferences', () => setShowPreferences(true))
     shortcutRegistry.register('about', () => setShowAbout(true))
+    // P6.10 (I2): ⌘⇧I toggles the Routing Canvas overlay.
+    shortcutRegistry.register('routing_canvas', () => setShowRoutingCanvas((v) => !v))
     shortcutRegistry.register('feedback_dialog', () => setShowFeedbackDialog(true))
     shortcutRegistry.register('support_bundle', () => {
       if (window.entropic) {
@@ -3742,6 +3748,10 @@ function AppInner() {
       <RenderQueue
         isOpen={showRenderQueue}
         onClose={() => setShowRenderQueue(false)}
+      />
+      <RoutingCanvas
+        open={showRoutingCanvas}
+        onClose={() => setShowRoutingCanvas(false)}
       />
 
       <TelemetryConsentDialog
