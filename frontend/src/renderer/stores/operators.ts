@@ -9,6 +9,7 @@ import type {
   OperatorMapping,
   SignalProcessingStep,
 } from '../../shared/types'
+import { LIMITS } from '../../shared/limits'
 import { useUndoStore, undoable } from './undo'
 
 function createDefaultOperator(type: OperatorType, id: string): Operator {
@@ -19,6 +20,11 @@ function createDefaultOperator(type: OperatorType, id: string): Operator {
     audio_follower: { method: 'rms', sensitivity: 1.4, window: 1024 },
     video_analyzer: { method: 'luminance' },
     fusion: { blend_mode: 'weighted_average', sources: '' },
+    // P4.1: new operator types — available: false in UI; engine falls back to 0.0
+    kentaroCluster: { lfo_count: 8, master_rate_hz: 1.0, master_depth: 1.0, bpm_sync: false },
+    sidechain: { source_track_id: '', sensitivity: 1.4 },
+    gate: { threshold: 0.5, sources: '' },
+    midiEnvStutter: { attack: 5, decay: 10, sustain: 0.5, release: 15, trigger_count: 0 },
   }
 
   const labels: Record<OperatorType, string> = {
@@ -28,6 +34,10 @@ function createDefaultOperator(type: OperatorType, id: string): Operator {
     audio_follower: 'Audio',
     video_analyzer: 'Video',
     fusion: 'Fusion',
+    kentaroCluster: 'Kentaro Cluster',
+    sidechain: 'Sidechain',
+    gate: 'Gate',
+    midiEnvStutter: 'MIDI Env Stutter',
   }
 
   return {
@@ -63,6 +73,13 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
   operators: [],
 
   addOperator: (type) => {
+    // P4.1: cap at LIMITS.MAX_OPERATORS (64) — no-op + warn when at cap
+    if (get().operators.length >= LIMITS.MAX_OPERATORS) {
+      console.warn(
+        `[operators] MAX_OPERATORS cap reached (${LIMITS.MAX_OPERATORS}): cannot add more operators.`,
+      )
+      return
+    }
     const id = `op-${Date.now()}-${nextOpId++}`
     const newOp = createDefaultOperator(type, id)
     const oldOps = [...get().operators]
@@ -162,6 +179,13 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
   addMapping: (operatorId, mapping) => {
     const op = get().operators.find((o) => o.id === operatorId)
     if (!op) return
+    // P4.1: cap at LIMITS.MAX_MAPPINGS_PER_OPERATOR (32) — no-op + warn when at cap
+    if (op.mappings.length >= LIMITS.MAX_MAPPINGS_PER_OPERATOR) {
+      console.warn(
+        `[operators] MAX_MAPPINGS_PER_OPERATOR cap reached (${LIMITS.MAX_MAPPINGS_PER_OPERATOR}) for operator ${operatorId}: cannot add more mappings.`,
+      )
+      return
+    }
     const oldMappings = [...op.mappings]
 
     const forward = () => {
@@ -279,7 +303,15 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
       if (!Array.isArray(op.mappings)) return false
       return true
     })
-    set({ operators: valid })
+    // P4.1: clamp to MAX_OPERATORS (64) and each mappings array to MAX_MAPPINGS_PER_OPERATOR (32)
+    const clamped = valid
+      .slice(0, LIMITS.MAX_OPERATORS)
+      .map((op) =>
+        op.mappings.length > LIMITS.MAX_MAPPINGS_PER_OPERATOR
+          ? { ...op, mappings: op.mappings.slice(0, LIMITS.MAX_MAPPINGS_PER_OPERATOR) }
+          : op,
+      )
+    set({ operators: clamped })
   },
 
   getSerializedOperators: () => {

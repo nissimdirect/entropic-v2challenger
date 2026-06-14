@@ -22,6 +22,11 @@ const TYPE_OPTIONS: { type: OperatorType; label: string; available: boolean }[] 
   { type: 'audio_follower', label: 'Audio', available: true },
   { type: 'video_analyzer', label: 'Video', available: true },
   { type: 'fusion', label: 'Fusion', available: true },
+  // P4.1: new operator types — visible but not yet evaluable (available: false)
+  { type: 'kentaroCluster', label: 'Kentaro Cluster', available: false },
+  { type: 'sidechain', label: 'Sidechain', available: false },
+  { type: 'gate', label: 'Gate', available: false },
+  { type: 'midiEnvStutter', label: 'MIDI Env Stutter', available: false },
 ]
 
 const TYPE_BADGE: Record<string, string> = {

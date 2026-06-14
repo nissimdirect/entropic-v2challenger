@@ -514,7 +514,7 @@ export interface MIDIPersistData {
 
 // --- Operators (Phase 6A) ---
 
-export type OperatorType = 'lfo' | 'envelope' | 'video_analyzer' | 'audio_follower' | 'step_sequencer' | 'fusion';
+export type OperatorType = 'lfo' | 'envelope' | 'video_analyzer' | 'audio_follower' | 'step_sequencer' | 'fusion' | 'kentaroCluster' | 'sidechain' | 'gate' | 'midiEnvStutter';
 
 export type LFOWaveform = 'sine' | 'saw' | 'square' | 'triangle' | 'random' | 'noise' | 'sample_hold';
 

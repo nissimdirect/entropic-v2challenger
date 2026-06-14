@@ -5,7 +5,14 @@
 export const LIMITS = {
   MAX_TRACKS: 64,
   MAX_CLIPS_PER_TRACK: 500,
-  MAX_OPERATORS: 16,
+  /**
+   * P4.1: operator cap raised to 64. MIRRORS backend security boundary
+   * `backend/src/security.py:MAX_OPERATORS_PER_PROJECT` (= 64, qa-redteam M2 guard).
+   * Dead-flag wired: operators.ts addOperator reads this constant.
+   */
+  MAX_OPERATORS: 64,
+  /** P4.1: per-operator mapping cap — defense in depth (also enforced in routing.py). */
+  MAX_MAPPINGS_PER_OPERATOR: 32,
   MAX_MARKERS: 1000,
   MAX_POINTS_PER_LANE: 50_000,
   MAX_COMPOSITOR_LAYERS: 32,
