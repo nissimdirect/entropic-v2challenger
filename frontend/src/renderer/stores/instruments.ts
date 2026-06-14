@@ -38,7 +38,7 @@ import {
 import type { SlotRef } from '../components/instruments/types'
 import { clampFinite } from '../../shared/numeric'
 import { LIMITS } from '../../shared/limits'
-import type { BlendMode, EffectInstance } from '../../shared/types'
+import type { BlendMode, EffectInstance, ParamValue } from '../../shared/types'
 
 /** Valid blend modes a rack pad channel may use (trust-boundary allowlist). */
 const BLEND_MODES = new Set<BlendMode>([
@@ -429,7 +429,7 @@ interface InstrumentsState {
     padId: string,
     instanceId: string,
     paramName: string,
-    value: number | string | boolean,
+    value: ParamValue,
     branchPath?: string[],
   ) => void
   /** Toggle an effect's enabled flag in a pad's insert chain. */

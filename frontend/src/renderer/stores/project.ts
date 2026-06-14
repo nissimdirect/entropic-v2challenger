@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Asset, EffectInstance, MatteRef, Track } from '../../shared/types'
+import type { Asset, EffectInstance, MatteRef, ParamValue, Track } from '../../shared/types'
 import { COMPOSITE_EFFECT_ID } from '../../shared/types'
 import { randomUUID } from '../utils'
 import { LIMITS, ZERO_DEFAULT_EFFECT_IDS } from '../../shared/limits'
@@ -86,7 +86,7 @@ interface ProjectState {
   addEffect: (trackId: string, effect: EffectInstance) => void
   removeEffect: (trackId: string, id: string) => void
   reorderEffect: (trackId: string, fromIndex: number, toIndex: number) => void
-  updateParam: (trackId: string, effectId: string, paramName: string, value: number | string | boolean) => void
+  updateParam: (trackId: string, effectId: string, paramName: string, value: ParamValue) => void
   setMix: (trackId: string, effectId: string, mix: number) => void
   /** MK.3: assign (or clear, with null) a device's mask-routing ref. Undoable. */
   setEffectMaskRef: (trackId: string, effectId: string, maskRef: MatteRef | null) => void

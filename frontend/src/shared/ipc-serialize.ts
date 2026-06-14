@@ -10,7 +10,7 @@
  *
  * See: backend/src/engine/pipeline.py apply_chain() for the expected shape.
  */
-import type { EffectInstance, MatteNode, MatteRef, TextClipConfig } from './types'
+import type { EffectInstance, MatteNode, MatteRef, ParamValue, TextClipConfig } from './types'
 
 /**
  * MK.3 — snake_case mask ref on the IPC wire. The backend resolves `node_id`
@@ -26,7 +26,12 @@ export interface SerializedMatteRef {
 export interface SerializedEffectInstance {
   effect_id: string
   enabled: boolean
-  params: Record<string, number | string | boolean>
+  /**
+   * P6.6: a param value is a scalar OR a FieldRef wrapper ({__field__: {...}}).
+   * The FieldRef inner object is already snake_case (source_id), so it rides
+   * through to the Python pipeline byte-identically — no per-key conversion.
+   */
+  params: Record<string, ParamValue>
   mix: number
   /** MK.3 per-device mask routing. Present only when the device carries a maskRef. */
   mask_ref?: SerializedMatteRef
