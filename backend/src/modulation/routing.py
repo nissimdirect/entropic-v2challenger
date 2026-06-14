@@ -47,7 +47,7 @@ def resolve_routings(
         if not op.get("is_enabled", op.get("isEnabled", True)):
             continue
         op_id = op.get("id", "")
-        signal = operator_values.get(op_id, 0.0)
+        op_signal = operator_values.get(op_id, 0.0)
 
         # P4.1: defense in depth — cap mappings at 32 per operator (mirrors
         # LIMITS.MAX_MAPPINGS_PER_OPERATOR in frontend and the loadOperators clamp).
@@ -58,6 +58,17 @@ def resolve_routings(
             target_param = mapping.get(
                 "target_param_key", mapping.get("targetParamKey", "")
             )
+            # P4.2: optional sub-key — a kentaroCluster sub-LFO is exposed at
+            # `values[f"{op_id}/lfo{i}"]`. When `source_key` is present, read that
+            # namespaced value; when absent, read the operator's master value
+            # (legacy: byte-identical to pre-P4.2 behavior). A bad/unknown
+            # source_key (incl. any '/' or '..' chars) simply misses the dict →
+            # 0.0 — the lookup is a plain dict get, so it can never escape.
+            source_key = mapping.get("source_key", mapping.get("sourceKey"))
+            if source_key:
+                signal = operator_values.get(f"{op_id}/{source_key}", 0.0)
+            else:
+                signal = op_signal
             depth = float(mapping.get("depth", 1.0))
             m_min = float(mapping.get("min", 0.0))
             m_max = float(mapping.get("max", 1.0))

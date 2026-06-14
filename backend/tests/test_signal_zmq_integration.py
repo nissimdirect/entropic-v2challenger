@@ -122,3 +122,81 @@ class TestRenderFrameWithOperators:
         )
         # The 65th operator (op-64) must not appear
         assert "op-64" not in values
+
+    def test_render_with_kentaro_cluster_modulates_effect_param_end_to_end(
+        self, standalone_server, synthetic_video_path
+    ):
+        """P4.2 E2E: a kentaroCluster + mapping(source_key='lfo3') changes a frame.
+
+        Render the SAME frame twice: once unmodulated (chain only) and once with a
+        kentaroCluster operator whose lfo3 sub-LFO is routed (via source_key) onto
+        the hue_shift effect's `amount` param. The modulated frame's bytes must
+        differ from the unmodulated frame's — proving the sub-LFO rides the param
+        through the real render_frame path (decode → modulate → effect → encode).
+        """
+        chain = [
+            {
+                "effect_id": "fx.hue_shift",
+                "enabled": True,
+                "params": {"amount": 0.0},
+                "mix": 1.0,
+            }
+        ]
+
+        # Baseline: render with the effect but NO operators.
+        base_msg = _make_msg(
+            "render_frame",
+            path=synthetic_video_path,
+            chain=chain,
+            frame_index=30,
+        )
+        base = standalone_server.handle_message(base_msg)
+        assert base["ok"] is True, base.get("error")
+
+        op_id = "op-1700000000-0"
+        operators = [
+            {
+                "id": op_id,
+                "type": "kentaroCluster",
+                "is_enabled": True,
+                "parameters": {
+                    # lfo3 is a saw at frame 30 → a non-zero signal that rotates hue.
+                    "lfos": [
+                        {"shape": "saw", "rate_hz": 0.7, "depth": 1.0} for _ in range(8)
+                    ],
+                    "lfo_count": 8,
+                },
+                "processing": [],
+                "mappings": [
+                    {
+                        "target_effect_id": "fx.hue_shift",
+                        "target_param_key": "amount",
+                        "source_key": "lfo3",
+                        "depth": 1.0,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "blend_mode": "add",
+                    }
+                ],
+            }
+        ]
+        mod_msg = _make_msg(
+            "render_frame",
+            path=synthetic_video_path,
+            chain=chain,
+            frame_index=30,
+            operators=operators,
+        )
+        mod = standalone_server.handle_message(mod_msg)
+        assert mod["ok"] is True, mod.get("error")
+
+        # The cluster surfaced a non-zero lfo3 sub-value at frame 30...
+        op_values = mod.get("operator_values", {})
+        assert f"{op_id}/lfo3" in op_values
+        assert op_values[f"{op_id}/lfo3"] > 0.0, (
+            "lfo3 should be non-zero at frame 30 (saw), driving the param change"
+        )
+        # ...and that change made the rendered frame bytes differ.
+        assert mod["frame_data"] != base["frame_data"], (
+            "kentaroCluster sub-LFO modulation must alter the rendered frame"
+        )
