@@ -589,6 +589,9 @@ class ZMQServer:
             audio_sr = (
                 self.audio_player._sample_rate if self.audio_player.loaded else 44100
             )
+            # P4.2: host BPM drives bpm_sync-enabled operators (kentaroCluster).
+            # Non-finite / out-of-range input clamps to the 120.0 default.
+            bpm = clamp_finite(message.get("bpm", 120.0), 1.0, 999.0, 120.0)
             operator_values, self._signal_state = engine.evaluate_all(
                 operators,
                 frame_index,
@@ -597,6 +600,7 @@ class ZMQServer:
                 audio_sample_rate=audio_sr,
                 video_frame=frame,
                 state=self._signal_state,
+                bpm=bpm,
             )
             # Phase 7: Extract automation overrides from frontend
             auto_overrides = message.get("automation_overrides")

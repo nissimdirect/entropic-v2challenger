@@ -332,6 +332,9 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
         max: m.max,
         curve: m.curve,
         blend_mode: m.blendMode ?? 'add',
+        // P4.2: emit source_key (snake_case) only when set, matching the
+        // target_effect_id convention. Absent → master-value routing (legacy).
+        ...(m.sourceKey ? { source_key: m.sourceKey } : {}),
       })),
     }))
   },

@@ -535,6 +535,11 @@ export interface OperatorMapping {
   max: number;
   curve: CurveType;
   blendMode?: SignalBlendMode;
+  // P4.2: optional sub-source selector. For a kentaroCluster operator, set this
+  // to e.g. 'lfo3' to read that single sub-LFO instead of the master mix. Absent
+  // → reads the operator's master value (legacy behavior). Serialized as
+  // snake_case `source_key`.
+  sourceKey?: string;
 }
 
 export type VideoAnalyzerMethod = 'luminance' | 'motion' | 'color' | 'edges' | 'histogram_peak';

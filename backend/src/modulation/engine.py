@@ -4,6 +4,7 @@ import time
 import logging
 
 from modulation.lfo import evaluate_lfo
+from modulation.kentaro_cluster import evaluate_kentaro_cluster
 from modulation.envelope import evaluate_envelope
 from modulation.step_sequencer import evaluate_step_seq
 from modulation.audio_follower import evaluate_audio
@@ -123,6 +124,7 @@ class SignalEngine:
         audio_sample_rate: int = 44100,
         video_frame=None,
         state: dict | None = None,
+        bpm: float = 120.0,
     ) -> tuple[dict[str, float], dict]:
         """Evaluate all operators and return their signal values.
 
@@ -134,6 +136,8 @@ class SignalEngine:
             audio_sample_rate: Audio sample rate.
             video_frame: Optional numpy array (HxWx3 uint8) for video analyzer.
             state: Persistent state dict keyed by operator id.
+            bpm: Host tempo, passed to bpm_sync-enabled operators (P4.2
+                kentaroCluster). Defaults to 120.0.
 
         Returns:
             (operator_values, new_state) where operator_values maps op_id -> float.
@@ -236,6 +240,24 @@ class SignalEngine:
                         operator_values=values,
                         blend_mode=blend,
                     )
+                elif op_type == "kentaroCluster":
+                    # P4.2: 8-LFO cluster. Returns {'': master_mix, 'lfo{i}': v}.
+                    # Master mix becomes this op's value (values[op_id] below);
+                    # each sub-LFO is exposed at values[f"{op_id}/lfo{i}"] so a
+                    # mapping source_key can address one sub-LFO. The '/' can't
+                    # collide: op ids are `op-{ts}-{n}` (no slash).
+                    cluster_vals, op_state = evaluate_kentaro_cluster(
+                        params=params,
+                        frame_index=frame_index,
+                        fps=fps,
+                        bpm=bpm,
+                        state_in=op_state,
+                    )
+                    value = cluster_vals.get("", 0.0)
+                    for sub_key, sub_val in cluster_vals.items():
+                        if sub_key == "":
+                            continue
+                        values[f"{op_id}/{sub_key}"] = sub_val
                 else:
                     # Unknown operator type (e.g. kentaroCluster, sidechain, gate,
                     # midiEnvStutter) — evaluates to 0.0 without crashing.
