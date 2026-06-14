@@ -82,6 +82,7 @@ import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
+import { buildAxisLanes } from '../shared/axis-lanes'
 import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
 import PresetSaveDialog from './components/library/PresetSaveDialog'
@@ -1064,6 +1065,11 @@ function AppInner() {
           ? evaluateAutomationOverrides(allLanes, currentTime, registry)
           : undefined
 
+        // P6.6: build axis_lanes payload for Y/X-domain lanes. Sampled curve
+        // profiles ride to the backend banded-render (P6.1). Only attached when
+        // non-empty (don't bloat every render IPC with []).
+        const axisLanes = allLanes.length > 0 ? buildAxisLanes(allLanes) : []
+
         // Collect ALL active clips at current time across all tracks
         const timelineState = useTimelineStore.getState()
         const projectState = useProjectStore.getState()
@@ -1360,6 +1366,7 @@ function AppInner() {
             project_seed: projectSeed,
             ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
+            ...(axisLanes.length > 0 ? { axis_lanes: axisLanes } : {}),
             ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
               ? { transform: ct } : {}),
             ...(singleMaskStack ? { mask_stack: singleMaskStack } : {}),

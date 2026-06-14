@@ -3,8 +3,9 @@
  * Standalone functions that orchestrate multiple stores.
  * Not a hook — callable from keyboard shortcuts and UI handlers.
  */
-import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode, MatteNode, MatteNodeKind, MatteOp } from '../shared/types'
+import type { Project, ProjectSettings, Timeline, Asset, EffectInstance, ParamValue, DrumRack, Operator, AutomationLane, MIDIPersistData, BlendMode, MatteNode, MatteNodeKind, MatteOp } from '../shared/types'
 import { normalizeTransform, COMPOSITE_EFFECT_ID } from '../shared/types'
+import { isFieldRef, validateFieldRefOnLoad } from '../shared/field-param'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
 import { useUndoStore } from './stores/undo'
@@ -733,15 +734,29 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     // as strings. (b) Finite-guard numeric params + clamp mix to [0,1] (numeric-trust-boundary rule).
     // (c) Cap to the per-track chain limit (hydrate must not bypass MAX_EFFECTS_PER_CHAIN).
     const rawChain = Array.isArray((track as any).effectChain) ? (track as any).effectChain : []
+    // P6.6: set when any malformed __field__ dict was dropped to default on load.
+    let fieldDropped = false
     const sanitized = (rawChain as unknown[]).reduce<EffectInstance[]>((acc, raw) => {
       if (typeof raw !== 'object' || raw === null) return acc
       const e = raw as Record<string, unknown>
       if (typeof e.id !== 'string' || typeof e.effectId !== 'string') return acc // missing identity -> drop (would orphan)
-      const parameters: Record<string, number | string | boolean> = {}
+      const parameters: Record<string, ParamValue> = {}
       if (e.parameters && typeof e.parameters === 'object') {
         for (const [k, v] of Object.entries(e.parameters as Record<string, unknown>)) {
           if (typeof v === 'number') { if (Number.isFinite(v)) parameters[k] = v } // drop NaN/Inf
           else if (typeof v === 'string' || typeof v === 'boolean') parameters[k] = v
+          else if (isFieldRef(v)) {
+            // P6.6 trust boundary: validate the persisted __field__ dict.
+            // Valid → clamped (gain → [-4,4]); malformed → dropped to default
+            // (param key simply omitted → effect uses its default scalar) + toast.
+            const validated = validateFieldRefOnLoad(v)
+            if (validated) {
+              parameters[k] = validated
+            } else {
+              fieldDropped = true
+            }
+          }
+          // any other object shape → dropped (param uses default), as before
         }
       }
       acc.push({
@@ -757,6 +772,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
       })
       return acc
     }, [])
+    // P6.6: surface a single toast per track if any malformed field dict was
+    // dropped (param fell back to its default).
+    if (fieldDropped) {
+      useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}": malformed field assignment(s) reset to default on load`, source: 'project-load' })
+    }
     // P2.2a load-time composite placement guard (red-team RT-1): hydration writes
     // chains via the raw store primitive, BYPASSING the transaction-commit
     // validator — so the placement rules (no composite on audio tracks, at most
