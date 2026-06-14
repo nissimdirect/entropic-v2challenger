@@ -197,6 +197,13 @@ export default function ModulationMatrix({
                             <span className="mod-matrix__depth-value">
                               {Math.round(mapping.depth * 100)}%
                             </span>
+                            {/* P4.4: read-only sub-source suffix for cluster ops.
+                                Absent sourceKey (master routing) renders nothing. */}
+                            {mapping.sourceKey && (
+                              <span className="mod-matrix__source-key" title={`sub-source ${mapping.sourceKey}`}>
+                                {mapping.sourceKey}
+                              </span>
+                            )}
                             <button
                               className="mod-matrix__remove-btn"
                               onClick={() => removeMapping(op.id, mappingIndex)}
