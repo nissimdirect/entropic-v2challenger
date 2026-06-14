@@ -563,3 +563,46 @@
   color: var(--cx-mod);
   margin-left: 2px;
 }
+
+/* ── P4.5 — operator topology graph ───────────────────────────────────────── */
+.operator-rack__topology-section {
+  margin-top: 12px;
+  border-top: 1px solid var(--cx-line-1);
+  padding-top: 8px;
+}
+.operator-rack__topology-toggle {
+  background: none;
+  border: none;
+  color: var(--cx-text-3);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.operator-rack__topology-toggle:hover {
+  color: var(--cx-text-2);
+}
+.operator-topology {
+  margin-top: 8px;
+}
+.operator-topology__canvas {
+  /* xyflow needs a sized container to measure node/edge geometry. */
+  width: 100%;
+  height: 240px;
+  background: var(--cx-surface-0);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.operator-topology--empty {
+  padding: 16px;
+  text-align: center;
+}
+.operator-topology__hint {
+  color: var(--cx-text-3);
+  font-size: 11px;
+}
+/* xyflow attribution / controls suppressed — read-only diagram. */
+.operator-topology .react-flow__attribution {
+  display: none;
+}
