@@ -35,6 +35,16 @@ from pathlib import Path
 ALLOWED_RAW_ALLOC_MODULES: frozenset[str] = frozenset(
     {
         "safety/mlx_resources.py",
+        # P6.5: the C3 per-pixel field codegen — the first Tier-2 GPU module
+        # this lint's own docstring anticipates ("the real MLX binding lands in
+        # the first Tier 2 effect PR that needs Metal"). It must UPLOAD existing
+        # frame/field numpy data to the device (mx.array), which the zeroed-only
+        # MLXGPUResource.allocate() cannot express and which mlx_resources.py is
+        # DO-NOT-TOUCH for. Every mx.array() result is immediately wrapped in an
+        # MLXGPUResource and pool-acquired (see effects/field_codegen.py::
+        # _gpu_lerp), so the RAII ownership the lint enforces is satisfied — the
+        # allowance is for the upload constructor only, not unowned allocation.
+        "effects/field_codegen.py",
     }
 )
 
