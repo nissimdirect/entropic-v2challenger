@@ -16,7 +16,9 @@ import numpy as np
 import sentry_sdk
 
 from effects import registry
-from effects.field_top25 import is_field_capable
+from effects.field_codegen import apply_field_pointwise
+from effects.field_params import parse_param_value
+from effects.field_top25 import field_mode, is_field_capable
 from engine.container import EffectContainer
 from modulation.field_eval import (
     BAND_COUNT_MIN,
@@ -126,6 +128,8 @@ def apply_chain(
     freeze_frame: np.ndarray | None = None,
     chain_mask: np.ndarray | None = None,
     axis_lanes: list[dict] | None = None,
+    field_provider=None,
+    is_export: bool = False,
 ) -> tuple[np.ndarray, dict[str, dict | None]]:
     """Apply an ordered chain of effects to a frame.
 
@@ -169,6 +173,22 @@ def apply_chain(
                       with a warning (T stays in automation_overrides path).
                       unknown effect_id → skipped with warning, never crash.
                       NaN/Inf in curve → sanitized via nan_to_num + clamp.
+        field_provider: P6.5 optional ``effects.field_source.FieldProvider``.
+                      When supplied, a ``__field__`` value on a **pointwise**
+                      top-25 param is resolved to a per-pixel field and applied
+                      via ``field_codegen.apply_field_pointwise`` (GPU lerp when
+                      MLX is present, CPU lerp otherwise — identical math).
+                      ABSENT (None) → field params on enabled effects are
+                      rejected by the P6.2 schema guard exactly as before
+                      (byte-identical legacy behavior when no field params).
+                      A field param on a ``banded`` top-25 entry NEVER enters
+                      codegen — the field dict is stripped to the param's
+                      scalar default and the effect runs normally (the banded
+                      field path is P6.1/P6.6 territory, not codegen).
+        is_export:    P6.5 export-determinism gate. When True, field codegen
+                      forces the CPU lerp (``FIELD_GPU_IN_EXPORT = False``) so a
+                      frame baked on a GPU-less CI box is byte-identical to one
+                      baked on a dev Mac.
 
     Returns:
         Tuple of (output_frame, new_states).
@@ -295,17 +315,61 @@ def apply_chain(
         effect_id = effect_instance.get("effect_id")
         params = dict(effect_instance.get("params", {}))
 
-        # P6.2 field-param guard: reject __field__ values for params not in FIELD_TOP25.
-        # This is a schema guard only — no field evaluation happens here (that is P6.1/P6.5).
-        for param_name, param_value in params.items():
-            if isinstance(param_value, dict) and "__field__" in param_value:
-                if not is_field_capable(effect_id, param_name):
-                    raise ValueError(
-                        f"Effect {effect_id!r} param {param_name!r} received a field "
-                        f"reference (__field__) but is not in the FIELD_TOP25 allow-list. "
-                        f"Add it to backend/src/effects/field_top25.py to enable field "
-                        f"modulation for this param, then re-run "
-                        f"python3 backend/scripts/gen_field_top25.py --check."
+        # P6.2 field-param guard + P6.5 codegen dispatch.
+        #
+        # P6.2 (schema guard): a __field__ value on a param NOT in FIELD_TOP25 is
+        #   rejected — that contract is unchanged.
+        # P6.5 (dispatch): for an allow-listed param the routing splits by mode:
+        #   - pointwise + a field_provider supplied → resolve the field and route
+        #     this (effect, param) through field_codegen below. The field dict is
+        #     removed from `params` here so the endpoint renders see a scalar; the
+        #     codegen substitutes p_min/p_max itself.
+        #   - banded (or pointwise with NO provider) → strip the field dict to the
+        #     param's scalar default so the pure effect fn never receives a dict.
+        #     A banded field param must NEVER enter codegen (a per-pixel-varying
+        #     spatial radius is not one elementwise kernel — that's by design).
+        _codegen_jobs: list[tuple[str, object]] = []  # (param_name, FieldRef)
+        for param_name in list(params.keys()):
+            param_value = params[param_name]
+            if not (isinstance(param_value, dict) and "__field__" in param_value):
+                continue
+            if not is_field_capable(effect_id, param_name):
+                raise ValueError(
+                    f"Effect {effect_id!r} param {param_name!r} received a field "
+                    f"reference (__field__) but is not in the FIELD_TOP25 allow-list. "
+                    f"Add it to backend/src/effects/field_top25.py to enable field "
+                    f"modulation for this param, then re-run "
+                    f"python3 backend/scripts/gen_field_top25.py --check."
+                )
+            mode = field_mode(effect_id, param_name)
+            field_ref = parse_param_value(param_value)
+            if mode == "pointwise" and field_provider is not None:
+                # Route to codegen. Remove the dict from params (a scalar default
+                # placeholder is fine — the codegen overrides it per endpoint).
+                _codegen_jobs.append((param_name, field_ref))
+                _pspec = (
+                    (registry.get(effect_id) or {})
+                    .get("params", {})
+                    .get(param_name, {})
+                )
+                params[param_name] = float(_pspec.get("default", 0.0))
+            else:
+                # Banded, or pointwise without a provider: never enter codegen.
+                # Strip the field dict to the param's scalar default so the pure
+                # effect fn (which expects a number) never sees a __field__ dict.
+                _pspec = (
+                    (registry.get(effect_id) or {})
+                    .get("params", {})
+                    .get(param_name, {})
+                )
+                params[param_name] = float(_pspec.get("default", 0.0))
+                if mode == "banded":
+                    logger.debug(
+                        "field param on banded entry %s/%s — not entering codegen "
+                        "(field flattened to scalar default; banded field path is "
+                        "P6.1/P6.6)",
+                        effect_id,
+                        param_name,
                     )
 
         # Skip auto-disabled effects
@@ -368,7 +432,52 @@ def apply_chain(
                 )
                 _al_spec = None  # fall through to standard path below
 
-        if _al_spec is None:
+        # P6.5 codegen path: pointwise field params routed above. Runs only when
+        # the banded path did not (axis_lanes and field params are orthogonal
+        # param mechanisms; a banded axis_lane spec wins). Each job composites
+        # lerp(E(p_min), E(p_max), F) over the running `output`. Multiple field
+        # params on one effect are applied sequentially. Never raises — codegen
+        # itself falls back to the CPU lerp on any GPU hiccup.
+        _codegen_ran = False
+        if _al_spec is None and _codegen_jobs:
+            # Stable per-effect-instance id for pool keying: prefer an explicit
+            # chain-entry id, else effect_id + chain position.
+            _instance_id = str(effect_instance.get("id") or f"{effect_id}#{i}")
+            try:
+                _cg_state = state_in
+                for _cg_param, _cg_field_ref in _codegen_jobs:
+                    _field = field_provider.resolve(
+                        _cg_field_ref, frame_index, resolution
+                    )
+                    output, _cg_state = apply_field_pointwise(
+                        effect_info["fn"],
+                        effect_id,
+                        output,
+                        params,
+                        _cg_param,
+                        _field,
+                        instance_id=_instance_id,
+                        frame_index=frame_index,
+                        project_seed=project_seed,
+                        resolution=resolution,
+                        state_in=_cg_state,
+                        is_export=is_export,
+                    )
+                state_out = _cg_state
+                elapsed_ms = (time.monotonic() - t0) * 1000
+                record_timing(effect_id, elapsed_ms)
+                _record_success(effect_id)
+                _codegen_ran = True
+            except Exception as _cg_exc:
+                logger.warning(
+                    "field_codegen: effect %s failed (%s) — falling back to "
+                    "standard scalar apply",
+                    effect_id,
+                    type(_cg_exc).__name__,
+                )
+                _codegen_ran = False  # fall through to standard path
+
+        if _al_spec is None and not _codegen_ran:
             # Standard (non-banded) path — unchanged from pre-P6.1.
             container = EffectContainer(effect_info["fn"], effect_id)
 

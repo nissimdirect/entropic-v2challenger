@@ -429,6 +429,12 @@ class ZMQServer:
             return self._handle_check_dag(message, msg_id)
         elif cmd == "flush_state":
             flush_timing()
+            # P6.5: project unload / chain teardown also destroys every codegen
+            # GPU pool (SPEC-3 §2.5 chain-removal hook) so no field-effect GPU
+            # buffers survive a project switch.
+            from effects.field_codegen import release_all_instance_pools
+
+            release_all_instance_pools()
             return {"id": msg_id, "ok": True}
         elif cmd == "freeze_prefix":
             return self._handle_freeze_prefix(message, msg_id)
