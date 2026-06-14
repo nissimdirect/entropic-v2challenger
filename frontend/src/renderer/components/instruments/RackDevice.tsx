@@ -68,6 +68,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   const removeMacroRoute = useInstrumentsStore((s) => s.removeMacroRoute)
   const triggerRackPad = usePerformanceStore((s) => s.triggerRackPad)
   const clearRackPadEvents = usePerformanceStore((s) => s.clearRackPadEvents)
+  const captureRetroBuffer = usePerformanceStore((s) => s.captureRetroBuffer)
   const assets = useProjectStore((s) => s.assets)
 
   // B10.1b — Ableton-style FREEZE state for THIS track (reactive). FROZEN → the
@@ -316,6 +317,17 @@ export default function RackDevice({ trackId }: { trackId: string }) {
           onClick={toggleLaunchQuantize}
         >
           Q
+        </button>
+        {/* B10.3 — retro-capture: dump the rolling event buffer onto this
+            Performance Track so the last N triggers replay deterministically. */}
+        <button
+          type="button"
+          data-testid="retro-capture"
+          className="rack-breadcrumb__retro-capture"
+          title="Retro-capture — dump recent triggers onto this Performance Track"
+          onClick={() => captureRetroBuffer(trackId)}
+        >
+          ⏺ Capture
         </button>
       </div>
 
