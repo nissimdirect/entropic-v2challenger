@@ -12,9 +12,13 @@ from modulation.fusion import evaluate_fusion
 from modulation.processor import process_signal
 from modulation.routing import resolve_routings
 
+# P4.1: import authoritative cap from security (qa-redteam M2).
+# Mirrors frontend/src/shared/limits.ts:LIMITS.MAX_OPERATORS (= 64).
+from security import MAX_OPERATORS_PER_PROJECT
+
 logger = logging.getLogger(__name__)
 
-MAX_OPERATORS = 16
+MAX_OPERATORS = MAX_OPERATORS_PER_PROJECT  # 64; was 16 before P4.1
 
 
 class ModulationCycleError(Exception):
@@ -103,6 +107,13 @@ def _topological_sort(active_ops: list[dict]) -> list[dict]:
 class SignalEngine:
     """Evaluates all operators and applies modulation to an effect chain."""
 
+    # P4.1: render-budget guard state — rate-limit budget warnings to once/sec,
+    # and track the degrade flag so the NEXT frame can skip video_analyzer proxies.
+    # Skipping the proxy is the cheapest lossy fallback: video_analyzer is the only
+    # op that processes raw frame data; skipping keeps LFOs/envelopes/etc. intact.
+    _budget_warn_last_t: float = 0.0
+    _degrade_next_frame: bool = False
+
     def evaluate_all(
         self,
         operators: list[dict],
@@ -132,6 +143,12 @@ class SignalEngine:
 
         values: dict[str, float] = {}
 
+        # P4.1: render-budget guard — if the previous frame overran 16ms, suppress
+        # video_analyzer proxy evaluation on this frame (skip the downscale).
+        # video_frame still flows through for consistency; only the proxy is skipped.
+        effective_video_frame = None if self._degrade_next_frame else video_frame
+        self._degrade_next_frame = False  # reset; re-set below if this frame overruns
+
         # Cap at MAX_OPERATORS, then topo-sort so source operators resolve before
         # their consumers (otherwise consumers read 0.0 silently).
         try:
@@ -143,6 +160,8 @@ class SignalEngine:
             # consumers may read 0.0 (the prior silent behavior, now logged loud).
             logger.warning("%s — falling back to declaration order", exc)
             active_ops = operators[:MAX_OPERATORS]
+
+        _eval_start = time.perf_counter()
 
         for op in active_ops:
             op_id = op.get("id", "")
@@ -197,8 +216,9 @@ class SignalEngine:
                     )
                 elif op_type == "video_analyzer":
                     method = str(params.get("method", "luminance"))
-                    if video_frame is not None:
-                        proxy = downscale_proxy(video_frame)
+                    # P4.1: use effective_video_frame (None when degrading last frame)
+                    if effective_video_frame is not None:
+                        proxy = downscale_proxy(effective_video_frame)
                     else:
                         proxy = None
                     value, op_state = evaluate_video_analyzer(
@@ -217,6 +237,8 @@ class SignalEngine:
                         blend_mode=blend,
                     )
                 else:
+                    # Unknown operator type (e.g. kentaroCluster, sidechain, gate,
+                    # midiEnvStutter) — evaluates to 0.0 without crashing.
                     value = 0.0
 
                 # Apply processing chain (thread state for smooth/slew)
@@ -235,6 +257,23 @@ class SignalEngine:
                     "Operator %s (%s) failed, skipping", op_id, op_type, exc_info=True
                 )
                 values[op_id] = 0.0
+
+        # P4.1: render-budget guard — warn (rate-limited to 1/sec) and set degrade
+        # flag for the next frame if eval exceeded 16ms.
+        _eval_elapsed = time.perf_counter() - _eval_start
+        _BUDGET_MS = 0.016  # 16ms
+        if _eval_elapsed > _BUDGET_MS:
+            _now = time.perf_counter()
+            if _now - self._budget_warn_last_t >= 1.0:
+                logger.warning(
+                    "SignalEngine.evaluate_all exceeded 16ms budget: %.1fms "
+                    "(frame %d, %d operators). Degrading next frame.",
+                    _eval_elapsed * 1000,
+                    frame_index,
+                    len(active_ops),
+                )
+                self._budget_warn_last_t = _now
+            self._degrade_next_frame = True
 
         return values, state
 

@@ -49,7 +49,9 @@ def resolve_routings(
         op_id = op.get("id", "")
         signal = operator_values.get(op_id, 0.0)
 
-        for mapping in op.get("mappings", []):
+        # P4.1: defense in depth — cap mappings at 32 per operator (mirrors
+        # LIMITS.MAX_MAPPINGS_PER_OPERATOR in frontend and the loadOperators clamp).
+        for mapping in op.get("mappings", [])[:32]:
             target_effect = mapping.get(
                 "target_effect_id", mapping.get("targetEffectId", "")
             )

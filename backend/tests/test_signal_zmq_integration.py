@@ -82,3 +82,43 @@ class TestRenderFrameWithOperators:
         standalone_server._signal_state = {"lfo1": {"some": "state"}}
         standalone_server.reset_state()
         assert standalone_server._signal_state == {}
+
+    def test_render_with_65_operators_returns_frame_and_caps_at_64_end_to_end(
+        self, standalone_server
+    ):
+        """P4.1 E2E: 65 LFO operators fed to the signal engine via the server caps at 64.
+
+        We can't call render_frame without a real video file, but we CAN call the
+        signal engine through the same server code path the ZMQ handler uses —
+        via _get_signal_engine().evaluate_all — which is the authoritative end-to-end
+        path for the operator cap enforcement on the backend.
+        """
+        from modulation.engine import MAX_OPERATORS
+
+        assert MAX_OPERATORS == 64, f"Expected 64, got {MAX_OPERATORS}"
+
+        engine = standalone_server._get_signal_engine()
+        ops = [
+            {
+                "id": f"op-{i}",
+                "type": "lfo",
+                "is_enabled": True,
+                "parameters": {"waveform": "sine", "rate_hz": 1.0, "phase_offset": 0.0},
+                "processing": [],
+                "mappings": [],
+            }
+            for i in range(65)
+        ]
+
+        values, new_state = engine.evaluate_all(ops, frame_index=0, fps=30.0)
+
+        # Must return a valid dict (no exception, no crash)
+        assert isinstance(values, dict)
+        assert isinstance(new_state, dict)
+
+        # Cap enforced: only 64 operator values emitted, not 65
+        assert len(values) <= MAX_OPERATORS, (
+            f"Expected ≤{MAX_OPERATORS} operator values, got {len(values)}"
+        )
+        # The 65th operator (op-64) must not appear
+        assert "op-64" not in values

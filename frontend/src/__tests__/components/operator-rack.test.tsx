@@ -58,6 +58,27 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
     expect(queryByText('Fusion')).not.toBeNull()
   })
 
+  it('menu renders exactly 6 enabled entries + 4 disabled (P4.1)', () => {
+    const { getByText, container } = render(<OperatorRack {...baseProps} />)
+    fireEvent.click(getByText('+ Add'))
+    const allButtons = container.querySelectorAll('.operator-rack__add-option')
+    const enabledButtons = container.querySelectorAll(
+      '.operator-rack__add-option:not(:disabled)',
+    )
+    const disabledButtons = container.querySelectorAll(
+      '.operator-rack__add-option:disabled',
+    )
+    expect(allButtons).toHaveLength(10) // 6 existing + 4 new
+    expect(enabledButtons).toHaveLength(6)
+    expect(disabledButtons).toHaveLength(4)
+    // Verify the 4 disabled labels
+    const disabledLabels = Array.from(disabledButtons).map((b) => b.textContent)
+    expect(disabledLabels).toContain('Kentaro Cluster')
+    expect(disabledLabels).toContain('Sidechain')
+    expect(disabledLabels).toContain('Gate')
+    expect(disabledLabels).toContain('MIDI Env Stutter')
+  })
+
   it('adds an LFO operator when LFO option is clicked', () => {
     const { getByText } = render(<OperatorRack {...baseProps} />)
     fireEvent.click(getByText('+ Add'))

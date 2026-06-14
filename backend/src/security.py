@@ -47,6 +47,11 @@ MAX_CHAIN_DEPTH = 10
 # per-layer decode loop.
 MAX_COMPOSITE_LAYERS = 50
 
+# P4.1 (qa-redteam M2): per-project operator count hard cap.
+# Mirrored in frontend/src/shared/limits.ts:LIMITS.MAX_OPERATORS (= 64).
+# The backend cap is authoritative; the frontend cap is a pre-flight guard.
+MAX_OPERATORS_PER_PROJECT = 64  # qa-redteam M2
+
 # P5a.2 (INSTRUMENTS.md §10 P1-1): per-render voice cap. The voice spine keys
 # the composite per-layer state cache by `voice:{voice_id}` so independent
 # voices on the same clip keep independent stateful-effect state. The 4-voice
@@ -142,6 +147,11 @@ VALID_OPERATOR_TYPES = frozenset(
         "audio_follower",
         "video_analyzer",
         "fusion",
+        # P4.1: new types — visible but available: false; engine evaluates to 0.0
+        "kentaroCluster",
+        "sidechain",
+        "gate",
+        "midiEnvStutter",
     }
 )
 

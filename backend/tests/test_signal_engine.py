@@ -110,7 +110,14 @@ class TestSignalEngine:
         assert abs(values["lfo1"] - 1.0) < 0.01
 
     def test_max_16_operators(self):
-        """More than 16 operators: only first 16 evaluated."""
+        """P4.1: cap raised from 16 to 64. More than 64 operators: only first 64 evaluated.
+
+        This test was previously named test_max_16_operators and checked len == 16.
+        Updated for P4.1 which sets MAX_OPERATORS = 64.
+        """
+        from modulation.engine import MAX_OPERATORS
+
+        # Submit MAX_OPERATORS + 5 operators; only MAX_OPERATORS should evaluate
         operators = [
             {
                 "id": f"op{i}",
@@ -120,10 +127,10 @@ class TestSignalEngine:
                 "processing": [],
                 "mappings": [],
             }
-            for i in range(20)
+            for i in range(MAX_OPERATORS + 5)
         ]
         values, _ = self.engine.evaluate_all(operators, 0, 30.0)
-        assert len(values) == 16
+        assert len(values) == MAX_OPERATORS
 
     def test_performance_16_operators(self):
         """16 operators should evaluate in <5ms."""
