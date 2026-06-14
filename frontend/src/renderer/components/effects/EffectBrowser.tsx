@@ -7,6 +7,8 @@ import { useToastStore } from '../../stores/toast'
 import { useTimelineStore } from '../../stores/timeline'
 // P3.5: instruments tab now renders the real InstrumentsBrowser (INJ-4 fill).
 import InstrumentsBrowser from '../instruments/InstrumentsBrowser'
+// P4.6: op-tab operator entries (grouped) + drag-source handler.
+import { OPERATOR_GROUPS, startOperatorDrag } from './operator-drag'
 
 /**
  * MIME-style identifier used to ferry an effect ID from the browser to the
@@ -34,8 +36,11 @@ export const SESSION_NONCE = randomUUID()
  * qa-redteam H2: `kind` is enum-validated; `id` is namespace-checked via regex.
  */
 export interface DragPayload {
-  kind: 'fx' | 'op' | 'composite' | 'instruments'
-  id: string  // format: "builtin:<effectId>" | "user:<name>"
+  // P4.6: 'operator' added — operator entries dragged from the op tab reuse this
+  // exact payload channel (EFFECT_DRAG_TYPE + CREATRIX_NONCE_TYPE + SESSION_NONCE).
+  // id format for operators is "builtin:<operatorType>" (e.g. "builtin:lfo").
+  kind: 'fx' | 'op' | 'composite' | 'instruments' | 'operator'
+  id: string  // format: "builtin:<effectId|operatorType>" | "user:<name>"
 }
 
 /**
@@ -63,7 +68,7 @@ export function parseDragPayload(
     if (typeof parsed !== 'object' || parsed === null) return null
     const { kind, id } = parsed as { kind: unknown; id: unknown }
     // qa-redteam H2: kind must be one of the enum values
-    if (!['fx', 'op', 'composite', 'instruments'].includes(kind as string)) return null
+    if (!['fx', 'op', 'composite', 'instruments', 'operator'].includes(kind as string)) return null
     if (typeof id !== 'string') return null
     // qa-redteam H2: id must match builtin: or user: namespace
     if (!/^(builtin:|user:)/.test(id)) return null
@@ -146,13 +151,7 @@ export function isTextInputActive(): boolean {
   return false
 }
 
-// Operator stub list (PLAN §3.5 — frontend-only display)
-const OPERATOR_STUBS = [
-  'LFO', 'Env Follower', 'S&H', 'Random', 'Add', 'Multiply',
-  'Clamp', 'Curve', 'Audio Amplitude', 'MIDI CC', 'Playhead Time',
-  'Sidechain', 'Gate', 'MIDI Envelope Stutter', 'Kentaro Cluster',
-]
-
+// P4.6: op-tab operator entries + drag helpers live in operator-drag.ts.
 // Instrument racks list is now owned by InstrumentsBrowser (P3.5 fill).
 
 interface EffectBrowserProps {
@@ -544,25 +543,32 @@ export default function EffectBrowser({
             )
           })
         ) : activeTab === 'op' ? (
-          // [op] tab: operator/modulator stubs
-          <div className="effect-browser__folder" data-testid="op-tab-content">
-            <div className="effect-browser__folder-header effect-browser__folder-header--static">
-              <span>Operators</span>
-              <span className="effect-browser__folder-count">{OPERATOR_STUBS.length}</span>
-            </div>
-            <div className="effect-browser__folder-list">
-              {OPERATOR_STUBS.map((name) => (
-                <button
-                  key={name}
-                  className="effect-browser__item effect-browser__item--stub"
-                  disabled
-                  title={`${name} — coming in a future release`}
-                  data-testid={`op-item-${name.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  {name}
-                </button>
-              ))}
-            </div>
+          // [op] tab: implemented operator types, grouped, drag-to-add (P4.6).
+          // Each entry is a drag source on the EXISTING EffectBrowser DnD channel
+          // (EffectBrowser.tsx:17-74) via startOperatorDrag — no new drag system.
+          <div data-testid="op-tab-content">
+            {OPERATOR_GROUPS.map(({ group, entries }) => (
+              <div key={group} className="effect-browser__folder" data-testid={`op-group-${group}`}>
+                <div className="effect-browser__folder-header effect-browser__folder-header--static">
+                  <span>{group}</span>
+                  <span className="effect-browser__folder-count">{entries.length}</span>
+                </div>
+                <div className="effect-browser__folder-list">
+                  {entries.map((entry) => (
+                    <button
+                      key={entry.type}
+                      className="effect-browser__item effect-browser__item--operator"
+                      draggable
+                      onDragStart={(e) => startOperatorDrag(e, entry)}
+                      title={`Drag ${entry.label} onto a track header or a param knob`}
+                      data-testid={`op-item-${entry.type}`}
+                    >
+                      {entry.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         ) : activeTab === 'composite' ? (
           // [composite] tab: blend modes
