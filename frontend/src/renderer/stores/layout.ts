@@ -19,6 +19,14 @@ interface LayoutState {
   quantizeDivision: number
   /** UE.1: snap clips to edges/playhead/markers. Persisted to localStorage. */
   snapEnabled: boolean
+  /**
+   * B10.2: When true, performance-track pad triggers snap to the NEXT division
+   * of the existing edit/slice grid (uses `quantizeDivision` for the grid size).
+   * OFF by default — when false, trigger frameIndex is passed UNCHANGED.
+   * Separate from `quantizeEnabled` (timeline-quantize) because launch-quantize
+   * and timeline-quantize are different concerns that can be toggled independently.
+   */
+  launchQuantizeEnabled: boolean
   toggleSidebar: () => void
   toggleTimeline: () => void
   setTimelineHeight: (h: number) => void
@@ -30,6 +38,8 @@ interface LayoutState {
   setQuantizeDivision: (div: number) => void
   /** UE.1: Toggle clip-edge/playhead/marker snapping. */
   toggleSnap: () => void
+  /** B10.2: Toggle launch-quantize for performance-track pad triggers. */
+  toggleLaunchQuantize: () => void
   // Creatrix grid layout vars (F_CREATRIX_LAYOUT) — P3.1
   leftColW: number
   inspectorH: number
@@ -144,6 +154,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   quantizeEnabled: false,
   quantizeDivision: 4, // 1/4 note
   snapEnabled: persisted.snapEnabled ?? true, // on by default
+  launchQuantizeEnabled: false, // B10.2: OFF by default (B10 spec §15)
   // Creatrix layout vars — P3.1
   leftColW: persistedCx.leftColW ?? CX_LEFT_COL_W.def,
   inspectorH: persistedCx.inspectorH ?? CX_INSPECTOR_H.def,
@@ -204,6 +215,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
     const next = !get().snapEnabled
     set({ snapEnabled: next })
     persistLayout({ ...get(), snapEnabled: next })
+  },
+
+  // B10.2: Toggle launch-quantize (not persisted — off by default every session)
+  toggleLaunchQuantize: () => {
+    set({ launchQuantizeEnabled: !get().launchQuantizeEnabled })
   },
 
   // Creatrix resize actions — P3.1
