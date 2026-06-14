@@ -53,6 +53,7 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'support_bundle',    keys: 'meta+shift+d',   category: 'project',   label: 'Support Bundle',      context: 'normal' },
   { action: 'import_media',      keys: 'meta+i',         category: 'project',   label: 'Import Media',        context: 'normal' },
   { action: 'add_text_track',    keys: 'meta+t',         category: 'project',   label: 'Add Text Track',      context: 'normal' },
+  { action: 'routing_canvas',    keys: 'meta+shift+i',   category: 'project',   label: 'Routing Canvas',      context: 'normal' },
 
   // --- P3.4: Tool mode (cursor mode) hotkeys — Ableton-parity, guarded against text inputs ---
   // Conflict-checked: all 12 keys are unique in this table.
