@@ -18,6 +18,8 @@ interface ToastState {
   toasts: Toast[]
   addToast: (toast: Omit<Toast, 'id' | 'count' | 'createdAt'>) => void
   dismissToast: (id: string) => void
+  /** Dismiss ALL toasts whose `source` field matches the given string. */
+  dismissBySource: (source: string) => void
   clearAll: () => void
 }
 
@@ -98,6 +100,18 @@ export const useToastStore = create<ToastState>((set, get) => ({
       activeTimers.delete(id)
     }
     set({ toasts: get().toasts.filter((t) => t.id !== id) })
+  },
+
+  dismissBySource: (source) => {
+    const matching = get().toasts.filter((t) => t.source === source)
+    for (const toast of matching) {
+      const timerId = activeTimers.get(toast.id)
+      if (timerId) {
+        clearTimeout(timerId)
+        activeTimers.delete(toast.id)
+      }
+    }
+    set({ toasts: get().toasts.filter((t) => t.source !== source) })
   },
 
   clearAll: () => {

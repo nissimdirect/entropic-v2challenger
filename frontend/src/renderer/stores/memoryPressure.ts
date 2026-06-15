@@ -129,19 +129,13 @@ export const useMemoryPressureStore = create<MemoryPressureState>((set, get) => 
         persistent: true,
       })
     }
-    // If we just RECOVERED from emergency, dismiss the persistent toast by
-    // adding a recovery toast (the emergency toast will auto-age; we can't
-    // dismiss by source without store internals, so we post a clearing state
-    // toast with the same source to overwrite it via the dedup increment path).
+    // If we just RECOVERED from emergency (any downgrade: ok / warn / auto_disable),
+    // explicitly dismiss the persistent emergency toast. The dedup path cannot
+    // remove a persistent toast, so we call dismissBySource directly to make
+    // the transition symmetric: enter emergency → show toast, leave emergency →
+    // dismiss toast. (Bug fix for audit HIGH #7 — state asymmetry.)
     if (level !== 'emergency' && wasEmergency) {
-      // The dedup mechanism updates the existing 'state' toast's message; it
-      // won't re-fire if within the rate-limit window, which is correct since
-      // we just want to update the copy. If outside window, this posts new.
-      useToastStore.getState().addToast({
-        level: 'info',
-        message: 'Memory pressure resolved.',
-        source: 'sg8-pressure-emergency',
-      })
+      useToastStore.getState().dismissBySource('sg8-pressure-emergency')
     }
 
     set({ level, current_pct, degraded_features, _prevDisabled: currentSet })
