@@ -173,6 +173,30 @@ def check_and_clamp(
     )
 
 
+def detect_nan_in_frame(frame: np.ndarray) -> bool:
+    """SG-3 clause-2 render-output gate: is ANY pixel non-finite (NaN/±Inf)?
+
+    This is the frame-level (image-domain) sibling of `check_and_clamp`, which
+    is latent-domain (requires float dtype + does an L2-norm renormalization
+    that is meaningless for an RGBA image frame). A composited preview/export
+    frame is a uint8 *or* float array of arbitrary magnitude — the only thing
+    we assert before it goes downstream to compositing/encode is FINITENESS.
+
+    Implementation: ONE `np.isfinite` reduction over the final frame (single
+    pass, no copy). `np.isfinite` is True for normal numbers and False for both
+    NaN and ±Inf, so `~np.all(np.isfinite(frame))` catches both. Integer frames
+    (the uint8 happy path) are trivially all-finite and short-circuit cheaply.
+
+    Returns True if the frame contains a NaN/Inf (caller must abort/substitute);
+    False if every pixel is finite (caller passes the frame through unmodified).
+    """
+    # Integer dtypes can never hold NaN/Inf — skip the float reduction entirely
+    # (keeps the uint8 hot path allocation- and scan-free beyond the dtype check).
+    if np.issubdtype(frame.dtype, np.integer):
+        return False
+    return not bool(np.all(np.isfinite(frame)))
+
+
 def safe_normalize(latent: np.ndarray, *, context: str = "") -> np.ndarray:
     """Convenience wrapper: returns just the safe latent (or raises).
 
