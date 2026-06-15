@@ -489,14 +489,16 @@ def test_grain_count_over_cap_rejected_at_validation(monkeypatch):
 def test_malformed_granulator_layer_rejected_pre_decode(monkeypatch):
     """Malformed granulator payloads are rejected BEFORE any source decode/sample.
 
-    We patch render_grain_layer to a sentinel that raises if ever called, proving
-    rejection happens upstream of the pixel path (the trust boundary).
+    We patch the grain pixel-path entry (render_grain_layer_dispatch, the
+    CPU/GPU dispatcher the arm calls since P5b.28) to a sentinel that raises if
+    ever called, proving rejection happens upstream of the pixel path (the trust
+    boundary).
     """
 
     def must_not_render(*a, **k):
-        raise AssertionError("render_grain_layer called on a malformed payload")
+        raise AssertionError("grain pixel path called on a malformed payload")
 
-    monkeypatch.setattr(zmq_mod, "render_grain_layer", must_not_render)
+    monkeypatch.setattr(zmq_mod, "render_grain_layer_dispatch", must_not_render)
 
     bad_payloads = [
         {"density": "lots"},  # non-numeric density

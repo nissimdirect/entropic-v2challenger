@@ -33,11 +33,15 @@ from instruments.granulator_instrument import (
     GranulatorParams,
     MAX_GRAINS,
     RESERVED_SELECTION_RULES,
+    VALID_RENDER_PATHS,
     accepted_selection_rules,
     grain_cloud,
     register_sg8_density_hook,
-    render_grain_layer,
     select_grain_weights,
+)
+from instruments.granulator_gpu import (
+    register_sg8_texture_pool_hook,
+    render_grain_layer_dispatch,
 )
 from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
@@ -188,6 +192,13 @@ class ZMQServer:
         # restore. Idempotent at the registry (unregister-first by label), so
         # constructing a second server in one process does not duplicate the hook.
         register_sg8_density_hook(global_registry())
+        # P5b.28 (SG-8): register the B8 Granulator GPU texture-pool release hook
+        # against canonical stage `gpu_texture_pool_released` (order #6 @85%). When
+        # memory pressure crosses that threshold the monitor calls destroy_all()
+        # on every granulator GPU pool; renders continue (CPU fallback or lazy
+        # pool recreation next frame). Idempotent at the registry (unregister-first
+        # by label), so a second server in one process does not duplicate the hook.
+        register_sg8_texture_pool_hook(global_registry())
         # P5b.17: previous grain-render eval time (ms), fed into the budget
         # controller so a frame that blew the 16ms budget degrades subsequent
         # density. The controller (TIGER 3 fix) carries a sticky degrade floor
@@ -1380,6 +1391,20 @@ class ZMQServer:
 
         l_enabled = bool(gran_raw.get("l_axis_enabled", False))
 
+        # P5b.28 — preview render path ('cpu'|'gpu'). String accept-set trust
+        # boundary (mirrors `selection`): reject an unrecognised value LOUDLY
+        # rather than let GranulatorParams.__post_init__ silently coerce it to
+        # 'cpu' (a no-silent-fallback violation on a hand-edited payload). Absent
+        # → 'cpu' (regression-safe; the deterministic byte-identity baseline).
+        render_path_raw = gran_raw.get("render_path", "cpu")
+        if not isinstance(render_path_raw, str):
+            return None, ["granulator render_path must be a string"]
+        if render_path_raw not in VALID_RENDER_PATHS:
+            return None, [
+                f"granulator render_path {render_path_raw!r} is not accepted "
+                f"(accepted: {sorted(VALID_RENDER_PATHS)})"
+            ]
+
         # P5b.18 — grain SELECTION rule. THIS is the load-bearing production trust
         # boundary (the live render IPC path) — schema.py::_validate_grain_selection
         # only fires on the .dna/import path (deserialize), which has no production
@@ -1410,6 +1435,7 @@ class ZMQServer:
                 axes=axes,
                 l_axis_enabled=l_enabled,
                 selection=selection_raw,  # type: ignore[arg-type]
+                render_path=render_path_raw,  # type: ignore[arg-type]
             )
         except Exception as e:  # noqa: BLE001 — structural construction guard
             return None, [f"granulator params invalid: {e}"]
@@ -1921,8 +1947,19 @@ class ZMQServer:
                     selection_strength=sel_strength,
                 )
                 _gran_t0 = time.time()
-                grain_frame = render_grain_layer(
-                    gran_source, cloud, resolution=resolution
+                # P5b.28 — dispatch CPU/GPU. PREVIEW path → is_export=False, so a
+                # 'gpu' render_path is honored (MLX); on ANY GPU error the
+                # dispatcher falls back to the CPU render_grain_layer (never
+                # crashes the render). Export NEVER reaches here (export composites
+                # via engine/compositor.render_composite on the CPU path), and the
+                # dispatcher additionally coerces 'gpu'→'cpu' under is_export.
+                grain_frame = render_grain_layer_dispatch(
+                    gran_source,
+                    cloud,
+                    resolution=resolution,
+                    render_path=gran_params.render_path,
+                    is_export=False,
+                    instance_id=gran_inst_id,
                 )
                 # Record THIS frame's grain-render eval time; the next frame's
                 # effective_density() reads it and degrades density if it blew
