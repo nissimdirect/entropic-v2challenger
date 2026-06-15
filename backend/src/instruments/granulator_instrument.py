@@ -198,6 +198,117 @@ class GranulatorParams:
                 ap.grain_env = _clamp_finite(ap.grain_env, 0.0, 1.0)
 
 
+def parse_granulator_layer(
+    gran_raw: dict,
+) -> tuple["GranulatorParams | None", list[str]]:
+    """Parse + validate a ``performance.granulator`` payload (TRUST BOUNDARY).
+
+    SHARED CONTRACT SOURCE — consumed by BOTH the preview render path
+    (``zmq_server._handle_render_composite``) and the EXPORT render path
+    (``engine.export.ExportManager._composite_export_frame``) so the two cannot
+    drift. Returns ``(params, errors)``. On ANY structural error returns
+    ``(None, [messages])`` so the caller rejects the render BEFORE any
+    decode/sample (per feedback_numeric-trust-boundary). All numerics are clamped
+    + finite-guarded by ``GranulatorParams.__post_init__``; this function rejects
+    only *structural* malformation (wrong types, grain count over the MAX_GRAINS
+    security cap, reserved/gated selection, unknown render_path) that a silent
+    clamp/coerce would otherwise mask.
+    """
+    errors: list[str] = []
+    if not isinstance(gran_raw, dict):
+        return None, ["granulator payload must be an object"]
+
+    # Density / grain count — reject over the hard MAX_GRAINS cap LOUDLY (a
+    # request asking for more grains than the security cap is malformed, not
+    # silently clamped — surfaces a corrupt/hostile project).
+    density_raw = gran_raw.get("density", gran_raw.get("grain_count", 4))
+    if not isinstance(density_raw, (int, float)) or isinstance(density_raw, bool):
+        return None, ["granulator density must be a number"]
+    if not math.isfinite(float(density_raw)):
+        return None, ["granulator density must be finite"]
+    if int(density_raw) > MAX_GRAINS:
+        return None, [
+            f"granulator density {int(density_raw)} exceeds MAX_GRAINS={MAX_GRAINS}"
+        ]
+    if int(density_raw) < 0:
+        return None, ["granulator density must be non-negative"]
+
+    window = gran_raw.get("window", "hann")
+    if not isinstance(window, str):
+        return None, ["granulator window must be a string"]
+
+    # Per-axis params. `axes` (when present) must be a dict of axis→params.
+    raw_axes = gran_raw.get("axes", {})
+    if raw_axes and not isinstance(raw_axes, dict):
+        return None, ["granulator axes must be an object"]
+    axes: dict[str, AxisParams] = {}
+    for ax, ap in (raw_axes or {}).items():
+        if not isinstance(ap, dict):
+            return None, [f"granulator axis {ax!r} params must be an object"]
+        # Numerics flow through AxisParams (clamped in __post_init__ of the
+        # parent); reject only non-numeric *types* here.
+        for key in ("grain", "jitter", "position", "grain_env"):
+            if key in ap and (
+                not isinstance(ap[key], (int, float)) or isinstance(ap[key], bool)
+            ):
+                return None, [f"granulator axis {ax!r} field {key!r} must be a number"]
+        axes[str(ax)] = AxisParams(
+            grain=float(ap.get("grain", 0.5)),
+            jitter=float(ap.get("jitter", 0.0)),
+            position=float(ap.get("position", 0.5)),
+            grain_env=float(ap.get("grain_env", 1.0)),
+        )
+
+    l_enabled = bool(gran_raw.get("l_axis_enabled", False))
+
+    # Preview render path ('cpu'|'gpu'). String accept-set trust boundary
+    # (mirrors `selection`): reject an unrecognised value LOUDLY rather than let
+    # GranulatorParams.__post_init__ silently coerce it to 'cpu' (a
+    # no-silent-fallback violation on a hand-edited payload). Absent → 'cpu'
+    # (regression-safe; the deterministic byte-identity baseline).
+    render_path_raw = gran_raw.get("render_path", "cpu")
+    if not isinstance(render_path_raw, str):
+        return None, ["granulator render_path must be a string"]
+    if render_path_raw not in VALID_RENDER_PATHS:
+        return None, [
+            f"granulator render_path {render_path_raw!r} is not accepted "
+            f"(accepted: {sorted(VALID_RENDER_PATHS)})"
+        ]
+
+    # grain SELECTION rule. REJECT here BEFORE GranulatorParams construction: a
+    # flag-off `latentSimilarity` or the reserved `scenePayload` must fail LOUDLY,
+    # never get silently coerced to "random" by GranulatorParams.__post_init__
+    # (that silent fallback would be a no-silent-fallback violation on a hostile /
+    # hand-edited payload). Absent → defaults to "random" (regression-safe).
+    selection_raw = gran_raw.get("selection", "random")
+    if not isinstance(selection_raw, str):
+        return None, ["granulator selection must be a string"]
+    accepted_sel = accepted_selection_rules()
+    if selection_raw not in accepted_sel:
+        if selection_raw in RESERVED_SELECTION_RULES:
+            return None, [
+                f"granulator selection {selection_raw!r} is reserved — no "
+                f"scene-detection source exists (accepted: {sorted(accepted_sel)})"
+            ]
+        return None, [
+            f"granulator selection {selection_raw!r} is not accepted "
+            f"(flag-gated/unknown; accepted: {sorted(accepted_sel)})"
+        ]
+
+    try:
+        params = GranulatorParams(
+            density=int(density_raw),
+            window=window,  # type: ignore[arg-type]
+            axes=axes,
+            l_axis_enabled=l_enabled,
+            selection=selection_raw,  # type: ignore[arg-type]
+            render_path=render_path_raw,  # type: ignore[arg-type]
+        )
+    except Exception as e:  # noqa: BLE001 — structural construction guard
+        return None, [f"granulator params invalid: {e}"]
+    return params, errors
+
+
 @dataclass
 class GrainDescriptor:
     """A single grain's computed descriptor — pure data, no pixels.
