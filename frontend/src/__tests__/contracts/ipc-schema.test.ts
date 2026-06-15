@@ -153,6 +153,8 @@ describe('IPC Contract', () => {
       'mask_wand_sample',
       'memory_status',
       'ping',
+      // P5b.1 SG-8 live-gate — memory-pressure poll
+      'pressure_status',
       // P6.7 probe commands (I1 backend)
       'probe_mount',
       'probe_register',
