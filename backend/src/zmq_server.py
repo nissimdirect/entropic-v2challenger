@@ -27,6 +27,15 @@ from engine.composite_tree import (
 )
 from engine.decoded_frame_cache import DecodedFrameCache
 from engine.frame_bank import resolve_frame_bank_layer
+from instruments.granulator_instrument import (
+    AxisParams,
+    BudgetController,
+    GranulatorParams,
+    MAX_GRAINS,
+    grain_cloud,
+    register_sg8_density_hook,
+    render_grain_layer,
+)
 from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
     apply_chain,
@@ -162,6 +171,20 @@ class ZMQServer:
         # monitor threshold crossings (see safety/pressure/monitor.py
         # _evaluate_and_fire seam). stop() is called in close().
         self.pressure_monitor = PressureMonitor(registry=global_registry())
+        # P5b.17 (SG-8): register the B8 Granulator's density-halving degrade
+        # hook against canonical stage `a1_grain_density_halved` (order #3:
+        # latent grains → spectral → density). When memory pressure crosses that
+        # threshold the monitor fires the hook, latching half-density until
+        # restore. Idempotent at the registry (unregister-first by label), so
+        # constructing a second server in one process does not duplicate the hook.
+        register_sg8_density_hook(global_registry())
+        # P5b.17: previous grain-render eval time (ms), fed into the budget
+        # controller so a frame that blew the 16ms budget degrades subsequent
+        # density. The controller (TIGER 3 fix) carries a sticky degrade floor
+        # with a recovery deadband so the budget guard CONVERGES instead of
+        # strobing full↔half every frame.
+        self._granulator_last_frame_ms: float | None = None
+        self._granulator_budget = BudgetController()
         # SG-3 clause-2 (P5b.4): render-output NaN/Inf gate state.
         #   _last_good_frames: last finite preview frame PER (path-tag, shape),
         #     served in place of a NaN/Inf frame so a glitched lane never ships a
@@ -191,6 +214,12 @@ class ZMQServer:
         for reader in self.readers.values():
             reader.close()
         self.readers.clear()
+
+        # P5b.17: reset the granulator budget controller so a new project starts
+        # at full density (no carried-over degrade floor from the prior session).
+        self._granulator_last_frame_ms = None
+        if hasattr(self, "_granulator_budget"):
+            self._granulator_budget.reset()
 
         # Clear waveform cache
         self._waveform_cache.clear()
@@ -1257,6 +1286,79 @@ class ZMQServer:
             )
         return reader.decode_frame(frame_index)
 
+    @staticmethod
+    def _parse_granulator_layer(
+        gran_raw: dict,
+    ) -> tuple[GranulatorParams | None, list[str]]:
+        """Parse + validate a `performance.granulator` payload (TRUST BOUNDARY).
+
+        Returns (params, errors). On ANY structural error, returns
+        (None, [messages]) so the caller rejects the render BEFORE any
+        decode/sample (per feedback_numeric-trust-boundary). All numerics are
+        clamped + finite-guarded by GranulatorParams.__post_init__; this method
+        rejects only *structural* malformation (wrong types, grain count over the
+        MAX_GRAINS security cap) that a silent clamp would otherwise mask.
+        """
+        errors: list[str] = []
+        if not isinstance(gran_raw, dict):
+            return None, ["granulator payload must be an object"]
+
+        # Density / grain count — reject over the hard MAX_GRAINS cap LOUDLY (a
+        # request asking for more grains than the security cap is malformed, not
+        # silently clamped — surfaces a corrupt/hostile project).
+        density_raw = gran_raw.get("density", gran_raw.get("grain_count", 4))
+        if not isinstance(density_raw, (int, float)) or isinstance(density_raw, bool):
+            return None, ["granulator density must be a number"]
+        if not math.isfinite(float(density_raw)):
+            return None, ["granulator density must be finite"]
+        if int(density_raw) > MAX_GRAINS:
+            return None, [
+                f"granulator density {int(density_raw)} exceeds MAX_GRAINS={MAX_GRAINS}"
+            ]
+        if int(density_raw) < 0:
+            return None, ["granulator density must be non-negative"]
+
+        window = gran_raw.get("window", "hann")
+        if not isinstance(window, str):
+            return None, ["granulator window must be a string"]
+
+        # Per-axis params. `axes` (when present) must be a dict of axis→params.
+        raw_axes = gran_raw.get("axes", {})
+        if raw_axes and not isinstance(raw_axes, dict):
+            return None, ["granulator axes must be an object"]
+        axes: dict[str, AxisParams] = {}
+        for ax, ap in (raw_axes or {}).items():
+            if not isinstance(ap, dict):
+                return None, [f"granulator axis {ax!r} params must be an object"]
+            # Numerics flow through AxisParams (clamped in __post_init__ of the
+            # parent); reject only non-numeric *types* here.
+            for key in ("grain", "jitter", "position", "grain_env"):
+                if key in ap and (
+                    not isinstance(ap[key], (int, float)) or isinstance(ap[key], bool)
+                ):
+                    return None, [
+                        f"granulator axis {ax!r} field {key!r} must be a number"
+                    ]
+            axes[str(ax)] = AxisParams(
+                grain=float(ap.get("grain", 0.5)),
+                jitter=float(ap.get("jitter", 0.0)),
+                position=float(ap.get("position", 0.5)),
+                grain_env=float(ap.get("grain_env", 1.0)),
+            )
+
+        l_enabled = bool(gran_raw.get("l_axis_enabled", False))
+
+        try:
+            params = GranulatorParams(
+                density=int(density_raw),
+                window=window,  # type: ignore[arg-type]
+                axes=axes,
+                l_axis_enabled=l_enabled,
+            )
+        except Exception as e:  # noqa: BLE001 — structural construction guard
+            return None, [f"granulator params invalid: {e}"]
+        return params, errors
+
     def _handle_render_composite(self, message: dict, msg_id: str | None) -> dict:
         raw_layers = message.get("layers", [])
         raw_res = message.get("resolution", [1920, 1080])
@@ -1547,6 +1649,97 @@ class ZMQServer:
                             blend_mode=sanitized.get("blendMode", "normal"),
                         )
                     )
+
+            # --- P5b.17 — B8 Granulator render arm -----------------------------
+            # When the render carries `performance.granulator`, the granulator
+            # SAMPLES an existing decoded layer (the first video/image frame in
+            # `layers`, or a transparent frame if none), produces a seeded grain
+            # cloud (P5b.16 engine), composites the grains into ONE RGBA layer,
+            # and appends it as a single voice layer (mirrors the frameBank arm:
+            # validate-before-decode, ONE layer out, voice-keyed). Absent /
+            # malformed-empty `granulator` → no layer appended → byte-identical
+            # (regression-safe). ROLLBACK: this whole `if gran_raw:` block is the
+            # named dispatch-arm hunk — delete it to revert the granulator render.
+            gran_raw = (performance or {}).get("granulator")
+            if gran_raw:
+                gran_params, gran_errors = self._parse_granulator_layer(gran_raw)
+                # TRUST BOUNDARY: reject malformed params BEFORE any decode/sample
+                # (every numeric clamped + finite-guarded; bad shape → loud reject,
+                # never a silent default that masks a corrupt project).
+                if gran_errors:
+                    return {
+                        "id": msg_id,
+                        "ok": False,
+                        "error": "; ".join(gran_errors),
+                    }
+
+                # Render-budget guard (TIGER 3): the stateful BudgetController
+                # advances one frame from the PREVIOUS grain-render eval time. It
+                # carries a sticky degrade floor with a recovery deadband (trip at
+                # >16ms, recover only after sustained <12ms) so density CONVERGES
+                # instead of strobing full↔half. SG-8 memory pressure is applied
+                # multiplicatively inside step().
+                density = self._granulator_budget.step(
+                    gran_params.density,
+                    last_frame_ms=self._granulator_last_frame_ms,
+                )
+                gran_params.density = density
+
+                # Source = first decoded video/image/text frame already in
+                # `layers` (the layer the granulator operates on). None → a
+                # transparent source (grains sample nothing → transparent layer;
+                # still ONE layer out).
+                gran_source = None
+                for _layer in layers:
+                    _f = _layer.get("frame")
+                    if isinstance(_f, np.ndarray) and _f.size:
+                        gran_source = _f
+                        break
+                if gran_source is None:
+                    gran_source = np.zeros(
+                        (resolution[1], resolution[0], 4), dtype=np.uint8
+                    )
+
+                gran_anchor = min(
+                    (int(layer.get("frame_index", 0)) for layer in layers),
+                    default=0,
+                )
+                gran_seed = int(project_seed) if isinstance(project_seed, int) else 0
+                gran_inst_id = str(gran_raw.get("instrument_id", "granulator"))[:128]
+
+                cloud = grain_cloud(gran_seed, gran_inst_id, gran_anchor, gran_params)
+                _gran_t0 = time.time()
+                grain_frame = render_grain_layer(
+                    gran_source, cloud, resolution=resolution
+                )
+                # Record THIS frame's grain-render eval time; the next frame's
+                # effective_density() reads it and degrades density if it blew
+                # the 16ms budget (per-frame back-pressure).
+                self._granulator_last_frame_ms = (time.time() - _gran_t0) * 1000.0
+
+                gran_op = gran_raw.get("opacity", 1.0)
+                if not isinstance(gran_op, (int, float)) or gran_op != gran_op:
+                    gran_op = 1.0
+                gran_op = max(0.0, min(1.0, float(gran_op)))
+                gran_blend = gran_raw.get("blend_mode", "normal")
+                if not isinstance(gran_blend, str):
+                    gran_blend = "normal"
+                gran_vid = "".join(
+                    c if c.isalnum() or c in "_-" else "_"
+                    for c in f"gran_{gran_inst_id}"[:128]
+                )
+                layers.append(
+                    {
+                        "frame": grain_frame,
+                        "chain": [],
+                        "frame_index": gran_anchor,
+                        "voice_id": gran_vid,
+                        "layer_id": f"granulator:{gran_vid}",
+                        "opacity": gran_op,
+                        "blend_mode": gran_blend,
+                    }
+                )
+            # -------------------------------------------------------------------
 
             # Build a layer signature from ordered layer_ids — invalidates cache
             # on add/remove/reorder. Use the smallest frame_index across layers
