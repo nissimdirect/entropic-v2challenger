@@ -99,7 +99,14 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
     set({ ccMappings: ccMappings.filter((_, i) => i !== index) });
   },
 
-  clearCCMappings: () => set({ ccMappings: [], ccValues: {} }),
+  clearCCMappings: () => {
+    // Bug #16 fix: cancel any pending trailing-edge flush timers before clearing
+    // ccValues. Without this, a deferred setTimeout flush scheduled mid-CC-burst
+    // would fire AFTER the clear and resurrect a stale CC value into ccValues.
+    // Mirror the timer-cancel pattern used in resetMIDI (which calls _resetCCLimiter).
+    _resetCCLimiter();
+    set({ ccMappings: [], ccValues: {} });
+  },
 
   setLearnTarget: (target) => set({ learnTarget: target }),
   setIsSupported: (supported) => set({ isSupported: supported }),
