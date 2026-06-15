@@ -148,7 +148,7 @@
 .granulator-device__viz-canvas {
   border: 1px solid var(--cx-line-2);
   border-radius: 3px;
-  background: #141414;
+  background: var(--cx-bg-app);
   display: block;
   /* Fixed height so the canvas doesn't collapse; width flexible. */
   height: 80px;
