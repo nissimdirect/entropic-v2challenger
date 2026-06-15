@@ -460,15 +460,22 @@ interface TrackLaneProps {
 
 const EMPTY_LANES: never[] = []
 
-function LaneBadges({ trackId }: { trackId: string }) {
+export function LaneBadges({ trackId }: { trackId: string }) {
   const lanes = useAutomationStore((s) => s.lanes[trackId]) ?? EMPTY_LANES
+  // SG-3 clause-3 consumer (audit medium #1): when the sentinel has aborted a
+  // lane, the abort set is non-empty. lane_id is always "unknown" (the output
+  // gate cannot trace the specific lane), so we show the MUTED badge + dimmed
+  // styling on any track that carries an automation lane.
+  const sg3Aborted = useAutomationStore((s) => s.sg3AbortedLaneIds)
   const hasTrigger = lanes.some((l) => isTriggerLane(l))
   const hasAuto = lanes.some((l) => !isTriggerLane(l))
+  const isMuted = sg3Aborted.size > 0 && hasAuto
   if (!hasTrigger && !hasAuto) return null
   return (
-    <div className="track-header__badges">
+    <div className={`track-header__badges${isMuted ? ' track-header__badges--muted' : ''}`}>
       {hasTrigger && <span className="track-header__badge track-header__badge--trig">TRIG</span>}
       {hasAuto && <span className="track-header__badge track-header__badge--auto">AUTO</span>}
+      {isMuted && <span className="track-header__badge track-header__badge--muted">MUTED</span>}
     </div>
   )
 }

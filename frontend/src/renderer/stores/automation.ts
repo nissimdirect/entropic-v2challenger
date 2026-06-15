@@ -53,9 +53,13 @@ interface AutomationState {
 
   // SG-3 clause-3: muted lane IDs from the sentinel's lane_aborted reply field.
   // lane_id in the backend reply is "unknown" (the output gate cannot identify
-  // the specific modulation lane that produced the corrupt frame), so we store
-  // the sentinel-reported abort key and let the UI display a warning badge on all
-  // visible lanes.  The user can clear the flag with `clearSg3Abort()`.
+  // the specific modulation lane that produced the corrupt frame), so a non-empty
+  // set means "an SG-3 abort is active". Two consumers read it (audit medium #1):
+  //   1. App.tsx's render-frame chain build suppresses automation lane payloads
+  //      while the set is non-empty (stops re-sending the corrupt automation).
+  //   2. LaneBadges (Track.tsx) renders a MUTED badge + dimmed styling on tracks
+  //      that have automation lanes while the set is non-empty.
+  // The user clears it with `clearSg3Abort()` / `clearAllSg3Aborts()`.
   sg3AbortedLaneIds: ReadonlySet<string>
   /** Mark a lane as SG-3 aborted (from the lane_aborted IPC reply field). */
   markSg3Aborted: (laneId: string) => void

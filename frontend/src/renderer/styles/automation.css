@@ -194,6 +194,19 @@
   border: 1px solid rgba(74, 222, 128, 0.4);
 }
 
+/* SG-3 clause-3 (audit medium #1): MUTED badge shown when the sentinel has
+   aborted an automation lane. The containing row is dimmed so the AUTO badge
+   reads as inactive while the abort is live. */
+.track-header__badge--muted {
+  background: rgba(239, 68, 68, 0.3);
+  color: var(--cx-danger-text);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+}
+
+.track-header__badges--muted .track-header__badge--auto {
+  opacity: 0.4;
+}
+
 /* --- Trigger Lane Blocks --- */
 
 .auto-lane--trigger {
