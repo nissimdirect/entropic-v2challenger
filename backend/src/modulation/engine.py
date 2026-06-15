@@ -48,10 +48,6 @@ class CycleBreakDecision:
     has_cycle: bool
     survivor_edges: frozenset[tuple[int, int]] = field(default_factory=frozenset)
     removed_edge_ids: tuple[str, ...] = field(default_factory=tuple)
-    sorted_operators: tuple[dict, ...] | None = field(default=None)
-    # op_id → declaration index, needed to re-run _sort_with_edge_set on
-    # any truncated slice (operators[:MAX_OPERATORS]).
-    op_index_map: dict[str, int] = field(default_factory=dict)
 
 
 class ModulationCycleError(Exception):
@@ -225,7 +221,6 @@ def compute_cycle_break_decision(operators: list[dict]) -> "CycleBreakDecision":
         has_cycle=True,
         survivor_edges=survivors,
         removed_edge_ids=tuple(removed),
-        op_index_map=dict(op_idx),
     )
 
 
@@ -275,11 +270,6 @@ def topological_sort_with_runtime(
     # (feedback_silent-exception-swallowing).
     # When runtime_context is None the guard is bypassed entirely — zero overhead
     # on the hot static path.
-    _SEAM_WARNED: set[int] = getattr(
-        topological_sort_with_runtime, "_seam_warned_ids", set()
-    )
-    topological_sort_with_runtime._seam_warned_ids = _SEAM_WARNED  # type: ignore[attr-defined]
-
     has_runtime = False
     augmented = operators
     if runtime_context is not None:
@@ -298,9 +288,17 @@ def topological_sort_with_runtime(
                 if active:
                     augmented = _fold_conditional_edges(operators, active)
         except Exception as exc:  # noqa: BLE001
-            ctx_id = id(runtime_context)
-            if ctx_id not in _SEAM_WARNED:
-                _SEAM_WARNED.add(ctx_id)
+            # One-shot warn per actual RuntimeContext INSTANCE (not per CPython
+            # id() address, which is recycled after GC and causes false
+            # suppression across distinct objects). Use a guarded setattr so
+            # the flag travels with the object regardless of address reuse.
+            if not getattr(runtime_context, "_seam_warned", False):
+                try:
+                    runtime_context._seam_warned = True  # type: ignore[attr-defined]
+                except (AttributeError, TypeError):
+                    # setattr blocked (e.g. __slots__ without _seam_warned or a
+                    # C-extension type): fall back to always-log rather than crash.
+                    pass
                 logger.warning(
                     "SG-5 seam guard: malformed/raising RuntimeContext degraded to"
                     " static sort (logged once per context). reason=%r",

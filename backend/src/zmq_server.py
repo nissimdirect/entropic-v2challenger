@@ -38,6 +38,7 @@ from instruments.granulator_instrument import (
     grain_cloud,
     register_sg8_density_hook,
     select_grain_weights,
+    select_random_grain_weights,
 )
 from instruments.granulator_gpu import (
     register_sg8_texture_pool_hook,
@@ -1896,34 +1897,40 @@ class ZMQServer:
                         onset_params = gran_raw.get("onset_params")
                         if not isinstance(onset_params, dict):
                             onset_params = {}
-                        sel_weights, _ = select_grain_weights(
-                            "onset",
+                        # Compute onset FFT ONCE per frame (audit #12: dedup).
+                        # evaluate_audio returns (strength, state_out); we
+                        # thread state_out forward so spectral-flux has its
+                        # previous spectrum.  The bias weights are then derived
+                        # from that single strength value using the same formula
+                        # as select_onset_grain_weights — no second FFT call.
+                        from modulation.audio_follower import evaluate_audio
+
+                        _onset_strength_raw, self._granulator_onset_state = (
+                            evaluate_audio(
+                                pcm_arr,
+                                "onset",
+                                onset_params,
+                                sample_rate,
+                                self._granulator_onset_state,
+                            )
+                        )
+                        sel_strength = (
+                            max(0.0, min(1.0, float(_onset_strength_raw)))
+                            if math.isfinite(_onset_strength_raw)
+                            else 0.0
+                        )
+                        # Build per-grain T-weights from the single onset strength
+                        # (mirrors select_onset_grain_weights without a second FFT).
+                        _base_weights = select_random_grain_weights(
                             gran_seed,
                             gran_inst_id,
                             gran_anchor,
                             gran_params.density,
-                            pcm=pcm_arr,
-                            sample_rate=sample_rate,
-                            audio_state=self._granulator_onset_state,
-                            onset_params=onset_params,
                         )
-                        # Onset bias strength = the onset trigger value for this
-                        # frame, derived from the follower. Recompute it once so the
-                        # bias amount tracks the transient (0 with no audio → random).
-                        from modulation.audio_follower import evaluate_audio
-
-                        strength, self._granulator_onset_state = evaluate_audio(
-                            pcm_arr,
-                            "onset",
-                            onset_params,
-                            sample_rate,
-                            self._granulator_onset_state,
-                        )
-                        sel_strength = (
-                            max(0.0, min(1.0, float(strength)))
-                            if math.isfinite(strength)
-                            else 0.0
-                        )
+                        sel_weights = [
+                            max(0.0, min(1.0, w + (1.0 - w) * sel_strength))
+                            for w in _base_weights
+                        ]
                     elif gran_params.selection == "random":
                         # Seeded weights computed but strength 0 → no T-bias, so the
                         # descriptor set is byte-identical to the pre-P5b.18 engine.

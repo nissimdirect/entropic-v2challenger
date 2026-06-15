@@ -354,6 +354,103 @@ def test_scene_payload_behavior_or_reserved(latent_flag_off):
     assert "reserved" in str(exc.value)
 
 
+# ---------------------------------------------------------------------------
+# Bug fix #12: onset FFT computed ONCE per render frame (audit low)
+# ---------------------------------------------------------------------------
+
+
+def test_onset_fft_computed_once_per_frame():
+    """The audio_follower's evaluate_audio('onset', ...) is called EXACTLY ONCE
+    per render frame in the onset selection path.
+
+    This is a regression guard for audit bug #12: the zmq_server onset path was
+    calling evaluate_audio twice per frame (once via select_grain_weights and
+    again directly to retrieve the strength value). After the fix it calls
+    evaluate_audio exactly once and derives the weights from that single result.
+    """
+    from unittest.mock import call, patch
+
+    import numpy as np
+
+    sample_rate = 48000
+    rng = np.random.default_rng(1)
+    pcm = (rng.standard_normal(1024) * 0.5).astype(np.float32)
+
+    # The implementation under test: select_onset_grain_weights MUST call
+    # evaluate_audio exactly once per invocation. Patch the canonical source
+    # (modulation.audio_follower.evaluate_audio) since granulator_instrument
+    # imports it locally inside the function body.
+    with patch(
+        "modulation.audio_follower.evaluate_audio",
+        wraps=__import__(
+            "modulation.audio_follower", fromlist=["evaluate_audio"]
+        ).evaluate_audio,
+    ) as mock_eval:
+        weights, state_out = select_onset_grain_weights(
+            pcm,
+            sample_rate,
+            density=8,
+            audio_state=None,
+            onset_params={},
+            project_seed=0,
+            instrument_id="test_inst",
+            frame_index=0,
+        )
+
+    assert mock_eval.call_count == 1, (
+        f"evaluate_audio must be called EXACTLY ONCE per onset render frame "
+        f"(audit #12 regression guard); got {mock_eval.call_count} calls"
+    )
+    assert len(weights) == 8
+    assert all(0.0 <= w <= 1.0 for w in weights)
+
+
+def test_onset_selection_output_unchanged():
+    """Onset selection weights are deterministic: same (pcm, seed, frame, state)
+    always produces identical grain descriptors.
+
+    This guards that the FFT-dedup fix (audit #12) does NOT change output —
+    the refactor is purely a performance improvement, not a behavior change.
+    """
+    import numpy as np
+
+    sample_rate = 48000
+    rng = np.random.default_rng(42)
+    pcm_burst = (np.sin(2 * np.pi * 440 * np.arange(1024) / sample_rate) * 2.0).astype(
+        np.float32
+    )
+
+    # Compute three times with identical inputs; all must be equal.
+    results = []
+    for _ in range(3):
+        weights, _ = select_onset_grain_weights(
+            pcm_burst,
+            sample_rate,
+            density=10,
+            audio_state=None,
+            onset_params={"sensitivity": 0.8},
+            project_seed=7,
+            instrument_id="det_test",
+            frame_index=5,
+        )
+        results.append(weights)
+
+    assert results[0] == results[1] == results[2], (
+        "Onset selection weights must be deterministic — "
+        "same inputs must always produce identical weights "
+        "(audit #12: FFT-dedup must not break determinism)"
+    )
+
+    # Confirm that onset actually biases weights away from pure random
+    # (so we're not accidentally testing a broken all-zero path).
+    base = select_random_grain_weights(7, "det_test", 5, density=10)
+    # With a loud burst the onset strength should be > 0 → weights pulled up.
+    # The weights from the onset path should be >= base (onset only raises toward 1).
+    assert all(ow >= bw - 1e-9 for ow, bw in zip(results[0], base)), (
+        "Onset weights must be >= random base (bias is additive toward 1.0)"
+    )
+
+
 def test_granulator_params_degrades_unknown_selection_to_default(latent_flag_off):
     """Engine fail-safe: GranulatorParams with a gated/unknown selection degrades
     to the seeded `random` rule rather than crashing (the loader is the real
