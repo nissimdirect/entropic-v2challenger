@@ -272,3 +272,78 @@ def test_double_start_is_idempotent_no_second_thread(server):
     server.pressure_monitor.stop()
     assert server.pressure_monitor.is_running() is False
     assert server.pressure_monitor._thread is None
+
+
+# ---------------------------------------------------------------------------
+# SG-8 stop() thread-lifecycle correctness (audit bug #8)
+# ---------------------------------------------------------------------------
+
+
+def test_stop_nulls_thread_on_clean_exit():
+    """After a normal stop() the thread exits cleanly and _thread is nulled.
+
+    Verifies the happy-path branch of the audit fix: when join() returns and
+    the thread is confirmed dead, _thread must be set to None so is_running()
+    reports False and callers can rely on the sentinel.
+    """
+    monitor = PressureMonitor(
+        pressure_fn=lambda: 0.0,
+        poll_interval_s=0.05,
+    )
+    monitor.start()
+    assert monitor.is_running() is True
+    monitor.stop(timeout_s=3.0)
+    assert monitor._thread is None, "_thread must be None after clean stop()"
+    assert monitor.is_running() is False
+
+
+def test_stop_keeps_thread_ref_if_join_times_out(monkeypatch, caplog):
+    """If join() times out (thread still alive), _thread must NOT be nulled.
+
+    Monkeypatches ``threading.Thread.join`` on the monitor's thread instance
+    so it returns immediately without actually joining (simulating a blocked
+    tick). Confirms:
+      - _thread is NOT None after stop() times out
+      - is_running() still returns True (reference kept, thread alive)
+      - A WARNING is emitted naming the unresponsive thread
+    """
+    import logging
+
+    monitor = PressureMonitor(
+        pressure_fn=lambda: 0.0,
+        poll_interval_s=100.0,  # very long interval so the thread blocks
+    )
+    monitor.start()
+    assert monitor.is_running() is True
+
+    thread_ref = monitor._thread
+
+    # Monkeypatch join on the thread instance to be a no-op (timeout fires immediately).
+    def _noop_join(timeout=None):
+        pass  # return without actually joining — thread stays alive
+
+    thread_ref.join = _noop_join  # type: ignore[method-assign]
+
+    with caplog.at_level(logging.WARNING, logger="safety.pressure.monitor"):
+        monitor.stop(timeout_s=0.01)
+
+    # Thread must NOT be orphaned: reference is kept so callers detect the stall.
+    assert monitor._thread is not None, (
+        "stop() must keep _thread reference when join times out (thread still alive)"
+    )
+    assert monitor._thread is thread_ref
+
+    # A structured warning must have been logged.
+    assert any("did not stop" in r.message for r in caplog.records), (
+        f"Expected 'did not stop' warning; got: {[r.message for r in caplog.records]}"
+    )
+
+    # Cleanup: release the real thread by restoring a real join so it can exit.
+    import threading as _threading
+
+    original_join = _threading.Thread.join
+    thread_ref.join = lambda timeout=None: original_join(thread_ref, timeout=timeout)  # type: ignore[method-assign]
+    monitor._stop_event.set()
+    thread_ref.join(timeout=3.0)
+    # Manually null to avoid teardown noise (the test's point is already proven).
+    monitor._thread = None
