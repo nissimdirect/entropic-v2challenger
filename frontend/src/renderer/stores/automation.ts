@@ -12,9 +12,18 @@ import { validateLaneAxisBinding, type LaneAxisBinding, type Axis } from '../../
 // Tier-4+). The canonical validateLaneAxisBinding only tier-gates bindingRule, so
 // we add this domain guard to match the spec. Returns null if ok, else an error.
 const TIER1_DOMAINS: ReadonlyArray<Axis> = ['t', 'y', 'x']
+// P5b.21 (B9): the shared TIER_1_BINDING_RULES widened to the 4 mod-routing
+// rules, but lane RENDERING still only implements `broadcast` — so lanes keep
+// their own narrower rule set here. Widening lanes would be a half-state
+// (accepted but not honored by the lane renderer). Mod-routing edges use the
+// widened set via validateModRouteBindingRule in the operator store.
+const LANE_TIER1_RULES: ReadonlyArray<LaneAxisBinding['bindingRule']> = ['broadcast']
 function validateLaneAxisTier1(binding: LaneAxisBinding): string | null {
   if (!TIER1_DOMAINS.includes(binding.domain)) {
     return `domain '${binding.domain}' requires a later tier; Tier 1 supports t, y, x`
+  }
+  if (!LANE_TIER1_RULES.includes(binding.bindingRule)) {
+    return `bindingRule '${binding.bindingRule}' requires tier 3; lane Tier 1 supports only 'broadcast'`
   }
   return validateLaneAxisBinding(binding, 1)
 }

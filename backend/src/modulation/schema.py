@@ -15,6 +15,7 @@ downconvert or refuse. Values are CANONICAL camelCase, identical to the frontend
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -64,9 +65,55 @@ class LoopMode(str, Enum):
     PING_PONG = "ping_pong"
 
 
-# Tier 1 implementation surface: only broadcast is wired into the engine.
-# Writer-side validator rejects anything else on save.
-TIER1_IMPLEMENTED_RULES: frozenset[BindingRule] = frozenset({BindingRule.BROADCAST})
+# P5b.21 (B9 tensor mod-routing): Tier 1 now implements the FOUR binding rules
+# broadcast / sampleAt / scanOver / integrate. This widening is LOCKSTEP with the
+# engine renderer (P5b.22, modulation/routing.py) — the resolver honors exactly
+# these four. The other four (painted / hilbert / polar / learned) are flag-gated
+# research rules: accepted by the schema (forward-compat read) but REJECTED by the
+# writer-side validator AND the loader trust boundary when their flag is off.
+TIER1_IMPLEMENTED_RULES: frozenset[BindingRule] = frozenset(
+    {
+        BindingRule.BROADCAST,
+        BindingRule.SAMPLE_AT,
+        BindingRule.SCAN_OVER,
+        BindingRule.INTEGRATE,
+    }
+)
+
+# The four flag-gated research rules. NOT implemented in the engine; gated behind
+# EXPERIMENTAL_AXIS_BINDINGS. Mirrors the frontend RESEARCH_BINDING_RULES set.
+RESEARCH_BINDING_RULES: frozenset[BindingRule] = frozenset(
+    {
+        BindingRule.PAINTED,
+        BindingRule.HILBERT,
+        BindingRule.POLAR,
+        BindingRule.LEARNED,
+    }
+)
+
+
+def experimental_axis_bindings_enabled() -> bool:
+    """Read the EXPERIMENTAL_AXIS_BINDINGS env flag (true/1/yes/on).
+
+    When OFF (default), the four research binding rules (painted/hilbert/polar/
+    learned) are REJECTED at the writer + loader trust boundaries. Mirrors the
+    EXPERIMENTAL_AUDIO_TRACKS flag-reader convention in zmq_server.py.
+    """
+    val = os.environ.get("EXPERIMENTAL_AXIS_BINDINGS", "").strip().lower()
+    return val in {"true", "1", "yes", "on"}
+
+
+def accepted_binding_rules() -> frozenset[BindingRule]:
+    """The currently-accepted binding-rule set.
+
+    Always includes the four implemented Tier-1 rules; adds the four research
+    rules ONLY when EXPERIMENTAL_AXIS_BINDINGS is on. This is the authoritative
+    accept-set consulted by the loader (project/schema.py) and the writer-side
+    validator.
+    """
+    if experimental_axis_bindings_enabled():
+        return TIER1_IMPLEMENTED_RULES | RESEARCH_BINDING_RULES
+    return TIER1_IMPLEMENTED_RULES
 
 
 @dataclass(frozen=True)
@@ -148,18 +195,22 @@ class UnimplementedBindingRuleError(ValueError):
 def validate_for_save(edge: ModEdge) -> None:
     """B4-lite writer-side validator (Vision §6 B4-lite).
 
-    Rejects any binding_rule that is not yet implemented in the current tier.
-    Tier 1 implements only `broadcast`. Future tiers will widen TIER1_IMPLEMENTED_RULES.
+    Rejects any binding_rule outside the currently-accepted set. P5b.21 (B9)
+    widened Tier 1 to broadcast / sampleAt / scanOver / integrate; the four
+    research rules (painted/hilbert/polar/learned) are accepted ONLY when
+    EXPERIMENTAL_AXIS_BINDINGS is on.
 
-    This prevents schema-vs-implementation drift: the schema accepts all 5 rules
+    This prevents schema-vs-implementation drift: the schema accepts all 8 rules
     forever (forward-compat read), but the writer refuses to save a rule that
     the engine cannot honor today.
     """
-    if edge.binding_rule not in TIER1_IMPLEMENTED_RULES:
-        implemented = sorted(r.value for r in TIER1_IMPLEMENTED_RULES)
+    accepted = accepted_binding_rules()
+    if edge.binding_rule not in accepted:
+        impl = sorted(r.value for r in accepted)
         raise UnimplementedBindingRuleError(
-            f"binding_rule={edge.binding_rule.value!r} not implemented in Tier 1. "
-            f"Implemented rules: {implemented}. "
+            f"binding_rule={edge.binding_rule.value!r} not accepted "
+            f"(flag-gated research rule with EXPERIMENTAL_AXIS_BINDINGS off). "
+            f"Accepted rules: {impl}. "
             f"Edge: {edge.src}.{edge.src_axis.value} -> {edge.dst}.{edge.dst_axis.value}"
         )
 

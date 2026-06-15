@@ -2,7 +2,7 @@
  * Entropic v2 — Core data types.
  * Matches DATA-SCHEMAS.md. Python must serialize/deserialize these exact shapes.
  */
-import type { LaneAxisBinding } from './axis-binding'
+import type { Axis, BindingRule, LaneAxisBinding } from './axis-binding'
 import type { FieldRefValue } from './field-param'
 
 // --- Param values ---
@@ -589,6 +589,20 @@ export interface OperatorMapping {
   // → reads the operator's master value (legacy behavior). Serialized as
   // snake_case `source_key`.
   sourceKey?: string;
+  // P5b.21 (B9 tensor mod-routing): optional axis-extended routing fields.
+  // A source value sampled over `srcAxis` is mapped to a destination over
+  // `dstAxis` per `bindingRule`. ALL THREE are OPTIONAL and additive:
+  //   absent → srcAxis='t', dstAxis='t', bindingRule='broadcast'  (legacy
+  //   byte-identical scalar→all behavior). Removing the fields restores the
+  //   old behavior exactly (ROLLBACK guarantee).
+  // The accept-set is the 4 implemented rules (broadcast/sampleAt/scanOver/
+  // integrate); the 4 research rules (painted/hilbert/polar/learned) are
+  // flag-gated and REJECTED at the loader trust boundary (backend
+  // project/schema.py), NOT here. Serialized snake_case: src_axis / dst_axis /
+  // binding_rule.
+  srcAxis?: Axis;
+  dstAxis?: Axis;
+  bindingRule?: BindingRule;
 }
 
 export type VideoAnalyzerMethod = 'luminance' | 'motion' | 'color' | 'edges' | 'histogram_peak';

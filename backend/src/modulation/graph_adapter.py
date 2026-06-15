@@ -75,34 +75,60 @@ def operators_to_routing_graph(operators: list[dict]) -> RoutingGraph:
     # Second pass: edges. Ordinal counter per (src, dst) keeps ids unique +
     # deterministic so duplicate references roundtrip without collision.
     edge_ordinals: dict[tuple[str, str], int] = {}
+
+    def _add_edge(src_id: str, consumer_id: str, dst_param: str) -> None:
+        """Add a deterministic source→consumer edge (skips dangling / self).
+
+        BOTH endpoints must be present OPERATOR nodes. A mapping whose target is a
+        real effect id (not an operator) names a consumer that is not in the
+        graph — it is NOT an operator-to-operator edge and is skipped here (the
+        param-level routing is handled by resolve_routings, not cycle detection).
+        """
+        if not src_id or src_id not in present:
+            return  # dangling source — no edge (toposort ignores it too)
+        if not consumer_id or consumer_id not in present:
+            return  # dst is not a present operator (e.g. an effect target)
+        if src_id == consumer_id:
+            return  # self-reference — not a graph edge
+        key = (src_id, consumer_id)
+        ordinal = edge_ordinals.get(key, 0)
+        edge_ordinals[key] = ordinal + 1
+        graph.add_edge(
+            GraphEdge(
+                id=f"{src_id}->{consumer_id}#{ordinal}",
+                src_id=src_id,
+                dst_id=consumer_id,
+                dst_param=dst_param,
+                amount=1.0,
+            )
+        )
+
     for op in operators:
         consumer_id = op.get("id", "")
         if not consumer_id or consumer_id not in present:
             continue
+
+        # (a) Fusion / sources edges: parameters.sources[].operator_id (legacy).
         sources = _params_of(op).get("sources", [])
-        if not isinstance(sources, list):
-            continue
-        for src in sources:
-            if not isinstance(src, dict):
-                continue
-            src_id = src.get("operator_id", "")
-            if not src_id or src_id not in present:
-                continue  # dangling reference — no edge (toposort ignores it too)
-            if src_id == consumer_id:
-                continue  # self-reference — not a graph edge
-            key = (src_id, consumer_id)
-            ordinal = edge_ordinals.get(key, 0)
-            edge_ordinals[key] = ordinal + 1
-            edge_id = f"{src_id}->{consumer_id}#{ordinal}"
-            graph.add_edge(
-                GraphEdge(
-                    id=edge_id,
-                    src_id=src_id,
-                    dst_id=consumer_id,
-                    dst_param="",  # operator-to-operator edge; no param path
-                    amount=1.0,
-                )
-            )
+        if isinstance(sources, list):
+            for src in sources:
+                if isinstance(src, dict):
+                    _add_edge(src.get("operator_id", ""), consumer_id, "")
+
+        # (b) P5b.22 (B9) axis-bound edges: a mapping whose target_effect_id names
+        # another PRESENT operator is an operator-to-operator modulation edge and
+        # MUST participate in SG-5 cycle detection. (Mappings that target a real
+        # effect id — not an operator — are NOT graph edges; they're skipped by
+        # the `src_id not in present` guard inside _add_edge.) The data-flow
+        # direction matches the sources edge: the TARGET operator consumes the
+        # value, so this op is the source and the target is the consumer.
+        mappings = op.get("mappings", [])
+        if isinstance(mappings, list):
+            for m in mappings:
+                if not isinstance(m, dict):
+                    continue
+                target = m.get("target_effect_id", m.get("targetEffectId", ""))
+                _add_edge(consumer_id, target, m.get("target_param_key", ""))
 
     return graph
 

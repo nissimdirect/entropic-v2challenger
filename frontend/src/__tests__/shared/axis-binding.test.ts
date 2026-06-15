@@ -32,31 +32,34 @@ describe('axis-binding: type catalogs', () => {
     expect(ALL_INTERPOLATION_MODES).toEqual(['linear', 'step', 'cubic', 'cosine']);
   });
 
-  it('Tier 1 ships only broadcast', () => {
-    expect(TIER_1_BINDING_RULES).toEqual(['broadcast']);
+  it('Tier 1 ships the 4 implemented mod-routing rules (P5b.21 / B9)', () => {
+    expect(TIER_1_BINDING_RULES).toEqual([
+      'broadcast', 'sampleAt', 'scanOver', 'integrate',
+    ]);
   });
 });
 
 describe('isTier1BindingRule', () => {
-  it('accepts broadcast', () => {
-    expect(isTier1BindingRule('broadcast')).toBe(true);
+  it('accepts the 4 implemented rules', () => {
+    for (const rule of ['broadcast', 'sampleAt', 'scanOver', 'integrate'] as const) {
+      expect(isTier1BindingRule(rule)).toBe(true);
+    }
   });
 
-  it('rejects every other rule', () => {
-    const others: BindingRule[] = [
-      'sampleAt', 'scanOver', 'integrate',
-      'painted', 'hilbert', 'polar', 'learned',
-    ];
-    for (const rule of others) {
+  it('rejects the 4 research rules', () => {
+    const research: BindingRule[] = ['painted', 'hilbert', 'polar', 'learned'];
+    for (const rule of research) {
       expect(isTier1BindingRule(rule)).toBe(false);
     }
   });
 });
 
 describe('validateBindingRule', () => {
-  it('Tier 1 accepts broadcast only', () => {
+  it('Tier 1 accepts the 4 implemented rules, rejects research rules', () => {
     expect(validateBindingRule('broadcast', 1)).toBe(true);
-    expect(validateBindingRule('sampleAt', 1)).toBe(false);
+    expect(validateBindingRule('sampleAt', 1)).toBe(true);
+    expect(validateBindingRule('scanOver', 1)).toBe(true);
+    expect(validateBindingRule('integrate', 1)).toBe(true);
     expect(validateBindingRule('painted', 1)).toBe(false);
     expect(validateBindingRule('learned', 1)).toBe(false);
   });

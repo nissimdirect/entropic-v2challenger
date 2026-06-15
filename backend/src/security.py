@@ -52,6 +52,17 @@ MAX_COMPOSITE_LAYERS = 50
 # The backend cap is authoritative; the frontend cap is a pre-flight guard.
 MAX_OPERATORS_PER_PROJECT = 64  # qa-redteam M2
 
+# P5b.21 (B9 tensor mod-routing): per-project cap on the TOTAL number of
+# modulation edges (operator mappings) a loaded project may declare. DISTINCT
+# from the per-operator mapping cap (LIMITS.MAX_MAPPINGS_PER_OPERATOR = 32) and
+# from the macro-route fan-out cap (MAX_TOTAL_EDGES, frontend instruments): this
+# is the project-wide SUM across all operators. A hand-edited / hostile project
+# crossing the load trust boundary with a runaway mapping count (e.g. tens of
+# thousands of axis-routed edges, each now carrying srcAxis/dstAxis/bindingRule)
+# is REJECTED at the loader (project/schema.py), never buffered into the engine.
+# Bound = MAX_OPERATORS_PER_PROJECT (64) × MAX_MAPPINGS_PER_OPERATOR (32) = 2048.
+MAX_MOD_EDGES_TOTAL = 64 * 32  # 2048
+
 # P5a.2 (INSTRUMENTS.md §10 P1-1): per-render voice cap. The voice spine keys
 # the composite per-layer state cache by `voice:{voice_id}` so independent
 # voices on the same clip keep independent stateful-effect state. The 4-voice

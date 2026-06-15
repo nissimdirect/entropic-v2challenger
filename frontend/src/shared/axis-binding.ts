@@ -61,10 +61,91 @@ export interface LaneAxisBinding {
 }
 
 /**
- * Tier 1 ships only `broadcast`. The other 7 rules light up at Tier 3
- * (per SPEC-2 §3) when the runtime can handle their compute cost.
+ * P5b.21 (B9 tensor mod-routing): Tier 1 now ships the FOUR implemented binding
+ * rules — `broadcast`, `sampleAt`, `scanOver`, `integrate`. This widening is
+ * LOCKSTEP with the engine renderer (P5b.22, backend modulation/routing.py): the
+ * resolver honors exactly these four. The other 4 rules (`painted`, `hilbert`,
+ * `polar`, `learned`) are flag-gated research rules, REJECTED at the loader trust
+ * boundary (backend project/schema.py) when their flag is off.
+ *
+ * NB: this is the MOD-ROUTING accept-set. Automation LANE axis-bindings keep
+ * their own narrower tier-1 rule set (broadcast only) — see
+ * `renderer/stores/automation.ts` (lane rendering does not implement the other
+ * three rules yet, so widening lanes here would be a half-state).
  */
-export const TIER_1_BINDING_RULES: BindingRule[] = ['broadcast'];
+export const TIER_1_BINDING_RULES: BindingRule[] = [
+  'broadcast',
+  'sampleAt',
+  'scanOver',
+  'integrate',
+];
+
+/**
+ * The 4 flag-gated research rules. Accepted by the 8-member union and preserved
+ * on round-trip, but NOT implemented in the engine and REJECTED at the loader
+ * boundary when their experimental flag is off. Mirrors the backend
+ * `RESEARCH_BINDING_RULES` set in modulation/schema.py.
+ */
+export const RESEARCH_BINDING_RULES: BindingRule[] = [
+  'painted',
+  'hilbert',
+  'polar',
+  'learned',
+];
+
+/** True iff `rule` is one of the 4 flag-gated research rules. */
+export function isResearchBindingRule(rule: BindingRule): boolean {
+  return RESEARCH_BINDING_RULES.includes(rule);
+}
+
+/**
+ * The B9 mod-route axis defaults: a mapping with no srcAxis/dstAxis/bindingRule
+ * resolves to time→time broadcast (legacy byte-identical scalar→all). Mirrors the
+ * backend resolver defaults in modulation/routing.py.
+ */
+export const MOD_ROUTE_AXIS_DEFAULTS: {
+  srcAxis: Axis;
+  dstAxis: Axis;
+  bindingRule: BindingRule;
+} = { srcAxis: 't', dstAxis: 't', bindingRule: 'broadcast' };
+
+/**
+ * Resolve a (possibly legacy) mapping's axis-routing fields to concrete values,
+ * filling absent fields with the t/t/broadcast defaults. Pure — does not mutate.
+ */
+export function resolveModRouteAxes(m: {
+  srcAxis?: Axis;
+  dstAxis?: Axis;
+  bindingRule?: BindingRule;
+}): { srcAxis: Axis; dstAxis: Axis; bindingRule: BindingRule } {
+  return {
+    srcAxis: m.srcAxis ?? MOD_ROUTE_AXIS_DEFAULTS.srcAxis,
+    dstAxis: m.dstAxis ?? MOD_ROUTE_AXIS_DEFAULTS.dstAxis,
+    bindingRule: m.bindingRule ?? MOD_ROUTE_AXIS_DEFAULTS.bindingRule,
+  };
+}
+
+/**
+ * Validate a mod-routing binding rule for the operator store (P5b.21).
+ *
+ * Returns null when the rule is one of the 4 implemented Tier-1 rules; else an
+ * error string. Unknown (non-union) and research (flagged-off) rules are
+ * rejected — the store never enables a rule the engine cannot honor today. This
+ * is the FRONTEND save-time guard; the backend loader (project/schema.py) is the
+ * authoritative trust boundary.
+ */
+export function validateModRouteBindingRule(rule: unknown): string | null {
+  if (typeof rule !== 'string') {
+    return `bindingRule must be a string, got ${typeof rule}`;
+  }
+  if (!ALL_BINDING_RULES.includes(rule as BindingRule)) {
+    return `unknown bindingRule: ${rule}`;
+  }
+  if (!TIER_1_BINDING_RULES.includes(rule as BindingRule)) {
+    return `bindingRule '${rule}' is a flag-gated research rule and cannot be saved (implemented: ${TIER_1_BINDING_RULES.join(', ')})`;
+  }
+  return null;
+}
 
 export const ALL_BINDING_RULES: BindingRule[] = [
   'broadcast',

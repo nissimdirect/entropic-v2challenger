@@ -214,6 +214,118 @@ def validate(project: dict) -> list[str]:
     # well-formed AND reference an instrument that exists in the project.
     errors.extend(_validate_performance_events(project))
 
+    # P5b.21 (B9 tensor mod-routing): the LOADER is the trust boundary for the
+    # axis-extended OperatorMapping fields (srcAxis/dstAxis/bindingRule/depth).
+    # Old projects carry no axis fields → defaults t/t/broadcast, no regression
+    # (ROLLBACK: removing this call restores the prior load behavior). When
+    # present, a bindingRule outside the accept-set, a non-string/unknown axis,
+    # a non-finite depth, or a runaway edge count is REJECTED (no silent
+    # coercion — SPEC-2 §4).
+    errors.extend(_validate_operator_mod_edges(project))
+
+    return errors
+
+
+# P5b.21 (B9): canonical axis set, mirrors modulation.schema.LaneDomain + the
+# frontend ALL_AXES. Kept local so project/schema.py stays import-light at load.
+_VALID_AXES: frozenset[str] = frozenset({"t", "y", "x", "c", "f", "l"})
+
+
+def _validate_operator_mod_edges(project: dict) -> list[str]:
+    """Validate the axis-extended OperatorMapping fields on file load (P5b.21).
+
+    The trust boundary is the LOADER (not the UI). A hand-edited / hostile
+    project carrying a research bindingRule with the flag off, an unknown rule
+    (e.g. 'zigzag'), a non-string rule, a malformed axis, or a non-finite depth
+    is REJECTED LOUDLY — never coerced. Also enforces the project-wide
+    MAX_MOD_EDGES_TOTAL cap.
+
+    Rules (reject-only; absence of operators / axis fields is valid):
+    - `operators`, when present, must be a list.
+    - total mapping count across all operators must be <= MAX_MOD_EDGES_TOTAL.
+    - per mapping: `bindingRule` (when present) must be a string in the
+      currently-accepted set (4 implemented rules, plus the 4 research rules ONLY
+      when EXPERIMENTAL_AXIS_BINDINGS is on); `srcAxis`/`dstAxis` (when present)
+      must be strings in {t,y,x,c,f,l}; `depth` (when present) must be finite.
+
+    Only the first offending mapping is reported (fail-closed).
+    """
+    operators = project.get("operators")
+    if operators is None:
+        return []
+    if not isinstance(operators, list):
+        return ["'operators' must be a list"]
+
+    # Lazily import the flag-aware accept-set (avoid a load-time import cycle and
+    # keep the schema usable without the modulation package on the path).
+    try:
+        from modulation.schema import accepted_binding_rules
+
+        accepted = {r.value for r in accepted_binding_rules()}
+    except Exception:
+        # Defensive fallback: the 4 implemented rules, flag-gated rules rejected.
+        accepted = {"broadcast", "sampleAt", "scanOver", "integrate"}
+
+    # Mirror security.MAX_MOD_EDGES_TOTAL without hard-importing security at load.
+    max_mod_edges = 64 * 32  # MAX_MOD_EDGES_TOTAL (security.py)
+    try:
+        from security import MAX_MOD_EDGES_TOTAL as _cap
+
+        max_mod_edges = _cap
+    except Exception:
+        pass
+
+    errors: list[str] = []
+    total_edges = 0
+    for oi, op in enumerate(operators):
+        if not isinstance(op, dict):
+            continue  # operator-shape validation is the store/export path's job
+        mappings = op.get("mappings", [])
+        if not isinstance(mappings, list):
+            return [f"operators[{oi}].mappings must be a list"]
+        total_edges += len(mappings)
+        if total_edges > max_mod_edges:
+            return [
+                f"total modulation edges {total_edges} exceeds maximum "
+                f"{max_mod_edges} (MAX_MOD_EDGES_TOTAL)"
+            ]
+        for mi, m in enumerate(mappings):
+            if not isinstance(m, dict):
+                continue
+            where = f"operators[{oi}].mappings[{mi}]"
+
+            rule = m.get("bindingRule")
+            if rule is not None:
+                if not isinstance(rule, str):
+                    return [
+                        f"{where}.bindingRule must be a string, got "
+                        f"{type(rule).__name__}"
+                    ]
+                if rule not in accepted:
+                    return [
+                        f"{where}.bindingRule {rule!r} is not accepted "
+                        f"(accepted: {sorted(accepted)})"
+                    ]
+
+            for axis_key in ("srcAxis", "dstAxis"):
+                axis = m.get(axis_key)
+                if axis is None:
+                    continue
+                if not isinstance(axis, str):
+                    return [
+                        f"{where}.{axis_key} must be a string, got "
+                        f"{type(axis).__name__}"
+                    ]
+                if axis not in _VALID_AXES:
+                    return [
+                        f"{where}.{axis_key} {axis!r} is not a valid axis "
+                        f"(expected one of {sorted(_VALID_AXES)})"
+                    ]
+
+            depth = m.get("depth")
+            if depth is not None and not _is_finite_number(depth):
+                return [f"{where}.depth must be a finite number, got {depth!r}"]
+
     return errors
 
 
