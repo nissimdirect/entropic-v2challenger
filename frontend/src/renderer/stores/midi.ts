@@ -13,8 +13,41 @@ import { handlePadTrigger, releasePadWithCapture } from '../components/performan
 import { MIDICCRateLimiter } from '../../shared/midi-utils';
 
 // Module-level singleton limiter — survives store resets (state reset ≠ device
-// reconnect; throttle context should also be cleared on resetMIDI via limiter.reset()).
+// reconnect; throttle context is cleared on resetMIDI via _resetCCLimiter()).
 const _ccLimiter = new MIDICCRateLimiter();
+
+// ── Trailing-edge flush state (B10, P5b.25) ──────────────────────────────────
+// A throttled CC value is NOT dropped: it is coalesced as the pending latest
+// value for its controlId and flushed when the throttle window elapses, so the
+// final knob position always lands. Distinct controlIds flush independently.
+interface PendingCC {
+  value: number;                        // normalized 0-1, latest coalesced value
+  timer: ReturnType<typeof setTimeout>; // scheduled trailing-edge flush
+}
+const _pendingCC = new Map<number, PendingCC>();
+
+/** Apply a CC value to the store immediately (single source of write truth). */
+function _writeCCValue(cc: number, normalized: number): void {
+  useMIDIStore.setState((s) => ({
+    ccValues: { ...s.ccValues, [cc]: normalized },
+  }));
+}
+
+/** Cancel + clear any pending trailing-edge flush for a controlId. */
+function _clearPending(cc: number): void {
+  const p = _pendingCC.get(cc);
+  if (p !== undefined) {
+    clearTimeout(p.timer);
+    _pendingCC.delete(cc);
+  }
+}
+
+/** Reset rate-limiter + all pending flushes (called from resetMIDI). */
+function _resetCCLimiter(): void {
+  for (const p of _pendingCC.values()) clearTimeout(p.timer);
+  _pendingCC.clear();
+  _ccLimiter.reset();
+}
 
 interface MIDIState {
   devices: MIDIDevice[];
@@ -135,23 +168,49 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
         releasePadWithCapture(pad, perfStore, frameIndex, 'midi');
       }
     } else if (statusByte === 0xb0) {
-      // CC: rate-limited + echo-suppressed intake (B10, P5b.25).
+      // CC: TRAILING-EDGE rate-limited + echo-suppressed intake (B10, P5b.25).
       // Trust boundary: byte1 and byte2 are already guarded as valid MIDI bytes
       // (0-127) by the status-byte check and the message-length guard above.
-      // Chain: handleMIDIMessage → _ccLimiter.shouldWrite (33ms/controlId) →
-      //        set({ ccValues }) → downstream selectors / applyCCModulations
+      // Chain: handleMIDIMessage → _ccLimiter.classify (33ms/controlId) →
+      //        write-now | coalesce+schedule-flush → set({ ccValues }) →
+      //        downstream selectors / applyCCModulations
+      //
+      // A throttled value is NEVER dropped: it is coalesced as the pending
+      // latest value and a flush is scheduled for when the window elapses, so
+      // the final knob position always lands (fixes leading-edge value loss).
       const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
-      if (_ccLimiter.shouldWrite(byte1, byte2, now)) {
-        const normalized = byte2 / 127;
-        set((s) => ({
-          ccValues: { ...s.ccValues, [byte1]: normalized },
-        }));
+      const cc = byte1;
+      const normalized = byte2 / 127;
+      const decision = _ccLimiter.classify(cc, byte2, now);
+
+      if (decision === 'write') {
+        // Window open: write immediately. Drop any stale pending flush — this
+        // fresh write supersedes it and restarts the throttle window.
+        _clearPending(cc);
+        _writeCCValue(cc, normalized);
+      } else if (decision === 'defer') {
+        // Within window: coalesce as the latest value and (re)schedule the
+        // trailing-edge flush for when the window next opens.
+        const dueAt = _ccLimiter.nextWriteTime(cc, now);
+        const delay = Math.max(0, dueAt - now);
+        _clearPending(cc); // replace any earlier pending flush with the latest value
+        const timer = setTimeout(() => {
+          const pending = _pendingCC.get(cc);
+          _pendingCC.delete(cc);
+          if (pending === undefined) return;
+          // Restart the window from the flush time so the rate cap holds.
+          const flushNow = typeof performance !== 'undefined' ? performance.now() : Date.now();
+          _ccLimiter.markFlushed(cc, flushNow);
+          _writeCCValue(cc, pending.value);
+        }, delay);
+        _pendingCC.set(cc, { value: normalized, timer });
       }
+      // decision === 'suppress' (echo, SG-H3): ignore entirely.
     }
   },
 
   resetMIDI: () => {
-    _ccLimiter.reset(); // clear throttle + echo state on MIDI reset
+    _resetCCLimiter(); // clear throttle + echo + pending-flush state on MIDI reset
     set({
       ccMappings: [],
       ccValues: {},

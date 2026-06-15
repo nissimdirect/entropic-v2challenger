@@ -166,37 +166,61 @@ describe('MIDI store — B10 rate-limit + echo suppression', () => {
     expect(count * CC_THROTTLE_INTERVAL_MS).toBeLessThanOrEqual(MESSAGES + CC_THROTTLE_INTERVAL_MS);
   });
 
-  // ─── Test: store flood — actual ccValues write count ────────────────────
+  // ─── Test: store flood — actual ccValues write count + final value lands ──
 
-  it('store-level CC flood: ccValues written ≤ 62 times for 2000 msgs on same controlId', () => {
-    // Reset stores to ensure clean limiter state
-    resetAllStores();
+  it('store-level CC flood: ccValues write RATE ≤ ~62/2s on same controlId AND final value lands', () => {
+    // The store uses performance.now() as its clock; vitest fake timers control
+    // both performance.now() and setTimeout, so advancing the clock by 1ms per
+    // message simulates a 1 kHz flood for 2000 ms deterministically.
+    vi.useFakeTimers();
+    try {
+      // Clean limiter/pending state under fake timers.
+      useMIDIStore.getState().resetMIDI();
+      usePerformanceStore.getState().resetDrumRack();
 
-    const CC = 10;
-    // Collect ccValues snapshots to count writes
-    const writeLog: number[] = [];
-    let prevValue: number | undefined = undefined;
+      const CC = 10;
+      const writeLog: number[] = [];
+      let prevValue: number | undefined = undefined;
 
-    for (let t = 0; t < 2000; t++) {
-      const byte2 = (t * 7) % 128; // distinct values to detect each write
-      useMIDIStore.getState().handleMIDIMessage(msg(0xb0, CC, byte2), t);
-      const cur = useMIDIStore.getState().ccValues[CC];
-      if (cur !== prevValue) {
-        writeLog.push(t);
-        prevValue = cur;
+      const recordIfChanged = () => {
+        const cur = useMIDIStore.getState().ccValues[CC];
+        if (cur !== prevValue) {
+          writeLog.push(Math.round(performance.now()));
+          prevValue = cur;
+        }
+      };
+
+      const MESSAGES = 2000;
+      let lastValue = 0;
+      for (let t = 0; t < MESSAGES; t++) {
+        const byte2 = (t * 7) % 128; // distinct values cycle to detect writes
+        lastValue = byte2;
+        useMIDIStore.getState().handleMIDIMessage(msg(0xb0, CC, byte2), t);
+        recordIfChanged();
+        vi.advanceTimersByTime(1); // advance 1ms — drives clock + fires flushes
+        recordIfChanged();
       }
-    }
 
-    // Must have some writes (flood not fully blocked)
-    expect(writeLog.length).toBeGreaterThan(0);
-    // Must not exceed rate limit (≤ ~62 writes in 2000 ms at 33ms floor)
-    expect(writeLog.length).toBeLessThanOrEqual(62);
+      // Drain the trailing-edge flush so the FINAL value lands (never dropped).
+      vi.advanceTimersByTime(CC_THROTTLE_INTERVAL_MS + 1);
+      recordIfChanged();
 
-    // Verify minimum spacing between writes
-    for (let i = 1; i < writeLog.length; i++) {
-      const gap = writeLog[i] - writeLog[i - 1];
-      // Gap should be at least 33 ms (throttle interval), with ±1 ms tolerance
-      expect(gap).toBeGreaterThanOrEqual(CC_THROTTLE_INTERVAL_MS - 1);
+      // Rate cap: ≤ ~62 distinct writes over 2000 ms at the 33ms floor.
+      expect(writeLog.length).toBeGreaterThan(0);
+      expect(writeLog.length).toBeLessThanOrEqual(62);
+
+      // Minimum spacing between writes ≈ 33ms (trailing flushes may land a hair
+      // early/late vs the leading edge, so allow ±2ms slack).
+      for (let i = 1; i < writeLog.length; i++) {
+        const gap = writeLog[i] - writeLog[i - 1];
+        expect(gap).toBeGreaterThanOrEqual(CC_THROTTLE_INTERVAL_MS - 2);
+      }
+
+      // CRITICAL: the final value must have landed (trailing-edge never drops it).
+      const finalNormalized = lastValue / 127;
+      expect(useMIDIStore.getState().ccValues[CC]).toBeCloseTo(finalNormalized, 4);
+    } finally {
+      vi.useRealTimers();
     }
   });
 
@@ -288,23 +312,25 @@ describe('MIDI store — B10 rate-limit + echo suppression', () => {
   // ─── Test: echo within suppression window ignored ────────────────────────
 
   it('echo within suppression window ignored (SG-H3)', () => {
-    // Use a custom-interval limiter to test echo suppression in isolation
+    // Use a custom-interval limiter to test echo suppression in isolation.
     const limiter = new MIDICCRateLimiter(CC_THROTTLE_INTERVAL_MS, CC_ECHO_SUPPRESS_MS);
 
-    // Software emits value 100 on CC 7 at t=0
+    // Software emits value 100 on CC 7 at t=0.
     limiter.recordEmit(7, 100, 0);
 
-    // Controller echoes back value 100 at t=50ms (within 80ms window) — suppressed
-    const t50 = CC_ECHO_SUPPRESS_MS - 30;
-    expect(limiter.shouldWrite(7, 100, t50)).toBe(false);
+    // Controller echoes back value 100 at t=50ms (within the 80ms echo window)
+    // → suppressed. NOTE: a suppressed result does NOT touch the throttle clock.
+    expect(limiter.shouldWrite(7, 100, 50)).toBe(false); // 50 < 80 echo window
 
-    // Different value at the same time is NOT suppressed
-    expect(limiter.shouldWrite(7, 99, t50 + CC_THROTTLE_INTERVAL_MS)).toBe(true);
+    // A DIFFERENT value is not echo-suppressed → leading-edge write at t=60.
+    // (This records the throttle clock at t=60.)
+    expect(limiter.shouldWrite(7, 99, 60)).toBe(true);
 
-    // After the suppression window, the same value 100 is allowed
-    const tAfter = CC_ECHO_SUPPRESS_MS + 1;
-    // Advance past the throttle window too
-    expect(limiter.shouldWrite(7, 100, tAfter + CC_THROTTLE_INTERVAL_MS)).toBe(true);
+    // The same value 100 after BOTH windows elapse is allowed:
+    //   echo window: t > 80 (emittedAt 0 + 80)
+    //   throttle window: t ≥ 60 + 33 = 93
+    // Use t = 120 to clear both comfortably.
+    expect(limiter.shouldWrite(7, 100, 120)).toBe(true);
   });
 
   // ─── Test: malformed midi bytes never crash ──────────────────────────────
@@ -363,19 +389,30 @@ describe('MIDI store — regression guard (pad triggers, CC values, note routing
     expect(useMIDIStore.getState().ccValues[10]).toBe(1);
   });
 
-  it('CC value is eventually written even after flood throttle expires', () => {
-    const CC = 5;
-    // First write at t=0
-    useMIDIStore.getState().handleMIDIMessage(msg(0xb0, CC, 64), 0);
-    expect(useMIDIStore.getState().ccValues[CC]).toBeCloseTo(64 / 127, 4);
+  it('CC value is eventually written even after flood throttle expires (trailing edge)', () => {
+    // The store clock is performance.now(); drive it with fake timers.
+    vi.useFakeTimers();
+    try {
+      useMIDIStore.getState().resetMIDI();
+      const CC = 5;
 
-    // Flood within window — blocked
-    useMIDIStore.getState().handleMIDIMessage(msg(0xb0, CC, 10), CC_THROTTLE_INTERVAL_MS - 1);
-    expect(useMIDIStore.getState().ccValues[CC]).toBeCloseTo(64 / 127, 4); // still 64
+      // First write at t=0 — lands immediately (leading edge).
+      useMIDIStore.getState().handleMIDIMessage(msg(0xb0, CC, 64), 0);
+      expect(useMIDIStore.getState().ccValues[CC]).toBeCloseTo(64 / 127, 4);
 
-    // After window — allowed
-    useMIDIStore.getState().handleMIDIMessage(msg(0xb0, CC, 10), CC_THROTTLE_INTERVAL_MS);
-    expect(useMIDIStore.getState().ccValues[CC]).toBeCloseTo(10 / 127, 4);
+      // A new value WITHIN the window is coalesced as pending, not lost.
+      vi.advanceTimersByTime(CC_THROTTLE_INTERVAL_MS - 1);
+      useMIDIStore.getState().handleMIDIMessage(msg(0xb0, CC, 10), 0);
+      // Still showing the leading value until the window elapses…
+      expect(useMIDIStore.getState().ccValues[CC]).toBeCloseTo(64 / 127, 4);
+
+      // …then the trailing flush applies the latest value (10) once the
+      // throttle window elapses. NEVER dropped — the whole point of B10.
+      vi.advanceTimersByTime(CC_THROTTLE_INTERVAL_MS);
+      expect(useMIDIStore.getState().ccValues[CC]).toBeCloseTo(10 / 127, 4);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('note-on pad trigger still works after B10 changes', () => {

@@ -3,7 +3,7 @@
  * Verifies cross-store interactions between MIDI store and performance store
  * for scenarios not covered by the unit tests in midi.test.ts.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { useMIDIStore } from '../../renderer/stores/midi';
 import { usePerformanceStore } from '../../renderer/stores/performance';
 import { useUndoStore } from '../../renderer/stores/undo';
@@ -79,17 +79,29 @@ describe('MIDI Integration Edge Cases', () => {
   // 3. CC flood: rapid CC messages only keep latest value
   // ---------------------------------------------------------------
   it('rapid CC flood keeps only the latest value', () => {
-    const ccNumber = 74;
+    // B10 (P5b.25): CC intake is a TRAILING-EDGE throttle. A flood within the
+    // 33ms window is coalesced to the latest value and flushed when the window
+    // elapses — the final value is NEVER dropped, only rate-limited. Because the
+    // flush is timer-driven, advance fake timers so the trailing value lands.
+    vi.useFakeTimers();
+    try {
+      const ccNumber = 74;
 
-    for (let i = 0; i < 100; i++) {
-      useMIDIStore.getState().handleMIDIMessage(msg(0xb0, ccNumber, i), i);
+      for (let i = 0; i < 100; i++) {
+        useMIDIStore.getState().handleMIDIMessage(msg(0xb0, ccNumber, i), i);
+      }
+
+      // Drain the trailing-edge flush timer so the final coalesced value lands.
+      vi.advanceTimersByTime(100);
+
+      const ccValues = useMIDIStore.getState().ccValues;
+      // Last message had value 99 — must always land (trailing edge).
+      expect(ccValues[ccNumber]).toBeCloseTo(99 / 127, 4);
+      // Only one key for this CC number (object property, so inherently one entry)
+      expect(ccValues[ccNumber]).toBeDefined();
+    } finally {
+      vi.useRealTimers();
     }
-
-    const ccValues = useMIDIStore.getState().ccValues;
-    // Last message had value 99
-    expect(ccValues[ccNumber]).toBeCloseTo(99 / 127, 4);
-    // Only one key for this CC number (object property, so inherently one entry)
-    expect(ccValues[ccNumber]).toBeDefined();
   });
 
   // ---------------------------------------------------------------
