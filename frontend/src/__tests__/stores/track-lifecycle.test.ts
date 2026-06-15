@@ -29,6 +29,7 @@ import { useOperatorStore } from '../../renderer/stores/operators'
 import { useMIDIStore } from '../../renderer/stores/midi'
 import { useProjectStore } from '../../renderer/stores/project'
 import { useUndoStore } from '../../renderer/stores/undo'
+import { useInstrumentsStore } from '../../renderer/stores/instruments'
 import type { EffectInstance, AutomationLane } from '../../shared/types'
 
 // ---------------------------------------------------------------------------
@@ -59,6 +60,7 @@ function resetAll() {
   useOperatorStore.setState({ operators: [] })
   useAutomationStore.setState({ lanes: {} })
   useMIDIStore.setState({ ccMappings: [] })
+  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {}, granulators: {} })
 }
 
 // ---------------------------------------------------------------------------
@@ -563,5 +565,62 @@ describe('[track-lifecycle/multi-effect track delete with full prune]', () => {
     expect(grp2.effectIds).not.toContain('fx-A')
     expect(grp2.effectIds).toContain('fx-keep')
     expect(grp2.effectIds).toContain('fx-extra')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// audit #10 — removeGranulator + removeFrameBank called on track delete (leak fix)
+// ---------------------------------------------------------------------------
+
+describe('[track-lifecycle/removeGranulator clears the track\'s granulator from the store]', () => {
+  beforeEach(resetAll)
+
+  it('removeGranulator clears the track\'s granulator from the store', () => {
+    const tid = useTimelineStore.getState().addTrack('V-gran', '#4ade80')!
+    useInstrumentsStore.getState().addGranulator(tid)
+    expect(useInstrumentsStore.getState().granulators[tid]).toBeDefined()
+
+    useInstrumentsStore.getState().removeGranulator(tid)
+    expect(useInstrumentsStore.getState().granulators[tid]).toBeUndefined()
+  })
+
+  it('deleting a track with a granulator removes its instrument state (regression — audit #10)', () => {
+    const tid = useTimelineStore.getState().addTrack('V-gran', '#ef4444')!
+    useInstrumentsStore.getState().addGranulator(tid)
+    expect(useInstrumentsStore.getState().granulators[tid]).toBeDefined()
+
+    useTimelineStore.getState().removeTrack(tid)
+
+    // GUARD (was leak): granulator entry must be removed when the track is deleted.
+    expect(useInstrumentsStore.getState().granulators[tid]).toBeUndefined()
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === tid)).toBeUndefined()
+  })
+
+  it('deleting a track with a frameBank removes its frameBank state (regression — audit #10)', () => {
+    const tid = useTimelineStore.getState().addTrack('V-fb', '#3b82f6')!
+    useInstrumentsStore.getState().addFrameBank(tid, [])
+    expect(useInstrumentsStore.getState().frameBanks[tid]).toBeDefined()
+
+    useTimelineStore.getState().removeTrack(tid)
+
+    // GUARD (was leak): frameBank entry must be removed when the track is deleted.
+    expect(useInstrumentsStore.getState().frameBanks[tid]).toBeUndefined()
+  })
+
+  it('deleting a track with no instruments is a safe no-op (removeGranulator/removeFrameBank no-op)', () => {
+    const tid = useTimelineStore.getState().addTrack('V-empty', '#a855f7')!
+    expect(() => useTimelineStore.getState().removeTrack(tid)).not.toThrow()
+    expect(useTimelineStore.getState().tracks.find((t) => t.id === tid)).toBeUndefined()
+  })
+
+  it('deleting a track does not remove granulator for a different track', () => {
+    const tid1 = useTimelineStore.getState().addTrack('V1', '#4ade80')!
+    const tid2 = useTimelineStore.getState().addTrack('V2', '#ef4444')!
+    useInstrumentsStore.getState().addGranulator(tid2)
+
+    useTimelineStore.getState().removeTrack(tid1)
+
+    // tid2's granulator must survive
+    expect(useInstrumentsStore.getState().granulators[tid2]).toBeDefined()
   })
 })

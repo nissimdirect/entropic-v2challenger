@@ -122,3 +122,40 @@ describe('B8 granulator preview payload wiring', () => {
     expect(buildPreviewGranulatorPayload('other-track')).not.toBeNull()
   })
 })
+
+// ---------------------------------------------------------------------------
+// audit #11 — render_path serialized to the layer dict (GPU preview reachable)
+// ---------------------------------------------------------------------------
+
+describe('B8 granulator render_path serialization (audit #11)', () => {
+  it('buildGranulatorLayer emits render_path (default cpu)', () => {
+    // When renderPath is absent on the instrument, the serializer must default to 'cpu'.
+    useInstrumentsStore.getState().addGranulator(TRACK)
+    const inst = useInstrumentsStore.getState().granulators[TRACK]
+    const dict = buildGranulatorLayer(inst)!
+    expect(dict).not.toBeNull()
+    // render_path must be present in the IPC dict (backend contract).
+    expect(dict.render_path).toBe('cpu')
+  })
+
+  it("render_path='gpu' serializes through to the layer dict (matches the backend contract)", () => {
+    // Setting renderPath: 'gpu' on the instrument must propagate through the serializer
+    // so the backend GPU preview arm is reachable from the frontend.
+    useInstrumentsStore.getState().addGranulator(TRACK)
+    const instrState = useInstrumentsStore.getState()
+    // Simulate a power-user/devtool setting renderPath to 'gpu'.
+    const inst = { ...instrState.granulators[TRACK], renderPath: 'gpu' as const }
+    const dict = buildGranulatorLayer(inst)!
+    expect(dict).not.toBeNull()
+    expect(dict.render_path).toBe('gpu')
+  })
+
+  it('render_path is always present in the dict (never undefined)', () => {
+    useInstrumentsStore.getState().addGranulator(TRACK)
+    const inst = useInstrumentsStore.getState().granulators[TRACK]
+    const dict = buildGranulatorLayer(inst)!
+    // Must be a string (either 'cpu' or 'gpu') — never undefined.
+    expect(typeof dict.render_path).toBe('string')
+    expect(['cpu', 'gpu']).toContain(dict.render_path)
+  })
+})
