@@ -267,21 +267,47 @@ def topological_sort_with_runtime(
             operators[:MAX_OPERATORS], precomputed_break.survivor_edges
         )
 
-    has_runtime = bool(
-        runtime_context is not None
-        and getattr(runtime_context, "has_runtime_conditional_edges", False)
+    # SG-5 seam guard (P5b.7 fast-follow, task #83):
+    # Evaluate runtime-conditional-edge state inside a try/except so that any
+    # failure (missing attr, raising predicate, garbage context) degrades to the
+    # deterministic static sort instead of crashing the render frame.
+    # Logged ONCE per bad context (one-shot warn); never swallowed silently
+    # (feedback_silent-exception-swallowing).
+    # When runtime_context is None the guard is bypassed entirely — zero overhead
+    # on the hot static path.
+    _SEAM_WARNED: set[int] = getattr(
+        topological_sort_with_runtime, "_seam_warned_ids", set()
     )
+    topological_sort_with_runtime._seam_warned_ids = _SEAM_WARNED  # type: ignore[attr-defined]
 
-    # §4.3: evaluate runtime-conditional edges FIRST, fold the active ones into
-    # the graph snapshot used for the sort. (Seam — no edge kinds implemented
-    # yet; predicate-driven. When inactive, this is a no-op and we fast-path.)
-    # §4.4: static-only graphs (has_runtime False) skip the fold entirely and
-    # hit the existing _topological_sort fast path unchanged.
+    has_runtime = False
     augmented = operators
-    if has_runtime:
-        active = runtime_context.active_conditional_edges()
-        if active:
-            augmented = _fold_conditional_edges(operators, active)
+    if runtime_context is not None:
+        try:
+            has_runtime = bool(
+                getattr(runtime_context, "has_runtime_conditional_edges", False)
+            )
+            # §4.3: evaluate runtime-conditional edges FIRST, fold the active ones
+            # into the graph snapshot used for the sort. (Seam — no edge kinds
+            # implemented yet; predicate-driven. When inactive, this is a no-op and
+            # we fast-path.)
+            # §4.4: static-only graphs (has_runtime False) skip the fold entirely
+            # and hit the existing _topological_sort fast path unchanged.
+            if has_runtime:
+                active = runtime_context.active_conditional_edges()
+                if active:
+                    augmented = _fold_conditional_edges(operators, active)
+        except Exception as exc:  # noqa: BLE001
+            ctx_id = id(runtime_context)
+            if ctx_id not in _SEAM_WARNED:
+                _SEAM_WARNED.add(ctx_id)
+                logger.warning(
+                    "SG-5 seam guard: malformed/raising RuntimeContext degraded to"
+                    " static sort (logged once per context). reason=%r",
+                    exc,
+                )
+            has_runtime = False
+            augmented = operators
 
     try:
         return _topological_sort(augmented)
