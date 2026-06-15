@@ -108,7 +108,11 @@ export class MIDICCRateLimiter {
    * @param now        Monotonic timestamp in ms (e.g. performance.now()).
    */
   classify(controlId: number, rawValue: number, now: number): CCDecision {
-    // ── Echo suppression (SG-H3) ─────────────────────────────────────────
+    // ── Echo suppression (SG-H3) — DORMANT until outbound MIDI path exists ──
+    // `_echo` is only populated by `recordEmit()`, which is never called in
+    // production today (no `access.outputs` writer). This branch will become
+    // active when a motorized-fader-send path is added (SG-H3). Until then,
+    // `_echo` is always empty and this guard never fires.
     const echo = this._echo.get(controlId);
     if (echo !== undefined && echo.value === rawValue && now - echo.emittedAt < this._echoMs) {
       return 'suppress';
@@ -166,6 +170,14 @@ export class MIDICCRateLimiter {
    * @param controlId  MIDI CC number (0-127).
    * @param rawValue   Raw MIDI byte value (0-127) we emitted.
    * @param now        Monotonic timestamp in ms.
+   *
+   * DORMANT SEAM — SG-H3 (motorized fader echo suppression):
+   * This method is NOT called in production today because there is no outbound
+   * MIDI path yet (no `access.outputs` writer exists). The echo-suppression
+   * machinery (`_echo` map + the 'suppress' branch in `classify`) is a
+   * forward-seam for a future feature. Do not add UI or log messages that imply
+   * echo-suppression is currently active — it is not wired until an
+   * outbound-MIDI-send path (SG-H3) is implemented.
    */
   recordEmit(controlId: number, rawValue: number, now: number): void {
     this._echo.set(controlId, { value: rawValue, emittedAt: now });
