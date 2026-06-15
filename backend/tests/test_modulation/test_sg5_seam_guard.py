@@ -193,3 +193,84 @@ def test_valid_empty_context_still_uses_static_path() -> None:
 
     result = [o["id"] for o in topological_sort_with_runtime(ops, ctx)]
     assert result == static_order
+
+
+# ---------------------------------------------------------------------------
+# Bug fix #5: per-instance dedup (not per-id() address)
+# ---------------------------------------------------------------------------
+
+
+def test_seam_warn_once_per_context_not_per_id(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Two DISTINCT raising contexts must each produce a warning even if they
+    could theoretically share the same CPython id() (recycled address after GC).
+
+    This test proves the dedup is per-actual-instance (via a `_seam_warned`
+    attribute on the context) rather than per id()-address.  We simulate the
+    id()-collision risk by creating ctx1, calling the sort (gets its warning),
+    then DELETING ctx1 before creating ctx2 — in CPython the freed address is
+    commonly reused for the next allocation of the same size, so `id(ctx2)`
+    often equals the old `id(ctx1)`.  Under the old id()-keyed implementation
+    ctx2's warning would be wrongly suppressed; under the new per-instance
+    implementation ctx2 must always warn.
+    """
+    ops = [_fusion("a", "b"), _fusion("b")]
+
+    # --- ctx1: prime the warning path ---
+    ctx1 = _RaisingContext()
+    # Ensure ctx1 hasn't been warned already in a prior test run.
+    if hasattr(ctx1, "_seam_warned"):
+        del ctx1._seam_warned  # type: ignore[attr-defined]
+
+    with caplog.at_level(logging.WARNING, logger="modulation.engine"):
+        topological_sort_with_runtime(ops, ctx1)
+
+    warnings_after_ctx1 = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and ("seam guard" in r.message.lower() or "sg-5" in r.message.lower())
+    ]
+    assert len(warnings_after_ctx1) >= 1, "ctx1 must produce at least one warning"
+
+    # Release ctx1 so its address may be recycled.
+    del ctx1
+
+    # --- ctx2: a NEW raising context — must warn regardless of address reuse ---
+    ctx2 = _RaisingContext()
+    # Verify ctx2 has not been warned (fresh instance).
+    assert not getattr(ctx2, "_seam_warned", False), (
+        "ctx2 should not carry _seam_warned from a prior run"
+    )
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="modulation.engine"):
+        topological_sort_with_runtime(ops, ctx2)
+
+    warnings_after_ctx2 = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and ("seam guard" in r.message.lower() or "sg-5" in r.message.lower())
+    ]
+    assert len(warnings_after_ctx2) == 1, (
+        f"ctx2 (distinct instance) must produce exactly 1 warning even if id() "
+        f"was recycled from ctx1; got {len(warnings_after_ctx2)} warnings"
+    )
+
+    # --- same ctx2: calling again must NOT warn again (per-instance once-only) ---
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="modulation.engine"):
+        topological_sort_with_runtime(ops, ctx2)
+
+    warnings_repeat = [
+        r
+        for r in caplog.records
+        if r.levelno == logging.WARNING
+        and ("seam guard" in r.message.lower() or "sg-5" in r.message.lower())
+    ]
+    assert len(warnings_repeat) == 0, (
+        f"The SAME ctx2 instance must not warn twice; got {len(warnings_repeat)} "
+        f"warnings on the second call"
+    )

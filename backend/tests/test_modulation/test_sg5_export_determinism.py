@@ -370,3 +370,48 @@ def test_evaluate_all_uses_precomputed_break() -> None:
     assert "a" in values and "b" in values, (
         f"Not all operators evaluated: values={values}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Bug fix #6: dead fields removed from CycleBreakDecision (audit low)
+# ---------------------------------------------------------------------------
+
+
+def test_cyclebreakdecision_has_no_dead_fields() -> None:
+    """CycleBreakDecision must NOT carry the dead `sorted_operators` or
+    `op_index_map` fields (they were never read after construction).
+
+    This is a regression guard: if either field reappears (e.g. a merge
+    brings it back) this test will fail immediately.
+    """
+    # Verify the class-level dataclass fields don't include the dead ones.
+    import dataclasses
+
+    field_names = {f.name for f in dataclasses.fields(CycleBreakDecision)}
+    assert "sorted_operators" not in field_names, (
+        "CycleBreakDecision.sorted_operators is a dead field — it was never read "
+        "after construction (audit bug #6). Remove it."
+    )
+    assert "op_index_map" not in field_names, (
+        "CycleBreakDecision.op_index_map is a dead field — it was never read "
+        "after construction (audit bug #6). Remove it."
+    )
+
+    # Verify instantiation with only the live fields still works end-to-end.
+    decision_acyclic = CycleBreakDecision(has_cycle=False)
+    assert not decision_acyclic.has_cycle
+    assert decision_acyclic.survivor_edges == frozenset()
+    assert decision_acyclic.removed_edge_ids == ()
+
+    # A full cycle-break decision from the real path carries no dead attrs.
+    ops = [_fusion("p", "q"), _fusion("q", "p")]
+    decision_cyclic = compute_cycle_break_decision(ops)
+    assert decision_cyclic.has_cycle
+    assert not hasattr(decision_cyclic, "sorted_operators") or (
+        # If somehow present as a default-factory artifact, it must not exist
+        # as a live data field on the frozen instance.
+        "sorted_operators" not in {f.name for f in dataclasses.fields(decision_cyclic)}
+    )
+    assert not hasattr(decision_cyclic, "op_index_map") or (
+        "op_index_map" not in {f.name for f in dataclasses.fields(decision_cyclic)}
+    )
