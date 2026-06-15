@@ -1091,7 +1091,19 @@ function AppInner() {
 
         // Phase 7: Evaluate automation overrides at current playhead time
         const currentTime = useTimelineStore.getState().playheadTime
-        const allLanes = useAutomationStore.getState().getAllLanes()
+        const rawLanes = useAutomationStore.getState().getAllLanes()
+        // SG-3 clause-3 consumer (audit medium #1): when the sentinel has aborted
+        // a lane (NaN/Inf in the render output), STOP re-sending automation lanes
+        // each frame — otherwise the corrupt automation is re-applied every frame
+        // and the gate keeps tripping. lane_id from the backend is always
+        // "unknown" (the output gate cannot trace the specific lane), so a
+        // non-empty set means "an SG-3 abort is active" → suppress ALL automation
+        // payloads. When a real lane_id IS reported, we also filter that lane by id.
+        // The user re-enables via the toast's Re-enable button (clearSg3Abort).
+        const sg3Aborted = useAutomationStore.getState().sg3AbortedLaneIds
+        const allLanes = sg3Aborted.size > 0
+          ? rawLanes.filter((l) => !sg3Aborted.has(l.id) && !sg3Aborted.has('unknown'))
+          : rawLanes
         const autoOverrides = allLanes.length > 0
           ? evaluateAutomationOverrides(allLanes, currentTime, registry)
           : undefined
@@ -1468,13 +1480,18 @@ function AppInner() {
               }
             }
           }
-          // SG-3 clause-3: lane_aborted field — fire toast + mute the lane.
+          // SG-3 clause-3: lane_aborted field — fire toast + mute automation.
           // The backend gate (P5b.4) sets this when the render output contained
           // NaN/Inf and a last-known-good frame was served instead. lane_id is
           // always "unknown" (the output gate cannot trace back to a specific
           // automation lane), so we mark the sentinel abort key in the
-          // automation store so all active lanes show a muted badge. The user
-          // can re-enable via clearSg3Abort / clearAllSg3Aborts.
+          // automation store. Two real consumers read it (audit medium #1):
+          //   1. The render-frame chain build above suppresses automation lane
+          //      payloads while the set is non-empty (stops re-sending the
+          //      corrupt automation every frame).
+          //   2. LaneBadges (Track.tsx) renders a MUTED badge + dimmed styling
+          //      on tracks with automation lanes while the set is non-empty.
+          // The user re-enables via the Re-enable toast action (clearSg3Abort).
           if (res.lane_aborted !== null && res.lane_aborted !== undefined) {
             const raw = res.lane_aborted
             // Trust boundary: validate shape before use (feedback_numeric-trust-boundary)
