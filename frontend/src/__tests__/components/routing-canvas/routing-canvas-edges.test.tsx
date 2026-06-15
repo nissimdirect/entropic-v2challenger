@@ -167,10 +167,17 @@ describe('RoutingCanvas — edge create / inspect / delete', () => {
     await waitFor(() => expect(sendCommand).toHaveBeenCalled())
 
     // Find the source (operator) item and a destination (effect.param) item.
-    const sourceItem = container.querySelector(
-      '.routing-column--source .routing-item[data-item-id="op:op1"]',
-    ) as HTMLElement
-    expect(sourceItem).not.toBeNull()
+    // sendCommand firing does NOT guarantee the routing items have rendered yet
+    // (they paint after the store updates from the command response), so wait
+    // for the items to exist before interacting — otherwise dragStart races a
+    // null element (flake: "Unable to fire a dragstart event").
+    const sourceItem = await waitFor(() => {
+      const el = container.querySelector(
+        '.routing-column--source .routing-item[data-item-id="op:op1"]',
+      ) as HTMLElement
+      expect(el).not.toBeNull()
+      return el
+    })
     const destItem = container.querySelector(
       '.routing-column--destination .routing-item[data-item-id="fx.blur:radius"]',
     ) as HTMLElement
@@ -192,12 +199,19 @@ describe('RoutingCanvas — edge create / inspect / delete', () => {
   it('created edge undoable', async () => {
     const { container } = render(<RoutingCanvas open onClose={() => {}} />)
     await waitFor(() => expect(sendCommand).toHaveBeenCalled())
-    const sourceItem = container.querySelector(
-      '.routing-item[data-item-id="op:op1"]',
-    ) as HTMLElement
+    // Wait for the routing items to render before interacting (sendCommand
+    // firing precedes the item paint — see note in the create-mapping test).
+    const sourceItem = await waitFor(() => {
+      const el = container.querySelector(
+        '.routing-item[data-item-id="op:op1"]',
+      ) as HTMLElement
+      expect(el).not.toBeNull()
+      return el
+    })
     const destItem = container.querySelector(
       '.routing-item[data-item-id="fx.blur:radius"]',
     ) as HTMLElement
+    expect(destItem).not.toBeNull()
     const dt = dataTransfer({ operatorId: 'op1', label: 'LFO' })
     fireEvent.dragStart(sourceItem, { dataTransfer: dt })
     await act(async () => {
