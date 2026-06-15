@@ -19,7 +19,7 @@ function setTracks(tracks: unknown, selectedTrackId: string | null) {
 const VIDEO_TRACK_WITH_CLIP = { id: 'v1', type: 'video', clips: [{ id: 'c1', assetPath: '/x.mp4', position: 0, duration: 30, trimStart: 0, trimEnd: 30 }] }
 
 beforeEach(() => {
-  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {} })
+  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {}, granulators: {} })
   setTracks([], null)
 })
 afterEach(() => cleanup())
@@ -119,5 +119,58 @@ describe('InstrumentsBrowser', () => {
     render(<InstrumentsBrowser />)
     fireEvent.doubleClick(screen.getByTestId('instrument-sampler'))
     expect(useInstrumentsStore.getState().instruments['v2']).toBeUndefined()
+  })
+
+  // -------------------------------------------------------------------------
+  // B8 Granulator wiring (audit HIGH #9) — the browser entry + addGranulator
+  // dispatch. Mirror of the Frame-Bank (Wavetable) entry tests above.
+  // -------------------------------------------------------------------------
+  it('lists a Granulator entry, enabled when a video clip is present (B8)', () => {
+    setTracks([VIDEO_TRACK_WITH_CLIP], null)
+    render(<InstrumentsBrowser />)
+    const gran = screen.getByTestId('instrument-granulator')
+    expect(gran.className).not.toContain('--disabled')
+    expect(gran.textContent).toContain('Granulator')
+    expect(gran.textContent).not.toContain('(soon)')
+  })
+
+  it('Granulator entry is clip-gated: disabled with tooltip when timeline empty (B8)', () => {
+    setTracks([], null)
+    render(<InstrumentsBrowser />)
+    const gran = screen.getByTestId('instrument-granulator')
+    expect(gran.className).toContain('--disabled')
+    expect(gran.getAttribute('draggable')).not.toBe('true')
+    expect(gran.getAttribute('title')).toContain('video clip')
+  })
+
+  it('full chain step 1 — double-click adds a Granulator to the selected Performance track (B8)', () => {
+    setTracks([VIDEO_TRACK_WITH_CLIP, { id: 'p1', type: 'performance', clips: [] }], 'p1')
+    render(<InstrumentsBrowser />)
+    fireEvent.doubleClick(screen.getByTestId('instrument-granulator'))
+    // addGranulator dispatched → the instruments store now holds a granulator
+    // bound to the selected track (the headline B8 reachability bug — fixed).
+    expect(useInstrumentsStore.getState().granulators['p1']).toBeTruthy()
+  })
+
+  it('double-click does NOT add a Granulator when no performance track is selected (B8)', () => {
+    setTracks([VIDEO_TRACK_WITH_CLIP, { id: 'v2', type: 'video', clips: [] }], 'v2')
+    render(<InstrumentsBrowser />)
+    fireEvent.doubleClick(screen.getByTestId('instrument-granulator'))
+    expect(useInstrumentsStore.getState().granulators['v2']).toBeUndefined()
+  })
+
+  it('Granulator drag payload kind=instruments id=builtin:granulator (P3.2 idiom, B8)', () => {
+    setTracks([VIDEO_TRACK_WITH_CLIP], null)
+    render(<InstrumentsBrowser />)
+    const dataMap: Record<string, string> = {}
+    const dt = {
+      effectAllowed: '',
+      setData: (t: string, v: string) => { dataMap[t] = v },
+    }
+    fireEvent.dragStart(screen.getByTestId('instrument-granulator'), { dataTransfer: dt })
+    expect(dataMap[CREATRIX_NONCE_TYPE]).toBeTruthy()
+    const payload = JSON.parse(dataMap[EFFECT_DRAG_TYPE] ?? '{}')
+    expect(payload.kind).toBe('instruments')
+    expect(payload.id).toBe('builtin:granulator')
   })
 })
