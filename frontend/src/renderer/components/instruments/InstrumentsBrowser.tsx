@@ -44,12 +44,20 @@ const RACKS: RackEntry[] = [
   // Frame-Bank (addFrameBank). Like the Sampler it needs a video clip on the
   // timeline (its slots scan footage), so it shares the hasVideoClips gate.
   { id: 'wavetable', label: 'Wavetable', enabled: true },
+  // B8 (P5b.19): Granulator — a grain-cloud synthesizer that SAMPLES the
+  // decoded source frame and scatters seeded grains across the T/Y/X/C/F/L axes.
+  // Mirror of the Frame-Bank entry: double-click / drag onto a selected
+  // Performance track calls addGranulator. Needs a video clip on the timeline
+  // (the grains sample footage — without it grains are transparent), so it
+  // shares the hasVideoClips gate.
+  { id: 'granulator', label: 'Granulator', enabled: true },
 ]
 
 export default function InstrumentsBrowser() {
   const addSampler = useInstrumentsStore((s) => s.addSampler)
   const addRack = useInstrumentsStore((s) => s.addRack)
   const addFrameBank = useInstrumentsStore((s) => s.addFrameBank)
+  const addGranulator = useInstrumentsStore((s) => s.addGranulator)
   const selectedTrackId = useTimelineStore((s) => s.selectedTrackId)
   const tracks = useTimelineStore((s) => s.tracks)
   const assets = useProjectStore((s) => s.assets)
@@ -71,14 +79,28 @@ export default function InstrumentsBrowser() {
 
   const handleDoubleClick = (entry: RackEntry) => {
     if (!entry.enabled) return
-    if (entry.id !== 'sampler' && entry.id !== 'drum-rack' && entry.id !== 'wavetable') return
+    if (
+      entry.id !== 'sampler'
+      && entry.id !== 'drum-rack'
+      && entry.id !== 'wavetable'
+      && entry.id !== 'granulator'
+    ) return
 
-    // The Sampler + Frame-Bank (Wavetable) need a base video clip (their voices /
-    // slots scan footage); the Sample Rack does NOT (pads get sources individually
-    // via the RackDevice editor) — so gate only the clip-backed instruments.
-    const needsClip = entry.id === 'sampler' || entry.id === 'wavetable'
+    // The Sampler + Frame-Bank (Wavetable) + Granulator need a base video clip
+    // (their voices / slots / grains scan footage); the Sample Rack does NOT
+    // (pads get sources individually via the RackDevice editor) — so gate only
+    // the clip-backed instruments.
+    const needsClip =
+      entry.id === 'sampler' || entry.id === 'wavetable' || entry.id === 'granulator'
     if (needsClip && !hasVideoClips) {
-      const what = entry.id === 'sampler' ? 'a Sampler' : 'a Frame-Bank'
+      const what =
+        entry.id === 'sampler'
+          ? 'a Sampler'
+          : entry.id === 'wavetable'
+            ? 'a Frame-Bank'
+            : entry.id === 'granulator'
+              ? 'a Granulator'
+              : 'an instrument'
       useToastStore.getState().addToast({
         level: 'warning',
         message: `Add a video clip to the timeline first, then add ${what}.`,
@@ -94,7 +116,9 @@ export default function InstrumentsBrowser() {
           ? 'the Sampler'
           : entry.id === 'wavetable'
             ? 'the Frame-Bank'
-            : 'the Sample Rack'
+            : entry.id === 'granulator'
+              ? 'the Granulator'
+              : 'the Sample Rack'
       useToastStore.getState().addToast({
         level: 'warning',
         message: `Select a MIDI track first (Cmd+Shift+T to add one), then double-click — or drag ${what} onto it.`,
@@ -105,6 +129,14 @@ export default function InstrumentsBrowser() {
 
     if (entry.id === 'sampler') addSampler(selectedTrack.id)
     else if (entry.id === 'drum-rack') addRack(selectedTrack.id)
+    else if (entry.id === 'granulator') {
+      // B8 — instantiate a Granulator on the selected track. addGranulator seeds
+      // a default GranulatorInstrument (density 4, hann window, all-axes defaults,
+      // random selection); the grain cloud samples the live decoded source frame
+      // on the backend render arm. The user shapes density/window/axes/selection
+      // in the GranulatorDevice (mounted next to FrameBankDevice in App.tsx).
+      addGranulator(selectedTrack.id)
+    }
     else {
       // B6.3 — seed a couple of slots from the first available video clips so the
       // Frame-Bank scans real footage immediately (the user adds/removes more in
@@ -120,7 +152,9 @@ export default function InstrumentsBrowser() {
       {RACKS.map((entry) => {
         // P3.5/INJ-4: Sampler is drag-disabled when no video clips on timeline.
         // B6.3: the Frame-Bank (Wavetable) shares that gate (slots scan footage).
-        const needsClip = entry.id === 'sampler' || entry.id === 'wavetable'
+        // B8: the Granulator shares it too (grains sample the source frame).
+        const needsClip =
+          entry.id === 'sampler' || entry.id === 'wavetable' || entry.id === 'granulator'
         const clipDisabled = needsClip && !hasVideoClips
         const isDraggable = entry.enabled && !clipDisabled
         const tooltip = !entry.enabled

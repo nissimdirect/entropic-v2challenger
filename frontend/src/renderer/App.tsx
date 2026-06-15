@@ -34,10 +34,12 @@ import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
 import RackDevice from './components/instruments/RackDevice'
 import FrameBankDevice from './components/instruments/FrameBankDevice'
+import GranulatorDevice from './components/instruments/GranulatorDevice'
 import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveRackMacros } from './components/instruments/resolveRackMacros'
 import { serializeFrameBanks } from './components/instruments/serializeFrameBanks'
+import { buildGranulatorLayer } from './components/instruments/buildGranulatorLayer'
 import type { SamplerInstrumentV1, RackPad } from './components/instruments/types'
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { evaluateVoices } from './components/instruments/voiceFSM'
@@ -344,6 +346,11 @@ function AppInner() {
   // preview re-render (effect below). Without it the frameBank preview payload is
   // a dead flag — wired but never sent on a bank change (Gate 14 wiring check).
   const frameBanks = useInstrumentsStore((s) => s.frameBanks)
+  // B8: reactive subscription so granulator add/edit/density/window/axes/selection
+  // changes trigger a preview re-render (effect below). Without it the granulator
+  // preview payload is a dead flag — wired but never re-sent on a param change
+  // (Gate 14 wiring check; mirror of the frameBanks subscription above).
+  const granulators = useInstrumentsStore((s) => s.granulators)
   const selectedTrackId = useTimelineStore((s) => s.selectedTrackId)
   const [welcomeDismissed, setWelcomeDismissed] = useState(false)
   const [showPresetSave, setShowPresetSave] = useState<{ mode: 'single_effect' | 'effect_chain'; instanceId?: string } | null>(null)
@@ -1243,8 +1250,23 @@ function AppInner() {
         const fbPreview = serializeFrameBanks(instrState.frameBanks, projectAssets, activeFps)
         const hasFrameBanksPreview = Object.keys(fbPreview.frameBanks).length > 0
 
+        // B8 — Granulator PREVIEW serialization. The granulator is rendered on the
+        // BACKEND render arm (_handle_render_composite reads `performance.granulator`,
+        // samples the first decoded layer, scatters a seeded grain cloud, and appends
+        // ONE voice layer). Like the frameBank, the preview ships only the DESCRIPTOR
+        // dict — buildGranulatorLayer mirrors the backend `_parse_granulator_layer`
+        // contract EXACTLY (density/window/axes[UPPERCASE T/Y/X/C/F/L]/l_axis_enabled/
+        // selection/instrument_id). A track holds at most one granulator; the render
+        // sends the granulator of the SELECTED performance track. No granulator →
+        // null → `performance.granulator` omitted → preview byte-identical to pre-B8.
+        const granInst = selectedTrackId
+          ? instrState.granulators[selectedTrackId]
+          : undefined
+        const granPreview = buildGranulatorLayer(granInst)
+        const hasGranulatorPreview = granPreview !== null
+
         const hasMultipleLayers =
-          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0 || frozenLayers.length > 0 || hasFrameBanksPreview
+          activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0 || frozenLayers.length > 0 || hasFrameBanksPreview || hasGranulatorPreview
 
         if (hasMultipleLayers || activeVideoClips.length === 0) {
           // Use render_composite for multi-layer rendering
@@ -1337,13 +1359,28 @@ function AppInner() {
             // them). Empty when no track is frozen (regression-safe).
             ...frozenLayers.map((l) => ({ ...l })),
           ]
-          // B6.2 — frameBank preview payload: the backend reads
-          // `performance.frameBanks` + `performance.assets` and appends the
-          // resolved bank voice layer (mirror of export). Omitted entirely when no
-          // frameBanks are present so the preview request is byte-identical to B6.1.
-          const fbPerformance = hasFrameBanksPreview
-            ? { performance: { frameBanks: fbPreview.frameBanks, assets: fbPreview.assets } }
-            : {}
+          // B6.2 / B8 — performance preview payload. The backend reads
+          // `performance.frameBanks` + `performance.assets` (frameBank arm) and
+          // `performance.granulator` (granulator arm) off the SAME `performance`
+          // object and appends each resolved voice layer (mirror of export).
+          // Both sub-keys are additive: each is included only when present, so
+          // when neither is set `performance` is omitted entirely and the preview
+          // request is byte-identical to B6.1 (regression-safe).
+          const performancePreview: Record<string, unknown> = {}
+          if (hasFrameBanksPreview) {
+            performancePreview.frameBanks = fbPreview.frameBanks
+            performancePreview.assets = fbPreview.assets
+          }
+          if (hasGranulatorPreview) {
+            // granPreview is the GranulatorLayerDict the backend
+            // _parse_granulator_layer reads verbatim (snake_case keys, UPPERCASE
+            // axes). Non-null here because hasGranulatorPreview gates it.
+            performancePreview.granulator = granPreview
+          }
+          const fbPerformance =
+            Object.keys(performancePreview).length > 0
+              ? { performance: performancePreview }
+              : {}
           res = await window.entropic.sendCommand({
             cmd: 'render_composite',
             layers,
@@ -1553,6 +1590,16 @@ function AppInner() {
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
   }, [frameBanks, currentFrame, activeFps, requestRenderFrame])
+
+  // B8: re-render when a granulator is added/removed or any of its params change
+  // (density/window/axes/l-axis/selection). Mirror of the frameBank effect above —
+  // the grain cloud is rendered on the backend from the `performance.granulator`
+  // descriptor, so a param change must re-issue the render_composite IPC or the
+  // live preview never repaints the new cloud (Gate 14 dead-flag guard).
+  useEffect(() => {
+    if (!activeAssetPath.current) return
+    requestRenderFrame(currentFrame)
+  }, [granulators, currentFrame, requestRenderFrame])
 
   // Load waveform data after audio is loaded
   const loadWaveform = useCallback(async (path: string) => {
@@ -3658,6 +3705,14 @@ function AppInner() {
         {selectedTrackId
           && tracks.find((t) => t.id === selectedTrackId)?.type === 'performance' && (
           <FrameBankDevice trackId={selectedTrackId} />
+        )}
+        {/* B8: a selected Performance track that hosts a Granulator shows its
+            GranulatorDevice (density/window/axes/selection + grain-cloud viz).
+            GranulatorDevice returns null when the track has no granulator, so this
+            mount is safe for non-granulator tracks (mirror of FrameBankDevice). */}
+        {selectedTrackId
+          && tracks.find((t) => t.id === selectedTrackId)?.type === 'performance' && (
+          <GranulatorDevice trackId={selectedTrackId} />
         )}
         <DeviceChain
           onFreezeUpTo={handleFreezeUpTo}
