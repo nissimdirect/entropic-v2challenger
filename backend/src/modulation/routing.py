@@ -139,6 +139,41 @@ def resolve_axis_binding(
     return cumulative[-1]
 
 
+def _axis_samples_for_mapping(
+    operator_values: dict[str, float],
+    op_id: str,
+    source_key,
+    op_signal: float,
+) -> list[float]:
+    """Build the SOURCE axis sample sequence for one mapping (B9 live resolver).
+
+    The live engine evaluates each operator to a single scalar per frame, but a
+    kentaroCluster operator ALSO exposes its sub-LFOs at ``values[f"{op_id}/lfo{i}"]``
+    — that ordered set IS the operator's axis (a vector of samples over the
+    operator's internal axis). The binding rule reads this sequence:
+
+      * ``source_key`` present → a SINGLE namespaced value (length-1 axis). The
+        mapping explicitly addresses one sub-LFO, so the axis is that one sample.
+      * else, if the operator exposes ``{op_id}/<...>`` sub-values → collect them
+        (sorted by key for determinism) as the multi-sample axis vector.
+      * else → the operator's master scalar (length-1 axis).
+
+    A length-1 axis makes every binding rule collapse to the same scalar
+    (broadcast), so legacy single-scalar operators are unaffected. Returns a
+    finite-guarded list (the numeric trust boundary is re-applied inside
+    ``resolve_axis_binding``).
+    """
+    if source_key:
+        return [operator_values.get(f"{op_id}/{source_key}", 0.0)]
+
+    prefix = f"{op_id}/"
+    sub = sorted(k for k in operator_values if k.startswith(prefix))
+    if sub:
+        return [operator_values[k] for k in sub]
+
+    return [op_signal]
+
+
 def resolve_routings(
     operator_values: dict[str, float],
     operators: list[dict],
@@ -155,6 +190,19 @@ def resolve_routings(
 
     Returns:
         Deep copy of chain with modulated parameter values.
+
+    B9 binding-rule dispatch (audit #13): each mapping's ``binding_rule`` selects
+    how its SOURCE axis samples collapse to the scalar fed into the blend:
+      * ``broadcast`` (or absent) — the legacy scalar signal, UNCHANGED. The
+        contribution tuple is byte-identical to pre-B9, so legacy projects and
+        broadcast mappings render exactly as before.
+      * ``sampleAt`` / ``scanOver`` / ``integrate`` — the axis sequence is
+        resolved through ``resolve_axis_binding`` (depth=1.0 there, so the
+        per-mapping depth + min/max + blend stay in the SAME blend pipeline as
+        broadcast). For a length-1 axis these are numerically identical to
+        broadcast; they DIFFER only when the source exposes a multi-sample axis
+        (e.g. a kentaroCluster's sub-LFOs). Field (2D) destinations stay gated
+        behind EXPERIMENTAL_FIELD_DST — this path always requests a SCALAR.
     """
     modulated = copy.deepcopy(chain)
 
@@ -211,6 +259,47 @@ def resolve_routings(
 
             if not target_effect or not target_param:
                 continue
+
+            # P5b.22 (B9) — DISPATCH on the mapping's binding_rule (audit #13).
+            # broadcast (or absent) keeps the legacy scalar `signal` UNCHANGED so
+            # the contribution tuple is byte-identical to pre-B9. The other three
+            # rules collapse the operator's SOURCE axis to a scalar via
+            # resolve_axis_binding, then feed THAT scalar through the same depth +
+            # min/max + blend pipeline (depth=1.0 inside the resolver so depth is
+            # applied exactly once, in _blend_contributions, identically to
+            # broadcast).
+            binding_rule = mapping.get(
+                "binding_rule", mapping.get("bindingRule", "broadcast")
+            )
+            if binding_rule and binding_rule != "broadcast":
+                # Defense-in-depth (qa-redteam #301): a hand-edited/malformed
+                # axisIndex (list/dict -> TypeError, non-numeric str -> ValueError)
+                # must NOT crash the per-frame render hot path. Coerce safely; a
+                # bad value falls back to index 0.
+                try:
+                    axis_index = int(
+                        mapping.get("axis_index", mapping.get("axisIndex", 0)) or 0
+                    )
+                except (TypeError, ValueError):
+                    axis_index = 0
+                axis_samples = _axis_samples_for_mapping(
+                    operator_values, op_id, source_key, signal
+                )
+                try:
+                    signal = resolve_axis_binding(
+                        axis_samples,
+                        binding_rule,
+                        index=axis_index,
+                        depth=1.0,
+                        field_dst=False,
+                    )
+                except (ValueError, FieldDestinationDisabledError):
+                    # Defensive: an unimplemented/flag-gated rule is already
+                    # rejected at the load + render-IPC trust boundaries
+                    # (security.validate_operator_mod_edges). If one still reaches
+                    # here, fall back to the legacy broadcast scalar — never raise
+                    # in the per-frame render hot path.
+                    pass
 
             deltas[(target_effect, target_param)].append(
                 (signal, depth, m_min, m_max, blend)
