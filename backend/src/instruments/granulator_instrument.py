@@ -277,6 +277,9 @@ def grain_cloud(
     instrument_id: str,
     frame_index: int,
     params: GranulatorParams,
+    *,
+    selection_weights: list[float] | None = None,
+    selection_strength: float = 0.0,
 ) -> GrainCloud:
     """Compute a deterministic grain cloud descriptor set for one frame.
 
@@ -287,13 +290,29 @@ def grain_cloud(
     L-axis draw is ALWAYS consumed (even when l_axis_enabled is False) so that
     enabling L later does NOT shift T/Y/X/C/F values.
 
+    P5b.18 — SELECTION consumption: `selection_weights` (per-grain T weights ∈
+    [0,1], produced by `select_grain_weights` for the active rule) biases each
+    grain's T-position toward its weight by `selection_strength` ∈ [0,1]. For the
+    `random` rule the caller passes `selection_weights=None` (or strength 0) so
+    the jittered T-position is UNCHANGED — byte-identical to the pre-P5b.18 engine
+    (the determinism contract + every existing test). For `onset` the caller
+    passes the onset-biased weights + the onset strength, so a transient pulls the
+    grains' T-positions toward the onset — selection now CHANGES the output on the
+    live render path (not a dead feature). The jitter draw order is untouched, so
+    enabling selection never shifts Y/X/C/F/L.
+
     This function is a pure function: same (project_seed, instrument_id,
-    frame_index, params) → identical GrainCloud every call.
+    frame_index, params, selection_weights, selection_strength) → identical
+    GrainCloud every call.
     """
     density = params.density  # already clamped by GranulatorParams.__post_init__
     window = params.window
     axes_p = params.axes
     l_enabled = params.l_axis_enabled
+
+    # Finite-guard the selection-bias strength at the boundary (numeric trust).
+    sel_strength = _clamp_finite(selection_strength, 0.0, 1.0)
+    sel_active = selection_weights is not None and sel_strength > 0.0
 
     descriptors: list[GrainDescriptor] = []
 
@@ -318,6 +337,12 @@ def grain_cloud(
 
         # Compute jittered positions for each axis
         T_pos = _jittered_position(axes_p["T"].grain, axes_p["T"].jitter, t_draw)
+        # SELECTION bias: blend the jittered T toward the per-grain selection
+        # weight by sel_strength. Inactive (random / strength 0) → no change, so
+        # `random` stays byte-identical to the pre-P5b.18 engine.
+        if sel_active and gi < len(selection_weights):  # type: ignore[arg-type]
+            w = _clamp_finite(selection_weights[gi], 0.0, 1.0)  # type: ignore[index]
+            T_pos = max(0.0, min(1.0, T_pos + (w - T_pos) * sel_strength))
         Y_pos = _jittered_position(axes_p["Y"].grain, axes_p["Y"].jitter, y_draw)
         X_pos = _jittered_position(axes_p["X"].grain, axes_p["X"].jitter, x_draw)
         C_pos = _jittered_position(axes_p["C"].grain, axes_p["C"].jitter, c_draw)

@@ -115,7 +115,6 @@ def test_random_selection_seeded_deterministic():
 def test_random_selection_uses_separate_seed_namespace():
     """Selection uses a `gransel:` namespace distinct from jitter's `gran:` so
     adding selection does NOT shift existing jitter draws."""
-    from instruments.granulator_instrument import grain_cloud
 
     params = GranulatorParams(density=8)
     cloud_a = grain_cloud(99, "inst_x", 3, params)
@@ -364,3 +363,276 @@ def test_granulator_params_degrades_unknown_selection_to_default(latent_flag_off
     assert GranulatorParams(selection="bogus").selection == "random"  # type: ignore[arg-type]
     # A valid implemented rule is preserved.
     assert GranulatorParams(selection="onset").selection == "onset"
+
+
+# ---------------------------------------------------------------------------
+# REAL PRODUCTION PATH — drive rejection + selection through the LIVE render IPC
+# (`_parse_granulator_layer` / `_handle_render_composite`), NOT deserialize().
+#
+# The TIGER: schema.py::_validate_grain_selection (via deserialize) has ZERO
+# production callers — the load-bearing trust boundary for a granulator render is
+# zmq_server.py::_parse_granulator_layer, reached from the live render IPC. These
+# tests prove the reject fires THERE and that selection actually biases grain
+# output on the live path.
+# ---------------------------------------------------------------------------
+
+import zmq_server as zmq_mod  # noqa: E402
+from instruments.granulator_instrument import (  # noqa: E402
+    AxisParams,
+    BudgetController,
+    grain_cloud,
+)
+
+
+class _FakeReader:
+    """decode_frame(i) → RGBA frame whose R channel encodes `i` (mod 256)."""
+
+    def __init__(self, h: int = 16, w: int = 16):
+        self.width = w
+        self.height = h
+        self._h = h
+        self._w = w
+
+    def decode_frame(self, frame_index: int) -> np.ndarray:
+        f = np.zeros((self._h, self._w, 4), dtype=np.uint8)
+        f[:, :, 0] = int(frame_index) % 256
+        f[:, :, 3] = 255
+        return f
+
+
+def _build_server(monkeypatch):
+    """Minimal real ZMQServer wired for _handle_render_composite + a captured
+    render_composite + a captured grain cloud (mirrors test_granulator_render)."""
+    from zmq_server import ZMQServer
+
+    server = ZMQServer.__new__(ZMQServer)
+    server.token = "test-token"
+    server.last_frame_ms = 0.0
+    server._granulator_last_frame_ms = None
+    server._granulator_budget = BudgetController()
+    server._granulator_onset_state = None
+
+    rdr = _FakeReader()
+    server._get_reader = lambda path: rdr  # type: ignore[assignment]
+
+    def fake_render_composite(layers, resolution, project_seed, layer_states=None):
+        w, h = resolution
+        return np.zeros((h, w, 4), dtype=np.uint8), {}
+
+    monkeypatch.setattr(zmq_mod, "render_composite", fake_render_composite)
+    monkeypatch.setattr(zmq_mod, "flatten_rgba", lambda f: f)
+    monkeypatch.setattr(zmq_mod, "encode_mjpeg", lambda f: b"\x00")
+    monkeypatch.setattr(zmq_mod, "validate_upload", lambda p: [])
+    return server
+
+
+def _gran_payload(selection=None, **extra) -> dict:
+    axes = {ax: {"grain": 0.5, "jitter": 0.3, "grain_env": 1.0} for ax in "TYXCFL"}
+    payload = {
+        "instrument_id": "gran1",
+        "density": 8,
+        "window": "hann",
+        "axes": axes,
+    }
+    if selection is not None:
+        payload["selection"] = selection
+    payload.update(extra)
+    return payload
+
+
+def _render(server, granulator, *, frame_index=0):
+    msg = {
+        "layers": [
+            {
+                "layer_type": "video",
+                "asset_path": "/fake/base.mp4",
+                "frame_index": frame_index,
+                "chain": [],
+                "clip_opacity": 1.0,
+            }
+        ],
+        "resolution": [16, 16],
+        "project_seed": 7,
+        "performance": {"granulator": granulator},
+    }
+    return server._handle_render_composite(msg, "mid-1")
+
+
+# --- (1) SECURITY: reject fires THROUGH the real parser/render path -----------
+
+
+def test_parse_granulator_layer_rejects_latentSimilarity_flag_off(
+    monkeypatch, latent_flag_off
+):
+    """Flag-off `latentSimilarity` is REJECTED at _parse_granulator_layer (the REAL
+    production boundary), BEFORE GranulatorParams construction — NOT silently
+    coerced to 'random'. The live render IPC returns ok=False with a clear error."""
+    server = _build_server(monkeypatch)
+    params, errors = server._parse_granulator_layer(_gran_payload("latentSimilarity"))
+    assert params is None
+    assert errors and any(
+        "latentSimilarity" in e and "not accepted" in e for e in errors
+    )
+
+    # End-to-end through _handle_render_composite: render is rejected, not rendered.
+    resp = _render(server, _gran_payload("latentSimilarity"))
+    assert resp["ok"] is False
+    assert "latentSimilarity" in resp["error"]
+
+
+def test_parse_granulator_layer_rejects_scenePayload(monkeypatch, latent_flag_off):
+    """Reserved `scenePayload` is REJECTED at the real parser with a reserved-
+    specific message, and the live render returns ok=False."""
+    server = _build_server(monkeypatch)
+    params, errors = server._parse_granulator_layer(_gran_payload("scenePayload"))
+    assert params is None
+    assert errors and any("scenePayload" in e and "reserved" in e for e in errors)
+
+    resp = _render(server, _gran_payload("scenePayload"))
+    assert resp["ok"] is False
+    assert "scenePayload" in resp["error"]
+
+
+def test_parse_granulator_layer_rejects_unknown_selection(monkeypatch):
+    """Unknown selection value rejected at the real parser."""
+    server = _build_server(monkeypatch)
+    params, errors = server._parse_granulator_layer(_gran_payload("teleport"))
+    assert params is None
+    assert any("teleport" in e for e in errors)
+
+
+def test_parse_granulator_layer_rejects_non_string_selection(monkeypatch):
+    """Non-string selection rejected at the real parser (type guard)."""
+    server = _build_server(monkeypatch)
+    params, errors = server._parse_granulator_layer(_gran_payload(selection=42))
+    assert params is None
+    assert any("must be a string" in e for e in errors)
+
+
+def test_parse_granulator_layer_threads_selection_into_params(monkeypatch):
+    """A valid `onset` selection is threaded into GranulatorParams (not dropped)."""
+    server = _build_server(monkeypatch)
+    params, errors = server._parse_granulator_layer(_gran_payload("onset"))
+    assert errors == []
+    assert params is not None
+    assert params.selection == "onset"
+
+    # Absent selection → defaults to random (regression-safe).
+    params2, errors2 = server._parse_granulator_layer(_gran_payload())
+    assert errors2 == []
+    assert params2.selection == "random"
+
+
+def test_parse_granulator_layer_latentSimilarity_accepted_flag_on(
+    monkeypatch, latent_flag_on
+):
+    """With the flag ON, latentSimilarity is accepted at the real parser."""
+    server = _build_server(monkeypatch)
+    params, errors = server._parse_granulator_layer(_gran_payload("latentSimilarity"))
+    assert errors == []
+    assert params is not None
+    assert params.selection == "latentSimilarity"
+
+
+# --- (2) FUNCTIONALITY: selection BIASES grain output on the live path --------
+
+
+def test_render_path_selection_biases_grain_positions(monkeypatch):
+    """`random` vs `onset` produce DIFFERENT grain descriptors on the live render
+    path — selection is consumed, not dead. Captured via a spy on grain_cloud."""
+    server = _build_server(monkeypatch)
+
+    captured: dict[str, list] = {}
+
+    real_grain_cloud = zmq_mod.grain_cloud
+
+    def spy_grain_cloud(seed, inst, frame, params, **kw):
+        cloud = real_grain_cloud(seed, inst, frame, params, **kw)
+        captured[params.selection] = [g.T for g in cloud.grains]
+        return cloud
+
+    monkeypatch.setattr(zmq_mod, "grain_cloud", spy_grain_cloud)
+
+    # random render — seeded weights, strength 0 → T positions are the unbiased
+    # jittered positions (byte-identical to the pre-P5b.18 engine).
+    _render(server, _gran_payload("random"))
+    random_T = captured["random"]
+
+    # Cross-check: random path T == the bare grain_cloud (no selection bias).
+    bare = real_grain_cloud(
+        7,
+        "gran1",
+        0,
+        GranulatorParams(
+            density=8,
+            window="hann",
+            axes={
+                ax: AxisParams(grain=0.5, jitter=0.3, grain_env=1.0) for ax in "TYXCFL"
+            },
+            selection="random",
+        ),
+    )
+    assert random_T == [g.T for g in bare.grains]
+
+    # onset render with a loud transient → onset strength > 0 → T positions are
+    # biased away from the unbiased jittered positions (selection CHANGES output).
+    server._granulator_onset_state = None
+    sr = 48000
+    # Prime spectral-flux state with a quiet frame, then hit a loud burst.
+    quiet = (np.random.default_rng(0).standard_normal(1024).astype(np.float32)) * 1e-4
+    _render(
+        server,
+        _gran_payload(
+            "onset",
+            pcm=quiet.tolist(),
+            sample_rate=sr,
+            onset_params={"sensitivity": 1.0, "threshold": 0.0},
+        ),
+        frame_index=0,
+    )
+    burst = (np.sin(2 * np.pi * 1000 * np.arange(1024) / sr) * 8.0).astype(np.float32)
+    _render(
+        server,
+        _gran_payload(
+            "onset",
+            pcm=burst.tolist(),
+            sample_rate=sr,
+            onset_params={"sensitivity": 1.0, "threshold": 0.0},
+        ),
+        frame_index=0,
+    )
+    onset_T = captured["onset"]
+
+    # The onset transient biased the grain T-positions away from the unbiased
+    # random positions — selection demonstrably affects live grain output.
+    assert onset_T != random_T
+
+
+def test_render_path_random_byte_identical_to_pre_selection(monkeypatch):
+    """ACCEPTANCE: the `random` rule on the live path is byte-identical to a bare
+    grain_cloud with no selection bias (no regression for existing projects)."""
+    server = _build_server(monkeypatch)
+    captured: dict[str, list] = {}
+    real_grain_cloud = zmq_mod.grain_cloud
+
+    def spy(seed, inst, frame, params, **kw):
+        cloud = real_grain_cloud(seed, inst, frame, params, **kw)
+        captured["T"] = [g.T for g in cloud.grains]
+        return cloud
+
+    monkeypatch.setattr(zmq_mod, "grain_cloud", spy)
+    _render(server, _gran_payload("random"))
+
+    bare = real_grain_cloud(
+        7,
+        "gran1",
+        0,
+        GranulatorParams(
+            density=8,
+            window="hann",
+            axes={
+                ax: AxisParams(grain=0.5, jitter=0.3, grain_env=1.0) for ax in "TYXCFL"
+            },
+        ),
+    )
+    assert captured["T"] == [g.T for g in bare.grains]
