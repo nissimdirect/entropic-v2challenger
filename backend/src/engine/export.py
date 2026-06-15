@@ -36,6 +36,13 @@ from security import (
 )
 from engine.decoded_frame_cache import DecodedFrameCache
 from engine.frame_bank import resolve_frame_bank_layer
+from instruments.granulator_instrument import (
+    grain_cloud,
+    parse_granulator_layer,
+    select_grain_weights,
+    select_random_grain_weights,
+)
+from instruments.granulator_gpu import render_grain_layer_dispatch
 from engine.gif_export import export_gif_from_generator
 from engine.image_sequence import export_image_sequence_from_generator
 from engine.voice_replay import encode_voice_id, evaluate_voices
@@ -558,6 +565,11 @@ class ExportManager:
         # for the whole export (a continuous position-scan reuses decoded slots
         # across output frames); the readers it decodes through are voice_readers.
         frame_bank_caches: dict[str, object] = {}
+        # task #87: per-export granulator state (the LOCAL analogue of the
+        # per-server `_granulator_onset_state`). Threads the onset selection's
+        # spectral-flux state across output frames so two identical exports are
+        # byte-identical. Unused unless `performance.granulator.selection=='onset'`.
+        granulator_state: dict = {}
         try:
             if is_image_file(input_path):
                 reader = ImageReader(input_path)
@@ -705,6 +717,7 @@ class ExportManager:
                         operators=mod_operators,
                         operator_values=last_operator_values,
                         frame_bank_caches=frame_bank_caches,
+                        granulator_state=granulator_state,
                     )
                 else:
                     out, states = apply_chain(
@@ -808,6 +821,7 @@ class ExportManager:
                         operators=mod_operators,
                         operator_values=last_operator_values,
                         frame_bank_caches=frame_bank_caches,
+                        granulator_state=granulator_state,
                     )
                 else:
                     output, states = apply_chain(
@@ -1321,6 +1335,7 @@ class ExportManager:
         operators: list[dict] | None = None,
         operator_values: dict | None = None,
         frame_bank_caches: dict | None = None,
+        granulator_state: dict | None = None,
     ) -> tuple[np.ndarray, dict]:
         """Build the composited frame for one output frame (O1 composite branch).
 
@@ -1733,6 +1748,184 @@ class ExportManager:
                         blend_mode=sanitized.get("blendMode", "normal"),
                     )
                 )
+
+        # --- task #87 — B8 Granulator EXPORT render arm -----------------------
+        # MIRROR of the PREVIEW arm (zmq_server._handle_render_composite, the
+        # `if gran_raw:` block) so export == preview. When the performance carries
+        # `performance.granulator`, the granulator SAMPLES the first non-empty
+        # decoded layer (the base clip, or a transparent frame if none), produces a
+        # seeded grain cloud (the P5b.16 engine), composites the grains into ONE
+        # RGBA layer via the SAME render_grain_layer_dispatch, and appends it as a
+        # single voice layer. Absent / falsy `granulator` → no layer appended →
+        # export byte-identical (regression-safe). ROLLBACK: delete this whole
+        # `if gran_raw:` block to revert the granulator export render.
+        #
+        # EXPORT vs PREVIEW deltas (both intentional, determinism-preserving):
+        #   * is_export=True → the dispatcher COERCES render_path='gpu' to the CPU
+        #     path (granulator_gpu.coerce_render_path) so a GPU-less CI box bakes
+        #     byte-identical frames to a dev Mac.
+        #   * NO BudgetController — preview's stateful, wall-clock-driven density
+        #     degrade is non-deterministic and MUST NOT touch a deterministic
+        #     export. Export renders the full clamped density every frame.
+        #   * Onset spectral-flux state threads via `granulator_state` (a LOCAL
+        #     dict owned by the export job, the analogue of the per-server
+        #     `_granulator_onset_state`), so two identical exports are identical.
+        gran_raw = (performance or {}).get("granulator")
+        if gran_raw:
+            # TRUST BOUNDARY: parse + validate via the SHARED contract source the
+            # preview path consumes. Reject malformed params BEFORE any sample
+            # (every numeric clamped + finite-guarded; bad shape → loud raise,
+            # never a silent default that masks a corrupt project).
+            gran_params, gran_errors = parse_granulator_layer(gran_raw)
+            if gran_errors or gran_params is None:
+                raise ValueError("; ".join(gran_errors) or "invalid granulator")
+
+            # Source = first decoded video/image/voice frame already in `layers`
+            # (the layer the granulator operates on). None → a transparent source
+            # (grains sample nothing → transparent layer; still ONE layer out).
+            gran_source = None
+            for _layer in layers:
+                _f = _layer.get("frame")
+                if isinstance(_f, np.ndarray) and _f.size:
+                    gran_source = _f
+                    break
+            if gran_source is None:
+                gran_source = np.zeros(
+                    (resolution[1], resolution[0], 4), dtype=np.uint8
+                )
+
+            gran_anchor = min(
+                (int(layer.get("frame_index", 0)) for layer in layers),
+                default=frame_index,
+            )
+            gran_seed = int(project_seed) if isinstance(project_seed, int) else 0
+            gran_inst_id = str(gran_raw.get("instrument_id", "granulator"))[:128]
+
+            # SELECTION consumption (mirror of the preview arm). `random` → seeded
+            # weights, strength 0 → byte-identical to the unbiased engine. `onset`
+            # → derive per-grain T-weights from the audio onset trigger using the
+            # SAME select_grain_weights dispatch, threading the spectral-flux state
+            # through `granulator_state` for cross-frame determinism. Any failure
+            # falls back to the unbiased seeded cloud (never crashes the export).
+            sel_weights: list[float] | None = None
+            sel_strength = 0.0
+            try:
+                if gran_params.selection == "onset":
+                    pcm_raw = gran_raw.get("pcm")
+                    pcm_arr = None
+                    if isinstance(pcm_raw, list) and pcm_raw:
+                        pcm_arr = np.asarray(pcm_raw, dtype=np.float32)
+                        if not np.all(np.isfinite(pcm_arr)):
+                            pcm_arr = None
+                    sr_raw = gran_raw.get("sample_rate", 48000)
+                    sample_rate = (
+                        int(sr_raw)
+                        if isinstance(sr_raw, (int, float))
+                        and np.isfinite(float(sr_raw))
+                        and 0 < sr_raw <= 384000
+                        else 48000
+                    )
+                    onset_params = gran_raw.get("onset_params")
+                    if not isinstance(onset_params, dict):
+                        onset_params = {}
+                    prev_onset_state = (
+                        granulator_state.get("onset_state")
+                        if isinstance(granulator_state, dict)
+                        else None
+                    )
+                    # qa-redteam tiger fix (task #87): mirror the PREVIEW onset arm
+                    # (zmq_server) LINE-FOR-LINE. Preview derives a DYNAMIC onset
+                    # strength S from evaluate_audio, folds it into the per-grain
+                    # weights (w + (1-w)*S), AND passes that same dynamic S into
+                    # grain_cloud (which re-applies T_pos + (w - T_pos)*S). The
+                    # prior export arm folded S into the weights but then passed a
+                    # HARDCODED strength=1.0 into grain_cloud, so for S<1 the export
+                    # grain T-positions diverged from preview by up to |w - T_pos|
+                    # (worst at low onset energy). evaluate_audio is called EXACTLY
+                    # ONCE per frame (audit #12), and its state is threaded forward
+                    # via granulator_state for cross-frame spectral-flux determinism.
+                    from modulation.audio_follower import evaluate_audio
+
+                    _onset_strength_raw, onset_state_out = evaluate_audio(
+                        pcm_arr,
+                        "onset",
+                        onset_params,
+                        sample_rate,
+                        prev_onset_state,
+                    )
+                    # Finite-guard the follower output at the trust boundary (it
+                    # derives from PCM audio): NaN/Inf → safe default 0.0.
+                    sel_strength = clamp_finite(_onset_strength_raw, 0.0, 1.0, 0.0)
+                    # Build per-grain T-weights from the single onset strength
+                    # (mirrors select_onset_grain_weights without a second FFT).
+                    _base_weights = select_random_grain_weights(
+                        gran_seed,
+                        gran_inst_id,
+                        gran_anchor,
+                        gran_params.density,
+                    )
+                    sel_weights = [
+                        max(0.0, min(1.0, w + (1.0 - w) * sel_strength))
+                        for w in _base_weights
+                    ]
+                    if isinstance(granulator_state, dict):
+                        granulator_state["onset_state"] = onset_state_out
+                elif gran_params.selection == "random":
+                    sel_weights, _ = select_grain_weights(
+                        "random",
+                        gran_seed,
+                        gran_inst_id,
+                        gran_anchor,
+                        gran_params.density,
+                    )
+                    sel_strength = 0.0
+            except Exception:  # noqa: BLE001 — selection is best-effort bias
+                sel_weights = None
+                sel_strength = 0.0
+
+            cloud = grain_cloud(
+                gran_seed,
+                gran_inst_id,
+                gran_anchor,
+                gran_params,
+                selection_weights=sel_weights,
+                selection_strength=sel_strength,
+            )
+            # is_export=True → 'gpu' render_path coerced to the deterministic CPU
+            # path (export NEVER uses the GPU path). ALWAYS returns ONE RGBA layer;
+            # never raises on a GPU hiccup.
+            grain_frame = render_grain_layer_dispatch(
+                gran_source,
+                cloud,
+                resolution=resolution,
+                render_path=gran_params.render_path,
+                is_export=True,
+                instance_id=gran_inst_id,
+            )
+
+            gran_op = gran_raw.get("opacity", 1.0)
+            if not isinstance(gran_op, (int, float)) or gran_op != gran_op:
+                gran_op = 1.0
+            gran_op = max(0.0, min(1.0, float(gran_op)))
+            gran_blend = gran_raw.get("blend_mode", "normal")
+            if not isinstance(gran_blend, str):
+                gran_blend = "normal"
+            gran_vid = "".join(
+                c if c.isalnum() or c in "_-" else "_"
+                for c in f"gran_{gran_inst_id}"[:128]
+            )
+            layers.append(
+                {
+                    "frame": grain_frame,
+                    "chain": [],
+                    "frame_index": gran_anchor,
+                    "voice_id": gran_vid,
+                    "layer_id": f"granulator:{gran_vid}",
+                    "opacity": gran_op,
+                    "blend_mode": gran_blend,
+                }
+            )
+        # ----------------------------------------------------------------------
 
         # Reuse the merged compositor verbatim, threading per-voice state.
         out, new_states = render_composite(
