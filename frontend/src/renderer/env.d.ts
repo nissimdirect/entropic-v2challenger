@@ -29,6 +29,9 @@ interface Window {
         totalFrames?: number
         etaSeconds?: number | null
         outputPath?: string
+        /** P5b.8 (SG-5): non-empty when export broke a modulation graph cycle */
+        cycleWarning?: string
+        cycleWarningSource?: string
       }) => void,
     ) => () => void
     showSaveDialog: (options: Record<string, unknown>) => Promise<string | null>
