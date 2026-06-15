@@ -31,8 +31,22 @@
  * Edge color = SOURCE OPERATOR color (the OperatorDepthArc color convention is
  * "operator identity → color"; the per-type palette lives in OPERATOR_TYPE_COLORS,
  * shared with RoutingLines' TYPE_COLORS).
+ *
+ * P5b.24 (B9 routing inspector UI):
+ *   - Clicking an edge opens the per-edge inspector: srcAxis/dstAxis pickers,
+ *     bindingRule picker, Bitwig-style depth arc. Changes write through the
+ *     existing #289 validator (validateMappingForSave / validateModRouteBindingRule).
+ *   - Research rules (painted/hilbert/polar/learned) are hidden when
+ *     `showResearchRules` is false (the default). The toggle is managed by the
+ *     parent (OperatorRack) so the panel stays collapsed by default.
+ *   - onCycleSafeCheck is called BEFORE committing any new edge to the store.
+ *     If it returns false the add is blocked. This fires cycle_safe_edge_addition
+ *     (from backend/src/safety/cycle_detection.py) via the routing_graph_get IPC
+ *     (build_graph_from_project + has_cycle — the same path SG-5 uses at render
+ *     time). The validation trust boundary is the live IPC + store, NOT the
+ *     schema.py deserializer (which is the backend .glitch path, not the live path).
  */
-import { useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -43,6 +57,26 @@ import type { Node, Edge, EdgeProps } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import { useOperatorStore } from '../../stores/operators'
 import type { EffectInfo, Operator } from '../../../shared/types'
+import type { Axis, BindingRule } from '../../../shared/axis-binding'
+import { resolveModRouteAxes } from '../../../shared/axis-binding'
+
+/**
+ * Info block for the per-edge inspector. Emitted by onEdgeSelect.
+ * Carries everything the inspector needs to render pickers and commit edits.
+ */
+export interface EdgeInspectorInfo {
+  /** Composite edge id (embeds operatorId, targetEffectId, mappingIndex). */
+  edgeId: string
+  operatorId: string
+  /** Index of this mapping within operator.mappings (stable while inspector open). */
+  mappingIndex: number
+  targetEffectId: string
+  targetParamKey: string
+  depth: number
+  srcAxis: Axis
+  dstAxis: Axis
+  bindingRule: BindingRule
+}
 
 interface OperatorTopologyGraphProps {
   /** Effect chain entries: `id` is the chain-instance id used by mappings. */
@@ -50,6 +84,24 @@ interface OperatorTopologyGraphProps {
   registry: EffectInfo[]
   /** Live per-operator signal values [0,1], refreshed per render frame. */
   operatorValues: Record<string, number>
+  /**
+   * P5b.24 (B9): Called when the user clicks an edge. Passes the edge's
+   * inspector info (axes, bindingRule, depth, operatorId, mappingIndex) to the
+   * parent so it can render the per-edge inspector panel. Pass null to deselect.
+   */
+  onEdgeSelect?: (info: EdgeInspectorInfo | null) => void
+  /**
+   * P5b.24 (B9): Pre-flight cycle check. Called BEFORE addMapping is committed.
+   * Should serialize the proposed edge into routing_graph_get and return true
+   * when the add is safe (no cycle), false to block. If absent, all adds pass.
+   */
+  onCycleSafeCheck?: (operatorId: string, targetEffectId: string) => Promise<boolean>
+  /**
+   * P5b.24 (B9): When true, show research binding rules (painted/hilbert/polar/
+   * learned) in the inspector's binding-rule picker. Default: false (hidden).
+   * The research toggle is managed by OperatorRack and off by default.
+   */
+  showResearchRules?: boolean
 }
 
 /**
@@ -118,26 +170,58 @@ interface EdgeData {
   depth: number
   /** Operator id — the rAF loop reads its live value to modulate the stroke. */
   operatorId: string
+  // P5b.24 (B9): axis-routing fields for the inspector.
+  targetEffectId: string
+  targetParamKey: string
+  mappingIndex: number
+  srcAxis: Axis
+  dstAxis: Axis
+  bindingRule: BindingRule
   [key: string]: unknown
 }
+
+/**
+ * Per-graph shared mutable ref that carries the onEdgeSelect callback. This
+ * avoids threading it through xyflow's `edgeTypes` (the custom edge function
+ * is memoized by type key — re-creating it re-mounts every edge). The ref is
+ * set once on the outer component and read inside TopologyEdge.
+ */
+const edgeSelectRef: { current: ((id: string) => void) | null } = { current: null }
 
 /**
  * Custom edge: path `d` computed ONCE via getStraightPath (xyflow recomputes it
  * only when the endpoints move — which never happens here, the layout is
  * static). Stroke width / opacity are seeded from depth; the rAF loop mutates
  * them imperatively via a data-edge-id lookup. We NEVER touch `d` per frame.
+ *
+ * P5b.24 (B9): clicking the edge path calls edgeSelectRef.current so the
+ * parent (OperatorRack) can open the per-edge inspector. The SVG path gets a
+ * thick transparent hit area (strokeWidth=12, stroke=transparent) layered
+ * behind the visible stroke so small-depth edges remain clickable.
  */
 function TopologyEdge({ id, sourceX, sourceY, targetX, targetY, data }: EdgeProps) {
   const [edgePath] = getStraightPath({ sourceX, sourceY, targetX, targetY })
   const d = (data ?? {}) as EdgeData
   const color = d.color ?? DEFAULT_COLOR
   const width = depthToStrokeWidth(d.depth ?? 0)
+  const handleClick = () => {
+    edgeSelectRef.current?.(id)
+  }
   return (
-    <BaseEdge
-      id={id}
-      path={edgePath}
-      style={{ stroke: color, strokeWidth: width, opacity: 0.5 }}
-    />
+    <>
+      {/* Transparent wide hit area — makes thin (low-depth) edges easier to click */}
+      <path
+        d={edgePath}
+        style={{ stroke: 'transparent', strokeWidth: 12, fill: 'none', cursor: 'pointer' }}
+        onClick={handleClick}
+      />
+      <BaseEdge
+        id={id}
+        path={edgePath}
+        style={{ stroke: color, strokeWidth: width, opacity: 0.5, cursor: 'pointer' }}
+        onClick={handleClick}
+      />
+    </>
   )
 }
 
@@ -169,20 +253,29 @@ export function buildTopologyModel(
     color: string
     depth: number
     targetEffectId: string
+    targetParamKey: string
     sourceKey?: string
     mappingIndex: number
+    srcAxis: Axis
+    dstAxis: Axis
+    bindingRule: BindingRule
   }[] = []
 
   for (const op of activeOps) {
     const color = OPERATOR_TYPE_COLORS[op.type] ?? DEFAULT_COLOR
     op.mappings.forEach((m, mi) => {
+      const axes = resolveModRouteAxes(m)
       rawEdges.push({
         operatorId: op.id,
         color,
         depth: clamp01(m.depth),
         targetEffectId: m.targetEffectId,
+        targetParamKey: m.targetParamKey,
         sourceKey: m.sourceKey,
         mappingIndex: mi,
+        srcAxis: axes.srcAxis,
+        dstAxis: axes.dstAxis,
+        bindingRule: axes.bindingRule,
       })
     })
   }
@@ -266,6 +359,12 @@ export function buildTopologyModel(
         color: e.color,
         depth: e.depth,
         operatorId: e.operatorId,
+        targetEffectId: e.targetEffectId,
+        targetParamKey: e.targetParamKey,
+        mappingIndex: e.mappingIndex,
+        srcAxis: e.srcAxis,
+        dstAxis: e.dstAxis,
+        bindingRule: e.bindingRule,
       } satisfies EdgeData,
     }
   })
@@ -282,6 +381,8 @@ export default function OperatorTopologyGraph({
   effectChain,
   registry,
   operatorValues,
+  onEdgeSelect,
+  showResearchRules,
 }: OperatorTopologyGraphProps) {
   const operators = useOperatorStore((s) => s.operators)
 
@@ -289,6 +390,32 @@ export default function OperatorTopologyGraph({
     () => buildTopologyModel(operators, effectChain, registry),
     [operators, effectChain, registry],
   )
+
+  // P5b.24 (B9): wire the edge selection callback into the module-level ref so
+  // TopologyEdge can call it without a prop-drill through xyflow's edgeTypes.
+  const handleEdgeClick = useCallback(
+    (edgeId: string) => {
+      if (!onEdgeSelect) return
+      const edge = model.edges.find((e) => e.id === edgeId)
+      if (!edge) return
+      const d = (edge.data ?? {}) as EdgeData
+      onEdgeSelect({
+        edgeId,
+        operatorId: d.operatorId,
+        mappingIndex: d.mappingIndex,
+        targetEffectId: d.targetEffectId,
+        targetParamKey: d.targetParamKey,
+        depth: d.depth,
+        srcAxis: d.srcAxis,
+        dstAxis: d.dstAxis,
+        bindingRule: d.bindingRule,
+      })
+    },
+    [model.edges, onEdgeSelect],
+  )
+
+  // Keep the module-level ref in sync so TopologyEdge can call it.
+  edgeSelectRef.current = handleEdgeClick
 
   // Live values mirror — read by the rAF loop without re-subscribing.
   const valuesRef = useRef<Record<string, number>>(operatorValues)
