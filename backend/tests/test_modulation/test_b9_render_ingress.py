@@ -85,6 +85,49 @@ def test_validate_operator_mod_edges_rejects_nonfinite_depth(bad):
     assert any("depth must be a finite number" in e for e in errors), errors
 
 
+# --- audit #14: finite guard for mapping min/max --------------------------------
+
+
+def test_nan_min_rejected_at_validator():
+    """NaN min must be rejected at the validator trust boundary (audit #14)."""
+    ops = [_op("op-1", _mapping(min=float("nan")))]
+    errors = validate_operator_mod_edges(ops)
+    assert any("min must be a finite number" in e for e in errors), errors
+
+
+def test_inf_max_rejected_at_validator():
+    """Inf max must be rejected at the validator trust boundary (audit #14)."""
+    ops = [_op("op-1", _mapping(max=float("inf")))]
+    errors = validate_operator_mod_edges(ops)
+    assert any("max must be a finite number" in e for e in errors), errors
+
+
+def test_finite_min_max_accepted():
+    """Normal finite min/max values must still be accepted."""
+    ops = [_op("op-1", _mapping(min=-1.0, max=2.5))]
+    assert validate_operator_mod_edges(ops) == []
+
+
+def test_missing_min_max_accepted():
+    """Absent min/max keys must be accepted — they are optional."""
+    m = {
+        "target_effect_id": "fx-blur",
+        "target_param_key": "radius",
+        "depth": 1.0,
+        "blend_mode": "add",
+        # no 'min' or 'max' keys
+    }
+    ops = [_op("op-1", m)]
+    assert validate_operator_mod_edges(ops) == []
+
+
+def test_depth_guard_unchanged():
+    """Regression: existing depth rejection still works after min/max guard added."""
+    ops = [_op("op-1", _mapping(depth=float("nan")))]
+    errors = validate_operator_mod_edges(ops)
+    assert any("depth must be a finite number" in e for e in errors), errors
+
+
 def test_validate_operator_mod_edges_rejects_unknown_axis():
     ops = [_op("op-1", _mapping(src_axis="q"))]
     errors = validate_operator_mod_edges(ops)
