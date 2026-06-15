@@ -100,6 +100,18 @@ MAX_BRANCH_VOICES_PER_RENDER = 64
 # mirroring the enforce-before-decode posture of INJ-3 / MAX_TOTAL_VOICES_PER_RENDER.
 MAX_GRAINS = 256
 
+# P5b.28 (INSTRUMENTS-BUILD-PLAN.md §B8): Granulator grain-render PATH accept-set.
+# The grain composite runs on one of two paths: 'cpu' (the deterministic byte-
+# identity baseline — and the ONLY path export ever uses) or 'gpu' (the MLX
+# instanced-quad PREVIEW path, instruments/granulator_gpu.py). `render_path`
+# crosses the IPC trust boundary as a string; an unrecognised value is REJECTED
+# at the zmq parser (mirrors the `selection` accept-set), never silently coerced
+# — a hand-edited / hostile payload fails LOUDLY. Export coerces 'gpu'→'cpu'
+# regardless (determinism). This is the authoritative mirror of the granulator
+# module's VALID_RENDER_PATHS / DEFAULT_RENDER_PATH.
+GRANULATOR_VALID_RENDER_PATHS = frozenset({"cpu", "gpu"})
+GRANULATOR_DEFAULT_RENDER_PATH = "cpu"
+
 # B6.1 (INSTRUMENTS-BUILD-PLAN.md §B6): Frame-Bank (wavetable) instrument caps.
 # A Frame-Bank is an indexed BANK of frames a modulatable `position` (0..1) scans
 # through. The MEMORY CRUX: 256 slots × 4K RGBA ≈ 8.5 GB if every frame is decoded

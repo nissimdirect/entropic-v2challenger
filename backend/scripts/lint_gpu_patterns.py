@@ -45,6 +45,16 @@ ALLOWED_RAW_ALLOC_MODULES: frozenset[str] = frozenset(
         # _gpu_lerp), so the RAII ownership the lint enforces is satisfied — the
         # allowance is for the upload constructor only, not unowned allocation.
         "effects/field_codegen.py",
+        # P5b.28: the B8 Granulator GPU grain-render pass — the second Tier-2 GPU
+        # module. It allocates its zeroed accumulator via MLXGPUResource.allocate()
+        # (the wrapper), but ALSO uploads host numpy scatter index/value arrays to
+        # the device (mx.array) — the exact upload constructor MLXGPUResource.allocate
+        # cannot express and mlx_resources.py is DO-NOT-TOUCH for. Every mx.array()
+        # result is immediately wrapped in an MLXGPUResource and pool-acquired (see
+        # instruments/granulator_gpu.py::render_grain_layer_gpu), so the SG-1 RAII
+        # ownership this lint enforces is satisfied — the allowance is for the upload
+        # constructor only, mirroring effects/field_codegen.py, NOT unowned allocation.
+        "instruments/granulator_gpu.py",
     }
 )
 

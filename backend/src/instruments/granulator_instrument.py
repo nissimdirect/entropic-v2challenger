@@ -69,6 +69,15 @@ AXES: tuple[str, ...] = ("T", "Y", "X", "C", "F", "L")
 
 SelectionRule = Literal["random", "onset", "scenePayload", "latentSimilarity"]
 
+# P5b.28 — preview render path for the grain composite. 'cpu' is the
+# deterministic, byte-identity baseline (and the ONLY path export ever uses);
+# 'gpu' is the MLX instanced-quad preview path (granulator_gpu.py). Unknown /
+# malformed values degrade to 'cpu' at the engine fail-safe (the loader / zmq
+# parser is the real trust boundary). Export ALWAYS coerces to 'cpu'.
+RenderPath = Literal["cpu", "gpu"]
+VALID_RENDER_PATHS: frozenset[str] = frozenset({"cpu", "gpu"})
+DEFAULT_RENDER_PATH: str = "cpu"
+
 # Always-implemented selection rules (no flag, no external source needed).
 IMPLEMENTED_SELECTION_RULES: frozenset[str] = frozenset({"random", "onset"})
 
@@ -147,6 +156,11 @@ class GranulatorParams:
     # second line of defense: an unknown/gated value that somehow reaches the
     # engine degrades safely to the default seeded `random` rather than crashing.
     selection: SelectionRule = "random"
+    # P5b.28 — preview render path. 'cpu' (default) is the deterministic byte-
+    # identity baseline; 'gpu' is the MLX instanced-quad preview path. An
+    # unknown value degrades to 'cpu' (engine fail-safe; the loader/zmq parser is
+    # the real trust boundary). Export ALWAYS coerces to 'cpu' (granulator_gpu).
+    render_path: RenderPath = "cpu"
 
     def __post_init__(self) -> None:
         # Clamp + validate density
@@ -165,6 +179,12 @@ class GranulatorParams:
         # degrades to the seeded `random` rule rather than crashing the engine.
         if self.selection not in accepted_selection_rules():
             self.selection = DEFAULT_SELECTION  # type: ignore[assignment]
+
+        # Validate render_path (engine-level fail-safe — the loader/zmq parser is
+        # the real trust boundary). An unknown value degrades to the CPU baseline
+        # rather than crashing the engine.
+        if self.render_path not in VALID_RENDER_PATHS:
+            self.render_path = DEFAULT_RENDER_PATH  # type: ignore[assignment]
 
         # Ensure all six axes are present with clamped values
         for ax in AXES:
