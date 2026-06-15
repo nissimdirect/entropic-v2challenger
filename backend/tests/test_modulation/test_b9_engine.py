@@ -16,7 +16,7 @@ from modulation.routing import (
     resolve_routings,
 )
 from modulation.graph_adapter import operators_to_routing_graph, remaining_source_edges
-from safety.cycle_detection import break_cycles, detect_cycles
+from safety.cycle_detection import detect_cycles
 
 pytestmark = pytest.mark.smoke
 
@@ -164,11 +164,18 @@ def test_unimplemented_rule_raises():
         resolve_axis_binding(0.5, "painted")
 
 
-# --- axis-bound cycle detection via SG-5 --------------------------------------
+# --- mappings are NOT eval-graph edges (audit medium #4) ----------------------
+#
+# Corrected semantics: `resolve_routings` (routing.py:181) applies an operator's
+# OWN already-computed value to a target EFFECT param; a mapping NEVER makes one
+# operator read another at eval time. So mappings must NOT contribute edges to the
+# eval-order/cycle graph built by `operators_to_routing_graph`, regardless of
+# whether the mapping's target id happens to name another present operator. (The
+# legitimate UI cycle warning lives in inspector/graph_sync.py with its own graph.)
 
 
 def _op(op_id: str, *map_targets: str) -> dict:
-    """An operator whose mappings target other operators (axis-bound edges)."""
+    """An operator whose mappings target ids — none of which are eval edges."""
     return {
         "id": op_id,
         "type": "lfo",
@@ -188,31 +195,29 @@ def _op(op_id: str, *map_targets: str) -> dict:
     }
 
 
-def test_axis_edge_cycle_detected_via_sg5_direct():
-    """A direct axis-bound 2-cycle op-a ↔ op-b is detected + broken (SG-5)."""
+def test_mappings_targeting_operators_are_not_eval_edges():
+    """Mappings whose target id names another operator are NOT eval-graph edges.
+
+    Even though op-a's mapping targets op-b (and vice-versa), neither op reads the
+    other at eval time, so no edge is created and there is no eval cycle.
+    """
     ops = [_op("op-a", "op-b"), _op("op-b", "op-a")]
     graph = operators_to_routing_graph(ops)
-    assert detect_cycles(graph).has_cycles
-    removed = break_cycles(graph)
-    assert removed  # at least one edge removed
+    assert len(graph.edges()) == 0
     assert not detect_cycles(graph).has_cycles
 
 
-def test_axis_edge_cycle_detected_via_sg5_nhop():
-    """An n-hop axis-bound cycle a→b→c→a is detected + broken (SG-5)."""
+def test_mappings_nhop_chain_is_not_a_cycle():
+    """A mappings 'chain' a→b→c→a is NOT an eval cycle (mappings ≠ eval deps)."""
     ops = [_op("op-a", "op-b"), _op("op-b", "op-c"), _op("op-c", "op-a")]
     graph = operators_to_routing_graph(ops)
-    assert detect_cycles(graph).has_cycles
-    edges = remaining_source_edges(graph)
-    assert ("op-a", "op-b") in edges
-    assert ("op-c", "op-a") in edges
-    break_cycles(graph)
+    assert len(graph.edges()) == 0
+    assert remaining_source_edges(graph) == set()
     assert not detect_cycles(graph).has_cycles
 
 
 def test_axis_edge_to_effect_is_not_a_graph_edge():
-    """A mapping targeting a real EFFECT (not an operator) is NOT a graph edge —
-    only operator-to-operator axis edges participate in cycle detection."""
+    """A mapping targeting a real EFFECT (not an operator) is NOT a graph edge."""
     ops = [_op("op-a", "fx-blur")]  # fx-blur is not a present operator
     graph = operators_to_routing_graph(ops)
     assert len(graph.edges()) == 0
