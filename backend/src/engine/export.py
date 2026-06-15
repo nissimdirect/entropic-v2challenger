@@ -25,6 +25,7 @@ from engine.codecs import (
 from effects import registry
 from engine.compositor import render_composite
 from engine.composite_tree import expand_group_layer, validate_composite_tree
+from safety.latent_sentinel import detect_nan_in_frame
 from engine.guards import clamp_finite
 from modulation.engine import SignalEngine
 from security import (
@@ -387,6 +388,15 @@ class ExportManager:
                     operator_values=None,
                     frame_bank_caches=frame_bank_caches,
                 )
+                # SG-3 clause-2: export FAILS LOUDLY on a NaN/Inf frame — never a
+                # silent substitution inside a deterministic export. A non-finite
+                # composite means a modulation lane produced garbage; the export
+                # job must error so the user re-renders, not ship a corrupt frame.
+                if detect_nan_in_frame(out):
+                    raise ValueError(
+                        f"SG-3 output gate: non-finite (NaN/Inf) frame at "
+                        f"index {src_idx} during export; aborting job"
+                    )
                 writer.write_frame(out)
                 frames_written += 1
             writer.close()
@@ -675,6 +685,17 @@ class ExportManager:
                     out = self._composite_text_layers(
                         out, text_layers, resolution, src_idx, source_fps
                     )
+                # SG-3 clause-2 (TIGER 2): the GIF + image-sequence export
+                # generators pull every frame through THIS function and write it
+                # with no further check, so the loud-fail gate lives HERE — both
+                # deterministic export types inherit it. Export FAILS LOUDLY on a
+                # NaN/Inf frame; never a silent substitution inside a deterministic
+                # export. (The inline video loop below has its own identical gate.)
+                if detect_nan_in_frame(out):
+                    raise ValueError(
+                        f"SG-3 output gate: non-finite (NaN/Inf) frame at "
+                        f"index {src_idx} during export; aborting job"
+                    )
                 return out
 
             # ---- GIF export path ----
@@ -777,6 +798,14 @@ class ExportManager:
                         interpolation=cv2.INTER_LANCZOS4,
                     )
 
+                # SG-3 clause-2: export FAILS LOUDLY on a NaN/Inf frame — never a
+                # silent substitution inside a deterministic export (see the
+                # mixdown-export site above for rationale).
+                if detect_nan_in_frame(output):
+                    raise ValueError(
+                        f"SG-3 output gate: non-finite (NaN/Inf) frame at "
+                        f"index {src_idx} during export; aborting job"
+                    )
                 writer.write_frame(output)
                 with job._lock:
                     job.current_frame = out_idx + 1

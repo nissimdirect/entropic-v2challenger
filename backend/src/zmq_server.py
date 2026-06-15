@@ -18,6 +18,7 @@ from engine.codecs import CODEC_REGISTRY
 from engine.export import ExportManager
 from engine.freeze import FreezeManager
 from engine.compositor import flatten_rgba, render_composite
+from safety.latent_sentinel import detect_nan_in_frame
 from engine.composite_tree import (
     collect_group_state_keys,
     expand_group_layer,
@@ -161,6 +162,24 @@ class ZMQServer:
         # monitor threshold crossings (see safety/pressure/monitor.py
         # _evaluate_and_fire seam). stop() is called in close().
         self.pressure_monitor = PressureMonitor(registry=global_registry())
+        # SG-3 clause-2 (P5b.4): render-output NaN/Inf gate state.
+        #   _last_good_frames: last finite preview frame PER (path-tag, shape),
+        #     served in place of a NaN/Inf frame so a glitched lane never ships a
+        #     corrupt JPEG / blanks the canvas mid-session. Keyed by frame `.shape`
+        #     (not just resolution) because `resolution` is per-request from the
+        #     message payload and can change mid-session without reset_state — a
+        #     last-good cached at shape A must NEVER be served against a reply
+        #     advertising shape B (TIGER 4). Falls back to opaque black at the
+        #     requested resolution before the first finite frame of that shape.
+        #
+        #   Honest scope note (NOT a per-lane abort): a NaN at the composed-frame
+        #   choke point is NOT attributable to a specific modulation lane (the
+        #   composite has already merged every layer/lane), so there is no per-lane
+        #   reader to mute. `lane_aborted.lane_id` is therefore always "unknown".
+        #   The gate serves last-known-good until the frame self-heals (the NaN
+        #   lane stops emitting non-finite output); it does NOT permanently disable
+        #   a lane. The reply still carries `lane_aborted` so the frontend can warn.
+        self._last_good_frames: dict[tuple, np.ndarray] = {}
 
     def reset_state(self):
         """Clear accumulated state without closing sockets/context.
@@ -217,6 +236,10 @@ class ZMQServer:
         # Reset per-effect render-state cache
         self._render_states = {}
         self._render_state_key = (None, -1)
+
+        # SG-3 clause-2: drop the per-shape last-known-good frame cache so the
+        # output gate starts clean each session (mirrors test-fixture isolation).
+        self._last_good_frames = {}
 
         # Reset composite per-voice/per-layer state cache (P5a.2 red-team RT-1:
         # these lazily-init attrs were not cleared here, leaking stale per-voice
@@ -729,6 +752,65 @@ class ZMQServer:
 
         return output, frame_index, reader, operator_values
 
+    def _apply_output_gate(
+        self, output: np.ndarray, resolution_wh: tuple[int, int], path_tag: str
+    ) -> tuple[np.ndarray, dict | None]:
+        """SG-3 clause-2 render-output NaN/Inf gate — the single shared seam.
+
+        Finite-checks `output` (ONE np.isfinite reduction, integer dtype short-
+        circuits). Used by EVERY preview frame→encode path that can carry
+        modulation-stack / composited output (render_frame, render_composite) so
+        the SG-3 contract "NaN/Inf NEVER silently passes downstream" holds
+        APP-WIDE, not just on one handler.
+
+        Finite frame → pure pass-through: cached as last-known-good keyed by its
+        `.shape`, returned verbatim, no `lane_aborted` (None). Zero byte change to
+        the happy path.
+
+        NaN/Inf frame → substitute the last-known-good frame OF THE SAME SHAPE
+        (TIGER 4: `resolution` is per-request and can change mid-session, so a
+        last-good of a different shape must never be served against this reply); if
+        none exists yet, an opaque-black canvas at the requested resolution with
+        the same channel count as `output`. Returns `(safe_output, lane_aborted)`
+        where `lane_aborted = {lane_id: "unknown", reason: ...}` — "unknown"
+        because a composed/processed frame is not attributable to one lane.
+
+        `path_tag` namespaces the per-shape cache so the single-clip and composite
+        paths never serve each other's frames even at identical dims.
+        """
+        # Lazy init — keeps the gate robust on `ZMQServer.__new__(...)` instances
+        # (test fixtures that skip __init__) without relying on every caller to
+        # pre-seed the attribute. Mirrors `_get_composite_states`' lazy pattern.
+        if not hasattr(self, "_last_good_frames"):
+            self._last_good_frames = {}
+
+        if not detect_nan_in_frame(output):
+            # Finite: pass through unchanged + remember as last-good for its shape.
+            self._last_good_frames[(path_tag, output.shape)] = output
+            return output, None
+
+        logging.getLogger(__name__).warning(
+            "SG-3 output gate: non-finite frame on %s; serving last-known-good",
+            path_tag,
+        )
+        lane_aborted = {
+            "lane_id": "unknown",
+            "reason": "render output contained NaN/Inf; serving last-known-good",
+        }
+        res_w, res_h = resolution_wh
+        # Prefer a last-good of the EXACT shape the corrupt frame had (so the
+        # served frame matches what the chain/composite would have produced).
+        last_good = self._last_good_frames.get((path_tag, output.shape))
+        if last_good is not None:
+            return last_good, lane_aborted
+        # No same-shape good frame yet → opaque black at the requested resolution,
+        # preserving the corrupt frame's channel count (3=RGB, 4=RGBA).
+        channels = output.shape[2] if output.ndim == 3 else 4
+        black = np.zeros((res_h, res_w, channels), dtype=np.uint8)
+        if channels == 4:
+            black[:, :, 3] = 255
+        return black, lane_aborted
+
     def _handle_render_frame(self, message: dict, msg_id: str | None) -> dict:
         path = message.get("path")
         chain = message.get("chain", [])
@@ -751,6 +833,17 @@ class ZMQServer:
                 self._render_composited_frame(message)
             )
 
+            # SG-3 clause-2 (TIGER 1): this is the LIVE single-clip preview path
+            # (frontend sends cmd:'render_frame' for every single-video-clip
+            # timeline — the COMMON case; render_composite is multi-layer only). It
+            # runs the full modulation stack, so a NaN lane could ship a corrupt
+            # JPEG here un-gated. Apply the same gate as render_composite before
+            # encode: finite → pass-through; NaN/Inf → last-known-good (or opaque
+            # black) + `lane_aborted` on the reply. NaN NEVER reaches encode.
+            output, lane_aborted = self._apply_output_gate(
+                output, (reader.width, reader.height), path_tag="render_frame"
+            )
+
             # Encode once for base64 transport (skip mmap — Electron uses base64)
             jpeg_bytes = encode_mjpeg(output)
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
@@ -763,6 +856,8 @@ class ZMQServer:
                 "width": reader.width,
                 "height": reader.height,
             }
+            if lane_aborted is not None:
+                response["lane_aborted"] = lane_aborted
             # Piggyback operator values on render response
             if operator_values is not None:
                 response["operator_values"] = operator_values
@@ -1520,6 +1615,17 @@ class ZMQServer:
                 new_layer_states = {**new_layer_states, **group_new_states}
             self._save_composite_states(new_layer_states, layer_signature, anchor_frame)
 
+            # --- SG-3 clause-2 (P5b.4) render-output NaN/Inf gate -------------
+            # CHOKE POINT: the single seam where the composed frame exits toward
+            # flatten/encode. Shared `_apply_output_gate` does ONE np.isfinite
+            # reduction: finite → pure pass-through (no byte change to the happy
+            # path); NaN/Inf → last-known-good of the same shape (or opaque black)
+            # + `lane_aborted` on THIS REQ/REP reply. NaN frames NEVER reach encode.
+            output, lane_aborted = self._apply_output_gate(
+                output, resolution, path_tag="render_composite"
+            )
+            # -----------------------------------------------------------------
+
             # MK.2 (SPEC §7-2): the composite carries meaningful per-pixel alpha
             # now (keyed-out / transparent regions). Flatten onto opaque surface-0
             # (#0B0B10) before encode so encode_mjpeg's alpha-truncation does not
@@ -1531,13 +1637,17 @@ class ZMQServer:
             frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
             self.last_frame_ms = round((time.time() - t0) * 1000, 2)
 
-            return {
+            response = {
                 "id": msg_id,
                 "ok": True,
                 "frame_data": frame_b64,
                 "width": resolution[0],
                 "height": resolution[1],
             }
+            # SG-3 clause-2: ride the abort info on the REQ/REP reply when fired.
+            if lane_aborted is not None:
+                response["lane_aborted"] = lane_aborted
+            return response
         except Exception as e:
             sentry_sdk.capture_exception(e)
             logging.getLogger(__name__).error(f"Render composite handler error: {e}")
