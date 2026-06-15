@@ -8,6 +8,7 @@ import { useToastStore } from './toast'
 import { useAutomationStore } from './automation'
 import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
 import type { PruneSnapshot } from './crossStoreCleanup'
+import { useInstrumentsStore } from './instruments'
 
 /**
  * D4/D5 helper: swap a leading `${oldId}.` prefix with `${newId}.` for any
@@ -747,6 +748,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           removedTrack.effectChain.map((e) => e.id),
           { dropTrackLanes: id },
         )
+        // #10 audit fix: remove per-track instrument state that would otherwise leak.
+        // Neither removeFrameBank nor removeGranulator was called on track delete;
+        // both are no-ops when the track has no instrument (safe to call unconditionally).
+        useInstrumentsStore.getState().removeFrameBank(id)
+        useInstrumentsStore.getState().removeGranulator(id)
       },
       () => {
         const tracks = [...get().tracks]

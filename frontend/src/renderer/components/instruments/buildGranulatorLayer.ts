@@ -48,6 +48,14 @@ export interface GranulatorLayerDict {
   }>
   l_axis_enabled: boolean
   selection: string
+  /**
+   * Backend render path. Defaults to 'cpu' (full-quality render).
+   * Set to 'gpu' to opt into the backend preview-only GPU arm
+   * (`_parse_granulator_layer` reads `render_path` directly from this dict).
+   *
+   * MIRROR: backend zmq_server.py `_parse_granulator_layer` → `render_path` field.
+   */
+  render_path: 'cpu' | 'gpu'
 }
 
 /**
@@ -86,5 +94,9 @@ export function buildGranulatorLayer(
     axes,
     l_axis_enabled: inst.lAxisEnabled,
     selection: inst.selection,
+    // #11 audit fix: always emit render_path so the backend GPU preview arm is
+    // reachable. Defaults to 'cpu'; callers may store 'gpu' in GranulatorInstrument.renderPath
+    // to opt into the backend preview-only fast path.
+    render_path: inst.renderPath ?? 'cpu',
   }
 }

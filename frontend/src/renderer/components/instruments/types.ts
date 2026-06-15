@@ -571,6 +571,20 @@ export interface GranulatorInstrument {
    */
   selection: GranulatorSelectionRule
   /**
+   * Backend render path (optional, additive — absent means 'cpu').
+   *
+   * 'cpu'  — default full-quality render (always reachable).
+   * 'gpu'  — preview-only fast path; the backend zmq_server `_parse_granulator_layer`
+   *           reads `render_path` from the IPC dict and routes to the GPU preview arm.
+   *           Reachable by setting renderPath: 'gpu' on this instrument in the store
+   *           (e.g. via useInstrumentsStore.getState().updateGranulatorRenderPath(trackId, 'gpu'))
+   *           and then building the layer dict with buildGranulatorLayer — the serializer
+   *           passes the value through as `render_path` in the IPC sub-dict.
+   *
+   * MIRROR: backend granulator_instrument.py / zmq_server.py `render_path` field.
+   */
+  renderPath?: 'cpu' | 'gpu'
+  /**
    * Per-axis ADSR envelope mini-editors (optional, additive).
    * Absent → no per-axis envelope override (backend AxisParams.grain_env governs).
    * Stored alongside the instrument for UI state persistence; the `envelope`
