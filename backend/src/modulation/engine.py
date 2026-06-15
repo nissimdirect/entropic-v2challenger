@@ -2,6 +2,7 @@
 
 import time
 import logging
+from dataclasses import dataclass, field
 
 from modulation.lfo import evaluate_lfo
 from modulation.kentaro_cluster import evaluate_kentaro_cluster
@@ -23,6 +24,34 @@ from security import MAX_OPERATORS_PER_PROJECT
 logger = logging.getLogger(__name__)
 
 MAX_OPERATORS = MAX_OPERATORS_PER_PROJECT  # 64; was 16 before P4.1
+
+
+@dataclass(frozen=True)
+class CycleBreakDecision:
+    """Snapshot of a deterministic cycle-break for a given operator graph.
+
+    P5b.8 (SG-5 part B): The cycle-break decision (surviving edge set +
+    removed edge ids) is computed ONCE per export job and injected into
+    every per-frame ``topological_sort_with_runtime`` call so the cyclic
+    graph produces the SAME evaluation order for ALL frames of one export.
+
+    ``survivor_edges``: the (src_idx, dst_idx) pairs surviving after
+      ``break_cycles`` removed the lex-smallest edges; used to call
+      ``_sort_with_edge_set`` instead of re-running ``break_cycles``.
+    ``removed_edge_ids``: edge ids that were removed (for warning emission).
+    ``has_cycle``: True iff a cycle was detected and broken; False for
+      acyclic graphs (fast-path, no injection needed).
+
+    Immutable (frozen dataclass) — safe to share across threads.
+    """
+
+    has_cycle: bool
+    survivor_edges: frozenset[tuple[int, int]] = field(default_factory=frozenset)
+    removed_edge_ids: tuple[str, ...] = field(default_factory=tuple)
+    sorted_operators: tuple[dict, ...] | None = field(default=None)
+    # op_id → declaration index, needed to re-run _sort_with_edge_set on
+    # any truncated slice (operators[:MAX_OPERATORS]).
+    op_index_map: dict[str, int] = field(default_factory=dict)
 
 
 class ModulationCycleError(Exception):
@@ -150,8 +179,60 @@ def _sort_with_edge_set(
     return [active_ops[i] for i in ordered]
 
 
+def compute_cycle_break_decision(operators: list[dict]) -> "CycleBreakDecision":
+    """Compute the cycle-break decision for an operator list ONCE (P5b.8).
+
+    Runs ``_topological_sort`` → on a cycle, builds the RoutingGraph, calls
+    ``break_cycles``, and captures the surviving edge set + removed ids.
+    For acyclic graphs, returns a decision with ``has_cycle=False`` (fast path,
+    no extra work per frame). This is called ONCE at export-job start so the
+    same break applies to every frame of the job (SPEC-3 §4.2 determinism tail).
+
+    The result is a frozen ``CycleBreakDecision`` — safe to share across threads.
+    """
+    capped = operators[:MAX_OPERATORS]
+    try:
+        _topological_sort(capped)
+        # No cycle — acyclic decision.
+        return CycleBreakDecision(has_cycle=False)
+    except ModulationCycleError:
+        pass
+
+    from modulation.graph_adapter import (
+        operators_to_routing_graph,
+        remaining_source_edges,
+    )
+    from safety.cycle_detection import break_cycles
+
+    # Build index map for the capped list.
+    op_idx: dict[str, int] = {}
+    for i, op in enumerate(capped):
+        oid = op.get("id", "")
+        if oid and oid not in op_idx:
+            op_idx[oid] = i
+
+    graph = operators_to_routing_graph(capped)
+    removed = break_cycles(graph)
+
+    # Translate surviving (src_id, dst_id) to (src_decl_idx, dst_decl_idx).
+    survivors: frozenset[tuple[int, int]] = frozenset(
+        (op_idx[s], op_idx[d])
+        for s, d in remaining_source_edges(graph)
+        if s in op_idx and d in op_idx
+    )
+
+    return CycleBreakDecision(
+        has_cycle=True,
+        survivor_edges=survivors,
+        removed_edge_ids=tuple(removed),
+        op_index_map=dict(op_idx),
+    )
+
+
 def topological_sort_with_runtime(
-    operators: list[dict], runtime_context=None
+    operators: list[dict],
+    runtime_context=None,
+    precomputed_break: "CycleBreakDecision | None" = None,
 ) -> list[dict]:
     """Runtime-aware topological sort with deterministic cycle-break (SG-5 part A).
 
@@ -167,10 +248,25 @@ def topological_sort_with_runtime(
        (deterministic lex-smallest edge removal), and re-sorts in the broken
        order. Same cycle → same break across runs (determinism).
 
+    P5b.8 export-path injection: when ``precomputed_break`` is supplied and
+    ``has_cycle`` is True, the per-frame sort SKIPS the RoutingGraph build and
+    ``break_cycles`` call — it uses the pre-computed ``survivor_edges`` directly.
+    This guarantees the same break for every frame of one export job AND avoids
+    re-running cycle detection per frame (perf gate: <16ms).
+
+    Live-render path (``precomputed_break=None``) is byte-identical to before —
+    no behavioral change for the preview path.
+
     Returns operators in a valid evaluation order. The ``_topological_sort`` raise
     semantics (INJ-2) are untouched — this wrapper CATCHES the raise and resolves
     it; it never changes when/how the static sort raises.
     """
+    # P5b.8: inject path — skip cycle detection, reuse precomputed edge set.
+    if precomputed_break is not None and precomputed_break.has_cycle:
+        return _sort_with_edge_set(
+            operators[:MAX_OPERATORS], precomputed_break.survivor_edges
+        )
+
     has_runtime = bool(
         runtime_context is not None
         and getattr(runtime_context, "has_runtime_conditional_edges", False)
@@ -292,6 +388,7 @@ class SignalEngine:
         state: dict | None = None,
         bpm: float = 120.0,
         runtime_context=None,
+        precomputed_break: "CycleBreakDecision | None" = None,
     ) -> tuple[dict[str, float], dict]:
         """Evaluate all operators and return their signal values.
 
@@ -305,6 +402,11 @@ class SignalEngine:
             state: Persistent state dict keyed by operator id.
             bpm: Host tempo, passed to bpm_sync-enabled operators (P4.2
                 kentaroCluster). Defaults to 120.0.
+            precomputed_break: P5b.8 (SG-5 part B) — optional pre-computed
+                cycle-break decision computed ONCE at export-job start. When
+                supplied and ``has_cycle`` is True, skips per-frame cycle
+                detection and reuses the snapshot edge set (perf + determinism).
+                ``None`` (default) → live-render path, byte-identical to before.
 
         Returns:
             (operator_values, new_state) where operator_values maps op_id -> float.
@@ -326,8 +428,10 @@ class SignalEngine:
         # existing _topological_sort fast path inside this wrapper; cycles are
         # broken deterministically (lex-smallest edge) instead of degrading to
         # declaration order. The declaration-order fallback is GONE.
+        # P5b.8: pass precomputed_break to skip per-frame cycle detection on the
+        # export path — same break for every frame of one export job.
         active_ops = topological_sort_with_runtime(
-            operators[:MAX_OPERATORS], runtime_context
+            operators[:MAX_OPERATORS], runtime_context, precomputed_break
         )
 
         _eval_start = time.perf_counter()

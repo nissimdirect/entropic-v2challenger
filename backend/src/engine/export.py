@@ -90,6 +90,10 @@ class ExportJob:
     total_frames: int = 0
     error: str | None = None
     output_path: str = ""
+    # P5b.8 (SG-5 part B): once-per-export cycle warning. Set to a non-None
+    # string when the operator graph had a cycle that was broken deterministically.
+    # Emitted as a toast via export result payload (source=sg5-cycle), not per frame.
+    cycle_warning: str | None = None
     _lock: threading.Lock = field(default_factory=threading.Lock)
     _cancel_event: threading.Event = field(default_factory=threading.Event)
     _thread: threading.Thread | None = field(default=None, repr=False)
@@ -270,8 +274,27 @@ class ExportManager:
             copy.deepcopy(automation_by_frame) if automation_by_frame else None
         )
 
+        # P5b.8 (SG-5 part B): compute the cycle-break decision ONCE at job start
+        # so the same break applies to every frame of this export job. This snapshot
+        # is computed from the cloned operator list (already deep-copied above) so
+        # post-start edits cannot change the break mid-export. Acyclic graphs
+        # (has_cycle=False) take the fast path and add no per-frame overhead.
+        from modulation.engine import compute_cycle_break_decision, CycleBreakDecision
+
+        snap_cycle_decision: CycleBreakDecision | None = None
+        if snap_operators:
+            snap_cycle_decision = compute_cycle_break_decision(snap_operators)
+
         job = ExportJob(output_path=output_path)
         self._job = job
+
+        # P5b.8: record the once-per-export cycle warning on the job so get_status()
+        # can surface it as a toast (source=sg5-cycle) without emitting per frame.
+        if snap_cycle_decision is not None and snap_cycle_decision.has_cycle:
+            job.cycle_warning = (
+                f"SG-5: modulation graph cycle detected and broken deterministically "
+                f"(removed edge(s): {list(snap_cycle_decision.removed_edge_ids)})"
+            )
 
         thread = threading.Thread(
             target=self._run_export,
@@ -289,6 +312,7 @@ class ExportManager:
                 "operators": snap_operators,
                 "automation_by_frame": snap_automation,
                 "audio_pcm_provider": audio_pcm_provider,
+                "cycle_decision": snap_cycle_decision,
             },
             daemon=True,
         )
@@ -520,6 +544,7 @@ class ExportManager:
         operators: list[dict] | None = None,
         automation_by_frame: dict | None = None,
         audio_pcm_provider=None,
+        cycle_decision=None,
     ):
         reader = None
         writer = None
@@ -634,6 +659,9 @@ class ExportManager:
                             audio_pcm = audio_pcm_provider(src_idx, source_fps)
                         except Exception:  # noqa: BLE001 — degrade like preview
                             audio_pcm = None
+                    # P5b.8: inject the precomputed cycle-break decision so the
+                    # per-frame toposort skips recomputing cycles — same break for
+                    # every frame, perf gate respected.
                     values, signal_state = signal_engine.evaluate_all(
                         mod_operators,
                         src_idx,
@@ -641,6 +669,7 @@ class ExportManager:
                         audio_pcm=audio_pcm,
                         video_frame=video_frame,
                         state=signal_state,
+                        precomputed_break=cycle_decision,
                     )
                 last_operator_values = values
                 return signal_engine.apply_modulation(
@@ -1993,7 +2022,7 @@ class ExportManager:
                 remaining = self._job.total_frames - self._job.current_frame
                 eta_seconds = round(remaining / fps_rate, 1) if fps_rate > 0 else None
 
-            return {
+            result = {
                 "status": self._job.status.value,
                 "progress": progress,
                 "current_frame": self._job.current_frame,
@@ -2002,6 +2031,14 @@ class ExportManager:
                 "error": self._job.error,
                 "eta_seconds": eta_seconds,
             }
+            # P5b.8 (SG-5 part B): surface the once-per-export cycle warning in
+            # the export result payload so the frontend can emit a toast
+            # (source=sg5-cycle). The warning is set at job-start (not per frame)
+            # so it appears in the FIRST status poll after the job starts.
+            if self._job.cycle_warning is not None:
+                result["cycle_warning"] = self._job.cycle_warning
+                result["cycle_warning_source"] = "sg5-cycle"
+            return result
 
     def cancel(self) -> bool:
         """Cancel the running export. Returns True if a job was cancelled."""
