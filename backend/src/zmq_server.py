@@ -1495,11 +1495,84 @@ class ZMQServer:
                     ):
                         frame_index = max(0, reader.frame_count - 3)
 
+                    # P5b.23 — B9: slit-scan decode for timeAxis 'y' or 'x'.
+                    # When the layer carries time_axis='y', output row r samples
+                    # footage frame clamp(r, 0, frame_count-1) — scanline-as-time.
+                    # time_axis='x' is the column-symmetric case.
+                    # Absent / 't' → fall through to legacy single-frame decode.
+                    # Trust boundary: only 'y'/'x' trigger this path; any other
+                    # value is treated as absent (legacy, byte-identical). The
+                    # frontend validator (P1-A axis canon) rejects uppercase upstream;
+                    # the backend guard here is defense-in-depth.
+                    time_axis_val = layer_info.get("time_axis")
+                    if time_axis_val in ("y", "x"):
+                        rfc_slit = (
+                            reader.frame_count
+                            if hasattr(reader, "frame_count") and reader.frame_count
+                            else 1
+                        )
+                        # Decode the anchor frame to get dimensions.
+                        anchor_idx = max(0, min(rfc_slit - 1, frame_index))
+                        anchor_frame = reader.decode_frame(anchor_idx)
+                        h_slit, w_slit = anchor_frame.shape[:2]
+                        channels_slit = (
+                            anchor_frame.shape[2] if anchor_frame.ndim == 3 else 1
+                        )
+                        out_slit = np.empty(
+                            (h_slit, w_slit, channels_slit)
+                            if channels_slit > 1
+                            else (h_slit, w_slit),
+                            dtype=np.uint8,
+                        )
+                        if time_axis_val == "y":
+                            dim = h_slit
+                            for i in range(dim):
+                                fi = max(0, min(rfc_slit - 1, i))
+                                row_f = reader.decode_frame(fi)
+                                if row_f.shape[1] != w_slit:
+                                    row_f = (
+                                        row_f[:, :w_slit]
+                                        if row_f.shape[1] > w_slit
+                                        else np.pad(
+                                            row_f,
+                                            (
+                                                (0, 0),
+                                                (0, w_slit - row_f.shape[1]),
+                                                (0, 0),
+                                            ),
+                                            constant_values=0,
+                                        )
+                                    )
+                                src_row = min(i, row_f.shape[0] - 1)
+                                out_slit[i] = row_f[src_row]
+                        else:  # 'x'
+                            dim = w_slit
+                            for j in range(dim):
+                                fi = max(0, min(rfc_slit - 1, j))
+                                col_f = reader.decode_frame(fi)
+                                if col_f.shape[0] != h_slit:
+                                    col_f = (
+                                        col_f[:h_slit]
+                                        if col_f.shape[0] > h_slit
+                                        else np.pad(
+                                            col_f,
+                                            (
+                                                (0, h_slit - col_f.shape[0]),
+                                                (0, 0),
+                                                (0, 0),
+                                            ),
+                                            constant_values=0,
+                                        )
+                                    )
+                                src_col = min(j, col_f.shape[1] - 1)
+                                out_slit[:, j] = col_f[:, src_col]
+                        frame = out_slit
                     # B3.3 — per-channel RGB offset (chromatic time-displacement).
                     # When the layer carries rgb_frame_indices, decode a frame per
                     # channel and combine them. Absent → single decode (B3.2 parity).
-                    rgb_fi = layer_info.get("rgb_frame_indices")
-                    if rgb_fi and isinstance(rgb_fi, dict):
+                    elif (rgb_fi := layer_info.get("rgb_frame_indices")) and isinstance(
+                        rgb_fi, dict
+                    ):
                         rfc_c = (
                             reader.frame_count
                             if hasattr(reader, "frame_count") and reader.frame_count

@@ -114,6 +114,25 @@ export interface SamplerInstrumentV1 {
     /** MIDI note that plays untransposed (the sample's native pitch). Default 60. */
     rootNote: number
   }
+  /**
+   * P5b.23 — B9 Y-as-time: per-instrument time-axis switch.
+   *
+   * Controls how the playhead advances through footage for this sampler voice:
+   *   't' (default) — unchanged legacy behavior: time advances the playhead.
+   *   'y' — slit-scan: output row r samples footage frame f(r) where r is
+   *          normalized across the clip's playable range (scanline-as-time).
+   *   'x' — column-symmetric: output col c samples footage frame f(c).
+   *
+   * Additive optional — absent → 't' → byte-identical to pre-B9 behavior.
+   * Lowercase only (P1-A axis canon: 'Y'/'X' rejected by the backend validator).
+   * No PROJECT_VERSION bump (UE.7: additive optional).
+   *
+   * ROADMAP G4 scope: instrument-scoped only (footage indexing by row/col).
+   * Per-pixel param-field general case (C2/C3) deferred by #158.
+   *
+   * MIRROR: backend security.validate_frame_bank / engine.frame_bank._resolve_slit_scan
+   */
+  timeAxis?: 't' | 'y' | 'x'
 }
 
 /**
@@ -151,6 +170,13 @@ export interface SamplerVoiceLayer {
    * MIRROR: export.py ExportManager._compute_voice_rgb_frame_indices
    */
   rgb_frame_indices?: { r: number; g: number; b: number }
+  /**
+   * P5b.23 — B9: per-voice time-axis (forwarded from inst.timeAxis).
+   * Present only when timeAxis is 'y' or 'x' (absent = 't' = legacy, byte-identical).
+   * Lowercase only (P1-A axis canon); the backend validator enforces this.
+   * MIRROR: backend zmq_server.py sampler arm / security.validate_voice_layers
+   */
+  time_axis?: 't' | 'y' | 'x'
 }
 
 /**
@@ -232,7 +258,20 @@ export interface FrameBankInstrument {
    * bound is the freeze guard, NOT the slot count.
    */
   byteBudget: number
-  /** Which axis the position scans (reserved; default 't'). DEFER behavior to a later slice. */
+  /**
+   * P5b.23 — B9 Y-as-time: per-instrument time-axis switch (IMPLEMENTED).
+   *
+   *   't' (default) — position scans the bank as-is (unchanged legacy behavior).
+   *   'y' — slit-scan: output row r samples the bank at position r/(H-1).
+   *          Row 0 → frame at position 0, row H-1 → frame at position 1.
+   *   'x' — column-symmetric: output col c samples the bank at position c/(W-1).
+   *
+   * Additive optional — absent → 't' → byte-identical to pre-B9 behavior.
+   * Lowercase only (P1-A axis canon); the backend validator rejects 'Y'/'X'.
+   * No PROJECT_VERSION bump (UE.7: additive optional).
+   *
+   * MIRROR: backend security.validate_frame_bank / engine.frame_bank._resolve_slit_scan
+   */
   timeAxis?: 't' | 'y' | 'x'
   /** Per-voice opacity, clamp [0,1] — rides on the emitted layer (mirrors sampler). */
   opacity?: number

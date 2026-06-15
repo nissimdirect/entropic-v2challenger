@@ -1750,6 +1750,9 @@ class ExportManager:
         both by the flat loop and by the composite-tree group expander's
         ``decode_leaf`` callback so a branch child decodes byte-identically to the
         same leaf on the flat path (export parity).
+
+        P5b.23 — B9: when inst.timeAxis is 'y' or 'x', perform a slit-scan decode
+        (row/column r samples footage frame r) instead of a single-frame decode.
         """
         reader = self._get_voice_reader(d["asset_path"], voice_readers)
         rfc = getattr(reader, "frame_count", d["frame_count"]) or d["frame_count"]
@@ -1759,6 +1762,33 @@ class ExportManager:
         # INJ-3 tail clamp parity with _handle_render_composite.
         if rfc and footage_idx >= rfc - 2:
             footage_idx = max(0, rfc - 3)
+
+        # P5b.23 — B9 slit-scan: when timeAxis is 'y' or 'x', build the output
+        # frame by sampling one footage frame per row/column. Uppercase values are
+        # silently treated as absent (backend defense-in-depth; frontend enforces
+        # lowercase P1-A canon). Absent / 't' → legacy single-frame path.
+        time_axis = d["inst"].get("timeAxis")
+        if time_axis in ("y", "x"):
+            anchor_frame = reader.decode_frame(max(0, min(rfc - 1, footage_idx)))
+            h_sa, w_sa = anchor_frame.shape[:2]
+            ch_sa = anchor_frame.shape[2] if anchor_frame.ndim == 3 else 1
+            out_sa = np.empty(
+                (h_sa, w_sa, ch_sa) if ch_sa > 1 else (h_sa, w_sa),
+                dtype=np.uint8,
+            )
+            if time_axis == "y":
+                for r in range(h_sa):
+                    fi = max(0, min(rfc - 1, r))
+                    rf = reader.decode_frame(fi)
+                    src_r = min(r, rf.shape[0] - 1)
+                    out_sa[r] = rf[src_r] if rf.shape[1] == w_sa else rf[src_r, :w_sa]
+            else:  # 'x'
+                for c in range(w_sa):
+                    fi = max(0, min(rfc - 1, c))
+                    cf = reader.decode_frame(fi)
+                    src_c = min(c, cf.shape[1] - 1)
+                    out_sa[:, c] = cf[:h_sa, src_c]
+            return out_sa
 
         rgb_indices = self._compute_voice_rgb_frame_indices(d["inst"], footage_idx, rfc)
         if rgb_indices is not None:

@@ -303,6 +303,13 @@ interface InstrumentsState {
   setFrameBankInterp: (trackId: string, interp: FrameBankInstrument['interp']) => void
   /** Set the resident-frame byte budget, clamped [MIN, MAX] + finite-guarded. */
   setFrameBankByteBudget: (trackId: string, bytes: number) => void
+  /**
+   * P5b.23 — B9: set the timeAxis for this frame-bank ('t'|'y'|'x', lowercase only).
+   * 't' = legacy time (default); 'y' = slit-scan rows; 'x' = slit-scan columns.
+   * The backend validator enforces lowercase; the store enforces the same whitelist.
+   * No-op on unknown value or absent bank.
+   */
+  setFrameBankTimeAxis: (trackId: string, axis: FrameBankInstrument['timeAxis']) => void
 
   // --- B4.1 Sample Rack ---
   /** Instantiate a Rack on a track (no-op if it already has one). padCount default 1. */
@@ -594,6 +601,17 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       )
       if (byteBudget === fb.byteBudget) return state
       return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, byteBudget } } }
+    }),
+
+  // P5b.23 — B9: set the slit-scan time axis (lowercase only; unknown → no-op).
+  setFrameBankTimeAxis: (trackId, axis) =>
+    set((state) => {
+      const fb = state.frameBanks[trackId]
+      if (!fb) return state
+      // Trust boundary: only known lowercase axes accepted (P1-A axis canon).
+      if (axis !== 't' && axis !== 'y' && axis !== 'x') return state
+      if (axis === fb.timeAxis) return state
+      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, timeAxis: axis } } }
     }),
 
   // --- B4.1 Sample Rack ---
