@@ -40,6 +40,7 @@ from instruments.granulator_instrument import (
     grain_cloud,
     parse_granulator_layer,
     select_grain_weights,
+    select_random_grain_weights,
 )
 from instruments.granulator_gpu import render_grain_layer_dispatch
 from engine.gif_export import export_gif_from_generator
@@ -1832,23 +1833,43 @@ class ExportManager:
                         if isinstance(granulator_state, dict)
                         else None
                     )
-                    sel_weights, onset_state_out = select_grain_weights(
+                    # qa-redteam tiger fix (task #87): mirror the PREVIEW onset arm
+                    # (zmq_server) LINE-FOR-LINE. Preview derives a DYNAMIC onset
+                    # strength S from evaluate_audio, folds it into the per-grain
+                    # weights (w + (1-w)*S), AND passes that same dynamic S into
+                    # grain_cloud (which re-applies T_pos + (w - T_pos)*S). The
+                    # prior export arm folded S into the weights but then passed a
+                    # HARDCODED strength=1.0 into grain_cloud, so for S<1 the export
+                    # grain T-positions diverged from preview by up to |w - T_pos|
+                    # (worst at low onset energy). evaluate_audio is called EXACTLY
+                    # ONCE per frame (audit #12), and its state is threaded forward
+                    # via granulator_state for cross-frame spectral-flux determinism.
+                    from modulation.audio_follower import evaluate_audio
+
+                    _onset_strength_raw, onset_state_out = evaluate_audio(
+                        pcm_arr,
                         "onset",
+                        onset_params,
+                        sample_rate,
+                        prev_onset_state,
+                    )
+                    # Finite-guard the follower output at the trust boundary (it
+                    # derives from PCM audio): NaN/Inf → safe default 0.0.
+                    sel_strength = clamp_finite(_onset_strength_raw, 0.0, 1.0, 0.0)
+                    # Build per-grain T-weights from the single onset strength
+                    # (mirrors select_onset_grain_weights without a second FFT).
+                    _base_weights = select_random_grain_weights(
                         gran_seed,
                         gran_inst_id,
                         gran_anchor,
                         gran_params.density,
-                        pcm=pcm_arr,
-                        sample_rate=sample_rate,
-                        audio_state=prev_onset_state,
-                        onset_params=onset_params,
                     )
+                    sel_weights = [
+                        max(0.0, min(1.0, w + (1.0 - w) * sel_strength))
+                        for w in _base_weights
+                    ]
                     if isinstance(granulator_state, dict):
                         granulator_state["onset_state"] = onset_state_out
-                    # Onset bias already folded into sel_weights; apply full
-                    # strength so the transient pulls grains (parity with preview's
-                    # onset arm, which biases at strength 1.0 via the weights).
-                    sel_strength = 1.0
                 elif gran_params.selection == "random":
                     sel_weights, _ = select_grain_weights(
                         "random",

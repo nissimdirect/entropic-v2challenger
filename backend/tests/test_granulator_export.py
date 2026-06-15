@@ -405,3 +405,132 @@ def test_export_grain_layer_matches_preview_render(monkeypatch):
     assert int(delta.max()) <= 2, (
         f"export-vs-preview granulator max abs delta {int(delta.max())} > 2/255"
     )
+
+
+# ===========================================================================
+# ONSET EXPORT == PREVIEW parity (qa-redteam tiger — task #87)
+#
+# The `random` parity test above NEVER exercises `selection="onset"`, which is
+# how the tiger slipped through: export hardcoded `selection_strength=1.0` into
+# grain_cloud instead of threading the DYNAMIC onset strength the preview arm
+# uses. For onset_strength S < 1 the export grain T-positions diverge from
+# preview by up to |w - T_pos| (worst at low onset energy). These tests pin
+# onset T-position parity across S ∈ {0.0, 0.3, 0.6, 0.9}.
+# ===========================================================================
+
+
+def _gran_onset_perf(density: int = 16) -> dict:
+    """A granulator performance whose selection rule is `onset`, carrying PCM."""
+    perf = _gran_perf(density=density, selection="onset")
+    # Non-trivial PCM so the onset arm runs a real audio path (the fixed-strength
+    # tests patch evaluate_audio; the real-PCM test uses this directly).
+    rng = np.random.default_rng(3)
+    perf["granulator"]["pcm"] = (
+        (rng.standard_normal(1024) * 0.5).astype(np.float32).tolist()
+    )
+    perf["granulator"]["sample_rate"] = 48000
+    perf["granulator"]["onset_params"] = {}
+    return perf
+
+
+def _capture_export_cloud(monkeypatch, perf, *, frame_index=0, project_seed=7):
+    """Drive the export onset arm and capture the GrainCloud handed to the
+    grain-render dispatch (so we can read the exported grain T-positions)."""
+    captured: list = []
+
+    real_dispatch = export_mod.render_grain_layer_dispatch
+
+    def fake_dispatch(source, cloud, **kwargs):
+        captured.append(cloud)
+        return real_dispatch(source, cloud, **kwargs)
+
+    monkeypatch.setattr(export_mod, "render_grain_layer_dispatch", fake_dispatch)
+    _run_frame(perf, frame_index=frame_index, project_seed=project_seed)
+    assert captured, "export onset arm did not reach grain_cloud dispatch"
+    return captured[-1]
+
+
+def _preview_onset_cloud(perf, strength, *, frame_index=0, project_seed=7):
+    """Compute the PREVIEW-equivalent onset GrainCloud for a known strength S.
+
+    Mirrors zmq_server's onset arm: seeded base weights → bias by S → grain_cloud
+    with selection_strength=S (the DYNAMIC strength, NOT 1.0)."""
+    from instruments.granulator_instrument import (
+        grain_cloud,
+        parse_granulator_layer,
+        select_random_grain_weights,
+    )
+
+    gran_raw = perf["granulator"]
+    params, errors = parse_granulator_layer(gran_raw)
+    assert not errors and params is not None
+    inst_id = str(gran_raw["instrument_id"])[:128]
+    base = select_random_grain_weights(
+        project_seed, inst_id, frame_index, params.density
+    )
+    sel_weights = [max(0.0, min(1.0, w + (1.0 - w) * strength)) for w in base]
+    return grain_cloud(
+        project_seed,
+        inst_id,
+        frame_index,
+        params,
+        selection_weights=sel_weights,
+        selection_strength=strength,
+    )
+
+
+@pytest.mark.parametrize("strength", [0.0, 0.3, 0.6, 0.9])
+def test_onset_export_matches_preview_grain_t_positions(monkeypatch, strength):
+    """Export onset grain T-positions MUST match preview for the SAME dynamic
+    onset strength. Pre-fix export hardcodes strength=1.0 → for S<1 the T-pos
+    diverge (redteam measured {0.50,0.34,0.20,0.05} at S={0.0,0.3,0.6,0.9}).
+    """
+    perf = _gran_onset_perf(density=16)
+
+    # Pin the onset strength the follower reports (drives BOTH the bias weights
+    # and the strength that should flow into grain_cloud) so the parity is
+    # deterministic and isolates the strength-threading bug.
+    def fake_eval(pcm, method, params, sample_rate, state_in=None):
+        return strength, dict(state_in) if state_in else {}
+
+    monkeypatch.setattr("modulation.audio_follower.evaluate_audio", fake_eval)
+
+    export_cloud = _capture_export_cloud(monkeypatch, perf)
+    preview_cloud = _preview_onset_cloud(perf, strength)
+
+    export_T = [g.T for g in export_cloud.grains]
+    preview_T = [g.T for g in preview_cloud.grains]
+    assert len(export_T) == len(preview_T) and export_T, "empty grain cloud"
+
+    max_div = max(abs(a - b) for a, b in zip(export_T, preview_T))
+    assert max_div <= 1e-9, (
+        f"onset export grain T-positions diverge from preview by {max_div:.4f} "
+        f"at onset_strength={strength} (export must thread the DYNAMIC strength "
+        f"into grain_cloud, not hardcode 1.0)"
+    )
+
+
+def test_onset_export_matches_preview_real_pcm(monkeypatch):
+    """End-to-end onset parity with a REAL audio path (no patched follower):
+    the export arm's strength must equal what preview would compute, so the
+    grain T-positions match within float tolerance for genuine 0<S<1 PCM."""
+    from modulation.audio_follower import evaluate_audio
+
+    perf = _gran_onset_perf(density=20)
+    gran_raw = perf["granulator"]
+    pcm_arr = np.asarray(gran_raw["pcm"], dtype=np.float32)
+
+    # The strength the real follower reports for this PCM at frame 0 (state=None).
+    strength, _ = evaluate_audio(pcm_arr, "onset", {}, 48000, None)
+    strength = max(0.0, min(1.0, float(strength)))
+
+    export_cloud = _capture_export_cloud(monkeypatch, perf)
+    preview_cloud = _preview_onset_cloud(perf, strength)
+
+    export_T = [g.T for g in export_cloud.grains]
+    preview_T = [g.T for g in preview_cloud.grains]
+    max_div = max(abs(a - b) for a, b in zip(export_T, preview_T))
+    assert max_div <= 1e-9, (
+        f"onset export grain T-positions diverge from preview by {max_div:.4f} "
+        f"(real-PCM onset_strength={strength:.4f})"
+    )
