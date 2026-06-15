@@ -83,11 +83,25 @@ class PressureMonitor:
         self._thread.start()
 
     def stop(self, timeout_s: float = 5.0) -> None:
-        """Signal stop + join. Safe to call multiple times."""
+        """Signal stop + join. Safe to call multiple times.
+
+        Only nulls ``_thread`` when the join confirms the thread has actually
+        exited.  If the join times out (thread still alive), the reference is
+        kept so callers can detect the orphan via ``is_running()``; a warning
+        is logged and the stop-event remains set so the thread will exit on its
+        next poll tick.
+        """
         self._stop_event.set()
         if self._thread is not None:
             self._thread.join(timeout=timeout_s)
-            self._thread = None
+            if not self._thread.is_alive():
+                self._thread = None
+            else:
+                logger.warning(
+                    "SG-8 monitor thread did not stop within %.1fs — "
+                    "thread reference kept; thread will exit on next tick",
+                    timeout_s,
+                )
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()

@@ -214,8 +214,11 @@ def test_finite_frame_passes_unmodified(monkeypatch):
 
     assert resp["ok"] is True
     assert "lane_aborted" not in resp
-    # The finite frame became the last-known-good (pure pass-through cache).
-    assert srv._last_good_frames[("render_composite", good.shape)] is good
+    # The finite frame is cached as last-known-good. Since SG-3 stores a
+    # defensive copy (audit fix #2), the cached value is equal but NOT identical.
+    cached = srv._last_good_frames[("render_composite", good.shape)]
+    np.testing.assert_array_equal(cached, good)
+    assert cached is not good  # defensive copy — different object
 
 
 def test_nan_frame_blocked_and_last_good_served(monkeypatch):
@@ -327,6 +330,52 @@ def test_no_dead_muted_lanes_state():
 
     src = inspect.getsource(zs)
     assert "_muted_lanes" not in src, "_muted_lanes dead state must stay removed"
+
+
+# ---------------------------------------------------------------------------
+# SG-3 last-good defensive copy — reference independence
+# ---------------------------------------------------------------------------
+
+
+def test_last_good_is_reference_independent(monkeypatch):
+    """The cached last-good frame must be a COPY, not an alias.
+
+    Sequence:
+    1. Seed a finite float frame as last-good.
+    2. Mutate that EXACT ndarray instance in-place to NaN (simulates a caller
+       reusing the buffer).
+    3. Fire the gate with a same-shape all-NaN frame.
+    4. The served frame must be FINITE (the copy survives the mutation) AND
+       must NOT be the same object as the originally-cached array.
+    """
+    srv = _bare_server()
+
+    original = _rgba(48, 64, fill=42).astype(np.float32)
+    # Seed the gate: original is finite → caches a copy, returns original.
+    srv._apply_output_gate(
+        original, resolution_wh=(64, 48), path_tag="render_composite"
+    )
+
+    # Keep a reference to what was cached BEFORE we mutate.
+    cached = srv._last_good_frames[("render_composite", original.shape)]
+
+    # Mutate the original ndarray in-place to all-NaN.
+    original[:] = np.nan
+
+    # Now fire the gate with a same-shape all-NaN frame.
+    nan_frame = np.full_like(original, np.nan)
+    served, lane_aborted = srv._apply_output_gate(
+        nan_frame, resolution_wh=(64, 48), path_tag="render_composite"
+    )
+
+    # The served frame must be finite (the defensive copy was unaffected).
+    assert not detect_nan_in_frame(served), (
+        "Served frame contains NaN — the cached last-good was mutated by reference"
+    )
+    # The served object must NOT be the original (mutated) array.
+    assert served is not original, "Served frame is the mutated original array"
+    # Confirm lane_aborted was raised (NaN input triggered substitution).
+    assert lane_aborted is not None
 
 
 # ---------------------------------------------------------------------------

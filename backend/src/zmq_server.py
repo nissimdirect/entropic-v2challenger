@@ -858,7 +858,10 @@ class ZMQServer:
 
         if not detect_nan_in_frame(output):
             # Finite: pass through unchanged + remember as last-good for its shape.
-            self._last_good_frames[(path_tag, output.shape)] = output
+            # Defensive copy: store a snapshot so that if the caller reuses the
+            # underlying ndarray buffer in-place (e.g. writes NaN into it on the
+            # next render), the cached last-good is not silently mutated.
+            self._last_good_frames[(path_tag, output.shape)] = output.copy()
             return output, None
 
         logging.getLogger(__name__).warning(
