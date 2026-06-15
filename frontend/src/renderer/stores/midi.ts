@@ -1,11 +1,20 @@
 /**
  * MIDI store — device management, CC mapping, learn mode, message routing.
  * All MIDI processing is frontend-only (Web MIDI API in Electron renderer).
+ *
+ * B10 (P5b.25): CC intake is rate-limited per controlId (≤30 writes/sec, 33ms
+ * floor) and echo-suppressed (SG-H3) so motorized fader feedback is ignored.
+ * Distinct controlIds use independent throttle buckets.
  */
 import { create } from 'zustand';
 import type { CCMapping, MIDIDevice, LearnTarget, MIDIPersistData } from '../../shared/types';
 import { usePerformanceStore } from './performance';
 import { handlePadTrigger, releasePadWithCapture } from '../components/performance/padActions';
+import { MIDICCRateLimiter } from '../../shared/midi-utils';
+
+// Module-level singleton limiter — survives store resets (state reset ≠ device
+// reconnect; throttle context should also be cleared on resetMIDI via limiter.reset()).
+const _ccLimiter = new MIDICCRateLimiter();
 
 interface MIDIState {
   devices: MIDIDevice[];
@@ -126,15 +135,23 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
         releasePadWithCapture(pad, perfStore, frameIndex, 'midi');
       }
     } else if (statusByte === 0xb0) {
-      // CC: update ccValues
-      const normalized = byte2 / 127;
-      set((s) => ({
-        ccValues: { ...s.ccValues, [byte1]: normalized },
-      }));
+      // CC: rate-limited + echo-suppressed intake (B10, P5b.25).
+      // Trust boundary: byte1 and byte2 are already guarded as valid MIDI bytes
+      // (0-127) by the status-byte check and the message-length guard above.
+      // Chain: handleMIDIMessage → _ccLimiter.shouldWrite (33ms/controlId) →
+      //        set({ ccValues }) → downstream selectors / applyCCModulations
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      if (_ccLimiter.shouldWrite(byte1, byte2, now)) {
+        const normalized = byte2 / 127;
+        set((s) => ({
+          ccValues: { ...s.ccValues, [byte1]: normalized },
+        }));
+      }
     }
   },
 
   resetMIDI: () => {
+    _ccLimiter.reset(); // clear throttle + echo state on MIDI reset
     set({
       ccMappings: [],
       ccValues: {},
