@@ -769,6 +769,14 @@ def validate_operator_mod_edges(operators: object) -> list[str]:
             if depth is not None and not _is_finite_number(depth):
                 return [f"{where}.depth must be a finite number, got {depth!r}"]
 
+            min_val = m.get("min")
+            if min_val is not None and not _is_finite_number(min_val):
+                return [f"{where}.min must be a finite number, got {min_val!r}"]
+
+            max_val = m.get("max")
+            if max_val is not None and not _is_finite_number(max_val):
+                return [f"{where}.max must be a finite number, got {max_val!r}"]
+
     return []
 
 
