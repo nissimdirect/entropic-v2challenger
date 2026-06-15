@@ -555,12 +555,29 @@ def validate_frame_bank(inst: object) -> tuple[dict | None, list[str]]:
             )
         )
 
+    # P5b.23 — timeAxis: lowercase only (P1-A axis canon). 'Y'/'X' are
+    # rejected; 't'/'y'/'x' accepted; absent → default 't' (legacy path,
+    # byte-identical to pre-B9 behavior). Stored explicitly in the sanitized
+    # dict so the engine always has a concrete value to dispatch on.
+    VALID_TIME_AXES = {"t", "y", "x"}
+    raw_time_axis = inst.get("timeAxis")
+    if raw_time_axis is None:
+        time_axis: str = "t"
+    elif isinstance(raw_time_axis, str) and raw_time_axis in VALID_TIME_AXES:
+        time_axis = raw_time_axis
+    else:
+        return None, [
+            f"frameBank.timeAxis {raw_time_axis!r} is invalid "
+            f"(must be one of {sorted(VALID_TIME_AXES)}, lowercase only)"
+        ]
+
     sanitized = dict(inst)
     sanitized["type"] = "frameBank"
     sanitized["slots"] = clean_slots
     sanitized["interp"] = interp
     sanitized["position"] = position
     sanitized["byteBudget"] = byte_budget
+    sanitized["timeAxis"] = time_axis
     return sanitized, errors
 
 

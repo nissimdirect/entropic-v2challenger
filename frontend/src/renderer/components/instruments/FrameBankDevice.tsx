@@ -34,6 +34,13 @@ const INTERP_MODES: { value: 'nearest' | 'blend' | 'flow'; label: string }[] = [
   { value: 'flow', label: 'flow (CPU morph)' },
 ]
 
+// P5b.23 — B9: time-axis options (3 modes, lowercase only per P1-A axis canon).
+const TIME_AXIS_MODES: { value: 't' | 'y' | 'x'; label: string }[] = [
+  { value: 't', label: 't (time)' },
+  { value: 'y', label: 'y (slit-scan rows)' },
+  { value: 'x', label: 'x (slit-scan cols)' },
+]
+
 const MB = 1024 * 1024
 
 /**
@@ -56,6 +63,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
   const setFrameBankPosition = useInstrumentsStore((s) => s.setFrameBankPosition)
   const setFrameBankInterp = useInstrumentsStore((s) => s.setFrameBankInterp)
   const setFrameBankByteBudget = useInstrumentsStore((s) => s.setFrameBankByteBudget)
+  const setFrameBankTimeAxis = useInstrumentsStore((s) => s.setFrameBankTimeAxis)
   const assets = useProjectStore((s) => s.assets)
 
   const videoAssets = Object.values(assets).filter((a) => a.type === 'video')
@@ -190,6 +198,22 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
           }
         >
           {INTERP_MODES.map((m) => (
+            <option key={m.value} value={m.value}>{m.label}</option>
+          ))}
+        </select>
+      </label>
+
+      {/* P5b.23 — B9 time-axis selector: t (time) / y (slit-scan rows) / x (cols). */}
+      <label className="sampler-device__row">
+        <span>Time axis</span>
+        <select
+          data-testid="framebank-time-axis"
+          value={fb.timeAxis ?? 't'}
+          onChange={(e) =>
+            setFrameBankTimeAxis(trackId, e.target.value as 't' | 'y' | 'x')
+          }
+        >
+          {TIME_AXIS_MODES.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
         </select>
