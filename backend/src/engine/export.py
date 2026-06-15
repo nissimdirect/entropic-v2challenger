@@ -685,6 +685,17 @@ class ExportManager:
                     out = self._composite_text_layers(
                         out, text_layers, resolution, src_idx, source_fps
                     )
+                # SG-3 clause-2 (TIGER 2): the GIF + image-sequence export
+                # generators pull every frame through THIS function and write it
+                # with no further check, so the loud-fail gate lives HERE — both
+                # deterministic export types inherit it. Export FAILS LOUDLY on a
+                # NaN/Inf frame; never a silent substitution inside a deterministic
+                # export. (The inline video loop below has its own identical gate.)
+                if detect_nan_in_frame(out):
+                    raise ValueError(
+                        f"SG-3 output gate: non-finite (NaN/Inf) frame at "
+                        f"index {src_idx} during export; aborting job"
+                    )
                 return out
 
             # ---- GIF export path ----
