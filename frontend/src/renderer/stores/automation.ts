@@ -42,6 +42,19 @@ interface AutomationState {
   recordingParamPath: string | null
   clipboard: AutomationClipboard | null
 
+  // SG-3 clause-3: muted lane IDs from the sentinel's lane_aborted reply field.
+  // lane_id in the backend reply is "unknown" (the output gate cannot identify
+  // the specific modulation lane that produced the corrupt frame), so we store
+  // the sentinel-reported abort key and let the UI display a warning badge on all
+  // visible lanes.  The user can clear the flag with `clearSg3Abort()`.
+  sg3AbortedLaneIds: ReadonlySet<string>
+  /** Mark a lane as SG-3 aborted (from the lane_aborted IPC reply field). */
+  markSg3Aborted: (laneId: string) => void
+  /** Clear the SG-3 aborted state so the user re-enables the lane. */
+  clearSg3Abort: (laneId: string) => void
+  /** Clear ALL SG-3 aborted states (re-enable all). */
+  clearAllSg3Aborts: () => void
+
   // Lane CRUD
   addLane: (trackId: string, effectId: string, paramKey: string, color: string) => void
   addTriggerLane: (trackId: string, effectId: string, paramKey: string, color: string, triggerMode: TriggerMode, triggerADSR?: ADSREnvelope) => string | null
@@ -101,6 +114,26 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   armedTrackId: null,
   recordingParamPath: null,
   clipboard: null,
+  sg3AbortedLaneIds: new Set<string>(),
+
+  // SG-3 clause-3: mute state actions
+  markSg3Aborted: (laneId) => {
+    const current = get().sg3AbortedLaneIds
+    if (current.has(laneId)) return // already muted — no-op
+    set({ sg3AbortedLaneIds: new Set([...current, laneId]) })
+  },
+  clearSg3Abort: (laneId) => {
+    const current = get().sg3AbortedLaneIds
+    if (!current.has(laneId)) return
+    const next = new Set([...current])
+    next.delete(laneId)
+    set({ sg3AbortedLaneIds: next })
+  },
+  clearAllSg3Aborts: () => {
+    if (get().sg3AbortedLaneIds.size === 0) return
+    set({ sg3AbortedLaneIds: new Set<string>() })
+  },
+
 
   addLane: (trackId, effectId, paramKey, color) => {
     const laneId = `auto-${Date.now()}-${nextLaneId++}`
@@ -560,6 +593,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       armedTrackId: null,
       recordingParamPath: null,
       clipboard: null,
+      sg3AbortedLaneIds: new Set<string>(),
     }),
 
   loadAutomation: (lanes) => {

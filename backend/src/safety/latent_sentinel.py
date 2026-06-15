@@ -42,6 +42,47 @@ DEFAULT_L2_CEILING = 10.0
 # upstream.
 DEFAULT_L2_FLOOR = 1e-6
 
+# Per-backbone L2 ceiling table (SPEC-3 §3.3).
+# B8-latent/B9-learned callers pass their backbone name so the ceiling is
+# tighter where encoder outputs are known to stay near unit norm, and
+# relaxed for backbones whose internal representations have higher natural
+# magnitude (e.g. CLIP image encoders clip their output at √dim).
+#
+# Schema: backbone_name (str) → L2 ceiling (float, > 0).
+# Unknown backbone names fall back to DEFAULT_L2_CEILING.
+# Callers: pass the result of `get_l2_ceiling_for_backbone(name)` as the
+# `l2_ceiling` argument to `check_and_clamp()`.
+MAX_L2_NORM_PER_BACKBONE: dict[str, float] = {
+    # Stable Diffusion VAE encoder: outputs ≈ unit-norm latents (σ≈0.18)
+    "sd_vae": 5.0,
+    # CLIP image encoder: embeddings are ℓ₂-normalized to 1 by the model
+    "clip_image": 2.0,
+    # CLIP text encoder: same normalization as image encoder
+    "clip_text": 2.0,
+    # MusicGen / AudioCraft encoder: outputs have higher variance
+    "audiogen": 20.0,
+    # Generic fallback for unregistered backbones (identical to DEFAULT_L2_CEILING)
+    "_default": DEFAULT_L2_CEILING,
+}
+
+
+def get_l2_ceiling_for_backbone(backbone: str) -> float:
+    """Return the per-backbone L2 ceiling from MAX_L2_NORM_PER_BACKBONE.
+
+    Falls back to the ``_default`` entry (= DEFAULT_L2_CEILING) for unknown
+    backbone names.  The caller passes the result as ``l2_ceiling`` to
+    ``check_and_clamp()``.
+
+    Args:
+        backbone: Case-sensitive backbone name (e.g. "sd_vae", "clip_image").
+
+    Returns:
+        A positive float L2 ceiling appropriate for the named backbone.
+    """
+    if not isinstance(backbone, str) or not backbone:
+        return MAX_L2_NORM_PER_BACKBONE["_default"]
+    return MAX_L2_NORM_PER_BACKBONE.get(backbone, MAX_L2_NORM_PER_BACKBONE["_default"])
+
 
 class SentinelAction(str, Enum):
     """What the sentinel did to a latent."""

@@ -374,6 +374,8 @@ function AppInner() {
   const handlePlayPauseRef = useRef<() => void>(() => {})
   const initPreviewRef = useRef<() => Promise<void>>(async () => {})
   const lastDisabledEffectsRef = useRef<string>('')
+  // SG-3 clause-3: dedup ref so we don't toast on every frame after an abort
+  const lastLaneAbortedKeyRef = useRef<string>('')
   // P3.1: drag suppression ref for resize handles (feedback_drag-end-suppresses-click)
   const cxIsDragging = useRef(false)
 
@@ -1413,6 +1415,46 @@ function AppInner() {
                   source: 'engine',
                   persistent: true,
                 })
+              }
+            }
+          }
+          // SG-3 clause-3: lane_aborted field — fire toast + mute the lane.
+          // The backend gate (P5b.4) sets this when the render output contained
+          // NaN/Inf and a last-known-good frame was served instead. lane_id is
+          // always "unknown" (the output gate cannot trace back to a specific
+          // automation lane), so we mark the sentinel abort key in the
+          // automation store so all active lanes show a muted badge. The user
+          // can re-enable via clearSg3Abort / clearAllSg3Aborts.
+          if (res.lane_aborted !== null && res.lane_aborted !== undefined) {
+            const raw = res.lane_aborted
+            // Trust boundary: validate shape before use (feedback_numeric-trust-boundary)
+            if (
+              typeof raw === 'object' &&
+              raw !== null &&
+              typeof (raw as Record<string, unknown>).lane_id === 'string' &&
+              typeof (raw as Record<string, unknown>).reason === 'string'
+            ) {
+              const abort = raw as { lane_id: string; reason: string }
+              // Guard: lane_id must be non-empty string
+              const laneId = abort.lane_id.trim()
+              const reason = abort.reason.trim()
+              if (laneId.length > 0 && reason.length > 0) {
+                const abortKey = `${laneId}::${reason}`
+                if (abortKey !== lastLaneAbortedKeyRef.current) {
+                  lastLaneAbortedKeyRef.current = abortKey
+                  // Mark in store so lane rows show the muted badge
+                  useAutomationStore.getState().markSg3Aborted(laneId)
+                  // 8s error-tier toast (SG-3 spec: source=sg3-sentinel)
+                  useToastStore.getState().addToast({
+                    level: 'error',
+                    message: `Lane "${laneId}" muted automatically — ${reason}`,
+                    source: 'sg3-sentinel',
+                    action: {
+                      label: 'Re-enable',
+                      fn: () => useAutomationStore.getState().clearSg3Abort(laneId),
+                    },
+                  })
+                }
               }
             }
           }
