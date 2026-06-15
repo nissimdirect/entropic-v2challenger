@@ -147,6 +147,13 @@ class ZMQServer:
         # Signal engine for operator modulation (Phase 6A)
         self._signal_engine = None
         self._signal_state: dict = {}
+        # P5b.21 (B9): change-gated mod-edge validation cache for the per-frame
+        # render path. The render IPC fires 30×/sec; we must NOT re-validate the
+        # whole operator list every frame. Cache the hash of the last-validated
+        # operators + the result, and only re-run validate_operator_mod_edges
+        # when the operators payload actually CHANGES (review Tiger 1b perf note).
+        self._mod_edges_validated_hash: int | None = None
+        self._mod_edges_validation_errors: list[str] = []
         # Per-effect state cache for preview render path. Mirrors how
         # export.py threads the `states` dict frame-by-frame so stateful
         # effects (datamosh, reaction_mosh, frame_drop, generation_loss,
@@ -647,6 +654,21 @@ class ZMQServer:
         # Phase 6A: Apply operator modulation if operators present
         operators = message.get("operators")
         operator_values = None
+        if operators and isinstance(operators, list):
+            # P5b.21 (B9): the render IPC is the LIVE production trust boundary for
+            # mod-routing edges (deserialize/validate is the .glitch path only and
+            # never runs here). Change-gated validation rejects flag-off/unknown
+            # binding rules, malformed axes, non-finite depths, and the
+            # MAX_MOD_EDGES_TOTAL cap BEFORE resolve_routings can consume them. On
+            # failure: skip modulation entirely (render unmodulated) and warn —
+            # the hostile rule NEVER reaches the resolver (review Tiger 1b/4).
+            mod_edge_errors = self._validate_mod_edges_change_gated(operators)
+            if mod_edge_errors:
+                logging.getLogger(__name__).warning(
+                    "B9: rejecting operator modulation for this render — %s",
+                    "; ".join(mod_edge_errors),
+                )
+                operators = None
         if operators and isinstance(operators, list):
             engine = self._get_signal_engine()
             # Get audio PCM window for audio follower
@@ -2334,6 +2356,36 @@ class ZMQServer:
 
             self._signal_engine = SignalEngine()
         return self._signal_engine
+
+    def _validate_mod_edges_change_gated(self, operators: list) -> list[str]:
+        """Validate B9 mod-routing edges, change-gated for the per-frame path.
+
+        The render IPC fires 30×/sec; full validation every frame would burn
+        budget. We hash the operators payload and only re-run
+        ``security.validate_operator_mod_edges`` when it CHANGES since the last
+        validated frame (review Tiger 1b perf note). The cached error list is
+        returned on a cache hit — so a hostile operator set stays rejected on
+        every subsequent frame, not just the first.
+
+        Returns the validation error list (empty == valid).
+        """
+        try:
+            # repr() is a cheap, deterministic key for the (already-small) operator
+            # list; hashing it avoids deep-comparing the dicts each frame.
+            key = hash(repr(operators))
+        except Exception:
+            # Unhashable / pathological payload — force a fresh validation.
+            key = None
+
+        if key is not None and key == self._mod_edges_validated_hash:
+            return self._mod_edges_validation_errors
+
+        from security import validate_operator_mod_edges
+
+        errors = validate_operator_mod_edges(operators)
+        self._mod_edges_validated_hash = key
+        self._mod_edges_validation_errors = errors
+        return errors
 
     def _get_audio_pcm_for_frame(self, frame_index: int, fps: float):
         """Extract a window of PCM audio for the current frame.

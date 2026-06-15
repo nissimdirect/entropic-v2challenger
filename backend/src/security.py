@@ -651,6 +651,98 @@ def _is_finite_number(x: object) -> bool:
     return False
 
 
+# P5b.21 (B9): canonical axis set, mirrors modulation.schema.LaneDomain + the
+# frontend ALL_AXES.
+_VALID_AXES_FOR_MOD: frozenset[str] = frozenset({"t", "y", "x", "c", "f", "l"})
+
+
+def validate_operator_mod_edges(operators: object) -> list[str]:
+    """Authoritative B9 mod-routing validator at the RENDER/IPC trust boundary.
+
+    This is the LIVE-PATH counterpart of project.schema._validate_operator_mod_edges
+    (which only runs on the .glitch/.dna deserialize path). Production operators
+    reach the renderer via the `render`/`export` IPC messages, NOT via deserialize,
+    so this function is what actually defends the running app (review Tiger 1b/4).
+
+    Rejects (first offender only, fail-closed; absence of operators / axis fields
+    is valid — legacy projects carry no axis fields and default t/t/broadcast):
+    - ``operators`` not a list (when present)
+    - total mapping count across ALL operators > MAX_MOD_EDGES_TOTAL (Tiger 4)
+    - a mapping ``bindingRule``/``binding_rule`` (when present) that is not a
+      string in the currently-accepted set (4 implemented rules + the 4 research
+      rules ONLY when EXPERIMENTAL_AXIS_BINDINGS is on)
+    - a malformed ``srcAxis``/``dstAxis`` (non-string or not in {t,y,x,c,f,l})
+    - a non-finite ``depth``
+
+    Returns a list of error strings (empty == valid). ``None`` operators pass.
+    """
+    if operators is None:
+        return []
+    if not isinstance(operators, list):
+        return ["operators must be a list"]
+
+    # Flag-aware accept-set (lazily imported to avoid an import cycle).
+    try:
+        from modulation.schema import accepted_binding_rules
+
+        accepted = {r.value for r in accepted_binding_rules()}
+    except Exception:
+        accepted = {"broadcast", "sampleAt", "scanOver", "integrate"}
+
+    total_edges = 0
+    for oi, op in enumerate(operators):
+        if not isinstance(op, dict):
+            continue
+        mappings = op.get("mappings", [])
+        if not isinstance(mappings, list):
+            return [f"operators[{oi}].mappings must be a list"]
+        total_edges += len(mappings)
+        if total_edges > MAX_MOD_EDGES_TOTAL:
+            return [
+                f"total modulation edges {total_edges} exceeds maximum "
+                f"{MAX_MOD_EDGES_TOTAL} (MAX_MOD_EDGES_TOTAL)"
+            ]
+        for mi, m in enumerate(mappings):
+            if not isinstance(m, dict):
+                continue
+            where = f"operators[{oi}].mappings[{mi}]"
+
+            # bindingRule (camelCase) or binding_rule (snake_case) — accept both
+            # since the live IPC payload is snake_case while .glitch is camelCase.
+            rule = m.get("bindingRule", m.get("binding_rule"))
+            if rule is not None:
+                if not isinstance(rule, str):
+                    return [
+                        f"{where}.bindingRule must be a string, got "
+                        f"{type(rule).__name__}"
+                    ]
+                if rule not in accepted:
+                    return [
+                        f"{where}.bindingRule {rule!r} is not accepted "
+                        f"(accepted: {sorted(accepted)})"
+                    ]
+
+            for cc_key, sc_key in (("srcAxis", "src_axis"), ("dstAxis", "dst_axis")):
+                axis = m.get(cc_key, m.get(sc_key))
+                if axis is None:
+                    continue
+                if not isinstance(axis, str):
+                    return [
+                        f"{where}.{cc_key} must be a string, got {type(axis).__name__}"
+                    ]
+                if axis not in _VALID_AXES_FOR_MOD:
+                    return [
+                        f"{where}.{cc_key} {axis!r} is not a valid axis "
+                        f"(expected one of {sorted(_VALID_AXES_FOR_MOD)})"
+                    ]
+
+            depth = m.get("depth")
+            if depth is not None and not _is_finite_number(depth):
+                return [f"{where}.depth must be a finite number, got {depth!r}"]
+
+    return []
+
+
 def validate_export_modulation(
     operators: object, automation_by_frame: object
 ) -> list[str]:
@@ -698,6 +790,13 @@ def validate_export_modulation(
             op_type = op.get("type")
             if op_type not in VALID_OPERATOR_TYPES:
                 return [f"operator[{i}].type {op_type!r} is unknown"]
+
+        # P5b.21 (B9): the export path is also a render trust boundary — reject
+        # flag-off/unknown binding rules, malformed axes, non-finite depths, and
+        # the project-wide MAX_MOD_EDGES_TOTAL cap on the operator mappings.
+        mod_errors = validate_operator_mod_edges(operators)
+        if mod_errors:
+            return mod_errors
 
     if automation_by_frame is not None:
         if not isinstance(automation_by_frame, dict):

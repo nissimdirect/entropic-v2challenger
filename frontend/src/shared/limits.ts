@@ -13,6 +13,15 @@ export const LIMITS = {
   MAX_OPERATORS: 64,
   /** P4.1: per-operator mapping cap — defense in depth (also enforced in routing.py). */
   MAX_MAPPINGS_PER_OPERATOR: 32,
+  /**
+   * P5b.21 (B9): project-wide cap on the TOTAL number of modulation edges
+   * (operator mappings summed across ALL operators). MIRRORS the backend boundary
+   * `backend/src/security.py:MAX_MOD_EDGES_TOTAL` (= 2048 = 64×32). Distinct from
+   * the per-operator cap (32) and from operator count (64): a project can be under
+   * both per-op caps yet exceed the total. Enforced in loadOperators (the real
+   * production rehydration boundary) AND at the backend render/export ingress.
+   */
+  MAX_MOD_EDGES_TOTAL: 64 * 32,
   MAX_MARKERS: 1000,
   MAX_POINTS_PER_LANE: 50_000,
   MAX_COMPOSITOR_LAYERS: 32,

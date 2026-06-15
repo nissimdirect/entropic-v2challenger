@@ -350,7 +350,38 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
           ? { ...op, mappings: op.mappings.slice(0, LIMITS.MAX_MAPPINGS_PER_OPERATOR) }
           : op,
       )
-    set({ operators: clamped })
+
+    // P5b.21 (B9): loadOperators is the REAL production rehydration trust
+    // boundary (deserialize/validate is the backend .glitch path only; the live
+    // app loads operators through this setter). Run each mapping through the
+    // SAME save-time guard as add/updateMapping — DROP a mapping whose
+    // bindingRule is flag-gated/unknown or whose depth is non-finite, so a
+    // hand-edited project cannot smuggle 'learned'/'zigzag'/NaN past load into
+    // getSerializedOperators → backend resolve_routings. Then enforce the
+    // project-wide MAX_MOD_EDGES_TOTAL cap summed ACROSS operators (the
+    // per-operator + operator-count clamps above never check the total).
+    let totalEdges = 0
+    const guarded = clamped.map((op) => {
+      const kept: OperatorMapping[] = []
+      for (const m of op.mappings) {
+        const err = validateMappingForSave(m)
+        if (err) {
+          console.warn(`[operators] loadOperators dropped mapping on ${op.id}: ${err}`)
+          continue
+        }
+        if (totalEdges >= LIMITS.MAX_MOD_EDGES_TOTAL) {
+          console.warn(
+            `[operators] loadOperators truncated mappings: MAX_MOD_EDGES_TOTAL ` +
+              `(${LIMITS.MAX_MOD_EDGES_TOTAL}) reached`,
+          )
+          break
+        }
+        totalEdges++
+        kept.push(m)
+      }
+      return kept.length === op.mappings.length ? op : { ...op, mappings: kept }
+    })
+    set({ operators: guarded })
   },
 
   getSerializedOperators: () => {

@@ -13,7 +13,8 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useOperatorStore } from '../../renderer/stores/operators'
 import { useUndoStore } from '../../renderer/stores/undo'
 import { resolveModRouteAxes } from '../../shared/axis-binding'
-import type { OperatorMapping } from '../../shared/types'
+import { LIMITS } from '../../shared/limits'
+import type { Operator, OperatorMapping } from '../../shared/types'
 
 function resetStores() {
   useOperatorStore.getState().resetOperators()
@@ -131,5 +132,120 @@ describe('B9 OperatorMapping — defaults + serialization', () => {
     expect(bm.src_axis).toBe('y')
     expect(bm.dst_axis).toBe('x')
     expect(bm.binding_rule).toBe('scanOver')
+  })
+})
+
+// --- PRODUCTION REHYDRATION PATH (loadOperators is the real trust boundary) ---
+//
+// Review Tiger 1/4: the live app rehydrates operators via loadOperators, NOT the
+// backend deserialize path. A hand-edited .glitch must be defended HERE — a
+// flag-off/unknown bindingRule or non-finite depth must be DROPPED, and the
+// project-wide MAX_MOD_EDGES_TOTAL must be enforced summed across operators.
+
+function makeOperator(id: string, mappings: OperatorMapping[]): Operator {
+  return {
+    id,
+    type: 'lfo',
+    label: 'LFO',
+    isEnabled: true,
+    parameters: { waveform: 'sine', rate_hz: 1.0 },
+    processing: [],
+    mappings,
+  }
+}
+
+describe('B9 loadOperators — production rehydration trust boundary', () => {
+  beforeEach(resetStores)
+
+  it("loadOperators drops a rehydrated mapping with bindingRule:'learned' (flag off)", () => {
+    useOperatorStore.getState().loadOperators([
+      makeOperator('op-1', [
+        baseMapping({ bindingRule: 'broadcast' }),
+        baseMapping({ bindingRule: 'learned' }), // research rule — dropped
+      ]),
+    ])
+    const op = useOperatorStore.getState().operators.find((o) => o.id === 'op-1')!
+    expect(op.mappings).toHaveLength(1)
+    expect(op.mappings[0].bindingRule).toBe('broadcast')
+  })
+
+  it("loadOperators drops bindingRule:'zigzag' (unknown)", () => {
+    useOperatorStore.getState().loadOperators([
+      // @ts-expect-error — intentionally invalid for the runtime trust boundary
+      makeOperator('op-1', [baseMapping({ bindingRule: 'zigzag' })]),
+    ])
+    const op = useOperatorStore.getState().operators.find((o) => o.id === 'op-1')!
+    expect(op.mappings).toHaveLength(0)
+  })
+
+  it('loadOperators drops a mapping with non-finite depth', () => {
+    useOperatorStore.getState().loadOperators([
+      makeOperator('op-1', [
+        baseMapping({ depth: Number.POSITIVE_INFINITY }),
+        baseMapping({ depth: 0.5 }),
+      ]),
+    ])
+    const op = useOperatorStore.getState().operators.find((o) => o.id === 'op-1')!
+    expect(op.mappings).toHaveLength(1)
+    expect(op.mappings[0].depth).toBe(0.5)
+  })
+
+  it('loadOperators keeps the 4 implemented rules on rehydration', () => {
+    const rules = ['broadcast', 'sampleAt', 'scanOver', 'integrate'] as const
+    useOperatorStore.getState().loadOperators([
+      makeOperator(
+        'op-1',
+        rules.map((r) => baseMapping({ bindingRule: r })),
+      ),
+    ])
+    const op = useOperatorStore.getState().operators.find((o) => o.id === 'op-1')!
+    expect(op.mappings.map((m) => m.bindingRule)).toEqual([...rules])
+  })
+
+  it('loadOperators enforces MAX_MOD_EDGES_TOTAL summed across operators', () => {
+    // 64 operators × 32 mappings each = 2048 = MAX_MOD_EDGES_TOTAL. Add ONE more
+    // operator with mappings to exceed the project-wide total. The per-operator
+    // (32) and operator-count (64) clamps alone would NOT catch this.
+    const ops: Operator[] = []
+    for (let i = 0; i < LIMITS.MAX_OPERATORS; i++) {
+      ops.push(
+        makeOperator(
+          `op-${i}`,
+          Array.from({ length: LIMITS.MAX_MAPPINGS_PER_OPERATOR }, () => baseMapping()),
+        ),
+      )
+    }
+    useOperatorStore.getState().loadOperators(ops)
+    const loaded = useOperatorStore.getState().operators
+    const total = loaded.reduce((sum, o) => sum + o.mappings.length, 0)
+    expect(total).toBeLessThanOrEqual(LIMITS.MAX_MOD_EDGES_TOTAL)
+    expect(total).toBe(LIMITS.MAX_MOD_EDGES_TOTAL)
+  })
+
+  it('loadOperators truncates mappings beyond the total cap (boundary)', () => {
+    // 63 ops × 32 = 2016 edges, then one op with 64 mappings (clamped to 32 by
+    // the per-op cap) → 2016 + 32 = 2048 exactly. Push a 65th-equivalent by using
+    // two extra ops so the total would be 2016 + 32 + 32 = 2080 > 2048 → truncated.
+    const ops: Operator[] = []
+    for (let i = 0; i < 63; i++) {
+      ops.push(
+        makeOperator(
+          `op-${i}`,
+          Array.from({ length: LIMITS.MAX_MAPPINGS_PER_OPERATOR }, () => baseMapping()),
+        ),
+      )
+    }
+    // one more operator (64th, under MAX_OPERATORS) carrying a full 32 mappings.
+    ops.push(
+      makeOperator(
+        'op-63',
+        Array.from({ length: LIMITS.MAX_MAPPINGS_PER_OPERATOR }, () => baseMapping()),
+      ),
+    )
+    useOperatorStore.getState().loadOperators(ops)
+    const total = useOperatorStore
+      .getState()
+      .operators.reduce((sum, o) => sum + o.mappings.length, 0)
+    expect(total).toBe(LIMITS.MAX_MOD_EDGES_TOTAL) // 2048, none over
   })
 })
