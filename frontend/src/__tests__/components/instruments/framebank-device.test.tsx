@@ -224,6 +224,73 @@ describe('FrameBankDevice — live position marker (gate 4: index mapping)', () 
   })
 })
 
+// ---------------------------------------------------------------------------
+// P5b.23 — B9 timeAxis selector tests (Vitest required gates)
+// ---------------------------------------------------------------------------
+describe('FrameBankDevice — P5b.23 timeAxis selector', () => {
+  it('renders the time-axis selector when a frame-bank exists', () => {
+    useInstrumentsStore.getState().addFrameBank(T, ['a1'])
+    render(<FrameBankDevice trackId={T} />)
+    const sel = screen.getByTestId('framebank-time-axis')
+    expect(sel).toBeTruthy()
+  })
+
+  it('timeAxis selector renders exactly 3 options: t, y, x', () => {
+    useInstrumentsStore.getState().addFrameBank(T, ['a1'])
+    render(<FrameBankDevice trackId={T} />)
+    const sel = screen.getByTestId('framebank-time-axis') as HTMLSelectElement
+    const options = Array.from(sel.options).map((o) => o.value)
+    expect(options).toHaveLength(3)
+    expect(options).toContain('t')
+    expect(options).toContain('y')
+    expect(options).toContain('x')
+  })
+
+  it('timeAxis selector defaults to "t" when timeAxis is absent', () => {
+    useInstrumentsStore.getState().addFrameBank(T, ['a1'])
+    // Default bank has no timeAxis — the selector must show 't'.
+    const fb = useInstrumentsStore.getState().frameBanks[T]
+    expect(fb.timeAxis).toBeUndefined()
+    render(<FrameBankDevice trackId={T} />)
+    const sel = screen.getByTestId('framebank-time-axis') as HTMLSelectElement
+    // The component shows 'fb.timeAxis ?? t' so selected value is 't'.
+    expect(sel.value).toBe('t')
+  })
+
+  it('setFrameBankTimeAxis sets the axis and the selector reflects it', () => {
+    const s = useInstrumentsStore.getState()
+    s.addFrameBank(T, ['a1'])
+    s.setFrameBankTimeAxis(T, 'y')
+    expect(useInstrumentsStore.getState().frameBanks[T].timeAxis).toBe('y')
+    render(<FrameBankDevice trackId={T} />)
+    const sel = screen.getByTestId('framebank-time-axis') as HTMLSelectElement
+    expect(sel.value).toBe('y')
+  })
+
+  it('timeAxis selector onChange writes the store (y → store, then x → store)', () => {
+    useInstrumentsStore.getState().addFrameBank(T, ['a1'])
+    render(<FrameBankDevice trackId={T} />)
+    fireEvent.change(screen.getByTestId('framebank-time-axis'), { target: { value: 'y' } })
+    expect(useInstrumentsStore.getState().frameBanks[T].timeAxis).toBe('y')
+    fireEvent.change(screen.getByTestId('framebank-time-axis'), { target: { value: 'x' } })
+    expect(useInstrumentsStore.getState().frameBanks[T].timeAxis).toBe('x')
+    fireEvent.change(screen.getByTestId('framebank-time-axis'), { target: { value: 't' } })
+    expect(useInstrumentsStore.getState().frameBanks[T].timeAxis).toBe('t')
+  })
+
+  it('setFrameBankTimeAxis rejects unknown axes (no-op, P1-A canon)', () => {
+    const s = useInstrumentsStore.getState()
+    s.addFrameBank(T, ['a1'])
+    s.setFrameBankTimeAxis(T, 'y')
+    // @ts-expect-error — uppercase 'Y' is invalid per P1-A axis canon.
+    s.setFrameBankTimeAxis(T, 'Y')
+    expect(useInstrumentsStore.getState().frameBanks[T].timeAxis).toBe('y')
+    // @ts-expect-error — 'Z' is invalid.
+    s.setFrameBankTimeAxis(T, 'Z')
+    expect(useInstrumentsStore.getState().frameBanks[T].timeAxis).toBe('y')
+  })
+})
+
 describe('InstrumentsBrowser — Wavetable create (gate 2: fail-before/pass-after)', () => {
   beforeEach(() => {
     useTimelineStore.getState().reset?.()

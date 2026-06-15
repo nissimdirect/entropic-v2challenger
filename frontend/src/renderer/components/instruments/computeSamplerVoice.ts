@@ -332,6 +332,13 @@ export function computeSamplerVoice(
     layer.rgb_frame_indices = rgbIndices
   }
 
+  // P5b.23 — B9: forward timeAxis when non-default ('y' or 'x' only).
+  // Absent / 't' → omit field → backend's legacy single-frame decode (byte-identical).
+  const ta = inst.timeAxis
+  if (ta === 'y' || ta === 'x') {
+    layer.time_axis = ta
+  }
+
   return layer
 }
 

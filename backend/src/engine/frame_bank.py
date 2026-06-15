@@ -208,21 +208,128 @@ def _flow_morph(
     return np.clip(np.round(out), 0, 255).astype(np.uint8)
 
 
+def _resolve_one_position(
+    position: float,
+    slots: list,
+    interp: str,
+    cache: "DecodedFrameCache",
+    decode: "Callable[[str, int], np.ndarray]",
+) -> "np.ndarray":
+    """Decode ONE frame for a given scan position (shared by 't' and slit-scan paths).
+
+    Returns a COPY of the decoded frame (the cache owns the originals).
+    """
+    n = len(slots)
+    lo, hi, frac = resolve_position_indices(position, n, interp)
+    slot_lo = slots[lo]
+    frame_lo = cache.get(str(slot_lo["clipId"]), int(slot_lo["frameIndex"]), decode)
+
+    if interp == "nearest" or lo == hi or frac == 0.0:
+        return frame_lo.copy()
+
+    slot_hi = slots[hi]
+    frame_hi = cache.get(str(slot_hi["clipId"]), int(slot_hi["frameIndex"]), decode)
+
+    if interp == "flow" and frame_lo.shape == frame_hi.shape:
+        return _flow_morph(frame_lo, frame_hi, frac)
+    return _blend_frames(frame_lo, frame_hi, frac)
+
+
+def _resolve_slit_scan(
+    slots: list,
+    interp: str,
+    cache: "DecodedFrameCache",
+    decode: "Callable[[str, int], np.ndarray]",
+    *,
+    axis: str,
+) -> "np.ndarray":
+    """P5b.23 — B9 slit-scan: build an output frame where each scanline samples a
+    different slot-bank position.
+
+    For axis='y': output row r (0..H-1) samples the bank at position r/(H-1).
+      → row 0 comes from frame at position 0, row H-1 from position 1.
+      This is the "scanline-as-time" / slit-scan primitive: frame f(r) = slot
+      indexed by r.
+
+    For axis='x': column-symmetric — output column c (0..W-1) samples the bank
+      at position c/(W-1).
+
+    The output frame size (H×W) is taken from the FIRST decoded frame (position 0).
+    All per-scanline frames are decoded through the same byte-budget cache, so the
+    OOM guard is respected throughout.
+
+    Numeric trust boundary:
+      - `axis` is already validated upstream (validate_frame_bank accepts only
+        't'/'y'/'x', all lowercase). A bad axis reaching here → ValueError.
+      - Row/column indices are integer-clamped from numpy arange (no float drift).
+      - Per-scanline position is clamped [0,1] via resolve_position_indices
+        (defensive clamp inside that helper).
+    """
+    if axis not in ("y", "x"):
+        raise ValueError(f"_resolve_slit_scan: unexpected axis {axis!r}")
+
+    # Decode the anchor frame (position 0) to establish output dimensions.
+    anchor = _resolve_one_position(0.0, slots, interp, cache, decode)
+    h, w = anchor.shape[:2]
+    channels = anchor.shape[2] if anchor.ndim == 3 else 1
+
+    # Allocate the output array.
+    out_shape = (h, w, channels) if channels > 1 else (h, w)
+    out = np.empty(out_shape, dtype=np.uint8)
+
+    if axis == "y":
+        # Row r maps to position r/(H-1), clamped [0,1].
+        for r in range(h):
+            pos = r / (h - 1) if h > 1 else 0.0
+            if pos < 0.0:
+                pos = 0.0
+            elif pos > 1.0:
+                pos = 1.0
+            row_frame = _resolve_one_position(pos, slots, interp, cache, decode)
+            # Resize row_frame to match anchor width if shapes diverge (proxy frames).
+            if row_frame.shape[1] != w:
+                from engine.decoded_frame_cache import _nn_resize
+
+                row_frame = _nn_resize(row_frame, h, w)
+            out[r] = row_frame[r] if row_frame.shape[0] > r else row_frame[-1]
+    else:
+        # axis == 'x': column c maps to position c/(W-1), clamped [0,1].
+        for c in range(w):
+            pos = c / (w - 1) if w > 1 else 0.0
+            if pos < 0.0:
+                pos = 0.0
+            elif pos > 1.0:
+                pos = 1.0
+            col_frame = _resolve_one_position(pos, slots, interp, cache, decode)
+            if col_frame.shape[0] != h:
+                from engine.decoded_frame_cache import _nn_resize
+
+                col_frame = _nn_resize(col_frame, h, w)
+            out[:, c] = col_frame[:, c] if col_frame.shape[1] > c else col_frame[:, -1]
+
+    return out
+
+
 def resolve_frame_bank_frame(
     inst: dict,
     position: float,
-    cache: DecodedFrameCache,
-    decode: Callable[[str, int], np.ndarray],
-) -> np.ndarray:
+    cache: "DecodedFrameCache",
+    decode: "Callable[[str, int], np.ndarray]",
+) -> "np.ndarray":
     """Resolve a Frame-Bank instrument + position into ONE decoded frame.
 
     `inst` is the resolved frameBank dict (post security.validate_frame_bank):
       { type:'frameBank', slots:[{clipId, frameIndex}, ...], position, interp,
-        byteBudget, timeAxis? }
+        byteBudget, timeAxis }
     `position` is the modulated 0..1 scan position (overrides inst['position']
     when passed; callers thread the per-frame modulated value here).
     `cache` is the byte-budget LRU (the OOM guard); `decode(clip_id, frame_index)`
     yields the raw decoded ndarray for one slot frame.
+
+    P5b.23 — timeAxis dispatch:
+      't' (default / legacy) → single frame at `position` (unchanged behavior).
+      'y' → slit-scan: output row r samples the bank at position r/(H-1).
+      'x' → column-symmetric: output col c samples the bank at position c/(W-1).
 
     Returns the resolved frame (a COPY safe for the caller to composite). For
     `nearest` one slot frame is decoded; for `blend`/`flow` two adjacent slot
@@ -239,6 +346,12 @@ def resolve_frame_bank_frame(
 
     interp = inst.get("interp", "blend")
 
+    # P5b.23 — dispatch on timeAxis (validated upstream; default 't').
+    time_axis = inst.get("timeAxis", "t")
+    if time_axis in ("y", "x"):
+        return _resolve_slit_scan(slots, interp, cache, decode, axis=time_axis)
+
+    # --- Legacy 't' path (byte-identical to pre-B9 behavior) ---
     lo, hi, frac = resolve_position_indices(position, n, interp)
 
     slot_lo = slots[lo]
