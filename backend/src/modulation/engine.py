@@ -29,8 +29,9 @@ class ModulationCycleError(Exception):
     """Raised when the operator routing graph contains a cycle (INJ-2).
 
     Previously the engine silently fell back to declaration order (stale 0.0
-    reads). Raising makes the cycle explicit so the caller can choose a policy
-    (today: graceful degrade to declaration order; SG-5: deterministic break).
+    reads). Raising makes the cycle explicit so the caller can choose a policy.
+    SG-5 (this packet) catches it and applies a deterministic cycle-break
+    (lex-smallest edge) — the declaration-order degrade is gone.
     B9 tensor routing + SG-5 depend on this being an explicit, typed failure.
     """
 
@@ -108,6 +109,168 @@ def _topological_sort(active_ops: list[dict]) -> list[dict]:
     return [active_ops[i] for i in ordered]
 
 
+def _sort_with_edge_set(
+    active_ops: list[dict], edge_pairs: set[tuple[str, int]]
+) -> list[dict]:
+    """Stable Kahn's sort using an EXPLICIT (source_idx, consumer_idx) edge set.
+
+    Unlike ``_topological_sort`` (which derives edges from the operator dicts),
+    this consumes a pre-computed dependency set — used after ``break_cycles`` has
+    removed the lex-smallest edges, so the remaining set is acyclic by
+    construction. Preserves declaration order for ready operators (determinism).
+    """
+    n = len(active_ops)
+    deps: list[set[int]] = [set() for _ in range(n)]
+    for src_idx, dst_idx in edge_pairs:
+        if 0 <= src_idx < n and 0 <= dst_idx < n and src_idx != dst_idx:
+            deps[dst_idx].add(src_idx)
+
+    in_degree = [len(d) for d in deps]
+    ready = sorted(i for i in range(n) if in_degree[i] == 0)
+    ordered: list[int] = []
+    while ready:
+        i = ready.pop(0)
+        ordered.append(i)
+        for j in range(n):
+            if i in deps[j]:
+                deps[j].discard(i)
+                in_degree[j] -= 1
+                if in_degree[j] == 0:
+                    pos = 0
+                    while pos < len(ready) and ready[pos] < j:
+                        pos += 1
+                    ready.insert(pos, j)
+
+    # The broken graph is acyclic, but be defensive: append any stragglers in
+    # declaration order so the render never drops an operator.
+    if len(ordered) < n:
+        seen = set(ordered)
+        ordered.extend(i for i in range(n) if i not in seen)
+
+    return [active_ops[i] for i in ordered]
+
+
+def topological_sort_with_runtime(
+    operators: list[dict], runtime_context=None
+) -> list[dict]:
+    """Runtime-aware topological sort with deterministic cycle-break (SG-5 part A).
+
+    SPEC-3 §4.2 (A+B) + §4.4:
+
+    1. Runtime-conditional edges (painted/learned — none implemented yet, so the
+       seam takes a predicate via ``RuntimeContext``) are evaluated FIRST. Folded
+       into the operator graph BEFORE the static snapshot (§4.3).
+    2. Static-only graphs (no active runtime-conditional edges) bypass straight
+       to the existing ``_topological_sort`` fast path, UNCHANGED (§4.4).
+    3. On a cycle, the engine no longer degrades to declaration order. It builds
+       a ``RoutingGraph`` (via ``graph_adapter``), runs ``break_cycles``
+       (deterministic lex-smallest edge removal), and re-sorts in the broken
+       order. Same cycle → same break across runs (determinism).
+
+    Returns operators in a valid evaluation order. The ``_topological_sort`` raise
+    semantics (INJ-2) are untouched — this wrapper CATCHES the raise and resolves
+    it; it never changes when/how the static sort raises.
+    """
+    has_runtime = bool(
+        runtime_context is not None
+        and getattr(runtime_context, "has_runtime_conditional_edges", False)
+    )
+
+    # §4.3: evaluate runtime-conditional edges FIRST, fold the active ones into
+    # the graph snapshot used for the sort. (Seam — no edge kinds implemented
+    # yet; predicate-driven. When inactive, this is a no-op and we fast-path.)
+    # §4.4: static-only graphs (has_runtime False) skip the fold entirely and
+    # hit the existing _topological_sort fast path unchanged.
+    augmented = operators
+    if has_runtime:
+        active = runtime_context.active_conditional_edges()
+        if active:
+            augmented = _fold_conditional_edges(operators, active)
+
+    try:
+        return _topological_sort(augmented)
+    except ModulationCycleError as exc:
+        # SG-5 part B: deterministic cycle-break replaces declaration-order degrade.
+        return _break_and_resort(augmented, exc)
+
+
+def _fold_conditional_edges(
+    operators: list[dict], active_edges: list[dict]
+) -> list[dict]:
+    """Return a shallow copy of ``operators`` with active conditional edges added.
+
+    Each active edge descriptor (``{"src": consumer_id, "operator_id": source_id}``
+    or ``{"dst": ..., "src": ...}``) is appended to the consumer operator's
+    ``parameters.sources`` so the downstream static sort + adapter see it as a
+    real dependency. Descriptors that don't name a present consumer are ignored.
+    """
+    by_id: dict[str, int] = {}
+    for i, op in enumerate(operators):
+        oid = op.get("id", "")
+        if oid and oid not in by_id:
+            by_id[oid] = i
+
+    # Deep-enough copy: clone the consumer ops we mutate + their sources lists.
+    result = list(operators)
+    for edge in active_edges:
+        consumer_id = edge.get("dst", edge.get("consumer_id", ""))
+        source_id = edge.get("src", edge.get("operator_id", ""))
+        if not consumer_id or not source_id:
+            continue
+        idx = by_id.get(consumer_id)
+        if idx is None:
+            continue
+        op = dict(result[idx])
+        params = dict(op.get("parameters", op.get("params", {})) or {})
+        sources = list(params.get("sources", []))
+        sources.append({"operator_id": source_id})
+        params["sources"] = sources
+        op["parameters"] = params
+        result[idx] = op
+        by_id[consumer_id] = idx  # index unchanged; result list mutated in place
+
+    return result
+
+
+def _break_and_resort(operators: list[dict], exc: ModulationCycleError) -> list[dict]:
+    """Deterministically break the cycle and re-sort (SPEC-3 §4.2 B).
+
+    Builds a RoutingGraph, removes lex-smallest edges until acyclic, then re-runs
+    a stable Kahn sort over the SURVIVING dependency edges. The declaration-order
+    degrade path is GONE — affected consumers now evaluate in a real, broken
+    order instead of reading 0.0.
+    """
+    from modulation.graph_adapter import (
+        operators_to_routing_graph,
+        remaining_source_edges,
+    )
+    from safety.cycle_detection import break_cycles
+
+    op_idx: dict[str, int] = {}
+    for i, op in enumerate(operators):
+        oid = op.get("id", "")
+        if oid and oid not in op_idx:
+            op_idx[oid] = i
+
+    graph = operators_to_routing_graph(operators)
+    removed = break_cycles(graph)
+    logger.warning(
+        "SG-5: %s — broke cycle deterministically by removing edge(s) %s",
+        exc,
+        removed,
+    )
+
+    # Map the surviving (source_id, consumer_id) edges back to declaration indices.
+    survivors: set[tuple[str, int]] = set()
+    for src_id, dst_id in remaining_source_edges(graph):
+        si = op_idx.get(src_id)
+        di = op_idx.get(dst_id)
+        if si is not None and di is not None:
+            survivors.add((si, di))
+
+    return _sort_with_edge_set(operators, survivors)
+
+
 class SignalEngine:
     """Evaluates all operators and applies modulation to an effect chain."""
 
@@ -128,6 +291,7 @@ class SignalEngine:
         video_frame=None,
         state: dict | None = None,
         bpm: float = 120.0,
+        runtime_context=None,
     ) -> tuple[dict[str, float], dict]:
         """Evaluate all operators and return their signal values.
 
@@ -158,15 +322,13 @@ class SignalEngine:
 
         # Cap at MAX_OPERATORS, then topo-sort so source operators resolve before
         # their consumers (otherwise consumers read 0.0 silently).
-        try:
-            active_ops = _topological_sort(operators[:MAX_OPERATORS])
-        except ModulationCycleError as exc:
-            # INJ-2: the sort now raises on a cycle. SG-5 will replace this with
-            # deterministic cycle-break ordering. Until then, degrade gracefully —
-            # keep declaration order so the render never crashes; affected
-            # consumers may read 0.0 (the prior silent behavior, now logged loud).
-            logger.warning("%s — falling back to declaration order", exc)
-            active_ops = operators[:MAX_OPERATORS]
+        # SG-5 (SPEC-3 §4.2): runtime-aware sort. Static-only graphs hit the
+        # existing _topological_sort fast path inside this wrapper; cycles are
+        # broken deterministically (lex-smallest edge) instead of degrading to
+        # declaration order. The declaration-order fallback is GONE.
+        active_ops = topological_sort_with_runtime(
+            operators[:MAX_OPERATORS], runtime_context
+        )
 
         _eval_start = time.perf_counter()
 
