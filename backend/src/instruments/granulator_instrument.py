@@ -27,6 +27,7 @@ L-axis: accepted and drawn but INERT until an SG-3-gated flag is set
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -44,6 +45,77 @@ VALID_WINDOWS: frozenset[str] = frozenset({"hann", "tri", "rect"})
 
 # Six-axis parameter set for the granulator.
 AXES: tuple[str, ...] = ("T", "Y", "X", "C", "F", "L")
+
+# ---------------------------------------------------------------------------
+# P5b.18 — B8 grain SELECTION rules (which positions grains spawn at)
+# ---------------------------------------------------------------------------
+#
+# A grain `selection` rule decides HOW each grain's spawn position is chosen.
+# This is orthogonal to the seeded jitter engine above: `random` keeps the pure
+# seeded draw; `onset` biases the spawn toward audio-transient frames (consuming
+# `modulation.audio_follower`); `latentSimilarity` and `scenePayload` are gated.
+#
+#   random           — IMPLEMENTED. Seeded per-grain draw (the existing engine).
+#   onset            — IMPLEMENTED. Consumes audio_follower onset triggers; do NOT
+#                      reimplement onset detection here.
+#   latentSimilarity — RESEARCH, flag-gated (SG-3-coupled). Selecting it with the
+#                      flag OFF is REJECTED at the loader trust boundary (schema.py).
+#                      On any latent READ it MUST pass through the SG-3 sentinel
+#                      (`safety.latent_sentinel.check_and_clamp`).
+#   scenePayload     — RESERVED. No scene-detection metadata source exists on main
+#                      (verified by orchestrator), so this is schema-RESERVED +
+#                      validator-REJECTED, mirroring the SPEC-2 tier-gating pattern.
+#                      We do NOT invent a scene source.
+
+SelectionRule = Literal["random", "onset", "scenePayload", "latentSimilarity"]
+
+# Always-implemented selection rules (no flag, no external source needed).
+IMPLEMENTED_SELECTION_RULES: frozenset[str] = frozenset({"random", "onset"})
+
+# RESERVED — schema-recognised but has no data source on main; the loader rejects
+# it LOUDLY (mirrors the SPEC-2 tier-gating reserved pattern). No scene source is
+# invented here.
+RESERVED_SELECTION_RULES: frozenset[str] = frozenset({"scenePayload"})
+
+# RESEARCH — recognised but gated behind the SG-3-coupled flag below. Selecting it
+# flag-OFF is rejected at the loader (the B9-style trust boundary applied to B8).
+RESEARCH_SELECTION_RULES: frozenset[str] = frozenset({"latentSimilarity"})
+
+# All selection values the schema RECOGNISES (recognised != accepted). An
+# unrecognised value is rejected as malformed; a recognised-but-gated value is
+# rejected with a flag/reserved-specific message.
+ALL_SELECTION_RULES: frozenset[str] = (
+    IMPLEMENTED_SELECTION_RULES | RESERVED_SELECTION_RULES | RESEARCH_SELECTION_RULES
+)
+
+DEFAULT_SELECTION: str = "random"
+
+
+def latent_similarity_enabled() -> bool:
+    """Read the SG-3-coupled EXPERIMENTAL_LATENT_SELECTION env flag (true/1/yes/on).
+
+    When OFF (default), the `latentSimilarity` selection rule is REJECTED at the
+    loader trust boundary (project/schema.py). Mirrors the EXPERIMENTAL_AXIS_BINDINGS
+    / EXPERIMENTAL_AUDIO_TRACKS flag-reader convention in zmq_server.py.
+
+    The flag is SG-3-coupled: any latent READ taken on this path is guarded by the
+    SG-3 NaN-sentinel (`select_latent_grain_positions` calls `check_and_clamp`).
+    """
+    val = os.environ.get("EXPERIMENTAL_LATENT_SELECTION", "").strip().lower()
+    return val in {"true", "1", "yes", "on"}
+
+
+def accepted_selection_rules() -> frozenset[str]:
+    """The currently-ACCEPTED selection-rule set (the loader's accept-set).
+
+    Always the two implemented rules (random/onset). Adds `latentSimilarity` ONLY
+    when EXPERIMENTAL_LATENT_SELECTION is on. `scenePayload` is NEVER accepted (no
+    source on main — reserved). This is the authoritative accept-set consulted by
+    the loader trust boundary in project/schema.py.
+    """
+    if latent_similarity_enabled():
+        return IMPLEMENTED_SELECTION_RULES | RESEARCH_SELECTION_RULES
+    return IMPLEMENTED_SELECTION_RULES
 
 
 @dataclass
@@ -70,6 +142,11 @@ class GranulatorParams:
     axes: dict[str, AxisParams] = field(default_factory=dict)
     # SG-3 gate flag — L-axis is inert unless this is True (P5b.18 owns the logic)
     l_axis_enabled: bool = False
+    # P5b.18 — grain SELECTION rule. The LOADER (project/schema.py) is the trust
+    # boundary that rejects gated/reserved values; this engine-level guard is the
+    # second line of defense: an unknown/gated value that somehow reaches the
+    # engine degrades safely to the default seeded `random` rather than crashing.
+    selection: SelectionRule = "random"
 
     def __post_init__(self) -> None:
         # Clamp + validate density
@@ -82,6 +159,12 @@ class GranulatorParams:
         # Validate window
         if self.window not in VALID_WINDOWS:
             self.window = "hann"
+
+        # Validate selection (engine-level fail-safe — the loader is the real
+        # trust boundary). An unrecognised, reserved, or flag-off-research value
+        # degrades to the seeded `random` rule rather than crashing the engine.
+        if self.selection not in accepted_selection_rules():
+            self.selection = DEFAULT_SELECTION  # type: ignore[assignment]
 
         # Ensure all six axes are present with clamped values
         for ax in AXES:
@@ -273,6 +356,223 @@ def grain_cloud(
         density_capped=density,
         l_axis_inert=not l_enabled,
     )
+
+
+# ---------------------------------------------------------------------------
+# P5b.18 — SELECTION dispatch (which positions grains spawn at along T)
+# ---------------------------------------------------------------------------
+#
+# A selection rule returns, per grain, a T-position weight ∈ [0, 1] used to bias
+# where in the source timeline the grain samples. `random` is the seeded engine
+# above (no bias). `onset` biases toward audio-transient frames by consuming the
+# `audio_follower` onset trigger. `latentSimilarity` is flag-gated + SG-3-guarded.
+# `scenePayload` has no source → reserved (rejected at the loader, never reached).
+
+
+class GrainSelectionError(ValueError):
+    """Raised when a grain selection rule cannot be honored at the engine layer.
+
+    The loader (project/schema.py) is the primary trust boundary and rejects
+    gated/reserved selection values at load. This engine-level error is the
+    second line of defense for a value that bypassed the loader (e.g. a
+    programmatic caller) — surfaced as a lane error / user-facing toast by the
+    render dispatch, never a silent wrong-frame.
+    """
+
+
+def select_random_grain_weights(
+    project_seed: int,
+    instrument_id: str,
+    frame_index: int,
+    density: int,
+) -> list[float]:
+    """`random` selection — seeded per-grain T weights ∈ [0, 1).
+
+    Reuses the P5b.16 determinism formula (derive_seed/make_rng with the exact
+    per-grain key) so the weights are byte-identical across replays. This consumes
+    a SEPARATE seed namespace (`gransel:`) from the jitter engine's `gran:` so
+    adding selection does NOT shift the jitter draws of existing projects.
+    """
+    weights: list[float] = []
+    for gi in range(max(0, int(density))):
+        seed = derive_seed(project_seed, f"gransel:{instrument_id}:{gi}", frame_index)
+        rng = make_rng(seed)
+        weights.append(float(rng.random()))
+    return weights
+
+
+def select_onset_grain_weights(
+    pcm: np.ndarray | None,
+    sample_rate: int,
+    *,
+    density: int,
+    audio_state: dict | None = None,
+    onset_params: dict | None = None,
+    project_seed: int = 0,
+    instrument_id: str = "",
+    frame_index: int = 0,
+) -> tuple[list[float], dict]:
+    """`onset` selection — bias grain T-weights by the audio onset trigger.
+
+    CONSUMES `modulation.audio_follower.evaluate_audio(..., method='onset')`; it
+    does NOT reimplement onset detection. The follower returns a 0..1 onset
+    strength for the current frame window plus its persistent state (carried
+    across frames for spectral-flux). The onset strength shifts the seeded base
+    weights toward the frame onset: strong onset → grains cluster near the
+    transient (weight pulled up by `strength`); silence → falls back to the
+    seeded `random` distribution (so onset with no audio == random, never a
+    degenerate all-zero cloud).
+
+    Returns (weights, audio_state_out) — the caller threads audio_state_out into
+    the next frame so spectral-flux onset detection has its previous spectrum.
+    """
+    from modulation.audio_follower import evaluate_audio
+
+    strength, state_out = evaluate_audio(
+        pcm,
+        "onset",
+        onset_params or {},
+        sample_rate,
+        audio_state,
+    )
+    # Finite-guard the follower output at the trust boundary (it already clamps
+    # to [0,1], but defense-in-depth per feedback_numeric-trust-boundary).
+    if not math.isfinite(strength):
+        strength = 0.0
+    strength = max(0.0, min(1.0, float(strength)))
+
+    base = select_random_grain_weights(
+        project_seed, instrument_id, frame_index, density
+    )
+    # Onset bias: blend each seeded weight toward 1.0 (the transient) by the onset
+    # strength. strength=0 → pure random; strength=1 → all grains at the onset.
+    weights = [max(0.0, min(1.0, w + (1.0 - w) * strength)) for w in base]
+    return weights, state_out
+
+
+def select_latent_grain_weights(
+    latent: np.ndarray,
+    *,
+    density: int,
+    backbone: str = "_default",
+    project_seed: int = 0,
+    instrument_id: str = "",
+    frame_index: int = 0,
+    context: str = "B8 latentSimilarity selection",
+) -> list[float]:
+    """`latentSimilarity` selection — flag-gated, SG-3-guarded latent read.
+
+    This path is RESEARCH and gated behind EXPERIMENTAL_LATENT_SELECTION (the
+    loader rejects it flag-off, so this should only run with the flag on). On ANY
+    latent READ it MUST pass through the SG-3 NaN-sentinel before the latent is
+    consumed (per feedback_numeric-trust-boundary + SPEC-3 §3): a NaN/Inf/OOD
+    latent ABORTS the lane via `LatentSentinelError`, which the render dispatch
+    converts to a user-facing toast — it NEVER produces grain positions from a
+    poisoned latent.
+
+    The sentinel is consumed (NOT modified): `check_and_clamp` with the
+    per-backbone L2 ceiling. A clamped (renormalized) latent is safe to use; only
+    NaN/Inf/zero latents raise.
+    """
+    if not latent_similarity_enabled():
+        # Defense-in-depth: should be unreachable (loader rejects flag-off), but
+        # never silently fall through to a latent read with the flag off.
+        raise GrainSelectionError(
+            "latentSimilarity selection requires EXPERIMENTAL_LATENT_SELECTION"
+        )
+
+    # SG-3 sentinel on the latent READ (consume the P5b.5 seam; do NOT modify it).
+    from safety.latent_sentinel import check_and_clamp, get_l2_ceiling_for_backbone
+
+    ceiling = get_l2_ceiling_for_backbone(backbone)
+    # Raises LatentSentinelError on NaN/Inf/zero → lane abort + toast upstream.
+    result = check_and_clamp(latent, l2_ceiling=ceiling, context=context)
+    safe_latent = result.latent
+
+    # Derive deterministic T-weights from the SAFE latent: project each grain's
+    # seeded probe vector onto the latent and map cosine similarity → [0, 1].
+    flat = safe_latent.astype(np.float64).ravel()
+    norm = float(np.linalg.norm(flat))
+    if norm <= 0.0:  # already guarded by the floor check, belt-and-suspenders
+        return select_random_grain_weights(
+            project_seed, instrument_id, frame_index, density
+        )
+    unit = flat / norm
+
+    weights: list[float] = []
+    for gi in range(max(0, int(density))):
+        seed = derive_seed(project_seed, f"granlat:{instrument_id}:{gi}", frame_index)
+        rng = make_rng(seed)
+        probe = rng.standard_normal(unit.shape[0])
+        pnorm = float(np.linalg.norm(probe))
+        if pnorm <= 0.0:
+            weights.append(0.5)
+            continue
+        cos = float(np.dot(unit, probe / pnorm))  # ∈ [-1, 1]
+        weights.append(max(0.0, min(1.0, 0.5 * (cos + 1.0))))  # → [0, 1]
+    return weights
+
+
+def select_grain_weights(
+    selection: str,
+    project_seed: int,
+    instrument_id: str,
+    frame_index: int,
+    density: int,
+    *,
+    pcm: np.ndarray | None = None,
+    sample_rate: int = 48000,
+    audio_state: dict | None = None,
+    onset_params: dict | None = None,
+    latent: np.ndarray | None = None,
+    backbone: str = "_default",
+) -> tuple[list[float], dict | None]:
+    """Dispatch to the named selection rule; return (weights, audio_state_out).
+
+    `audio_state_out` is non-None only for `onset` (the follower's carried state).
+    Unrecognised / reserved / flag-off values raise GrainSelectionError (the
+    loader is the primary boundary — this is the engine fail-safe).
+    """
+    if selection == "random":
+        return (
+            select_random_grain_weights(
+                project_seed, instrument_id, frame_index, density
+            ),
+            None,
+        )
+    if selection == "onset":
+        return select_onset_grain_weights(
+            pcm,
+            sample_rate,
+            density=density,
+            audio_state=audio_state,
+            onset_params=onset_params,
+            project_seed=project_seed,
+            instrument_id=instrument_id,
+            frame_index=frame_index,
+        )
+    if selection == "latentSimilarity":
+        if latent is None:
+            raise GrainSelectionError(
+                "latentSimilarity selection requires a latent vector"
+            )
+        return (
+            select_latent_grain_weights(
+                latent,
+                density=density,
+                backbone=backbone,
+                project_seed=project_seed,
+                instrument_id=instrument_id,
+                frame_index=frame_index,
+            ),
+            None,
+        )
+    if selection in RESERVED_SELECTION_RULES:
+        raise GrainSelectionError(
+            f"selection {selection!r} is reserved — no scene-detection source "
+            f"exists (schema-rejected at load)"
+        )
+    raise GrainSelectionError(f"unknown grain selection rule {selection!r}")
 
 
 # ---------------------------------------------------------------------------
