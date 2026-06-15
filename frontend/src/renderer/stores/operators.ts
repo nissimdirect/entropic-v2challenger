@@ -10,6 +10,7 @@ import type {
   SignalProcessingStep,
 } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
+import { validateModRouteBindingRule } from '../../shared/axis-binding'
 import { useUndoStore, undoable } from './undo'
 
 function createDefaultOperator(type: OperatorType, id: string): Operator {
@@ -65,6 +66,28 @@ interface OperatorsState {
   resetOperators: () => void
   loadOperators: (operators: Operator[]) => void
   getSerializedOperators: () => Record<string, unknown>[]
+}
+
+/**
+ * P5b.21 (B9): save-time guard for an OperatorMapping's axis-routing fields.
+ * Returns null when the mapping is acceptable, else an error string.
+ *
+ * Rejects (no silent coercion — SPEC-2 §4):
+ *   - a `bindingRule` outside the 4 implemented rules (unknown or flag-gated
+ *     research rule), via validateModRouteBindingRule.
+ *   - a non-finite `depth` (NaN / ±Infinity) — numeric trust boundary.
+ *
+ * Absent srcAxis/dstAxis/bindingRule is VALID (defaults t/t/broadcast).
+ */
+function validateMappingForSave(mapping: Partial<OperatorMapping>): string | null {
+  if (mapping.bindingRule !== undefined) {
+    const err = validateModRouteBindingRule(mapping.bindingRule)
+    if (err) return err
+  }
+  if (mapping.depth !== undefined && !Number.isFinite(mapping.depth)) {
+    return `mapping depth must be a finite number, got ${mapping.depth}`
+  }
+  return null
 }
 
 let nextOpId = 1
@@ -179,6 +202,14 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
   addMapping: (operatorId, mapping) => {
     const op = get().operators.find((o) => o.id === operatorId)
     if (!op) return
+    // P5b.21 (B9): reject a flag-gated/unknown bindingRule or non-finite depth at
+    // save time — no-op + warn (mirrors the cap-reached pattern). The backend
+    // loader is the authoritative trust boundary; this is the pre-flight guard.
+    const bindErr = validateMappingForSave(mapping)
+    if (bindErr) {
+      console.warn(`[operators] rejected mapping on ${operatorId}: ${bindErr}`)
+      return
+    }
     // P4.1: cap at LIMITS.MAX_MAPPINGS_PER_OPERATOR (32) — no-op + warn when at cap
     if (op.mappings.length >= LIMITS.MAX_MAPPINGS_PER_OPERATOR) {
       console.warn(
@@ -237,6 +268,14 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
     if (!op) return
     const oldMappings = [...op.mappings]
     if (mappingIndex < 0 || mappingIndex >= oldMappings.length) return
+    // P5b.21 (B9): same save-time guard as addMapping — validate the MERGED
+    // mapping so a partial update can't sneak in a research/unknown rule or a
+    // non-finite depth.
+    const bindErr = validateMappingForSave({ ...oldMappings[mappingIndex], ...updates })
+    if (bindErr) {
+      console.warn(`[operators] rejected mapping update on ${operatorId}: ${bindErr}`)
+      return
+    }
     const newMapping = { ...oldMappings[mappingIndex], ...updates }
     const newMappings = [...oldMappings]
     newMappings[mappingIndex] = newMapping
@@ -311,7 +350,38 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
           ? { ...op, mappings: op.mappings.slice(0, LIMITS.MAX_MAPPINGS_PER_OPERATOR) }
           : op,
       )
-    set({ operators: clamped })
+
+    // P5b.21 (B9): loadOperators is the REAL production rehydration trust
+    // boundary (deserialize/validate is the backend .glitch path only; the live
+    // app loads operators through this setter). Run each mapping through the
+    // SAME save-time guard as add/updateMapping — DROP a mapping whose
+    // bindingRule is flag-gated/unknown or whose depth is non-finite, so a
+    // hand-edited project cannot smuggle 'learned'/'zigzag'/NaN past load into
+    // getSerializedOperators → backend resolve_routings. Then enforce the
+    // project-wide MAX_MOD_EDGES_TOTAL cap summed ACROSS operators (the
+    // per-operator + operator-count clamps above never check the total).
+    let totalEdges = 0
+    const guarded = clamped.map((op) => {
+      const kept: OperatorMapping[] = []
+      for (const m of op.mappings) {
+        const err = validateMappingForSave(m)
+        if (err) {
+          console.warn(`[operators] loadOperators dropped mapping on ${op.id}: ${err}`)
+          continue
+        }
+        if (totalEdges >= LIMITS.MAX_MOD_EDGES_TOTAL) {
+          console.warn(
+            `[operators] loadOperators truncated mappings: MAX_MOD_EDGES_TOTAL ` +
+              `(${LIMITS.MAX_MOD_EDGES_TOTAL}) reached`,
+          )
+          break
+        }
+        totalEdges++
+        kept.push(m)
+      }
+      return kept.length === op.mappings.length ? op : { ...op, mappings: kept }
+    })
+    set({ operators: guarded })
   },
 
   getSerializedOperators: () => {
@@ -335,6 +405,12 @@ export const useOperatorStore = create<OperatorsState>((set, get) => ({
         // P4.2: emit source_key (snake_case) only when set, matching the
         // target_effect_id convention. Absent → master-value routing (legacy).
         ...(m.sourceKey ? { source_key: m.sourceKey } : {}),
+        // P5b.21 (B9): emit axis-routing fields (snake_case) ONLY when set, so a
+        // legacy mapping serializes byte-identically (no src_axis/dst_axis/
+        // binding_rule keys). Absent → backend defaults t/t/broadcast.
+        ...(m.srcAxis ? { src_axis: m.srcAxis } : {}),
+        ...(m.dstAxis ? { dst_axis: m.dstAxis } : {}),
+        ...(m.bindingRule ? { binding_rule: m.bindingRule } : {}),
       })),
     }))
   },

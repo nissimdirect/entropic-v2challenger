@@ -58,9 +58,19 @@ def test_binding_rule_has_eight_canonical_rules():
 
 
 @pytest.mark.smoke
-def test_tier1_only_broadcast_implemented():
-    """Vision §6 B4-lite: only broadcast is implemented in Tier 1."""
-    assert TIER1_IMPLEMENTED_RULES == frozenset({BindingRule.BROADCAST})
+def test_tier1_implements_four_rules():
+    """P5b.21 (B9): Tier 1 widened to broadcast/sampleAt/scanOver/integrate.
+
+    The four research rules (painted/hilbert/polar/learned) remain flag-gated.
+    """
+    assert TIER1_IMPLEMENTED_RULES == frozenset(
+        {
+            BindingRule.BROADCAST,
+            BindingRule.SAMPLE_AT,
+            BindingRule.SCAN_OVER,
+            BindingRule.INTEGRATE,
+        }
+    )
 
 
 # ---- Lane ----
@@ -152,11 +162,33 @@ def test_validate_for_save_accepts_broadcast():
         BindingRule.SAMPLE_AT,
         BindingRule.SCAN_OVER,
         BindingRule.INTEGRATE,
-        BindingRule.PAINTED,
     ],
 )
-def test_validate_for_save_rejects_non_broadcast(rule):
-    """B4-lite writer-side validator REJECTS non-broadcast on save."""
+def test_validate_for_save_accepts_implemented_rules(rule):
+    """P5b.21 (B9): the 3 newly-implemented rules now SAVE without raising."""
+    edge = ModEdge(
+        src="a",
+        src_axis=LaneDomain.T,
+        dst="b",
+        dst_axis=LaneDomain.T,
+        binding_rule=rule,
+    )
+    validate_for_save(edge)  # no raise
+
+
+@pytest.mark.smoke
+@pytest.mark.parametrize(
+    "rule",
+    [
+        BindingRule.PAINTED,
+        BindingRule.HILBERT,
+        BindingRule.POLAR,
+        BindingRule.LEARNED,
+    ],
+)
+def test_validate_for_save_rejects_research_rules_flag_off(rule, monkeypatch):
+    """B4-lite writer-side validator REJECTS flag-gated research rules on save."""
+    monkeypatch.delenv("EXPERIMENTAL_AXIS_BINDINGS", raising=False)
     edge = ModEdge(
         src="a",
         src_axis=LaneDomain.T,
@@ -192,14 +224,14 @@ def test_validate_error_message_includes_edge_context():
         src_axis=LaneDomain.T,
         dst="fx-blur.radius",
         dst_axis=LaneDomain.T,
-        binding_rule=BindingRule.SCAN_OVER,
+        binding_rule=BindingRule.HILBERT,
     )
     with pytest.raises(UnimplementedBindingRuleError) as exc:
         validate_for_save(edge)
     msg = str(exc.value)
     assert "lfo7" in msg
     assert "fx-blur.radius" in msg
-    assert "scanOver" in msg
+    assert "hilbert" in msg
 
 
 # ---- ParamAutomation (B1 universal coverage primitive) ----

@@ -1,7 +1,142 @@
 """Signal routing — maps operator outputs to effect parameters."""
 
 import copy
+import math
+import os
 from collections import defaultdict, deque
+
+# --------------------------------------------------------------------------- #
+#  P5b.22 (B9) — binding-rule semantics
+# --------------------------------------------------------------------------- #
+#
+# A modulation edge maps a SOURCE value sampled over `src_axis` to a DESTINATION
+# over `dst_axis` per its `binding_rule`. Four rules are implemented:
+#
+#   broadcast — scalar applied to all (legacy; byte-identical to pre-B9 routing).
+#   sampleAt  — read a single index of the axis samples.
+#   scanOver  — produce a per-row/col VECTOR over the axis.
+#   integrate — cumulative sum over the axis.
+#
+# Destinations are SCALAR by default. A FIELD (2D / per-row) destination is gated
+# behind EXPERIMENTAL_FIELD_DST — when off, scanOver collapses to its mean scalar
+# and an explicit field-dst request is REJECTED (no silent partial render).
+
+# The four implemented rules. The other four (painted/hilbert/polar/learned) are
+# rejected at the loader trust boundary (project/schema.py), so they never reach
+# here; this set is the engine-side allow-list and a final defensive guard.
+_IMPLEMENTED_BINDING_RULES: frozenset[str] = frozenset(
+    {"broadcast", "sampleAt", "scanOver", "integrate"}
+)
+
+
+def field_destination_enabled() -> bool:
+    """Read the EXPERIMENTAL_FIELD_DST env flag (true/1/yes/on).
+
+    When OFF (default) a field (2D / per-row) destination is rejected and
+    scanOver collapses to a scalar (its mean). Mirrors the EXPERIMENTAL_AUDIO_TRACKS
+    flag-reader convention.
+    """
+    val = os.environ.get("EXPERIMENTAL_FIELD_DST", "").strip().lower()
+    return val in {"true", "1", "yes", "on"}
+
+
+def _finite(x, default: float = 0.0) -> float:
+    """Coerce to a finite float; NaN/±inf/non-numeric → default (trust boundary)."""
+    try:
+        v = float(x)
+    except (TypeError, ValueError):
+        return default
+    if not math.isfinite(v):
+        return default
+    return v
+
+
+class FieldDestinationDisabledError(ValueError):
+    """Raised when a field (2D) destination is requested but the flag is off."""
+
+
+def resolve_axis_binding(
+    samples,
+    binding_rule: str,
+    *,
+    index: int = 0,
+    depth: float = 1.0,
+    field_dst: bool = False,
+):
+    """Resolve ONE modulation edge's axis samples through its binding rule (B9).
+
+    Args:
+        samples: the source value(s) sampled over src_axis. A scalar is treated
+            as a length-1 axis; a list/tuple is the per-axis-position sequence.
+        binding_rule: one of broadcast / sampleAt / scanOver / integrate.
+        index: the axis index for sampleAt (clamped into range).
+        depth: per-edge modulation amount; finite-guarded + clamped to [-1, 1].
+        field_dst: when True, request a per-row VECTOR destination (scanOver).
+            Gated behind EXPERIMENTAL_FIELD_DST — raises when off.
+
+    Returns:
+        A scalar float for scalar destinations, OR a list[float] when
+        field_dst is True and scanOver is used (and the flag is on).
+
+    Raises:
+        FieldDestinationDisabledError: field_dst=True with the flag off.
+        ValueError: unknown / unimplemented binding rule.
+    """
+    if binding_rule not in _IMPLEMENTED_BINDING_RULES:
+        raise ValueError(
+            f"binding_rule {binding_rule!r} is not implemented "
+            f"(implemented: {sorted(_IMPLEMENTED_BINDING_RULES)})"
+        )
+
+    # Normalize samples → a finite-guarded list (numeric trust boundary).
+    if isinstance(samples, (list, tuple)):
+        seq = [_finite(s) for s in samples]
+    else:
+        seq = [_finite(samples)]
+    if not seq:
+        seq = [0.0]
+
+    # Depth: finite-guard, then clamp to [-1, 1] (the nominal per-edge range).
+    d = max(-1.0, min(1.0, _finite(depth, 1.0)))
+
+    if field_dst and not field_destination_enabled():
+        raise FieldDestinationDisabledError(
+            "field (2D) destination requires EXPERIMENTAL_FIELD_DST; "
+            "flag is off — scalar/scanOver destinations only"
+        )
+
+    if binding_rule == "broadcast":
+        # Scalar → all. BYTE-IDENTICAL to legacy: the source scalar scaled by
+        # depth. (For a multi-sample input, broadcast uses the first sample —
+        # the legacy scalar.)
+        return seq[0] * d
+
+    if binding_rule == "sampleAt":
+        # Read a single index (clamped into range — numeric trust boundary).
+        i = int(index)
+        i = max(0, min(len(seq) - 1, i))
+        return seq[i] * d
+
+    if binding_rule == "scanOver":
+        # Per-row/col VECTOR over the axis. Field dst (flag on) returns the
+        # vector; scalar dst collapses to the mean (so legacy scalar params still
+        # receive a single value).
+        vec = [s * d for s in seq]
+        if field_dst:
+            return vec
+        return sum(vec) / len(vec)
+
+    # integrate — cumulative sum over the axis, scaled by depth. The cumulative
+    # TOTAL is the scalar destination value; a field dst would expose the running
+    # partial sums (flag-gated).
+    cumulative: list[float] = []
+    running = 0.0
+    for s in seq:
+        running += s * d
+        cumulative.append(running)
+    if field_dst:
+        return cumulative
+    return cumulative[-1]
 
 
 def resolve_routings(
