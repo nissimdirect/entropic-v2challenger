@@ -1487,3 +1487,60 @@ These features are **not yet built** — do NOT test them:
 
 **Section 24 Total: 42 test cases**
 **Updated Grand Total: 517 test cases**
+
+---
+
+## Section 25: Phase 6 — Field Params, Y-Domain Render, Inspector Track, Routing Canvas
+
+Added P6.11. Tests the four new Phase-6 surfaces: image/video field params (C2/C3),
+Y-domain per-scanline rendering, Inspector Track (I1), and Routing Canvas ⌘⇧I (I2).
+
+### 25.1 Field Assignment (C2/C3 — Image/Video as Parameter)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 1 | Assign image as field | Select an effect with a float param (e.g., fx.brightness_exposure / stops). In params panel, click "Field…" next to stops. Choose an image file. | Field assignment accepted; next render uses image luminance to modulate stops per pixel | [ ] |
+| 2 | Assign video as field | Same as above but choose a .mp4 file. | Video field accepted; frame-synced luma used | [ ] |
+| 3 | Field clears on reset | With a field assigned, click "×" or reset param. | Param reverts to scalar value; field cleared | [ ] |
+| 4 | Gain control | Assign a field, adjust gain slider (range −4 to 4). | Modulation depth scales proportionally | [ ] |
+| 5 | Invert toggle | Assign a field, enable Invert. | Modulation inverts (bright areas → low param value) | [ ] |
+| 6 | Dead source graceful | Assign a field source, then delete the source file from disk. Render a frame. | No crash; frame renders with flat 0.5 field fallback; warning appears in console | [ ] |
+| 7 | Non-field-capable param rejected | Attempt to assign a field to a non-float or banded param. | "Field…" button absent or assignment rejected | [ ] |
+
+### 25.2 Y-Domain Per-Scanline Render (C2 axis lanes)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 8 | Y-domain lane produces spatial strips | In the automation panel, set a lane's domain to Y for fx.color_filter / amount. Draw a ramp curve. Play or scrub to a frame. | Preview shows horizontal strips with varying color filter intensity | [ ] |
+| 9 | X-domain lane produces vertical strips | Set domain to X, draw a ramp. Render a frame. | Preview shows vertical strips | [ ] |
+| 10 | T-domain stays in automation path | Set domain to T (default). Draw a curve. | Effect modulates over time as usual — not banded | [ ] |
+| 11 | Band count respected | With Y-domain lane, set n_bands = 16. Render. | 16 visible horizontal strips | [ ] |
+| 12 | Direction negative reverses order | Set direction = −1 on a Y-domain ramp lane. Render. | Strips ordered bottom-to-top instead of top-to-bottom | [ ] |
+| 13 | Perf guard (512 invocation cap) | Add many banded effects such that n_effects × n_bands > 512. Render. | n_bands auto-reduced to stay ≤ 512 invocations; no hang | [ ] |
+
+### 25.3 Inspector Track (I1)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 14 | Inspector track appears | With an effect having a probe, open Inspector panel or Inspector Track (if surfaced in UI). | Probe readout visible for the param | [ ] |
+| 15 | Probe history bounded | Let the app run for many frames with a mounted probe. | History never exceeds 32 entries (MAX_HISTORY_PER_PROBE) | [ ] |
+| 16 | Probe mount / unmount | Mount then unmount the inspector. | Probe recording stops after unmount; record() is a no-op | [ ] |
+| 17 | Up to 64 probes | Register 64 probes simultaneously. | All 64 accepted; no crash | [ ] |
+| 18 | 65th probe rejected | Try to register a 65th probe when 64 are active. | Registration refused (MAX_PROBES = 64) | [ ] |
+
+### 25.4 Routing Canvas (I2 — ⌘⇧I)
+
+| # | Test | Steps | Expected | Result |
+|---|------|-------|----------|--------|
+| 19 | Open Routing Canvas | Press ⌘⇧I | Routing Canvas overlay opens | [ ] |
+| 20 | Close Routing Canvas | Press ⌘⇧I again or Escape | Canvas closes | [ ] |
+| 21 | Canvas shows effect nodes | With effects on tracks, open canvas. | Effect nodes visible (blue, labeled with effect name and track) | [ ] |
+| 22 | Canvas shows lane nodes | With lanes assigned, open canvas. | Lane nodes visible (green) | [ ] |
+| 23 | Canvas shows operator nodes | With a routing operator, open canvas. | Operator nodes visible (orange) | [ ] |
+| 24 | Canvas shows edges | With modulation routes wired. | Edges visible connecting source node to target param | [ ] |
+| 25 | Empty graph shows placeholder | No routes in project. Open canvas. | Empty state with instructional text, no crash | [ ] |
+| 26 | Orphan edge handled | Remove a node that has edges. Open canvas. | No crash; orphan edges removed from graph | [ ] |
+| 27 | Large graph (200 nodes) performance | Programmatically add 200 nodes, open canvas. | Canvas opens in ≤ 500 ms | [ ] |
+
+**Section 25 Total: 27 test cases**
+**Updated Grand Total: 544 test cases**
