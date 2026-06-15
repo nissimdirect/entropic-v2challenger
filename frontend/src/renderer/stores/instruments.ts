@@ -19,6 +19,10 @@ import type {
   RackMacro,
   MacroRoute,
   FrameBankInstrument,
+  GranulatorInstrument,
+  GranulatorAxis,
+  GranulatorAxisParams,
+  GranulatorSelectionRule,
 } from '../components/instruments/types'
 import {
   MAX_MACROS_PER_RACK,
@@ -34,6 +38,11 @@ import {
   FRAMEBANK_BYTE_BUDGET_MAX,
   FRAMEBANK_POSITION_MIN,
   FRAMEBANK_POSITION_MAX,
+  GRANULATOR_DENSITY_MIN,
+  GRANULATOR_DENSITY_MAX,
+  GRANULATOR_AXES,
+  defaultGranulatorInstrument,
+  defaultAxisParams,
 } from '../components/instruments/types'
 import type { SlotRef } from '../components/instruments/types'
 import { clampFinite } from '../../shared/numeric'
@@ -271,6 +280,15 @@ interface InstrumentsState {
    * byte-identical (regression-safe).
    */
   frameBanks: Record<string, FrameBankInstrument>
+  /**
+   * B8 — trackId → its Granulator instrument. A track with no entry has no
+   * granulator. Additive to the other instrument maps (a track holds a bare
+   * sampler OR a rack OR a frame-bank OR a granulator). Persisted alongside
+   * them (additive optional, no version bump). Absent / empty → no
+   * `performance.granulator` in the render payload → byte-identical
+   * (regression-safe). The UI is P5b.19.
+   */
+  granulators: Record<string, GranulatorInstrument>
   /** Instantiate a Sampler on a track (no-op if it already has one). clipId '' = unsourced. */
   addSampler: (trackId: string, clipId?: string) => void
   /** Set/replace the source clip (called when a video is dropped on the sampler). */
@@ -441,12 +459,56 @@ interface InstrumentsState {
   ) => void
   /** Toggle an effect's enabled flag in a pad's insert chain. */
   togglePadEffect: (trackId: string, padId: string, instanceId: string, branchPath?: string[]) => void
+
+  // --- B8 Granulator (P5b.19) ---
+  /**
+   * Instantiate a Granulator on a track (no-op if it already has one). Seeds a
+   * default 4-grain instrument with all six axes at safe defaults.
+   */
+  addGranulator: (trackId: string) => void
+  /** Remove a track's granulator (also called on track delete for cleanup). */
+  removeGranulator: (trackId: string) => void
+  getGranulator: (trackId: string) => GranulatorInstrument | undefined
+  /**
+   * Set grain density, clamped [GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX].
+   * The backend enforces the hard MAX_GRAINS cap; this mirrors it at the store
+   * boundary (feedback_numeric-trust-boundary).
+   */
+  setGranulatorDensity: (trackId: string, density: number) => void
+  /** Set grain window shape ('hann' | 'tri' | 'rect'). */
+  setGranulatorWindow: (trackId: string, window: GranulatorInstrument['window']) => void
+  /**
+   * Set a per-axis param (grain/jitter/position/envelope), clamped [0,1].
+   * `axis` must be lowercase (P1-A canon: t/y/x/c/f/l). Unknown axis → no-op.
+   */
+  setGranulatorAxisParam: (
+    trackId: string,
+    axis: GranulatorAxis,
+    param: keyof GranulatorAxisParams,
+    value: number,
+  ) => void
+  /** Toggle the L-axis SG-3 gate flag. */
+  setGranulatorLAxisEnabled: (trackId: string, enabled: boolean) => void
+  /**
+   * Set the grain selection rule.
+   * `latentSimilarity` is accepted ONLY when the caller's env flag is on —
+   * this store action enforces that at the write boundary.
+   * `scenePayload` is NEVER accepted (reserved — no UI should call this).
+   */
+  setGranulatorSelection: (trackId: string, rule: GranulatorSelectionRule, latentFlagOn: boolean) => void
+}
+
+let _granulatorCounter = 0
+function nextGranulatorId(): string {
+  _granulatorCounter += 1
+  return `granulator-${_granulatorCounter}`
 }
 
 export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
   instruments: {},
   racks: {},
   frameBanks: {},
+  granulators: {},
 
   addSampler: (trackId, clipId = '') =>
     set((state) =>
@@ -987,6 +1049,91 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
     set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) =>
       chain.map((e) => (e.id === instanceId ? { ...e, isEnabled: !e.isEnabled } : e)),
     )),
+
+  // --- B8 Granulator (P5b.19) ---
+  addGranulator: (trackId) =>
+    set((state) => {
+      if (state.granulators[trackId]) return state
+      return {
+        granulators: {
+          ...state.granulators,
+          [trackId]: defaultGranulatorInstrument(nextGranulatorId()),
+        },
+      }
+    }),
+
+  removeGranulator: (trackId) =>
+    set((state) => {
+      if (!state.granulators[trackId]) return state
+      const next = { ...state.granulators }
+      delete next[trackId]
+      return { granulators: next }
+    }),
+
+  getGranulator: (trackId) => get().granulators[trackId],
+
+  setGranulatorDensity: (trackId, density) =>
+    set((state) => {
+      const g = state.granulators[trackId]
+      if (!g) return state
+      // Trust boundary: clamp + finite-guard (feedback_numeric-trust-boundary).
+      const next = clampFinite(Math.round(density), GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX, g.density)
+      if (next === g.density) return state
+      return { granulators: { ...state.granulators, [trackId]: { ...g, density: next } } }
+    }),
+
+  setGranulatorWindow: (trackId, window) =>
+    set((state) => {
+      const g = state.granulators[trackId]
+      if (!g) return state
+      // Trust boundary: only known window shapes accepted.
+      if (window !== 'hann' && window !== 'tri' && window !== 'rect') return state
+      if (window === g.window) return state
+      return { granulators: { ...state.granulators, [trackId]: { ...g, window } } }
+    }),
+
+  setGranulatorAxisParam: (trackId, axis, param, value) =>
+    set((state) => {
+      const g = state.granulators[trackId]
+      if (!g) return state
+      // Trust boundary: only lowercase canonical axes (P1-A axis canon).
+      if (!GRANULATOR_AXES.includes(axis)) return state
+      // Trust boundary: only known axis params.
+      if (param !== 'grain' && param !== 'jitter' && param !== 'position' && param !== 'envelope') return state
+      const oldAx = g.axes[axis] ?? defaultAxisParams()
+      // Trust boundary: clamp [0,1] + finite-guard (feedback_numeric-trust-boundary).
+      const clamped = clampFinite(value, 0, 1, oldAx[param])
+      if (clamped === oldAx[param]) return state
+      const newAx: GranulatorAxisParams = { ...oldAx, [param]: clamped }
+      return {
+        granulators: {
+          ...state.granulators,
+          [trackId]: { ...g, axes: { ...g.axes, [axis]: newAx } },
+        },
+      }
+    }),
+
+  setGranulatorLAxisEnabled: (trackId, enabled) =>
+    set((state) => {
+      const g = state.granulators[trackId]
+      if (!g) return state
+      const b = Boolean(enabled)
+      if (b === g.lAxisEnabled) return state
+      return { granulators: { ...state.granulators, [trackId]: { ...g, lAxisEnabled: b } } }
+    }),
+
+  setGranulatorSelection: (trackId, rule, latentFlagOn) =>
+    set((state) => {
+      const g = state.granulators[trackId]
+      if (!g) return state
+      // Trust boundary: `scenePayload` is NEVER accepted (reserved, no source on main).
+      // `latentSimilarity` is accepted only when latentFlagOn is true.
+      if (rule === ('scenePayload' as GranulatorSelectionRule)) return state
+      if (rule === 'latentSimilarity' && !latentFlagOn) return state
+      if (rule !== 'random' && rule !== 'onset' && rule !== 'latentSimilarity') return state
+      if (rule === g.selection) return state
+      return { granulators: { ...state.granulators, [trackId]: { ...g, selection: rule } } }
+    }),
 }))
 
 /**
