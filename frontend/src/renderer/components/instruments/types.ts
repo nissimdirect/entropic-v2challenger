@@ -488,3 +488,140 @@ export const RACK_MACRO_PARAM_BOUNDS: Record<string, [number, number]> = {
   speed: [-8, 8],
   opacity: [0, 1],
 }
+
+// ---------------------------------------------------------------------------
+// B8 — Granulator instrument (P5b.19 UI)
+// ---------------------------------------------------------------------------
+
+/**
+ * B8 — Six axes for the Granulator: T, Y, X, C, F, L (LOWERCASE per P1-A canon).
+ * The backend security boundary enforces lowercase; the UI must NEVER send uppercase.
+ */
+export type GranulatorAxis = 't' | 'y' | 'x' | 'c' | 'f' | 'l'
+
+/**
+ * B8 — Per-axis parameter block.
+ *
+ * `grain`    — base position along the axis, clamped [0, 1].
+ * `jitter`   — maximum random displacement (uniform ± half-width), clamped [0, 1].
+ * `position` — alias for grain (spec parity with the backend AxisParams).
+ * `envelope` — per-axis envelope scale applied to each grain, clamped [0, 1].
+ */
+export interface GranulatorAxisParams {
+  grain: number      // [0, 1]
+  jitter: number     // [0, 1]
+  position: number   // [0, 1]
+  envelope: number   // [0, 1] — maps to backend `grain_env`
+}
+
+/**
+ * B8 — Grain selection rule.
+ *
+ * `random`           — IMPLEMENTED. Seeded per-grain draw.
+ * `onset`            — IMPLEMENTED. Biases toward audio-transient frames.
+ * `latentSimilarity` — RESEARCH, flag-gated (EXPERIMENTAL_LATENT_SELECTION env).
+ *                      The UI HIDES this when the flag is off (selector guard).
+ * `scenePayload`     — RESERVED. No scene-detection source. NEVER shown in the UI.
+ *
+ * The UI picker shows only `random` and `onset` when the flag is off.
+ * The UI picker adds `latentSimilarity` only when `latentSelectionEnabled` is true.
+ * `scenePayload` is NEVER authored by the UI (reserved at the backend boundary).
+ */
+export type GranulatorSelectionRule = 'random' | 'onset' | 'latentSimilarity'
+
+/**
+ * B8 — Granulator instrument data model (P5b.19).
+ *
+ * Tracks a per-track B8 Granulator instrument. Serialized into a
+ * `performance.granulator` payload by buildGranulatorLayer (mirrors how
+ * buildSamplerLayer serializes a SamplerInstrumentV1). The backend
+ * `_parse_granulator_layer` is the enforcing trust boundary.
+ *
+ * Axes are LOWERCASE (P1-A axis canon): t/y/x/c/f/l.
+ * All numerics clamped at the store-write boundary; backend re-enforces.
+ *
+ * Additive optional — absent `granulators` map → no granulator render →
+ * byte-identical to pre-B8 (regression-safe). No PROJECT_VERSION bump.
+ */
+export interface GranulatorInstrument {
+  id: string
+  type: 'granulator'
+  /** Number of grains per frame; clamped [0, MAX_GRANULATOR_DENSITY]. */
+  density: number
+  /**
+   * Grain window shape: 'hann' | 'tri' | 'rect'.
+   * MIRROR: backend instruments/granulator_instrument.py VALID_WINDOWS.
+   */
+  window: 'hann' | 'tri' | 'rect'
+  /**
+   * Per-axis grain parameters, keyed by lowercase axis letter (t/y/x/c/f/l).
+   * All axes are always present (defaulted at creation); backends fill missing
+   * axes with safe defaults too.
+   */
+  axes: Record<GranulatorAxis, GranulatorAxisParams>
+  /**
+   * SG-3 gate flag — L-axis is inert unless this is true (P5b.18).
+   * When false the L-axis row is shown in the UI but labelled as gated.
+   */
+  lAxisEnabled: boolean
+  /**
+   * Grain selection rule. See GranulatorSelectionRule.
+   * The store allows writing `latentSimilarity` only when the flag is on.
+   * The UI picker HIDES `latentSimilarity` when the flag is off.
+   */
+  selection: GranulatorSelectionRule
+  /**
+   * Per-axis ADSR envelope mini-editors (optional, additive).
+   * Absent → no per-axis envelope override (backend AxisParams.grain_env governs).
+   * Stored alongside the instrument for UI state persistence; the `envelope`
+   * field in each GranulatorAxisParams already propagates to the backend.
+   */
+  // (envelope config is encoded in axes[ax].envelope — no separate field needed)
+}
+
+/**
+ * B8 — Maximum grain density (UI cap, mirrors backend MAX_GRAINS security cap).
+ *
+ * MIRROR: backend security.py MAX_GRAINS.
+ * The backend rejects density > MAX_GRAINS loudly (non-silently). The UI must
+ * never let the user input a value higher than this.
+ */
+export const MAX_GRANULATOR_DENSITY = 64
+
+/** B8 — Grain density bounds (store-write trust boundary). */
+export const GRANULATOR_DENSITY_MIN = 0
+export const GRANULATOR_DENSITY_MAX = MAX_GRANULATOR_DENSITY
+
+/** B8 — Grain-cloud visualization cap (≤ this many markers rendered in SVG/canvas). */
+export const GRANULATOR_VIZ_MARKER_CAP = 64
+
+/** B8 — Default per-axis params (safe, regression-neutral). */
+export const DEFAULT_AXIS_PARAMS: GranulatorAxisParams = {
+  grain: 0.5,
+  jitter: 0.0,
+  position: 0.5,
+  envelope: 1.0,
+}
+
+/** B8 — The six lowercase axes in canonical order (T Y X C F L). */
+export const GRANULATOR_AXES: GranulatorAxis[] = ['t', 'y', 'x', 'c', 'f', 'l']
+
+/** B8 — Create a default per-axis params object (safe, all fields present). */
+export function defaultAxisParams(): GranulatorAxisParams {
+  return { ...DEFAULT_AXIS_PARAMS }
+}
+
+/** B8 — Create a default GranulatorInstrument. */
+export function defaultGranulatorInstrument(id: string): GranulatorInstrument {
+  const axes = {} as Record<GranulatorAxis, GranulatorAxisParams>
+  for (const ax of GRANULATOR_AXES) axes[ax] = defaultAxisParams()
+  return {
+    id,
+    type: 'granulator',
+    density: 4,
+    window: 'hann',
+    axes,
+    lAxisEnabled: false,
+    selection: 'random',
+  }
+}
