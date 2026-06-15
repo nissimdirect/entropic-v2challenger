@@ -183,3 +183,23 @@ def test_unknown_rule_falls_back_not_raises():
     # the resolver it must degrade to the legacy scalar, not crash the render.
     v = _radius(_MULTI, _ops("painted"))
     assert v == pytest.approx(0.5)  # master scalar broadcast fallback
+
+
+@pytest.mark.parametrize("bad_axis", [[5], {"x": 1}, "abc"])
+def test_malformed_axis_index_never_raises_in_render(bad_axis):
+    """qa-redteam #301: a hand-edited/malformed axisIndex (list/dict -> TypeError,
+    non-numeric str -> ValueError) must NOT crash the per-frame resolver hot path.
+    It falls back to index 0 and stays clamped in param bounds."""
+    m = {
+        "target_effect_id": "fx-blur",
+        "target_param_key": "radius",
+        "depth": 1.0,
+        "min": 0.0,
+        "max": 1.0,
+        "blend_mode": "add",
+        "binding_rule": "integrate",  # non-broadcast => reaches the axis_index path
+        "axis_index": bad_axis,
+    }
+    ops = [{"id": "op-1", "is_enabled": True, "mappings": [m]}]
+    v = _radius(_MULTI, ops)  # must not raise
+    assert 0.0 <= v <= 1.0  # finite + clamped into param bounds

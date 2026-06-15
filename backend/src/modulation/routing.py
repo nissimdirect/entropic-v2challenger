@@ -272,9 +272,16 @@ def resolve_routings(
                 "binding_rule", mapping.get("bindingRule", "broadcast")
             )
             if binding_rule and binding_rule != "broadcast":
-                axis_index = int(
-                    mapping.get("axis_index", mapping.get("axisIndex", 0)) or 0
-                )
+                # Defense-in-depth (qa-redteam #301): a hand-edited/malformed
+                # axisIndex (list/dict -> TypeError, non-numeric str -> ValueError)
+                # must NOT crash the per-frame render hot path. Coerce safely; a
+                # bad value falls back to index 0.
+                try:
+                    axis_index = int(
+                        mapping.get("axis_index", mapping.get("axisIndex", 0)) or 0
+                    )
+                except (TypeError, ValueError):
+                    axis_index = 0
                 axis_samples = _axis_samples_for_mapping(
                     operator_values, op_id, source_key, signal
                 )
