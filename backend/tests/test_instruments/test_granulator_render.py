@@ -362,9 +362,9 @@ def test_budget_guard_fires_through_render_dispatch(monkeypatch):
     captured_densities: list[int] = []
     real_grain_cloud = grain_cloud
 
-    def spy_grain_cloud(seed, inst, fidx, params):
+    def spy_grain_cloud(seed, inst, fidx, params, **kw):
         captured_densities.append(params.density)
-        return real_grain_cloud(seed, inst, fidx, params)
+        return real_grain_cloud(seed, inst, fidx, params, **kw)
 
     monkeypatch.setattr(zmq_mod, "grain_cloud", spy_grain_cloud)
 
@@ -455,8 +455,8 @@ def test_grain_count_cap_at_render(monkeypatch):
     captured_density: list[int] = []
     real = grain_cloud
 
-    def spy(seed, inst, fidx, params):
-        cloud = real(seed, inst, fidx, params)
+    def spy(seed, inst, fidx, params, **kw):
+        cloud = real(seed, inst, fidx, params, **kw)
         captured_density.append(len(cloud.grains))
         return cloud
 

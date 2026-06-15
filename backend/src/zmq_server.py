@@ -32,9 +32,12 @@ from instruments.granulator_instrument import (
     BudgetController,
     GranulatorParams,
     MAX_GRAINS,
+    RESERVED_SELECTION_RULES,
+    accepted_selection_rules,
     grain_cloud,
     register_sg8_density_hook,
     render_grain_layer,
+    select_grain_weights,
 )
 from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
@@ -192,6 +195,10 @@ class ZMQServer:
         # strobing full↔half every frame.
         self._granulator_last_frame_ms: float | None = None
         self._granulator_budget = BudgetController()
+        # P5b.18: persistent onset-follower state for the `onset` selection rule
+        # (spectral-flux needs the previous frame's spectrum). Threaded across
+        # render frames; reset on project reset (see reset_state).
+        self._granulator_onset_state: dict | None = None
         # SG-3 clause-2 (P5b.4): render-output NaN/Inf gate state.
         #   _last_good_frames: last finite preview frame PER (path-tag, shape),
         #     served in place of a NaN/Inf frame so a glitched lane never ships a
@@ -227,6 +234,9 @@ class ZMQServer:
         self._granulator_last_frame_ms = None
         if hasattr(self, "_granulator_budget"):
             self._granulator_budget.reset()
+        # P5b.18: clear the onset-follower state so a new project's `onset`
+        # selection starts with no carried-over spectral-flux history.
+        self._granulator_onset_state = None
 
         # Clear waveform cache
         self._waveform_cache.clear()
@@ -1370,12 +1380,36 @@ class ZMQServer:
 
         l_enabled = bool(gran_raw.get("l_axis_enabled", False))
 
+        # P5b.18 — grain SELECTION rule. THIS is the load-bearing production trust
+        # boundary (the live render IPC path) — schema.py::_validate_grain_selection
+        # only fires on the .dna/import path (deserialize), which has no production
+        # caller. REJECT here BEFORE GranulatorParams construction: a flag-off
+        # `latentSimilarity` or the reserved `scenePayload` must fail LOUDLY, never
+        # get silently coerced to "random" by GranulatorParams.__post_init__ (that
+        # silent fallback would be a no-silent-fallback violation on a hostile /
+        # hand-edited .glitch payload). Absent → defaults to "random" (regression-safe).
+        selection_raw = gran_raw.get("selection", "random")
+        if not isinstance(selection_raw, str):
+            return None, ["granulator selection must be a string"]
+        accepted_sel = accepted_selection_rules()
+        if selection_raw not in accepted_sel:
+            if selection_raw in RESERVED_SELECTION_RULES:
+                return None, [
+                    f"granulator selection {selection_raw!r} is reserved — no "
+                    f"scene-detection source exists (accepted: {sorted(accepted_sel)})"
+                ]
+            return None, [
+                f"granulator selection {selection_raw!r} is not accepted "
+                f"(flag-gated/unknown; accepted: {sorted(accepted_sel)})"
+            ]
+
         try:
             params = GranulatorParams(
                 density=int(density_raw),
                 window=window,  # type: ignore[arg-type]
                 axes=axes,
                 l_axis_enabled=l_enabled,
+                selection=selection_raw,  # type: ignore[arg-type]
             )
         except Exception as e:  # noqa: BLE001 — structural construction guard
             return None, [f"granulator params invalid: {e}"]
@@ -1802,7 +1836,90 @@ class ZMQServer:
                 gran_seed = int(project_seed) if isinstance(project_seed, int) else 0
                 gran_inst_id = str(gran_raw.get("instrument_id", "granulator"))[:128]
 
-                cloud = grain_cloud(gran_seed, gran_inst_id, gran_anchor, gran_params)
+                # P5b.18 — SELECTION consumption on the LIVE render path. Compute
+                # per-grain T-weights for the active rule and bias the grain cloud
+                # by them. `random` → seeded weights, strength 0 → byte-identical to
+                # the pre-P5b.18 engine (no behavior change for existing projects).
+                # `onset` → consume the audio_follower onset trigger (from optional
+                # PCM in the payload) so a transient pulls grains toward the onset;
+                # the onset strength is the bias amount. latentSimilarity/scenePayload
+                # are already rejected at the parser (never reach here).
+                sel_weights: list[float] | None = None
+                sel_strength = 0.0
+                try:
+                    if gran_params.selection == "onset":
+                        pcm_raw = gran_raw.get("pcm")
+                        pcm_arr = None
+                        if isinstance(pcm_raw, list) and pcm_raw:
+                            pcm_arr = np.asarray(pcm_raw, dtype=np.float32)
+                            # Finite-guard PCM at the trust boundary (a hostile
+                            # payload could carry NaN/Inf samples).
+                            if not np.all(np.isfinite(pcm_arr)):
+                                pcm_arr = None
+                        sr_raw = gran_raw.get("sample_rate", 48000)
+                        sample_rate = (
+                            int(sr_raw)
+                            if isinstance(sr_raw, (int, float))
+                            and math.isfinite(float(sr_raw))
+                            and 0 < sr_raw <= 384000
+                            else 48000
+                        )
+                        onset_params = gran_raw.get("onset_params")
+                        if not isinstance(onset_params, dict):
+                            onset_params = {}
+                        sel_weights, _ = select_grain_weights(
+                            "onset",
+                            gran_seed,
+                            gran_inst_id,
+                            gran_anchor,
+                            gran_params.density,
+                            pcm=pcm_arr,
+                            sample_rate=sample_rate,
+                            audio_state=self._granulator_onset_state,
+                            onset_params=onset_params,
+                        )
+                        # Onset bias strength = the onset trigger value for this
+                        # frame, derived from the follower. Recompute it once so the
+                        # bias amount tracks the transient (0 with no audio → random).
+                        from modulation.audio_follower import evaluate_audio
+
+                        strength, self._granulator_onset_state = evaluate_audio(
+                            pcm_arr,
+                            "onset",
+                            onset_params,
+                            sample_rate,
+                            self._granulator_onset_state,
+                        )
+                        sel_strength = (
+                            max(0.0, min(1.0, float(strength)))
+                            if math.isfinite(strength)
+                            else 0.0
+                        )
+                    elif gran_params.selection == "random":
+                        # Seeded weights computed but strength 0 → no T-bias, so the
+                        # descriptor set is byte-identical to the pre-P5b.18 engine.
+                        sel_weights, _ = select_grain_weights(
+                            "random",
+                            gran_seed,
+                            gran_inst_id,
+                            gran_anchor,
+                            gran_params.density,
+                        )
+                        sel_strength = 0.0
+                except Exception:  # noqa: BLE001 — selection is best-effort bias
+                    # A selection-compute failure must NEVER crash the render — fall
+                    # back to the unbiased seeded cloud (random behavior).
+                    sel_weights = None
+                    sel_strength = 0.0
+
+                cloud = grain_cloud(
+                    gran_seed,
+                    gran_inst_id,
+                    gran_anchor,
+                    gran_params,
+                    selection_weights=sel_weights,
+                    selection_strength=sel_strength,
+                )
                 _gran_t0 = time.time()
                 grain_frame = render_grain_layer(
                     gran_source, cloud, resolution=resolution

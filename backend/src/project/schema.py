@@ -223,7 +223,91 @@ def validate(project: dict) -> list[str]:
     # coercion — SPEC-2 §4).
     errors.extend(_validate_operator_mod_edges(project))
 
+    # P5b.18 (B8 grain selection): the LOADER is the trust boundary for the grain
+    # `selection` rule. Old projects carry no `selection` field → defaults to the
+    # seeded `random` rule, no regression (ROLLBACK: removing this call restores
+    # the prior load behavior). When present, a selection value that is unknown,
+    # RESERVED (`scenePayload` — no scene source on main), or a flag-off RESEARCH
+    # rule (`latentSimilarity` with EXPERIMENTAL_LATENT_SELECTION off) is REJECTED
+    # LOUDLY — never coerced (mirrors the B9 _validate_operator_mod_edges pattern).
+    errors.extend(_validate_grain_selection(project))
+
     return errors
+
+
+def _validate_grain_selection(project: dict) -> list[str]:
+    """Validate the B8 grain `selection` rule on file load (P5b.18).
+
+    The trust boundary is the LOADER (not the UI). A hand-edited / hostile project
+    selecting a gated grain rule is REJECTED LOUDLY here — never coerced.
+
+    Where `selection` lives: on a granulator instrument config in the top-level
+    `instruments` map. We accept either a direct `selection` key on the instrument
+    config OR a nested `granulator.selection` (forward-compat with however P5b.19
+    nests the granulator block) — both are validated identically.
+
+    Rules (reject-only; absence of `selection` is valid → defaults to `random`):
+    - `selection` (when present) must be a string.
+    - it must be in the currently-accepted set: {random, onset}, plus
+      {latentSimilarity} ONLY when EXPERIMENTAL_LATENT_SELECTION is on.
+    - `scenePayload` is RESERVED (recognised but no source on main) → rejected
+      with a reserved-specific message.
+    - any other value is unknown → rejected as malformed.
+
+    Only the first offending instrument is reported (fail-closed).
+    """
+    instruments = project.get("instruments")
+    if not isinstance(instruments, dict):
+        return []
+
+    # Lazily import the flag-aware accept-set + rule taxonomy (avoid a load-time
+    # import cycle and keep the schema usable without the instruments package).
+    try:
+        from instruments.granulator_instrument import (
+            RESERVED_SELECTION_RULES,
+            accepted_selection_rules,
+        )
+
+        accepted = set(accepted_selection_rules())
+        reserved = set(RESERVED_SELECTION_RULES)
+    except Exception:
+        # Defensive fallback: the two implemented rules; gated/reserved rejected.
+        accepted = {"random", "onset"}
+        reserved = {"scenePayload"}
+
+    def _check_selection(sel: object, where: str) -> str | None:
+        if sel is None:
+            return None
+        if not isinstance(sel, str):
+            return f"{where}.selection must be a string, got {type(sel).__name__}"
+        if sel in accepted:
+            return None
+        if sel in reserved:
+            return (
+                f"{where}.selection {sel!r} is reserved — no scene-detection "
+                f"source exists (accepted: {sorted(accepted)})"
+            )
+        return (
+            f"{where}.selection {sel!r} is not accepted "
+            f"(flag-gated/unknown; accepted: {sorted(accepted)})"
+        )
+
+    for inst_id, cfg in instruments.items():
+        if not isinstance(cfg, dict):
+            continue
+        where = f"instruments[{inst_id!r}]"
+        # Direct selection key on the instrument config.
+        err = _check_selection(cfg.get("selection"), where)
+        if err is not None:
+            return [err]
+        # Nested granulator block (forward-compat).
+        gran = cfg.get("granulator")
+        if isinstance(gran, dict):
+            err = _check_selection(gran.get("selection"), f"{where}.granulator")
+            if err is not None:
+                return [err]
+
+    return []
 
 
 # P5b.21 (B9): canonical axis set, mirrors modulation.schema.LaneDomain + the
