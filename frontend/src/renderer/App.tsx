@@ -73,6 +73,8 @@ import { applyCCModulations } from './components/performance/applyCCModulations'
 import { useMIDIStore } from './stores/midi'
 import { useMIDI } from './hooks/useMIDI'
 import { useAudioMeterPoll } from './hooks/useAudioMeterPoll'
+import { useMemoryPressurePoll } from './hooks/useMemoryPressurePoll'
+import MemoryStatus from './components/statusbar/MemoryStatus'
 import { handlePadTrigger, releasePadWithCapture } from './components/performance/padActions'
 // Operators re-mounted 2026-05-15 (post-UAT synthesis). Backend already wires
 // serialized operators (see requestRenderFrame). UI panel toggle: Cmd+Shift+O.
@@ -265,6 +267,7 @@ function AppInner() {
   // Initialize MIDI (Web MIDI API)
   useMIDI()
   useAudioMeterPoll()
+  useMemoryPressurePoll()
 
   const { registry, isLoading: effectsLoading, fetchRegistry } = useEffectsStore()
 
@@ -3891,6 +3894,7 @@ function AppInner() {
       />
 
       <Toast />
+      <MemoryStatus />
     </div>
   )
 }

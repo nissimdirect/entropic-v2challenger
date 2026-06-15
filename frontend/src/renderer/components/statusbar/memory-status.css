@@ -1,0 +1,103 @@
+/*
+ * memory-status.css — MemoryStatus badge (P5b.2 / SG-8 frontend).
+ *
+ * BEM: .memory-status / .memory-status__* elements.
+ * Dark-theme tokens from tokens.css: --cx-warn, --cx-danger-text, etc.
+ * NEVER modifies grid-template-rows (feedback_test-layout-changes).
+ * position:fixed keeps the badge out of document flow entirely.
+ */
+
+/* ---------------------------------------------------------------------------
+   Container — fixed overlay, bottom-left so it doesn't collide with
+   Toast (top-right) or UpdateBanner (top). z-index 200 keeps it below
+   dialogs (z-index 300+) but above the preview canvas.
+   --------------------------------------------------------------------------- */
+.memory-status {
+  position: fixed;
+  bottom: 8px;
+  left: 8px;
+  z-index: 200;
+
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 10px;
+  min-width: 140px;
+  max-width: 260px;
+
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-left: 3px solid var(--cx-warn);
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+
+  font-family: var(--cx-font-mono);
+  font-size: var(--cx-text-data);  /* 11px — data floor */
+}
+
+/* Level modifiers */
+.memory-status--warn {
+  border-left-color: var(--cx-warn);
+}
+
+.memory-status--auto_disable {
+  border-left-color: var(--cx-warn);
+}
+
+.memory-status--emergency {
+  border-left-color: var(--cx-danger-text);
+}
+
+/* ---------------------------------------------------------------------------
+   Header row: label + percentage
+   --------------------------------------------------------------------------- */
+.memory-status__label {
+  font-weight: 600;
+  font-size: var(--cx-text-label);
+  color: var(--cx-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.memory-status--emergency .memory-status__label {
+  color: var(--cx-danger-text);
+}
+
+.memory-status--warn .memory-status__label,
+.memory-status--auto_disable .memory-status__label {
+  color: var(--cx-warn);
+}
+
+.memory-status__pct {
+  font-size: var(--cx-text-data);
+  color: var(--cx-text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------------------
+   Degraded-feature list
+   --------------------------------------------------------------------------- */
+.memory-status__features {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border-top: 1px solid var(--cx-line-1);
+  padding-top: 4px;
+  margin-top: 2px;
+}
+
+.memory-status__feature {
+  font-size: var(--cx-text-data);
+  color: var(--cx-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.memory-status__feature::before {
+  content: '\2014\0020'; /* em-dash + space */
+  color: var(--cx-text-disabled);
+}
