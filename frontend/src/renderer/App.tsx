@@ -383,6 +383,8 @@ function AppInner() {
   const lastDisabledEffectsRef = useRef<string>('')
   // SG-3 clause-3: dedup ref so we don't toast on every frame after an abort
   const lastLaneAbortedKeyRef = useRef<string>('')
+  // P5b.8 (SG-5): guard so the cycle-warning toast fires at most once per export job
+  const sg5CycleWarnSeenRef = useRef(false)
   // P3.1: drag suppression ref for resize handles (feedback_drag-end-suppresses-click)
   const cxIsDragging = useRef(false)
 
@@ -1024,7 +1026,7 @@ function AppInner() {
   // Listen for export progress
   useEffect(() => {
     if (typeof window === 'undefined' || !window.entropic) return
-    const cleanup = window.entropic.onExportProgress(({ jobId, progress, done, error, currentFrame: cf, totalFrames: tf, etaSeconds, outputPath }) => {
+    const cleanup = window.entropic.onExportProgress(({ jobId, progress, done, error, currentFrame: cf, totalFrames: tf, etaSeconds, outputPath, cycleWarning }) => {
       if (exportJobId && jobId !== exportJobId) return
       setExportProgress(progress)
       if (cf !== undefined) setExportCurrentFrame(cf)
@@ -1044,6 +1046,17 @@ function AppInner() {
           message: 'Export failed',
           source: 'export',
           details: error,
+        })
+      }
+      // P5b.8 (SG-5): raise a warning toast once per job when the modulation
+      // graph had a cycle that was broken at export time. Guard prevents toast
+      // spam across the 500ms poll interval.
+      if (cycleWarning && cycleWarning.length > 0 && !sg5CycleWarnSeenRef.current) {
+        sg5CycleWarnSeenRef.current = true
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: cycleWarning,
+          source: 'sg5-cycle',
         })
       }
     })
@@ -2543,6 +2556,8 @@ function AppInner() {
       setIsExporting(true)
       setExportProgress(0)
       setExportError(null)
+      // P5b.8 (SG-5): reset per-job guard so the cycle-warning toast fires once for this job
+      sg5CycleWarnSeenRef.current = false
 
       setExportCurrentFrame(0)
       setExportTotalFrames(totalFrames)

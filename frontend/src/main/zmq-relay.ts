@@ -172,12 +172,25 @@ function startExportPoll(): void {
     const failed = exportState === 'error'
     const error = failed ? (res.error as string) ?? 'Export failed' : undefined
 
+    // P5b.8 (SG-5): forward cycle_warning + cycle_warning_source so the
+    // renderer can raise a once-per-job toast (source=sg5-cycle).
+    const cycleWarning =
+      typeof res.cycle_warning === 'string' && res.cycle_warning.length > 0
+        ? (res.cycle_warning as string)
+        : undefined
+    const cycleWarningSource =
+      typeof res.cycle_warning_source === 'string' && res.cycle_warning_source.length > 0
+        ? (res.cycle_warning_source as string)
+        : undefined
+
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('export-progress', {
         jobId: null,
         progress,
         done: done || failed,
         error,
+        cycleWarning,
+        cycleWarningSource,
       })
     }
 

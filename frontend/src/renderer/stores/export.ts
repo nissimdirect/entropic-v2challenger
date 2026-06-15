@@ -12,6 +12,8 @@ export interface ExportJob {
   outputPath: string
   error: string | null
   addedAt: number
+  /** P5b.8 (SG-5): true once the cycle-warning toast has been raised, so re-polls don't spam */
+  cycleWarningSeen: boolean
 }
 
 interface ExportState {
@@ -45,6 +47,7 @@ export const useExportStore = create<ExportState>((set, get) => ({
       etaSeconds: null,
       error: null,
       addedAt: Date.now(),
+      cycleWarningSeen: false,
     }
     set((state) => ({ jobs: [...state.jobs, newJob] }))
     return id
