@@ -37,6 +37,9 @@ from masking.routing import inject_device_masks, resolve_chain_mask
 from masking.stack import FrameCtx
 from memory.writer import SharedMemoryWriter
 from project.schema import V2_UNSUPPORTED_MESSAGE
+from safety.pressure.degrade_order import CANONICAL_DEGRADE_ORDER
+from safety.pressure.monitor import PressureMonitor
+from safety.pressure.registry import global_registry
 from security import (
     is_audio_magic,
     resolve_safe_path,
@@ -151,6 +154,13 @@ class ZMQServer:
         self._render_states: dict[str, dict | None] = {}
         # (path, last_frame_index) — used to detect discontinuities.
         self._render_state_key: tuple[str | None, int] = (None, -1)
+        # SG-8 (P5b.1): live memory-pressure monitor. Constructed here (cheap,
+        # no thread spawned) and STARTED in run() so that merely constructing a
+        # ZMQServer in a test does not leak a background thread. Wired to the
+        # process-wide FeatureRegistry so degrade/restore callbacks fire from
+        # monitor threshold crossings (see safety/pressure/monitor.py
+        # _evaluate_and_fire seam). stop() is called in close().
+        self.pressure_monitor = PressureMonitor(registry=global_registry())
 
     def reset_state(self):
         """Clear accumulated state without closing sockets/context.
@@ -472,6 +482,8 @@ class ZMQServer:
             return self._handle_invalidate_cache(message, msg_id)
         elif cmd == "memory_status":
             return self._handle_memory_status(msg_id)
+        elif cmd == "pressure_status":
+            return self._handle_pressure_status(msg_id)
         elif cmd == "thumbnails":
             return self._handle_thumbnails(message, msg_id)
         elif cmd == "export_frame":
@@ -645,6 +657,10 @@ class ZMQServer:
             if _probe_reg.is_mounted() and auto_overrides:
                 for _lane_key, _lane_val in auto_overrides.items():
                     _probe_reg.record(f"{_lane_key}:lane_output", float(_lane_val))
+
+            # TODO(P7.9c): C5 latent-trajectory enforcement hooks here
+            # (per-lane evaluation seam — SG-8/sentinel wiring; phase-7 P7.9c
+            #  greps for the marker line above verbatim).
 
             chain = engine.apply_modulation(
                 operators,
@@ -2697,6 +2713,53 @@ class ZMQServer:
                 "available_mb": -1,
             }
 
+    def _handle_pressure_status(self, msg_id: str | None) -> dict:
+        """SG-8 (P5b.1): poll the live pressure monitor / feature registry.
+
+        Returns ``{level, current_pct, degraded_features[]}`` where:
+          - ``current_pct`` is the latest memory-pressure reading in [0, 100],
+            clamped + finite-guarded at the trust boundary (the value crosses
+            IPC into the frontend, so a NaN/Inf/None must never escape).
+          - ``level`` is the SPEC-3 §5.2 status band derived from current_pct:
+            ok (<60) · warn (>=60) · auto_disable (>=75) · emergency (>=90).
+          - ``degraded_features`` is the set of currently-degraded canonical
+            stage names, ordered by CANONICAL_DEGRADE_ORDER.
+        """
+        # current_pct: read the monitor's last poll, falling back to a fresh
+        # read if the background loop hasn't ticked yet. clamp_finite hardens
+        # against NaN/Inf/non-numeric — the only numeric we hand to the frontend.
+        try:
+            raw_pct = self.pressure_monitor.stats().last_pressure_pct
+        except Exception:  # noqa: BLE001 — never let status polling crash
+            raw_pct = 0.0
+        current_pct = clamp_finite(raw_pct, 0.0, 100.0, fallback=0.0)
+
+        if current_pct >= 90.0:
+            level = "emergency"
+        elif current_pct >= 75.0:
+            level = "auto_disable"
+        elif current_pct >= 60.0:
+            level = "warn"
+        else:
+            level = "ok"
+
+        # degraded_features ordered canonically (UI lists them in degrade order).
+        try:
+            active = global_registry().active_stages()
+        except Exception:  # noqa: BLE001
+            active = frozenset()
+        degraded_features = [
+            stage.name for stage in CANONICAL_DEGRADE_ORDER if stage.name in active
+        ]
+
+        return {
+            "id": msg_id,
+            "ok": True,
+            "level": level,
+            "current_pct": round(current_pct, 1),
+            "degraded_features": degraded_features,
+        }
+
     # ── I3 Inline Probe handlers ─────────────────────────────────────────────
 
     def _handle_inline_actions_list(self, message: dict, msg_id: str | None) -> dict:
@@ -3107,6 +3170,14 @@ class ZMQServer:
 
     def run(self):
         self.running = True
+        # SG-8 (P5b.1): start the live memory-pressure monitor alongside the
+        # ZMQ server. start() is idempotent (guards an already-alive thread),
+        # so a second call never leaks a thread. Threshold crossings are logged
+        # by the monitor itself (safety.pressure.monitor logger → sidecar.log).
+        self.pressure_monitor.start()
+        logging.getLogger(__name__).info(
+            "SG-8 pressure monitor started (budget_anchor=session-start)"
+        )
         poller = zmq.Poller()
         poller.register(self.socket, zmq.POLLIN)
         poller.register(self.ping_socket, zmq.POLLIN)
@@ -3469,6 +3540,10 @@ class ZMQServer:
         }
 
     def close(self):
+        # SG-8 (P5b.1): stop the pressure monitor thread on clean shutdown.
+        # stop() is safe to call even if start() was never invoked (e.g. a test
+        # that constructs ZMQServer + calls close() without run()).
+        self.pressure_monitor.stop()
         self.audio_player.close()
         self.freeze_manager.reset()
         for reader in self.readers.values():

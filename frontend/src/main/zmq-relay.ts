@@ -49,6 +49,8 @@ const ALLOWED_COMMANDS = new Set([
   'freeze_prefix', 'read_freeze', 'flatten', 'invalidate_cache',
   // State
   'flush_state', 'memory_status',
+  // P5b.1 (SG-8) — memory-pressure poll
+  'pressure_status',
   // Routing
   'check_dag',
   // P6.8 (I1) Inspector probes — registry lifecycle + snapshot polling
