@@ -82,6 +82,13 @@ MAX_TOTAL_VOICES_PER_RENDER = 4
 MAX_BRANCH_DEPTH = 4
 MAX_BRANCH_VOICES_PER_RENDER = 64
 
+# B8.1 (INSTRUMENTS-BUILD-PLAN.md §B8): Granulator instrument grain cap.
+# Each active grain is a descriptor computed per-frame; an uncapped density
+# would grow quadratically with frame rate. Hard cap enforced in
+# instruments/granulator_instrument.py BEFORE any descriptor allocation,
+# mirroring the enforce-before-decode posture of INJ-3 / MAX_TOTAL_VOICES_PER_RENDER.
+MAX_GRAINS = 256
+
 # B6.1 (INSTRUMENTS-BUILD-PLAN.md §B6): Frame-Bank (wavetable) instrument caps.
 # A Frame-Bank is an indexed BANK of frames a modulatable `position` (0..1) scans
 # through. The MEMORY CRUX: 256 slots × 4K RGBA ≈ 8.5 GB if every frame is decoded
