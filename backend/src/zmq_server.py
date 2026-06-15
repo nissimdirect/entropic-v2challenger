@@ -29,9 +29,9 @@ from engine.decoded_frame_cache import DecodedFrameCache
 from engine.frame_bank import resolve_frame_bank_layer
 from instruments.granulator_instrument import (
     AxisParams,
+    BudgetController,
     GranulatorParams,
     MAX_GRAINS,
-    effective_density,
     grain_cloud,
     register_sg8_density_hook,
     render_grain_layer,
@@ -175,13 +175,16 @@ class ZMQServer:
         # hook against canonical stage `a1_grain_density_halved` (order #3:
         # latent grains → spectral → density). When memory pressure crosses that
         # threshold the monitor fires the hook, latching half-density until
-        # restore. Registration is idempotent at the registry; constructing a
-        # second server in a test re-registers a (harmless) duplicate callback.
+        # restore. Idempotent at the registry (unregister-first by label), so
+        # constructing a second server in one process does not duplicate the hook.
         register_sg8_density_hook(global_registry())
-        # P5b.17: previous composite frame eval time (ms), seeded from
-        # last_frame_ms, fed into the granulator's per-frame render-budget guard
-        # so a frame that blew the 16ms budget halves the NEXT frame's density.
+        # P5b.17: previous grain-render eval time (ms), fed into the budget
+        # controller so a frame that blew the 16ms budget degrades subsequent
+        # density. The controller (TIGER 3 fix) carries a sticky degrade floor
+        # with a recovery deadband so the budget guard CONVERGES instead of
+        # strobing full↔half every frame.
         self._granulator_last_frame_ms: float | None = None
+        self._granulator_budget = BudgetController()
         # SG-3 clause-2 (P5b.4): render-output NaN/Inf gate state.
         #   _last_good_frames: last finite preview frame PER (path-tag, shape),
         #     served in place of a NaN/Inf frame so a glitched lane never ships a
@@ -211,6 +214,12 @@ class ZMQServer:
         for reader in self.readers.values():
             reader.close()
         self.readers.clear()
+
+        # P5b.17: reset the granulator budget controller so a new project starts
+        # at full density (no carried-over degrade floor from the prior session).
+        self._granulator_last_frame_ms = None
+        if hasattr(self, "_granulator_budget"):
+            self._granulator_budget.reset()
 
         # Clear waveform cache
         self._waveform_cache.clear()
@@ -1664,11 +1673,13 @@ class ZMQServer:
                         "error": "; ".join(gran_errors),
                     }
 
-                # Per-frame render-budget guard: the PREVIOUS composite frame's
-                # eval time degrades THIS frame's density (16ms / 60fps budget).
-                # Stacks with the SG-8 memory-pressure latch inside
-                # effective_density.
-                density = effective_density(
+                # Render-budget guard (TIGER 3): the stateful BudgetController
+                # advances one frame from the PREVIOUS grain-render eval time. It
+                # carries a sticky degrade floor with a recovery deadband (trip at
+                # >16ms, recover only after sustained <12ms) so density CONVERGES
+                # instead of strobing full↔half. SG-8 memory pressure is applied
+                # multiplicatively inside step().
+                density = self._granulator_budget.step(
                     gran_params.density,
                     last_frame_ms=self._granulator_last_frame_ms,
                 )

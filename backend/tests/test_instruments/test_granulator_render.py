@@ -33,8 +33,12 @@ import pytest
 import zmq_server as zmq_mod
 from instruments.granulator_instrument import (
     MAX_GRAINS,
+    RENDER_BUDGET_MS,
+    RENDER_RECOVERY_FRAMES,
+    RENDER_RECOVERY_MS,
     SG8_DENSITY_STAGE,
     AxisParams,
+    BudgetController,
     GranulatorParams,
     effective_density,
     grain_cloud,
@@ -80,6 +84,7 @@ def _build_server(monkeypatch, reader: FakeReader | None = None):
     server.token = "test-token"
     server.last_frame_ms = 0.0
     server._granulator_last_frame_ms = None
+    server._granulator_budget = BudgetController()
 
     rdr = reader if reader is not None else FakeReader()
     server._get_reader = lambda path: rdr  # type: ignore[assignment]
@@ -212,6 +217,138 @@ def test_render_budget_degrades_density_over_16ms():
     assert effective_density(base, last_frame_ms=16.0) == 64
     # Just over does.
     assert effective_density(base, last_frame_ms=16.01) == 32
+
+
+def test_budget_degrade_converges_no_oscillation():
+    """TIGER 3 regression — the FEEDBACK loop the single-transition tests missed.
+
+    The naive memoryless controller (recompute from base every frame, inspect
+    only the prior frame) STROBES: at full density the frame blows budget → halve
+    → the *halved* frame is fast → jump straight back to full → blows budget
+    again → ... a permanent full↔half flicker.
+
+    We simulate that exact closed loop: a synthetic timing model where eval is
+    >16ms at full density and <12ms once degraded, FED BACK into the next
+    controller step. With the sticky floor + recovery deadband the density must
+    CONVERGE to a stable value within a few frames and NOT flip full↔half across
+    consecutive frames once settled.
+    """
+    base = 16
+    ctrl = BudgetController()
+
+    # Synthetic frame-time model: cost is dominated by the buffer churn, so eval
+    # only drops below the recovery margin once density is at-or-below half.
+    # (Mirrors the reviewer's measurement: halving barely helps at 4K, but at the
+    # halved working point the frame is comfortably under budget.) Anything above
+    # `safe` trips; at-or-below is comfortably fast.
+    safe = base // 2
+
+    def frame_ms(rendered_density: int) -> float:
+        if rendered_density > safe:
+            return 28.0  # over the 16ms trip
+        return 8.0  # comfortably under the 12ms recovery margin
+
+    last_ms: float | None = None
+    densities: list[int] = []
+    # Run long enough for AIMD (additive +1 / 3 frames) to fully converge.
+    for _ in range(120):
+        d = ctrl.step(base, last_frame_ms=last_ms)
+        densities.append(d)
+        last_ms = frame_ms(d)
+
+    # CONVERGENCE: after a short settle window the density is STABLE — the last
+    # 10 frames are all identical (no per-frame change at all).
+    tail = densities[-10:]
+    assert len(set(tail)) == 1, f"density did not converge — tail={tail}"
+
+    # NO STROBE: across the settled tail there is never a full↔half flip
+    # (consecutive frames differ by 0 in steady state).
+    flips = sum(1 for a, b in zip(tail, tail[1:]) if a != b)
+    assert flips == 0, f"density oscillated in steady state — tail={tail}"
+
+    # The converged value sits at the safe working point (≤ half base), NOT
+    # bouncing back to the budget-blowing full density.
+    assert tail[0] <= base // 2
+
+    # And it degraded at all (proves the trip fired) but never collapsed below
+    # the floor.
+    assert tail[0] >= 1
+    assert tail[0] < base
+
+
+def test_budget_recovery_requires_sustained_good_frames():
+    """Density recovers toward base ONLY after K sustained sub-margin frames.
+
+    One fast frame after a trip must NOT immediately restore full density (that
+    memoryless jump is the strobe). Recovery needs RENDER_RECOVERY_FRAMES
+    consecutive frames under RENDER_RECOVERY_MS.
+    """
+    base = 64
+    ctrl = BudgetController()
+
+    # Frame 0: no history → base.
+    assert ctrl.step(base, last_frame_ms=None) == base
+    # Frame 1: prior blew budget → trip → halved floor latched.
+    d1 = ctrl.step(base, last_frame_ms=28.0)
+    assert d1 == 32
+    assert ctrl.floor == 32
+
+    # A SINGLE good frame does NOT recover (streak < K).
+    d2 = ctrl.step(base, last_frame_ms=8.0)
+    assert d2 == 32, "recovered after a single good frame — would strobe"
+
+    # K consecutive good frames → recover ADDITIVELY by ONE grain (AIMD), NOT a
+    # jump back to base. The trip latched a ceiling at 63 (just below the
+    # known-bad 64), so recovery climbs gradually toward 63, never to 64 in one
+    # leap — this slow additive climb is exactly what prevents the strobe.
+    floor_before = ctrl.floor  # 32
+    for _ in range(RENDER_RECOVERY_FRAMES):
+        d = ctrl.step(base, last_frame_ms=8.0)
+    assert d == floor_before + 1, "recovery should step up by exactly one grain"
+    assert d < base, "recovery must not jump straight back to base (strobe)"
+    assert ctrl.ceiling == base - 1  # ceiling latched just below known-bad base
+
+
+def test_budget_deadband_holds_floor():
+    """A frame inside the deadband [12ms, 16ms] neither trips nor recovers."""
+    base = 64
+    ctrl = BudgetController()
+    ctrl.step(base, last_frame_ms=None)
+    ctrl.step(base, last_frame_ms=28.0)  # trip → 32
+    assert ctrl.floor == 32
+    # Deadband frame (between recovery 12ms and budget 16ms) → hold, reset streak.
+    d = ctrl.step(base, last_frame_ms=14.0)
+    assert d == 32
+    assert ctrl.floor == 32
+
+
+def test_budget_controller_ratchets_down_on_repeated_overshoot():
+    """Sustained overshoot ratchets the floor DOWN step by step, to MIN_DENSITY."""
+    base = 64
+    ctrl = BudgetController()
+    ctrl.step(base, last_frame_ms=None)  # base
+    seen = []
+    for _ in range(12):
+        d = ctrl.step(base, last_frame_ms=99.0)  # always over budget
+        seen.append(d)
+    # Monotonic non-increasing, ending at the floor (>=1), never below.
+    assert all(b <= a for a, b in zip(seen, seen[1:]))
+    assert seen[-1] >= 1
+    assert seen[-1] < base
+
+
+def test_budget_controller_sg8_stacks_on_floor():
+    """SG-8 latch applies multiplicatively on top of the converged budget floor."""
+    base = 64
+    reg = FeatureRegistry()
+    register_sg8_density_hook(reg)
+    ctrl = BudgetController()
+    ctrl.step(base, last_frame_ms=None)
+    ctrl.step(base, last_frame_ms=28.0)  # trip → floor 32
+    # Now SG-8 pressure fires too → 32 halved → 16.
+    reg.fire_degrade(SG8_DENSITY_STAGE)
+    d = ctrl.step(base, last_frame_ms=14.0)  # deadband holds floor at 32
+    assert d == 16
 
 
 def test_budget_guard_fires_through_render_dispatch(monkeypatch):

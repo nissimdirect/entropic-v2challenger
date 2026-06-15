@@ -334,6 +334,13 @@ def render_grain_layer(
     if not cloud.grains or source_rgba is None or source_rgba.size == 0:
         return acc.astype(np.uint8)
 
+    # Defense-in-depth: the pipeline contract is RGBA (H, W, 4). A non-RGBA
+    # source would ValueError-broadcast at the `acc[...] += patch_px` accumulate;
+    # return a transparent layer rather than crash the render (not reachable
+    # today, cheap insurance).
+    if source_rgba.ndim != 3 or source_rgba.shape[2] != 4:
+        return acc.astype(np.uint8)
+
     src_h, src_w = source_rgba.shape[0], source_rgba.shape[1]
     if src_h == 0 or src_w == 0:
         return acc.astype(np.uint8)
@@ -415,8 +422,15 @@ def render_grain_layer(
 # Both are bounded so density never collapses below a minimum visible floor and
 # the halving NEVER crashes mid-frame (it only shrinks an int).
 
-# 16ms = one 60fps frame. Eval beyond this triggers the per-frame degrade.
+# 16ms = one 60fps frame. Eval beyond this TRIPS the budget degrade.
 RENDER_BUDGET_MS: float = 16.0
+# Recovery margin — density only ratchets back UP toward base after sustained
+# eval BELOW this band (a deadband under the 16ms trip so the controller has
+# hysteresis: trip at >16ms, recover only when comfortably under at <12ms).
+RENDER_RECOVERY_MS: float = 12.0
+# Consecutive good frames required (under RENDER_RECOVERY_MS) before recovering
+# one step toward base — prevents a single fast frame from un-degrading.
+RENDER_RECOVERY_FRAMES: int = 3
 # Density floor — degrade never drops below this (always >=1 grain renders).
 MIN_DENSITY: int = 1
 
@@ -467,7 +481,13 @@ def register_sg8_density_hook(registry) -> None:
     hook is registered against the canonical `a1_grain_density_halved` stage so
     the SG-8 monitor halves grain density at pressure order #3 (after latent
     grains + spectral state), per SPEC-3 §5.2.
+
+    Idempotent by label: unregister-first so constructing multiple ZMQServers in
+    one process (e.g. test fixtures) does not accumulate duplicate callbacks that
+    inflate SG-8 telemetry (the callbacks are stateless module-level functions,
+    so a duplicate would be harmless but noisy).
     """
+    registry.unregister(SG8_DENSITY_STAGE, label="granulator_density_halving")
     registry.register(
         SG8_DENSITY_STAGE,
         degrade=_sg8_degrade_density,
@@ -483,27 +503,175 @@ def _halve_density(density: int) -> int:
     return max(MIN_DENSITY, density // 2)
 
 
+def _sanitize_base_density(base_density: int) -> int:
+    """Clamp base density to [0, MAX_GRAINS]; non-finite/non-numeric → 0."""
+    if not isinstance(base_density, (int, float)) or not math.isfinite(
+        float(base_density)
+    ):
+        return 0
+    return max(0, min(int(base_density), MAX_GRAINS))
+
+
+class BudgetController:
+    """Stateful render-budget degrade controller WITH HYSTERESIS (TIGER 3 fix).
+
+    The naive controller recomputed effective density from `base_density` every
+    frame using only the immediately-prior frame's time. When the dominant cost
+    is the per-frame buffer alloc/clip/cast (NOT the grain loop), halving density
+    barely lowers eval time → a max-density 4K granulator strobes full↔half every
+    other frame (a visible density/brightness flicker at ~30Hz). A naive
+    "recover-to-base after K good frames" still strobes, just at a longer period:
+    it climbs straight back to the budget-blowing density and trips again.
+
+    This controller CONVERGES on the HIGHEST SAFE density via AIMD (additive-
+    increase / multiplicative-decrease) with a remembered ceiling:
+
+      * TRIP (eval > BUDGET=16ms): latch a CEILING just below the density that
+        overshot (this density is now known-bad) and MULTIPLICATIVELY drop the
+        floor (halve it). Reset the good-frame streak.
+      * HOLD (deadband [RECOVERY, BUDGET] = 12–16ms): we are right at the working
+        point — hold the floor, reset the streak (recovery needs comfortably-fast
+        frames, not borderline ones).
+      * RECOVER (eval < RECOVERY=12ms for RENDER_RECOVERY_FRAMES consecutive
+        frames): ADDITIVELY step the floor up by one grain toward base — but NEVER
+        above the latched ceiling. Recovery to base only happens once the ceiling
+        itself clears (no overshoot for a long good run), so the controller
+        settles one notch below the last-known-bad density instead of bouncing
+        back into it. One fast frame never un-degrades.
+
+    The remembered ceiling is what makes this converge rather than oscillate: the
+    density that tripped is never re-attempted on the next recovery, so the system
+    homes in on max-safe and stays there (zero per-frame flips in steady state).
+
+    The SG-8 memory-pressure latch is applied multiplicatively ON TOP of the
+    converged floor (its own hysteresis lives in the registry threshold/restore
+    band, so it does not oscillate here).
+
+    Per-instrument state (one controller per granulator voice). `last_frame_ms`
+    fed to `step()` is the PREVIOUS frame's measured grain-render eval time.
+    """
+
+    def __init__(self) -> None:
+        # The latched density floor. None = not degraded (render at base).
+        self._floor: int | None = None
+        # Highest density known to overshoot the budget. None = no ceiling yet.
+        # Recovery never climbs to-or-above this (AIMD memory).
+        self._ceiling: int | None = None
+        # Consecutive frames observed under the recovery margin.
+        self._good_streak: int = 0
+
+    def reset(self) -> None:
+        """Clear all degrade state (e.g. on project reset)."""
+        self._floor = None
+        self._ceiling = None
+        self._good_streak = 0
+
+    @property
+    def floor(self) -> int | None:
+        """Current latched density floor (None when not degraded). Test hook."""
+        return self._floor
+
+    @property
+    def ceiling(self) -> int | None:
+        """Current known-bad ceiling (None when none latched). Test hook."""
+        return self._ceiling
+
+    def step(
+        self,
+        base_density: int,
+        *,
+        last_frame_ms: float | None = None,
+        budget_ms: float = RENDER_BUDGET_MS,
+        recovery_ms: float = RENDER_RECOVERY_MS,
+        recovery_frames: int = RENDER_RECOVERY_FRAMES,
+    ) -> int:
+        """Advance the controller one frame; return the density to render now.
+
+        `last_frame_ms` is the PREVIOUS frame's grain-render eval time (None on
+        the very first frame → render at base, no degrade). Result is clamped to
+        [0, base_density], always finite, never raises.
+        """
+        base = _sanitize_base_density(base_density)
+        if base <= 0:
+            # Nothing to render; keep state coherent with base.
+            self._floor = None if self._floor is None else 0
+            return 0
+
+        # A latched floor/ceiling can never exceed the current base (base may
+        # shrink if the user lowers density mid-session) — re-clamp every frame.
+        if self._floor is not None:
+            self._floor = max(MIN_DENSITY, min(self._floor, base))
+        if self._ceiling is not None:
+            self._ceiling = min(self._ceiling, base)
+
+        valid_ms = (
+            last_frame_ms is not None
+            and isinstance(last_frame_ms, (int, float))
+            and math.isfinite(float(last_frame_ms))
+        )
+
+        if valid_ms:
+            ms = float(last_frame_ms)
+            # The density we ACTUALLY rendered last frame (what produced `ms`).
+            rendered = base if self._floor is None else self._floor
+
+            if ms > budget_ms:
+                # TRIP — `rendered` is known-bad. Latch a ceiling just below it so
+                # recovery never climbs back into it, then multiplicatively drop.
+                self._ceiling = max(MIN_DENSITY, rendered - 1)
+                current = self._floor if self._floor is not None else base
+                self._floor = _halve_density(current)
+                # Keep the floor strictly under the new ceiling when possible.
+                if self._floor >= rendered:
+                    self._floor = max(MIN_DENSITY, rendered - 1)
+                self._good_streak = 0
+            elif ms < recovery_ms:
+                # Comfortably under the recovery margin — bank a good frame.
+                self._good_streak += 1
+                if self._floor is not None and self._good_streak >= recovery_frames:
+                    # ADDITIVE-increase one grain toward base, capped below the
+                    # known-bad ceiling so we settle at max-safe, not into a trip.
+                    # The ceiling persists (it is only cleared on reset / a base
+                    # change), so once the floor reaches `ceiling` it HOLDS there
+                    # with zero further per-frame change — the convergence point.
+                    cap = base if self._ceiling is None else min(base, self._ceiling)
+                    target = min(cap, self._floor + 1)
+                    self._floor = None if target >= base else target
+                    self._good_streak = 0
+            else:
+                # DEADBAND [recovery_ms, budget_ms] — we are at the working point.
+                # Hold the floor; reset the streak so recovery requires SUSTAINED
+                # comfortably-fast frames, not borderline ones.
+                self._good_streak = 0
+
+        density = base if self._floor is None else self._floor
+
+        # SG-8 memory-pressure latch is applied on top of the converged floor.
+        if _sg8_density_degraded:
+            density = _halve_density(density)
+
+        return density
+
+
 def effective_density(
     base_density: int,
     *,
     last_frame_ms: float | None = None,
     budget_ms: float = RENDER_BUDGET_MS,
 ) -> int:
-    """Resolve the density to actually render this frame after degrade pressures.
+    """STATELESS single-shot degrade resolution (no hysteresis).
 
-    Applies (independently, both can stack):
+    Retained for the SG-8 + single-transition tests and any caller that wants a
+    memoryless "halve if the prior frame blew budget" computation. The LIVE
+    render path uses `BudgetController` instead (which adds the hysteresis that
+    stops the full↔half strobe — see TIGER 3). Applies, independently:
       * SG-8 memory-pressure latch (`_sg8_density_degraded`) → halve.
-      * Per-frame budget guard: if `last_frame_ms` (the PREVIOUS frame's eval
-        time) exceeded `budget_ms`, halve again.
+      * Budget guard: prior-frame eval > `budget_ms` → halve.
 
-    `base_density` is already capped to MAX_GRAINS by GranulatorParams. The
-    result is clamped to [0, base_density] and is always finite. Never raises.
+    `base_density` is already capped to MAX_GRAINS by GranulatorParams. Result is
+    clamped to [0, base_density], always finite. Never raises.
     """
-    if not isinstance(base_density, (int, float)) or not math.isfinite(
-        float(base_density)
-    ):
-        return 0
-    density = max(0, min(int(base_density), MAX_GRAINS))
+    density = _sanitize_base_density(base_density)
 
     if _sg8_density_degraded:
         density = _halve_density(density)
