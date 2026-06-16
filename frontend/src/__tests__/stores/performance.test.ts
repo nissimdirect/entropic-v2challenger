@@ -323,3 +323,63 @@ describe('Performance Store', () => {
     expect(pad.envelope.release).toBe(0);
   });
 });
+
+/**
+ * UH.2 — clearRackPadEvents is an event-LOG edit (document state) → undoable.
+ * Live triggerRackPad/triggerPad/releasePad appends remain EXEMT (performance
+ * input, not document state). These tests FAIL on origin/main (clearRackPadEvents
+ * used a raw set()) and PASS on this branch.
+ */
+describe('performance store undo — clearRackPadEvents (event-log edit)', () => {
+  beforeEach(resetStores);
+
+  const T1 = 'track-1';
+  const PAD = 'rackpad-1';
+
+  it('clearRackPadEvents → undo restores the FULL event log', () => {
+    // Build a captured log via two live rack-pad triggers (the appends themselves
+    // are NOT undoable — only the clear is).
+    usePerformanceStore.getState().triggerRackPad(T1, PAD, 10);
+    usePerformanceStore.getState().triggerRackPad(T1, PAD, 20);
+    const key = `${T1}:${PAD}`;
+    const before = usePerformanceStore.getState().trackEvents[key];
+    expect(before).toHaveLength(2);
+    // live triggers must NOT have pushed any undo entries
+    expect(useUndoStore.getState().past).toHaveLength(0);
+
+    usePerformanceStore.getState().clearRackPadEvents(T1, PAD);
+    expect(usePerformanceStore.getState().trackEvents[key]).toBeUndefined();
+    expect(useUndoStore.getState().past).toHaveLength(1);
+
+    useUndoStore.getState().undo();
+    const restored = usePerformanceStore.getState().trackEvents[key];
+    expect(restored).toHaveLength(2);
+    expect(restored[0].frameIndex).toBe(10);
+    expect(restored[1].frameIndex).toBe(20);
+  });
+
+  it('redo re-clears the event log', () => {
+    usePerformanceStore.getState().triggerRackPad(T1, PAD, 5);
+    const key = `${T1}:${PAD}`;
+    usePerformanceStore.getState().clearRackPadEvents(T1, PAD);
+    useUndoStore.getState().undo();
+    expect(usePerformanceStore.getState().trackEvents[key]).toHaveLength(1);
+
+    useUndoStore.getState().redo();
+    expect(usePerformanceStore.getState().trackEvents[key]).toBeUndefined();
+  });
+
+  it('clearRackPadEvents on an absent key is a no-op (no undo entry, no crash)', () => {
+    expect(() => usePerformanceStore.getState().clearRackPadEvents(T1, 'nope')).not.toThrow();
+    expect(useUndoStore.getState().past).toHaveLength(0);
+  });
+
+  it('live triggerPad/releasePad do NOT push undo entries (performance input is exempt)', () => {
+    // triggerPad appends to a real drumRack pad's log; releasePad too. Neither is
+    // an undoable document edit.
+    const padId = usePerformanceStore.getState().drumRack.pads[0].id;
+    usePerformanceStore.getState().triggerPad(padId, 1, T1);
+    usePerformanceStore.getState().releasePad(padId, 2, T1);
+    expect(useUndoStore.getState().past).toHaveLength(0);
+  });
+});

@@ -48,6 +48,7 @@ import type { SlotRef } from '../components/instruments/types'
 import { clampFinite } from '../../shared/numeric'
 import { LIMITS } from '../../shared/limits'
 import type { BlendMode, EffectInstance, ParamValue } from '../../shared/types'
+import { useUndoStore, undoable } from './undo'
 
 /** Valid blend modes a rack pad channel may use (trust-boundary allowlist). */
 const BLEND_MODES = new Set<BlendMode>([
@@ -239,6 +240,28 @@ function applyPadRemove(node: RackNode, padId: string): RackNode {
     })
   }
   return { ...node, pads, ...(macros ? { macros } : {}) }
+}
+
+/**
+ * Deep-clone a RackNode (pads, nested branches, macros, routes, pad chains) so an
+ * undo inverse can RESTORE the exact prior subtree by VALUE, never by reference.
+ * Required by the undo.ts conventions header: inverse closures must capture data,
+ * not a live array that a later mutation would alias. Pure; no IDs regenerated
+ * (an undo must restore the SAME ids, per convention #1).
+ */
+function cloneRackNode(node: RackNode): RackNode {
+  return {
+    ...node,
+    pads: node.pads.map((p) => ({
+      ...p,
+      instrument: { ...p.instrument },
+      ...(p.chain ? { chain: p.chain.map((e) => ({ ...e, parameters: { ...e.parameters } })) } : {}),
+      ...(p.branch ? { branch: cloneRackNode(p.branch) } : {}),
+    })),
+    ...(node.macros
+      ? { macros: node.macros.map((m) => ({ ...m, routes: (m.routes ?? []).map((r) => ({ ...r })) })) }
+      : {}),
+  }
 }
 
 /** B4.1 — a fresh pad channel with an unsourced sampler leaf. */
@@ -510,47 +533,95 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
   frameBanks: {},
   granulators: {},
 
-  addSampler: (trackId, clipId = '') =>
-    set((state) =>
-      state.instruments[trackId]
-        ? state
-        : {
-            instruments: {
-              ...state.instruments,
-              [trackId]: {
-                id: nextId(),
-                type: 'sampler',
-                clipId,
-                startFrame: 0,
-                speed: 1,
-                opacity: 1,
-                blendMode: 'normal',
-              },
-            },
-          },
-    ),
+  addSampler: (trackId, clipId = '') => {
+    // No-op guard BEFORE undoable() — don't push an empty history entry.
+    if (get().instruments[trackId]) return
+    // Pre-generate the id BEFORE undoable() (undo.ts convention #1: deterministic redo).
+    const newSampler: SamplerInstrumentV1 = {
+      id: nextId(),
+      type: 'sampler',
+      clipId,
+      startFrame: 0,
+      speed: 1,
+      opacity: 1,
+      blendMode: 'normal',
+    }
+    const forward = () => {
+      set((state) => ({ instruments: { ...state.instruments, [trackId]: newSampler } }))
+    }
+    const inverse = () => {
+      set((state) => {
+        const next = { ...state.instruments }
+        delete next[trackId]
+        return { instruments: next }
+      })
+    }
+    undoable(`Add sampler to ${trackId}`, forward, inverse)
+  },
 
-  setSource: (trackId, clipId) =>
-    set((state) =>
-      state.instruments[trackId]
-        ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], clipId } } }
-        : state,
-    ),
+  setSource: (trackId, clipId) => {
+    const old = get().instruments[trackId]
+    if (!old) return
+    if (old.clipId === clipId) return // no change → no history entry
+    const prevClipId = old.clipId
+    const forward = () => {
+      set((state) =>
+        state.instruments[trackId]
+          ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], clipId } } }
+          : state,
+      )
+    }
+    const inverse = () => {
+      set((state) =>
+        state.instruments[trackId]
+          ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], clipId: prevClipId } } }
+          : state,
+      )
+    }
+    undoable(`Set sampler source on ${trackId}`, forward, inverse)
+  },
 
-  updateSampler: (trackId, patch) =>
-    set((state) =>
-      state.instruments[trackId]
-        ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], ...patch } } }
-        : state,
-    ),
+  updateSampler: (trackId, patch) => {
+    const old = get().instruments[trackId]
+    if (!old) return
+    // Capture prior values of just the patched keys (id/type are immutable).
+    const { id: _ignoreId, type: _ignoreType, ...safePatch } = patch as Record<string, unknown>
+    const prev: Record<string, unknown> = {}
+    for (const k of Object.keys(safePatch)) prev[k] = (old as Record<string, unknown>)[k]
+    const forward = () => {
+      set((state) =>
+        state.instruments[trackId]
+          ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], ...safePatch, id: old.id, type: old.type } } }
+          : state,
+      )
+    }
+    const inverse = () => {
+      set((state) =>
+        state.instruments[trackId]
+          ? { instruments: { ...state.instruments, [trackId]: { ...state.instruments[trackId], ...prev, id: old.id, type: old.type } } }
+          : state,
+      )
+    }
+    undoable(`Edit sampler on ${trackId}`, forward, inverse)
+  },
 
-  removeSampler: (trackId) =>
-    set((state) => {
-      if (!state.instruments[trackId]) return state
-      const next = { ...state.instruments }
-      delete next[trackId]
-      return { instruments: next }
-    }),
+  removeSampler: (trackId) => {
+    const removed = get().instruments[trackId]
+    if (!removed) return
+    // Capture the removed sampler so inverse restores the SAME instrument (same id).
+    const snapshot = { ...removed }
+    const forward = () => {
+      set((state) => {
+        const next = { ...state.instruments }
+        delete next[trackId]
+        return { instruments: next }
+      })
+    }
+    const inverse = () => {
+      set((state) => ({ instruments: { ...state.instruments, [trackId]: snapshot } }))
+    }
+    undoable(`Remove sampler from ${trackId}`, forward, inverse)
+  },
 
   getSampler: (trackId) => get().instruments[trackId],
 
@@ -558,254 +629,389 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
   // All immutable; every numeric crossing the store-write boundary is clamped +
   // finite-guarded (the backend security.validate_frame_bank re-enforces). Caps
   // mirror the backend (MAX_FRAMEBANK_SLOTS / byte-budget MIN-MAX / position 0..1).
-  addFrameBank: (trackId, seedClipIds) =>
-    set((state) => {
-      if (state.frameBanks[trackId]) return state
-      const slots: SlotRef[] = []
-      for (const clipId of (seedClipIds ?? []).slice(0, MAX_FRAMEBANK_SLOTS)) {
-        if (clipId) slots.push({ clipId, frameIndex: 0 })
-      }
-      return {
-        frameBanks: {
-          ...state.frameBanks,
-          [trackId]: {
-            id: nextFrameBankId(),
-            type: 'frameBank',
-            slots,
-            position: 0.5,
-            interp: 'blend',
-            byteBudget: FRAMEBANK_BYTE_BUDGET_MIN,
-          },
-        },
-      }
-    }),
+  addFrameBank: (trackId, seedClipIds) => {
+    if (get().frameBanks[trackId]) return
+    // Pre-generate id + build the new bank BEFORE undoable() (deterministic redo).
+    const slots: SlotRef[] = []
+    for (const clipId of (seedClipIds ?? []).slice(0, MAX_FRAMEBANK_SLOTS)) {
+      if (clipId) slots.push({ clipId, frameIndex: 0 })
+    }
+    const newBank: FrameBankInstrument = {
+      id: nextFrameBankId(),
+      type: 'frameBank',
+      slots,
+      position: 0.5,
+      interp: 'blend',
+      byteBudget: FRAMEBANK_BYTE_BUDGET_MIN,
+    }
+    const forward = () => {
+      set((state) => ({ frameBanks: { ...state.frameBanks, [trackId]: newBank } }))
+    }
+    const inverse = () => {
+      set((state) => {
+        const next = { ...state.frameBanks }
+        delete next[trackId]
+        return { frameBanks: next }
+      })
+    }
+    undoable(`Add frame-bank to ${trackId}`, forward, inverse)
+  },
 
-  removeFrameBank: (trackId) =>
-    set((state) => {
-      if (!state.frameBanks[trackId]) return state
-      const next = { ...state.frameBanks }
-      delete next[trackId]
-      return { frameBanks: next }
-    }),
+  removeFrameBank: (trackId) => {
+    const removed = get().frameBanks[trackId]
+    if (!removed) return
+    // Deep-copy slots so inverse restores the full bank (same id + slots).
+    const snapshot: FrameBankInstrument = { ...removed, slots: removed.slots.map((s) => ({ ...s })) }
+    const forward = () => {
+      set((state) => {
+        const next = { ...state.frameBanks }
+        delete next[trackId]
+        return { frameBanks: next }
+      })
+    }
+    const inverse = () => {
+      set((state) => ({ frameBanks: { ...state.frameBanks, [trackId]: snapshot } }))
+    }
+    undoable(`Remove frame-bank from ${trackId}`, forward, inverse)
+  },
 
   getFrameBank: (trackId) => get().frameBanks[trackId],
 
-  addFrameBankSlot: (trackId, slot) =>
-    set((state) => {
-      const fb = state.frameBanks[trackId]
-      if (!fb) return state
-      // SLOT CAP (trust boundary): refuse to grow past MAX_FRAMEBANK_SLOTS.
-      if (fb.slots.length >= MAX_FRAMEBANK_SLOTS) return state
-      if (!slot.clipId) return state
-      const frameIndex = Math.round(clampFinite(Number(slot.frameIndex), 0, 1_000_000, 0))
-      return {
-        frameBanks: {
-          ...state.frameBanks,
-          [trackId]: { ...fb, slots: [...fb.slots, { clipId: slot.clipId, frameIndex }] },
-        },
-      }
-    }),
+  addFrameBankSlot: (trackId, slot) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    // SLOT CAP (trust boundary): refuse to grow past MAX_FRAMEBANK_SLOTS.
+    if (fb.slots.length >= MAX_FRAMEBANK_SLOTS) return
+    if (!slot.clipId) return
+    const frameIndex = Math.round(clampFinite(Number(slot.frameIndex), 0, 1_000_000, 0))
+    const newSlot: SlotRef = { clipId: slot.clipId, frameIndex }
+    const prevSlots = fb.slots.map((s) => ({ ...s }))
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, slots: [...cur.slots, newSlot] } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, slots: prevSlots } } }
+      })
+    }
+    undoable(`Add frame-bank slot on ${trackId}`, forward, inverse)
+  },
 
-  removeFrameBankSlot: (trackId, index) =>
-    set((state) => {
-      const fb = state.frameBanks[trackId]
-      if (!fb) return state
-      if (index < 0 || index >= fb.slots.length) return state
-      return {
-        frameBanks: {
-          ...state.frameBanks,
-          [trackId]: { ...fb, slots: fb.slots.filter((_, i) => i !== index) },
-        },
-      }
-    }),
+  removeFrameBankSlot: (trackId, index) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    if (index < 0 || index >= fb.slots.length) return
+    const prevSlots = fb.slots.map((s) => ({ ...s }))
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, slots: cur.slots.filter((_, i) => i !== index) } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, slots: prevSlots } } }
+      })
+    }
+    undoable(`Remove frame-bank slot on ${trackId}`, forward, inverse)
+  },
 
-  reorderFrameBankSlot: (trackId, from, to) =>
-    set((state) => {
-      const fb = state.frameBanks[trackId]
-      if (!fb) return state
-      if (from < 0 || from >= fb.slots.length) return state
-      if (to < 0 || to >= fb.slots.length) return state
-      if (from === to) return state
-      const slots = fb.slots.slice()
-      const [moved] = slots.splice(from, 1)
-      slots.splice(to, 0, moved)
-      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, slots } } }
-    }),
+  reorderFrameBankSlot: (trackId, from, to) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    if (from < 0 || from >= fb.slots.length) return
+    if (to < 0 || to >= fb.slots.length) return
+    if (from === to) return
+    const prevSlots = fb.slots.map((s) => ({ ...s }))
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        const slots = cur.slots.slice()
+        const [moved] = slots.splice(from, 1)
+        slots.splice(to, 0, moved)
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, slots } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, slots: prevSlots } } }
+      })
+    }
+    undoable(`Reorder frame-bank slot on ${trackId}`, forward, inverse)
+  },
 
-  setFrameBankPosition: (trackId, pos) =>
-    set((state) => {
-      const fb = state.frameBanks[trackId]
-      if (!fb) return state
-      const position = clampFinite(pos, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, fb.position)
-      if (position === fb.position) return state
-      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, position } } }
-    }),
+  setFrameBankPosition: (trackId, pos) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    const position = clampFinite(pos, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, fb.position)
+    if (position === fb.position) return
+    const prev = fb.position
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, position } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, position: prev } } }
+      })
+    }
+    undoable(`Set frame-bank position on ${trackId}`, forward, inverse)
+  },
 
-  setFrameBankInterp: (trackId, interp) =>
-    set((state) => {
-      const fb = state.frameBanks[trackId]
-      if (!fb) return state
-      // Trust boundary: only known interp modes are accepted.
-      if (interp !== 'nearest' && interp !== 'blend' && interp !== 'flow') return state
-      if (interp === fb.interp) return state
-      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, interp } } }
-    }),
+  setFrameBankInterp: (trackId, interp) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    // Trust boundary: only known interp modes are accepted.
+    if (interp !== 'nearest' && interp !== 'blend' && interp !== 'flow') return
+    if (interp === fb.interp) return
+    const prev = fb.interp
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, interp } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, interp: prev } } }
+      })
+    }
+    undoable(`Set frame-bank interp on ${trackId}`, forward, inverse)
+  },
 
-  setFrameBankByteBudget: (trackId, bytes) =>
-    set((state) => {
-      const fb = state.frameBanks[trackId]
-      if (!fb) return state
-      const byteBudget = clampFinite(
-        bytes,
-        FRAMEBANK_BYTE_BUDGET_MIN,
-        FRAMEBANK_BYTE_BUDGET_MAX,
-        fb.byteBudget,
-      )
-      if (byteBudget === fb.byteBudget) return state
-      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, byteBudget } } }
-    }),
+  setFrameBankByteBudget: (trackId, bytes) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    const byteBudget = clampFinite(
+      bytes,
+      FRAMEBANK_BYTE_BUDGET_MIN,
+      FRAMEBANK_BYTE_BUDGET_MAX,
+      fb.byteBudget,
+    )
+    if (byteBudget === fb.byteBudget) return
+    const prev = fb.byteBudget
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, byteBudget } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, byteBudget: prev } } }
+      })
+    }
+    undoable(`Set frame-bank byte budget on ${trackId}`, forward, inverse)
+  },
 
   // P5b.23 — B9: set the slit-scan time axis (lowercase only; unknown → no-op).
-  setFrameBankTimeAxis: (trackId, axis) =>
-    set((state) => {
-      const fb = state.frameBanks[trackId]
-      if (!fb) return state
-      // Trust boundary: only known lowercase axes accepted (P1-A axis canon).
-      if (axis !== 't' && axis !== 'y' && axis !== 'x') return state
-      if (axis === fb.timeAxis) return state
-      return { frameBanks: { ...state.frameBanks, [trackId]: { ...fb, timeAxis: axis } } }
-    }),
+  setFrameBankTimeAxis: (trackId, axis) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    // Trust boundary: only known lowercase axes accepted (P1-A axis canon).
+    if (axis !== 't' && axis !== 'y' && axis !== 'x') return
+    if (axis === fb.timeAxis) return
+    const prev = fb.timeAxis
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, timeAxis: axis } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, timeAxis: prev } } }
+      })
+    }
+    undoable(`Set frame-bank time axis on ${trackId}`, forward, inverse)
+  },
 
   // --- B4.1 Sample Rack ---
-  addRack: (trackId, padCount = 1) =>
-    set((state) => {
-      if (state.racks[trackId]) return state
-      const count = Math.max(1, Math.min(64, Math.round(padCount)))
-      const pads: RackPad[] = []
-      for (let i = 0; i < count; i++) pads.push(createRackPad())
-      return {
-        racks: {
-          ...state.racks,
-          [trackId]: { id: nextRackId(), type: 'rack', pads },
-        },
-      }
-    }),
+  addRack: (trackId, padCount = 1) => {
+    if (get().racks[trackId]) return
+    // Pre-generate the rack + pad ids BEFORE undoable() (deterministic redo).
+    const count = Math.max(1, Math.min(64, Math.round(padCount)))
+    const pads: RackPad[] = []
+    for (let i = 0; i < count; i++) pads.push(createRackPad())
+    const newRack: RackNode = { id: nextRackId(), type: 'rack', pads }
+    const forward = () => {
+      set((state) => ({ racks: { ...state.racks, [trackId]: newRack } }))
+    }
+    const inverse = () => {
+      set((state) => {
+        const next = { ...state.racks }
+        delete next[trackId]
+        return { racks: next }
+      })
+    }
+    undoable(`Add rack to ${trackId}`, forward, inverse)
+  },
 
-  removeRack: (trackId) =>
-    set((state) => {
-      if (!state.racks[trackId]) return state
-      const next = { ...state.racks }
-      delete next[trackId]
-      return { racks: next }
-    }),
+  removeRack: (trackId) => {
+    const removed = get().racks[trackId]
+    if (!removed) return
+    // Deep-copy the whole rack subtree so inverse restores pads + branches +
+    // macros + routes by value (same ids).
+    const snapshot = cloneRackNode(removed)
+    const forward = () => {
+      set((state) => {
+        const next = { ...state.racks }
+        delete next[trackId]
+        return { racks: next }
+      })
+    }
+    const inverse = () => {
+      set((state) => ({ racks: { ...state.racks, [trackId]: snapshot } }))
+    }
+    undoable(`Remove rack from ${trackId}`, forward, inverse)
+  },
 
   getRack: (trackId) => get().racks[trackId],
 
   // B4-editor — append a fresh (unsourced) pad channel to a track's rack.
-  addRackPad: (trackId) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      // Mirror addRack's 64-pad ceiling — refuse to grow past it.
-      if (rack.pads.length >= 64) return state
-      return {
-        racks: {
-          ...state.racks,
-          [trackId]: { ...rack, pads: [...rack.pads, createRackPad()] },
-        },
-      }
-    }),
+  addRackPad: (trackId) => {
+    const rack = get().racks[trackId]
+    if (!rack) return
+    // Mirror addRack's 64-pad ceiling — refuse to grow past it.
+    if (rack.pads.length >= 64) return
+    // Pre-generate the new pad (with its ids) BEFORE undoable() (deterministic redo).
+    const newPad = createRackPad()
+    const newPadId = newPad.id
+    const forward = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r) return state
+        return { racks: { ...state.racks, [trackId]: { ...r, pads: [...r.pads, newPad] } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r) return state
+        return { racks: { ...state.racks, [trackId]: { ...r, pads: r.pads.filter((p) => p.id !== newPadId) } } }
+      })
+    }
+    undoable(`Add rack pad to ${trackId}`, forward, inverse)
+  },
 
   // B4-editor — set a rack pad's sample source (clipId). Immutable update;
   // mirrors the bare-sampler `setSource`. A missing rack / pad is a no-op.
-  setRackPadSource: (trackId, padId, clipId) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const idx = rack.pads.findIndex((p) => p.id === padId)
-      if (idx === -1) return state
-      const old = rack.pads[idx]
-      const pads = rack.pads.slice()
-      pads[idx] = {
-        ...old,
-        instrument: { ...old.instrument, clipId },
-      }
-      return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
-    }),
+  setRackPadSource: (trackId, padId, clipId) => {
+    const rack = get().racks[trackId]
+    if (!rack) return
+    const idx = rack.pads.findIndex((p) => p.id === padId)
+    if (idx === -1) return
+    const prevClipId = rack.pads[idx].instrument.clipId
+    const forward = () => {
+      set((state) => applyRackPadSource(state, trackId, padId, clipId))
+    }
+    const inverse = () => {
+      set((state) => applyRackPadSource(state, trackId, padId, prevClipId))
+    }
+    undoable(`Set rack pad source on ${trackId}`, forward, inverse)
+  },
 
-  updateRackPad: (trackId, padId, patch) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const idx = rack.pads.findIndex((p) => p.id === padId)
-      if (idx === -1) return state
-      const old = rack.pads[idx]
-      // id is immutable; instrument is merged shallowly when patched.
-      const { id: _ignore, instrument: patchInst, ...rest } = patch as Record<string, unknown> & {
-        instrument?: Partial<SamplerInstrumentV1>
-      }
-      // B4-editor — trust-boundary guards on channel-control patches (every
-      // numeric crossing the store boundary is clamped + finite-guarded; blend
-      // must be a known BlendMode; mute/solo coerced to bool).
-      const safeRest = { ...(rest as Partial<RackPad>) }
-      if ('opacity' in safeRest) {
-        safeRest.opacity = clampFinite(
-          Number((safeRest as { opacity: unknown }).opacity),
-          RACK_PAD_OPACITY_MIN,
-          RACK_PAD_OPACITY_MAX,
-          old.opacity,
-        )
-      }
-      if ('blend' in safeRest && !BLEND_MODES.has(safeRest.blend as BlendMode)) {
-        delete safeRest.blend
-      }
-      if ('mute' in safeRest) safeRest.mute = Boolean(safeRest.mute)
-      if ('solo' in safeRest) safeRest.solo = Boolean(safeRest.solo)
-      const merged: RackPad = {
-        ...old,
-        ...safeRest,
-        id: old.id,
-        instrument: patchInst
-          ? { ...old.instrument, ...patchInst, id: old.instrument.id, type: 'sampler' }
-          : old.instrument,
-      }
-      const pads = rack.pads.slice()
-      pads[idx] = merged
-      return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
-    }),
+  updateRackPad: (trackId, padId, patch) => {
+    const rack = get().racks[trackId]
+    if (!rack) return
+    const idx = rack.pads.findIndex((p) => p.id === padId)
+    if (idx === -1) return
+    // Capture the prior pad by value so inverse restores it exactly (same id,
+    // same instrument, same chain/branch) — never by array index.
+    const prevPad: RackPad = {
+      ...rack.pads[idx],
+      instrument: { ...rack.pads[idx].instrument },
+    }
+    const forward = () => {
+      set((state) => applyRackPadPatch(state, trackId, padId, patch))
+    }
+    const inverse = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r) return state
+        const i = r.pads.findIndex((p) => p.id === padId)
+        if (i === -1) return state
+        const pads = r.pads.slice()
+        pads[i] = prevPad
+        return { racks: { ...state.racks, [trackId]: { ...r, pads } } }
+      })
+    }
+    undoable(`Edit rack pad on ${trackId}`, forward, inverse)
+  },
 
   // B4-pad-delete — remove a pad + prune any macro route pointed at it.
-  removeRackPad: (trackId, padId) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const idx = rack.pads.findIndex((p) => p.id === padId)
-      if (idx === -1) return state // pad absent — no-op (guard).
+  removeRackPad: (trackId, padId) => {
+    const rack = get().racks[trackId]
+    if (!rack) return
+    const idx = rack.pads.findIndex((p) => p.id === padId)
+    if (idx === -1) return // pad absent — no-op (guard).
+    // Deep-snapshot the WHOLE rack so inverse restores the deleted pad AND the
+    // macro routes pruned alongside it (the route cleanup is part of the same
+    // mutation — its inverse must un-prune, per undo.ts: "inverse must RESTORE
+    // cleaned data"). Events live in performance.ts and are restored by the
+    // companion clearRackPadEvents undo entry.
+    const snapshot = cloneRackNode(rack)
+    const forward = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r) return state
 
-      // (a) Drop the pad (immutable; other pads untouched).
-      const pads = rack.pads.filter((p) => p.id !== padId)
+        // (a) Drop the pad (immutable; other pads untouched).
+        const pads = r.pads.filter((p) => p.id !== padId)
 
-      // (b) Prune macro routes pointed at the deleted pad. A route targets a pad
-      // via `pad.<padId>.<param>` — drop only those whose path starts with the
-      // deleted pad's prefix. Surviving routes (other pads) are left intact.
-      const prefix = `pad.${padId}.`
-      let macros = rack.macros
-      if (rack.macros) {
-        macros = rack.macros.map((m) => {
-          const routes = m.routes ?? []
-          const kept = routes.filter((r) => !r.targetPath.startsWith(prefix))
-          // Only allocate a new macro object when a route was actually pruned.
-          return kept.length === routes.length ? m : { ...m, routes: kept }
-        })
-      }
+        // (b) Prune macro routes pointed at the deleted pad. A route targets a pad
+        // via `pad.<padId>.<param>` — drop only those whose path starts with the
+        // deleted pad's prefix. Surviving routes (other pads) are left intact.
+        const prefix = `pad.${padId}.`
+        let macros = r.macros
+        if (r.macros) {
+          macros = r.macros.map((m) => {
+            const routes = m.routes ?? []
+            const kept = routes.filter((r2) => !r2.targetPath.startsWith(prefix))
+            // Only allocate a new macro object when a route was actually pruned.
+            return kept.length === routes.length ? m : { ...m, routes: kept }
+          })
+        }
 
-      return {
-        racks: {
-          ...state.racks,
-          [trackId]: { ...rack, pads, ...(macros ? { macros } : {}) },
-        },
-      }
-    }),
+        return {
+          racks: {
+            ...state.racks,
+            [trackId]: { ...r, pads, ...(macros ? { macros } : {}) },
+          },
+        }
+      })
+    }
+    const inverse = () => {
+      set((state) => ({ racks: { ...state.racks, [trackId]: snapshot } }))
+    }
+    undoable(`Remove rack pad from ${trackId}`, forward, inverse)
+  },
 
   // --- B5.2 nested-rack editing ----------------------------------------------
   // All path-aware actions resolve the RackNode at `branchPath` via
@@ -817,6 +1023,14 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
     // DEPTH CAP (trust boundary): the new branch sits at depth path.length + 1.
     // Reject if that exceeds MAX_BRANCH_DEPTH (fail-closed; no mutation).
     if (branchPath.length + 1 > MAX_BRANCH_DEPTH) return false
+    // Pre-generate the new branch + its leaf pad ids BEFORE undoable() so redo is
+    // deterministic and undo restores the SAME ids.
+    const newBranch: RackNode = {
+      id: nextBranchId(),
+      type: 'rack',
+      pads: [createRackPad()],
+      macros: [],
+    }
     let didConvert = false
     const nextTop = updateRackNodeAt(rack, branchPath, (node) => {
       const idx = node.pads.findIndex((p) => p.id === padId)
@@ -826,101 +1040,60 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       const pads = node.pads.slice()
       // B5.1 model: a pad with a `branch` is a GROUP; its leaf instrument is kept
       // (inert) and the branch starts with ONE default leaf pad + empty macros.
-      pads[idx] = {
-        ...pad,
-        branch: { id: nextBranchId(), type: 'rack', pads: [createRackPad()], macros: [] },
-      }
+      pads[idx] = { ...pad, branch: newBranch }
       didConvert = true
       return { ...node, pads }
     })
     if (!nextTop || !didConvert) return false
-    set((state) => ({ racks: { ...state.racks, [trackId]: nextTop } }))
+    // Snapshot the prior rack subtree so inverse un-branches the pad exactly.
+    const snapshot = cloneRackNode(rack)
+    const forward = () => {
+      set((state) => ({ racks: { ...state.racks, [trackId]: nextTop } }))
+    }
+    const inverse = () => {
+      set((state) => ({ racks: { ...state.racks, [trackId]: snapshot } }))
+    }
+    undoable(`Convert pad to branch on ${trackId}`, forward, inverse)
     return true
   },
 
-  addRackPadAt: (trackId, branchPath) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const nextTop = updateRackNodeAt(rack, branchPath, (node) => {
-        if (node.pads.length >= 64) return node // 64-pad ceiling (mirrors addRackPad)
-        return { ...node, pads: [...node.pads, createRackPad()] }
-      })
-      if (!nextTop) return state
-      return { racks: { ...state.racks, [trackId]: nextTop } }
-    }),
+  addRackPadAt: (trackId, branchPath) => {
+    undoableRackTransform(set, get, trackId, branchPath, `Add rack pad on ${trackId}`, (node) => {
+      if (node.pads.length >= 64) return node // 64-pad ceiling (mirrors addRackPad)
+      return { ...node, pads: [...node.pads, createRackPad()] }
+    })
+  },
 
-  setRackPadSourceAt: (trackId, branchPath, padId, clipId) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
-        applyPadSource(node, padId, clipId),
-      )
-      if (!nextTop) return state
-      return { racks: { ...state.racks, [trackId]: nextTop } }
-    }),
+  setRackPadSourceAt: (trackId, branchPath, padId, clipId) => {
+    undoableRackTransform(set, get, trackId, branchPath, `Set rack pad source on ${trackId}`, (node) =>
+      applyPadSource(node, padId, clipId),
+    )
+  },
 
-  updateRackPadAt: (trackId, branchPath, padId, patch) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
-        applyPadUpdate(node, padId, patch),
-      )
-      if (!nextTop) return state
-      return { racks: { ...state.racks, [trackId]: nextTop } }
-    }),
+  updateRackPadAt: (trackId, branchPath, padId, patch) => {
+    undoableRackTransform(set, get, trackId, branchPath, `Edit rack pad on ${trackId}`, (node) =>
+      applyPadUpdate(node, padId, patch),
+    )
+  },
 
-  setRackPadChokeGroupAt: (trackId, branchPath, padId, group) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
-        applyPadChokeGroup(node, padId, group),
-      )
-      if (!nextTop) return state
-      return { racks: { ...state.racks, [trackId]: nextTop } }
-    }),
+  setRackPadChokeGroupAt: (trackId, branchPath, padId, group) => {
+    undoableRackTransform(set, get, trackId, branchPath, `Set rack pad choke group on ${trackId}`, (node) =>
+      applyPadChokeGroup(node, padId, group),
+    )
+  },
 
-  removeRackPadAt: (trackId, branchPath, padId) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const nextTop = updateRackNodeAt(rack, branchPath, (node) =>
-        applyPadRemove(node, padId),
-      )
-      if (!nextTop) return state
-      return { racks: { ...state.racks, [trackId]: nextTop } }
-    }),
+  removeRackPadAt: (trackId, branchPath, padId) => {
+    undoableRackTransform(set, get, trackId, branchPath, `Remove rack pad on ${trackId}`, (node) =>
+      applyPadRemove(node, padId),
+    )
+  },
 
   // B4-choke — set a pad's choke-group membership (null or small int [1,8]).
-  setRackPadChokeGroup: (trackId, padId, group) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack) return state
-      const idx = rack.pads.findIndex((p) => p.id === padId)
-      if (idx === -1) return state
-      // Trust boundary: only null or an in-range integer is accepted. Anything
-      // else (NaN, out-of-range, fractional) leaves membership unchanged.
-      let next: number | null
-      if (group === null) {
-        next = null
-      } else if (
-        Number.isInteger(group) &&
-        group >= RACK_CHOKE_GROUP_MIN &&
-        group <= RACK_CHOKE_GROUP_MAX
-      ) {
-        next = group
-      } else {
-        return state // invalid → no-op
-      }
-      const old = rack.pads[idx]
-      if (old.chokeGroup === next) return state // no change
-      const pads = rack.pads.slice()
-      pads[idx] = { ...old, chokeGroup: next }
-      return { racks: { ...state.racks, [trackId]: { ...rack, pads } } }
-    }),
+  setRackPadChokeGroup: (trackId, padId, group) => {
+    undoableRackTransform(set, get, trackId, [], `Set rack pad choke group on ${trackId}`, (node) =>
+      applyPadChokeGroup(node, padId, group),
+    )
+  },
 
   // --- B4.2 Sample Rack macros — store-write fan-out caps (layer 1) ---
   addRackMacro: (trackId, name) => {
@@ -929,6 +1102,8 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
     const macros = rack.macros ?? []
     // FAN-OUT CAP (store-write): reject a 9th macro.
     if (macros.length >= MAX_MACROS_PER_RACK) return null
+    // Pre-generate the macro id BEFORE undoable() (deterministic redo; undo
+    // restores the SAME id).
     const id = nextMacroId()
     const macro: RackMacro = {
       id,
@@ -936,45 +1111,84 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       value: 0,
       routes: [],
     }
-    set((state) => {
-      const r = state.racks[trackId]
-      if (!r) return state
-      return {
-        racks: {
-          ...state.racks,
-          [trackId]: { ...r, macros: [...(r.macros ?? []), macro] },
-        },
-      }
-    })
+    const forward = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r) return state
+        return { racks: { ...state.racks, [trackId]: { ...r, macros: [...(r.macros ?? []), macro] } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r || !r.macros) return state
+        return { racks: { ...state.racks, [trackId]: { ...r, macros: r.macros.filter((m) => m.id !== id) } } }
+      })
+    }
+    undoable(`Add macro to ${trackId}`, forward, inverse)
     return id
   },
 
-  updateRackMacro: (trackId, macroId, patch) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack || !rack.macros) return state
-      const idx = rack.macros.findIndex((m) => m.id === macroId)
-      if (idx === -1) return state
-      const macros = rack.macros.slice()
-      // id + routes are not patched here (routes via addMacroRoute); value left
-      // as-is (the resolver clamps [0,1] at render — single source of truth).
-      const { name, value } = patch
-      macros[idx] = {
-        ...macros[idx],
+  updateRackMacro: (trackId, macroId, patch) => {
+    const rack = get().racks[trackId]
+    if (!rack || !rack.macros) return
+    const idx = rack.macros.findIndex((m) => m.id === macroId)
+    if (idx === -1) return
+    const old = rack.macros[idx]
+    // Capture prior name/value so inverse restores them exactly (by macro id).
+    const prevName = old.name
+    const prevValue = old.value
+    const { name, value } = patch
+    if (name === undefined && value === undefined) return // no-op
+    const forward = () => {
+      set((state) => applyMacroPatch(state, trackId, macroId, {
         ...(name !== undefined ? { name } : {}),
         ...(value !== undefined ? { value } : {}),
-      }
-      return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
-    }),
+      }))
+    }
+    const inverse = () => {
+      set((state) => applyMacroPatch(state, trackId, macroId, {
+        ...(name !== undefined ? { name: prevName } : {}),
+        ...(value !== undefined ? { value: prevValue } : {}),
+      }))
+    }
+    undoable(`Edit macro on ${trackId}`, forward, inverse)
+  },
 
-  removeRackMacro: (trackId, macroId) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack || !rack.macros) return state
-      const macros = rack.macros.filter((m) => m.id !== macroId)
-      if (macros.length === rack.macros.length) return state
-      return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
-    }),
+  removeRackMacro: (trackId, macroId) => {
+    const rack = get().racks[trackId]
+    if (!rack || !rack.macros) return
+    const idx = rack.macros.findIndex((m) => m.id === macroId)
+    if (idx === -1) return // macro absent — no-op (don't push empty entry).
+    // UH.3: removing a macro removes the macro AND all its routes (a multi-route
+    // fan-out). Wrap it in ONE transaction so undo reverts the whole fan-out as a
+    // single history entry. The inverse deep-restores the macro WITH its routes.
+    const removed: RackMacro = { ...rack.macros[idx], routes: (rack.macros[idx].routes ?? []).map((r) => ({ ...r })) }
+    const macroIdx = idx
+    const undoStore = useUndoStore.getState()
+    undoStore.beginTransaction(`Remove macro from ${trackId}`)
+    const forward = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r || !r.macros) return state
+        const macros = r.macros.filter((m) => m.id !== macroId)
+        if (macros.length === r.macros.length) return state
+        return { racks: { ...state.racks, [trackId]: { ...r, macros } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r) return state
+        const macros = [...(r.macros ?? [])]
+        // Re-insert at its original position (clamped — list may have shrunk).
+        macros.splice(Math.min(macroIdx, macros.length), 0, removed)
+        return { racks: { ...state.racks, [trackId]: { ...r, macros } } }
+      })
+    }
+    undoable(`Remove macro from ${trackId}`, forward, inverse)
+    undoStore.commitTransaction()
+  },
 
   addMacroRoute: (trackId, macroId, route) => {
     const rack = get().racks[trackId]
@@ -985,48 +1199,64 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
     // FAN-OUT CAPS (store-write): reject past the per-macro OR the rack total.
     if ((macro.routes?.length ?? 0) >= MAX_MODROUTES_PER_MACRO) return false
     if (totalRackEdges(rack) >= MAX_TOTAL_EDGES) return false
-    set((state) => {
-      const r = state.racks[trackId]
-      if (!r || !r.macros) return state
-      const mi = r.macros.findIndex((m) => m.id === macroId)
-      if (mi === -1) return state
-      const macros = r.macros.slice()
-      macros[mi] = { ...macros[mi], routes: [...(macros[mi].routes ?? []), route] }
-      return { racks: { ...state.racks, [trackId]: { ...r, macros } } }
-    })
+    // Capture prior routes by value so inverse restores them exactly (by macro id).
+    const prevRoutes = (macro.routes ?? []).map((r) => ({ ...r }))
+    const newRoute: MacroRoute = { ...route }
+    const forward = () => {
+      set((state) => {
+        const r = state.racks[trackId]
+        if (!r || !r.macros) return state
+        const mi = r.macros.findIndex((m) => m.id === macroId)
+        if (mi === -1) return state
+        const macros = r.macros.slice()
+        macros[mi] = { ...macros[mi], routes: [...(macros[mi].routes ?? []), newRoute] }
+        return { racks: { ...state.racks, [trackId]: { ...r, macros } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => applyMacroRoutes(state, trackId, macroId, prevRoutes))
+    }
+    undoable(`Add macro route on ${trackId}`, forward, inverse)
     return true
   },
 
-  removeMacroRoute: (trackId, macroId, routeIndex) =>
-    set((state) => {
-      const rack = state.racks[trackId]
-      if (!rack || !rack.macros) return state
-      const mi = rack.macros.findIndex((m) => m.id === macroId)
-      if (mi === -1) return state
-      const routes = (rack.macros[mi].routes ?? []).filter((_, i) => i !== routeIndex)
-      const macros = rack.macros.slice()
-      macros[mi] = { ...macros[mi], routes }
-      return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
-    }),
+  removeMacroRoute: (trackId, macroId, routeIndex) => {
+    const rack = get().racks[trackId]
+    if (!rack || !rack.macros) return
+    const mi = rack.macros.findIndex((m) => m.id === macroId)
+    if (mi === -1) return
+    const prevRoutes = (rack.macros[mi].routes ?? []).map((r) => ({ ...r }))
+    if (routeIndex < 0 || routeIndex >= prevRoutes.length) return // out of range — no-op
+    const nextRoutes = prevRoutes.filter((_, i) => i !== routeIndex)
+    const forward = () => {
+      set((state) => applyMacroRoutes(state, trackId, macroId, nextRoutes.map((r) => ({ ...r }))))
+    }
+    const inverse = () => {
+      set((state) => applyMacroRoutes(state, trackId, macroId, prevRoutes.map((r) => ({ ...r }))))
+    }
+    undoable(`Remove macro route on ${trackId}`, forward, inverse)
+  },
 
   // --- B4-pad-chain UI — pad-scoped insert-chain mutations ---
   // Shared shape: locate the pad in racks[trackId], immutably transform its
   // `chain` (default [] when absent), write the new pads array back. A missing
   // track/rack/pad is a no-op. Mirrors the project.ts track-chain semantics.
-  addEffectToPad: (trackId, padId, effect, branchPath) =>
-    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) => {
+  addEffectToPad: (trackId, padId, effect, branchPath) => {
+    undoablePadChain(set, get, trackId, branchPath, padId, `Add effect to pad on ${trackId}`, (chain) => {
       // Trust boundary: mirror addEffect's chain-length cap.
       if (chain.length >= LIMITS.MAX_EFFECTS_PER_CHAIN) return chain
       return [...chain, effect]
-    })),
+    })
+  },
 
-  removeEffectFromPad: (trackId, padId, instanceId, branchPath) =>
-    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) =>
+  removeEffectFromPad: (trackId, padId, instanceId, branchPath) => {
+    undoablePadChain(set, get, trackId, branchPath, padId, `Remove effect from pad on ${trackId}`, (chain) =>
       chain.filter((e) => e.id !== instanceId),
-    )),
+    )
+  },
 
-  reorderPadEffect: (trackId, padId, fromIndex, toIndex, branchPath) =>
-    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) => {
+  reorderPadEffect: (trackId, padId, fromIndex, toIndex, branchPath) => {
+    undoablePadChain(set, get, trackId, branchPath, padId, `Reorder pad effect on ${trackId}`, (chain) => {
       if (fromIndex < 0 || fromIndex >= chain.length) return chain
       if (toIndex < 0 || toIndex >= chain.length) return chain
       if (fromIndex === toIndex) return chain
@@ -1034,107 +1264,324 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       const [moved] = next.splice(fromIndex, 1)
       next.splice(toIndex, 0, moved)
       return next
-    })),
+    })
+  },
 
-  updatePadEffectParam: (trackId, padId, instanceId, paramName, value, branchPath) =>
-    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) =>
+  updatePadEffectParam: (trackId, padId, instanceId, paramName, value, branchPath) => {
+    undoablePadChain(set, get, trackId, branchPath, padId, `Edit pad effect param on ${trackId}`, (chain) =>
       chain.map((e) =>
         e.id === instanceId
           ? { ...e, parameters: { ...e.parameters, [paramName]: value } }
           : e,
       ),
-    )),
+    )
+  },
 
-  togglePadEffect: (trackId, padId, instanceId, branchPath) =>
-    set((state) => mutatePadChain(state, trackId, branchPath, padId, (chain) =>
+  togglePadEffect: (trackId, padId, instanceId, branchPath) => {
+    undoablePadChain(set, get, trackId, branchPath, padId, `Toggle pad effect on ${trackId}`, (chain) =>
       chain.map((e) => (e.id === instanceId ? { ...e, isEnabled: !e.isEnabled } : e)),
-    )),
+    )
+  },
 
   // --- B8 Granulator (P5b.19) ---
-  addGranulator: (trackId) =>
-    set((state) => {
-      if (state.granulators[trackId]) return state
-      return {
-        granulators: {
-          ...state.granulators,
-          [trackId]: defaultGranulatorInstrument(nextGranulatorId()),
-        },
-      }
-    }),
+  addGranulator: (trackId) => {
+    if (get().granulators[trackId]) return
+    // Pre-generate the granulator (with its id) BEFORE undoable() (deterministic redo).
+    const newGran = defaultGranulatorInstrument(nextGranulatorId())
+    const forward = () => {
+      set((state) => ({ granulators: { ...state.granulators, [trackId]: newGran } }))
+    }
+    const inverse = () => {
+      set((state) => {
+        const next = { ...state.granulators }
+        delete next[trackId]
+        return { granulators: next }
+      })
+    }
+    undoable(`Add granulator to ${trackId}`, forward, inverse)
+  },
 
-  removeGranulator: (trackId) =>
-    set((state) => {
-      if (!state.granulators[trackId]) return state
-      const next = { ...state.granulators }
-      delete next[trackId]
-      return { granulators: next }
-    }),
+  removeGranulator: (trackId) => {
+    const removed = get().granulators[trackId]
+    if (!removed) return
+    // Deep-snapshot so inverse restores the full granulator (same id + axes).
+    const snapshot = cloneGranulator(removed)
+    const forward = () => {
+      set((state) => {
+        const next = { ...state.granulators }
+        delete next[trackId]
+        return { granulators: next }
+      })
+    }
+    const inverse = () => {
+      set((state) => ({ granulators: { ...state.granulators, [trackId]: snapshot } }))
+    }
+    undoable(`Remove granulator from ${trackId}`, forward, inverse)
+  },
 
   getGranulator: (trackId) => get().granulators[trackId],
 
-  setGranulatorDensity: (trackId, density) =>
-    set((state) => {
-      const g = state.granulators[trackId]
-      if (!g) return state
-      // Trust boundary: clamp + finite-guard (feedback_numeric-trust-boundary).
-      const next = clampFinite(Math.round(density), GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX, g.density)
-      if (next === g.density) return state
-      return { granulators: { ...state.granulators, [trackId]: { ...g, density: next } } }
-    }),
+  setGranulatorDensity: (trackId, density) => {
+    const g = get().granulators[trackId]
+    if (!g) return
+    // Trust boundary: clamp + finite-guard (feedback_numeric-trust-boundary).
+    const next = clampFinite(Math.round(density), GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX, g.density)
+    if (next === g.density) return
+    const prev = g.density
+    undoableGranulatorPatch(set, get, trackId, `Set granulator density on ${trackId}`,
+      (gr) => ({ ...gr, density: next }),
+      (gr) => ({ ...gr, density: prev }),
+    )
+  },
 
-  setGranulatorWindow: (trackId, window) =>
-    set((state) => {
-      const g = state.granulators[trackId]
-      if (!g) return state
-      // Trust boundary: only known window shapes accepted.
-      if (window !== 'hann' && window !== 'tri' && window !== 'rect') return state
-      if (window === g.window) return state
-      return { granulators: { ...state.granulators, [trackId]: { ...g, window } } }
-    }),
+  setGranulatorWindow: (trackId, window) => {
+    const g = get().granulators[trackId]
+    if (!g) return
+    // Trust boundary: only known window shapes accepted.
+    if (window !== 'hann' && window !== 'tri' && window !== 'rect') return
+    if (window === g.window) return
+    const prev = g.window
+    undoableGranulatorPatch(set, get, trackId, `Set granulator window on ${trackId}`,
+      (gr) => ({ ...gr, window }),
+      (gr) => ({ ...gr, window: prev }),
+    )
+  },
 
-  setGranulatorAxisParam: (trackId, axis, param, value) =>
-    set((state) => {
-      const g = state.granulators[trackId]
-      if (!g) return state
-      // Trust boundary: only lowercase canonical axes (P1-A axis canon).
-      if (!GRANULATOR_AXES.includes(axis)) return state
-      // Trust boundary: only known axis params.
-      if (param !== 'grain' && param !== 'jitter' && param !== 'position' && param !== 'envelope') return state
-      const oldAx = g.axes[axis] ?? defaultAxisParams()
-      // Trust boundary: clamp [0,1] + finite-guard (feedback_numeric-trust-boundary).
-      const clamped = clampFinite(value, 0, 1, oldAx[param])
-      if (clamped === oldAx[param]) return state
-      const newAx: GranulatorAxisParams = { ...oldAx, [param]: clamped }
-      return {
-        granulators: {
-          ...state.granulators,
-          [trackId]: { ...g, axes: { ...g.axes, [axis]: newAx } },
-        },
-      }
-    }),
+  setGranulatorAxisParam: (trackId, axis, param, value) => {
+    const g = get().granulators[trackId]
+    if (!g) return
+    // Trust boundary: only lowercase canonical axes (P1-A axis canon).
+    if (!GRANULATOR_AXES.includes(axis)) return
+    // Trust boundary: only known axis params.
+    if (param !== 'grain' && param !== 'jitter' && param !== 'position' && param !== 'envelope') return
+    const oldAx = g.axes[axis] ?? defaultAxisParams()
+    // Trust boundary: clamp [0,1] + finite-guard (feedback_numeric-trust-boundary).
+    const clamped = clampFinite(value, 0, 1, oldAx[param])
+    if (clamped === oldAx[param]) return
+    const prevAx: GranulatorAxisParams = { ...oldAx }
+    const newAx: GranulatorAxisParams = { ...oldAx, [param]: clamped }
+    undoableGranulatorPatch(set, get, trackId, `Set granulator ${axis}-axis ${param} on ${trackId}`,
+      (gr) => ({ ...gr, axes: { ...gr.axes, [axis]: newAx } }),
+      (gr) => ({ ...gr, axes: { ...gr.axes, [axis]: prevAx } }),
+    )
+  },
 
-  setGranulatorLAxisEnabled: (trackId, enabled) =>
-    set((state) => {
-      const g = state.granulators[trackId]
-      if (!g) return state
-      const b = Boolean(enabled)
-      if (b === g.lAxisEnabled) return state
-      return { granulators: { ...state.granulators, [trackId]: { ...g, lAxisEnabled: b } } }
-    }),
+  setGranulatorLAxisEnabled: (trackId, enabled) => {
+    const g = get().granulators[trackId]
+    if (!g) return
+    const b = Boolean(enabled)
+    if (b === g.lAxisEnabled) return
+    const prev = g.lAxisEnabled
+    undoableGranulatorPatch(set, get, trackId, `${b ? 'Enable' : 'Disable'} granulator L-axis on ${trackId}`,
+      (gr) => ({ ...gr, lAxisEnabled: b }),
+      (gr) => ({ ...gr, lAxisEnabled: prev }),
+    )
+  },
 
-  setGranulatorSelection: (trackId, rule, latentFlagOn) =>
-    set((state) => {
-      const g = state.granulators[trackId]
-      if (!g) return state
-      // Trust boundary: `scenePayload` is NEVER accepted (reserved, no source on main).
-      // `latentSimilarity` is accepted only when latentFlagOn is true.
-      if (rule === ('scenePayload' as GranulatorSelectionRule)) return state
-      if (rule === 'latentSimilarity' && !latentFlagOn) return state
-      if (rule !== 'random' && rule !== 'onset' && rule !== 'latentSimilarity') return state
-      if (rule === g.selection) return state
-      return { granulators: { ...state.granulators, [trackId]: { ...g, selection: rule } } }
-    }),
+  setGranulatorSelection: (trackId, rule, latentFlagOn) => {
+    const g = get().granulators[trackId]
+    if (!g) return
+    // Trust boundary: `scenePayload` is NEVER accepted (reserved, no source on main).
+    // `latentSimilarity` is accepted only when latentFlagOn is true.
+    if (rule === ('scenePayload' as GranulatorSelectionRule)) return
+    if (rule === 'latentSimilarity' && !latentFlagOn) return
+    if (rule !== 'random' && rule !== 'onset' && rule !== 'latentSimilarity') return
+    if (rule === g.selection) return
+    const prev = g.selection
+    undoableGranulatorPatch(set, get, trackId, `Set granulator selection on ${trackId}`,
+      (gr) => ({ ...gr, selection: rule }),
+      (gr) => ({ ...gr, selection: prev }),
+    )
+  },
 }))
+
+/**
+ * State-level wrapper: set a top-level rack pad's source clipId, reusing the same
+ * pure node transform (`applyPadSource`) the B4/B5.2 actions use. Returns a new
+ * `{ racks }` slice or the unchanged state on a no-op (missing rack/pad).
+ */
+function applyRackPadSource(
+  state: InstrumentsState,
+  trackId: string,
+  padId: string,
+  clipId: string,
+): InstrumentsState | Pick<InstrumentsState, 'racks'> {
+  const rack = state.racks[trackId]
+  if (!rack) return state
+  const next = applyPadSource(rack, padId, clipId)
+  if (next === rack) return state
+  return { racks: { ...state.racks, [trackId]: next } }
+}
+
+/**
+ * State-level wrapper: apply a guarded pad patch to a top-level rack pad, reusing
+ * the same pure node transform (`applyPadUpdate`) the B4/B5.2 actions use.
+ */
+function applyRackPadPatch(
+  state: InstrumentsState,
+  trackId: string,
+  padId: string,
+  patch: Partial<Omit<RackPad, 'id'>>,
+): InstrumentsState | Pick<InstrumentsState, 'racks'> {
+  const rack = state.racks[trackId]
+  if (!rack) return state
+  const next = applyPadUpdate(rack, padId, patch)
+  if (next === rack) return state
+  return { racks: { ...state.racks, [trackId]: next } }
+}
+
+type InstrumentsSet = (
+  partial:
+    | InstrumentsState
+    | Partial<InstrumentsState>
+    | ((state: InstrumentsState) => InstrumentsState | Partial<InstrumentsState>),
+) => void
+type InstrumentsGet = () => InstrumentsState
+
+/** Deep-clone a GranulatorInstrument (axes record copied per-axis) for undo snapshots. */
+function cloneGranulator(g: GranulatorInstrument): GranulatorInstrument {
+  const axes = {} as Record<GranulatorAxis, GranulatorAxisParams>
+  for (const ax of GRANULATOR_AXES) {
+    if (g.axes[ax]) axes[ax] = { ...g.axes[ax] }
+  }
+  return { ...g, axes }
+}
+
+/**
+ * Undoable helper for a single granulator edit. `applyFwd`/`applyInv` map the
+ * current granulator to its new/prior shape (immutably). Caller has already done
+ * all trust-boundary guards + no-op checks BEFORE calling, so this always pushes
+ * exactly one history entry. No-op if the granulator vanished by forward time.
+ */
+function undoableGranulatorPatch(
+  set: InstrumentsSet,
+  get: InstrumentsGet,
+  trackId: string,
+  description: string,
+  applyFwd: (g: GranulatorInstrument) => GranulatorInstrument,
+  applyInv: (g: GranulatorInstrument) => GranulatorInstrument,
+): void {
+  const forward = () => {
+    set((state) => {
+      const g = state.granulators[trackId]
+      if (!g) return state
+      return { granulators: { ...state.granulators, [trackId]: applyFwd(g) } }
+    })
+  }
+  const inverse = () => {
+    set((state) => {
+      const g = state.granulators[trackId]
+      if (!g) return state
+      return { granulators: { ...state.granulators, [trackId]: applyInv(g) } }
+    })
+  }
+  undoable(description, forward, inverse)
+}
+
+/**
+ * Undoable helper for a pad-scoped insert-chain edit (B4/B5.2). Applies the
+ * `updater` once to compute the next rack; if the rack changed, snapshots the
+ * PRIOR rack subtree by value (deep) and pushes one undoable entry whose inverse
+ * restores it. A no-op updater / stale path → nothing pushed (no empty entry).
+ * Param-drag gestures coalesce when the caller opens a transaction (drag-start)
+ * around the per-tick updatePadEffectParam calls and commits on drag-end.
+ */
+function undoablePadChain(
+  set: InstrumentsSet,
+  get: InstrumentsGet,
+  trackId: string,
+  branchPath: string[] | undefined,
+  padId: string,
+  description: string,
+  updater: (chain: EffectInstance[]) => EffectInstance[],
+): void {
+  const rack = get().racks[trackId]
+  if (!rack) return
+  const slice = mutatePadChain(get(), trackId, branchPath, padId, updater)
+  // mutatePadChain returns the SAME state object on a no-op → nothing changed.
+  if (slice === get()) return
+  const snapshot = cloneRackNode(rack)
+  const forward = () => {
+    set((state) => mutatePadChain(state, trackId, branchPath, padId, updater))
+  }
+  const inverse = () => {
+    set((state) => ({ racks: { ...state.racks, [trackId]: snapshot } }))
+  }
+  undoable(description, forward, inverse)
+}
+
+/**
+ * Undoable helper for the B5.2 path-aware rack-node transforms (and the flat
+ * setRackPadChokeGroup). Resolves the new top rack via `updateRackNodeAt` with
+ * the given pure `updater`; if it changed, snapshots the PRIOR rack subtree by
+ * value (deep) and pushes one undoable entry whose inverse restores it. A stale
+ * path / no-op updater → nothing pushed (no empty history entry). The snapshot
+ * captures ids by value, never array indices — per undo.ts convention #1.
+ */
+function undoableRackTransform(
+  set: InstrumentsSet,
+  get: InstrumentsGet,
+  trackId: string,
+  branchPath: string[],
+  description: string,
+  updater: (node: RackNode) => RackNode | null,
+): void {
+  const rack = get().racks[trackId]
+  if (!rack) return
+  const nextTop = updateRackNodeAt(rack, branchPath, updater)
+  if (!nextTop) return // stale path or no-op → nothing to undo
+  const snapshot = cloneRackNode(rack)
+  const forward = () => {
+    set((state) => ({ racks: { ...state.racks, [trackId]: nextTop } }))
+  }
+  const inverse = () => {
+    set((state) => ({ racks: { ...state.racks, [trackId]: snapshot } }))
+  }
+  undoable(description, forward, inverse)
+}
+
+/**
+ * State-level wrapper: patch a macro's name/value by macro id. id + routes are
+ * never touched here. Returns the unchanged state when rack/macro is absent.
+ */
+function applyMacroPatch(
+  state: InstrumentsState,
+  trackId: string,
+  macroId: string,
+  patch: Partial<Pick<RackMacro, 'name' | 'value'>>,
+): InstrumentsState | Pick<InstrumentsState, 'racks'> {
+  const rack = state.racks[trackId]
+  if (!rack || !rack.macros) return state
+  const idx = rack.macros.findIndex((m) => m.id === macroId)
+  if (idx === -1) return state
+  const macros = rack.macros.slice()
+  macros[idx] = {
+    ...macros[idx],
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.value !== undefined ? { value: patch.value } : {}),
+  }
+  return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
+}
+
+/**
+ * State-level wrapper: replace a macro's full `routes` array by macro id (used by
+ * the add/remove-route forward+inverse closures). Returns unchanged state when
+ * rack/macro is absent.
+ */
+function applyMacroRoutes(
+  state: InstrumentsState,
+  trackId: string,
+  macroId: string,
+  routes: MacroRoute[],
+): InstrumentsState | Pick<InstrumentsState, 'racks'> {
+  const rack = state.racks[trackId]
+  if (!rack || !rack.macros) return state
+  const idx = rack.macros.findIndex((m) => m.id === macroId)
+  if (idx === -1) return state
+  const macros = rack.macros.slice()
+  macros[idx] = { ...macros[idx], routes }
+  return { racks: { ...state.racks, [trackId]: { ...rack, macros } } }
+}
 
 /**
  * B4-pad-chain UI / B5.2 — immutably transform a pad's `chain` at the RackNode
