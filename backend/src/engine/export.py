@@ -48,6 +48,8 @@ from engine.image_sequence import export_image_sequence_from_generator
 from engine.voice_replay import encode_voice_id, evaluate_voices
 from video.codec_timeout import av_open_timeout
 from engine.pipeline import apply_chain
+from masking.routing import apply_masks_to_chain
+from masking.stack import FrameCtx
 from engine.text_renderer import render_text_frame
 from video.image_reader import ImageReader, is_image_file
 from video.reader import VideoReader
@@ -205,6 +207,7 @@ class ExportManager:
         operators: list[dict] | None = None,
         automation_by_frame: dict | None = None,
         audio_pcm_provider=None,
+        mask_stack: list[dict] | None = None,
     ) -> ExportJob:
         """Start a background export. Returns the job for status tracking.
 
@@ -280,6 +283,10 @@ class ExportManager:
         snap_automation = (
             copy.deepcopy(automation_by_frame) if automation_by_frame else None
         )
+        # MK.10 — snapshot the active clip's matte stack so the export bakes the
+        # SAME masked output preview shows (the headline preview/export parity).
+        # Absent → byte-identical legacy export (no masking).
+        snap_mask_stack = copy.deepcopy(mask_stack) if mask_stack else None
 
         # P5b.8 (SG-5 part B): compute the cycle-break decision ONCE at job start
         # so the same break applies to every frame of this export job. This snapshot
@@ -320,6 +327,7 @@ class ExportManager:
                 "automation_by_frame": snap_automation,
                 "audio_pcm_provider": audio_pcm_provider,
                 "cycle_decision": snap_cycle_decision,
+                "mask_stack": snap_mask_stack,
             },
             daemon=True,
         )
@@ -552,6 +560,7 @@ class ExportManager:
         automation_by_frame: dict | None = None,
         audio_pcm_provider=None,
         cycle_decision=None,
+        mask_stack: list[dict] | None = None,
     ):
         reader = None
         writer = None
@@ -718,10 +727,31 @@ class ExportManager:
                         operator_values=last_operator_values,
                         frame_bank_caches=frame_bank_caches,
                         granulator_state=granulator_state,
+                        mask_stack=mask_stack,
                     )
                 else:
+                    # MK.10 — single-input export mask parity. Route the per-frame
+                    # chain through the SAME shared helper preview uses (incl. MK.8
+                    # keying-as-performance, since export DOES have per-frame
+                    # operator_values here). Absent mask_stack → byte-identical.
+                    masked_chain, base_chain_mask = apply_masks_to_chain(
+                        frame_chain,
+                        mask_stack,
+                        FrameCtx(
+                            frame=base, frame_index=src_idx, clip_id=str(input_path)
+                        ),
+                        (base.shape[0], base.shape[1]),
+                        operators=mod_operators,
+                        operator_values=last_operator_values,
+                    )
                     out, states = apply_chain(
-                        base, frame_chain, project_seed, src_idx, resolution, states
+                        base,
+                        masked_chain,
+                        project_seed,
+                        src_idx,
+                        resolution,
+                        states,
+                        chain_mask=base_chain_mask,
                     )
                 if text_layers:
                     out = self._composite_text_layers(
@@ -822,10 +852,30 @@ class ExportManager:
                         operator_values=last_operator_values,
                         frame_bank_caches=frame_bank_caches,
                         granulator_state=granulator_state,
+                        mask_stack=mask_stack,
                     )
                 else:
+                    # MK.10 — single-input export mask parity (inline video loop).
+                    # Same shared helper as preview; absent mask_stack →
+                    # byte-identical legacy export.
+                    masked_chain, base_chain_mask = apply_masks_to_chain(
+                        frame_chain,
+                        mask_stack,
+                        FrameCtx(
+                            frame=frame, frame_index=src_idx, clip_id=str(input_path)
+                        ),
+                        (frame.shape[0], frame.shape[1]),
+                        operators=mod_operators,
+                        operator_values=last_operator_values,
+                    )
                     output, states = apply_chain(
-                        frame, frame_chain, project_seed, src_idx, resolution, states
+                        frame,
+                        masked_chain,
+                        project_seed,
+                        src_idx,
+                        resolution,
+                        states,
+                        chain_mask=base_chain_mask,
                     )
 
                 # Composite text layers on top of the processed frame
@@ -1336,6 +1386,7 @@ class ExportManager:
         operator_values: dict | None = None,
         frame_bank_caches: dict | None = None,
         granulator_state: dict | None = None,
+        mask_stack: list[dict] | None = None,
     ) -> tuple[np.ndarray, dict]:
         """Build the composited frame for one output frame (O1 composite branch).
 
@@ -1378,15 +1429,31 @@ class ExportManager:
                 operator_values, operators, instruments
             )
 
+        # MK.10 — apply the base clip's mask stack to its chain so the base layer
+        # exports masked in the composite branch too (parity with single-input
+        # export + preview). MK.8 keying-as-performance is included since this
+        # branch HAS per-frame operator_values. Absent mask_stack → byte-identical
+        # base chain. Voice/group layers carry their own (no-)masks below.
+        base_ctx = FrameCtx(frame=base_frame, frame_index=frame_index, clip_id="base")
+        base_chain, base_chain_mask = apply_masks_to_chain(
+            base_chain,
+            mask_stack,
+            base_ctx,
+            (base_frame.shape[0], base_frame.shape[1]),
+            operators=operators,
+            operator_values=operator_values,
+        )
+
         # Build the layer list bottom-to-top. Layer 0 = base clip with its chain.
-        layers: list[dict] = [
-            {
-                "frame": base_frame,
-                "chain": base_chain,
-                "frame_index": frame_index,
-                "layer_id": "base",
-            }
-        ]
+        base_layer: dict = {
+            "frame": base_frame,
+            "chain": base_chain,
+            "frame_index": frame_index,
+            "layer_id": "base",
+        }
+        if base_chain_mask is not None:
+            base_layer["chain_mask"] = base_chain_mask
+        layers: list[dict] = [base_layer]
 
         from engine.voice_replay import envelope_value
 

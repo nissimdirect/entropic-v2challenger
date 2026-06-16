@@ -46,6 +46,8 @@ import numpy as np
 
 from engine.compositor import render_composite
 from engine.pipeline import apply_chain
+from masking.routing import apply_masks_to_chain
+from masking.stack import FrameCtx
 from security import MAX_BRANCH_DEPTH, MAX_BRANCH_VOICES_PER_RENDER
 
 logger = logging.getLogger(__name__)
@@ -231,12 +233,29 @@ def expand_group_layer(
             if voice_id is not None
             else f"_grpchild_{len(child_layers)}"
         )
+        # MK.3 — nested-instrument mask parity. Route this leaf voice's chain
+        # through the SAME shared helper the single-clip + composite paths use so
+        # a mask assigned to a rack-PAD / branch-leaf device renders masked here
+        # too (was: composite_tree injected no masks). Absent mask_stack →
+        # byte-identical no-mask leaf. MK.8 is not applied (no operator_values on
+        # this path; same deferral as the composite preview path).
+        leaf_chain = child.get("chain") or []
+        leaf_ctx = FrameCtx(frame=frame, frame_index=frame_index, clip_id=str(layer_id))
+        leaf_chain, leaf_chain_mask = apply_masks_to_chain(
+            leaf_chain,
+            child.get("mask_stack"),
+            leaf_ctx,
+            (frame.shape[0], frame.shape[1]),
+            chain_mask_ref=child.get("chain_mask"),
+        )
         leaf_layer = {
             "frame": frame,
-            "chain": child.get("chain") or [],
+            "chain": leaf_chain,
             "frame_index": frame_index,
             "layer_id": layer_id,
         }
+        if leaf_chain_mask is not None:
+            leaf_layer["chain_mask"] = leaf_chain_mask
         if "opacity" in child:
             leaf_layer["opacity"] = child["opacity"]
         if "blend_mode" in child:
@@ -261,8 +280,28 @@ def expand_group_layer(
     if branch_chain:
         state_key = f"group:{group_id}"
         state_in = layer_states.get(state_key) if layer_states is not None else None
+        # MK.3 — route the BRANCH chain (runs on the composited ensemble sub-frame)
+        # through the shared helper too, so a mask on a branch-chain device is
+        # honored. Resolved against the sub-frame's (H, W). Absent group mask_stack
+        # → byte-identical no-mask branch chain.
+        branch_ctx = FrameCtx(
+            frame=sub_frame, frame_index=frame_index, clip_id=f"group:{group_id}"
+        )
+        branch_chain, branch_chain_mask = apply_masks_to_chain(
+            branch_chain,
+            group.get("mask_stack"),
+            branch_ctx,
+            (sub_frame.shape[0], sub_frame.shape[1]),
+            chain_mask_ref=group.get("chain_mask"),
+        )
         sub_frame, chain_state = apply_chain(
-            sub_frame, branch_chain, project_seed, frame_index, resolution, state_in
+            sub_frame,
+            branch_chain,
+            project_seed,
+            frame_index,
+            resolution,
+            state_in,
+            chain_mask=branch_chain_mask,
         )
         if layer_states is not None:
             new_states[state_key] = chain_state

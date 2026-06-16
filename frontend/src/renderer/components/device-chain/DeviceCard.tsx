@@ -36,6 +36,13 @@ interface DeviceCardProps {
   maskClipId?: string
   /** MK.3: assign (or clear, with null) this device's mask-routing ref. */
   onSetMaskRef?: (effectId: string, maskRef: MatteRef | null) => void
+  /**
+   * MK.3: whether this device's mask row may be shown/edited. False for
+   * rack-PAD / branch-chain effects, whose mask assignment is NOT yet plumbed
+   * (setEffectMaskRef only edits the track chain → would silently no-op). When
+   * false the mask row is hidden so the control never lies. Defaults to true.
+   */
+  maskAssignable?: boolean
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
@@ -53,6 +60,7 @@ export default function DeviceCard({
   maskNodes,
   maskClipId,
   onSetMaskRef,
+  maskAssignable = true,
   onContextMenu,
 }: DeviceCardProps) {
   // P6.6: remember the last scalar value per param so "Clear field" can restore
@@ -484,8 +492,10 @@ export default function DeviceCard({
 
       {/* MK.3: minimal mask-routing row. Shown when the clip has matte nodes to
           assign, OR a maskRef is already set (so it remains editable even if the
-          source clip changed). Rich UI is MK.13's job. */}
-      {(((maskNodes?.length ?? 0) > 0) || effect.maskRef) && (
+          source clip changed). Rich UI is MK.13's job. HIDDEN for rack-PAD /
+          branch-chain effects (maskAssignable=false): setEffectMaskRef only edits
+          the track chain, so showing the dropdown there would silently no-op. */}
+      {maskAssignable && (((maskNodes?.length ?? 0) > 0) || effect.maskRef) && (
         <div className="device-card__mask" data-testid="device-mask">
           <span className="device-card__mask-label">Mask</span>
           <select

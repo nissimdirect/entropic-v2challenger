@@ -1310,6 +1310,11 @@ function AppInner() {
             // opacity is a DISTINCT property and is forwarded as `clip_opacity`,
             // which the compositor multiplies onto the resolved track opacity.
             const clipOpacity = clip.opacity ?? 1
+            // MK.3 — ship THIS clip's matte stack per composite layer so a masked
+            // device renders masked once a 2nd layer exists (was: composite
+            // omitted mask_stack → masks blinked in/out by layer count). Omitted
+            // when the clip has no maskStack (additive / byte-identical).
+            const layerMaskStack = serializeMaskStack(clip.maskStack)
             return {
               layer_type: 'video',
               asset_path: assetPath,
@@ -1322,6 +1327,7 @@ function AppInner() {
               clip_opacity: clipOpacity,
               ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
                 ? { transform: ct } : {}),
+              ...(layerMaskStack ? { mask_stack: layerMaskStack } : {}),
             }
           })
 
@@ -2598,6 +2604,27 @@ function AppInner() {
       // stale/empty after Epic 1 moved chains into per-track storage).
       const activeExportChain = getActiveEffectChain()
 
+      // MK.10 — resolve the active clip's matte stack so the export bakes the SAME
+      // masked output preview shows (was: export omitted mask_stack → masks
+      // vanished in the file even for a single masked clip). The export is single-
+      // input on `activeAssetPath.current`; the masked clip is the active-track
+      // clip backing that asset (the chain's device mask_refs point into ITS
+      // maskStack). Omitted when absent (additive / byte-identical legacy export).
+      const exportMaskStack = (() => {
+        const activeTid = getActiveTrackId()
+        const tracks = useTimelineStore.getState().tracks
+        const activeTrack = tracks.find((t) => t.id === activeTid)
+        if (!activeTrack) return undefined
+        const assets = useProjectStore.getState().assets
+        const maskedClip = activeTrack.clips.find(
+          (c) =>
+            assets[c.assetId]?.path === activeAssetPath.current &&
+            c.maskStack &&
+            c.maskStack.length > 0,
+        )
+        return serializeMaskStack(maskedClip?.maskStack)
+      })()
+
       // P2.3 (slice 3d — full export parity): the export must run the SAME
       // modulation engine the preview render path runs, so the exported video
       // matches the live canvas (previously export dropped operators + automation
@@ -2882,6 +2909,9 @@ function AppInner() {
         project_seed: projectSeed,
         ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
         ...(performancePayload ? { performance: performancePayload } : {}),
+        // MK.10 — the active clip's matte stack (device mask_refs in `chain`
+        // resolve against it). Omitted when absent → byte-identical legacy export.
+        ...(exportMaskStack ? { mask_stack: exportMaskStack } : {}),
         // P2.3: export-parity modulation payloads. Both omitted when empty so a
         // project with no operators/automation produces a legacy (byte-identical)
         // export — the backend treats absent payloads as the old single-input path.

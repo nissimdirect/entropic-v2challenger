@@ -47,7 +47,7 @@ from engine.pipeline import (
     get_effect_health,
     get_effect_stats,
 )
-from masking.routing import inject_device_masks, resolve_chain_mask
+from masking.routing import apply_masks_to_chain
 from masking.stack import FrameCtx
 from memory.writer import SharedMemoryWriter
 from project.schema import V2_UNSUPPORTED_MESSAGE
@@ -774,24 +774,21 @@ class ZMQServer:
         #   transformed) frame so the matte always broadcasts against it.
         frame_hw = (frame.shape[0], frame.shape[1])
         mask_stack = message.get("mask_stack")
-        # MK.8 — keying-as-performance: resolve `mask.<node_id>.<param>` operator
-        # modulation INTO the key nodes' params before the mattes rasterize, so
-        # an LFO/sidechain/beat-gate on a key rides this frame. Trust-bounded:
-        # unknown nodes / non-key params are skipped, never crash. No-op unless
-        # operators are active AND a mask.* mapping exists.
-        if operators and isinstance(operators, list) and operator_values:
-            from modulation.routing import resolve_mask_modulations
-
-            mask_stack = resolve_mask_modulations(
-                operator_values, operators, mask_stack
-            )
         mask_ctx = FrameCtx(frame=frame, frame_index=frame_index, clip_id=str(path))
-        # Per-device: resolve each device's mask_ref → inject _mask param
-        # (consumes the orphaned container.py:58 seam, GT-6 — ZERO diff there).
-        chain = inject_device_masks(chain, mask_stack, mask_ctx, frame_hw)
-        # Per-chain: whole-chain wet/dry matte for apply_chain.
-        chain_mask = resolve_chain_mask(
-            message.get("chain_mask"), mask_stack, mask_ctx, frame_hw
+        # MK.3 — the ONE shared mask-routing seam. Runs, in order: MK.8
+        # keying-as-performance operator modulation → per-device _mask injection
+        # (container.py GT-6 seam) → per-chain wet/dry matte. Identical logic is
+        # called by render_composite, composite_tree, and export so the four
+        # paths CANNOT drift (preview/export parity). Absent mask_stack /
+        # chain_mask → byte-identical no-mask path (rollback guarantee).
+        chain, chain_mask = apply_masks_to_chain(
+            chain,
+            mask_stack,
+            mask_ctx,
+            frame_hw,
+            chain_mask_ref=message.get("chain_mask"),
+            operators=operators,
+            operator_values=operator_values,
         )
 
         # Use pipeline engine — thread per-effect state across frames so
@@ -1600,6 +1597,27 @@ class ZMQServer:
                 # instrument voices and text (the v2 video-track-clip shape that
                 # carries them with a real chain is rejected upstream by
                 # _is_v2_compositing_shape, so anything reaching here is legitimate).
+                # MK.3 — composite-preview mask parity. Resolve THIS layer's
+                # mask_stack (per-clip mattes) against its post-transform frame and
+                # route it through the SAME shared helper render_frame uses, so a
+                # masked device / chain renders identically once a 2nd layer exists
+                # (was: composite dropped all masks → masks blinked by layer count).
+                # MK.8 keying-as-performance is NOT applied here: the composite path
+                # pre-modulates chains on the frontend and carries no per-frame
+                # operator_values, so mask-node operator modulation is single-clip-
+                # only for now (deferred — no operator_values on this path).
+                mask_frame_hw = (frame.shape[0], frame.shape[1])
+                mask_ctx = FrameCtx(
+                    frame=frame, frame_index=frame_index, clip_id=str(layer_id)
+                )
+                chain, layer_chain_mask = apply_masks_to_chain(
+                    chain,
+                    layer_info.get("mask_stack"),
+                    mask_ctx,
+                    mask_frame_hw,
+                    chain_mask_ref=layer_info.get("chain_mask"),
+                )
+
                 layer_dict = {
                     "frame": frame,
                     "chain": chain,
@@ -1607,6 +1625,8 @@ class ZMQServer:
                     "frame_index": frame_index,
                     "layer_id": layer_id,
                 }
+                if layer_chain_mask is not None:
+                    layer_dict["chain_mask"] = layer_chain_mask
                 if "opacity" in layer_info:
                     layer_dict["opacity"] = layer_info["opacity"]
                 if "blend_mode" in layer_info:
@@ -2541,6 +2561,13 @@ class ZMQServer:
         # legacy export, byte-identical.
         operators = message.get("operators")
         automation_by_frame = message.get("automation_by_frame")
+        # MK.10 — the active clip's matte stack (per-clip mattes referenced by
+        # the chain's device mask_refs). Optional/additive: absent → legacy export.
+        # Trust boundary: a non-list degrades to the no-mask path inside the
+        # shared helper (build_node_index coerces → empty), never crashes the job.
+        mask_stack = message.get("mask_stack")
+        if mask_stack is not None and not isinstance(mask_stack, list):
+            mask_stack = None
 
         if not input_path:
             return {"id": msg_id, "ok": False, "error": "missing input_path"}
@@ -2645,6 +2672,7 @@ class ZMQServer:
                 operators=operators,
                 automation_by_frame=automation_by_frame,
                 audio_pcm_provider=self._get_audio_pcm_for_frame,
+                mask_stack=mask_stack,
             )
             return {"id": msg_id, "ok": True}
         except Exception as e:

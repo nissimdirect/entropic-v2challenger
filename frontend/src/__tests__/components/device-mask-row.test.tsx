@@ -138,4 +138,30 @@ describe('MK.3 — DeviceCard mask row', () => {
     expect(within(select).getAllByRole('option')).toHaveLength(3)
     expect(select.querySelector('option[value="gone"]')).toBeTruthy()
   })
+
+  // MK.3 cohesion (task #89): rack-PAD / branch-chain effects can't be mask-
+  // assigned yet (setEffectMaskRef edits the track chain only → would silently
+  // no-op), so the mask row is HIDDEN for them rather than presenting a control
+  // that does nothing.
+  it('hides the mask row for pad/branch effects (maskAssignable=false) even with nodes', () => {
+    const { queryByTestId } = renderCard({
+      maskNodes: [rectNode, ellipseNode],
+      maskAssignable: false,
+    })
+    expect(queryByTestId('device-mask')).toBeNull()
+  })
+
+  it('hides the mask row for pad/branch effects even when a maskRef is set', () => {
+    const { queryByTestId } = renderCard({
+      effect: makeEffect({ maskRef: { nodeId: 'rectL', invert: false } }),
+      maskNodes: [rectNode],
+      maskAssignable: false,
+    })
+    expect(queryByTestId('device-mask')).toBeNull()
+  })
+
+  it('shows the mask row when maskAssignable defaults to true (track-chain effect)', () => {
+    const { getByTestId } = renderCard({ maskNodes: [rectNode] })
+    expect(getByTestId('device-mask')).toBeTruthy()
+  })
 })
