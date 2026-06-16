@@ -7,7 +7,7 @@
  *      — Verifies resulting bitmap MatteNode is added to clip's maskStack
  *   2. "eyedropper sets color range node params"
  *      — Verifies addMatteNode receives a color_range node with r/g/b/tolerance/softness params
- *      — Verifies eyedropperColor is set in the store
+ *        (the color_range node IS the consumer of the sampled color — no store field)
  *
  * Pattern: pure-function / store tests (no React mounting), consistent with
  * the MK.4/5 test pattern in MaskSelectOverlay.test.ts and mk5-lasso.test.ts.
@@ -262,8 +262,9 @@ describe('wand click sends sample command with frame coords', () => {
 // The eyedropper handler (handleEyedropperClick in MaskSelectOverlay.tsx) does:
 //   1. Converts DOM click coords → frame normalized coords
 //   2. Reads pixel from preview canvas (falls back to 0,0,0 on failure)
-//   3. Calls setEyedropperColor({ r, g, b })
-//   4. Calls addMatteNode(clipId, { kind: 'color_range', params: { r, g, b, tolerance, softness } })
+//   3. Calls addMatteNode(clipId, { kind: 'color_range', params: { r, g, b, tolerance, softness } })
+//      — the color_range node IS the consumer of the sampled color (the picked
+//        r/g/b is kept local to the handler; there is no separate store field).
 //
 // We test the store mutation directly, simulating what handleEyedropperClick does.
 // ---------------------------------------------------------------------------
@@ -279,9 +280,6 @@ describe('eyedropper sets color range node params', () => {
     const tolerance = 30   // default wandTolerance
     const softness = 10    // fixed per spec
 
-    // Simulate what handleEyedropperClick does after reading the pixel:
-    useTimelineStore.getState().setEyedropperColor({ r, g, b })
-
     const nodeId = 'node-eyedropper-1'
     const node: MatteNode = {
       id: nodeId,
@@ -295,13 +293,6 @@ describe('eyedropper sets color range node params', () => {
     }
     useTimelineStore.getState().addMatteNode(clipId, node)
     useTimelineStore.setState({ committedMaskSelection: { nodeId, clipId } })
-
-    // Verify the eyedropperColor store field
-    const storedColor = useTimelineStore.getState().eyedropperColor
-    expect(storedColor).not.toBeNull()
-    expect(storedColor!.r).toBe(r)
-    expect(storedColor!.g).toBe(g)
-    expect(storedColor!.b).toBe(b)
 
     // Verify the color_range node is in the mask stack
     const stack = getClipMaskStack(clipId)
@@ -328,7 +319,6 @@ describe('eyedropper sets color range node params', () => {
 
     // Canvas readback throws → r=g=b=0 fallback
     const r = 0, g = 0, b = 0
-    useTimelineStore.getState().setEyedropperColor({ r, g, b })
 
     const nodeId = 'node-eyedropper-fallback'
     const node: MatteNode = {
@@ -357,7 +347,6 @@ describe('eyedropper sets color range node params', () => {
 
     // Eyedropper reads this tolerance
     const r = 255, g = 0, b = 0
-    useTimelineStore.getState().setEyedropperColor({ r, g, b })
 
     const nodeId = 'node-eyedropper-tol'
     const node: MatteNode = {
@@ -375,7 +364,6 @@ describe('eyedropper sets color range node params', () => {
   it('color_range node from eyedropper is undoable', () => {
     const clipId = setupTrackAndClip()
     const r = 100, g = 150, b = 200
-    useTimelineStore.getState().setEyedropperColor({ r, g, b })
 
     const nodeId = 'node-cr-undo'
     useTimelineStore.getState().addMatteNode(clipId, {
@@ -389,14 +377,6 @@ describe('eyedropper sets color range node params', () => {
 
     useUndoStore.getState().undo()
     expect(getClipMaskStack(clipId)).toHaveLength(0)
-  })
-
-  it('setEyedropperColor stores null to reset the eyedropper', () => {
-    useTimelineStore.getState().setEyedropperColor({ r: 10, g: 20, b: 30 })
-    expect(useTimelineStore.getState().eyedropperColor).not.toBeNull()
-
-    useTimelineStore.getState().setEyedropperColor(null)
-    expect(useTimelineStore.getState().eyedropperColor).toBeNull()
   })
 })
 

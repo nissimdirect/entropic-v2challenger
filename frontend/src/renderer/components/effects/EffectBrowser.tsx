@@ -224,6 +224,11 @@ export default function EffectBrowser({
   const [cursorTool, setCursorTool] = useState<CursorTool>('select')
   const cursorStackRef = useRef<CursorTool[]>([])
 
+  // MK.6: wand tolerance — read by MaskSelectOverlay's wand-sample IPC. The slider
+  // below (shown while the wand tool is active) is the only writer of setWandTolerance.
+  const wandTolerance = useTimelineStore((s) => s.wandTolerance)
+  const setWandTolerance = useTimelineStore((s) => s.setWandTolerance)
+
   // Expose cursor tool on body for statusbar chip reads
   useEffect(() => {
     document.body.setAttribute('data-cursor-tool', cursorTool)
@@ -644,6 +649,27 @@ export default function EffectBrowser({
                 </button>
               ))}
             </div>
+            {/* MK.6: Wand tolerance — RGB Euclidean distance [0, 441.67], default 30.
+                Read by MaskSelectOverlay's wand-sample IPC; shown only while the Mask
+                Wand tool is active. This is the sole writer of setWandTolerance. */}
+            {cursorTool === 'mask-wand' && (
+              <label
+                className="effect-browser__tool-param masking__wand-tolerance"
+                data-testid="wand-tolerance-control"
+              >
+                <span>Tolerance</span>
+                <input
+                  type="range"
+                  data-testid="wand-tolerance"
+                  value={wandTolerance}
+                  min={0}
+                  max={441.67}
+                  step={1}
+                  onChange={(e) => setWandTolerance(Number(e.target.value))}
+                />
+                <span data-testid="wand-tolerance-readout">{Math.round(wandTolerance)}</span>
+              </label>
+            )}
           </div>
         ) : (
           // [instruments] tab: P3.5 — real InstrumentsBrowser (INJ-4 fill).

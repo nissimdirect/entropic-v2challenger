@@ -48,7 +48,6 @@ interface AutomationState {
   lanes: Record<string, AutomationLane[]>
   mode: AutomationMode
   armedTrackId: string | null
-  recordingParamPath: string | null
   clipboard: AutomationClipboard | null
 
   // SG-3 clause-3: muted lane IDs from the sentinel's lane_aborted reply field.
@@ -86,7 +85,6 @@ interface AutomationState {
   // Recording state
   setMode: (mode: AutomationMode) => void
   armTrack: (trackId: string | null) => void
-  setRecordingParamPath: (path: string | null) => void
   /** Record a trigger event (key-down/up) to the appropriate trigger lane during overdub */
   recordTriggerEvent: (trackId: string, laneId: string, time: number, eventType: 'trigger' | 'release') => void
   /** Merge retro-captured trigger points into a lane */
@@ -125,7 +123,6 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   lanes: {},
   mode: 'read',
   armedTrackId: null,
-  recordingParamPath: null,
   clipboard: null,
   sg3AbortedLaneIds: new Set<string>(),
 
@@ -465,7 +462,6 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
   setMode: (mode) => set({ mode }),
   armTrack: (trackId) => set({ armedTrackId: trackId }),
-  setRecordingParamPath: (path) => set({ recordingParamPath: path }),
 
   recordTriggerEvent: (trackId, laneId, time, eventType) => {
     const trackLanes = get().lanes[trackId]
@@ -604,7 +600,6 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       lanes: {},
       mode: 'read',
       armedTrackId: null,
-      recordingParamPath: null,
       clipboard: null,
       sg3AbortedLaneIds: new Set<string>(),
     }),

@@ -316,9 +316,9 @@ export default function MaskSelectOverlay({
     const containerRect = containerRef.current.getBoundingClientRect()
     const { fx, fy } = domToFrameCoords(e.clientX, e.clientY, layout, containerRect)
 
-    // Store the picked color (r, g, b) as the eyedropper result.
-    // Actual RGB value is sampled from the preview image element.
-    // We use a canvas to read the pixel from the preview <img>.
+    // Sample the picked color (r, g, b) directly from the preview image element;
+    // it is consumed locally below to seed the color_range matte node (the real
+    // chroma consumer). No separate store field — the node IS the consumer.
     let r = 0, g = 0, b = 0
     try {
       const previewImg = containerRef.current.querySelector('img') as HTMLImageElement | null
@@ -338,9 +338,6 @@ export default function MaskSelectOverlay({
     } catch {
       // Canvas readback failed (cross-origin or security) — use (0,0,0)
     }
-
-    // Store the picked color in the timeline store
-    useTimelineStore.getState().setEyedropperColor({ r, g, b })
 
     // Create a color_range MatteNode with the picked color and current wand tolerance
     const nodeId = randomUUID()

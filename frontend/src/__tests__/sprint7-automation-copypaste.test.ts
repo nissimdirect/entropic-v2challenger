@@ -34,7 +34,6 @@ function resetStores() {
     lanes: {},
     mode: 'read',
     armedTrackId: null,
-    recordingParamPath: null,
     clipboard: null,
   })
   useTimelineStore.getState().reset()

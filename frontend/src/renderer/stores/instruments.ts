@@ -351,6 +351,10 @@ interface InstrumentsState {
    * No-op on unknown value or absent bank.
    */
   setFrameBankTimeAxis: (trackId: string, axis: FrameBankInstrument['timeAxis']) => void
+  /** Set the per-bank layer opacity, clamped [0,1] + finite-guarded. */
+  setFrameBankOpacity: (trackId: string, opacity: number) => void
+  /** Set the per-bank layer blend mode (trust-boundary allowlist; unknown → no-op). */
+  setFrameBankBlendMode: (trackId: string, blendMode: FrameBankInstrument['blendMode']) => void
 
   // --- B4.1 Sample Rack ---
   /** Instantiate a Rack on a track (no-op if it already has one). padCount default 1. */
@@ -850,6 +854,54 @@ export const useInstrumentsStore = create<InstrumentsState>((set, get) => ({
       })
     }
     undoable(`Set frame-bank time axis on ${trackId}`, forward, inverse)
+  },
+
+  setFrameBankOpacity: (trackId, opacity) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    // Clamp [0,1] + finite-guard; backend compositor re-clamps as the trust boundary.
+    const next = clampFinite(opacity, 0, 1, fb.opacity ?? 1)
+    if (next === (fb.opacity ?? 1)) return
+    const prev = fb.opacity
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, opacity: next } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, opacity: prev } } }
+      })
+    }
+    undoable(`Set frame-bank opacity on ${trackId}`, forward, inverse)
+  },
+
+  setFrameBankBlendMode: (trackId, blendMode) => {
+    const fb = get().frameBanks[trackId]
+    if (!fb) return
+    // Trust boundary: only known blend modes are accepted.
+    if (!blendMode || !BLEND_MODES.has(blendMode)) return
+    if (blendMode === fb.blendMode) return
+    const prev = fb.blendMode
+    const forward = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, blendMode } } }
+      })
+    }
+    const inverse = () => {
+      set((state) => {
+        const cur = state.frameBanks[trackId]
+        if (!cur) return state
+        return { frameBanks: { ...state.frameBanks, [trackId]: { ...cur, blendMode: prev } } }
+      })
+    }
+    undoable(`Set frame-bank blend mode on ${trackId}`, forward, inverse)
   },
 
   // --- B4.1 Sample Rack ---

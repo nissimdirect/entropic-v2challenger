@@ -20,6 +20,7 @@ import InstrumentsBrowser from '../../../renderer/components/instruments/Instrum
 import { useInstrumentsStore } from '../../../renderer/stores/instruments'
 import { useProjectStore } from '../../../renderer/stores/project'
 import { useTimelineStore } from '../../../renderer/stores/timeline'
+import { useUndoStore } from '../../../renderer/stores/undo'
 import {
   MAX_FRAMEBANK_SLOTS,
   FRAMEBANK_BYTE_BUDGET_MIN,
@@ -288,6 +289,90 @@ describe('FrameBankDevice — P5b.23 timeAxis selector', () => {
     // @ts-expect-error — 'Z' is invalid.
     s.setFrameBankTimeAxis(T, 'Z')
     expect(useInstrumentsStore.getState().frameBanks[T].timeAxis).toBe('y')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Cohesion fix — opacity / blendMode were serialized to the backend compositor
+// (serializeFrameBanks.ts) but had NO setter + NO control → permanently undefined.
+// These tests prove the new setters write state, are undoable, and the device
+// controls call them.
+// ---------------------------------------------------------------------------
+describe('Frame-Bank opacity + blendMode store actions (cohesion: WIRE)', () => {
+  beforeEach(() => {
+    useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {} })
+    useUndoStore.getState().clear()
+  })
+
+  it('setFrameBankOpacity clamps [0,1] + finite-guards', () => {
+    const s = useInstrumentsStore.getState()
+    s.addFrameBank(T, ['a1'])
+    s.setFrameBankOpacity(T, 0.4)
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0.4)
+    s.setFrameBankOpacity(T, 5)
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(1)
+    s.setFrameBankOpacity(T, -3)
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0)
+    // Non-finite → fallback to current (unchanged).
+    s.setFrameBankOpacity(T, 0.6)
+    s.setFrameBankOpacity(T, NaN)
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0.6)
+  })
+
+  it('setFrameBankOpacity is undoable', () => {
+    const s = useInstrumentsStore.getState()
+    s.addFrameBank(T, ['a1'])
+    s.setFrameBankOpacity(T, 0.3)
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0.3)
+    useUndoStore.getState().undo()
+    // Back to the pre-set value (undefined — bank default opacity absent).
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBeUndefined()
+    useUndoStore.getState().redo()
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0.3)
+  })
+
+  it('setFrameBankBlendMode accepts known modes + rejects unknown (no-op)', () => {
+    const s = useInstrumentsStore.getState()
+    s.addFrameBank(T, ['a1'])
+    s.setFrameBankBlendMode(T, 'multiply')
+    expect(useInstrumentsStore.getState().frameBanks[T].blendMode).toBe('multiply')
+    s.setFrameBankBlendMode(T, 'screen')
+    expect(useInstrumentsStore.getState().frameBanks[T].blendMode).toBe('screen')
+    // @ts-expect-error — invalid blend mode rejected (no-op).
+    s.setFrameBankBlendMode(T, 'bogus')
+    expect(useInstrumentsStore.getState().frameBanks[T].blendMode).toBe('screen')
+  })
+
+  it('setFrameBankBlendMode is undoable', () => {
+    const s = useInstrumentsStore.getState()
+    s.addFrameBank(T, ['a1'])
+    s.setFrameBankBlendMode(T, 'overlay')
+    expect(useInstrumentsStore.getState().frameBanks[T].blendMode).toBe('overlay')
+    useUndoStore.getState().undo()
+    expect(useInstrumentsStore.getState().frameBanks[T].blendMode).toBeUndefined()
+    useUndoStore.getState().redo()
+    expect(useInstrumentsStore.getState().frameBanks[T].blendMode).toBe('overlay')
+  })
+
+  it('the opacity slider WRITES frameBanks[trackId].opacity', () => {
+    useInstrumentsStore.getState().addFrameBank(T, ['a1'])
+    render(<FrameBankDevice trackId={T} />)
+    fireEvent.change(screen.getByTestId('framebank-opacity'), { target: { value: '0.42' } })
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0.42)
+  })
+
+  it('the blend dropdown WRITES frameBanks[trackId].blendMode', () => {
+    useInstrumentsStore.getState().addFrameBank(T, ['a1'])
+    render(<FrameBankDevice trackId={T} />)
+    fireEvent.change(screen.getByTestId('framebank-blend'), { target: { value: 'difference' } })
+    expect(useInstrumentsStore.getState().frameBanks[T].blendMode).toBe('difference')
+  })
+
+  it('blend dropdown lists all 9 shared blend modes', () => {
+    useInstrumentsStore.getState().addFrameBank(T, ['a1'])
+    render(<FrameBankDevice trackId={T} />)
+    const sel = screen.getByTestId('framebank-blend') as HTMLSelectElement
+    expect(sel.options.length).toBe(9)
   })
 })
 
