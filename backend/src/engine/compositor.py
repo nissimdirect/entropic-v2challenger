@@ -361,11 +361,23 @@ def render_composite(
         # state on any layer add/remove/reorder — that's acceptable safety.
         layer_id = str(layer_info.get("layer_id", f"_pos_{idx}"))
 
-        # Apply per-layer effect chain (with optional state propagation)
+        # Apply per-layer effect chain (with optional state propagation).
+        # MK.3: an optional per-layer `chain_mask` (resolved by the caller via
+        # masking.routing.apply_masks_to_chain) is forwarded into apply_chain so
+        # the whole-chain wet/dry matte is honored in composite preview/export —
+        # parity with the single-clip render_frame path. Absent → None →
+        # byte-identical legacy chain application (this is plumbing into the
+        # chain, NOT the blend math; the per-pixel composite below is untouched).
         if chain:
             state_in = layer_states.get(layer_id) if propagate_state else None
             processed, state_out = apply_chain(
-                frame, chain, project_seed, frame_index, resolution, state_in
+                frame,
+                chain,
+                project_seed,
+                frame_index,
+                resolution,
+                state_in,
+                chain_mask=layer_info.get("chain_mask"),
             )
             if propagate_state:
                 new_states[layer_id] = state_out

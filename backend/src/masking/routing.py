@@ -251,3 +251,61 @@ def resolve_chain_mask(
         return None
     nodes_by_id = build_node_index(mask_stack)
     return resolve_ref_matte(chain_mask, nodes_by_id, ctx, frame_hw)
+
+
+def apply_masks_to_chain(
+    chain: list[dict],
+    mask_stack: object,
+    mask_ctx: FrameCtx,
+    frame_hw: tuple[int, int],
+    *,
+    chain_mask_ref: object = None,
+    operators: object = None,
+    operator_values: object = None,
+) -> tuple[list[dict], np.ndarray | None]:
+    """The ONE shared mask-routing seam (MK.3) every render path calls.
+
+    Encapsulates the exact sequence the single-clip render_frame handler runs so
+    that preview (single-clip + composite), nested-instrument (composite_tree),
+    and export paths CANNOT drift apart — the headline MK design goal of
+    preview/export parity. It performs, in order:
+
+      1. **MK.8 keying-as-performance** — when ``operators`` + ``operator_values``
+         are both active, resolve ``mask.<node_id>.<param>`` operator modulation
+         INTO the key nodes' params before the mattes rasterize (so an LFO /
+         sidechain / beat-gate on a key rides this frame). No-op unless a
+         ``mask.*`` mapping exists; trust-bounded (unknown nodes skipped).
+      2. **Per-device** — ``inject_device_masks``: resolve each device's
+         ``mask_ref`` → ``params["_mask"]`` (container.py GT-6 blend seam).
+      3. **Per-chain** — ``resolve_chain_mask``: the optional whole-chain wet/dry
+         matte ``apply_chain`` consumes via its ``chain_mask`` argument.
+
+    Returns ``(chain, chain_mask)``:
+      * ``chain``       — a copy with per-device ``_mask`` injected (or the input
+                          unchanged when no entry references a mask).
+      * ``chain_mask``  — the resolved per-chain matte ndarray, or ``None``.
+
+    DEGENERATE / ROLLBACK GUARANTEE: absent ``mask_stack`` (and absent
+    ``chain_mask_ref`` / mask operators) → returns ``(chain, None)`` with the
+    chain object unchanged — the byte-identical no-mask path. Every step is
+    individually trust-bounded: a malformed ``mask_stack`` / ref degrades to the
+    no-mask path, never raises, never crashes the frame.
+
+    ``frame_hw`` is the matte's required ``(H, W)`` — taken from the (possibly
+    transformed) frame so the matte always broadcasts against it.
+    """
+    # MK.8 — resolve key-param operator modulation into the stack BEFORE the
+    # mattes rasterize. Lazy import (mirrors the render_frame call site) keeps the
+    # masking package free of a hard modulation dependency. No-op unless operators
+    # are active AND a mask.* mapping exists.
+    if operators and isinstance(operators, list) and operator_values:
+        from modulation.routing import resolve_mask_modulations
+
+        mask_stack = resolve_mask_modulations(operator_values, operators, mask_stack)
+
+    # Per-device: resolve each device's mask_ref → inject _mask param.
+    chain = inject_device_masks(chain, mask_stack, mask_ctx, frame_hw)
+    # Per-chain: whole-chain wet/dry matte for apply_chain.
+    chain_mask = resolve_chain_mask(chain_mask_ref, mask_stack, mask_ctx, frame_hw)
+
+    return chain, chain_mask

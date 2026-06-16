@@ -514,6 +514,11 @@ export default function DeviceChain({
                 maskNodes={maskNodes}
                 maskClipId={maskClipId}
                 onSetMaskRef={handleSetMaskRef}
+                // MK.3: pad/branch-chain effects can't be mask-assigned yet
+                // (setEffectMaskRef edits the track chain only → would silently
+                // no-op). Hide the mask row for them rather than lie. DEFERRED:
+                // plumbing pad/branch effect-id resolution is a larger change.
+                maskAssignable={!isPadTarget}
                 onContextMenu={(e) => handleContextMenu(e, effect.id, index)}
               />
             </div>
