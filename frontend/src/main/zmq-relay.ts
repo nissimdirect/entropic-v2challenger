@@ -32,21 +32,36 @@ const RENDER_COMMANDS = new Set(['render_frame', 'apply_chain', 'export_start'])
  * Commands the renderer is allowed to send to the Python engine.
  * Adding a new Python handler requires a corresponding entry here.
  * NOTE: 'shutdown' is intentionally excluded — it is main-process only.
+ *
+ * CONTRACT: every literal cmd value sent from frontend/src/renderer/** must
+ * appear in this set. The contract test in
+ * src/__tests__/contracts/relay-allowlist.test.ts enforces this automatically.
  */
-const ALLOWED_COMMANDS = new Set([
+export const ALLOWED_COMMANDS = new Set([
   // Playback & rendering
   'render_frame', 'render_composite', 'apply_chain', 'seek',
   // Ingest & info
   'ingest', 'thumbnails', 'list_effects', 'effect_health', 'effect_stats',
   // Export
   'export_start', 'export_cancel', 'export_status',
-  // Audio
+  // Export — single-frame PNG (task #89 cohesion fix)
+  'export_frame',
+  // Audio playback & metering
   'audio_decode', 'audio_load', 'audio_play', 'audio_pause',
   'audio_stop', 'audio_seek', 'audio_volume', 'audio_position', 'waveform',
+  // Audio meter poll — stores/audio.ts (task #89 cohesion fix)
+  'audio_meter',
+  // Audio track sync — audio-bridge.ts (task #89 cohesion fix)
+  'audio_tracks_set',
   // Clock
   'clock_sync', 'clock_set_fps',
+  // Project clock — audio-bridge.ts (task #89 cohesion fix)
+  'project_clock_play', 'project_clock_pause', 'project_clock_seek',
+  'project_clock_set_duration', 'project_clock_state',
   // Freeze & cache
   'freeze_prefix', 'read_freeze', 'flatten', 'invalidate_cache',
+  // Performance freeze bake — App.tsx + stores/performanceFreeze.ts (task #89 cohesion fix)
+  'bake_performance_track',
   // State
   'flush_state', 'memory_status',
   // P5b.1 (SG-8) — memory-pressure poll
@@ -57,6 +72,14 @@ const ALLOWED_COMMANDS = new Set([
   'probe_register', 'probe_unregister', 'probe_mount', 'probe_unmount', 'probe_snapshot',
   // P6.9 (I2) Routing Canvas — graph projection + edge update round-trip
   'routing_graph_get', 'routing_edge_update',
+  // Font picker — hooks/useFonts.ts (task #89 cohesion fix)
+  'list_fonts',
+  // Inline actions — components/inline-actions/useInlineActions.ts (task #89 cohesion fix)
+  'inline_actions_list', 'inline_actions_invoke',
+  // Mask thumbnails — components/device-chain/DeviceCard.tsx (task #89 cohesion fix)
+  'mask_thumbnail',
+  // Magic-wand mask selection — components/preview/MaskSelectOverlay.tsx (task #89 cohesion fix)
+  'mask_wand_sample',
   // Health
   'ping',
 ])
@@ -183,6 +206,10 @@ function startExportPoll(): void {
         ? (res.cycle_warning_source as string)
         : undefined
 
+    // task #89 cohesion fix: forward frame-counter / ETA / output-path fields
+    // that App.tsx reads at onExportProgress. The export-progress payload is
+    // hand-built here (not serialised through the camelCase auto-converter),
+    // so snake_case→camelCase must be mapped explicitly.
     for (const win of BrowserWindow.getAllWindows()) {
       win.webContents.send('export-progress', {
         jobId: null,
@@ -191,6 +218,10 @@ function startExportPoll(): void {
         error,
         cycleWarning,
         cycleWarningSource,
+        currentFrame: res.current_frame as number | undefined,
+        totalFrames: res.total_frames as number | undefined,
+        etaSeconds: res.eta_seconds as number | undefined,
+        outputPath: res.output_path as string | undefined,
       })
     }
 
