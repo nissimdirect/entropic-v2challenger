@@ -3,15 +3,15 @@
  * unfreeze. These gates prove the B10.1 FSM is now USER-FUNCTIONAL:
  *
  *  Gate FREEZE_BAKE_PLAY (anti-dead-flag): freezing a track with recorded voice
- *    events CALLS the bake (the injected/real BakeFn), stores the returned clipId
- *    AND on-disk path into frozenClips / frozenClipPaths, and isFrozen flips true.
+ *    events CALLS the bake (the injected/real BakeFn), stores the returned
+ *    on-disk path into frozenClipPaths, and isFrozen flips true.
  *    The RENDER-PATH SELECTOR (what App.tsx's render loop branches on) is exactly
  *    `isFrozen(trackId)` + `getFrozenClipPath(trackId)` — asserted here so a
  *    regression that stops wiring the path is caught. FAIL-BEFORE: the old stub
  *    bake never set a real path → the render loop had nothing to play (still live
  *    voices). PASS-AFTER: a path is present, so the render loop plays the bake.
  *
- *  Gate UNFREEZE_RESTORES: unfreeze a FROZEN track → frozenClips/Paths cleared,
+ *  Gate UNFREEZE_RESTORES: unfreeze a FROZEN track → frozenClipPaths cleared,
  *    FSM IDLE, isFrozen false → the render loop returns to live buildRackLayers /
  *    buildVoiceLayers (the selector no longer routes to a frozen clip).
  *
@@ -96,7 +96,7 @@ function resetAll() {
 describe('Gate FREEZE_BAKE_PLAY: freeze → bake called → frozen clip set → render plays bake', () => {
   beforeEach(resetAll)
 
-  it('[anti-dead-flag] bake is CALLED with the track snapshot and the result wires frozenClips + frozenClipPaths', async () => {
+  it('[anti-dead-flag] bake is CALLED with the track snapshot and the result wires frozenClipPaths', async () => {
     const bake = vi.fn(async (snap: { trackId: string; events: TriggerEvent[] }) => {
       // The snapshot carries the PRE-freeze events for THIS track.
       expect(snap.trackId).toBe(TRACK)
@@ -111,7 +111,6 @@ describe('Gate FREEZE_BAKE_PLAY: freeze → bake called → frozen clip set → 
     expect(state).toBe('frozen')
     // The render-path selector inputs are set:
     expect(usePerformanceFreezeStore.getState().isFrozen(TRACK)).toBe(true)
-    expect(usePerformanceFreezeStore.getState().frozenClips[TRACK]).toBe('baked-clip-1')
     expect(usePerformanceFreezeStore.getState().getFrozenClipPath(TRACK)).toBe(
       '/runtime/perf-bakes/baked-1.mp4',
     )
@@ -185,7 +184,7 @@ describe('Gate BAKE_IPC: the default bake issues bake_performance_track via send
 describe('Gate UNFREEZE_RESTORES: unfreeze → live voices, clip discarded', () => {
   beforeEach(resetAll)
 
-  it('[unfreeze] FROZEN → unfreeze clears frozenClips/Paths, FSM IDLE, render returns to live voices', async () => {
+  it('[unfreeze] FROZEN → unfreeze clears frozenClipPaths, FSM IDLE, render returns to live voices', async () => {
     usePerformanceFreezeStore
       .getState()
       .setBakeFn(async () => ({ clipId: 'c', path: '/runtime/bake.mp4' }))
@@ -196,7 +195,6 @@ describe('Gate UNFREEZE_RESTORES: unfreeze → live voices, clip discarded', () 
     expect(next).toBe('idle')
     const fz = usePerformanceFreezeStore.getState()
     expect(fz.isFrozen(TRACK)).toBe(false)
-    expect(fz.frozenClips[TRACK]).toBeUndefined()
     expect(fz.getFrozenClipPath(TRACK)).toBeUndefined()
     // The render-loop predicate now routes to LIVE voices (not a frozen clip).
     const rendersFrozenClip = fz.isFrozen(TRACK) && !!fz.getFrozenClipPath(TRACK)

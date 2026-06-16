@@ -239,7 +239,7 @@ describe('Gate 4: freeze-FAILURE branch — error/cancel → IDLE, voices NOT re
     // ...AND the queued trigger drained against that PRE-freeze state (appended).
     expect(events.some((e) => e.eventIndex === 200 && e.frameIndex === 40)).toBe(true)
     // No clip recorded on failure.
-    expect(usePerformanceFreezeStore.getState().frozenClips[TRACK]).toBeUndefined()
+    expect(usePerformanceFreezeStore.getState().getFrozenClipPath(TRACK)).toBeUndefined()
   })
 
   it('[failure-branch] user cancel → IDLE, voices NOT released, even though bake resolves OK', async () => {
@@ -263,19 +263,21 @@ describe('Gate 4: freeze-FAILURE branch — error/cancel → IDLE, voices NOT re
     expect(events.some((e) => e.eventIndex === 100)).toBe(true)
     // Queue drained vs PRE-freeze.
     expect(events.some((e) => e.eventIndex === 200)).toBe(true)
-    expect(usePerformanceFreezeStore.getState().frozenClips[TRACK]).toBeUndefined()
+    expect(usePerformanceFreezeStore.getState().getFrozenClipPath(TRACK)).toBeUndefined()
   })
 
   it('[failure-branch] SUCCESS contrast — voices ARE released on a clean bake', async () => {
     const live = mkEvent(5, 100)
     usePerformanceStore.setState({ trackEvents: { [TRACK]: [live] } })
-    usePerformanceFreezeStore.getState().setBakeFn(async () => ({ clipId: 'ok' }))
+    usePerformanceFreezeStore
+      .getState()
+      .setBakeFn(async () => ({ clipId: 'ok', path: '/runtime/bake-ok.mp4' }))
 
     const finalState = await usePerformanceFreezeStore.getState().freezePerformanceTrack(TRACK)
     expect(finalState).toBe('frozen')
     // Voices RELEASED — the pre-freeze live voice is gone (slots freed).
     expect(usePerformanceStore.getState().trackEvents[TRACK]).toBeUndefined()
-    expect(usePerformanceFreezeStore.getState().frozenClips[TRACK]).toBe('ok')
+    expect(usePerformanceFreezeStore.getState().getFrozenClipPath(TRACK)).toBe('/runtime/bake-ok.mp4')
   })
 })
 

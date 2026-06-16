@@ -22,11 +22,18 @@ import { useState } from 'react'
 import { useInstrumentsStore } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { clampFinite } from '../../../shared/numeric'
+import type { BlendMode } from '../../../shared/types'
 import {
   MAX_FRAMEBANK_SLOTS,
   FRAMEBANK_BYTE_BUDGET_MIN,
   FRAMEBANK_BYTE_BUDGET_MAX,
 } from './types'
+
+// Mirror the sampler/rack blend-mode allowlist (shared BlendMode union).
+const BLEND_MODES: BlendMode[] = [
+  'normal', 'add', 'multiply', 'screen', 'overlay',
+  'difference', 'exclusion', 'darken', 'lighten',
+]
 
 const INTERP_MODES: { value: 'nearest' | 'blend' | 'flow'; label: string }[] = [
   { value: 'nearest', label: 'nearest' },
@@ -64,6 +71,8 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
   const setFrameBankInterp = useInstrumentsStore((s) => s.setFrameBankInterp)
   const setFrameBankByteBudget = useInstrumentsStore((s) => s.setFrameBankByteBudget)
   const setFrameBankTimeAxis = useInstrumentsStore((s) => s.setFrameBankTimeAxis)
+  const setFrameBankOpacity = useInstrumentsStore((s) => s.setFrameBankOpacity)
+  const setFrameBankBlendMode = useInstrumentsStore((s) => s.setFrameBankBlendMode)
   const assets = useProjectStore((s) => s.assets)
 
   const videoAssets = Object.values(assets).filter((a) => a.type === 'video')
@@ -240,6 +249,37 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
         >
           OOM ceiling
         </span>
+      </label>
+
+      {/* Opacity — per-bank layer opacity the backend compositor reads ([0,1]). */}
+      <label className="sampler-device__row">
+        <span>Opacity</span>
+        <input
+          type="range"
+          data-testid="framebank-opacity"
+          value={fb.opacity ?? 1}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(e) =>
+            setFrameBankOpacity(trackId, clampFinite(Number(e.target.value), 0, 1, 1))
+          }
+        />
+        <span data-testid="framebank-opacity-readout">{(fb.opacity ?? 1).toFixed(2)}</span>
+      </label>
+
+      {/* Blend mode — how the bank's frame composites onto the layer below. */}
+      <label className="sampler-device__row">
+        <span>Blend</span>
+        <select
+          data-testid="framebank-blend"
+          value={fb.blendMode ?? 'normal'}
+          onChange={(e) => setFrameBankBlendMode(trackId, e.target.value as BlendMode)}
+        >
+          {BLEND_MODES.map((m) => (
+            <option key={m} value={m}>{m}</option>
+          ))}
+        </select>
       </label>
     </div>
   )

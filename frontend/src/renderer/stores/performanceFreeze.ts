@@ -150,8 +150,6 @@ interface PerformanceFreezeState {
   queue: Record<string, QueuedTrigger[]>
   /** The bake snapshot captured at freeze-start, per in-flight track. */
   snapshots: Record<string, BakeSnapshot>
-  /** Baked clip id per FROZEN track (for unfreeze / inspection). */
-  frozenClips: Record<string, string>
   /** Baked clip on-disk PATH per FROZEN track — the render loop plays THIS file
    * for the track (Ableton-style frozen playback) instead of live voices. */
   frozenClipPaths: Record<string, string>
@@ -185,7 +183,7 @@ interface PerformanceFreezeState {
 
   /**
    * B10.1b — UNFREEZE a FROZEN track (Ableton-style). Discards the baked clip
-   * (clears `frozenClips`/`frozenClipPaths`), transitions FSM → IDLE, and lets
+   * (clears `frozenClipPaths`), transitions FSM → IDLE, and lets
    * the render loop return to LIVE voices (`buildRackLayers` / `buildVoiceLayers`).
    * The track's live events were released on freeze; the user re-triggers to
    * rebuild voices. No-op unless the track is FROZEN. Returns the resolved state.
@@ -228,7 +226,6 @@ export const usePerformanceFreezeStore = create<PerformanceFreezeState>((set, ge
   fsm: {},
   queue: {},
   snapshots: {},
-  frozenClips: {},
   frozenClipPaths: {},
   _cancelled: {},
   _bake: defaultBake,
@@ -249,7 +246,6 @@ export const usePerformanceFreezeStore = create<PerformanceFreezeState>((set, ge
     // user re-triggers to rebuild voices (they were released on freeze).
     set({
       fsm: clearKey(get().fsm, trackId),
-      frozenClips: clearKey(get().frozenClips, trackId),
       frozenClipPaths: clearKey(get().frozenClipPaths, trackId),
     })
     return 'idle'
@@ -306,11 +302,9 @@ export const usePerformanceFreezeStore = create<PerformanceFreezeState>((set, ge
     })
 
     let baked = false
-    let clipId: string | null = null
     let clipPath: string | null = null
     try {
       const res = await get()._bake(snapshot)
-      clipId = res.clipId
       clipPath = res.path ?? null
       baked = true
     } catch {
@@ -333,7 +327,6 @@ export const usePerformanceFreezeStore = create<PerformanceFreezeState>((set, ge
       applyDrain(trackId, queued)
       set({
         fsm: { ...get().fsm, [trackId]: 'frozen' },
-        frozenClips: { ...get().frozenClips, [trackId]: clipId! },
         // Store the baked clip PATH so the render loop plays it back for this
         // track (Ableton frozen playback). Absent path → no entry → the render
         // loop simply renders nothing live for the released track (still FROZEN).
@@ -364,7 +357,6 @@ export const usePerformanceFreezeStore = create<PerformanceFreezeState>((set, ge
       fsm: {},
       queue: {},
       snapshots: {},
-      frozenClips: {},
       frozenClipPaths: {},
       _cancelled: {},
       _bake: defaultBake,
