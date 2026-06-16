@@ -460,9 +460,9 @@ browser/layout component is an automatic FAIL.
 
 | Stub | One line | Detail plan | Expansion notes |
 |---|---|---|---|
-| P4.x PR-C operators + Kentaro | Surface ops in browser; `kentaroCluster\|sidechain\|gate\|midiEnvStutter`; react-xyflow topology w/ 60fps@32-paths gate + bare-SVG fallback | `layout-session/PLAN.md` §5 | **Path discrepancy:** PLAN cites `backend/src/pipeline/operators/*.py` — no `backend/src/pipeline/` exists (re-verified 2026-06-11: 0 entries); operators live in `backend/src/modulation/` (verified: lfo.py, envelope.py, audio_follower.py, fusion.py, processor.py…). Re-anchor at expansion. Prototype gate §5.1 runs first. Perf gates derive from `PERF-MODEL.md` (operators row). |
-| P5.x Instrument ladder B2→B10 | Voice spine, full sampler, rack, grouping, Frame-Bank, RIFE morph, Granulator, tensor routing, live affordances | `~/Development/entropic-layout-mockup/INSTRUMENTS-BUILD-PLAN.md` | B8 needs SG-3 cherry-pick (#133, +12–18h real work), B9 needs PR-C + SG-5 (#144). Cherry-pick rule §1.3 applies. **P5a.4a authors `docs/decisions/composite-export-design.md` — P2.3 gates on it** (see P2.3). Undo coverage for new instrument ops lands via `packets/undo-history.md` UH.2/UH.3. |
-| P6.x Field params + routing surfaces | C2 frame-as-lane, C3 per-pixel fields (the deferred `domain='y'` render unlock), I1/I2 from drafts #140/#142 | ROADMAP Phase 6; `entropic-spec-2-b4lite-schema.md` | `sample_lane` (`backend/src/modulation/lane_reader.py:92` — re-verified 2026-06-11) is merged but wired nowhere live — C2/C3 wire it. Painted-field undo design (UH.4, `packets/undo-history.md`) expands WITH C3, not after. |
+| P4.x PR-C operators + Kentaro | Surface ops in browser; `kentaroCluster\|sidechain\|gate\|midiEnvStutter`; react-xyflow topology w/ 60fps@32-paths gate + bare-SVG fallback | `layout-session/PLAN.md` §5 | **✅ MERGED — P4.0 verdict #259, P4.1 #260, P4.2 #261, P4.3 #262, P4.4 #263, P4.5 #264, P4.6 #267 (all on origin/main as of 2026-06-16, task #84 §3.8 reconciliation).** Original path discrepancy noted: PLAN cites `backend/src/pipeline/operators/*.py` — operators live in `backend/src/modulation/`. |
+| P5.x Instrument ladder B2→B10 | Voice spine, full sampler, rack, grouping, Frame-Bank, RIFE morph, Granulator, tensor routing, live affordances | `~/Development/entropic-layout-mockup/INSTRUMENTS-BUILD-PLAN.md` | **✅ MERGED — P5a.1–P5a.4 (#193/#194/#198/#203), P5b.1–P5b.28 (#279–#296, various), B3.1–B3.4 (#230–#233), B4.1–B4-pad-chain-UI (#234–#242), B5.1–B5.3 (#243–#245), B6.1–B6.4 (#246–#249), B7-flow #250, B10.1–B10.3 (#255–#258) — all on origin/main as of 2026-06-16, task #84.** B8-export #309 + audit follow-ups #298–#308 also merged. |
+| P6.x Field params + routing surfaces | C2 frame-as-lane, C3 per-pixel fields (the deferred `domain='y'` render unlock), I1/I2 from drafts #140/#142 | ROADMAP Phase 6; `entropic-spec-2-b4lite-schema.md` | **✅ MERGED — P6.1 #268, P6.2 #265, P6.3 #266, P6.4 #270, P6.5 #273, P6.6 #272+#275, P6.7 #271, P6.8 #274, P6.9 #276, P6.10 #277, P6.11 #278 — all on origin/main as of 2026-06-16, task #84.** Painted-field undo (UH.4) still pending per `packets/undo-history.md`. |
 | **Tier-3 stub** (between Phase 6 and 7) | vision-B2 cross-modal matrix · vision-B3 mod-as-track · B4-full binding rules · SG-H2 FD-management · E5 Launchpad cherry-pick (#145, branch `feat/q7-e5-midi-learn` — NOTE: the `entropic-q7-e5` worktree currently sits on `feat/tier1-b1-b4lite-c1-c7`, NOT #145's branch; re-verify with `git -C ~/Development/entropic-v2challenger worktree list` at expansion) | vision §6 Tier 3; `entropic-spec-1-crosswalk.md` | JIT-expand at phase boundary per §1 contract; P5b.24/P6.10/P7.14 deps resolve here. |
 | P7.x Tier 5 latent | **HARD-GATED on Q7 REAL verdict (user runs benchmark)** | `entropic-spec-5-l-backbone.md` §9 | **Discrepancy:** ROADMAP cites `backend/scripts/q7_benchmark/` — NOT on origin/main; the machinery lives only in parked drafts #117–#145 (22 drafts verified open, gh 2026-06-11). The runnable 3-head harness is at `~/Development/entropic-q7-clap` (PR #132); user runs it FIRST, harness extraction follows GO. SG-4 runtime-starvation tests (ROADMAP G3/SG-4 residue) = P7.5; on NO-GO, P7.0N closes them as moot. |
 | P8.x `.dna` + Genoscope | E2 format + CI lints (draft #139), SG-6, A2/E8 | `entropic-spec-6-dna-format.md` | Research-class; re-spec at boundary. |
@@ -474,7 +474,7 @@ browser/layout component is an automatic FAIL.
 | PT.5 Cross-modal v1.1 decision | F1–F4 fold-in vs supersede (Gap G6) | `docs/plans/2026-05-04-cross-modal-features-plan.md` | Decision packet, not build packet. RESOLVED by ROADMAP §2.5 decision 1 — expansion = doc-sync only. |
 | **UH.x Undo/history** | Coverage audit + voice-FSM/mod-edge/rack-op undo + painted-field history + 500-entry memory smoke | **`packets/undo-history.md`** (authored 2026-06-11, full contracts — not a stub) | UH.1/UH.5 schedulable Phase-1-adjacent; UH.2/UH.3 track P5a; UH.4 tracks C3. |
 | **PERF.x Frame-budget** | Measurement harness + CI perf smoke against the global budget | **`docs/roadmap/PERF-MODEL.md`** (authored 2026-06-11, full contracts — not a stub) | PERF.1 schedulable now; PERF.2 after PERF.1 baseline commits. Every effect/instrument packet's perf gate derives from this doc. |
-| **MK.x Masking Phase A** | MK.1–MK.10 + MK.CU: matte model, per-pixel alpha, **universal mask-routing wrapper (MK.3 — HEADLINE)**, marquee/lasso/wand/color-range/key tools, cut-to-track, alpha export, CU journey suite | **`packets/masking.md`** (authored 2026-06-12, full §1 contracts — NOT a stub; 14 packets + CU) | Slot AFTER Phase 2. MK.1 start-now parallel-safe. MK.2 single-flight on `compositor.py` (P2.2c already satisfied, SPEC GT-8). MK.4 supersedes PD.5; MK.9 supersedes PD.6. **MK.CU J1–J5 activates in the rule-9 live-smoke rotation once Phase A merges** (see §1 rule 9). Phase B (MK.11–MK.14) slots Tier-3/Phase-6 era. |
+| **MK.x Masking Phase A** | MK.1–MK.10 + MK.CU: matte model, per-pixel alpha, **universal mask-routing wrapper (MK.3 — HEADLINE)**, marquee/lasso/wand/color-range/key tools, cut-to-track, alpha export, CU journey suite | **`packets/masking.md`** (authored 2026-06-12, full §1 contracts — NOT a stub; 14 packets + CU) | **✅ MERGED — MK.1 #215, MK.2 #217, MK.3 #218, MK.4 #219, MK.5 #220, MK.6 #223+#227, MK.7 #222, MK.8 #221, MK.9 #225, MK.10 #224, MK.13 #252+#254, MK.14 spike #269 — all on origin/main as of 2026-06-16, task #84.** MK.CU J1–J5 now active in rule-9 live-smoke rotation (Phase A merged). Phase B (MK.11/MK.12) pending. |
 
 ---
 
@@ -548,6 +548,108 @@ doc/stub rows are pointers).
 | P3.4 | ✅ · verbatim added | ✅ Sonnet | ✅ | ✅ <8ms 3-run mean, 12/12 | ✅ XSS-plaintext · hotkey-conflict | ✅ focus-parity | ✅ P3.3 |
 | P3.5 | ✅ 3 MP4s · ENTROPIC_DIR:12 · RACKS=0 noted · verbatim added | ✅ Sonnet | ✅ + Gate 18 | ✅ §8 checklist counts | ✅ missing-MP4 · dismissed-flag | ✅ onboarding flow live | ✅ P3.2+P1.3; tour/D-PB → P3.7 |
 | P3.6 | ✅ bc0ea0b 2-file payload re-verified | ✅ Sonnet | ✅ | ✅ 19+5 tests | ✅ dispatch-failure · non-param-row | ✅ IPC dispatch test | ✅ P3.3 |
+| **— Backfill rows P3.7→B10+audit+B8-export (§3.8 enforcement, task #84) —** | | | | | | | |
+| PUX.2 | ✅ merged #186 (backfill — see PR) | ✅ Sonnet | ✅ | ✅ merged #186 | ✅ merged #186 | ✅ merged #186 | ✅ PUX.1 |
+| PUX.3 | ✅ merged #184 (backfill — see PR) | ✅ Sonnet | ✅ | ✅ merged #184 | ✅ merged #184 | ✅ merged #184 | ✅ PUX.2 |
+| PUX.4 | ✅ merged #183 (backfill — see PR) | ✅ Sonnet | ✅ | ✅ merged #183 | ✅ merged #183 | ✅ merged #183 | ✅ PUX.3 |
+| PUX.5 | ✅ merged #188 (backfill — see PR) | ✅ Sonnet | ✅ | ✅ merged #188 | ✅ merged #188 | ✅ merged #188 | ✅ PUX.4 |
+| P5a.1 | ✅ merged #193 (backfill — see PR: trigger-event schema + pure voice FSM) | ✅ Sonnet | ✅ | ✅ merged #193 | ✅ merged #193 | ✅ merged #193 | ✅ Phase 2 |
+| P5a.2 | ✅ merged #194 (backfill — see PR: voiceId state keying + per-voice cleanup + caps) | ✅ Sonnet | ✅ | ✅ merged #194 | ✅ merged #194 | ✅ merged #194 | ✅ P5a.1 |
+| P5a.3 | ✅ merged #198 (backfill — see PR: voice wiring — FSM → render payload) | ✅ Sonnet | ✅ | ✅ merged #198 | ✅ merged #198 | ✅ merged #198 | ✅ P5a.2 |
+| P5a.4a | ✅ merged #192 (backfill — see PR: composite-export design spike) | ✅ Sonnet | n/a (docs/spike) | n/a | n/a | n/a | ✅ P5a.3 |
+| P5a.4 | ✅ merged #203 (backfill — see PR: voice replay in export, per-frame render_composite reuse) | ✅ Sonnet | ✅ | ✅ merged #203 | ✅ merged #203 | ✅ export E2E | ✅ P5a.4a + P2.3 |
+| PD.1 | ✅ merged #213 (backfill — see PR: audio-tracks bake kit + bake-session instrumentation) | ✅ Sonnet | ✅ | ✅ merged #213 | ✅ merged #213 | ✅ merged #213 | ✅ Phase 2 |
+| PD.8 | ✅ merged #216 (backfill — see PR: hotkey-discoverability surfaces) | ✅ Sonnet | ✅ | ✅ merged #216 | ✅ merged #216 | ✅ merged #216 | ✅ P3.4 |
+| PD.10 | ✅ merged #214 (backfill — see PR: runtime-dir unification ~/.entropic→~/.creatrix + const rename) | ✅ Haiku | ✅ | ✅ merged #214 | ✅ merged #214 | n/a (rename) | ✅ Phase 1 |
+| MK.1 | ✅ merged #215 (backfill — see PR: matte data model + budget + cache + persistence) | ✅ Sonnet | ✅ | ✅ merged #215 | ✅ merged #215 | ✅ merged #215 | ✅ P2.2c |
+| MK.2 | ✅ merged #217 (backfill — see PR: per-pixel alpha in the composite path [RISK:HIGH]) | ✅ Opus/Fable | ✅ | ✅ merged #217 | ✅ merged #217 | ✅ merged #217 | ✅ MK.1 |
+| MK.3 | ✅ merged #218 (backfill — see PR: universal mask-routing wrapper [HEADLINE]) | ✅ Opus/Fable | ✅ | ✅ merged #218 | ✅ merged #218 | ✅ merged #218 | ✅ MK.2 |
+| MK.4 | ✅ merged #219 (backfill — see PR: preview marquee → MatteNode + delete/fill, supersedes PD.5) | ✅ Sonnet | ✅ | ✅ merged #219 | ✅ merged #219 | ✅ merged #219 | ✅ MK.3 |
+| MK.5 | ✅ merged #220 (backfill — see PR: lasso — freehand + polygon → polygon MatteNode) | ✅ Sonnet | ✅ | ✅ merged #220 | ✅ merged #220 | ✅ merged #220 | ✅ MK.4 |
+| MK.6 | ✅ merged #223 + #227 (backfill — see PRs: magic wand + color range; P3 wand-failure toast + orphan-sidecar GC) | ✅ Sonnet | ✅ | ✅ merged #223 | ✅ merged #223+#227 | ✅ merged #223 | ✅ MK.5 |
+| MK.7 | ✅ merged #222 (backfill — see PR: matte-ops editing UI — invert/feather/grow/boolean/reorder) | ✅ Sonnet | ✅ | ✅ merged #222 | ✅ merged #222 | ✅ merged #222 | ✅ MK.6 |
+| MK.8 | ✅ merged #221 (backfill — see PR: chroma/luma key kernels + spill + key-params-as-lanes [RISK:HIGH]) | ✅ Opus/Fable | ✅ | ✅ merged #221 | ✅ merged #221 | ✅ merged #221 | ✅ MK.7 |
+| MK.9 | ✅ merged #225 (backfill — see PR: cut/copy masked region to new track) | ✅ Sonnet | ✅ | ✅ merged #225 | ✅ merged #225 | ✅ merged #225 | ✅ MK.8 |
+| MK.10 | ✅ merged #224 (backfill — see PR: alpha export round-trip — ProRes 4444 preserves keyed alpha) | ✅ Sonnet | ✅ | ✅ merged #224 | ✅ merged #224 | ✅ merged #224 | ✅ MK.9 |
+| MK.13 | ✅ merged #252 + #254 (backfill — see PRs: tool-mode stack + marching-ants overlay + matte chips; mask_thumbnail IPC + real 64×36 matte chips) | ✅ Sonnet | ✅ | ✅ merged #252+#254 | ✅ merged #252+#254 | ✅ merged #252 | ✅ MK.10 |
+| MK.14 | ✅ merged #269 (backfill — see PR: motion-tracked masks research spike) | ✅ Sonnet | n/a (spike) | n/a | n/a | n/a | ✅ MK.13 |
+| B3.1 | ✅ merged #230 (backfill — see PR: Full Sampler loop engine — in/out, fwd/rev/pingpong, crossfade) | ✅ Sonnet | ✅ | ✅ merged #230 | ✅ merged #230 | ✅ merged #230 | ✅ P3.5 |
+| B3.2 | ✅ merged #231 (backfill — see PR: sampler scrub + speed as modulation destinations) | ✅ Sonnet | ✅ | ✅ merged #231 | ✅ merged #231 | ✅ merged #231 | ✅ B3.1 |
+| B3.3 | ✅ merged #232 (backfill — see PR: sampler per-channel RGB offset + position/speed glide) | ✅ Sonnet | ✅ | ✅ merged #232 | ✅ merged #232 | ✅ merged #232 | ✅ B3.2 |
+| B3.4 | ✅ merged #233 (backfill — see PR: sampler melodic mode — note → startFrame/speed) | ✅ Sonnet | ✅ | ✅ merged #233 | ✅ merged #233 | ✅ merged #233 | ✅ B3.3 |
+| B4.1 | ✅ merged #234 (backfill — see PR: Sample Rack — RackNode model + per-pad channel summing) | ✅ Sonnet | ✅ | ✅ merged #234 | ✅ merged #234 | ✅ merged #234 | ✅ B3.4 |
+| B4.2 | ✅ merged #235 (backfill — see PR: Sample Rack macros — 8 macros, one-to-many routing, fan-out caps) | ✅ Sonnet | ✅ | ✅ merged #235 | ✅ merged #235 | ✅ merged #235 | ✅ B4.1 |
+| B4-export | ✅ merged #236 (backfill — see PR: render Sample Racks in export path — preview/export parity) | ✅ Sonnet | ✅ | ✅ merged #236 | ✅ merged #236 | ✅ export E2E | ✅ B4.2 |
+| B4-editor | ✅ merged #237 (backfill — see PR: rack creation + RackDevice editor + pad trigger) | ✅ Sonnet | ✅ | ✅ merged #237 | ✅ merged #237 | ✅ merged #237 | ✅ B4-export |
+| B4-macro-editor | ✅ merged #238 (backfill — see PR: Macros section in RackDevice) | ✅ Sonnet | ✅ | ✅ merged #238 | ✅ merged #238 | ✅ merged #238 | ✅ B4-editor |
+| B4-pad-delete | ✅ merged #239 (backfill — see PR: removeRackPad with symmetric event+route cleanup) | ✅ Sonnet | ✅ | ✅ merged #239 | ✅ merged #239 | ✅ merged #239 | ✅ B4-editor |
+| B4-choke | ✅ merged #240 (backfill — see PR: choke groups for rack pads, sibling cutoff, export-safe) | ✅ Sonnet | ✅ | ✅ merged #240 | ✅ merged #240 | ✅ merged #240 | ✅ B4-pad-delete |
+| B4-pad-chain engine | ✅ merged #241 (backfill — see PR: RackPad.chain renders in preview + export parity) | ✅ Sonnet | ✅ | ✅ merged #241 | ✅ merged #241 | ✅ export E2E | ✅ B4-choke |
+| B4-pad-chain UI | ✅ merged #242 (backfill — see PR: DeviceChain edits the selected rack pad's insert chain) | ✅ Sonnet | ✅ | ✅ merged #242 | ✅ merged #242 | ✅ merged #242 | ✅ B4-pad-chain engine |
+| B5.1 | ✅ merged #243 (backfill — see PR: recursive rack grouping — model + render + export parity + caps) | ✅ Sonnet | ✅ | ✅ merged #243 | ✅ merged #243 | ✅ export E2E | ✅ B4-pad-chain UI |
+| B5.2 | ✅ merged #244 (backfill — see PR: nested-rack editing UI — create/convert branch + drill-down nav) | ✅ Sonnet | ✅ | ✅ merged #244 | ✅ merged #244 | ✅ merged #244 | ✅ B5.1 |
+| B5.3 | ✅ merged #245 (backfill — see PR: preview nested triggering + nested-state eviction fix, completes B5) | ✅ Sonnet | ✅ | ✅ merged #245 | ✅ merged #245 | ✅ merged #245 | ✅ B5.2 |
+| B6.1 | ✅ merged #246 (backfill — see PR: Frame-Bank instrument — position-scan render + byte-budget LRU + caps) | ✅ Sonnet | ✅ | ✅ merged #246 | ✅ merged #246 | ✅ merged #246 | ✅ B5.3 |
+| B6.2 | ✅ merged #247 (backfill — see PR: Frame-Bank preview render + SG-8 pressure-degrade) | ✅ Sonnet | ✅ | ✅ merged #247 | ✅ merged #247 | ✅ merged #247 | ✅ B6.1 |
+| B6.3 | ✅ merged #248 (backfill — see PR: Frame-Bank UI — Wavetable entry + FrameBankDevice slot strip + position knob) | ✅ Sonnet | ✅ | ✅ merged #248 | ✅ merged #248 | ✅ merged #248 | ✅ B6.2 |
+| B6.4 | ✅ merged #249 (backfill — see PR: Frame-Bank project save/load persistence) | ✅ Sonnet | ✅ | ✅ merged #249 | ✅ merged #249 | ✅ merged #249 | ✅ B6.3 |
+| B7-flow | ✅ merged #250 (backfill — see PR: Frame-Bank interp:flow CPU optical-flow morph) | ✅ Sonnet | ✅ | ✅ merged #250 | ✅ merged #250 | ✅ merged #250 | ✅ B6.4 |
+| B10.1 | ✅ merged #255 (backfill — see PR: performance-track freeze↔voice FSM — queue-by-frameIndex, failure branch, double-bake guard) | ✅ Sonnet | ✅ | ✅ merged #255 | ✅ merged #255 | ✅ merged #255 | ✅ B5.3 + P5a.4 |
+| B10.1b | ✅ merged #256 (backfill — see PR: Ableton-style perf-track freeze — real bake via ExportManager + frozen-clip playback + unfreeze) | ✅ Sonnet | ✅ | ✅ merged #256 | ✅ merged #256 | ✅ export E2E | ✅ B10.1 |
+| B10.2 | ✅ merged #257 (backfill — see PR: quantized launch — perf triggers snap to the edit grid, off by default) | ✅ Sonnet | ✅ | ✅ merged #257 | ✅ merged #257 | ✅ merged #257 | ✅ B10.1b |
+| B10.3 | ✅ merged #258 (backfill — see PR: retro-capture — rolling event buffer → dump to Performance Track, events-only) | ✅ Sonnet | ✅ | ✅ merged #258 | ✅ merged #258 | ✅ merged #258 | ✅ B10.2 |
+| P4.0 | ✅ merged #259 (backfill — see PR: P4.0 verdict — PASS, take @xyflow/react for routing canvas) | ✅ Sonnet | n/a (docs/verdict) | n/a | n/a | n/a | ✅ Phase 3 |
+| P4.1 | ✅ merged #260 (backfill — see PR: OperatorType expansion + dual-side caps + render-budget guard) | ✅ Sonnet | ✅ | ✅ merged #260 | ✅ merged #260 | ✅ merged #260 | ✅ P4.0 |
+| P4.2 | ✅ merged #261 (backfill — see PR: Kentaro Cluster backend evaluator — 8-LFO) | ✅ Sonnet | ✅ | ✅ merged #261 | ✅ merged #261 | ✅ merged #261 | ✅ P4.1 |
+| P4.3 | ✅ merged #262 (backfill — see PR: sidechain, gate, midiEnvStutter backend evaluators) | ✅ Sonnet | ✅ | ✅ merged #262 | ✅ merged #262 | ✅ merged #262 | ✅ P4.2 |
+| P4.4 | ✅ merged #263 (backfill — see PR: Kentaro Cluster UI editor + per-destination depth arcs) | ✅ Sonnet | ✅ | ✅ merged #263 | ✅ merged #263 | ✅ merged #263 | ✅ P4.3 |
+| P4.5 | ✅ merged #264 (backfill — see PR: operator topology graph — xyflow) | ✅ Sonnet | ✅ | ✅ merged #264 | ✅ merged #264 | ✅ merged #264 | ✅ P4.4 |
+| P4.6 | ✅ merged #267 (backfill — see PR: browser op tab + drag-to-add operators) | ✅ Sonnet | ✅ | ✅ merged #267 | ✅ merged #267 | ✅ merged #267 | ✅ P4.5 |
+| P5b.1 | ✅ merged #279 (backfill — see PR: SG-8 backend live wiring — pressure monitor startup + pressure_status IPC) | ✅ Sonnet | ✅ | ✅ merged #279 | ✅ merged #279 | ✅ IPC test | ✅ P5a.4 |
+| P5b.2 | ✅ merged #282 (backfill — see PR: memory status badge + degrade toasts — SG-8 frontend) | ✅ Sonnet | ✅ + Gate 18 | ✅ merged #282 | ✅ merged #282 | ✅ merged #282 | ✅ P5b.1 |
+| P5b.4 | ✅ merged #284 (backfill — see PR: render-output NaN/Inf gate + lane_aborted — SG-3 clause-2) | ✅ Sonnet | ✅ | ✅ merged #284 | ✅ merged #284 | ✅ merged #284 | ✅ P5b.2 |
+| P5b.5 | ✅ merged #286 (backfill — see PR: SG-3 clause-3 frontend lane-mute UX + per-backbone ceiling + fuzz) | ✅ Sonnet | ✅ + Gate 18 | ✅ merged #286 | ✅ merged #286 | ✅ merged #286 | ✅ P5b.4 |
+| P5b.7 | ✅ merged #283 (backfill — see PR: runtime-aware toposort + deterministic cycle-break — SG-5 part A) | ✅ Sonnet | ✅ | ✅ merged #283 | ✅ merged #283 | ✅ merged #283 | ✅ P5b.5 |
+| P5b.8 | ✅ merged #285 (backfill — see PR: per-export-job break cache + once-per-export warning + 16ms gate — SG-5 part B) | ✅ Sonnet | ✅ | ✅ merged #285 | ✅ merged #285 | ✅ merged #285 | ✅ P5b.7 |
+| q7/SG-5 | ✅ merged #280 (backfill — see PR: [q7] SG-5 Dynamic Cycle Detection, 19 tests) | ✅ Sonnet | ✅ 19 tests | ✅ merged #280 | ✅ merged #280 | ✅ merged #280 | ✅ P5b.8 |
+| q7/SG-3 | ✅ merged #281 (backfill — see PR: [q7] SG-3 latent NaN/Inf sentinel, 25 tests) | ✅ Sonnet | ✅ 25 tests | ✅ merged #281 | ✅ merged #281 | ✅ merged #281 | ✅ q7/SG-5 |
+| P5b.16 | ✅ merged #287 (backfill — see PR: B8 grain engine core — pure, seeded, capped) | ✅ Sonnet | ✅ | ✅ merged #287 | ✅ merged #287 | ✅ merged #287 | ✅ q7/SG-3 |
+| P5b.17 | ✅ merged #288 (backfill — see PR: B8 grain render integration + 16ms budget degrade + SG-8 hook) | ✅ Sonnet | ✅ | ✅ merged #288 | ✅ merged #288 | ✅ merged #288 | ✅ P5b.16 |
+| P5b.18 | ✅ merged #290 (backfill — see PR: B8 grain selection rules — random/onset + flag-gated latentSimilarity/scenePayload reject) | ✅ Sonnet | ✅ | ✅ merged #290 | ✅ merged #290 | ✅ merged #290 | ✅ P5b.17 |
+| P5b.19 | ✅ merged #292 (backfill — see PR: B8 Granulator device panel + grain-cloud viz) | ✅ Sonnet | ✅ + Gate 18 | ✅ merged #292 | ✅ merged #292 | ✅ merged #292 | ✅ P5b.18 |
+| P5b.20 | ✅ merged #294 (backfill — see PR: B8 determinism + gate-compliance campaign — export-path) | ✅ Sonnet | ✅ | ✅ merged #294 | ✅ merged #294 | ✅ export E2E | ✅ P5b.19 |
+| P5b.21+22 | ✅ merged #289 (backfill — see PR: B9 axis-extended OperatorMapping + binding-rule semantics — schema+engine lockstep) | ✅ Sonnet | ✅ | ✅ merged #289 | ✅ merged #289 | ✅ merged #289 | ✅ P4.x |
+| P5b.23 | ✅ merged #291 (backfill — see PR: B9 Y-as-time per-instrument timeAxis slit-scan) | ✅ Sonnet | ✅ | ✅ merged #291 | ✅ merged #291 | ✅ merged #291 | ✅ P5b.21+22 |
+| P5b.24 | ✅ merged #293 (backfill — see PR: B9 routing inspector UI — topology + per-edge axis pickers + cycle pre-flight) | ✅ Sonnet | ✅ + Gate 18 | ✅ merged #293 | ✅ merged #293 | ✅ merged #293 | ✅ P5b.23 |
+| P5b.25 | ✅ merged #296 (backfill — see PR: B10 MIDI Learn hardening — rate-limit + persistence round-trip + echo-suppression) | ✅ Sonnet | ✅ | ✅ merged #296 | ✅ merged #296 | ✅ merged #296 | ✅ B10.3 |
+| P5b.28 | ✅ merged #295 (backfill — see PR: B8 GPU grain-render pass — MLX instanced quads, preview-only, CPU-fallback) | ✅ Sonnet | ✅ | ✅ merged #295 | ✅ merged #295 | ✅ merged #295 | ✅ P5b.20 |
+| P5b.7-ff | ✅ merged #297 (backfill — see PR: SG-5 runtime-conditional-edge seam guard — task #83) | ✅ Sonnet | ✅ | ✅ merged #297 | ✅ merged #297 | ✅ merged #297 | ✅ P5b.7 |
+| P6.1 | ✅ merged #268 (backfill — see PR: CPU row-banded lane evaluation — domain=Y/X live render unlock) | ✅ Sonnet | ✅ | ✅ merged #268 | ✅ merged #268 | ✅ merged #268 | ✅ P4.6 |
+| P6.2 | ✅ merged #265 (backfill — see PR: C3 schema: scalar-OR-field params + FIELD_TOP25) | ✅ Sonnet | ✅ | ✅ merged #265 | ✅ merged #265 | ✅ merged #265 | ✅ P6.1 |
+| P6.3 | ✅ merged #266 (backfill — see PR: C2 field sources: image/video ref → 2D field provider) | ✅ Sonnet | ✅ | ✅ merged #266 | ✅ merged #266 | ✅ merged #266 | ✅ P6.2 |
+| P6.4 | ✅ merged #270 (backfill — see PR: SG-1 real Metal binding MLX + forbidden-pattern AST lint) | ✅ Opus/Fable | ✅ | ✅ merged #270 | ✅ merged #270 | ✅ merged #270 | ✅ P6.3 |
+| P6.5 | ✅ merged #273 (backfill — see PR: C3 Metal codegen: per-pixel field application on GPU) | ✅ Opus/Fable | ✅ | ✅ merged #273 | ✅ merged #273 | ✅ merged #273 | ✅ P6.4 |
+| P6.6 | ✅ merged #272 + #275 (backfill — see PRs: field params + axis-lane render wiring C2/C3 UI; wire FIELD_TOP25 into registry.list_all) | ✅ Sonnet | ✅ | ✅ merged #272+#275 | ✅ merged #272+#275 | ✅ merged #272 | ✅ P6.5 |
+| P6.7 | ✅ merged #271 (backfill — see PR: I1 probe registry wiring + ZMQ snapshot) | ✅ Sonnet | ✅ | ✅ merged #271 | ✅ merged #271 | ✅ merged #271 | ✅ P6.6 |
+| P6.8 | ✅ merged #274 (backfill — see PR: I1 Inspector Track in the timeline) | ✅ Sonnet | ✅ + Gate 18 | ✅ merged #274 | ✅ merged #274 | ✅ merged #274 | ✅ P6.7 |
+| P6.9 | ✅ merged #276 (backfill — see PR: I2 graph-sync — RoutingGraph from project state + ZMQ) | ✅ Sonnet | ✅ | ✅ merged #276 | ✅ merged #276 | ✅ merged #276 | ✅ P6.8 |
+| P6.10 | ✅ merged #277 (backfill — see PR: I2 frontend Routing Canvas overlay ⌘⇧I) | ✅ Sonnet | ✅ + Gate 18 | ✅ merged #277 | ✅ merged #277 | ✅ merged #277 | ✅ P6.9 |
+| P6.11 | ✅ merged #278 (backfill — see PR: integration fixture, 500-frame soak, dead-ref negative + docs closeout) | ✅ Sonnet | ✅ 500-frame soak | ✅ merged #278 | ✅ dead-ref negative | ✅ merged #278 | ✅ P6.10 |
+| MK.14 (spike) | ✅ merged #269 (backfill — see PR: motion-tracked masks research spike) | ✅ Sonnet | n/a (spike) | n/a | n/a | n/a | ✅ MK.13 |
+| **16-finding audit** | ✅ merged #298–#308 (backfill — 16 findings, 11 PRs) | ✅ Sonnet | ✅ per-fix tests | ✅ 16/16 findings addressed | ✅ per-PR | ✅ per-PR | ✅ Phase 6 complete |
+| audit-#298 | ✅ merged #298 (backfill — dismiss SG-8 emergency pressure toast on recovery — symmetric show/hide) | ✅ Sonnet | ✅ | ✅ merged #298 | ✅ merged #298 | ✅ merged #298 | ✅ P5b.2 |
+| audit-#299 | ✅ merged #299 (backfill — wire B8 Granulator end-to-end — audit HIGH #9) | ✅ Sonnet | ✅ | ✅ merged #299 | ✅ merged #299 | ✅ E2E | ✅ P5b.20 |
+| audit-#300 | ✅ merged #300 (backfill — finite-guard operator mapping min/max at live render validator — audit #14) | ✅ Sonnet | ✅ | ✅ merged #300 | ✅ merged #300 | ✅ merged #300 | ✅ P6.x |
+| audit-#301 | ✅ merged #301 (backfill — wire B9 binding rules into the live resolver — audit #13) | ✅ Sonnet | ✅ | ✅ merged #301 | ✅ merged #301 | ✅ merged #301 | ✅ P5b.21+22 |
+| audit-#302 | ✅ merged #302 (backfill — clearCCMappings cancels pending flush timers + document dormant SG-H3 echo seam — audit #16/#15) | ✅ Sonnet | ✅ | ✅ merged #302 | ✅ merged #302 | ✅ merged #302 | ✅ P5b.x |
+| audit-#303 | ✅ merged #303 (backfill — surface SG-5 cycle-break warning to user — wire dropped IPC payload to toast — audit #3) | ✅ Sonnet | ✅ | ✅ merged #303 | ✅ merged #303 | ✅ IPC test | ✅ P5b.7 |
+| audit-#304 | ✅ merged #304 (backfill — SG-3 last-good defensive copy + SG-8 stop() no thread-orphan — audit lows #2/#8) | ✅ Sonnet | ✅ | ✅ merged #304 | ✅ merged #304 | ✅ merged #304 | ✅ P5b.4 |
+| audit-#305 | ✅ merged #305 (backfill — call removeGranulator/removeFrameBank on track delete + serialize granulator render_path — audit lows #10/#11) | ✅ Sonnet | ✅ | ✅ merged #305 | ✅ merged #305 | ✅ merged #305 | ✅ P5b.20 |
+| audit-#306 | ✅ merged #306 (backfill — SG-5 seam dedup per-instance + drop dead CycleBreakDecision fields + onset FFT once per frame — audit lows #5/#6/#12) | ✅ Sonnet | ✅ | ✅ merged #306 | ✅ merged #306 | ✅ merged #306 | ✅ P5b.7 |
+| audit-#307 | ✅ merged #307 (backfill — wire SG-3 aborted-lane consumer — muted badge + chain skip — audit medium #1) | ✅ Sonnet | ✅ | ✅ merged #307 | ✅ merged #307 | ✅ merged #307 | ✅ P5b.4 |
+| audit-#308 | ✅ merged #308 (backfill — drop fictitious mappings edges from eval/cycle graph — audit medium #4) | ✅ Sonnet | ✅ | ✅ merged #308 | ✅ merged #308 | ✅ merged #308 | ✅ P6.x |
+| B8-export | ✅ merged #309 (backfill — see PR: B8 Granulator export-path render arm — preview→export parity — task #87) | ✅ Sonnet | ✅ | ✅ merged #309 | ✅ export parity | ✅ export E2E | ✅ audit-#299 |
+| flake-fix | ✅ merged #310 (backfill — see PR: routing-canvas-edges flake — wait for routing items before drag — task #88) | ✅ Sonnet | ✅ | ✅ merged #310 | n/a (flake fix) | n/a | ✅ P6.10 |
 | §1 rules | — | contract +Model+Failure-modes fields | — | rule 9 quantified (every 5, 5 flows, 5 shots) | rules 3/8/9 cover the 3 modes | — | — |
 | §5 stubs | ✅ rows re-verified (pipeline/ absent, flag :51–54, lane_reader :92, q7-e5 drift) | JIT must emit full contract (noted) | — | — | — | — | ✅ UH/PERF rows added |
 | §6 protocol | — | — | — | ✅ 3-job gate, cadence bookkeeping | ✅ steps 8–10 (CI-red, mid-stack, cadence) | — | — |
