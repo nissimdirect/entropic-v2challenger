@@ -9,14 +9,15 @@ import { isFieldRef, validateFieldRefOnLoad } from '../shared/field-param'
 import { useProjectStore } from './stores/project'
 import { useTimelineStore } from './stores/timeline'
 import { useUndoStore } from './stores/undo'
-import { usePerformanceStore } from './stores/performance'
+import { usePerformanceStore, clearRetroBuffer } from './stores/performance'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
 import { useInstrumentsStore } from './stores/instruments'
-import type { SamplerInstrumentV1, RackNode, RackPad, FrameBankInstrument } from './components/instruments/types'
-import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, MAX_BRANCH_DEPTH, MAX_FRAMEBANK_SLOTS, FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX } from './components/instruments/types'
+import type { SamplerInstrumentV1, RackNode, RackPad, FrameBankInstrument, GranulatorInstrument } from './components/instruments/types'
+import type { TriggerEvent } from './components/instruments/voiceFSM'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, MAX_BRANCH_DEPTH, MAX_FRAMEBANK_SLOTS, FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX, GRANULATOR_AXES, defaultGranulatorInstrument } from './components/instruments/types'
 import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
@@ -417,7 +418,7 @@ function serializeProject(): string {
   // G10 resolution: B2's track-keyed `instruments` supersedes B1's global
   // single `instrument` (#156). Legacy saves with `instrument` are dropped
   // with a toast in hydrateStores — clean-break policy, never a throw.
-  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode>; frameBanks?: Record<string, FrameBankInstrument> } = {
+  const project: Project & { drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, unknown>; racks?: Record<string, RackNode>; frameBanks?: Record<string, FrameBankInstrument>; granulators?: Record<string, GranulatorInstrument>; performance?: { events: unknown[] } } = {
     version: PROJECT_VERSION,
     id: randomUUID(),
     created: Date.now(),
@@ -446,7 +447,23 @@ function serializeProject(): string {
     operators: operatorStore.operators,
     automationLanes: automationStore.lanes,
     // B2: per-Performance-track samplers, keyed by trackId (remapped on load).
-    instruments: useInstrumentsStore.getState().instruments,
+    // B8: inject granulator data into the instruments map as `instruments[trackId].granulator`
+    // so the backend schema validator finds it at `instruments[id].granulator`.
+    // For tracks that have ONLY a granulator (no sampler), we add a stub entry.
+    // For tracks with both sampler + granulator, we spread .granulator onto the sampler.
+    instruments: (() => {
+      const samplers = useInstrumentsStore.getState().instruments
+      const grans = useInstrumentsStore.getState().granulators
+      const merged: Record<string, unknown> = { ...samplers }
+      for (const [trackId, gran] of Object.entries(grans)) {
+        if (merged[trackId]) {
+          merged[trackId] = { ...(merged[trackId] as object), granulator: gran }
+        } else {
+          merged[trackId] = { granulator: gran }
+        }
+      }
+      return merged
+    })(),
     // B4.1: per-Performance-track Sample Racks, keyed by trackId (remapped on
     // load). Omitted entirely when there are no racks so a no-rack project's
     // serialized JSON is byte-identical to today (regression-safe).
@@ -459,8 +476,29 @@ function serializeProject(): string {
     ...(Object.keys(useInstrumentsStore.getState().frameBanks).length > 0
       ? { frameBanks: useInstrumentsStore.getState().frameBanks }
       : {}),
+    // B8: separate top-level `granulators` key (like frameBanks) for frontend hydration.
+    // Omitted when empty (regression-safe, byte-identical to pre-B8 saves).
+    ...(Object.keys(useInstrumentsStore.getState().granulators).length > 0
+      ? { granulators: useInstrumentsStore.getState().granulators }
+      : {}),
     midiMappings: midiStore.getMIDIPersistData(),
     deviceGroups: Object.keys(projectStore.deviceGroups).length > 0 ? projectStore.deviceGroups : undefined,
+    // B10-persist: serialize trackEvents as performance.events (flat list for backend
+    // voice_replay). Only events whose instrumentId is in the instruments map (simple
+    // trackId keys, not rack-pad composite keys) are included — the backend schema
+    // requires referential integrity (instrumentId in instruments.keys()). Panic
+    // events are exempt and always included. Omit performance block entirely when
+    // empty (regression-safe, byte-identical to pre-B10-persist saves).
+    ...(() => {
+      const grans = useInstrumentsStore.getState().granulators
+      const samplers = useInstrumentsStore.getState().instruments
+      const knownIds = new Set([...Object.keys(samplers), ...Object.keys(grans)])
+      const allEvents = Object.values(performanceStore.trackEvents).flat()
+      const flatEvents = allEvents
+        .filter((ev) => ev.kind === 'panic' || knownIds.has(ev.instrumentId))
+        .sort((a, b) => a.frameIndex - b.frameIndex || a.eventIndex - b.eventIndex)
+      return flatEvents.length > 0 ? { performance: { events: flatEvents } } : {}
+    })(),
   }
 
   return JSON.stringify(project, null, 2)
@@ -591,6 +629,20 @@ function validateProject(data: unknown): data is Project {
     if (typeof obj.frameBanks !== 'object' || obj.frameBanks === null || Array.isArray(obj.frameBanks)) return false
   }
 
+  // B8: optional granulators. Shape-check only (object, not array/null) —
+  // field-level clamping happens at hydrate. Absent = legacy project (no granulators).
+  if ('granulators' in obj && obj.granulators !== undefined) {
+    if (typeof obj.granulators !== 'object' || obj.granulators === null || Array.isArray(obj.granulators)) return false
+  }
+
+  // B10-persist: optional performance.events validation (shape-check only; field
+  // validation happens at hydrate). Absent = no recorded performance.
+  if ('performance' in obj && obj.performance !== undefined) {
+    if (typeof obj.performance !== 'object' || obj.performance === null || Array.isArray(obj.performance)) return false
+    const perf = obj.performance as Record<string, unknown>
+    if ('events' in perf && perf.events !== undefined && !Array.isArray(perf.events)) return false
+  }
+
   // B1 mount: optional sampler instrument. Shape-check only — numeric ranges are
   // clamped at hydrate (deserialization trust boundary). Absent = older project.
   if (obj.instrument !== undefined) {
@@ -603,7 +655,7 @@ function validateProject(data: unknown): data is Project {
   return true
 }
 
-function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, SamplerInstrumentV1>; racks?: Record<string, RackNode>; frameBanks?: Record<string, FrameBankInstrument> }): void {
+function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]; drumRack?: DrumRack; operators?: Operator[]; automationLanes?: Record<string, AutomationLane[]>; midiMappings?: MIDIPersistData; deviceGroups?: Record<string, { name: string; effectIds: string[]; mix: number; isEnabled: boolean }>; instruments?: Record<string, unknown>; racks?: Record<string, RackNode>; frameBanks?: Record<string, FrameBankInstrument>; granulators?: Record<string, GranulatorInstrument>; performance?: { events: unknown[] } }): void {
   const projectStore = useProjectStore.getState()
   const timelineStore = useTimelineStore.getState()
   const undoStore = useUndoStore.getState()
@@ -616,7 +668,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   useOperatorStore.getState().resetOperators()
   useAutomationStore.getState().resetAutomation()
   useMIDIStore.getState().resetMIDI()
-  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {} })
+  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {}, granulators: {} })
 
   // B2: saved trackId → freshly-created trackId (tracks get new ids on load).
   // Used to re-key the per-track samplers after the track loop.
@@ -959,6 +1011,9 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
       const byteBudget = clampFinite(Number(r.byteBudget), FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_BYTE_BUDGET_MIN)
       const VALID_INTERP = new Set(['nearest', 'blend', 'flow'])
       const interp: FrameBankInstrument['interp'] = VALID_INTERP.has(String(r.interp)) ? (r.interp as FrameBankInstrument['interp']) : 'nearest'
+      // Fix 3: restore timeAxis — clamped to valid values; unknown → 't' (legacy default).
+      const VALID_AXIS = new Set(['t', 'y', 'x'])
+      const timeAxis: FrameBankInstrument['timeAxis'] = VALID_AXIS.has(String(r.timeAxis)) ? (r.timeAxis as FrameBankInstrument['timeAxis']) : 't'
       restoredBanks[newId] = {
         id: typeof r.id === 'string' ? r.id : newId,
         type: 'frameBank',
@@ -966,12 +1021,195 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
         position,
         interp,
         byteBudget,
+        timeAxis,
       }
     }
     if (Object.keys(restoredBanks).length > 0) {
       useInstrumentsStore.setState((s) => ({ frameBanks: { ...s.frameBanks, ...restoredBanks } }))
     }
   }
+
+  // B8: restore per-track Granulators, re-keyed to the new trackIds. Each granulator
+  // is clamped at this deserialization trust boundary:
+  // - density: clamped [GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX], integer
+  // - window: 'hann'|'tri'|'rect' → unknown → 'hann'
+  // - selection: 'random'|'onset' accepted; 'latentSimilarity' dropped to 'random'
+  //   (flag-gated feature, not persisted across loads unless flag is on);
+  //   any other value dropped to 'random'
+  // - lAxisEnabled: boolean coerced
+  // - axes: each axis param clamped [0,1] + finite-guarded; unknown axes dropped;
+  //   all 6 axes defaulted if missing
+  // - renderPath: 'cpu'|'gpu' or undefined; unknown → undefined
+  // A granulator whose track didn't survive is dropped.
+  // Reads from top-level `granulators` key first (frontend-authored key).
+  // Falls back to extracting `.granulator` from `instruments[oldId].granulator`
+  // if no top-level `granulators` key.
+  ;(() => {
+    const rawGrans: Record<string, unknown> = {}
+
+    if (project.granulators && typeof project.granulators === 'object') {
+      // Primary path: dedicated top-level `granulators` key written by B8 serialize.
+      Object.assign(rawGrans, project.granulators)
+    } else if (project.instruments && typeof project.instruments === 'object') {
+      // Fallback: extract `.granulator` from the merged instruments map.
+      for (const [oldId, inst] of Object.entries(project.instruments)) {
+        if (inst && typeof inst === 'object') {
+          const entry = inst as Record<string, unknown>
+          if (entry.granulator && typeof entry.granulator === 'object') {
+            rawGrans[oldId] = entry.granulator
+          }
+        }
+      }
+    }
+
+    const restoredGrans: Record<string, GranulatorInstrument> = {}
+    const VALID_WINDOWS = new Set(['hann', 'tri', 'rect'])
+    const VALID_SELECTIONS = new Set(['random', 'onset', 'latentSimilarity'])
+
+    for (const [oldId, raw] of Object.entries(rawGrans)) {
+      const newId = trackIdMap[oldId]
+      if (!newId || !raw || typeof raw !== 'object') continue
+      const r = raw as Record<string, unknown>
+
+      // Use defaultGranulatorInstrument as a safe baseline.
+      const base = defaultGranulatorInstrument(typeof r.id === 'string' ? r.id : newId)
+
+      // density: clamped integer
+      const rawDensity = Number(r.density)
+      const density = Number.isFinite(rawDensity)
+        ? Math.max(GRANULATOR_DENSITY_MIN, Math.min(GRANULATOR_DENSITY_MAX, Math.round(rawDensity)))
+        : base.density
+
+      // window: known value or 'hann'
+      const window: GranulatorInstrument['window'] = VALID_WINDOWS.has(String(r.window))
+        ? (r.window as GranulatorInstrument['window'])
+        : 'hann'
+
+      // selection: 'random'|'onset' accepted; 'latentSimilarity' dropped to 'random'
+      //            (flag-gated — not safe to blindly restore);
+      //            unknown → 'random'
+      let selection: GranulatorInstrument['selection'] = 'random'
+      if (VALID_SELECTIONS.has(String(r.selection))) {
+        const sel = r.selection as GranulatorInstrument['selection']
+        selection = sel === 'latentSimilarity' ? 'random' : sel
+      }
+
+      // lAxisEnabled: boolean coerced
+      const lAxisEnabled = typeof r.lAxisEnabled === 'boolean' ? r.lAxisEnabled : base.lAxisEnabled
+
+      // axes: clamp each param [0,1] finite-guarded; unknown axes dropped; missing → default
+      const rawAxes = (r.axes && typeof r.axes === 'object' && !Array.isArray(r.axes))
+        ? (r.axes as Record<string, unknown>)
+        : {}
+      const axes = { ...base.axes }
+      for (const ax of GRANULATOR_AXES) {
+        const rawAx = rawAxes[ax]
+        if (rawAx && typeof rawAx === 'object' && !Array.isArray(rawAx)) {
+          const ap = rawAx as Record<string, unknown>
+          const clamp01 = (v: unknown): number => {
+            const n = Number(v)
+            return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : 0.5
+          }
+          axes[ax] = {
+            grain: clamp01(ap.grain),
+            jitter: clamp01(ap.jitter),
+            position: clamp01(ap.position),
+            envelope: clamp01(ap.envelope),
+          }
+        }
+        // missing axes already defaulted from base.axes
+      }
+
+      // renderPath: 'cpu'|'gpu' or undefined
+      const renderPath: GranulatorInstrument['renderPath'] =
+        r.renderPath === 'cpu' || r.renderPath === 'gpu' ? r.renderPath : undefined
+
+      restoredGrans[newId] = { ...base, density, window, selection, lAxisEnabled, axes, ...(renderPath !== undefined ? { renderPath } : {}) }
+    }
+
+    if (Object.keys(restoredGrans).length > 0) {
+      useInstrumentsStore.setState((s) => ({ granulators: { ...s.granulators, ...restoredGrans } }))
+    }
+  })()
+
+  // B10-persist: restore trackEvents from performance.events. Re-key each event's
+  // instrumentId by the trackIdMap (saved trackId → new trackId). Events for tracks
+  // that didn't survive are dropped. Composite rack-pad keys (trackId:padId) are
+  // re-keyed on the trackId portion only. Trust boundary:
+  // - frameIndex: must be finite int >= 0; malformed events dropped
+  // - eventIndex: must be finite int >= 0; malformed events dropped
+  // - note: 0-127; malformed dropped
+  // - velocity: 0-127; malformed dropped
+  // - kind: 'trigger'|'release'|'choke'|'panic'; unknown dropped
+  // - chokeGroup: number or undefined; non-number coerced to undefined
+  ;(() => {
+    const rawPerf = (project as unknown as Record<string, unknown>).performance
+    if (!rawPerf || typeof rawPerf !== 'object' || Array.isArray(rawPerf)) return
+    const rawEvents = (rawPerf as Record<string, unknown>).events
+    if (!Array.isArray(rawEvents) || rawEvents.length === 0) return
+
+    const VALID_KINDS = new Set(['trigger', 'release', 'choke', 'panic'])
+    const trackEvents: Record<string, TriggerEvent[]> = {}
+
+    for (const raw of rawEvents) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+      const ev = raw as Record<string, unknown>
+
+      // Validate required numeric fields
+      const frameIndex = Number(ev.frameIndex)
+      const eventIndex = Number(ev.eventIndex)
+      const note = Number(ev.note)
+      const velocity = Number(ev.velocity)
+      if (!Number.isFinite(frameIndex) || frameIndex < 0) continue
+      if (!Number.isFinite(eventIndex) || eventIndex < 0) continue
+      if (!Number.isFinite(note) || note < 0 || note > 127) continue
+      if (!Number.isFinite(velocity) || velocity < 0 || velocity > 127) continue
+
+      // Validate kind
+      const kind = ev.kind as string
+      if (!VALID_KINDS.has(kind)) continue
+
+      // Re-key instrumentId via trackIdMap
+      // Composite keys: 'trackId:padId' — re-key the trackId portion
+      const rawInstrumentId = typeof ev.instrumentId === 'string' ? ev.instrumentId : ''
+      const colonIdx = rawInstrumentId.indexOf(':')
+      let newInstrumentId: string
+      if (colonIdx >= 0) {
+        const oldTrackPart = rawInstrumentId.slice(0, colonIdx)
+        const suffix = rawInstrumentId.slice(colonIdx) // ':padId'
+        const newTrackPart = trackIdMap[oldTrackPart]
+        if (!newTrackPart) continue
+        newInstrumentId = newTrackPart + suffix
+      } else {
+        const newId = trackIdMap[rawInstrumentId]
+        if (!newId) continue
+        newInstrumentId = newId
+      }
+
+      // chokeGroup: number or undefined
+      const chokeGroup = typeof ev.chokeGroup === 'number' ? ev.chokeGroup : undefined
+
+      const restored: TriggerEvent = {
+        frameIndex: Math.round(frameIndex),
+        eventIndex: Math.round(eventIndex),
+        note: Math.round(note),
+        velocity: Math.round(velocity),
+        kind: kind as TriggerEvent['kind'],
+        instrumentId: newInstrumentId,
+        ...(chokeGroup !== undefined ? { chokeGroup } : {}),
+      }
+
+      // Group events back by instrumentId (simple trackId key for simple events,
+      // composite key for rack-pad events — matches how triggerPad/triggerRackPad write them)
+      const bucket = colonIdx >= 0 ? newInstrumentId : newInstrumentId
+      if (!trackEvents[bucket]) trackEvents[bucket] = []
+      trackEvents[bucket].push(restored)
+    }
+
+    if (Object.keys(trackEvents).length > 0) {
+      usePerformanceStore.setState((s) => ({ trackEvents: { ...s.trackEvents, ...trackEvents } }))
+    }
+  })()
 
   // Hydrate canvas resolution from project settings (backward compat: default 1920x1080)
   if (project.settings?.resolution && Array.isArray(project.settings.resolution) && project.settings.resolution.length === 2) {
@@ -1229,7 +1467,10 @@ export function newProject(): void {
   // silent no-op when the store went track-keyed — samplers must not survive New Project)
   // B4.1: also clear racks.
   // B6.3: also clear frameBanks (must not survive New Project — same reason).
-  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {} })
+  // B8: also clear granulators.
+  useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {}, granulators: {} })
+  // B10-persist: clear the retro buffer so recorded events don't bleed into new projects.
+  clearRetroBuffer()
 }
 
 export function startAutosave(): void {
