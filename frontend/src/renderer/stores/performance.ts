@@ -358,9 +358,24 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
     const key = `${trackId}:${padKey}`;
     const events = get().trackEvents;
     if (!(key in events)) return;
-    const next = { ...events };
-    delete next[key];
-    set({ trackEvents: next });
+    // UH.2: an event-LOG edit is document state → undoable. Capture a deep copy of
+    // the deleted event log in the closure so inverse restores the FULL log (the
+    // live triggerRackPad/triggerPad/releasePad appends stay exempt — only this
+    // LOG edit is reversible). The copy guards against later mutation of the
+    // captured array (undo.ts conventions: inverse captures data by value).
+    const removedEvents: TriggerEvent[] = (events[key] ?? []).map((e) => ({ ...e }));
+    const forward = () => {
+      const cur = get().trackEvents;
+      if (!(key in cur)) return;
+      const next = { ...cur };
+      delete next[key];
+      set({ trackEvents: next });
+    };
+    const inverse = () => {
+      const cur = get().trackEvents;
+      set({ trackEvents: { ...cur, [key]: removedEvents.map((e) => ({ ...e })) } });
+    };
+    undoable(`Clear rack pad events on ${trackId}`, forward, inverse);
   },
 
   releasePad: (padId, frameIndex, trackId) => {
