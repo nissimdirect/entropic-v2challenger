@@ -19,6 +19,15 @@ import React, { useCallback, useId } from 'react'
 import type { MatteNode, MatteOp } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 
+// Stable empty array for the no-mask-stack case. A clip with no `maskStack`
+// (the default for a freshly imported clip) MUST resolve to this shared
+// reference — NOT a fresh `[]` literal per render. Zustand compares selector
+// snapshots with Object.is; returning a new array each call makes the store
+// look "changed" every render and drives an infinite render loop ("Maximum
+// update depth exceeded"). Same pattern as EMPTY_MASK_NODES (DeviceChain.tsx)
+// and EMPTY_LANES (Track.tsx).
+const EMPTY_MASK_STACK: MatteNode[] = []
+
 // ---------------------------------------------------------------------------
 // Clamp helpers — enforce trust boundary before emitting store writes
 // ---------------------------------------------------------------------------
@@ -226,9 +235,9 @@ export default function MaskStackPanel({ clipId }: MaskStackPanelProps): React.R
     (s) => {
       for (const track of s.tracks) {
         const clip = track.clips.find((c) => c.id === clipId)
-        if (clip) return clip.maskStack ?? []
+        if (clip) return clip.maskStack ?? EMPTY_MASK_STACK
       }
-      return []
+      return EMPTY_MASK_STACK
     },
   )
 
