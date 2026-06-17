@@ -4,8 +4,13 @@
  * No hex literals — use --cx-* tokens from tokens.css only.
  */
 
-/* Creatrix grid shell — overrides .app when flag is ON */
-.app--creatrix {
+/* Creatrix grid shell — overrides .app when flag is ON.
+ * Selector is .app.app--creatrix (specificity 0,2,0) so it reliably beats the
+ * base `.app` grid (0,1,0) in global.css regardless of CSS bundle/source order.
+ * A single `.app--creatrix` (0,1,0) ties .app and lost to it by source order,
+ * forcing the creatrix children into the base 2-col/4-row grid → collapse
+ * (left col on the base `auto` row, right col wrapping). UAT-found. */
+.app.app--creatrix {
   display: grid;
   /* left-col | 6px handle | right-col */
   grid-template-columns: var(--cx-left-col-w, 260px) 6px 1fr;
