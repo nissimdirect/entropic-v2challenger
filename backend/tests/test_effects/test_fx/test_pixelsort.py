@@ -85,7 +85,6 @@ def test_reverse_differs():
     assert not np.array_equal(r_fwd, r_rev)
 
 
-@pytest.mark.perf  # wall-clock ms budget — flakes under parallel load (F4c-2 2026-07-02); CI runs -m 'not perf'
 def test_performance_1080p():
     """BUG-4: optimized pixelsort must process 1080p in <150ms.
 
