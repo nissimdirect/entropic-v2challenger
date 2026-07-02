@@ -255,3 +255,69 @@ def test_tiny_frame_handles_min_ca_size():
     out, _ = apply(f, {"ca_scale": 8}, state, **KW_tiny)
     assert out.shape == (2, 2, 4)
     assert out.dtype == np.uint8
+
+
+# ----- PFX.2a: durable visible change at defaults -----
+
+
+def _natural_frame(h=64, w=64, seed=42):
+    """Spatially-correlated frame (smooth gradient + small per-pixel noise) —
+    approximates natural video content, unlike the pure white-noise `_frame()`
+    helper above. Pixel-sort effects can look dramatic on white noise (every
+    neighbor is a huge luminance jump) while being nearly invisible on
+    correlated content (neighbors are already close to sort order), so the
+    regression guard below exercises this harder, more realistic case.
+    """
+    rng = np.random.default_rng(seed)
+    x = np.linspace(0, 255, w, dtype=np.float32)
+    y = np.linspace(0, 255, h, dtype=np.float32)
+    xx, yy = np.meshgrid(x, y)
+    base = xx * 0.5 + yy * 0.5
+    noise = rng.normal(0, 4, (h, w)).astype(np.float32)
+    frame = np.zeros((h, w, 4), dtype=np.uint8)
+    frame[:, :, 0] = np.clip(base + noise, 0, 255).astype(np.uint8)
+    frame[:, :, 1] = np.clip(base * 0.8 + noise, 0, 255).astype(np.uint8)
+    frame[:, :, 2] = np.clip(base * 0.3 + noise, 0, 255).astype(np.uint8)
+    frame[:, :, 3] = 255
+    return frame
+
+
+def test_visible_at_defaults():
+    """PFX.2a regression guard: registry DEFAULT params must produce a
+    durable (non-decaying) visible change on natural-looking footage.
+
+    ROADMAP.md Sec 0.1 flagged fx.cellular_pixel_sort as one of three effects
+    that render "no visible change at defaults". Root cause: the old default
+    ca_rule="life" (Conway B3/S23) reliably dies off within ~10-20 frames at
+    any seed_density, decaying the pixel-sort diff toward/below the 0.5
+    visible-change threshold on spatially-correlated (natural) footage — even
+    though it produces enormous diffs on pure white noise (masking the bug in
+    the generic random-noise oracle in test_all_effects.py). ca_rule=
+    "daynight" (B3678/S34678) sustains a stable, non-decaying population
+    instead, at the same seed_density/ca_scale/ca_steps_per_frame defaults.
+
+    Threads state across 20 frames (matching real playback, where state_out
+    feeds state_in each frame) and checks the LATTER half stays above
+    threshold — not just the best/earliest frame — so a rule/param choice
+    that starts strong and dies out cannot pass.
+    """
+    f = _natural_frame()
+    params = {k: v["default"] for k, v in PARAMS.items()}
+    state = None
+    diffs = []
+    for fi in range(20):
+        kw = {"frame_index": fi, "seed": 42, "resolution": (64, 64)}
+        out, state = apply(f, params, state, **kw)
+        diff = float(
+            np.mean(
+                np.abs(
+                    out[:, :, :3].astype(np.float64) - f[:, :, :3].astype(np.float64)
+                )
+            )
+        )
+        diffs.append(diff)
+    durable_diffs = diffs[10:]
+    assert min(durable_diffs) >= 0.5, (
+        "defaults do not stay visibly changed on natural footage: "
+        f"diffs[10:]={[round(d, 3) for d in durable_diffs]} (min < 0.5 threshold)"
+    )
