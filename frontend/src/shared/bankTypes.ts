@@ -46,7 +46,13 @@ export type SlotTarget =
   | { kind: 'effectParam'; effectId: string; paramKey: string }
   | { kind: 'macro'; trackId: string; macroId: string }
   | { kind: 'transform'; clipId: string; field: string }
-  | { kind: 'mask'; nodeId: string; param: string };
+  | { kind: 'mask'; nodeId: string; param: string }
+  // H3 (master plan WS5) — instrument device knob (Sampler/Granulator/
+  // FrameBank), armed via the widened MIDI-learn surface. `trackId` scopes
+  // the instrument; `paramKey` names the knob (e.g. 'speed', 'axis.t.grain',
+  // 'position'). Like 'transform'/'mask' it is storable-but-inert in the H2
+  // bank resolver (H4 wires the live overlay).
+  | { kind: 'instrument'; trackId: string; paramKey: string };
 
 /** The 4x8 grid of resolved targets for ONE mapping context (keyed by contextKey). */
 export interface BankAssignment {
@@ -64,7 +70,7 @@ export const MAX_CC_BANK_BINDINGS = 64;
 /** Max distinct saved (non-default) bank assignments (one per contextKey). Evict-oldest on overflow. */
 export const MAX_BANK_ASSIGNMENT_CONTEXTS = 128;
 
-const SLOT_TARGET_KINDS = new Set(['effectParam', 'macro', 'transform', 'mask']);
+const SLOT_TARGET_KINDS = new Set(['effectParam', 'macro', 'transform', 'mask', 'instrument']);
 
 /** Coerce-check: integer in [min, max]. */
 function isIntInRange(x: unknown, min: number, max: number): x is number {
@@ -100,9 +106,40 @@ export function isValidSlotTarget(x: unknown): x is SlotTarget {
       return isNonEmptyString(t.clipId) && isNonEmptyString(t.field);
     case 'mask':
       return isNonEmptyString(t.nodeId) && isNonEmptyString(t.param);
+    case 'instrument':
+      return isNonEmptyString(t.trackId) && isNonEmptyString(t.paramKey);
     default:
       return false;
   }
+}
+
+/**
+ * H3 (master plan WS5) — a DIRECT (context-free) binding of a physical CC to a
+ * concrete SlotTarget. This is the analog of the legacy CCMapping (cc ->
+ * effectId/paramKey), generalized to the full SlotTarget surface (macro /
+ * transform / mask / instrument) so the widened MIDI-learn surface can bind a
+ * knob straight to a physical CC. Unlike CCBankBinding (cc -> bank slot,
+ * FOCUS-relative), a CCSlotMapping is absolute: the same CC always drives the
+ * same target regardless of focus.
+ *
+ * effect-knob learn keeps using the legacy CCMapping path unchanged — this list
+ * carries ONLY the new kinds. Per the H2 semantic model, transform / mask /
+ * instrument targets are storable-but-inert until H4 wires the live overlay;
+ * macro / effectParam are resolvable.
+ */
+export interface CCSlotMapping {
+  cc: number; // MIDI CC number, integer 0-127
+  target: SlotTarget;
+}
+
+/** Max distinct direct CC->SlotTarget mappings held at once (mirrors the 128-CC
+ *  cap on the legacy ccMappings list). Evict-oldest on overflow. */
+export const MAX_CC_SLOT_MAPPINGS = 128;
+
+export function isValidCCSlotMapping(x: unknown): x is CCSlotMapping {
+  if (typeof x !== 'object' || x === null) return false;
+  const m = x as Record<string, unknown>;
+  return isIntInRange(m.cc, 0, 127) && isValidSlotTarget(m.target);
 }
 
 /** Shape-validate a whole BankAssignment (exact BANK_ROWS x BANK_COLS grid, null-or-valid entries). */

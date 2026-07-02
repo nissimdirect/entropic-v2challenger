@@ -23,6 +23,7 @@ import { useInstrumentsStore } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { clampFinite } from '../../../shared/numeric'
 import type { BlendMode } from '../../../shared/types'
+import { instrumentLearnContextMenu } from './instrumentLearn'
 import {
   MAX_FRAMEBANK_SLOTS,
   FRAMEBANK_BYTE_BUDGET_MIN,
@@ -191,6 +192,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
           min={0}
           max={1}
           step={0.001}
+          onContextMenu={instrumentLearnContextMenu(trackId, 'position')}
           onChange={(e) => setFrameBankPosition(trackId, Number(e.target.value))}
         />
         <span data-testid="framebank-position-readout">{fb.position.toFixed(3)}</span>
@@ -238,6 +240,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
           min={Math.round(FRAMEBANK_BYTE_BUDGET_MIN / MB)}
           max={Math.round(FRAMEBANK_BYTE_BUDGET_MAX / MB)}
           step={1}
+          onContextMenu={instrumentLearnContextMenu(trackId, 'byteBudget')}
           onChange={(e) =>
             setFrameBankByteBudget(trackId, clampFinite(Number(e.target.value), 0, 1e12, 0) * MB)
           }

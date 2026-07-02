@@ -99,9 +99,19 @@ function resolveBankTargets(
         macroOverrides.set(target.macroId, clamp01(value))
         break
       case 'transform':
-      case 'mask': {
-        const id = target.kind === 'transform' ? target.clipId : target.nodeId
-        const field = target.kind === 'transform' ? target.field : target.param
+      case 'mask':
+      case 'instrument': {
+        // v1 NO-OP targets (H4 wires the live overlay). 'instrument' (H3) joins
+        // 'transform'/'mask' here: the binding IS matched (so legacy-collision
+        // precedence still applies) but produces no chain/macro change yet.
+        const id =
+          target.kind === 'transform' ? target.clipId
+          : target.kind === 'mask' ? target.nodeId
+          : target.trackId
+        const field =
+          target.kind === 'transform' ? target.field
+          : target.kind === 'mask' ? target.param
+          : target.paramKey
         const key = `${target.kind}:${id}:${field}`
         if (!_warnedNoopTargets.has(key)) {
           _warnedNoopTargets.add(key)

@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react'
 import type { ClipTransform } from '../../../shared/types'
 import { IDENTITY_TRANSFORM } from '../../../shared/types'
 import { FF } from '../../../shared/feature-flags'
+import { useMIDIStore } from '../../stores/midi'
 
 interface TransformPanelProps {
   transform: ClipTransform
@@ -14,6 +15,10 @@ interface TransformPanelProps {
   onAspectLockChange?: (locked: boolean) => void
   opacity?: number
   onOpacityChange?: (opacity: number) => void
+  /** H3 — id of the clip these fields transform. When present, right-clicking
+   *  a numeric field arms MIDI-learn for a {kind:'transform', clipId, field}
+   *  target. Optional so existing callers (and unit tests) keep compiling. */
+  clipId?: string
 }
 
 export default function TransformPanel({
@@ -27,7 +32,20 @@ export default function TransformPanel({
   onAspectLockChange,
   opacity = 1,
   onOpacityChange,
+  clipId,
 }: TransformPanelProps) {
+  // H3 — arm MIDI-learn for a transform field. No-op when there's no clipId.
+  const learnField = useCallback(
+    (field: string) => (e: React.MouseEvent) => {
+      if (!clipId) return
+      e.preventDefault()
+      useMIDIStore.getState().setLearnTarget({
+        type: 'slot',
+        target: { kind: 'transform', clipId, field },
+      })
+    },
+    [clipId],
+  )
   const [internalLocked, setInternalLocked] = useState(true)
   const aspectLocked = externalLocked ?? internalLocked
   const setAspectLocked = onAspectLockChange ?? setInternalLocked
@@ -101,6 +119,7 @@ export default function TransformPanel({
             className="transform-panel__input"
             type="number"
             value={transform.x}
+            onContextMenu={learnField('x')}
             onChange={(e) => handleChange('x', Number(e.target.value))}
           />
           <span className="transform-panel__unit">px</span>
@@ -111,6 +130,7 @@ export default function TransformPanel({
             className="transform-panel__input"
             type="number"
             value={transform.y}
+            onContextMenu={learnField('y')}
             onChange={(e) => handleChange('y', Number(e.target.value))}
           />
           <span className="transform-panel__unit">px</span>
@@ -127,6 +147,7 @@ export default function TransformPanel({
               min={1}
               max={10000}
               value={Math.round(transform.scaleX * 100)}
+              onContextMenu={learnField('scaleX')}
               onChange={(e) => handleChange('scaleX', Number(e.target.value) / 100)}
             />
             <span className="transform-panel__unit">%</span>
@@ -147,6 +168,7 @@ export default function TransformPanel({
               min={1}
               max={10000}
               value={Math.round(transform.scaleY * 100)}
+              onContextMenu={learnField('scaleY')}
               onChange={(e) => handleChange('scaleY', Number(e.target.value) / 100)}
             />
             <span className="transform-panel__unit">%</span>
@@ -161,6 +183,7 @@ export default function TransformPanel({
             type="number"
             step={1}
             value={transform.rotation}
+            onContextMenu={learnField('rotation')}
             onChange={(e) => handleChange('rotation', Number(e.target.value))}
           />
           <span className="transform-panel__unit">°</span>
@@ -198,6 +221,7 @@ export default function TransformPanel({
               min={0}
               max={100}
               value={Math.round(opacity * 100)}
+              onContextMenu={learnField('opacity')}
               onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
             />
             <span className="transform-panel__unit">{Math.round(opacity * 100)}%</span>
