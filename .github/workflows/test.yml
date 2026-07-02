@@ -53,7 +53,11 @@ jobs:
 
   electron-e2e:
     runs-on: macos-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -82,9 +86,9 @@ jobs:
         run: cd frontend && npx electron-vite build
       - name: Run smoke test
         run: cd frontend && npx playwright test tests/e2e/smoke.spec.ts
-      - name: Run full E2E tests
+      - name: Run full E2E tests (sharded)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: cd frontend && npx playwright test tests/e2e/
+        run: cd frontend && npx playwright test tests/e2e/ --shard=${{ matrix.shard }}/4
         env:
           CI: '1'
       - name: Cleanup orphan processes
