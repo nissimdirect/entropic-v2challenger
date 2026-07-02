@@ -29,6 +29,17 @@
  * NOTE: This component attaches pointer handlers to the track background.
  * The Clip component calls stopPropagation on pointerdown, so clicks/drags
  * that start ON a clip body never reach this overlay.
+ *
+ * T1 (2026-07-02) investigation — 'range-select' cursor tool (EffectBrowser
+ * [tool] tab): this overlay is mounted unconditionally in TrackLane (Track.tsx)
+ * and is NOT gated on any cursor-tool state — drag-select on empty track
+ * background already works in every tool mode, including the default 'select'
+ * tool. Gating it behind cursorTool === 'range-select' would BREAK existing
+ * multi-select UX (users currently rubber-band select without switching tools).
+ * Per T1 packet decision: left un-gated. The 'range-select' tool button/hotkey
+ * is wired to set cursorTool (useLayoutStore) for statusbar/chip display and
+ * shortcut-parity, but does not change this overlay's behavior — it was
+ * already-live. See docs/plans/2026-07-02-master-tuneup-plan.md WS1.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'

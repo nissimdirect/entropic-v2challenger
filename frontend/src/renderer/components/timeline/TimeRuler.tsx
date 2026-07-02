@@ -1,5 +1,6 @@
 import { useRef, useCallback, useEffect } from 'react'
 import { useTimelineStore } from '../../stores/timeline'
+import { useLayoutStore } from '../../stores/layout'
 
 interface TimeRulerProps {
   zoom: number
@@ -123,8 +124,28 @@ export default function TimeRuler({ zoom, scrollX, duration, onSeek }: TimeRuler
       if (!wasDrag) {
         const rect = e.currentTarget.getBoundingClientRect()
         const x = e.clientX - rect.left
-        const time = (x + scrollX) / zoom
-        onSeek(Math.max(0, time))
+        const time = Math.max(0, (x + scrollX) / zoom)
+
+        // T1 (2026-07-02): marker/loop-in/loop-out cursor tools place at the
+        // clicked ruler time instead of seeking. 'select' (and every other
+        // tool) keeps the existing seek-only behavior (regression guard).
+        const tool = useLayoutStore.getState().cursorTool
+        if (tool === 'marker' || tool === 'loop-in' || tool === 'loop-out') {
+          const ts = useTimelineStore.getState()
+          if (tool === 'marker') {
+            // Same label/color as the 'add_marker' keyboard shortcut (App.tsx).
+            ts.addMarker(time, 'Marker', '#f59e0b')
+          } else if (tool === 'loop-in') {
+            const currentOut = ts.loopRegion?.out ?? ts.duration
+            if (time < currentOut) ts.setLoopRegion(time, currentOut)
+          } else {
+            const currentIn = ts.loopRegion?.in ?? 0
+            if (time > currentIn) ts.setLoopRegion(currentIn, time)
+          }
+          return
+        }
+
+        onSeek(time)
       }
     },
     [scrollX, zoom, onSeek],

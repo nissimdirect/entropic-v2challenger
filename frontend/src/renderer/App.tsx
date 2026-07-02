@@ -651,6 +651,32 @@ function AppInner() {
     shortcutRegistry.register('split_at_playhead', splitAtPlayheadHandler)
     shortcutRegistry.register('split_at_playhead_e', splitAtPlayheadHandler)
 
+    // T1 (2026-07-02): cursor tool hotkeys (PLAN §3.7 tool mode stack) — write
+    // through the same useLayoutStore.cursorTool that EffectBrowser's [tool] tab
+    // buttons write, so keyboard and click paths stay in sync. Non-mask tools
+    // clear previewToolMode, mirroring EffectBrowser's handleToolSelect.
+    // slip/slide are intentionally NOT wired here — later packet (T1 scope).
+    shortcutRegistry.register('tool_select', () => {
+      useLayoutStore.getState().setCursorTool('select')
+      useTimelineStore.getState().setPreviewToolMode(null)
+    })
+    shortcutRegistry.register('tool_razor', () => {
+      useLayoutStore.getState().setCursorTool('razor')
+      useTimelineStore.getState().setPreviewToolMode(null)
+    })
+    shortcutRegistry.register('tool_ripple_delete', () => {
+      useLayoutStore.getState().setCursorTool('ripple-delete')
+      useTimelineStore.getState().setPreviewToolMode(null)
+    })
+    shortcutRegistry.register('tool_marker', () => {
+      useLayoutStore.getState().setCursorTool('marker')
+      useTimelineStore.getState().setPreviewToolMode(null)
+    })
+    shortcutRegistry.register('tool_range_select', () => {
+      useLayoutStore.getState().setCursorTool('range-select')
+      useTimelineStore.getState().setPreviewToolMode(null)
+    })
+
     // Automation copy/paste
     shortcutRegistry.register('automation_copy', () => {
       const autoStore = useAutomationStore.getState()
@@ -906,7 +932,7 @@ function AppInner() {
       // Escape in normal mode — 7-level dispatcher (MASKING-INTERACTIONS.md §9):
       //   Level 1: cancel in-progress marquee drag (handled in MaskSelectOverlay.tsx keydown capture)
       //   Level 2: clear committed mask selection (deselect ants)
-      //   Level 3: exit preview tool mode (return to select)
+      //   Level 3: exit preview tool mode / reset cursor tool to select (T1)
       //   Level 4: clear clip selection (F-0514-5)
       //   Level 5–7: transport-stop, etc. (no-op until their packets land)
       if (e.code === 'Escape') {
@@ -917,9 +943,15 @@ function AppInner() {
           ts.clearMaskSelection()
           return
         }
-        // Level 3: exit preview tool mode
-        if (ts.previewToolMode) {
+        // Level 3: exit preview tool mode / reset cursor tool to select.
+        // T1 (2026-07-02): the 'tool_escape_select' binding (default-shortcuts.ts,
+        // keys: 'escape') can never reach shortcutRegistry.handleKeyEvent — this
+        // raw Escape branch always runs first and always returns. The
+        // "Escape back to select" wire lives here instead.
+        const ls = useLayoutStore.getState()
+        if (ts.previewToolMode || ls.cursorTool !== 'select') {
           ts.setPreviewToolMode(null)
+          if (ls.cursorTool !== 'select') ls.setCursorTool('select')
           return
         }
         // Level 4: clip selection (F-0514-5)
