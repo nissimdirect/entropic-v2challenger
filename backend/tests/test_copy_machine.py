@@ -199,6 +199,46 @@ def test_trust_boundary_clamps_garbage_params():
     assert out.shape == frame.shape and out.dtype == np.uint8
 
 
+def test_trust_boundary_non_string_machine_does_not_crash():
+    """A non-hashable / wrong-type machine value must clamp, not raise."""
+    frame = _subject_frame()
+    for bad in ([("toner",)], {"m": 1}, 3, None):
+        out, _ = _apply(frame, {"machine": bad, "generation": 2})
+        assert out.shape == frame.shape and out.dtype == np.uint8
+
+
+def test_feedback_state_is_private_copy():
+    """The returned frame must not alias state['prev'] (in-place mutation safety).
+
+    3-channel input + default mix==1.0 is the case where `result` would otherwise
+    be the same object stored as feedback state.
+    """
+    rgb_only = _subject_frame()[:, :, :3]
+    p = {"machine": "toner", "generation": 2, "feedback": True}
+    out, st = _apply(rgb_only, p, None, frame_index=0)
+    assert out is not st["prev"], "returned frame aliases feedback state"
+    snapshot = st["prev"].copy()
+    out += 50  # simulate a downstream in-place buffer reuse
+    assert np.array_equal(st["prev"], snapshot), (
+        "mutating output corrupted state['prev']"
+    )
+
+
+def test_feedback_prev_cleared_when_disabled():
+    """Toggling feedback off must drop the stale prev buffer (no resurrection)."""
+    frame = _subject_frame()
+    _, st0 = _apply(frame, {"machine": "toner", "feedback": True}, None, frame_index=0)
+    assert "prev" in st0
+    # a non-feedback frame (freeze keeps state alive) must clear prev
+    _, st1 = _apply(
+        frame,
+        {"machine": "toner", "feedback": False, "freeze": True},
+        st0,
+        frame_index=1,
+    )
+    assert "prev" not in st1, "stale feedback state survived a feedback-off frame"
+
+
 def test_no_nan_or_inf_and_uint8():
     frame = _subject_frame()
     for machine in copy_machine.MACHINES:

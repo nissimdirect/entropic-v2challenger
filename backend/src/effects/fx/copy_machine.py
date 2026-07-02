@@ -70,18 +70,9 @@ _FEEDBACK_MIX = 0.8
 _MAX_GEN = 120.0
 
 # Levels S-curve crush LUT: bp +14, wp -14 (window 227), smoothstep.
+_CRUSH_T = np.clip((np.arange(256, dtype=np.float32) - 14.0) / 227.0, 0.0, 1.0)
 _CRUSH_LUT = (
-    np.array(
-        [
-            (lambda t: t * t * (3.0 - 2.0 * t) * 255.0)(
-                min(1.0, max(0.0, (i - 14) / 227.0))
-            )
-            for i in range(256)
-        ],
-        dtype=np.float32,
-    )
-    .clip(0, 255)
-    .astype(np.uint8)
+    (_CRUSH_T * _CRUSH_T * (3.0 - 2.0 * _CRUSH_T) * 255.0).clip(0, 255).astype(np.uint8)
 )
 
 
@@ -174,6 +165,12 @@ def _seed_for(seed: int, frame_index: int, pass_index: int) -> int:
     return (
         s * 1_000_003 + int(frame_index) * 7919 + int(pass_index) * 104729
     ) & 0xFFFFFFFF
+
+
+def _lerp_u8(a: np.ndarray, b: np.ndarray, t: float) -> np.ndarray:
+    """Weighted uint8 blend: a*(1-t) + b*t, clipped back to uint8."""
+    out = a.astype(np.float32) * (1.0 - t) + b.astype(np.float32) * t
+    return np.clip(out, 0, 255).astype(np.uint8)
 
 
 def _luma(rgb: np.ndarray) -> np.ndarray:
@@ -443,7 +440,7 @@ def apply(
 
     # --- trust boundary: clamp/validate every param at entry ---
     machine = params.get("machine", "toner")
-    if machine not in _MACHINE_FNS:
+    if not isinstance(machine, str) or machine not in _MACHINE_FNS:
         machine = "toner"
     try:
         generation = max(0.0, min(_MAX_GEN, float(params.get("generation", 12.0))))
@@ -483,17 +480,17 @@ def apply(
     if feedback:
         prev = state.get("prev")
         if isinstance(prev, np.ndarray) and prev.shape == source.shape:
-            base = _FEEDBACK_MIX * prev.astype(np.float32) + (
-                1.0 - _FEEDBACK_MIX
-            ) * source.astype(np.float32)
-            base = np.clip(base, 0, 255).astype(np.uint8)
+            base = _lerp_u8(source, prev, _FEEDBACK_MIX)
         else:
             base = source
         rng = make_rng(_seed_for(seed, frame_index, 0))
         # generation index grows with elapsed frames -> riso drift etc. accrue
         out = _physical_pass(base, machine, rng, float(frame_index), do_invert)
-        state["prev"] = out
+        # Store a private copy so a downstream in-place mutation of `result`
+        # (3-channel + mix==1.0 makes result alias `out`) can't corrupt state.
+        state["prev"] = out.copy()
     else:
+        state.pop("prev", None)  # symmetric with `held` cleanup; drop stale history
         # stateless: generation drives the number of copy passes
         out = source
         full = int(generation)
@@ -504,17 +501,11 @@ def apply(
         if frac > 1e-6:
             rng = make_rng(_seed_for(seed, frame_index, full))
             nxt = _physical_pass(out, machine, rng, float(full), do_invert)
-            out = np.clip(
-                out.astype(np.float32) * (1.0 - frac) + nxt.astype(np.float32) * frac,
-                0,
-                255,
-            ).astype(np.uint8)
+            out = _lerp_u8(out, nxt, frac)
 
     # --- blend with original ---
     if mix < 1.0:
-        out = np.clip(
-            out.astype(np.float32) * mix + rgb.astype(np.float32) * (1.0 - mix), 0, 255
-        ).astype(np.uint8)
+        out = _lerp_u8(out, rgb, 1.0 - mix)
 
     result = np.concatenate([out, alpha], axis=2) if has_alpha else out
     # Only carry state when a stateful mode is active (parity with stateless effects).
