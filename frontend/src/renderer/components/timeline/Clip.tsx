@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
+import { useUndoStore } from '../../stores/undo'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
 import { useToastStore } from '../../stores/toast'
@@ -307,6 +308,93 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
         return
       }
 
+      // T2 SLIP: drag inside the clip shifts which part of the SOURCE plays,
+      // leaving the clip's timeline position + duration fixed. Dragging RIGHT
+      // reveals LATER source (in/out increase). The whole gesture is one undo
+      // entry — beginTransaction on down, per-move incremental slipClip calls
+      // buffer into a single composite, commitTransaction on up.
+      if (activeTool === 'slip') {
+        e.preventDefault()
+        e.stopPropagation()
+        const clipId = clip.id
+        const startX = e.clientX
+        const speed = clip.speed || 1
+        const zoomAtStart = zoom
+        const srcLen = assetDuration
+        const pointerId = e.pointerId
+        let lastDt = 0
+        useUndoStore.getState().beginTransaction('Slip clip')
+
+        const onMove = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          const dt = (me.clientX - startX) / zoomAtStart
+          const incrementalDt = dt - lastDt
+          lastDt = dt
+          // timeline-seconds drag → source-seconds shift (source advances at speed).
+          useTimelineStore.getState().slipClip(clipId, incrementalDt * speed, srcLen)
+        }
+        const onUp = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().commitTransaction()
+        }
+        const onCancel = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().abortTransaction()
+        }
+        document.addEventListener('pointermove', onMove)
+        document.addEventListener('pointerup', onUp)
+        document.addEventListener('pointercancel', onCancel)
+        return
+      }
+
+      // T2 SLIDE: drag moves this clip along the timeline while its two
+      // immediate neighbors absorb the shift (prev extends/shrinks, next
+      // shifts) to stay gapless. One undo entry per gesture, same
+      // transaction-coalesce pattern as slip.
+      if (activeTool === 'slide') {
+        e.preventDefault()
+        e.stopPropagation()
+        const clipId = clip.id
+        const startX = e.clientX
+        const zoomAtStart = zoom
+        const srcLen = assetDuration
+        const pointerId = e.pointerId
+        let lastDt = 0
+        useUndoStore.getState().beginTransaction('Slide clip')
+
+        const onMove = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          const dt = (me.clientX - startX) / zoomAtStart
+          const incrementalDt = dt - lastDt
+          lastDt = dt
+          useTimelineStore.getState().slideClip(clipId, incrementalDt, srcLen)
+        }
+        const onUp = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().commitTransaction()
+        }
+        const onCancel = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().abortTransaction()
+        }
+        document.addEventListener('pointermove', onMove)
+        document.addEventListener('pointerup', onUp)
+        document.addEventListener('pointercancel', onCancel)
+        return
+      }
+
       e.preventDefault()
       e.stopPropagation()
 
@@ -476,7 +564,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
       document.addEventListener('pointerup', upHandler)
       document.addEventListener('pointercancel', cancelHandler)
     },
-    [clip.id, clip.position, zoom],
+    [clip.id, clip.position, clip.speed, zoom, assetDuration],
   )
 
   // Stubs kept on the element so React's event delegation doesn't warn —

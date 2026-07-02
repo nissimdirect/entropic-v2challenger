@@ -108,6 +108,32 @@ interface TimelineState {
   /** Ripple trim out: shorten a clip's out-point by delta and shift all later clips on the SAME track left.
    *  newOutPoint must be > clip.inPoint. One undo entry. */
   rippleTrimClipOut: (clipId: string, newOutPoint: number) => void
+  /**
+   * T2 SLIP: shift which part of the SOURCE plays without moving the clip's
+   * timeline position or duration. `sourceDelta` is in SOURCE seconds (same
+   * unit as inPoint/outPoint) and is added to BOTH inPoint and outPoint, so the
+   * source window slides while its width (outPoint - inPoint) — and therefore
+   * the clip's timeline duration — stays constant. The delta is clamped to the
+   * available source range: inPoint stays >= 0 and, when `sourceLength` is
+   * provided (source total seconds), outPoint stays <= sourceLength. Non-finite
+   * deltas are ignored. One undo entry per call; a clamped-to-zero delta is a
+   * no-op (no undo entry). Locked clips no-op with a toast. */
+  slipClip: (clipId: string, sourceDelta: number, sourceLength?: number) => void
+  /**
+   * T2 SLIDE: move a clip's timeline position by `positionDelta` (timeline
+   * seconds) while its two immediate neighbors on the SAME track auto-adjust to
+   * keep the arrangement gapless and the total track duration stable — the clip
+   * ending exactly at this clip's start (prev) has its out-point extended/
+   * shrunk, and the clip starting exactly at this clip's end (next) has its
+   * in-point + position shifted. The clip's own in/out and duration are
+   * unchanged. The delta is clamped so neither neighbor can invert (each keeps
+   * duration >= MIN_CLIP_SEC), next.inPoint stays >= 0, and — when
+   * `prevSourceLength` is provided — prev.outPoint stays <= prevSourceLength.
+   * A slide requires BOTH neighbors adjacent; if either is missing the call is a
+   * no-op (nothing to absorb the shift without a gap). Non-finite deltas are
+   * ignored. One undo entry per call; a clamped-to-zero delta is a no-op.
+   * Locked clips (or clips on a locked track) no-op with a toast. */
+  slideClip: (clipId: string, positionDelta: number, prevSourceLength?: number) => void
   setClipSpeed: (clipId: string, speed: number) => void
   openSpeedDialog: (clipId: string, anchor: { x: number; y: number }) => void
   closeSpeedDialog: () => void
@@ -1254,6 +1280,170 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
             if (c.position > clipPos) {
               return { ...c, position: c.position + delta }
             }
+            return c
+          })
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  slipClip: (clipId, sourceDelta, sourceLength) => {
+    // T3: locked clip (or clip on a locked track) cannot be slipped.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
+    // Trust boundary: a non-finite gesture delta must never poison in/out.
+    if (!Number.isFinite(sourceDelta)) return
+
+    let oldClip: Clip | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldClip = { ...clip }; break }
+    }
+    if (!oldClip) return
+
+    // Clamp the shift to the available source range. The window width
+    // (outPoint - inPoint) is preserved, so we only bound the delta:
+    //   inPoint + delta >= 0                       → delta >= -inPoint
+    //   outPoint + delta <= sourceLength (if given) → delta <= sourceLength - outPoint
+    let delta = sourceDelta
+    const lower = -oldClip.inPoint
+    if (delta < lower) delta = lower
+    if (sourceLength !== undefined && Number.isFinite(sourceLength)) {
+      const upper = Math.max(0, sourceLength - oldClip.outPoint)
+      // `upper` is relative to the current out-point; clamp only when the
+      // source has a real ceiling (>= current out-point). If sourceLength is
+      // somehow < outPoint (stale metadata), upper is 0 → no forward slip.
+      if (delta > upper) delta = upper
+    }
+
+    // Clamped-to-zero slip → no-op, no undo entry.
+    if (Math.abs(delta) < 1e-9) return
+
+    const newIn = oldClip.inPoint + delta
+    const newOut = oldClip.outPoint + delta
+    const prevIn = oldClip.inPoint
+    const prevOut = oldClip.outPoint
+
+    undoable(
+      'Slip clip',
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, inPoint: newIn, outPoint: newOut } : c,
+          ),
+        }))
+        // position + duration are intentionally untouched; recalc is cheap and
+        // keeps the code uniform with the other edit primitives.
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, inPoint: prevIn, outPoint: prevOut } : c,
+          ),
+        }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  slideClip: (clipId, positionDelta, prevSourceLength) => {
+    // T3: locked clip (or clip on a locked track) cannot be slid.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
+    if (!Number.isFinite(positionDelta)) return
+
+    // Locate the clip AND its track (slide only touches same-track neighbors).
+    let clip: Clip | null = null
+    let trackId: string | null = null
+    for (const t of get().tracks) {
+      const c = t.clips.find((cc) => cc.id === clipId)
+      if (c) { clip = { ...c }; trackId = t.id; break }
+    }
+    if (!clip || !trackId) return
+
+    const track = get().tracks.find((t) => t.id === trackId)!
+    const EPS = 1e-6
+    const clipStart = clip.position
+    const clipEnd = clip.position + clip.duration
+
+    // prev = the clip ending exactly at this clip's start.
+    // next = the clip starting exactly at this clip's end.
+    const prev = track.clips.find(
+      (c) => c.id !== clipId && Math.abs(c.position + c.duration - clipStart) < EPS,
+    )
+    const next = track.clips.find(
+      (c) => c.id !== clipId && Math.abs(c.position - clipEnd) < EPS,
+    )
+    // A slide needs BOTH neighbors to absorb the shift without opening a gap.
+    if (!prev || !next) return
+
+    // Snapshot originals for undo + clamp math.
+    const prevSnap = { ...prev }
+    const nextSnap = { ...next }
+    const clipSnap = { ...clip }
+
+    // Clamp so neither neighbor inverts and source bounds hold.
+    //  Δ > 0 (move right): prev EXTENDS (dur + Δ, out + Δ·prevSpeed ≤ src),
+    //                      next SHRINKS (dur − Δ ≥ MIN).
+    //  Δ < 0 (move left):  prev SHRINKS (dur + Δ ≥ MIN),
+    //                      next EXTENDS (dur − Δ, in + Δ·nextSpeed ≥ 0).
+    const MIN = AUDIO_LIMITS.MIN_CLIP_SEC
+    // Upper bound (most positive Δ):
+    let upper = nextSnap.duration - MIN            // next must keep MIN duration
+    if (prevSourceLength !== undefined && Number.isFinite(prevSourceLength)) {
+      const headroom = (prevSourceLength - prevSnap.outPoint) / (prevSnap.speed || 1)
+      upper = Math.min(upper, Math.max(0, headroom))
+    }
+    // Lower bound (most negative Δ):
+    let lower = -(prevSnap.duration - MIN)         // prev must keep MIN duration
+    // next retreats its in-point by Δ·speed when Δ<0; keep in-point >= 0.
+    const nextInFloor = -(nextSnap.inPoint) / (nextSnap.speed || 1)
+    lower = Math.max(lower, nextInFloor)
+
+    let delta = positionDelta
+    if (delta > upper) delta = upper
+    if (delta < lower) delta = lower
+    if (Math.abs(delta) < 1e-9) return
+
+    // Precompute new field values.
+    const prevNewDur = prevSnap.duration + delta
+    const prevNewOut = prevSnap.inPoint + prevNewDur * (prevSnap.speed || 1)
+    const nextNewPos = nextSnap.position + delta
+    const nextNewDur = nextSnap.duration - delta
+    const nextNewIn = nextSnap.inPoint + delta * (nextSnap.speed || 1)
+    const clipNewPos = clipSnap.position + delta
+
+    undoable(
+      'Slide clip',
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) return { ...c, position: clipNewPos }
+            if (c.id === prevSnap.id) return { ...c, duration: prevNewDur, outPoint: prevNewOut }
+            if (c.id === nextSnap.id) return { ...c, position: nextNewPos, duration: nextNewDur, inPoint: nextNewIn }
+            return c
+          })
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) return { ...c, position: clipSnap.position }
+            if (c.id === prevSnap.id) return { ...c, duration: prevSnap.duration, outPoint: prevSnap.outPoint }
+            if (c.id === nextSnap.id) return { ...c, position: nextSnap.position, duration: nextSnap.duration, inPoint: nextSnap.inPoint }
             return c
           })
           return { ...t, clips }
