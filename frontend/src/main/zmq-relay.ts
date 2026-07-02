@@ -80,8 +80,38 @@ export const ALLOWED_COMMANDS = new Set([
   'mask_thumbnail',
   // Magic-wand mask selection — components/preview/MaskSelectOverlay.tsx (task #89 cohesion fix)
   'mask_wand_sample',
+  // Orphaned-mask-sidecar GC — backend handler + gc_orphan_sidecars() shipped
+  // in #227, but no frontend caller was ever wired despite the commit message
+  // (F5 audit finding). Allowlisted so the handler is reachable; the caller
+  // (invoke on node-delete with the live node-id set) is a documented
+  // follow-up, not built here.
+  'mask_gc_sidecars',
+  // Audio track clear — audio_mixer.clear() companion to audio_tracks_set,
+  // needed by the EXPERIMENTAL_AUDIO_TRACKS flag work (F5 audit finding).
+  'audio_tracks_clear',
+  // Text-layer live preview — handler + dedicated tests (test_zmq_text.py)
+  // shipped in phase12; not yet called by the renderer (text overlays
+  // currently composite via apply_chain/render_composite, which calls the
+  // render_text_frame() function directly, not this IPC command). Allowlisted
+  // per the F5 audit decision — plausibly upcoming (isolated text preview),
+  // not superseded.
+  'render_text_frame',
   // Health
   'ping',
+])
+
+/**
+ * Backend `zmq_server.py` dispatch commands that are intentionally NOT
+ * relayed from the renderer — every command registered in the backend's
+ * `handle_message()` dispatch table must appear in either ALLOWED_COMMANDS
+ * or here. Enforced by the bidirectional half of relay-allowlist.test.ts
+ * (task F5) so a new backend handler without an explicit wire/exclude
+ * decision fails the test instead of silently going unreachable.
+ */
+export const BACKEND_ONLY_COMMANDS = new Set([
+  // Main-process only — sent directly by Electron main on app quit, never
+  // relayed from the renderer.
+  'shutdown',
 ])
 
 let currentPort = 0
