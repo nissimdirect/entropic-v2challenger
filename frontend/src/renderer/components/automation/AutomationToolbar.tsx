@@ -10,6 +10,11 @@ import { useEffectsStore } from '../../stores/effects'
 import type { TriggerMode } from '../../../shared/types'
 import type { Axis } from '../../../shared/axis-binding'
 import { FF } from '../../../shared/feature-flags'
+import {
+  TRANSFORM_FIELDS,
+  TRANSFORM_FIELD_META,
+  formatTransformLaneEffectId,
+} from '../../utils/transformLanes'
 
 // PR-B Commit-2: Tier-1 selectable axis domains. P6.6 (C2/C3): Y/X now render
 // live — a Y/X-domain lane drives a per-band spatial gradient via the backend
@@ -61,6 +66,9 @@ export default function AutomationToolbar() {
   const mode = useAutomationStore((s) => s.mode)
   const armedTrackId = useAutomationStore((s) => s.armedTrackId)
   const tracks = useTimelineStore((s) => s.tracks)
+  // A1+A2: transform lanes target the SELECTED clip on the armed track. Subscribe
+  // so the picker refreshes when the selection changes.
+  const selectedClipId = useTimelineStore((s) => s.selectedClipId)
   const armedTrack = tracks.find((t) => t.id === armedTrackId)
   const [pickerMode, setPickerMode] = useState<'lane' | 'trigger' | null>(null)
   const [pickDomain, setPickDomain] = useState<Axis>('t')
@@ -122,8 +130,29 @@ export default function AutomationToolbar() {
       }
     }
 
+    // A1+A2: Append the 5 clip-transform fields for the SELECTED clip — but only
+    // when that clip belongs to the armed track (transform lanes live on the
+    // track's lane set, keyed to a specific clip). effectId is the reserved
+    // `clipTransform.<clipId>` namespace (projectParam.bpm precedent), so
+    // addLane concatenates to `clipTransform.<clipId>.<field>`.
+    const selClipOnArmedTrack =
+      selectedClipId && armedTrack.clips.some((c) => c.id === selectedClipId)
+    if (selClipOnArmedTrack) {
+      const effectId = formatTransformLaneEffectId(selectedClipId)
+      for (const field of TRANSFORM_FIELDS) {
+        const paramPath = `${effectId}.${field}` // clipTransform.<clipId>.<field>
+        if (existingPaths.has(paramPath)) continue
+        options.push({
+          effectId,
+          effectName: 'Clip Transform',
+          paramKey: field,
+          paramLabel: `Clip Transform · ${TRANSFORM_FIELD_META[field].label}`,
+        })
+      }
+    }
+
     return options
-  }, [armedTrack])
+  }, [armedTrack, selectedClipId])
 
   const handleAddLane = useCallback(() => {
     setPickerMode((prev) => (prev === 'lane' ? null : 'lane'))

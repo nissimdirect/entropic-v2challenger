@@ -209,6 +209,90 @@ describe('AutomationToolbar — + Lane picker flow (G.24 / P.12)', () => {
   })
 })
 
+describe('AutomationToolbar — clip-transform lanes (A1+A2)', () => {
+  const TRANSFORM_TESTIDS = [
+    'param-option-x',
+    'param-option-y',
+    'param-option-scaleX',
+    'param-option-scaleY',
+    'param-option-rotation',
+  ]
+
+  function addAndSelectClip(trackId: string, clipId = 'clip-1') {
+    useTimelineStore.getState().addClip(trackId, {
+      id: clipId,
+      assetId: 'asset-1',
+      trackId,
+      position: 0,
+      duration: 5,
+      inPoint: 0,
+      outPoint: 5,
+      speed: 1,
+    })
+    useTimelineStore.getState().selectClip(clipId)
+    return clipId
+  }
+
+  it('lists exactly the 5 transform fields when a clip on the armed track is selected', () => {
+    const t = armATrack()
+    addAndSelectClip(t.id)
+    const { container } = render(<AutomationToolbar />)
+    fireEvent.click(container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement)
+    for (const testid of TRANSFORM_TESTIDS) {
+      expect(container.querySelector(`[data-testid="${testid}"]`)).toBeTruthy()
+    }
+    // Labels read "Clip Transform · <Field>".
+    const xOption = container.querySelector('[data-testid="param-option-x"]') as HTMLElement
+    expect(xOption.textContent).toContain('Clip Transform')
+  })
+
+  it('does NOT list transform fields when no clip is selected', () => {
+    armATrack() // armed, but nothing selected
+    const { container } = render(<AutomationToolbar />)
+    fireEvent.click(container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement)
+    for (const testid of TRANSFORM_TESTIDS) {
+      expect(container.querySelector(`[data-testid="${testid}"]`)).toBeNull()
+    }
+  })
+
+  it('does NOT list transform fields when the selected clip is on a DIFFERENT (non-armed) track', () => {
+    const armed = armATrack()
+    // A second track holds the selected clip; the armed track is `armed`.
+    useTimelineStore.getState().addTrack('Track B', '#00ff00')
+    const trackB = useTimelineStore.getState().tracks[1]
+    addAndSelectClip(trackB.id, 'clip-onB')
+    // Keep the FIRST track armed.
+    useAutomationStore.setState({ armedTrackId: armed.id })
+    const { container } = render(<AutomationToolbar />)
+    fireEvent.click(container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement)
+    for (const testid of TRANSFORM_TESTIDS) {
+      expect(container.querySelector(`[data-testid="${testid}"]`)).toBeNull()
+    }
+  })
+
+  it('clicking a transform field creates a clipTransform.<clipId>.<field> lane', () => {
+    const t = armATrack()
+    const clipId = addAndSelectClip(t.id)
+    const { container } = render(<AutomationToolbar />)
+    fireEvent.click(container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement)
+    fireEvent.click(container.querySelector('[data-testid="param-option-scaleX"]') as HTMLElement)
+    const lanes = useAutomationStore.getState().getLanesForTrack(t.id)
+    expect(lanes).toHaveLength(1)
+    expect(lanes[0].paramPath).toBe(`clipTransform.${clipId}.scaleX`)
+  })
+
+  it('an already-mapped transform field is not offered again', () => {
+    const t = armATrack()
+    const clipId = addAndSelectClip(t.id)
+    useAutomationStore.getState().addLane(t.id, `clipTransform.${clipId}`, 'x', '#4ade80')
+    const { container } = render(<AutomationToolbar />)
+    fireEvent.click(container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement)
+    // x already mapped → gone; the other four remain.
+    expect(container.querySelector('[data-testid="param-option-x"]')).toBeNull()
+    expect(container.querySelector('[data-testid="param-option-y"]')).toBeTruthy()
+  })
+})
+
 describe('AutomationToolbar — Simplify (G.26 / P.14)', () => {
   it('Simplify on a lane with >2 points reduces point count', () => {
     const t = armATrack()
