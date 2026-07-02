@@ -320,3 +320,73 @@ describe('legacy project without maskStack loads clean', () => {
     expect(stack).toHaveLength(0)
   })
 })
+
+// --------------------------------------------------------------------------- #
+//  F2 sibling sweep: polygon vertices (array-shaped params) survive reload
+// --------------------------------------------------------------------------- #
+//
+// validateMatteNode's params sanitizer only kept `number` and `string` values
+// — every array value (polygon `vertices`, stored as number[] or number[][]
+// per the MatteNode.params type) was silently dropped. A polygon matte
+// therefore survived save -> reload as an EMPTY node (params.vertices gone),
+// which renders nothing. Same silent-loss bug class as the sampler headline
+// bug, just on a different type.
+
+describe('polygon matte vertices survive save and load round trip (F2)', () => {
+  beforeEach(resetStores)
+
+  const POLYGON_NODE: MatteNode = {
+    id: 'mk1-polygon-01',
+    kind: 'polygon',
+    params: { vertices: [[0.1, 0.1], [0.9, 0.1], [0.5, 0.9]] },
+    op: 'add',
+    invert: false,
+    feather: 2,
+    growShrink: 0,
+    enabled: true,
+  }
+
+  it('a polygon node (number[][] vertices) round-trips through serialize -> deserialize', () => {
+    const projectData = makeProjectWithClip({ maskStack: [POLYGON_NODE] })
+    hydrateStores(projectData as any)
+
+    const clip = useTimelineStore.getState().tracks[0].clips[0]
+    const stack = clip.maskStack ?? []
+    expect(stack).toHaveLength(1)
+    expect(stack[0].params.vertices).toEqual([[0.1, 0.1], [0.9, 0.1], [0.5, 0.9]])
+  })
+
+  it('a flat number[] vertices array also round-trips (both encodings accepted)', () => {
+    const flatNode: MatteNode = { ...POLYGON_NODE, id: 'flat-01', params: { vertices: [0.1, 0.1, 0.9, 0.1, 0.5, 0.9] } }
+    const projectData = makeProjectWithClip({ maskStack: [flatNode] })
+    hydrateStores(projectData as any)
+
+    const clip = useTimelineStore.getState().tracks[0].clips[0]
+    const stack = clip.maskStack ?? []
+    expect(stack).toHaveLength(1)
+    expect(stack[0].params.vertices).toEqual([0.1, 0.1, 0.9, 0.1, 0.5, 0.9])
+  })
+
+  it('NaN inside vertex pairs is clamped to 0, never dropped or crashes', () => {
+    const nanNode: MatteNode = { ...POLYGON_NODE, id: 'nan-verts', params: { vertices: [[NaN, 0.2], [0.9, Infinity]] } }
+    const projectData = makeProjectWithClip({ maskStack: [nanNode] })
+    expect(() => hydrateStores(projectData as any)).not.toThrow()
+
+    const clip = useTimelineStore.getState().tracks[0].clips[0]
+    const stack = clip.maskStack ?? []
+    expect(stack).toHaveLength(1)
+    expect(stack[0].params.vertices).toEqual([[0, 0.2], [0.9, 0]])
+  })
+
+  it('a full save -> JSON.parse -> reload round trip preserves vertices end to end', () => {
+    const projectData = makeProjectWithClip({ maskStack: [POLYGON_NODE] })
+    // Round-trip through actual JSON serialization (not just object identity).
+    const json = JSON.stringify(projectData)
+    const reparsed = JSON.parse(json)
+    expect(validateProject(reparsed)).toBe(true)
+    hydrateStores(reparsed)
+
+    const clip = useTimelineStore.getState().tracks[0].clips[0]
+    expect(clip.maskStack![0].params.vertices).toEqual([[0.1, 0.1], [0.9, 0.1], [0.5, 0.9]])
+  })
+})
