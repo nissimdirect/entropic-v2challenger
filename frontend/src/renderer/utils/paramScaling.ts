@@ -82,3 +82,26 @@ export function sliderToValue(slider: number, min: number, max: number, curve: P
   const scaled = normalizedToScaled(slider, curve)
   return min + scaled * (max - min)
 }
+
+/**
+ * Shared display formatter for numeric param values (Slider, Knob, ParamLabel).
+ *
+ * UAT P5: params with `unit === '%'` on a 0..1 range (e.g. Color Invert's
+ * `amount`, default 1.0) rendered as "1.00%" with no ×100 scaling — reading
+ * as one percent instead of a full-strength effect. Params whose `unit` is
+ * `'%'` AND whose range is `max <= 1` are now scaled ×100 and rounded.
+ *
+ * Guard (`max <= 1`): a backend registry sweep of every `%`-unit param found
+ * 20 that already use a wider range (e.g. `byte_corrupt.jpeg_quality` 1-95,
+ * `hsl_adjust.saturation` -100..100) — those must NOT be scaled again, or
+ * they'd double-scale. `max` is optional so existing callers that don't know
+ * the param range (e.g. `ParamLabel` without a `max` prop) keep prior
+ * behavior unchanged.
+ */
+export function formatParamValue(value: number, type: 'float' | 'int', unit?: string, max?: number): string {
+  if (unit === '%' && max !== undefined && max <= 1) {
+    return `${Math.round(value * 100)}%`
+  }
+  const formatted = type === 'int' ? Math.round(value).toString() : value.toFixed(2)
+  return unit ? `${formatted}${unit}` : formatted
+}

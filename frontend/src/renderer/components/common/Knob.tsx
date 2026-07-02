@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import type { ParamCurve } from '../../../shared/types'
-import { valueToSlider, sliderToValue } from '../../utils/paramScaling'
+import { valueToSlider, sliderToValue, formatParamValue } from '../../utils/paramScaling'
 import NumberInput from './NumberInput'
 import ParamLabel from './ParamLabel'
 import ParamTooltip from './ParamTooltip'
@@ -204,7 +204,7 @@ export default function Knob({
           aria-valuemin={min}
           aria-valuemax={max}
           aria-valuenow={type === 'int' ? Math.round(value) : value}
-          aria-valuetext={unit ? `${type === 'int' ? Math.round(value) : value.toFixed(2)}${unit}` : `${type === 'int' ? Math.round(value) : value.toFixed(2)}`}
+          aria-valuetext={formatParamValue(value, type, unit, max)}
           aria-orientation="vertical"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
@@ -263,6 +263,7 @@ export default function Knob({
               unit={unit}
               type={type}
               description={description}
+              max={max}
             />
           </div>
         )}
