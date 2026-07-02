@@ -257,3 +257,182 @@ def test_fractional_generation_is_between_neighbors():
     mid, _ = _apply(frame, {"machine": "toner", "generation": 3.5})
     # mid must differ from the pure 3-pass output (the fractional pass took effect)
     assert not np.array_equal(mid, lo), "fractional generation had no effect"
+
+
+# ---------------------------------------------------------------------------
+# color subject helper
+# ---------------------------------------------------------------------------
+def _color_frame(h: int = 48, w: int = 48) -> np.ndarray:
+    """Saturated color subject: red block on blue field (dark-on-... mixed)."""
+    frame = np.zeros((h, w, 4), dtype=np.uint8)
+    frame[:, :, 2] = 170  # blue field
+    frame[h // 4 : 3 * h // 4, w // 4 : 3 * w // 4, 0] = 210  # red block
+    frame[h // 4 : 3 * h // 4, w // 4 : 3 * w // 4, 2] = 20
+    frame[:, :, 3] = 255
+    return frame
+
+
+def _chroma_var(rgb: np.ndarray) -> float:
+    """Variance of an opponent (R-G, R-B) chroma signal — 0 for greyscale."""
+    f = rgb[:, :, :3].astype(np.int32)
+    rg = f[:, :, 0] - f[:, :, 1]
+    rb = f[:, :, 0] - f[:, :, 2]
+    return float(np.var(rg) + np.var(rb))
+
+
+# ---------------------------------------------------------------------------
+# random machine
+# ---------------------------------------------------------------------------
+def test_random_machine_runs_and_is_registered():
+    from effects import registry
+
+    assert "random" in copy_machine.MACHINES
+    schema = registry.get("fx.copy_machine")["params"]
+    assert "random" in schema["machine"]["options"]
+    assert "random_pool" in schema and "color_mode" in schema
+    frame = _subject_frame()
+    out, _ = _apply(frame, {"machine": "random", "generation": 4})
+    assert out.shape == frame.shape and out.dtype == np.uint8
+
+
+def test_random_same_seed_same_sequence_diff_seed_differs():
+    """Random machine selection is reproducible per seed and varies across seeds."""
+    pool = list(copy_machine._REAL_MACHINES)
+
+    def seq(seed, feedback):
+        # stateless: vary pass index; feedback: vary frame index
+        if feedback:
+            return [
+                copy_machine._pick_random_machine(pool, seed, fi, 0, True)
+                for fi in range(12)
+            ]
+        return [
+            copy_machine._pick_random_machine(pool, seed, 0, p, False)
+            for p in range(12)
+        ]
+
+    for fb in (False, True):
+        assert seq(7, fb) == seq(7, fb), (
+            "random selection not reproducible for same seed"
+        )
+        assert seq(7, fb) != seq(999, fb), "different seeds produced identical sequence"
+        assert all(m in pool for m in seq(7, fb)), "picked a machine outside the pool"
+
+
+def test_random_pool_restricts_choices():
+    """random_pool limits selection to the named subset."""
+    frame = _subject_frame()
+    # a 1-element pool forces that machine; output must match the explicit machine
+    forced, _ = _apply(
+        frame, {"machine": "random", "random_pool": "halftone", "generation": 3}, seed=5
+    )
+    direct, _ = _apply(frame, {"machine": "halftone", "generation": 3}, seed=5)
+    assert np.array_equal(forced, direct), (
+        "single-item random_pool did not force machine"
+    )
+
+
+def test_random_stateless_is_frame_stable():
+    """Stateless random uses the same machine chain every frame (no flicker)."""
+    pool = list(copy_machine._REAL_MACHINES)
+    a = copy_machine._pick_random_machine(pool, 3, 0, 5, False)
+    b = copy_machine._pick_random_machine(pool, 3, 99, 5, False)  # different frame
+    assert a == b, "stateless random machine changed with frame_index (would flicker)"
+
+
+# ---------------------------------------------------------------------------
+# color_mode
+# ---------------------------------------------------------------------------
+def test_color_mode_retains_chroma_bw_collapses():
+    """color mode keeps source chroma in inked regions; bw collapses to greyscale."""
+    frame = _color_frame()
+    for machine in ("toner", "halftone", "ascii", "photocopy"):
+        base = {"machine": machine, "generation": 2, "invert_auto": False}
+        color, _ = _apply(frame, {**base, "color_mode": "color"}, seed=4)
+        bw, _ = _apply(frame, {**base, "color_mode": "bw"}, seed=4)
+        cv_color = _chroma_var(color)
+        cv_bw = _chroma_var(bw)
+        # color mode must retain materially more chroma than bw (which collapses it)
+        assert cv_color > 25.0, f"{machine} color mode lost chroma (var={cv_color:.1f})"
+        assert cv_bw < cv_color * 0.35, (
+            f"{machine} bw did not collapse chroma (bw={cv_bw:.1f} color={cv_color:.1f})"
+        )
+
+
+def test_color_mode_riso_bw_desaturates():
+    """riso is inherently color; bw mode must desaturate it (near-greyscale)."""
+    frame = _color_frame()
+    bw, _ = _apply(
+        frame, {"machine": "riso", "generation": 2, "color_mode": "bw"}, seed=1
+    )
+    color, _ = _apply(
+        frame, {"machine": "riso", "generation": 2, "color_mode": "color"}, seed=1
+    )
+    assert _chroma_var(bw) < _chroma_var(color) * 0.2, "riso bw did not desaturate"
+
+
+def test_color_mode_invalid_falls_back_to_bw():
+    frame = _color_frame()
+    out, _ = _apply(frame, {"machine": "toner", "generation": 2, "color_mode": "xyz"})
+    assert out.dtype == np.uint8
+
+
+# ---------------------------------------------------------------------------
+# ascii machine
+# ---------------------------------------------------------------------------
+def test_ascii_output_is_composed_of_glyph_tiles():
+    """In bw mode, every cell equals one of the glyph tiles => unique patterns <= glyphs."""
+    frame = _subject_frame(64, 64)
+    rng = np.random.default_rng(0)
+    cell = 8
+    out = copy_machine._m_ascii(
+        frame[:, :, :3], rng, 0.0, {"cell_size": cell, "glyph_set": "classic"}
+    )
+    n_glyphs = len(copy_machine._GLYPH_BASE["classic"])
+    # collect unique cell bitmaps (ink vs paper) over the glyph grid
+    ink = (out.reshape(-1, 3) == copy_machine._INK.astype(np.uint8)).all(axis=1)
+    ink = ink.reshape(out.shape[0], out.shape[1])
+    gh, gw = out.shape[0] // cell, out.shape[1] // cell
+    patterns = {
+        ink[y * cell : (y + 1) * cell, x * cell : (x + 1) * cell].tobytes()
+        for y in range(gh)
+        for x in range(gw)
+    }
+    assert len(patterns) <= n_glyphs, (
+        f"ascii produced {len(patterns)} distinct cells but only {n_glyphs} glyphs exist"
+    )
+
+
+def test_ascii_cell_coarsens_with_generation():
+    """Higher generation -> larger effective cells -> coarser output (fewer edges)."""
+    frame = _subject_frame(96, 96)
+    rng = np.random.default_rng(0)
+    cfg = {"cell_size": 4, "glyph_set": "dense"}
+    fine = copy_machine._m_ascii(frame[:, :, :3], rng, 0.0, cfg)
+    coarse = copy_machine._m_ascii(frame[:, :, :3], rng, 20.0, cfg)
+
+    def edge_density(img):
+        g = img[:, :, 0].astype(np.int16)
+        return float(np.mean(np.abs(np.diff(g, axis=1)))) + float(
+            np.mean(np.abs(np.diff(g, axis=0)))
+        )
+
+    assert edge_density(coarse) < edge_density(fine), (
+        "ascii did not coarsen with generation"
+    )
+
+
+def test_ascii_glyph_sets_differ():
+    frame = _subject_frame(64, 64)
+    rng = np.random.default_rng(0)
+    outs = [
+        copy_machine._m_ascii(
+            frame[:, :, :3], rng, 0.0, {"cell_size": 8, "glyph_set": gs}
+        )
+        for gs in copy_machine.GLYPH_SETS
+    ]
+    # at least two of the sets must produce materially different output
+    diffs = [
+        float(np.mean(np.abs(outs[0].astype(int) - o.astype(int)))) for o in outs[1:]
+    ]
+    assert max(diffs) > 1.0, "all glyph sets produced identical output"

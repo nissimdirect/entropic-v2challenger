@@ -24,7 +24,13 @@ Physical pipeline per pass (fixed, wraps the machine):
 
 Machines: toner, photocopy (Sobel), spread, halftone (45deg dot screen), atkinson
 (error diffusion; numba-accelerated when available), riso (2-plate pink/blue with
-per-generation misregistration drift), fax (1-bit + scanline shift/dropout).
+per-generation misregistration drift), fax (1-bit + scanline shift/dropout), ascii
+(per-cell luminance -> glyph tile, grid coarsens with generation), and "random"
+(a seeded per-pass/per-frame selector drawing from `random_pool`).
+
+color_mode: "bw" keeps the classic mono ink; "color" restamps the source's own
+chroma into the inked/screened regions (color-photocopy / CMY-ish look). riso is
+inherently colored (bw desaturates it).
 """
 
 import cv2
@@ -43,7 +49,8 @@ EFFECT_ID = "fx.copy_machine"
 EFFECT_NAME = "Copy Machine"
 EFFECT_CATEGORY = "codec_archaeology"
 
-MACHINES = [
+# Concrete machines the effect can run. The "random" selector draws from these.
+_REAL_MACHINES = [
     "toner",
     "photocopy",
     "spread",
@@ -51,7 +58,13 @@ MACHINES = [
     "atkinson",
     "riso",
     "fax",
+    "ascii",
 ]
+# Param options = the concrete machines plus the meta "random" selector.
+MACHINES = _REAL_MACHINES + ["random"]
+
+COLOR_MODES = ["bw", "color"]
+GLYPH_SETS = ["classic", "blocks", "dense"]
 
 # Fixed palette (from prototype): warm ink on warm paper.
 _PAPER = np.array([242, 239, 230], dtype=np.float32)
@@ -69,6 +82,16 @@ _FEEDBACK_MIX = 0.8
 # Hard cap on generations (recipe settled on 120).
 _MAX_GEN = 120.0
 
+# Distinct RNG namespace so machine-selection draws never collide with the
+# per-pass pixel-noise RNG (which is keyed on the real pass index).
+_RANDOM_NS = 0x5EED
+
+# ASCII machine tuning.
+_ASCII_MAX_CELL = 48  # cap effective cell so tiles/memory stay bounded
+_ASCII_COARSEN = 1.5  # px added to the cell per generation unit (grid coarsens)
+_ASCII_NOISE = 26.0  # per-cell luminance jitter (glyph selection wobble)
+_ASCII_NOISE_GEN = 0.15  # extra jitter per generation unit
+
 # Levels S-curve crush LUT: bp +14, wp -14 (window 227), smoothstep.
 _CRUSH_T = np.clip((np.arange(256, dtype=np.float32) - 14.0) / 227.0, 0.0, 1.0)
 _CRUSH_LUT = (
@@ -82,7 +105,48 @@ PARAMS: dict = {
         "options": MACHINES,
         "default": "toner",
         "label": "Machine",
-        "description": "Duplication process to simulate.",
+        "description": (
+            "Duplication process to simulate. 'random' picks a machine per pass "
+            "(stateless) or per frame (feedback) from a seeded RNG."
+        ),
+    },
+    "random_pool": {
+        "type": "string",
+        "default": "",
+        "label": "Random Pool",
+        "description": (
+            "When Machine='random', comma-separated subset to draw from "
+            "(e.g. 'halftone,atkinson,ascii'). Empty = all machines."
+        ),
+    },
+    "color_mode": {
+        "type": "choice",
+        "options": COLOR_MODES,
+        "default": "bw",
+        "label": "Color Mode",
+        "description": (
+            "'bw' = monochrome ink (luminance). 'color' = keep source chroma in "
+            "the inked/screened regions (color photocopy / CMY-ish look)."
+        ),
+    },
+    "cell_size": {
+        "type": "int",
+        "min": 2,
+        "max": 48,
+        "default": 6,
+        "label": "ASCII Cell",
+        "curve": "linear",
+        "unit": "px",
+        "description": (
+            "ASCII glyph cell size in px. Coarsens further as Generation rises."
+        ),
+    },
+    "glyph_set": {
+        "type": "choice",
+        "options": GLYPH_SETS,
+        "default": "classic",
+        "label": "Glyph Set",
+        "description": "ASCII glyph ramp: classic chars, shade blocks, or a dense ramp.",
     },
     "generation": {
         "type": "float",
@@ -184,6 +248,37 @@ def _ink_or_paper(mask: np.ndarray) -> np.ndarray:
     return np.where(mask[:, :, None], _INK, _PAPER).astype(np.uint8)
 
 
+def _parse_pool(random_pool) -> list[str]:
+    """Parse the random_pool string into a validated machine list (defaults to all)."""
+    if isinstance(random_pool, str) and random_pool.strip():
+        wanted = [tok.strip().lower() for tok in random_pool.split(",")]
+        pool = [m for m in wanted if m in _REAL_MACHINES]
+        if pool:
+            return pool
+    return list(_REAL_MACHINES)
+
+
+def _pick_random_machine(
+    pool: list[str],
+    seed: int,
+    frame_index: int,
+    pass_index: int,
+    feedback: bool,
+) -> str:
+    """Deterministically choose a concrete machine from the pool.
+
+    Reproducible for fixed (seed, frame/pass): feedback keys on frame_index so the
+    machine drifts as the video plays; stateless keys on pass_index only (no
+    frame_index) so the randomized chain is stable frame-to-frame (no flicker).
+    """
+    if feedback:
+        key = _seed_for(seed, frame_index, _RANDOM_NS)
+    else:
+        key = _seed_for(seed, _RANDOM_NS, pass_index)
+    idx = int(make_rng(key).integers(0, len(pool)))
+    return pool[idx]
+
+
 # --------------------------------------------------------------------------- #
 # physical pipeline stages
 # --------------------------------------------------------------------------- #
@@ -241,13 +336,13 @@ def _grain(rgb: np.ndarray, rng: np.random.Generator) -> np.ndarray:
 # --------------------------------------------------------------------------- #
 # machines
 # --------------------------------------------------------------------------- #
-def _m_toner(rgb: np.ndarray, rng: np.random.Generator, _gen: float) -> np.ndarray:
+def _m_toner(rgb, rng, _gen, _cfg=None) -> np.ndarray:
     lum = _luma(rgb)
     noise = (rng.random(lum.shape).astype(np.float32) * 2.0 - 1.0) * 46.0
     return _ink_or_paper((lum + noise) < 150.0)
 
 
-def _m_photocopy(rgb: np.ndarray, rng: np.random.Generator, _gen: float) -> np.ndarray:
+def _m_photocopy(rgb, rng, _gen, _cfg=None) -> np.ndarray:
     lum = _luma(rgb)
     gx = cv2.Sobel(lum, cv2.CV_32F, 1, 0, ksize=3)
     gy = cv2.Sobel(lum, cv2.CV_32F, 0, 1, ksize=3)
@@ -255,7 +350,7 @@ def _m_photocopy(rgb: np.ndarray, rng: np.random.Generator, _gen: float) -> np.n
     return _ink_or_paper((mag > 90.0) | (lum < 52.0))
 
 
-def _m_spread(rgb: np.ndarray, rng: np.random.Generator, gen: float) -> np.ndarray:
+def _m_spread(rgb, rng, gen, _cfg=None) -> np.ndarray:
     h, w = rgb.shape[:2]
     dx = rng.integers(0, 5, size=(h, w)) - 2
     dy = rng.integers(0, 5, size=(h, w)) - 2
@@ -266,7 +361,7 @@ def _m_spread(rgb: np.ndarray, rng: np.random.Generator, gen: float) -> np.ndarr
     return _m_toner(displaced, rng, gen)  # re-toner after diffusion (prototype parity)
 
 
-def _m_halftone(rgb: np.ndarray, rng: np.random.Generator, _gen: float) -> np.ndarray:
+def _m_halftone(rgb, rng, _gen, _cfg=None) -> np.ndarray:
     """45deg dot screen. Frequency scales with resolution (finer per generation)."""
     h, w = rgb.shape[:2]
     cell = max(2, round(w / 140.0))
@@ -347,11 +442,11 @@ def _atkinson_mask(lum: np.ndarray) -> np.ndarray:
     return cv2.resize(out, (w, h), interpolation=cv2.INTER_NEAREST).astype(bool)
 
 
-def _m_atkinson(rgb: np.ndarray, rng: np.random.Generator, _gen: float) -> np.ndarray:
+def _m_atkinson(rgb, rng, _gen, _cfg=None) -> np.ndarray:
     return _ink_or_paper(_atkinson_mask(_luma(rgb)))
 
 
-def _m_riso(rgb: np.ndarray, rng: np.random.Generator, gen: float) -> np.ndarray:
+def _m_riso(rgb, rng, gen, _cfg=None) -> np.ndarray:
     """2-plate risograph; misregistration offset drifts with generation."""
     h, w = rgb.shape[:2]
     g = np.clip(1.0 - _luma(rgb) / 255.0, 0.0, 1.0)
@@ -375,7 +470,7 @@ def _m_riso(rgb: np.ndarray, rng: np.random.Generator, gen: float) -> np.ndarray
     return np.clip(out, 0, 255).astype(np.uint8)
 
 
-def _m_fax(rgb: np.ndarray, rng: np.random.Generator, _gen: float) -> np.ndarray:
+def _m_fax(rgb, rng, _gen, _cfg=None) -> np.ndarray:
     """1-bit threshold with per-row scanline shift and dropout errors."""
     h, w = rgb.shape[:2]
     lum = _luma(rgb)
@@ -391,6 +486,175 @@ def _m_fax(rgb: np.ndarray, rng: np.random.Generator, _gen: float) -> np.ndarray
     return base
 
 
+# --------------------------------------------------------------------------- #
+# ASCII machine
+# --------------------------------------------------------------------------- #
+# 8x8 base glyph bitmaps ('#' = ink stroke). "classic" uses recognizable ASCII
+# chars ordered light->dark; "blocks" and "dense" are ordered-fill ramps.
+_GLYPH_CLASSIC = [
+    (
+        "........",
+        "........",
+        "........",
+        "........",
+        "........",
+        "........",
+        "........",
+        "........",
+    ),  # ' '
+    (
+        "........",
+        "........",
+        "........",
+        "........",
+        "........",
+        "...##...",
+        "...##...",
+        "........",
+    ),  # '.'
+    (
+        "........",
+        "...##...",
+        "...##...",
+        "........",
+        "...##...",
+        "...##...",
+        "........",
+        "........",
+    ),  # ':'
+    (
+        "........",
+        "...##...",
+        "...##...",
+        ".######.",
+        ".######.",
+        "...##...",
+        "...##...",
+        "........",
+    ),  # '+'
+    (
+        "........",
+        ".#.##.#.",
+        "..####..",
+        ".######.",
+        ".######.",
+        "..####..",
+        ".#.##.#.",
+        "........",
+    ),  # '*'
+    (
+        ".#..#...",
+        ".#..#...",
+        "#######.",
+        ".#..#...",
+        "#######.",
+        ".#..#...",
+        ".#..#...",
+        "........",
+    ),  # '#'
+    (
+        ".######.",
+        "#......#",
+        "#.####.#",
+        "#.#..#.#",
+        "#.####.#",
+        "#......#",
+        ".######.",
+        "........",
+    ),  # '@'
+]
+_BAYER8 = (
+    np.array(
+        [
+            [0, 48, 12, 60, 3, 51, 15, 63],
+            [32, 16, 44, 28, 35, 19, 47, 31],
+            [8, 56, 4, 52, 11, 59, 7, 55],
+            [40, 24, 36, 20, 43, 27, 39, 23],
+            [2, 50, 14, 62, 1, 49, 13, 61],
+            [34, 18, 46, 30, 33, 17, 45, 29],
+            [10, 58, 6, 54, 9, 57, 5, 53],
+            [42, 26, 38, 22, 41, 25, 37, 21],
+        ],
+        dtype=np.float32,
+    )
+    / 64.0
+)
+
+
+def _bits(rows: tuple[str, ...]) -> np.ndarray:
+    return np.array([[c == "#" for c in row] for row in rows], dtype=bool)
+
+
+def _dither_ramp(levels: int) -> list[np.ndarray]:
+    """Ordered-fill 8x8 glyphs: level i inks where Bayer < fill fraction."""
+    return [(_BAYER8 < (i / (levels - 1))) for i in range(levels)]
+
+
+# Base (8x8) glyph stacks per set, ordered light (few pixels) -> dark (many).
+_GLYPH_BASE = {
+    "classic": [_bits(g) for g in _GLYPH_CLASSIC],
+    "blocks": _dither_ramp(5),
+    "dense": _dither_ramp(10),
+}
+_GLYPH_CACHE: dict[tuple[str, int], np.ndarray] = {}
+
+
+def _glyph_stack(glyph_set: str, cell: int) -> np.ndarray:
+    """(n, cell, cell) bool tile stack for a set at a given cell size (cached)."""
+    key = (glyph_set, cell)
+    cached = _GLYPH_CACHE.get(key)
+    if cached is not None:
+        return cached
+    base = _GLYPH_BASE.get(glyph_set, _GLYPH_BASE["classic"])
+    tiles = np.stack(
+        [
+            cv2.resize(
+                g.astype(np.uint8), (cell, cell), interpolation=cv2.INTER_NEAREST
+            ).astype(bool)
+            for g in base
+        ]
+    )
+    _GLYPH_CACHE[key] = tiles
+    return tiles
+
+
+def _m_ascii(rgb, rng, gen, cfg=None) -> np.ndarray:
+    """Per-cell luminance -> glyph tile. Cell coarsens as generation rises."""
+    cfg = cfg or {}
+    base_cell = int(cfg.get("cell_size", 6))
+    glyph_set = cfg.get("glyph_set", "classic")
+    h, w = rgb.shape[:2]
+    # generation coarsens the grid; keep at least one cell on tiny frames
+    eff_cell = int(np.clip(base_cell + round(gen * _ASCII_COARSEN), 2, _ASCII_MAX_CELL))
+    eff_cell = max(1, min(eff_cell, h, w))
+    gh, gw = h // eff_cell, w // eff_cell
+    if gh < 1 or gw < 1:
+        eff_cell = max(1, min(h, w))
+        gh, gw = h // eff_cell, w // eff_cell
+    ch, cw = gh * eff_cell, gw * eff_cell
+
+    lum = _luma(rgb)[:ch, :cw]
+    cell_mean = lum.reshape(gh, eff_cell, gw, eff_cell).mean(axis=(1, 3))
+    noise = (rng.random((gh, gw)).astype(np.float32) * 2.0 - 1.0) * (
+        _ASCII_NOISE * (1.0 + gen * _ASCII_NOISE_GEN)
+    )
+    val = np.clip(cell_mean + noise, 0.0, 255.0)
+
+    stack = _glyph_stack(glyph_set, eff_cell)
+    n = stack.shape[0]
+    # darker cell -> denser glyph (higher index)
+    idx = np.clip(((1.0 - val / 255.0) * (n - 1)).round().astype(int), 0, n - 1)
+    cells = stack[idx]  # (gh, gw, cell, cell) bool
+    grid = cells.transpose(0, 2, 1, 3).reshape(ch, cw)  # bool ink map
+
+    out = np.empty((h, w, 3), dtype=np.uint8)
+    out[:] = _PAPER.astype(np.uint8)
+    ink = np.zeros((h, w), dtype=bool)
+    ink[:ch, :cw] = grid
+    out[ink] = _INK.astype(np.uint8)
+    return out
+
+
 _MACHINE_FNS = {
     "toner": _m_toner,
     "photocopy": _m_photocopy,
@@ -399,7 +663,32 @@ _MACHINE_FNS = {
     "atkinson": _m_atkinson,
     "riso": _m_riso,
     "fax": _m_fax,
+    "ascii": _m_ascii,
 }
+
+
+def _apply_color_mode(
+    machine_out: np.ndarray, source_color: np.ndarray, machine: str, color_mode: str
+) -> np.ndarray:
+    """Map a mono machine output into color mode (or leave/desaturate as needed).
+
+    color: restamp the source's own chroma into the inked/screened regions (a
+    color-photocopy look; per-glyph/per-dot/per-edge tinting). riso is already a
+    color process, so color leaves it and bw desaturates it.
+    """
+    if machine == "riso":
+        if color_mode == "color":
+            return machine_out
+        g = _luma(machine_out).astype(np.uint8)
+        return np.repeat(g[:, :, None], 3, axis=2)
+    if color_mode != "color":
+        return machine_out
+    # All other machines emit ink[23,21,15] or paper[242,239,230]; threshold at
+    # 128 recovers the ink mask cleanly. Ink regions take the source color.
+    ink = _luma(machine_out) < 128.0
+    return np.where(ink[:, :, None], source_color, _PAPER.astype(np.uint8)).astype(
+        np.uint8
+    )
 
 
 def _physical_pass(
@@ -408,6 +697,7 @@ def _physical_pass(
     rng: np.random.Generator,
     genlike: float,
     do_invert: bool,
+    cfg: dict,
 ) -> np.ndarray:
     """One full copy pass. When do_invert, work in ink-space so light spreads."""
     work = (255 - rgb) if do_invert else rgb
@@ -415,8 +705,10 @@ def _physical_pass(
     work = _optics(work, rng, border)
     work = cv2.blur(work, (3, 3))
     work = _crush(work)
-    work = _MACHINE_FNS[machine](work, rng, genlike)
-    work = _starve(work, rng)
+    source_color = work  # crushed color, used to re-tint in color mode
+    machined = _MACHINE_FNS[machine](work, rng, genlike, cfg)
+    machined = _apply_color_mode(machined, source_color, machine, cfg["color_mode"])
+    work = _starve(machined, rng)
     work = _grain(work, rng)
     return (255 - work) if do_invert else work
 
@@ -440,8 +732,21 @@ def apply(
 
     # --- trust boundary: clamp/validate every param at entry ---
     machine = params.get("machine", "toner")
-    if not isinstance(machine, str) or machine not in _MACHINE_FNS:
+    if not isinstance(machine, str) or machine not in MACHINES:
         machine = "toner"
+    is_random = machine == "random"
+    pool = _parse_pool(params.get("random_pool", "")) if is_random else []
+    color_mode = params.get("color_mode", "bw")
+    if color_mode not in COLOR_MODES:
+        color_mode = "bw"
+    glyph_set = params.get("glyph_set", "classic")
+    if glyph_set not in GLYPH_SETS:
+        glyph_set = "classic"
+    try:
+        cell_size = max(2, min(48, int(params.get("cell_size", 6))))
+    except (TypeError, ValueError):
+        cell_size = 6
+    cfg = {"color_mode": color_mode, "glyph_set": glyph_set, "cell_size": cell_size}
     try:
         generation = max(0.0, min(_MAX_GEN, float(params.get("generation", 12.0))))
     except (TypeError, ValueError):
@@ -454,6 +759,11 @@ def apply(
     freeze = _truthy(params.get("freeze", False))
     invert = _truthy(params.get("invert", False))
     invert_auto = _truthy(params.get("invert_auto", True))
+
+    def _machine_for(pass_index: int) -> str:
+        if is_random:
+            return _pick_random_machine(pool, seed, frame_index, pass_index, feedback)
+        return machine
 
     has_alpha = frame.shape[2] >= 4
     rgb = frame[:, :, :3]
@@ -485,7 +795,9 @@ def apply(
             base = source
         rng = make_rng(_seed_for(seed, frame_index, 0))
         # generation index grows with elapsed frames -> riso drift etc. accrue
-        out = _physical_pass(base, machine, rng, float(frame_index), do_invert)
+        out = _physical_pass(
+            base, _machine_for(0), rng, float(frame_index), do_invert, cfg
+        )
         # Store a private copy so a downstream in-place mutation of `result`
         # (3-channel + mix==1.0 makes result alias `out`) can't corrupt state.
         state["prev"] = out.copy()
@@ -497,10 +809,12 @@ def apply(
         frac = generation - full
         for p in range(full):
             rng = make_rng(_seed_for(seed, frame_index, p))
-            out = _physical_pass(out, machine, rng, float(p), do_invert)
+            out = _physical_pass(out, _machine_for(p), rng, float(p), do_invert, cfg)
         if frac > 1e-6:
             rng = make_rng(_seed_for(seed, frame_index, full))
-            nxt = _physical_pass(out, machine, rng, float(full), do_invert)
+            nxt = _physical_pass(
+                out, _machine_for(full), rng, float(full), do_invert, cfg
+            )
             out = _lerp_u8(out, nxt, frac)
 
     # --- blend with original ---
