@@ -13,8 +13,16 @@ CURRENT_VERSION = "3.0.0"
 # code (single-tester app, clean-break policy). Projects whose major version is
 # below 3 are rejected LOUDLY with this exact message — never crash, never a silent
 # partial load. The error string is contractual; tests assert it verbatim.
+# P1-B: reworded off the old "v2 projects unsupported — start a new project" copy,
+# which (before the voice-marker guard fix) was surfaced to VALID v3 users on a
+# render false-reject and read as "your project is broken." The new copy names the
+# actual condition (an unsupported pre-3.0 project format) for the genuine load-time
+# path without telling a valid-project user to start over. NOTE: this is interim
+# wording pending user sign-off on the exact copy (fix-plan Open Question 1).
 MIN_SUPPORTED_MAJOR = 3
-V2_UNSUPPORTED_MESSAGE = "v2 projects unsupported — start a new project"
+V2_UNSUPPORTED_MESSAGE = (
+    "Unsupported project format (v2 / pre-3.0) — this version can't open it."
+)
 
 REQUIRED_KEYS = {
     "version",

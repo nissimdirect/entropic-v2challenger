@@ -2726,6 +2726,10 @@ function AppInner() {
             blendMode: inst.blendMode,
             voiceCap: 4,
             adsr: rackAdsr,
+            // chain:[] is correct — SamplerInstrumentV1 (types.ts:38-136) has NO
+            // chain field; only rack PADS carry a per-pad insert chain (pad.chain,
+            // serialized below at the racks branch). A non-rack sampler has no UI
+            // to populate an insert chain, so there is nothing to drop (OQ4).
             chain: [],
           }
           const asset = projectAssets[inst.clipId]
@@ -2760,6 +2764,9 @@ function AppInner() {
             speed: inst.speed,
             opacity: inst.opacity,
             blendMode: inst.blendMode,
+            // chain:[] is correct — SamplerInstrumentV1 has no chain field; the
+            // per-pad insert chain lives on the rack pad (serialized as
+            // instrument.chain from pad.chain at the racks branch below). OQ4.
             chain: [],
           }
           // Additive optional B3 configs — only emit when present (mirrors the

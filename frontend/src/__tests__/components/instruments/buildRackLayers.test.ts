@@ -177,10 +177,13 @@ describe('buildRackLayers (B4.1)', () => {
     expect(layers[0].asset_path).toBe('/test/b.mp4')
   })
 
-  // Parity contract: every emitted layer matches the dict shape render_composite
-  // consumes (layer_type 'video', asset_path, finite opacity 0..1, blend_mode,
-  // empty chain). This is the same contract the per-track sampler path satisfies,
-  // so the backend compositor sums rack channels with NO rack-specific code.
+  // Parity contract (v3): every emitted layer matches the dict shape
+  // render_composite consumes (layer_type 'video', asset_path, finite opacity
+  // 0..1, blend_mode, chain). A pad's chain MAY be non-empty (per-pad insert
+  // chain, no terminal composite) — the layer carries a voice-marker (voice_id)
+  // so the backend v2-compositing guard exempts it (P1-B); it is NOT the v2
+  // track-clip shape. The backend compositor sums rack channels with NO
+  // rack-specific code.
   it('emits render_composite-compatible layer dicts (compositor parity contract)', () => {
     const pad = makePad('p1', { instrument: makeInst({ id: 's1', clipId: 'clip-1' }), opacity: 0.75, blend: 'screen' })
     const layers = buildRackLayers(makeRack([pad]), baseOpts({ p1: [trig(0, 0, 's1')] }))
@@ -316,5 +319,38 @@ describe('buildRackLayers — B4-pad-chain (per-pad insert chains)', () => {
     expect(exportInstrumentChain).toHaveLength(1)
     expect(exportInstrumentChain[0].effect_id).toBe('invert')
     expect(exportInstrumentChain[0].enabled).toBe(true)
+  })
+
+  // ---- P1-B v3 CONTRACT: a pad-WITH-chain layer carries the voice marker that
+  // exempts it from the backend v2-compositing guard ----
+  // The backend guard `_is_v2_compositing_shape` rejected a `layer_type:'video'`
+  // layer with top-level opacity/blend_mode + a non-empty chain and no terminal
+  // composite — EXACTLY a chained rack-pad voice — until P1-B added a voice-marker
+  // exemption (voice_id present → not v2). This test pins the frontend half of that
+  // contract: the emitted layer IS a video layer with top-level opacity/blend, a
+  // non-empty chain, no terminal composite, AND a voice_id — so the backend
+  // recognizes it as an instrument voice, not a v2 clip. Mirror backend:
+  // test_instrument_voice_composite_regression::test_a_guard_exempts_voice_layers[rack_pad].
+  it('emits a voice-marked layer for a chained pad (backend v2-guard exemption contract)', () => {
+    const chain = [makeEffect({ effectId: 'invert' })]
+    const pad = makePad('p1', {
+      instrument: makeInst({ id: 's1', clipId: 'clip-1' }),
+      opacity: 0.75,
+      blend: 'screen',
+      chain,
+    })
+    const layers = buildRackLayers(makeRack([pad]), baseOpts({ p1: [trig(0, 0, 's1')] }))
+    expect(layers).toHaveLength(1)
+    const l = layers[0]
+    // The v2-guard shape triggers: video layer + top-level opacity/blend + chain.
+    expect(l.layer_type).toBe('video')
+    expect(typeof l.opacity).toBe('number')
+    expect(l.blend_mode).toBe<BlendMode>('screen')
+    expect(l.chain).toHaveLength(1) // non-empty, no terminal composite
+    const terminal = l.chain[l.chain.length - 1]
+    expect(terminal.effectId).not.toBe('composite')
+    // The voice marker that makes the backend guard EXEMPT it (not a v2 clip).
+    expect(typeof l.voice_id).toBe('string')
+    expect((l.voice_id as string).length).toBeGreaterThan(0)
   })
 })

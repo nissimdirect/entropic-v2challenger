@@ -400,12 +400,16 @@ def test_frontend_chain_with_terminal_composite_renders_end_to_end_via_ipc(
 
 # ── Red-team P2.2c hardening (RT-1, RT-2, HT-1, HT-2) ──────────────────────────
 
+
 def test_rt1_ten_effects_plus_terminal_composite_passes_ipc_depth_gate():
     """RT-1: SEC-7 must not count the terminal composite — 10 real effects + a
     terminal composite (length 11) is a legal v3 chain, not a depth violation."""
     from security import validate_chain_depth
+
     chain = [{"effect_id": f"fx{i}", "params": {}} for i in range(10)]
-    chain.append({"effect_id": "composite", "params": {"opacity": 0.5, "mode": "normal"}})
+    chain.append(
+        {"effect_id": "composite", "params": {"opacity": 0.5, "mode": "normal"}}
+    )
     assert validate_chain_depth(chain) == []  # 11 entries, 10 effective — passes
     # 11 real effects (no composite) still rejected
     over = [{"effect_id": f"fx{i}", "params": {}} for i in range(11)]
@@ -416,26 +420,62 @@ def test_rt2_forged_non_dict_params_does_not_crash_compositor():
     """RT-2: a forged params=[..]/params=int must coerce to {} (defaults), not
     raise AttributeError."""
     from engine.compositor import _resolve_compositing
+
     for forged in ([0.5, "multiply"], 42, "opaque"):
-        op, mode = _resolve_compositing({"chain": [{"effect_id": "composite", "params": forged}]})
+        op, mode = _resolve_compositing(
+            {"chain": [{"effect_id": "composite", "params": forged}]}
+        )
         assert op == 1.0 and mode == "normal"  # fell back to defaults, no crash
 
 
 def test_ht1_disabled_terminal_composite_falls_back_to_defaults():
     """HT-1: disabling the terminal composite restores default compositing."""
     from engine.compositor import _resolve_compositing
-    op, mode = _resolve_compositing({"chain": [
-        {"effect_id": "composite", "enabled": False, "params": {"opacity": 0.2, "mode": "difference"}},
-    ]})
+
+    op, mode = _resolve_compositing(
+        {
+            "chain": [
+                {
+                    "effect_id": "composite",
+                    "enabled": False,
+                    "params": {"opacity": 0.2, "mode": "difference"},
+                },
+            ]
+        }
+    )
     assert op == 1.0 and mode == "normal"
 
 
-def test_ht2_empty_chain_video_layer_with_v2_fields_is_rejected():
-    """HT-2: an empty-chain VIDEO layer carrying top-level opacity/blend_mode is a
-    v2 shape and must be flagged; non-video empty-chain layers are exempt."""
+def test_ht2_empty_chain_video_layer_is_exempt_after_p1b():
+    """HT-2 (REVISED by P1-B): an empty-chain VIDEO layer is the instrument/
+    sampler-voice or silent-track no-clip fallback path, NOT the v2 track-clip
+    shape. P1-B reverses the original HT-2 rejection — the silent-track fallback
+    (`buildSamplerLayer`) emits an empty-chain video layer with top-level
+    opacity/blend_mode and NO voice_id, so only relaxing the empty-chain branch
+    admits it. A real v2 clip always ships a NON-EMPTY chain and is STILL rejected
+    (see test_v2_era_video_layer_rejected_with_unsupported_message) and is
+    additionally blocked at load time (schema.MIN_SUPPORTED_MAJOR).
+
+    NOTE: `layer_type:'sampler'` is NOT a production shape — the frontend sends
+    `'video'` (types.ts:150) and keys the exemption on the voice_id / empty-chain
+    markers, not on a `'sampler'` layer_type.
+    """
     from zmq_server import ZMQServer
+
     is_v2 = ZMQServer._is_v2_compositing_shape
-    assert is_v2({"layer_type": "video", "chain": [], "opacity": 0.0, "blend_mode": "difference"}) is True
+    # Empty-chain video layer (sampler/instrument voice or silent-track fallback) → exempt.
+    assert (
+        is_v2(
+            {
+                "layer_type": "video",
+                "chain": [],
+                "opacity": 0.0,
+                "blend_mode": "difference",
+            }
+        )
+        is False
+    )
+    # Non-production 'sampler' layer_type also exempt (defensive).
     assert is_v2({"layer_type": "sampler", "chain": [], "opacity": 0.5}) is False
     # clean v3 video layer (no legacy fields) is not flagged
     assert is_v2({"layer_type": "video", "chain": []}) is False
