@@ -82,9 +82,10 @@ _FEEDBACK_MIX = 0.8
 # Hard cap on generations (recipe settled on 120).
 _MAX_GEN = 120.0
 
-# Distinct RNG namespace so machine-selection draws never collide with the
-# per-pass pixel-noise RNG (which is keyed on the real pass index).
-_RANDOM_NS = 0x5EED
+# XOR mask that puts machine-selection RNG draws in a separate stream from the
+# per-pass pixel-noise RNG. The pixel-noise keys are never XOR'd, so a nonzero
+# mask makes a collision structurally impossible for any (frame, pass).
+_RANDOM_XOR = 0x5EEDCAFE
 
 # ASCII machine tuning.
 _ASCII_MAX_CELL = 48  # cap effective cell so tiles/memory stay bounded
@@ -270,11 +271,12 @@ def _pick_random_machine(
     Reproducible for fixed (seed, frame/pass): feedback keys on frame_index so the
     machine drifts as the video plays; stateless keys on pass_index only (no
     frame_index) so the randomized chain is stable frame-to-frame (no flicker).
+    The XOR mask keeps this stream disjoint from the per-pass pixel-noise RNG.
     """
     if feedback:
-        key = _seed_for(seed, frame_index, _RANDOM_NS)
+        key = _seed_for(seed, frame_index, 0) ^ _RANDOM_XOR
     else:
-        key = _seed_for(seed, _RANDOM_NS, pass_index)
+        key = _seed_for(seed, 0, pass_index) ^ _RANDOM_XOR
     idx = int(make_rng(key).integers(0, len(pool)))
     return pool[idx]
 
@@ -710,6 +712,11 @@ def _physical_pass(
     machined = _apply_color_mode(machined, source_color, machine, cfg["color_mode"])
     work = _starve(machined, rng)
     work = _grain(work, rng)
+    # _starve clamps against the non-uniform paper color, which can reintroduce a
+    # small channel split into an otherwise-neutral riso-bw frame. Re-flatten it.
+    if machine == "riso" and cfg["color_mode"] != "color":
+        g = _luma(work).astype(np.uint8)
+        work = np.repeat(g[:, :, None], 3, axis=2)
     return (255 - work) if do_invert else work
 
 

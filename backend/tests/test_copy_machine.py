@@ -371,6 +371,52 @@ def test_color_mode_riso_bw_desaturates():
     assert _chroma_var(bw) < _chroma_var(color) * 0.2, "riso bw did not desaturate"
 
 
+def test_riso_bw_is_neutral_after_starve_across_seeds():
+    """riso+bw must stay per-pixel neutral (R==G==B) even after the starve stage's
+    non-uniform paper clamp — swept across seeds where the split was worst."""
+    frame = _color_frame()
+    worst = 0
+    for seed in range(20):
+        for gen in (1, 2, 3):
+            bw, _ = _apply(
+                frame,
+                {
+                    "machine": "riso",
+                    "generation": gen,
+                    "color_mode": "bw",
+                    "invert_auto": False,
+                },
+                seed=seed,
+            )
+            rgb = bw[:, :, :3].astype(int)
+            split = int(
+                (
+                    np.abs(rgb[:, :, 0] - rgb[:, :, 1])
+                    + np.abs(rgb[:, :, 1] - rgb[:, :, 2])
+                ).max()
+            )
+            worst = max(worst, split)
+    assert worst == 0, f"riso-bw not neutral: max channel split {worst}"
+
+
+def test_random_selection_rng_disjoint_from_pixel_noise():
+    """The random-machine RNG stream must never equal a pixel-noise key.
+
+    Regression for the frame_index == namespace collision (previously the
+    machine-selection key reused _seed_for's frame slot for the namespace).
+    """
+    for seed in (0, 1, 24301):
+        for fi in (0, 24301, 65535):
+            for p in range(4):
+                pixel_key = copy_machine._seed_for(seed, fi, p)
+                fb = copy_machine._seed_for(seed, fi, 0) ^ copy_machine._RANDOM_XOR
+                st = copy_machine._seed_for(seed, 0, p) ^ copy_machine._RANDOM_XOR
+                assert fb != pixel_key and st != pixel_key, (
+                    f"random RNG key collided with pixel-noise key at "
+                    f"seed={seed} fi={fi} p={p}"
+                )
+
+
 def test_color_mode_invalid_falls_back_to_bw():
     frame = _color_frame()
     out, _ = _apply(frame, {"machine": "toner", "generation": 2, "color_mode": "xyz"})
