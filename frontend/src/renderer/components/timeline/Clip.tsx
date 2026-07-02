@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
+import { useUndoStore } from '../../stores/undo'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
 import { useToastStore } from '../../stores/toast'
@@ -81,13 +82,15 @@ interface ClipProps {
   zoom: number
   scrollX: number
   isSelected: boolean
+  /** T3: true when the CONTAINING track is locked (cascades lock to this clip). */
+  trackLocked?: boolean
   assetName: string
   waveformPeaks?: WaveformPeaks | null
   assetDuration?: number
   thumbnails?: { time: number; data: string }[]
 }
 
-export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
+export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLocked, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   // UE.7: inline rename
   const [renaming, setRenaming] = useState(false)
@@ -266,8 +269,15 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         label: clip.isEnabled === false ? 'Enable' : 'Disable',
         action: () => store.toggleClipEnabled(clip.id),
       },
+      // T3: per-clip lock toggle. When the track is locked, the clip is
+      // effectively locked regardless; toggling here only sets the clip's own
+      // flag (the label reflects clip.locked).
+      {
+        label: clip.locked === true ? 'Unlock Clip' : 'Lock Clip',
+        action: () => store.setClipLock(clip.id, !(clip.locked === true)),
+      },
     ]
-  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled, clip.maskStack, startRename])
+  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled, clip.locked, clip.maskStack, startRename])
 
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
@@ -308,6 +318,93 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         e.preventDefault()
         e.stopPropagation()
         useTimelineStore.getState().rippleRemoveClip(clip.id)
+        return
+      }
+
+      // T2 SLIP: drag inside the clip shifts which part of the SOURCE plays,
+      // leaving the clip's timeline position + duration fixed. Dragging RIGHT
+      // reveals LATER source (in/out increase). The whole gesture is one undo
+      // entry — beginTransaction on down, per-move incremental slipClip calls
+      // buffer into a single composite, commitTransaction on up.
+      if (activeTool === 'slip') {
+        e.preventDefault()
+        e.stopPropagation()
+        const clipId = clip.id
+        const startX = e.clientX
+        const speed = clip.speed || 1
+        const zoomAtStart = zoom
+        const srcLen = assetDuration
+        const pointerId = e.pointerId
+        let lastDt = 0
+        useUndoStore.getState().beginTransaction('Slip clip')
+
+        const onMove = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          const dt = (me.clientX - startX) / zoomAtStart
+          const incrementalDt = dt - lastDt
+          lastDt = dt
+          // timeline-seconds drag → source-seconds shift (source advances at speed).
+          useTimelineStore.getState().slipClip(clipId, incrementalDt * speed, srcLen)
+        }
+        const onUp = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().commitTransaction()
+        }
+        const onCancel = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().abortTransaction()
+        }
+        document.addEventListener('pointermove', onMove)
+        document.addEventListener('pointerup', onUp)
+        document.addEventListener('pointercancel', onCancel)
+        return
+      }
+
+      // T2 SLIDE: drag moves this clip along the timeline while its two
+      // immediate neighbors absorb the shift (prev extends/shrinks, next
+      // shifts) to stay gapless. One undo entry per gesture, same
+      // transaction-coalesce pattern as slip.
+      if (activeTool === 'slide') {
+        e.preventDefault()
+        e.stopPropagation()
+        const clipId = clip.id
+        const startX = e.clientX
+        const zoomAtStart = zoom
+        const srcLen = assetDuration
+        const pointerId = e.pointerId
+        let lastDt = 0
+        useUndoStore.getState().beginTransaction('Slide clip')
+
+        const onMove = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          const dt = (me.clientX - startX) / zoomAtStart
+          const incrementalDt = dt - lastDt
+          lastDt = dt
+          useTimelineStore.getState().slideClip(clipId, incrementalDt, srcLen)
+        }
+        const onUp = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().commitTransaction()
+        }
+        const onCancel = (me: PointerEvent) => {
+          if (me.pointerId !== pointerId) return
+          document.removeEventListener('pointermove', onMove)
+          document.removeEventListener('pointerup', onUp)
+          document.removeEventListener('pointercancel', onCancel)
+          useUndoStore.getState().abortTransaction()
+        }
+        document.addEventListener('pointermove', onMove)
+        document.addEventListener('pointerup', onUp)
+        document.addEventListener('pointercancel', onCancel)
         return
       }
 
@@ -480,7 +577,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       document.addEventListener('pointerup', upHandler)
       document.addEventListener('pointercancel', cancelHandler)
     },
-    [clip.id, clip.position, zoom],
+    [clip.id, clip.position, clip.speed, zoom, assetDuration],
   )
 
   // Stubs kept on the element so React's event delegation doesn't warn —
@@ -561,6 +658,10 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       : assetName
 
   const isDisabled = clip.isEnabled === false
+  // T3: a clip is effectively locked by its own flag OR by its track's lock.
+  // All mutation guards live in the store (trust boundary); this only drives the
+  // visible padlock affordance + a modifier class for the not-grabbable cursor.
+  const isLocked = clip.locked === true || trackLocked === true
 
   // UE.7: colour tint — 40% opacity overlay keeps selection/disabled states legible
   const colorStyle: React.CSSProperties = clip.color
@@ -570,7 +671,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   return (
     <>
       <div
-        className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}${isDisabled ? ' clip--disabled' : ''}`}
+        className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}${isDisabled ? ' clip--disabled' : ''}${isLocked ? ' clip--locked' : ''}`}
         style={{ left: `${left}px`, width: `${Math.max(4, width)}px`, ...colorStyle }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -634,6 +735,19 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
             title={`${clip.maskStack!.length} matte node${clip.maskStack!.length !== 1 ? 's' : ''}`}
           >
             M{clip.maskStack!.length}
+          </span>
+        )}
+        {/* T3: padlock affordance — shown when the clip is locked (own flag) or its
+            track is locked. Aria-hidden decorative glyph; the actionable toggle is
+            in the context menu / track header. */}
+        {isLocked && (
+          <span
+            className="clip__lock"
+            data-testid="clip-lock-badge"
+            aria-hidden="true"
+            title={clip.locked === true ? 'Clip locked' : 'Track locked'}
+          >
+            {'\u{1F512}'}
           </span>
         )}
         <div
