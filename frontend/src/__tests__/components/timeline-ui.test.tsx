@@ -89,17 +89,19 @@ describe('Timeline UI — With Tracks', () => {
     expect(headers.length).toBe(3)
   })
 
-  test('track header shows mute and solo buttons', () => {
+  test('track header shows mute, solo and lock buttons', () => {
     render(<Timeline onSeek={() => {}} />)
 
     fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
 
     const btns = document.querySelectorAll('.track-header__btn')
-    expect(btns.length).toBe(2)
+    // T3: mute + solo + lock (padlock toggle)
+    expect(btns.length).toBe(3)
 
     const texts = Array.from(btns).map((b) => b.textContent)
     expect(texts).toContain('M')
     expect(texts).toContain('S')
+    expect(document.querySelector('[data-testid="track-lock-btn"]')).toBeTruthy()
   })
 
   test('time ruler is visible after adding a track', () => {
