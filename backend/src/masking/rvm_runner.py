@@ -31,6 +31,20 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--end-frame", type=int, default=-1)
     args = parser.parse_args(argv)
 
+    # Reversed NON-sentinel range footgun (CHEAP, pre-import): a caller passing
+    # end < start (neither is the -1 whole-clip sentinel) previously fell through
+    # and silently matted the WHOLE source. Reject it loudly BEFORE the heavy
+    # torch load — an empty/reversed range is a caller bug, not "do everything".
+    _start = max(0, int(args.start_frame))
+    _end = int(args.end_frame)
+    if _end >= 0 and _end < _start:
+        print(
+            f"ERROR: reversed frame range (start={_start} > end={_end})",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 2
+
     # Heavy imports live here so a bad env fails loudly in the CHILD (mapped to
     # a structured parent error), never at sidecar import time.
     import cv2
@@ -49,8 +63,8 @@ def main(argv: list[str] | None = None) -> int:
     h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    start = max(0, int(args.start_frame))
-    end = int(args.end_frame)
+    start = _start
+    end = _end
     if end < 0 or end >= total:
         end = total - 1 if total > 0 else end
     span = (end - start + 1) if (total > 0 and end >= start) else total

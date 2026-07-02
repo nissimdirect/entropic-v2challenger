@@ -170,6 +170,93 @@ def matte_cache_path(content_hash: str) -> str:
 
 
 # --------------------------------------------------------------------------- #
+#  Matte-path SIDECAR JAIL (mirrors MK.6 wand.validate_sidecar_write_path)
+# --------------------------------------------------------------------------- #
+#
+# SECURITY (qa-redteam Surface 3+4): the ``ai_matte`` node's ``matte_path`` is a
+# STRING param that crosses the IPC trust boundary unclamped (schema
+# _sanitize_params passes strings through). Without a jail, a tampered .glitch
+# or a compromised renderer could point it at ANY local file (/etc/passwd) or a
+# URL (http/rtsp/concat/pipe — av.open supports them) and that file's luminance
+# would become the alpha channel in preview + export = arbitrary-file-read /
+# SSRF disclosure. We mirror MK.6's sidecar jail EXACTLY: absolute, null-byte
+# free, ``.mp4`` suffix, resolved realpath INSIDE ~/.creatrix/mattes/ (so a
+# symlink that escapes the jail is rejected). Enforced at BOTH the schema trust
+# boundary (node construction) AND defence-in-depth right before VideoReader.
+
+
+def validate_matte_path(path_str: object) -> list[str]:
+    """Validate an ``ai_matte`` ``matte_path`` against the matte cache jail.
+
+    Rules (mirrors ``wand.validate_sidecar_write_path``):
+      - must be a non-empty string, absolute, null-byte free
+      - must end in ``.mp4``
+      - filename component must not contain traversal / separators
+      - resolved realpath must be INSIDE ~/.creatrix/mattes/ (symlink escapes
+        rejected via ``.resolve()`` before the prefix check)
+
+    Returns a list of error strings (empty == valid). NEVER raises.
+    """
+    errors: list[str] = []
+    if not isinstance(path_str, str) or not path_str:
+        errors.append("matte_path must be a non-empty string")
+        return errors
+    if "\x00" in path_str:
+        errors.append("matte_path contains a null byte")
+        return errors
+
+    from pathlib import Path
+
+    try:
+        path = Path(path_str)
+    except (TypeError, ValueError) as e:
+        errors.append(f"matte_path not a valid path: {e}")
+        return errors
+
+    if not path.is_absolute():
+        errors.append("matte_path must be absolute")
+        return errors
+    if path.suffix.lower() != ".mp4":
+        errors.append(f"matte_path must end in .mp4 (got {path.suffix!r})")
+        return errors
+    name = path.name
+    if ".." in name or "/" in name or "\\" in name:
+        errors.append(f"unsafe matte filename: {name!r}")
+        return errors
+
+    # Resolve to catch symlink traversal out of the jail. strict=False: the file
+    # may have been evicted (a valid-but-missing path still passes the jail and
+    # degrades to flat-0.5 downstream).
+    try:
+        resolved = path.resolve()
+    except (OSError, RuntimeError) as e:
+        errors.append(f"matte_path resolution failed: {e}")
+        return errors
+
+    from pathlib import Path as _P
+
+    allowed = _P(matte_cache_dir())
+    allowed_resolved = allowed.resolve() if allowed.exists() else allowed
+    resolved_str = str(resolved)
+    allowed_str = str(allowed_resolved)
+    if not (
+        resolved_str.startswith(allowed_str + os.sep) or resolved_str == allowed_str
+    ):
+        errors.append(
+            f"matte_path {resolved_str!r} is outside the sanctioned matte cache "
+            f"{allowed_str!r}"
+        )
+        return errors
+
+    return errors
+
+
+def is_valid_matte_path(path_str: object) -> bool:
+    """True iff *path_str* passes the matte cache jail. NEVER raises."""
+    return not validate_matte_path(path_str)
+
+
+# --------------------------------------------------------------------------- #
 #  Headroom probe (indirected so tests can monkeypatch a low value)
 # --------------------------------------------------------------------------- #
 
@@ -496,15 +583,51 @@ class AiMatteManager:
 # don't re-open the video every frame. Bounded to keep FDs in check.
 _MATTE_READER_CACHE_MAX = 4
 _matte_readers: "OrderedDict[str, tuple[object, int]]" = OrderedDict()
+#: Paths already warned about (missing / jail-rejected / open-fail / decode-fail)
+#: so a corrupt or hostile path is logged ONCE, not per frame.
 _missing_warned: set[str] = set()
+#: Paths whose VideoReader open FAILED — short-circuited so a corrupt file is not
+#: re-opened via av.open every frame of an export (the reader-construction cost,
+#: distinct from the log dedup above).
+_open_failed: set[str] = set()
+
+
+def _warn_once(path: object, msg: str, *args) -> None:
+    """Log a per-path warning at most once (per clear_matte_readers cycle)."""
+    key = path if isinstance(path, str) else repr(path)
+    if key in _missing_warned:
+        return
+    _missing_warned.add(key)
+    logger.warning(msg, *args)
 
 
 def _get_matte_reader(path: str) -> tuple[object, int] | None:
-    """Return (reader, frame_count) for a matte video, opening lazily. None on error."""
+    """Return (reader, frame_count) for a matte video, opening lazily. None on error.
+
+    Defence-in-depth (qa-redteam Surface 3+4): the matte-cache JAIL is re-checked
+    here — right before ``VideoReader``/``av.open`` — mirroring MK.6's re-check
+    before ``cv2.imread`` in ``load_bitmap_sidecar``. A path that escapes the
+    jail NEVER reaches av.open (which would otherwise honor http/rtsp/concat/pipe
+    protocols → SSRF / arbitrary-file read). Deduped so a corrupt/hostile path is
+    not re-opened every frame during export.
+    """
     cached = _matte_readers.get(path)
     if cached is not None:
         _matte_readers.move_to_end(path)
         return cached
+    # A path that already failed to open is not retried every frame.
+    if path in _open_failed:
+        return None
+    # JAIL RE-CHECK before opening — the trust-boundary check may have been
+    # bypassed (direct render_composite/export mask_stack payloads).
+    if not is_valid_matte_path(path):
+        _warn_once(
+            path,
+            "ai_matte: matte_path %r rejected by the cache jail — flat fallback "
+            "(av.open never reached)",
+            path,
+        )
+        return None
     try:
         from video.reader import VideoReader  # SG-7-wrapped decoder
 
@@ -514,7 +637,9 @@ def _get_matte_reader(path: str) -> tuple[object, int] | None:
             count = 1
         entry = (reader, count)
     except Exception as e:  # noqa: BLE001 — a bad matte file must degrade, not crash
-        logger.warning(
+        _open_failed.add(path)  # don't retry av.open on this file every frame
+        _warn_once(
+            path,
             "ai_matte: failed to open matte video %r (%s) — flat fallback",
             path,
             type(e).__name__,
@@ -544,6 +669,7 @@ def clear_matte_readers() -> None:
                 pass
     _matte_readers.clear()
     _missing_warned.clear()
+    _open_failed.clear()
 
 
 def _flat_field(height: int, width: int) -> np.ndarray:
@@ -559,22 +685,35 @@ def evaluate_ai_matte(node, ctx, height: int, width: int) -> np.ndarray:
                     (default 0; whole-clip bakes).
 
     Behavior:
-      * Missing/unreadable file → flat-0.5 field + one rate-limited warning
-        (P6.3 fallback; MK.3 never-crash-the-frame contract).
+      * Jail-rejected / missing / unreadable file → flat-0.5 field + one
+        rate-limited warning (P6.3 fallback; MK.3 never-crash-the-frame).
       * Out-of-range frame index → CLAMPED into [0, frame_count-1] (wrap-clamp).
       * Grayscale matte pixel (0..255) → float32 alpha in [0, 1].
+
+    SECURITY: the matte-cache jail (``validate_matte_path``) gates the path
+    BEFORE any filesystem/av access here AND again in ``_get_matte_reader``
+    (defence-in-depth) so a hostile ``matte_path`` (arbitrary local file / URL)
+    can never be opened by av.open.
     """
     params = getattr(node, "params", {}) or {}
     path = params.get("matte_path")
-    if not path or not isinstance(path, str) or not os.path.exists(path):
-        if isinstance(path, str) and path not in _missing_warned:
-            _missing_warned.add(path)
-            logger.warning(
-                "ai_matte: matte file %r missing/evicted — flat %.1f fallback "
-                "(re-bake to restore)",
-                path,
-                FLAT_FALLBACK_VALUE,
-            )
+    # JAIL FIRST — before os.path.exists (which itself can probe arbitrary paths).
+    if not is_valid_matte_path(path):
+        _warn_once(
+            path,
+            "ai_matte: matte_path %r invalid/outside cache jail — flat %.1f fallback",
+            path,
+            FLAT_FALLBACK_VALUE,
+        )
+        return _flat_field(height, width)
+    if not os.path.exists(path):
+        _warn_once(
+            path,
+            "ai_matte: matte file %r missing/evicted — flat %.1f fallback "
+            "(re-bake to restore)",
+            path,
+            FLAT_FALLBACK_VALUE,
+        )
         return _flat_field(height, width)
 
     entry = _get_matte_reader(path)
@@ -598,9 +737,11 @@ def evaluate_ai_matte(node, ctx, height: int, width: int) -> np.ndarray:
     try:
         frame = reader.decode_frame(matte_idx)  # RGBA uint8 (grayscale replicated)
     except Exception as e:  # noqa: BLE001 — decode failure degrades, never crashes
-        logger.warning(
-            "ai_matte: decode of frame %d from %r failed (%s) — flat fallback",
-            matte_idx,
+        # Deduped: a corrupt-but-existing matte would otherwise log every frame
+        # of an export. Keyed on the path so one warning per bad file.
+        _warn_once(
+            f"decode:{path}",
+            "ai_matte: decode from %r failed (%s) — flat fallback",
             path,
             type(e).__name__,
         )

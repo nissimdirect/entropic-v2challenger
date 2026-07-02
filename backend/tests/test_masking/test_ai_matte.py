@@ -36,7 +36,9 @@ from masking.ai_matte import (
     RvmUnavailableError,
     compute_content_hash,
     evaluate_ai_matte,
+    is_valid_matte_path,
     matte_cache_path,
+    validate_matte_path,
 )
 from masking.schema import MatteNode
 from masking.stack import FrameCtx
@@ -183,7 +185,7 @@ def test_matte_video_cache_keyed_by_content_hash(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-def test_ai_matte_node_resolves_per_frame(tmp_path):
+def test_ai_matte_node_resolves_per_frame(_tmp_cache_dir):
     h, w = 48, 64
     # 4 frames: 0,1 fully white (alpha≈1); 2,3 fully black (alpha≈0).
     frames = [
@@ -192,7 +194,8 @@ def test_ai_matte_node_resolves_per_frame(tmp_path):
         np.zeros((h, w), np.uint8),
         np.zeros((h, w), np.uint8),
     ]
-    matte_path = str(tmp_path / "matte.mp4")
+    # Matte MUST live inside the jail (~/.creatrix/mattes, redirected to tmp).
+    matte_path = os.path.join(_tmp_cache_dir, "matte.mp4")
     _write_matte_video(matte_path, frames)
 
     node = MatteNode.from_dict(
@@ -220,24 +223,20 @@ def test_ai_matte_node_resolves_per_frame(tmp_path):
 # --------------------------------------------------------------------------- #
 
 
-def test_missing_matte_file_flat_field_fallback_and_warns(caplog):
+def test_missing_matte_file_flat_field_fallback_and_warns(caplog, _tmp_cache_dir):
     h, w = 32, 40
+    # A VALID in-jail path that was evicted/never written → the missing branch
+    # (distinct from the jail-reject branch which the security tests cover).
+    gone = os.path.join(_tmp_cache_dir, "evicted.mp4")
     node = MatteNode.from_dict(
-        {
-            "id": "ai_missing",
-            "kind": "ai_matte",
-            "params": {"matte_path": "/no/such/matte.mp4"},
-        }
+        {"id": "ai_missing", "kind": "ai_matte", "params": {"matte_path": gone}}
     )
     assert node is not None
     with caplog.at_level(logging.WARNING):
         m = evaluate_ai_matte(node, FrameCtx(frame_index=0), h, w)
     assert m.shape == (h, w)
     assert np.allclose(m, 0.5), "missing file must degrade to a flat-0.5 field"
-    assert any(
-        "missing" in r.message.lower() or "flat" in r.message.lower()
-        for r in caplog.records
-    )
+    assert any("missing" in r.message.lower() for r in caplog.records)
 
 
 # --------------------------------------------------------------------------- #
@@ -262,7 +261,7 @@ def test_headroom_guard_refuses_under_2gib(monkeypatch):
 # --------------------------------------------------------------------------- #
 
 
-def test_split_by_matte_renders_independent_chains(tmp_path):
+def test_split_by_matte_renders_independent_chains(_tmp_cache_dir):
     """The music-video proof, at the sidecar seam.
 
     Background track = source through a glitch chain (fx.invert) routed via the
@@ -275,8 +274,9 @@ def test_split_by_matte_renders_independent_chains(tmp_path):
 
     h, w = 48, 80
     # Crisp binary matte: left 40% subject(white), right 40% background(black).
-    _write_matte_video(str(tmp_path / "m.mp4"), [_split_matte_frame(h, w)] * 3)
-    matte_path = str(tmp_path / "m.mp4")
+    # Must live inside the jail (~/.creatrix/mattes, redirected to tmp).
+    matte_path = os.path.join(_tmp_cache_dir, "m.mp4")
+    _write_matte_video(matte_path, [_split_matte_frame(h, w)] * 3)
 
     # Deterministic non-uniform source so invert is observable.
     rng = np.random.default_rng(7)
@@ -327,3 +327,176 @@ def test_split_by_matte_renders_independent_chains(tmp_path):
         "background pixels unchanged — the glitch never reached the background"
     )
     assert np.array_equal(bg_out[bg][:, :, :3], unsplit[bg][:, :, :3])
+
+
+# --------------------------------------------------------------------------- #
+#  SECURITY — matte_path sidecar jail (qa-redteam Surface 3+4)
+# --------------------------------------------------------------------------- #
+
+
+def _spy_reader(monkeypatch):
+    """Install a spy on VideoReader so we can assert av.open is NEVER reached."""
+    calls = {"opened": []}
+
+    class _Boom:
+        def __init__(self, path):
+            calls["opened"].append(path)
+            raise AssertionError(f"VideoReader/av.open reached for {path!r}")
+
+    import video.reader as _vr
+
+    monkeypatch.setattr(_vr, "VideoReader", _Boom)
+    return calls
+
+
+@pytest.mark.parametrize(
+    "bad_path,label",
+    [
+        ("/etc/passwd", "arbitrary local file"),
+        ("http://169.254.169.254/latest/meta-data/", "SSRF metadata URL"),
+        ("rtsp://evil.example/stream", "rtsp URL"),
+        ("~/.creatrix/mattes/../../../etc/passwd", "dot-dot traversal"),
+        ("relative/mattes/x.mp4", "non-absolute"),
+        ("/tmp/evil.mp4", "outside the jail"),
+    ],
+)
+def test_ai_matte_path_jail_rejects_hostile_paths(bad_path, label, monkeypatch):
+    """(a) /etc/passwd (b) 169.254 SSRF (c/…) traversal/relative/outside jail →
+    all rejected → flat-0.5 fallback, and av.open is NEVER reached."""
+    ai_matte.clear_matte_readers()
+    calls = _spy_reader(monkeypatch)
+
+    assert is_valid_matte_path(bad_path) is False, f"{label} should be rejected"
+    assert validate_matte_path(bad_path), f"{label} must yield error strings"
+
+    node = MatteNode(id="ai-bad", kind="ai_matte", params={"matte_path": bad_path})
+    m = evaluate_ai_matte(node, FrameCtx(frame_index=0), 24, 32)
+    assert np.allclose(m, 0.5), f"{label} did not degrade to flat-0.5"
+    assert calls["opened"] == [], f"{label} reached av.open — jail bypassed"
+    ai_matte.clear_matte_readers()
+
+
+def test_ai_matte_path_jail_rejects_symlink_escaping_jail(tmp_path, monkeypatch):
+    """A symlink INSIDE the jail pointing OUTSIDE is rejected (resolve() escape)."""
+    jail = tmp_path / "mattes"
+    jail.mkdir(exist_ok=True)
+    monkeypatch.setattr(ai_matte, "matte_cache_dir", lambda: str(jail))
+    ai_matte.clear_matte_readers()
+
+    secret = tmp_path / "secret.mp4"
+    secret.write_bytes(b"not a matte")
+    link = jail / "escape.mp4"
+    os.symlink(secret, link)  # inside jail by name, resolves outside
+
+    assert is_valid_matte_path(str(link)) is False
+    calls = _spy_reader(monkeypatch)
+    node = MatteNode(id="ai-sym", kind="ai_matte", params={"matte_path": str(link)})
+    m = evaluate_ai_matte(node, FrameCtx(frame_index=0), 16, 16)
+    assert np.allclose(m, 0.5)
+    assert calls["opened"] == []
+    ai_matte.clear_matte_readers()
+
+
+def test_ai_matte_node_rejected_at_schema_boundary_for_bad_path(monkeypatch):
+    """The schema trust boundary drops an ai_matte node with an out-of-jail path
+    (validate_stack → the ref degrades to no-mask), matching render_composite/
+    export payload validation."""
+    from masking.schema import validate_stack
+
+    good_dir = ai_matte.matte_cache_dir()
+    good = os.path.join(good_dir, "deadbeef.mp4")
+
+    raw = [
+        {"id": "evil", "kind": "ai_matte", "params": {"matte_path": "/etc/passwd"}},
+        {"id": "ok", "kind": "ai_matte", "params": {"matte_path": good}},
+    ]
+    nodes = validate_stack(raw)
+    ids = {n.id for n in nodes}
+    assert "evil" not in ids, "hostile matte_path node survived schema validation"
+    assert "ok" in ids, "legit in-jail matte_path node was wrongly dropped"
+
+
+def test_ai_matte_legit_cache_path_passes_jail_and_renders(tmp_path, monkeypatch):
+    """A legit server-issued cache path under the jail resolves and renders."""
+    jail = tmp_path / "mattes"
+    jail.mkdir(exist_ok=True)
+    monkeypatch.setattr(ai_matte, "matte_cache_dir", lambda: str(jail))
+    ai_matte.clear_matte_readers()
+
+    h, w = 32, 48
+    matte_path = str(jail / "abc123.mp4")
+    _write_matte_video(matte_path, [np.full((h, w), 255, np.uint8)] * 2)
+
+    assert is_valid_matte_path(matte_path) is True
+    node = MatteNode.from_dict(
+        {"id": "ok", "kind": "ai_matte", "params": {"matte_path": matte_path}}
+    )
+    assert node is not None, "legit in-jail node rejected at schema boundary"
+    m = evaluate_ai_matte(node, FrameCtx(frame_index=0), h, w)
+    assert float(m.mean()) > 0.8, "legit matte did not render (white subject)"
+    ai_matte.clear_matte_readers()
+
+
+def test_corrupt_matte_open_failure_warns_once_not_per_frame(
+    tmp_path, monkeypatch, caplog
+):
+    """A corrupt-but-existing matte inside the jail warns ONCE across many
+    frames (dedup) and does not re-open VideoReader every frame."""
+    jail = tmp_path / "mattes"
+    jail.mkdir(exist_ok=True)
+    monkeypatch.setattr(ai_matte, "matte_cache_dir", lambda: str(jail))
+    ai_matte.clear_matte_readers()
+
+    corrupt = jail / "corrupt.mp4"
+    corrupt.write_bytes(b"\x00\x01\x02 not a video")
+
+    open_count = {"n": 0}
+    import video.reader as _vr
+
+    class _Boom:
+        def __init__(self, path):
+            open_count["n"] += 1
+            raise ValueError("bad file")
+
+    monkeypatch.setattr(_vr, "VideoReader", _Boom)
+
+    node = MatteNode(
+        id="ai-corrupt", kind="ai_matte", params={"matte_path": str(corrupt)}
+    )
+    with caplog.at_level(logging.WARNING):
+        for idx in range(10):
+            m = evaluate_ai_matte(node, FrameCtx(frame_index=idx), 16, 16)
+            assert np.allclose(m, 0.5)
+
+    assert open_count["n"] == 1, "corrupt matte re-opened every frame (no dedup)"
+    warn_lines = [r for r in caplog.records if "corrupt.mp4" in r.getMessage()]
+    assert len(warn_lines) == 1, f"expected 1 warning, got {len(warn_lines)}"
+    ai_matte.clear_matte_readers()
+
+
+def test_rvm_runner_rejects_reversed_frame_range():
+    """rvm_runner: reversed non-sentinel range (end < start, end >= 0) exits
+    with an error instead of silently matting the whole source."""
+    import subprocess
+
+    r = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "masking.rvm_runner",
+            "--input",
+            "/nonexistent.mp4",
+            "--output",
+            "/tmp/x.mp4",
+            "--start-frame",
+            "50",
+            "--end-frame",
+            "10",
+        ],
+        cwd=os.path.join(os.path.dirname(__file__), "..", "..", "src"),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert r.returncode != 0, "reversed range should be a hard error"
+    assert "reversed frame range" in r.stderr.lower()
