@@ -274,6 +274,21 @@ body {
   color: var(--cx-text-2);
 }
 
+/* H1 (2026-07-02 master-tuneup WS5): focused-mapping-context chip — subtle,
+   matches the cursor-tool chip's understated statusbar footprint. The ◎ glyph
+   + var(--cx-mod) accent borrow the "modulation" token family since this is
+   the foundation for hardware-bank (CC-style) mapping targeting. */
+.status-bar__mapping-context-chip {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cx-text-2);
+  letter-spacing: 0.02em;
+}
+
+.status-bar__mapping-context-chip::first-letter {
+  color: var(--cx-mod);
+}
+
 /* --- Timeline Collapsed Header --- */
 
 .app__timeline--collapsed {
