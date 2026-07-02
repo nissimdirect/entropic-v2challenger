@@ -126,7 +126,6 @@ describe('IPC Contract', () => {
       'audio_position',
       'audio_seek',
       'audio_stop',
-      'audio_tracks_clear',
       'audio_tracks_set',
       'audio_volume',
       'bake_performance_track',
@@ -169,7 +168,6 @@ describe('IPC Contract', () => {
       'read_freeze',
       'render_composite',
       'render_frame',
-      'render_text_frame',
       // P6.9 routing canvas backend (I2)
       'routing_edge_update',
       'routing_graph_get',

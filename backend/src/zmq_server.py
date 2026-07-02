@@ -135,8 +135,10 @@ class ZMQServer:
         # Project clock — multi-track path, driven by time.monotonic()
         self.project_clock = ProjectClock()
         # Audio mixer — sums N tracks × N clips when flag ON. Always
-        # instantiated; empty state = silent output. State pushed via
-        # audio_tracks_set / audio_tracks_clear ZMQ commands.
+        # instantiated; empty state = silent output. State pushed via the
+        # audio_tracks_set ZMQ command (empty tracks list == clear; F4 removed
+        # the redundant audio_tracks_clear command — no caller ever used it and
+        # audio_tracks_set([]) already produces the identical mixer.clear() effect).
         self.audio_mixer = AudioMixer()
         # MixerPlayer — PortAudio output stream for flag-ON path.
         # Construction is cheap (no device open); start() opens the stream.
@@ -435,8 +437,6 @@ class ZMQServer:
             return {"id": msg_id, "ok": True, "effects": registry.list_all()}
         elif cmd == "list_fonts":
             return self._handle_list_fonts(msg_id)
-        elif cmd == "render_text_frame":
-            return self._handle_render_text_frame(message, msg_id)
         elif cmd == "audio_decode":
             return self._handle_audio_decode(message, msg_id)
         elif cmd == "waveform":
@@ -490,8 +490,6 @@ class ZMQServer:
             return self._handle_project_clock_state(msg_id)
         elif cmd == "audio_tracks_set":
             return self._handle_audio_tracks_set(message, msg_id)
-        elif cmd == "audio_tracks_clear":
-            return self._handle_audio_tracks_clear(msg_id)
         elif cmd == "clock_sync":
             return self._handle_clock_sync(msg_id)
         elif cmd == "clock_set_fps":
@@ -2442,17 +2440,6 @@ class ZMQServer:
             )
             return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
-    def _handle_audio_tracks_clear(self, msg_id: str | None) -> dict:
-        try:
-            self.audio_mixer.clear()
-            return {"id": msg_id, "ok": True}
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            logging.getLogger(__name__).error(
-                "audio_tracks_clear error: %s", type(e).__name__
-            )
-            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
-
     def _handle_project_clock_state(self, msg_id: str | None) -> dict:
         try:
             return {
@@ -2839,39 +2826,6 @@ class ZMQServer:
         except Exception as e:
             sentry_sdk.capture_exception(e)
             return {"id": msg_id, "ok": False, "error": "Failed to enumerate fonts"}
-
-    def _handle_render_text_frame(self, message: dict, msg_id: str | None) -> dict:
-        """Render a text config to RGBA and return as base64 JPEG."""
-        text_config = message.get("text_config")
-        if not text_config or not isinstance(text_config, dict):
-            return {"id": msg_id, "ok": False, "error": "text_config required"}
-
-        raw_res = message.get("resolution", [1920, 1080])
-        if not isinstance(raw_res, list) or len(raw_res) != 2:
-            return {"id": msg_id, "ok": False, "error": "resolution must be [w, h]"}
-        res_w: int = max(1, min(8192, int(raw_res[0])))
-        res_h: int = max(1, min(8192, int(raw_res[1])))
-        resolution: tuple[int, int] = (res_w, res_h)
-        frame_index = max(0, int(message.get("frame_index", 0)))
-        fps = max(1.0, min(120.0, float(message.get("fps", 30.0))))
-
-        try:
-            t0 = time.time()
-            frame = render_text_frame(text_config, resolution, frame_index, fps)
-            jpeg_bytes = encode_mjpeg(frame)
-            frame_b64 = base64.b64encode(jpeg_bytes).decode("ascii")
-            self.last_frame_ms = round((time.time() - t0) * 1000, 2)
-            return {
-                "id": msg_id,
-                "ok": True,
-                "frame_data": frame_b64,
-                "width": resolution[0],
-                "height": resolution[1],
-            }
-        except Exception as e:
-            sentry_sdk.capture_exception(e)
-            logging.getLogger(__name__).error(f"Render text frame error: {e}")
-            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def _get_reader(self, path: str) -> VideoReader | ImageReader:
         if path in self.readers:

@@ -1,4 +1,11 @@
-"""Tests for the audio_tracks_set / audio_tracks_clear ZMQ handlers."""
+"""Tests for the audio_tracks_set ZMQ handler.
+
+F4 (2026-07-02): removed the redundant audio_tracks_clear command — it had
+zero renderer callers and was functionally identical to
+audio_tracks_set({"tracks": []}) (both end up calling AudioMixer.clear()
+semantics: empty _tracks + all decoders released). test_set_empty_list_clears_mixer
+below replaces the old test_clear_resets_mixer to keep that invariant covered.
+"""
 
 from __future__ import annotations
 
@@ -126,13 +133,16 @@ def test_set_ignores_non_dict_tracks(srv, wav_path):
     assert result["num_tracks"] == 1
 
 
-def test_clear_resets_mixer(srv, wav_path):
+def test_set_empty_list_clears_mixer(srv, wav_path):
+    """audio_tracks_set({"tracks": []}) must fully reset the mixer — this is
+    the sole "clear" path since F4 removed audio_tracks_clear."""
     srv._handle_audio_tracks_set(
         {"tracks": [_track("t1", [_clip("c1", str(wav_path))])]},
         "msg-1",
     )
-    result = srv._handle_audio_tracks_clear("msg-2")
+    result = srv._handle_audio_tracks_set({"tracks": []}, "msg-2")
     assert result["ok"] is True
+    assert result["num_tracks"] == 0
     out = srv.audio_mixer.mix(0.1, 4800)
     assert np.all(out == 0)
 

@@ -1,4 +1,15 @@
-"""ZMQ integration tests for text rendering commands."""
+"""ZMQ integration tests for text rendering commands.
+
+F4 (2026-07-02): removed the standalone render_text_frame IPC command — it
+had zero renderer callers. Text-layer rendering is served entirely via
+render_composite (which calls the underlying render_text_frame() Python
+function directly, see zmq_server._handle_render_composite) and the CSS-only
+TextOverlay.tsx preview. test_render_composite_with_text_layer below still
+exercises the real text-rendering path end-to-end, including the
+missing-config and empty-text cases that used to be covered by the deleted
+render_text_frame command tests (see backend/tests/test_engine/test_text_renderer.py
+for direct unit coverage of the render_text_frame() function itself).
+"""
 
 import pytest
 
@@ -17,59 +28,6 @@ def test_list_fonts(zmq_server):
     assert isinstance(result["fonts"], list)
     assert len(result["fonts"]) > 0
     assert "name" in result["fonts"][0]
-
-
-def test_render_text_frame(zmq_server):
-    """render_text_frame should return base64 frame data."""
-    result = zmq_server.handle_message(
-        {
-            "cmd": "render_text_frame",
-            "id": "test-render-text",
-            "text_config": {
-                "text": "Hello Entropic",
-                "font_family": "Helvetica",
-                "font_size": 48,
-                "color": "#ffffff",
-                "position": [960, 540],
-            },
-            "resolution": [1920, 1080],
-            "frame_index": 0,
-            "fps": 30.0,
-            "_token": zmq_server.token,
-        }
-    )
-    assert result["ok"] is True
-    assert "frame_data" in result
-    assert result["width"] == 1920
-    assert result["height"] == 1080
-
-
-def test_render_text_frame_missing_config(zmq_server):
-    """Missing text_config should return error."""
-    result = zmq_server.handle_message(
-        {
-            "cmd": "render_text_frame",
-            "id": "test-no-config",
-            "_token": zmq_server.token,
-        }
-    )
-    assert result["ok"] is False
-    assert "text_config required" in result["error"]
-
-
-def test_render_text_frame_empty_text(zmq_server):
-    """Empty text should still return a valid frame (transparent)."""
-    result = zmq_server.handle_message(
-        {
-            "cmd": "render_text_frame",
-            "id": "test-empty-text",
-            "text_config": {"text": ""},
-            "resolution": [800, 600],
-            "_token": zmq_server.token,
-        }
-    )
-    assert result["ok"] is True
-    assert "frame_data" in result
 
 
 def test_render_composite_with_text_layer(zmq_server):

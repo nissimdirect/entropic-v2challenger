@@ -80,6 +80,12 @@ export const ALLOWED_COMMANDS = new Set([
   'mask_thumbnail',
   // Magic-wand mask selection — components/preview/MaskSelectOverlay.tsx (task #89 cohesion fix)
   'mask_wand_sample',
+  // MK.6 P3 orphan-sidecar GC (F4 fix — command shipped in #227 but the
+  // allowlist entry was missed, so it was unreachable from the renderer even
+  // though a caller was never wired up either; node-delete integration is
+  // still a follow-up, tracked separately, see backend/src/masking/wand.py
+  // gc_orphan_sidecars() docstring)
+  'mask_gc_sidecars',
   // Health
   'ping',
 ])

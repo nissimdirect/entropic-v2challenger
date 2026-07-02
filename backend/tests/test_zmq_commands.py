@@ -712,14 +712,6 @@ class TestResolutionClamping:
         assert resp["width"] == 1
         assert resp["height"] == 1
 
-    def test_render_text_frame_rejects_non_list_resolution(self):
-        server = self._build_server()
-        resp = server._handle_render_text_frame(
-            {"text_config": {"text": "hi"}, "resolution": "bogus"}, msg_id="m5"
-        )
-        assert resp["ok"] is False
-        assert "resolution" in resp["error"].lower()
-
 
 # ---------------------------------------------------------------------------
 # P5a.4 — performance payload validation at export start (enforce-before-decode)
