@@ -1,0 +1,174 @@
+/* Live Signal v1.1 tokens (copied from frontend/src/renderer/styles/tokens.css)
+   + shared base styles for the UX challenger prototypes. Non-functional mockups. */
+
+:root {
+  --cx-surface-0: #0B0B10;
+  --cx-surface-1: #121218;
+  --cx-surface-2: #18181F;
+  --cx-surface-3: #20202A;
+  --cx-surface-4: #282834;
+  --cx-line-1: #2E2E3A;
+  --cx-line-2: #3C3C4C;
+
+  --cx-text-1: #E7E7EC;
+  --cx-text-2: #9A9AA6;
+  --cx-text-3: #80808E;
+  --cx-text-disabled: #62626E;
+
+  --cx-acid: #C8F321;
+  --cx-acid-hover: #D9FF4D;
+  --cx-acid-wash: rgba(200, 243, 33, 0.10);
+  --cx-acid-on: #0B0B10;
+
+  --cx-probe: #5FD7A8;
+  --cx-probe-wash: rgba(95, 215, 168, 0.10);
+
+  --cx-mod: #8F7DFF;
+  --cx-mod-hover: #A693FF;
+  --cx-mod-wash: rgba(143, 125, 255, 0.12);
+
+  --cx-red-text: #E5484D;
+  --cx-red-fill: #C13B40;
+  --cx-red-wash: rgba(229, 72, 77, 0.12);
+
+  --cx-amber: #D9A23C;
+  --cx-amber-wash: rgba(217, 162, 60, 0.12);
+
+  --cx-cat-glitch: #D06A6A;
+  --cx-cat-distortion: #9A8BE8;
+  --cx-cat-color: #5FB8C4;
+  --cx-cat-temporal: #D4A865;
+  --cx-cat-modulation: #AFCB52;
+  --cx-cat-texture: #8E8E9A;
+  --cx-cat-enhance: #C9C9D2;
+  --cx-cat-destruction: #C77DC0;
+
+  --cx-font-ui: 'JetBrains Mono', 'Courier New', monospace;
+  --cx-font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  --cx-text-body: 12.5px;
+  --cx-text-label: 12px;
+  --cx-text-data: 11px;
+
+  --cx-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cx-radius-control: 2px;
+  --cx-radius-card: 4px;
+  --cx-radius-dialog: 6px;
+
+  --cx-row-h: 24px;
+  --cx-panel-header: 28px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--cx-surface-0);
+  color: var(--cx-text-1);
+  font-family: var(--cx-font-ui);
+  font-size: var(--cx-text-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- shared primitives ---------- */
+
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 6px;
+  font-size: 10px; letter-spacing: 0.06em;
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-control);
+  color: var(--cx-text-2);
+  white-space: nowrap;
+}
+.chip--acid  { color: var(--cx-acid);  border-color: var(--cx-acid);  background: var(--cx-acid-wash); }
+.chip--mod   { color: var(--cx-mod);   border-color: var(--cx-mod);   background: var(--cx-mod-wash); }
+.chip--amber { color: var(--cx-amber); border-color: var(--cx-amber); background: var(--cx-amber-wash); }
+.chip--red   { color: var(--cx-red-text); border-color: var(--cx-red-text); background: var(--cx-red-wash); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  height: 22px; padding: 0 8px;
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-control);
+  color: var(--cx-text-1);
+  font: inherit; font-size: 11px;
+  cursor: default; user-select: none;
+}
+.btn:hover { background: var(--cx-surface-4); }
+.btn--on { background: var(--cx-acid); color: var(--cx-acid-on); border-color: var(--cx-acid); font-weight: 700; }
+.btn--icon { width: 22px; padding: 0; }
+
+.panel-header {
+  height: var(--cx-panel-header);
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 8px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--cx-text-2);
+  border-bottom: 1px solid var(--cx-line-1);
+  background: var(--cx-surface-2);
+  flex: none;
+}
+.panel-header .spacer { flex: 1; }
+
+/* knob: conic ring */
+.knob { display: flex; flex-direction: column; align-items: center; gap: 2px; width: 44px; }
+.knob__ring {
+  width: 26px; height: 26px; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 50%, var(--cx-surface-3) 0 55%, transparent 56%),
+    conic-gradient(from 210deg, var(--cx-acid) var(--v, 60%), var(--cx-line-2) 0);
+  border: 1px solid var(--cx-line-1);
+}
+.knob__ring--mod {
+  background:
+    radial-gradient(circle at 50% 50%, var(--cx-surface-3) 0 55%, transparent 56%),
+    conic-gradient(from 210deg, var(--cx-mod) var(--v, 60%), var(--cx-line-2) 0);
+}
+.knob__label { font-size: 9px; color: var(--cx-text-2); max-width: 44px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.knob__val { font-size: 9px; color: var(--cx-text-3); font-variant-numeric: tabular-nums; }
+
+/* fake checkerboard video thumb */
+.vthumb {
+  background:
+    linear-gradient(135deg, rgba(143,125,255,.25), rgba(200,243,33,.12) 60%, rgba(95,215,168,.2)),
+    repeating-linear-gradient(90deg, #17171e 0 6px, #1d1d26 6px 12px);
+  border: 1px solid var(--cx-line-1);
+}
+
+/* meter */
+.meter { width: 4px; border-radius: 1px; background: var(--cx-line-1); position: relative; overflow: hidden; }
+.meter::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: var(--v, 60%);
+  background: linear-gradient(to top, var(--cx-acid), var(--cx-acid) 70%, var(--cx-amber) 90%, var(--cx-red-text));
+}
+
+/* scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--cx-line-2); border-radius: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* annotation badges — explain the UX config, toggled by the ⓘ button */
+.anno {
+  position: absolute; z-index: 50;
+  background: var(--cx-mod); color: #0B0B10;
+  font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  padding: 2px 6px; border-radius: 3px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  pointer-events: none;
+  opacity: 0; transition: opacity 150ms var(--cx-ease);
+}
+body.show-annos .anno { opacity: 1; }
+
+.proto-badge {
+  position: fixed; right: 10px; top: 42px; z-index: 100;
+  display: flex; gap: 6px; align-items: center;
+}
+.proto-badge a, .proto-badge button {
+  font-family: var(--cx-font-mono); font-size: 10px;
+  color: var(--cx-text-2); background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-2); border-radius: 3px;
+  padding: 3px 8px; text-decoration: none; cursor: pointer;
+}
+.proto-badge a:hover, .proto-badge button:hover { color: var(--cx-text-1); background: var(--cx-surface-4); }

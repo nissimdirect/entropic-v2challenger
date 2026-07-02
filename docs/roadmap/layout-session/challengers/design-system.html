@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Creatrix Design System v1.2 — DRAFT</title>
+<link rel="stylesheet" href="live-signal.css">
+<link rel="stylesheet" href="states.css">
+<style>
+  html, body { overflow: auto; }
+  .statebar, .state-caption { display: none !important; } /* not a prototype page */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 100px; }
+  h1 { font-size: 20px; letter-spacing: .06em; }
+  h1 b { color: var(--cx-acid); }
+  .banner { margin: 14px 0 30px; padding: 12px 16px; border: 1px solid var(--cx-amber); border-radius: 6px; background: var(--cx-amber-wash); font-size: 12px; color: var(--cx-text-1); line-height: 1.6; }
+  .banner b { color: var(--cx-amber); }
+  h2 { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: var(--cx-text-1); margin: 42px 0 4px; display: flex; align-items: center; gap: 10px; }
+  h2 .tag { font-size: 9px; letter-spacing: .1em; padding: 2px 7px; border-radius: 3px; }
+  .tag--canon { color: var(--cx-acid); border: 1px solid var(--cx-acid); background: var(--cx-acid-wash); }
+  .tag--prop { color: var(--cx-mod); border: 1px solid var(--cx-mod); background: var(--cx-mod-wash); }
+  h2 + p, .lead { font-size: 12px; color: var(--cx-text-2); line-height: 1.6; margin-bottom: 14px; max-width: 860px; }
+  h3 { font-size: 11px; letter-spacing: .1em; color: var(--cx-text-2); margin: 20px 0 8px; }
+
+  table.ds { width: 100%; border-collapse: collapse; font-size: 11.5px; margin-bottom: 8px; }
+  table.ds th, table.ds td { border: 1px solid var(--cx-line-1); padding: 7px 10px; text-align: left; vertical-align: middle; line-height: 1.5; }
+  table.ds th { background: var(--cx-surface-2); color: var(--cx-text-2); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  code { font-size: 10.5px; color: var(--cx-probe); background: var(--cx-surface-2); padding: 1px 5px; border-radius: 3px; }
+
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-bottom: 8px; }
+  .sw { border: 1px solid var(--cx-line-1); border-radius: 5px; overflow: hidden; background: var(--cx-surface-2); }
+  .sw .c { height: 44px; }
+  .sw .m { padding: 6px 9px; font-size: 9.5px; color: var(--cx-text-2); line-height: 1.5; }
+  .sw .m b { display: block; color: var(--cx-text-1); font-size: 10.5px; }
+
+  .typerow { display: flex; align-items: baseline; gap: 20px; padding: 10px 0; border-bottom: 1px solid var(--cx-line-1); }
+  .typerow .meta { width: 260px; flex: none; font-size: 10px; color: var(--cx-text-3); }
+
+  .comprow { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; padding: 14px; border: 1px solid var(--cx-line-1); border-radius: 6px; background: var(--cx-surface-2); margin-bottom: 10px; }
+  .comprow .cap { width: 100%; font-size: 10px; color: var(--cx-text-3); }
+
+  .statetbl td { text-align: center; }
+
+  /* mini track header spec */
+  .thd-spec { display: flex; align-items: center; gap: 7px; padding: 0 10px; height: 44px; background: var(--cx-surface-2); border: 1px solid var(--cx-line-1); border-radius: 4px; font-size: 11.5px; width: 480px; }
+  .thd-spec .slot { position: relative; }
+  .thd-spec .slot::after { content: attr(data-n); position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 8.5px; color: var(--cx-mod); white-space: nowrap; }
+  .anatomy { padding-top: 26px; }
+
+  .dev { width: 230px; background: var(--cx-surface-3); border: 1px solid var(--cx-line-2); border-radius: var(--cx-radius-card); display: flex; flex-direction: column; position: relative; }
+  .dev .tick { position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 1px 1px 0; }
+  .dev > header { height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--cx-line-1); font-size: 11.5px; font-weight: 700; }
+  .dev > header .pwr { width: 11px; height: 11px; border-radius: 50%; background: var(--cx-acid); flex: none; }
+  .dev .params { display: flex; gap: 6px; padding: 8px; }
+  .dev .mixrow { height: 22px; border-top: 1px solid var(--cx-line-1); display: flex; align-items: center; gap: 6px; padding: 0 9px; font-size: 9.5px; color: var(--cx-text-3); }
+  .dev .mixrow .bar { flex: 1; height: 4px; background: var(--cx-line-1); border-radius: 2px; position: relative; }
+  .dev .mixrow .bar::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 82%; background: var(--cx-acid); border-radius: 2px; }
+
+  .toc { position: sticky; top: 0; background: rgba(18,18,24,.95); border-bottom: 1px solid var(--cx-line-1); padding: 8px 0; z-index: 100; display: flex; gap: 14px; flex-wrap: wrap; font-size: 10.5px; }
+  .toc a { color: var(--cx-text-2); text-decoration: none; }
+  .toc a:hover { color: var(--cx-acid); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CREATRIX <b>DESIGN SYSTEM</b> v1.2 — DRAFT</h1>
+  <div class="banner">
+    <b>STATUS:</b> extends <b>Live Signal v1.1</b> (canonical, shipped on main: <code>docs/roadmap/DESIGN-SPEC.md</code> + <code>frontend/src/renderer/styles/tokens.css</code> + <code>style-guide.html</code>, enforced by the hex-ratchet CI gate).
+    Sections tagged <span class="tag tag--canon" style="font-size:9px; padding:2px 7px; border-radius:3px">CANONICAL</span> restate what already ships;
+    <span class="tag tag--prop" style="font-size:9px; padding:2px 7px; border-radius:3px">PROPOSED</span> sections are new (from the challenger prototypes) and need your sign-off,
+    then ship as a docs PR to <code>docs/roadmap/</code>.
+  </div>
+
+  <nav class="toc">
+    <a href="#vocab">0 Vocabulary</a><a href="#color">1 Color</a><a href="#type">2 Type</a><a href="#shape">3 Shape</a>
+    <a href="#motion">4 Motion</a><a href="#icons">5 Icons</a><a href="#components">6 Components</a>
+    <a href="#states">7 States</a><a href="#layout">8 Layout</a><a href="#a11y">9 A11y</a><a href="#gaps">10 Remaining</a>
+  </nav>
+
+  <!-- 0 VOCABULARY -->
+  <h2 id="vocab">0 · Vocabulary — the object model <span class="tag tag--prop">PROPOSED</span></h2>
+  <p>The layer-tracks confusion came from naming, not structure. One name per object, everywhere — UI copy, docs, code comments. <b>"Layer" is not an object</b>; it's what a Track is when you think about z-order.</p>
+  <table class="ds">
+    <tr><th>Term</th><th>Definition</th><th>Where it lives</th><th>Never call it</th></tr>
+    <tr><td><b>Track</b></td><td>A lane in the arrangement. Owns a device chain, opacity, blend mode, mute/solo. Row order = z-order (top = front).</td><td>Arrangement view — its header IS the layer control</td><td>layer (as a separate panel/object)</td></tr>
+    <tr><td><b>Clip</b></td><td>Media on a track: in/out, speed, transform, per-clip opacity, matte stack refs.</td><td>Track lane</td><td>slot, region</td></tr>
+    <tr><td><b>Device</b></td><td>One effect instance in a chain (ON/OFF, A/B, mix, mask route, params).</td><td>Device chain / twirl-down fx row</td><td>plugin, filter</td></tr>
+    <tr><td><b>Chain</b></td><td>Ordered devices on a track or pad; terminal <code>composite</code> device = the track's blend/opacity.</td><td>Device chain strip</td><td>rack (reserved for pad Rack)</td></tr>
+    <tr><td><b>Operator</b></td><td>Modulation source (LFO, envelope, follower, Kentaro cluster…).</td><td>Operators panel / routing canvas</td><td>modulator, LFO (generic)</td></tr>
+    <tr><td><b>Matte</b></td><td>Node in a clip's mask stack (marquee/lasso/wand/key + ops).</td><td>Mask stack, device mask route</td><td>mask layer</td></tr>
+    <tr><td><b>Pad</b></td><td>Performance trigger cell (gate/one-shot/toggle, key-bound, ADSR).</td><td>Performance panel / Perform Room</td><td>button</td></tr>
+    <tr><td><b>Field</b></td><td>Image/video assigned as a 2D per-pixel param source.</td><td>Device param "Field…" route</td><td>texture map</td></tr>
+  </table>
+
+  <!-- 1 COLOR -->
+  <h2 id="color">1 · Color <span class="tag tag--canon">CANONICAL</span></h2>
+  <p>Elevation = lightness, not shadows. Neutrals carry a cold hue-285 CRT cast. Two working accents (ACID, MOD) + three status colors — everything else is neutral. Category colors are 3px ticks ONLY, never fills or text.</p>
+  <h3>Surface ladder + lines</h3>
+  <div class="swatches">
+    <div class="sw"><div class="c" style="background:#0B0B10"></div><div class="m"><b>surface-0 #0B0B10</b>void / preview surround</div></div>
+    <div class="sw"><div class="c" style="background:#121218"></div><div class="m"><b>surface-1 #121218</b>app background</div></div>
+    <div class="sw"><div class="c" style="background:#18181F"></div><div class="m"><b>surface-2 #18181F</b>panels / timeline bed</div></div>
+    <div class="sw"><div class="c" style="background:#20202A"></div><div class="m"><b>surface-3 #20202A</b>cards / inputs / devices</div></div>
+    <div class="sw"><div class="c" style="background:#282834"></div><div class="m"><b>surface-4 #282834</b>hover / menus</div></div>
+    <div class="sw"><div class="c" style="background:#2E2E3A"></div><div class="m"><b>line-1 #2E2E3A</b>hairline borders</div></div>
+    <div class="sw"><div class="c" style="background:#3C3C4C"></div><div class="m"><b>line-2 #3C3C4C</b>strong borders</div></div>
+  </div>
+  <h3>Accents — meaning is load-bearing</h3>
+  <div class="swatches">
+    <div class="sw"><div class="c" style="background:#C8F321"></div><div class="m"><b>ACID #C8F321</b>life · activity · primary action · meters · focus ring</div></div>
+    <div class="sw"><div class="c" style="background:#8F7DFF"></div><div class="m"><b>MOD #8F7DFF</b>selection · modulation ⌁ · routing · inspector</div></div>
+    <div class="sw"><div class="c" style="background:#E5484D"></div><div class="m"><b>RED text #E5484D</b>record · destructive · errors (text/icon)</div></div>
+    <div class="sw"><div class="c" style="background:#C13B40"></div><div class="m"><b>RED fill #C13B40</b>filled destructive buttons (white-on-fill AA)</div></div>
+    <div class="sw"><div class="c" style="background:#D9A23C"></div><div class="m"><b>AMBER #D9A23C</b>bypass · freeze · warnings · suspended</div></div>
+    <div class="sw"><div class="c" style="background:#5FD7A8"></div><div class="m"><b>PROBE #5FD7A8</b>scopes · probes · audio surfaces</div></div>
+  </div>
+  <h3>Category ticks (3px, tick-only)</h3>
+  <div class="swatches">
+    <div class="sw"><div class="c" style="background:#D06A6A"></div><div class="m"><b>glitch</b></div></div>
+    <div class="sw"><div class="c" style="background:#9A8BE8"></div><div class="m"><b>distortion</b></div></div>
+    <div class="sw"><div class="c" style="background:#5FB8C4"></div><div class="m"><b>color</b></div></div>
+    <div class="sw"><div class="c" style="background:#D4A865"></div><div class="m"><b>temporal</b></div></div>
+    <div class="sw"><div class="c" style="background:#AFCB52"></div><div class="m"><b>modulation</b></div></div>
+    <div class="sw"><div class="c" style="background:#8E8E9A"></div><div class="m"><b>texture</b></div></div>
+    <div class="sw"><div class="c" style="background:#C9C9D2"></div><div class="m"><b>enhance</b></div></div>
+    <div class="sw"><div class="c" style="background:#C77DC0"></div><div class="m"><b>destruction</b></div></div>
+  </div>
+
+  <!-- 2 TYPE -->
+  <h2 id="type">2 · Typography <span class="tag tag--canon">CANONICAL</span></h2>
+  <p>Target stack is IBM Plex Sans (UI) + IBM Plex Mono (data) — currently approximated by JetBrains Mono until fonts are bundled (<code>TODO(plex-swap)</code> in tokens.css). Nothing smaller than 11px, ever.</p>
+  <div class="typerow"><span class="meta">body · 12.5px / 450 · --cx-text-body</span><span style="font-size:12.5px">Device chain reordered — datamosh now precedes frame_echo.</span></div>
+  <div class="typerow"><span class="meta">label · 12px / 550 · --cx-text-label</span><span style="font-size:12px; font-weight:600">STRENGTH</span></div>
+  <div class="typerow"><span class="meta">data · 11px mono tabular · --cx-text-data</span><span style="font-size:11px; font-variant-numeric:tabular-nums">0:16.1 / 0:38.2 · 29.97fps · -6.2dB</span></div>
+  <div class="typerow"><span class="meta">panel header · 11px / 700 / caps / +12% tracking</span><span style="font-size:11px; font-weight:700; letter-spacing:.12em; color:var(--cx-text-2)">DEVICE CHAIN</span></div>
+
+  <!-- 3 SHAPE -->
+  <h2 id="shape">3 · Shape & density <span class="tag tag--canon">CANONICAL</span></h2>
+  <table class="ds">
+    <tr><th>Token</th><th>Value</th><th>Applies to</th></tr>
+    <tr><td><code>--cx-radius-control</code></td><td>2px</td><td>buttons, chips, inputs, clips</td></tr>
+    <tr><td><code>--cx-radius-card</code></td><td>4px</td><td>device cards, pads, menus</td></tr>
+    <tr><td><code>--cx-radius-dialog</code></td><td>6px</td><td>dialogs, overlays</td></tr>
+    <tr><td><code>--cx-row-h</code> / <code>--cx-panel-header</code></td><td>24px / 28px</td><td>list rows / panel headers</td></tr>
+    <tr><td>track row / nested fx row / auto lane <i>(proposed)</i></td><td>52px / 28px / 34px</td><td>arrangement view (B3)</td></tr>
+    <tr><td>tool rail button <i>(proposed)</i></td><td>34×32px, icon 20px, key badge 8px</td><td>left rail</td></tr>
+  </table>
+
+  <!-- 4 MOTION -->
+  <h2 id="motion">4 · Motion <span class="tag tag--canon">CANONICAL</span></h2>
+  <table class="ds">
+    <tr><th>Token</th><th>Value</th><th>Use</th></tr>
+    <tr><td><code>--cx-ease</code></td><td>cubic-bezier(0.2, 0, 0, 1)</td><td>everything — one curve</td></tr>
+    <tr><td><code>--cx-dur-feedback</code></td><td>120ms</td><td>hover, press</td></tr>
+    <tr><td><code>--cx-dur-entry</code> / <code>--cx-dur-exit</code></td><td>180ms / 140ms</td><td>panel/overlay mount / unmount</td></tr>
+    <tr><td>marching ants <i>(proposed)</i></td><td>700ms linear infinite</td><td>committed selections only — the ONE always-animating element</td></tr>
+  </table>
+
+  <!-- 5 ICONS -->
+  <h2 id="icons">5 · Iconography <span class="tag tag--prop">PROPOSED — direction unpicked</span></h2>
+  <p>Three candidate directions live at <a href="icon-directions.html" style="color:var(--cx-acid)">icon-directions.html</a> (Hairline / Block / Interrupt). Rules below hold regardless of direction:</p>
+  <table class="ds">
+    <tr><th>Rule</th><th>Spec</th></tr>
+    <tr><td>Grid</td><td>24×24 viewBox, 2px safe-zone; rendered at 20px in the rail, 16px inline, 24px+ in dialogs</td></tr>
+    <tr><td>Color</td><td><code>currentColor</code> only — state color comes from the button container, never baked into the icon</td></tr>
+    <tr><td>Active state</td><td>ACID wash + 1px ACID outline on the button; never a filled ACID block behind an icon</td></tr>
+    <tr><td>Keyboard badge</td><td>bottom-right, 8px, <code>--cx-text-3</code></td></tr>
+    <tr><td>Rail grouping</td><td>TRNS / EDIT / MASK / MISC with hairline separators + 6.5px group captions</td></tr>
+    <tr><td>Format</td><td>inline SVG sprite (no icon font); one file <code>icons.svg</code>, referenced by id</td></tr>
+  </table>
+
+  <!-- 6 COMPONENTS -->
+  <h2 id="components">6 · Components <span class="tag tag--prop">PROPOSED</span></h2>
+  <p>Extracted from the challenger prototypes — these are the pieces every layout variant shares. Rendered live below from the same CSS the prototypes use.</p>
+
+  <h3>6.1 Buttons & chips</h3>
+  <div class="comprow">
+    <span class="btn">Cancel</span>
+    <span class="btn btn--primary">Add to Queue</span>
+    <span class="btn btn--on">S</span>
+    <span class="btn btn--icon">▶</span>
+    <span class="chip">1/8</span>
+    <span class="chip chip--acid">29.7 fps</span>
+    <span class="chip chip--mod">PERFORM</span>
+    <span class="chip chip--amber">FROZEN → 2</span>
+    <span class="chip chip--red">REC</span>
+    <span class="cap">btn (26px) · primary = ACID fill · toggled = ACID fill · chips carry status color by wash+border, never fill</span>
+  </div>
+
+  <h3>6.2 Knob — with modulation ghost</h3>
+  <div class="comprow">
+    <div class="knob"><div class="knob__ring" style="--v:65%"></div><span class="knob__label">strength</span><span class="knob__val">0.65</span></div>
+    <div class="knob"><div class="knob__ring knob__ring--mod" style="--v:78%"></div><span class="knob__label">strength ⌁</span><span class="knob__val">0.78</span></div>
+    <span class="cap">unmodulated ring = ACID · modulated ring = MOD + ⌁ suffix on label; ghost value shows live modulated position while the set-value stays editable. Drag = set, scroll = fine, drop operator on knob = auto-map at depth 1.0.</span>
+  </div>
+
+  <h3>6.3 Fader & meter</h3>
+  <div class="comprow" style="align-items:stretch; height:130px">
+    <div class="vfader" style="--v:62%"></div>
+    <div class="bigmeter" style="--v:74%"></div>
+    <div class="bigmeter" style="--v:40%"></div>
+    <span class="cap" style="align-self:flex-end">meter gradient: ACID 0→68% · AMBER 68→88% · RED 88%+ · audio shows dB, video tracks show opacity% in the same slot</span>
+  </div>
+
+  <h3>6.4 Track header (arrangement = layers, from B3)</h3>
+  <div class="comprow anatomy">
+    <div class="thd-spec">
+      <span class="slot" data-n="twirl">▾</span>
+      <span class="slot" data-n="eye=mute">👁</span>
+      <span class="slot" data-n="color" style="width:9px; height:9px; border-radius:2px; background:var(--cx-cat-glitch)"></span>
+      <span class="slot" data-n="name" style="flex:1">V1 · MAIN</span>
+      <span class="slot" data-n="blend" style="font-size:10.5px; border:1px solid var(--cx-line-2); border-radius:3px; padding:2px 7px">Normal ▾</span>
+      <span class="slot" data-n="opacity" style="font-size:10.5px; color:var(--cx-text-2)">72%</span>
+      <span class="slot" data-n="◨ options" style="color:var(--cx-text-3)">◨</span>
+      <span class="slot" data-n="M/S/R" style="display:flex; gap:3px"><b style="font-size:9px; font-weight:400; border:1px solid var(--cx-line-2); border-radius:2px; padding:1px 4px; color:var(--cx-text-3)">M</b><b style="font-size:9px; font-weight:400; border:1px solid var(--cx-line-2); border-radius:2px; padding:1px 4px; color:var(--cx-text-3)">S</b></span>
+    </div>
+    <span class="cap">340px header · 52px row · twirl opens devices + automation lanes INSIDE the track · selected = MOD wash + 2px inset MOD bar · audio tracks swap blend/opacity for gain-dB</span>
+  </div>
+
+  <h3>6.5 Device card</h3>
+  <div class="comprow">
+    <div class="dev">
+      <span class="tick" style="background:var(--cx-cat-distortion)"></span>
+      <header><span class="pwr"></span>datamosh <span style="margin-left:auto; font-size:9.5px; color:var(--cx-text-3); border:1px solid var(--cx-line-2); border-radius:2px; padding:1px 4px"><b style="color:var(--cx-acid)">A</b>|B</span></header>
+      <div class="params">
+        <div class="knob"><div class="knob__ring knob__ring--mod" style="--v:78%"></div><span class="knob__label">strength ⌁</span></div>
+        <div class="knob"><div class="knob__ring" style="--v:50%"></div><span class="knob__label">block</span></div>
+        <div class="knob"><div class="knob__ring" style="--v:66%"></div><span class="knob__label">Field…</span></div>
+      </div>
+      <div class="mixrow">MIX <span class="bar"></span> 82%</div>
+    </div>
+    <span class="cap">230px wide · category tick left (3px) · header: power dot, name, A/B · footer: mask route + mix · bypassed = 55% opacity + AMBER context, never grayscale</span>
+  </div>
+
+  <h3>6.6 Pads</h3>
+  <div class="comprow">
+    <div class="bigpads" style="grid-template-columns: repeat(4, 96px)">
+      <div class="bigpad lit"><span class="bk">Q</span>kick_cut<span class="bm">GATE</span></div>
+      <div class="bigpad"><span class="bk">W</span>stutter<span class="bm">1-SHOT</span></div>
+      <div class="bigpad hold"><span class="bk">R</span>freeze<span class="bm">TOGGLE</span></div>
+      <div class="bigpad rec"><span class="bk">F</span>morph<span class="bm">REC→AUTO</span></div>
+    </div>
+    <span class="cap">key badge top-left · trigger mode caption · lit = ACID (playing) · held toggle = MOD · REC border = retro-capturing</span>
+  </div>
+
+  <h3>6.7 Menus & dialogs</h3>
+  <div class="comprow">
+    <div class="menu" style="display:flex; position:static">
+      <div class="cap">BLEND MODE — V1</div>
+      <div class="mi sel">Normal</div>
+      <div class="mi" style="background:var(--cx-mod); color:#0B0B10">Screen</div>
+      <div class="mi">Multiply</div>
+    </div>
+    <div class="dialog" style="width:300px">
+      <header>DIALOG <span class="x">✕</span></header>
+      <div style="padding:14px; font-size:11.5px; color:var(--cx-text-2)">Body copy at 12.5px/1.6. One primary action, right-aligned.</div>
+      <footer><span class="btn">Cancel</span><span class="btn btn--primary">OK</span></footer>
+    </div>
+    <span class="cap">menu hover = MOD fill with on-color text (the ONE place MOD fills) · dialogs: 36px header caps, 44px footer, scrim rgba(11,11,16,.62)</span>
+  </div>
+
+  <!-- 7 STATES -->
+  <h2 id="states">7 · Interaction states <span class="tag tag--prop">PROPOSED</span></h2>
+  <p>Every interactive element answers these states the same way. Color says WHAT KIND of state; geometry (wash/outline/inset-bar) says WHERE.</p>
+  <table class="ds statetbl">
+    <tr><th>State</th><th>Treatment</th><th>Sample</th></tr>
+    <tr><td>rest</td><td>surface-3 + line-2</td><td><span class="btn">device</span></td></tr>
+    <tr><td>hover</td><td>surface-4, 120ms</td><td><span class="btn" style="background:var(--cx-surface-4)">device</span></td></tr>
+    <tr><td>selected</td><td>MOD wash + 2px inset MOD bar (rows) or MOD border (cards)</td><td><span class="btn" style="background:var(--cx-mod-wash); border-color:var(--cx-mod); color:var(--cx-mod)">V1 · MAIN</span></td></tr>
+    <tr><td>active / engaged</td><td>ACID fill (toggles) or ACID wash + outline (tools)</td><td><span class="btn btn--on">S</span> <span class="btn" style="background:var(--cx-acid-wash); border-color:var(--cx-acid); color:var(--cx-acid)">⚡</span></td></tr>
+    <tr><td>modulated</td><td>MOD ring/ghost + ⌁ label suffix</td><td><span class="chip chip--mod">strength ⌁ 0.78</span></td></tr>
+    <tr><td>recording / armed</td><td>RED text/border, never fill except record button</td><td><span class="chip chip--red">REC → AUTO</span></td></tr>
+    <tr><td>bypassed / frozen</td><td>55% opacity + AMBER chip; content stays in color</td><td><span class="chip chip--amber">BYPASSED</span></td></tr>
+    <tr><td>disabled</td><td><code>--cx-text-disabled</code>, no hover — disabled ≠ hint</td><td><span class="btn" style="color:var(--cx-text-disabled)">flatten</span></td></tr>
+    <tr><td>focus (kbd)</td><td>2px ACID ring, offset 1px</td><td><span class="btn" style="outline:2px solid var(--cx-acid); outline-offset:1px">export</span></td></tr>
+  </table>
+
+  <!-- 8 LAYOUT -->
+  <h2 id="layout">8 · Layout grammar <span class="tag tag--prop">PROPOSED — pending B3 sign-off</span></h2>
+  <table class="ds">
+    <tr><th>Region</th><th>Spec (B3 · Darkroom v3)</th></tr>
+    <tr><td>Frame rows</td><td>transport 40px · options bar 32px · body 1fr · arrangement 300px (resizable, 400px in automation) · status 28px</td></tr>
+    <tr><td>Body columns</td><td>tool rail 46px · canvas 1fr (the hero) · dock 300px (effects browser + properties ONLY — no layer list, ever)</td></tr>
+    <tr><td>Options bar</td><td>contextual: shows the active tool's params; swaps to audio bar when an audio track is selected</td></tr>
+    <tr><td>Arrangement</td><td>IS the layer stack — z-order = row order; headers carry eye/blend/opacity/◨/M·S; twirl-down nests devices + automation</td></tr>
+    <tr><td>Overlays</td><td>Perform Room (full-screen) · routing canvas (modal) · blending options (per-track dialog) · export (modal). Everything else docks.</td></tr>
+    <tr><td>Escape</td><td>7-level dispatcher preserved: cancel draw → deselect matte → exit tool → clear selection → stop transport → close overlay → panic</td></tr>
+  </table>
+
+  <!-- 9 A11Y -->
+  <h2 id="a11y">9 · Accessibility <span class="tag tag--canon">CANONICAL</span></h2>
+  <table class="ds">
+    <tr><th>Rule</th><th>Detail</th></tr>
+    <tr><td>Text contrast</td><td>text-1 15.1:1 (AAA) · text-2 6.4:1 · text-3 4.8:1 — all computed against surface ladder; disabled is WCAG-exempt and never used for hints</td></tr>
+    <tr><td>The red split</td><td>NEVER white text on #E5484D (3.9:1 fail) — filled destructive buttons use #C13B40 (5.3:1)</td></tr>
+    <tr><td>Color never alone</td><td>modulation = MOD <b>and</b> ⌁ · mute = dim <b>and</b> eye-off · record = RED <b>and</b> REC label</td></tr>
+    <tr><td>Hit targets</td><td>≥ 22×22px clickable, even when the glyph is smaller; 16px drag zones on resize handles</td></tr>
+    <tr><td>Reduced motion</td><td>marching ants → static dashed outline; signal meters keep animating (information, not decoration)</td></tr>
+  </table>
+
+  <!-- 10 GAPS -->
+  <h2 id="gaps">10 · What remains to complete the system</h2>
+  <table class="ds">
+    <tr><th>#</th><th>Item</th><th>Blocked on</th></tr>
+    <tr><td>1</td><td>Icon direction pick → build <code>icons.svg</code> sprite (all 14 tools + transport + panel glyphs)</td><td><b>you</b> — <a href="icon-directions.html" style="color:var(--cx-acid)">choose 1/2/3</a></td></tr>
+    <tr><td>2</td><td>Layout sign-off (B3) → §8 becomes canonical</td><td><b>you</b> — review B3</td></tr>
+    <tr><td>3</td><td>Plex swap (IBM Plex Sans/Mono bundled) — token TODO already in tokens.css</td><td>packet-sized build task</td></tr>
+    <tr><td>4</td><td>Port this draft into <code>docs/roadmap/DESIGN-SPEC.md</code> v1.2 + regenerate <code>style-guide.html</code> — docs PR, hex-ratchet-safe (this page introduces no new hexes beyond tokens)</td><td>items 1–2</td></tr>
+    <tr><td>5</td><td>Component implementation audit: map each §6 component to its shipped CSS file (device-chain.css, timeline.css…) and diff against spec</td><td>item 4</td></tr>
+    <tr><td>6</td><td>Vocabulary sweep: rename any UI copy that says "layer" as an object; enforce §0 in future packets' briefs</td><td>item 2</td></tr>
+  </table>
+
+  <p class="lead" style="margin-top:30px; color:var(--cx-text-3)">
+    Files: <code>~/Development/entropic-layout-mockup/challengers/design-system.html</code> (this draft) ·
+    <a href="icon-directions.html" style="color:var(--cx-acid)">icon directions</a> ·
+    <a href="challenger-b3-arrangement.html" style="color:var(--cx-acid)">B3 prototype</a> ·
+    <a href="index.html" style="color:var(--cx-text-2)">← index</a>
+  </p>
+</div>
+</body>
+</html>
