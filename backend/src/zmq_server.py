@@ -155,6 +155,12 @@ class ZMQServer:
             audio_mixer=self.audio_mixer,
             experimental_audio_tracks=self._experimental_audio_tracks,
         )
+        # MK.12 — AI subject matte (local RVM) bake manager. A SEPARATE job
+        # class (never a fork of the export queue); torch loads only in the
+        # rvm_runner subprocess it spawns, so this constructor imports no torch.
+        from masking.ai_matte import AiMatteManager
+
+        self.ai_matte_manager = AiMatteManager()
         # Sentry breadcrumb rate-limiter for render_frame (every 30th frame)
         self._breadcrumb_frame_counter = 0
         # Signal engine for operator modulation (Phase 6A)
@@ -575,6 +581,12 @@ class ZMQServer:
             return self._handle_mask_gc_sidecars(message, msg_id)
         elif cmd == "mask_thumbnail":
             return self._handle_mask_thumbnail(message, msg_id)
+        elif cmd == "mask_ai_generate":
+            return self._handle_mask_ai_generate(message, msg_id)
+        elif cmd == "mask_ai_status":
+            return self._handle_mask_ai_status(msg_id)
+        elif cmd == "mask_ai_cancel":
+            return self._handle_mask_ai_cancel(msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -3722,6 +3734,114 @@ class ZMQServer:
             "width": width,
             "height": height,
         }
+
+    # ------------------------------------------------------------------ #
+    #  MK.12 — AI subject matte (local RVM) offline bake job
+    # ------------------------------------------------------------------ #
+
+    def _handle_mask_ai_generate(self, message: dict, msg_id: str | None) -> dict:
+        """Start (or cache-hit) an offline RVM matte bake for a clip's source.
+
+        Trust boundary (THIS is the real one — schema deserialize is dead in
+        production): every numeric arriving from IPC passes clamp_finite here at
+        the zmq parse boundary before it reaches the job. quality maps to the
+        RVM downsample_ratio [0.1, 1.0]; max_dimension [480, 2160]; frame range
+        [0, 10_000_000].
+
+        Returns immediately: ``{ok, cached, status, content_hash, matte_path?}``.
+        Progress is polled via ``mask_ai_status``; a cache hit reports
+        ``status='complete', cached=true`` with no bake.
+        """
+        from masking.ai_matte import (
+            DEFAULT_DOWNSAMPLE_RATIO,
+            DEFAULT_MAX_DIMENSION,
+            MemoryHeadroomError,
+            RvmUnavailableError,
+        )
+
+        input_path = message.get("input_path")
+        if not input_path or not isinstance(input_path, str):
+            return {"id": msg_id, "ok": False, "error": "missing input_path"}
+
+        # SEC-5: path-traversal guard (same gate as export/ingest).
+        errors = validate_upload(input_path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # --- numeric trust boundary (clamp_finite at the zmq parse seam) ---
+        quality = clamp_finite(
+            message.get("quality", DEFAULT_DOWNSAMPLE_RATIO),
+            0.1,
+            1.0,
+            DEFAULT_DOWNSAMPLE_RATIO,
+        )
+        max_dimension = int(
+            clamp_finite(
+                message.get("max_dimension", DEFAULT_MAX_DIMENSION),
+                480.0,
+                2160.0,
+                float(DEFAULT_MAX_DIMENSION),
+            )
+        )
+        start_frame = int(
+            clamp_finite(message.get("start_frame", 0), 0.0, 10_000_000.0, 0.0)
+        )
+        end_frame = int(
+            clamp_finite(message.get("end_frame", -1), -1.0, 10_000_000.0, -1.0)
+        )
+
+        try:
+            job = self.ai_matte_manager.start(
+                input_path,
+                downsample_ratio=quality,
+                max_dimension=max_dimension,
+                start_frame=start_frame,
+                end_frame=end_frame,
+            )
+        except RuntimeError as e:
+            # RvmUnavailableError / MemoryHeadroomError / already-running: surface
+            # the structured code + actionable message (NO traceback).
+            code = getattr(e, "code", "ai_matte_error")
+            return {"id": msg_id, "ok": False, "error": str(e), "code": code}
+        except Exception as e:  # noqa: BLE001
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "mask_ai_generate error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+        return {
+            "id": msg_id,
+            "ok": True,
+            "cached": job.cached,
+            "status": job.status.value,
+            "content_hash": job.content_hash,
+            "matte_path": job.matte_path if job.cached else "",
+        }
+
+    def _handle_mask_ai_status(self, msg_id: str | None) -> dict:
+        try:
+            status = self.ai_matte_manager.get_status()
+            status["id"] = msg_id
+            status["ok"] = True
+            return status
+        except Exception as e:  # noqa: BLE001
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "mask_ai_status error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_mask_ai_cancel(self, msg_id: str | None) -> dict:
+        try:
+            cancelled = self.ai_matte_manager.cancel()
+            return {"id": msg_id, "ok": True, "cancelled": cancelled}
+        except Exception as e:  # noqa: BLE001
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "mask_ai_cancel error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def run(self):
         self.running = True
