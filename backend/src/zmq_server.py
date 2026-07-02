@@ -1237,16 +1237,28 @@ class ZMQServer:
             check so it wins over the video-shape branches below.
           * `layer_type != "video"` (text) is exempt — text composites in normal
             mode and forwards its fade via `clip_opacity`.
-          * An EMPTY chain is exempt (P1-B) — that is the sampler/instrument voice
-            path AND the silent-track no-clip fallback (`buildSamplerLayer`, which
-            emits NO voice_id so the marker check above cannot catch it). A genuine
-            v2 clip always ships a NON-EMPTY chain, so relaxing the empty-chain case
-            never re-admits one; real v2 FILES are additionally blocked at load
-            (`schema.MIN_SUPPORTED_MAJOR`) — this render guard is defense-in-depth.
+          * An EMPTY chain is exempt (P1-B) — the sampler/instrument voice path AND
+            the silent-track no-clip fallback (`buildSamplerLayer`, which emits NO
+            voice_id so the marker check above cannot catch it). NOTE: the v2-era
+            builder ALSO emitted an empty chain for an EFFECT-LESS track carrying
+            top-level opacity/blend (git 316a207~1 App.tsx:895), so this branch DOES
+            admit that empty-chain v2 clip. That is safe — with no terminal composite
+            the compositor's `_resolve_compositing` (compositor.py) reads the SAME
+            clamped top-level opacity + `BLEND_MODES`-validated (normal-fallback) mode
+            for the v2 clip and a legitimate voice alike, so the two render
+            byte-identically. This is verified in the regression suite.
           * A chain ENDING in a terminal composite is exempt — it is v3-shaped even
             if a belt-and-suspenders sender also passed stray top-level fields.
         Only a marker-less video layer with a NON-EMPTY chain, top-level
         opacity/blend_mode, and no terminal composite is the v2 shape we reject.
+
+        Trust boundary: a FORGED voice-marker on a genuine v2 clip IS exempted here,
+        but that is not a vulnerability and does NOT rely on load-time rejection —
+        `render_composite` arrives over IPC, where `schema.MIN_SUPPORTED_MAJOR` never
+        runs. The admitted layer renders CORRECTLY via the clamped
+        `_resolve_compositing` fallback (identical to the legitimate voice path), and
+        the render endpoint is a 127.0.0.1 ZMQ socket gated by per-session token auth
+        — that, not this shape check, is the security boundary.
         """
         if not isinstance(layer_info, dict):
             return False
@@ -1265,11 +1277,15 @@ class ZMQServer:
             return False
         chain = layer_info.get("chain") or []
         if not chain:
-            # P1-B (reverses the original red-team HT-2 rejection): an EMPTY-chain
-            # video layer is NOT the v2 track-clip shape — it is an instrument/
-            # sampler voice or the silent-track no-clip fallback, which legitimately
-            # carry top-level opacity/blend_mode with no chain. The v2 shape needs a
-            # real chain; real v2 files are rejected at load, so this is safe.
+            # P1-B (reverses the original red-team HT-2 rejection): admit an
+            # EMPTY-chain video layer. It is normally an instrument/sampler voice or
+            # the silent-track no-clip fallback — but the v2-era builder ALSO emitted
+            # chain:[] for an effect-less track (git 316a207~1 App.tsx:895), so an
+            # empty-chain v2 clip is admitted too. Safe: with no terminal composite,
+            # _resolve_compositing (compositor.py) applies identical clamped v2/v3
+            # semantics (clamped opacity + normal-fallback blend), so it renders
+            # byte-identically to the legitimate voice path. Not relying on load-time
+            # rejection — render_composite is IPC-only (localhost + token auth).
             return False
         terminal = chain[-1]
         has_terminal_composite = (
