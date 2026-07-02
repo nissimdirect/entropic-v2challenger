@@ -32,7 +32,7 @@
 3. **Amended merge gate (rule 8 correction):** PR CI green + main `smoke` job green; sidecar + full-e2e tracked as the standing-red items above until their fixes land.
 
 **New findings filed:**
-- 3 effects render NO visible change at defaults (pre-existing, bisected to main): `fx.cellular_pixel_sort`, `fx.reaction_mosh` (suspect #166's pde_steps 3→1), `fx.temporal_dispersion` — PFX.2-class follow-ups.
+- 2 effects render NO visible change at defaults (pre-existing, bisected to main): `fx.cellular_pixel_sort`, `fx.reaction_mosh` (suspect #166's pde_steps 3→1) — PFX.2-class follow-ups. `fx.temporal_dispersion` RESOLVED (2026-07-02, pkt/pfx2c): reproduced with a 5-frame threaded-state warm-up — already produces visible change (mean abs diff ~82 by frame 1) at default params; the “no visible change” symptom was a test-harness gap (single-frame-only check vs. a legitimately stateful effect), fixed generally by #226. Added a defaults-locked regression guard (`test_visible_change_at_default_params_within_warmup` in `test_temporal_dispersion.py`) so this can't silently regress.
 - Latent bug fixed in #167: `newProject` called the no-arg legacy `removeSampler()` (silent no-op) — samplers survived New Project.
 - Transient "Frame render failed" toast at app startup before engine connect (seen in smoke evidence; frame renders fine after) — minor, worth a startup-race look.
 - PUX.1's hex-ratchet caught its first real catch pre-merge: #178 introduced 3 new `#4ade80` (drop-zone styles) — tokenized during the #179 rebase, ceiling held at 9.

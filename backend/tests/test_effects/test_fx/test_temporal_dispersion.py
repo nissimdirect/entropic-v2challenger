@@ -139,6 +139,45 @@ def test_state_evolves_visible_change_after_buffer_fills():
     assert diff > 1.0, f"expected visible dispersion, got mean abs diff {diff}"
 
 
+def test_visible_change_at_default_params_within_warmup():
+    """PFX.2c regression guard -- ROADMAP.md Sec 0.1 (2026-06-12) flagged this
+    effect as rendering NO visible change at defaults. Root cause was a
+    test-harness gap (single-frame-only check against a legitimately stateful
+    effect), not an effect bug: temporal_dispersion needs >=2 buffered frames
+    before its phase rotation can act (see test_first_frame_passthrough). The
+    general oracle
+    (test_all_effects.py::TestAllEffectsVisibleChange::test_visible_change_with_defaults)
+    now warms up stateful effects and already passes here -- this test pins
+    that guarantee specifically for temporal_dispersion using ONLY default
+    params (params={}), across a short multi-frame stream, so a future
+    default-value change can\'t silently regress this effect back to
+    invisible.
+    """
+    state: dict | None = None
+    best_diff = 0.0
+    threshold = 0.5
+    max_warmup = 5  # buffer_size default is 8, but dispersion fires at buf_len>=2
+
+    for i in range(max_warmup):
+        frame = _frame(seed=1000 + i)
+        kw = {"frame_index": i, "seed": 42, "resolution": (64, 64)}
+        out, state = apply(frame, {}, state, **kw)  # {} => all defaults
+        diff = float(
+            np.mean(
+                np.abs(out[:, :, :3].astype(np.int64) - frame[:, :, :3].astype(np.int64))
+            )
+        )
+        best_diff = max(best_diff, diff)
+        if best_diff >= threshold:
+            break
+
+    assert best_diff >= threshold, (
+        f"fx.temporal_dispersion: no visible change at DEFAULT params within "
+        f"{max_warmup} frames (best mean abs diff = {best_diff:.4f}, "
+        f"threshold = {threshold}). PFX.2c regressed."
+    )
+
+
 def test_buffer_grows_then_caps_at_buffer_size():
     """Deque maxlen must equal buffer_size; older frames evict on overflow."""
     state = None
