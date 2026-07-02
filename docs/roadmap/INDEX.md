@@ -25,7 +25,7 @@
 | `specs/entropic-spec-5-l-backbone.md` | Multi-headed L worker + Q7 benchmark gate (8 thresholds; REAL run pending — user) |
 | `specs/entropic-spec-6-dna-format.md` | `.dna` format, no-regression policy, 5 CI lints (draft PR #139) |
 | `specs/entropic-spec-7-post-pass.md` | A4/C4/A5 spectral family (shipped #162/#165) + SG-7 (shipped #149) |
-| `layout-session/PLAN.md` | Sweep-PR ladder v1.2 (PR-zero ✅ / PR-A ❌ / PR-B 🔄 / PR-C ❌ / PR-D ✅) |
+| `layout-session/PLAN.md` | Sweep-PR ladder v1.2 — HISTORICAL; all sweep PRs shipped (PR-zero/A/B/C/D ✅ as of 2026-06-15, see ROADMAP §0.2/§2) |
 | `layout-session/DECISIONS.md` | 28 locked layout decisions |
 | `layout-session/INSTRUMENTS.md` + `layout-session/INSTRUMENTS-BUILD-PLAN.md` | B1–B10 instrument ladder, SG gating |
 | `layout-session/B1-1VOICE-SAMPLER-PLAN.md` | B1 detail (shipped #153/#155; UX superseded by B2-lite plan) |

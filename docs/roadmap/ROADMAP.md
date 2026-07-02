@@ -122,6 +122,8 @@
 
 ## 2. Status ledger — built ✅ / in flight 🔄 / not built ❌
 
+> **⚠️ HISTORICAL BASELINE (authored 2026-06-11).** Rows below were point-in-time and rotted during the campaign. Corrected 2026-07-02 for the worst offenders (marked `[corrected 2026-07-02]`); where this section disagrees with §0.2/§0.3, the snapshots win. Full per-packet status: `EXECUTION-PLAN.md` + `packets/*.md`.
+
 Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partially shipped · ❌ = not started (plan only). Every 🔄 names its PR.
 
 ### Sweep PRs (PLAN.md ladder)
@@ -129,8 +131,8 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 |---|---|
 | PR-zero per-track chains | ✅ [#116](https://github.com/nissimdirect/entropic-v2challenger/pull/116) |
 | PR-A layout redesign | ❌ — attempt [#154](https://github.com/nissimdirect/entropic-v2challenger/pull/154) closed as waste; "evolve EffectBrowser in place" |
-| PR-B data-model break | 🔄 — slices 1/2/3a ✅ MERGED 2026-06-11 ([#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157)/[#158](https://github.com/nissimdirect/entropic-v2challenger/pull/158)/[#160](https://github.com/nissimdirect/entropic-v2challenger/pull/160)); **3b BPM split / 3c composite-as-effect / 3d export parity ❌** (Phase 2) |
-| PR-C operators + Kentaro | ❌ |
+| PR-B data-model break | 🔄 — slices 1/2/3a ✅ MERGED 2026-06-11 ([#157](https://github.com/nissimdirect/entropic-v2challenger/pull/157)/[#158](https://github.com/nissimdirect/entropic-v2challenger/pull/158)/[#160](https://github.com/nissimdirect/entropic-v2challenger/pull/160)); **3b ✅ #185 · 3c ✅ #189/#190/#191 · 3d ✅ #212 — PR-B COMPLETE** `[corrected 2026-07-02]` |
+| PR-C operators + Kentaro | ✅ `[corrected 2026-07-02]` — P4.0–P4.6 #259–#267 (types+caps, Kentaro backend+UI, evaluators, xyflow topology, browser op tab) |
 | PR-D rebrand → Creatrix v3.0.0 | ✅ [#120](https://github.com/nissimdirect/entropic-v2challenger/pull/120) — residue ❌ incl. a REAL BUG: split-brain runtime dir (`logger.ts`/`pop-out-window.ts` still write `~/.entropic` while backend + diagnostics path-validation use `~/.creatrix` — electron-main.log unreadable via in-app diagnostics IPC); plus `ENTROPIC_DIR` const + repo/dir names. PD.10 fixes with one-time migration |
 
 ### Injections
@@ -147,12 +149,12 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 |---|---|
 | SG-1 GPU lifetime | ✅ [#163](https://github.com/nissimdirect/entropic-v2challenger/pull/163) — pool + mock binding · **SG-1-Metal ✅** real MLX Metal binding [#270](https://github.com/nissimdirect/entropic-v2challenger/pull/270) P6.4 (MLXGPUResource, 500-frame soak RSS < 50 MB, 0 leaked handles) |
 | SG-2 `.dna` budget | 🔄 draft [#139](https://github.com/nissimdirect/entropic-v2challenger/pull/139) |
-| SG-3 latent NaN sentinel | 🔄 draft [#133](https://github.com/nissimdirect/entropic-v2challenger/pull/133) — clause-1 only, ~12–18h real work remains |
+| SG-3 latent NaN sentinel | ✅ `[corrected 2026-07-02]` — #281 (sentinel) + #284 (clause-2 output gate, 4-tiger redteam fix) + #286 (clause-3 lane-mute UX) + #307 (aborted-lane consumer) |
 | SG-4 audio realtime isolation | ✅ [#159](https://github.com/nissimdirect/entropic-v2challenger/pull/159) (runtime-starvation tests ❌) |
-| SG-5 dynamic cycle detection | 🔄 draft [#144](https://github.com/nissimdirect/entropic-v2challenger/pull/144) |
+| SG-5 dynamic cycle detection | ✅ `[corrected 2026-07-02]` — #280 (detection) + #283 (runtime-aware toposort) + #285 (export cache) + #297/#306 (seam guards) + #303 (cycle-break toast) |
 | SG-6 Genoscope cancellation | ❌ |
 | SG-7 codec timeout | ✅ [#149](https://github.com/nissimdirect/entropic-v2challenger/pull/149) |
-| SG-8 memory pressure | ✅ lib [#161](https://github.com/nissimdirect/entropic-v2challenger/pull/161) — live-gate wiring ❌ |
+| SG-8 memory pressure | ✅ `[corrected 2026-07-02]` — lib #161 + live wiring #279 + frontend badge/toasts #282 + recovery-dismiss #298 |
 | SG-9 plugin quotas | ❌ · SG-H1/H2/H3 hygiene ❌ |
 
 ### Instruments (Creatrix B-ladder, Tier 4)
@@ -161,7 +163,7 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 | B1 1-voice Sampler | ✅ core [#153](https://github.com/nissimdirect/entropic-v2challenger/pull/153) + mount [#155](https://github.com/nissimdirect/entropic-v2challenger/pull/155) + persistence ✅ [#156](https://github.com/nissimdirect/entropic-v2challenger/pull/156) (B1 global shape superseded same-day by #167's track-keyed `instruments`; legacy saves drop-with-toast) |
 | B2 voice spine / Performance Track | 🔄 — B2-lite ✅ MERGED [#167](https://github.com/nissimdirect/entropic-v2challenger/pull/167) 2026-06-12; full voice spine (polyphony/FSM) ❌ |
 | B3 full sampler · B4 sample rack · B5 grouping | **B3 ✅** (loop/scrub/rgb/glide/melodic, [#233](https://github.com/nissimdirect/entropic-v2challenger/pull/233)) · **B4 ✅ COMPLETE** — summing [#234](https://github.com/nissimdirect/entropic-v2challenger/pull/234) · macros [#235](https://github.com/nissimdirect/entropic-v2challenger/pull/235) · export-parity [#236](https://github.com/nissimdirect/entropic-v2challenger/pull/236) · editor [#237](https://github.com/nissimdirect/entropic-v2challenger/pull/237) · macro-editor [#238](https://github.com/nissimdirect/entropic-v2challenger/pull/238) · pad-delete [#239](https://github.com/nissimdirect/entropic-v2challenger/pull/239) · choke [#240](https://github.com/nissimdirect/entropic-v2challenger/pull/240) · pad-insert-chains (engine+UI) [#241](https://github.com/nissimdirect/entropic-v2challenger/pull/241)/[#242](https://github.com/nissimdirect/entropic-v2challenger/pull/242) · **B5 ✅ COMPLETE** — grouping/composite-tree [#243](https://github.com/nissimdirect/entropic-v2challenger/pull/243) · nested-rack UI [#244](https://github.com/nissimdirect/entropic-v2challenger/pull/244) · preview-trigger+eviction-fix [#245](https://github.com/nissimdirect/entropic-v2challenger/pull/245) |
-| B6 Frame-Bank · B7 RIFE morph · B8 Granulator · B9 tensor routing · B10 live affordances | **B6 ✅ COMPLETE** — model+LRU [#246](https://github.com/nissimdirect/entropic-v2challenger/pull/246) · preview+SG-8 [#247](https://github.com/nissimdirect/entropic-v2challenger/pull/247) · UI [#248](https://github.com/nissimdirect/entropic-v2challenger/pull/248) · persistence [#249](https://github.com/nissimdirect/entropic-v2challenger/pull/249) · **B7 🔄 flow-morph ✅** (CPU optical-flow [#250](https://github.com/nissimdirect/entropic-v2challenger/pull/250); real Metal/GPU path deferred — SG-1) · **B8 ❌** (needs SG-3) · **B9 ❌** (needs PR-C+SG-5) · **B10 ❌** (live affordances — UNBLOCKED, not yet built) |
+| B6 Frame-Bank · B7 RIFE morph · B8 Granulator · B9 tensor routing · B10 live affordances | **B6 ✅ COMPLETE** — model+LRU [#246](https://github.com/nissimdirect/entropic-v2challenger/pull/246) · preview+SG-8 [#247](https://github.com/nissimdirect/entropic-v2challenger/pull/247) · UI [#248](https://github.com/nissimdirect/entropic-v2challenger/pull/248) · persistence [#249](https://github.com/nissimdirect/entropic-v2challenger/pull/249) · **B7 🔄 flow-morph ✅** (CPU optical-flow [#250](https://github.com/nissimdirect/entropic-v2challenger/pull/250); real Metal/GPU path deferred — SG-1) · **B8 ✅** #287/#288/#290/#292/#294/#295/#299/#309 · **B9 ✅** #289/#291/#293/#301 · **B10 ✅** #255–#258/#296 `[corrected 2026-07-02]` |
 
 ### Vision PRDs (synth paradigm)
 | ID | Status |
@@ -178,7 +180,7 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 | E2 `.dna` format | 🔄 draft [#139](https://github.com/nissimdirect/entropic-v2challenger/pull/139) |
 | E5 Launchpad bridge | 🔄 draft [#145](https://github.com/nissimdirect/entropic-v2challenger/pull/145) |
 | I1 Inspector Track | **I1 ✅** (probe registry backend [#271](https://github.com/nissimdirect/entropic-v2challenger/pull/271) P6.7 + Inspector Track UI [#274](https://github.com/nissimdirect/entropic-v2challenger/pull/274) P6.8; supersedes draft [#140](https://github.com/nissimdirect/entropic-v2challenger/pull/140)) · **I2 Routing Canvas ✅** (routing graph backend [#276](https://github.com/nissimdirect/entropic-v2challenger/pull/276) P6.9 + Routing Canvas UI ⌘⇧I [#277](https://github.com/nissimdirect/entropic-v2challenger/pull/277) P6.10; supersedes backend draft [#142](https://github.com/nissimdirect/entropic-v2challenger/pull/142)) · I3 full UI ❌ (gated on PR-A) |
-| Q7 L-backbone benchmark | 🔄 machinery (22 parked drafts [#117–#145](https://github.com/nissimdirect/entropic-v2challenger/pulls), gh-verified 2026-06-11) · **REAL verdict ❌ USER-BLOCKED** (mock verdict only) |
+| Q7 L-backbone benchmark | 🔄 machinery (22 parked drafts [#117–#145](https://github.com/nissimdirect/entropic-v2challenger/pulls), gh-verified 2026-06-11) · **REAL verdict ✅ EXISTS `[corrected 2026-07-02]`** — mlx run 2026-06-15, TIER_5_GO p95=20.46ms, flag DEGRADES_UNDER_LOAD (`~/.entropic/q7-report.json`); remaining = user greenlight for the 24 parked drafts |
 | Demo trilogy | 🔄 MP4s ✅ rendered to `~/.entropic/demos/` · Demos Drawer / onboarding / D-PB paint ❌ (gated on PR-A) |
 
 ### Selection / Masking / Alpha (MK — docs/roadmap/packets/masking.md, merged #204/#205)
@@ -197,11 +199,11 @@ Legend: ✅ = merged to `origin/main` · 🔄 = open PR, parked draft, or partia
 | MK.8 — Chroma + luma key as procedural mattes, spill suppression, key params as LANES | ✅ [#221](https://github.com/nissimdirect/entropic-v2challenger/pull/221) | key_kernels.py |
 | MK.9 — Cut / copy region to new track | ✅ [#225](https://github.com/nissimdirect/entropic-v2challenger/pull/225) | supersedes PD.6 (task #45b) |
 | MK.10 — Alpha decode + export round-trip (ProRes 4444; WebM/VP9 optional) | ✅ [#224](https://github.com/nissimdirect/entropic-v2challenger/pull/224) | `prores_4444` yuva444p10le in codecs.py; honest-alpha-gate fix |
-| MK.CU — CU regression suite J1–J5 (Phase A exit gate; reruns at Phase B exit) | ❌ | Gate: MK.1–MK.10 merged; joins rule-9 live-smoke rotation |
+| MK.CU — CU regression suite J1–J5 (Phase A exit gate; reruns at Phase B exit) | ❌ NEVER RUN `[corrected 2026-07-02]` | Satisfied by `docs/UAT-PLAN-2026-07-02-live-cu.md` Stage F when executed. An EXECUTION-PLAN claim that it was “active in rotation” was false and has been removed. |
 | MK.11 — Phase B: mask params as lanes + matte-as-mod-source + keyframed transforms | ❌ specced | Phase B — Tier-3/Phase-6 era; mod-source half **hard-gated on SG-5** |
 | MK.12 — Subject/background dual-chain routing via local RVM | ❌ specced | Phase B — **MK.12 tool UI gate (PR-A tool-tab surfaces) NOW SATISFIED** (PR-A complete on main); buildable once Phase A merges |
-| MK.13 — Tool-mode stack in browser tool tab + marching-ants overlay + mask chips | ❌ specced | Phase B — gates on PR-A; **unblocked** |
-| MK.14 — SPIKE: motion-tracked masks (research deliverable) | ❌ specced | Phase B — depends MK.1 only |
+| MK.13 — Tool-mode stack in browser tool tab + marching-ants overlay + mask chips | ✅ `[corrected 2026-07-02]` — #252 + #254 (mask_thumbnail IPC, 64×36 matte chips) | |
+| MK.14 — SPIKE: motion-tracked masks (research deliverable) | ✅ spike done `[corrected 2026-07-02]` — #269 | Full build remains Phase B |
 
 ### v2 debt
 | Item | Status |
@@ -321,19 +323,19 @@ Per `packets/masking.md` + `SELECTION-MASKING-SPEC.md` (§14 decisions D1–D7 L
 
 | # | Gap | Severity | Evidence |
 |---|---|---|---|
-| **G1** | **Q7 REAL benchmark verdict never produced** — the only hard user blocker; gates all of Tier 5. 22 parked draft PRs of machinery exist; the deliverable (verdict file from a real run) doesn't. | 🔴 blocks Tier 5 | master sequence §6/§11; `memory/feedback_verb-ask-deliverable-is-the-result.md` |
-| **G2** | **PR-A never opened.** One attempt (#154) closed as waste; "evolve EffectBrowser in place" direction set but no execution since. Blocks INJ-4, B1/B2-lite UX, demo Drawer, onboarding, I3 frontend. | 🔴 blocks Tiers 1/4 UX | `PLAN.md` §3; `memory/feedback_read-existing-component-before-parallel-build.md` |
-| **G3** | **SG-3 (NaN sentinel) + SG-5 (dynamic cycle detection) unmerged** — drafts [#133](https://github.com/nissimdirect/entropic-v2challenger/pull/133)/[#144](https://github.com/nissimdirect/entropic-v2challenger/pull/144); block B8 Granulator (the headline instrument) and B9 tensor routing. SG-1 Metal binding + SG-8 live wiring also deferred. SG-6/SG-9/SG-H1-3 not started. **SG-H disposition:** SG-H1 (probe recording-to-disk policy) rides along with the I1 probes — P6.8 files its issue rather than improvising disk writes; SG-H2 (FD-management) = packet stub in the EXECUTION-PLAN §5 Tier-3 row; SG-H3 (echo-suppression seam) ships in P5b.25. SG-4's residue (runtime-starvation tests) = P7.5, moot on Q7 NO-GO via P7.0N. | 🟠 | `entropic-spec-3-safety-gates.md`; INSTRUMENTS-BUILD-PLAN §5; `packets/{phase-5b,phase-6,phase-7}.md` |
-| **G4** | **PR-B half-done**: 3b BPM split, 3c composite-as-effect (36-file break), 3d export parity remain; the per-scanline `domain='y'` render unlock was deferred out of #158 to C2/C3 — so Tier-1 "paradigm becomes felt" is schema-true but not yet *visible* in renders beyond the demo MP4s. | 🟠 | `entropic-PR-B-plan-2026-06-05.md` |
+| **G1** | **RESOLVED-STALE `[corrected 2026-07-02]`:** a REAL Q7 run exists (2026-06-15, mlx, TIER_5_GO p95=20.46ms, flag `DEGRADES_UNDER_LOAD` — `~/.entropic/q7-report.json`, passes the §3 G-CHECK). Remaining blocker is the USER GREENLIGHT for the 24 parked q7 drafts; recommend rerunning under concurrent render load first (the flag is exactly the live-DAW condition). | 🟠 decision, not build | §0.3 |
+| **G2** | **CLOSED `[corrected 2026-07-02]` — PR-A shipped in place (see §2).** Original text: PR-A never opened. One attempt (#154) closed as waste; "evolve EffectBrowser in place" direction set but no execution since. Blocks INJ-4, B1/B2-lite UX, demo Drawer, onboarding, I3 frontend. | 🔴 blocks Tiers 1/4 UX | `PLAN.md` §3; `memory/feedback_read-existing-component-before-parallel-build.md` |
+| **G3** | **CLOSED `[corrected 2026-07-02]` — SG-3 + SG-5 + SG-8 wiring all merged (see §2).** Original text: SG-3 (NaN sentinel) + SG-5 (dynamic cycle detection) unmerged — drafts [#133](https://github.com/nissimdirect/entropic-v2challenger/pull/133)/[#144](https://github.com/nissimdirect/entropic-v2challenger/pull/144); block B8 Granulator (the headline instrument) and B9 tensor routing. SG-1 Metal binding + SG-8 live wiring also deferred. SG-6/SG-9/SG-H1-3 not started. **SG-H disposition:** SG-H1 (probe recording-to-disk policy) rides along with the I1 probes — P6.8 files its issue rather than improvising disk writes; SG-H2 (FD-management) = packet stub in the EXECUTION-PLAN §5 Tier-3 row; SG-H3 (echo-suppression seam) ships in P5b.25. SG-4's residue (runtime-starvation tests) = P7.5, moot on Q7 NO-GO via P7.0N. | 🟠 | `entropic-spec-3-safety-gates.md`; INSTRUMENTS-BUILD-PLAN §5; `packets/{phase-5b,phase-6,phase-7}.md` |
+| **G4** | **CLOSED `[corrected 2026-07-02]` — PR-B complete (3b/3c/3d shipped, see §2).** Original text: PR-B half-done: 3b BPM split, 3c composite-as-effect (36-file break), 3d export parity remain; the per-scanline `domain='y'` render unlock was deferred out of #158 to C2/C3 — so Tier-1 "paradigm becomes felt" is schema-true but not yet *visible* in renders beyond the demo MP4s. | 🟠 | `entropic-PR-B-plan-2026-06-05.md` |
 | **G5** | **22 parked q7 draft PRs** ([#117–#145](https://github.com/nissimdirect/entropic-v2challenger/pulls), gh-verified 2026-06-11) are **reference implementations, not turnkey payloads** — main has absorbed schema changes (#148/#152, spectral family) they predate. Re-derive against current main; run a viability probe (merge-base distance + conflict count) before scheduling; raw merge falsely reverts merged work. Unextracted: SG-3, SG-5, .dna, I1/I2/I3, CLIP/CLAP/L-worker/bench chain, download UX, E5, demo-trilogy runner. | 🟠 process hazard | `memory/feedback_cherry-pick-stale-scaffold-branches.md`; master sequence §13 |
 | **G6** | **Two roadmaps never reconciled**: Cross-Modal v1.1 plan (F1 datamosh sequencer, F2 motion angle, F3 macro device, F4 chord modulator — merged plan [PR #36](https://github.com/nissimdirect/entropic-v2challenger/pull/36), never built) and `docs/addendums/POST-V1-ROADMAP.md` (Phases 12–19) both predate the synth-paradigm master sequence and are absent from it. Decide: fold in (F3 ≈ vision B2/macros; Phase 14 ≈ C7/B2), or formally supersede. | 🟠 scope ambiguity | `memory/entropic-cross-modal.md`; `docs/addendums/POST-V1-ROADMAP.md` |
-| **G7** | **Audio tracks shipped but dark**: full chain merged (#30+#66) yet flag default-OFF, bake never started, PR-4 (un-flag + audio auto-extract) unscheduled. | 🟠 | `memory/entropic-audio-tracks.md`; env-var read `_experimental_audio_tracks_enabled()` at `zmq_server.py:51–54` |
+| **G7** | **Audio tracks shipped but dark** — flag default-OFF; **bake-log evidence found CONTAMINATED 2026-07-02** (all 181 entries microsecond test-pollution sessions; pytest writes the real `~/.creatrix/audio-bake-log.jsonl`). F6 packet isolates the writer + adds provenance + archives the polluted log; the 1-week bake clock genuinely starts only after F6 lands and the user plays audio in the real app. | 🟠 | month-audit 2026-07-02; `backend/src/audio/bake_log.py` |
 | **G8** | **Open bugs**: F-0514-5 Escape-deselect (fix waiting in open [#101](https://github.com/nissimdirect/entropic-v2challenger/pull/101)), F-0516-7 hint badge ([#103](https://github.com/nissimdirect/entropic-v2challenger/pull/103), files may have been reverted — rebase check), ZMQ REQ mutex ([#108](https://github.com/nissimdirect/entropic-v2challenger/pull/108)), F-0514-8 dylib warning, F-16. | 🟡 | `memory/entropic-uat-may14.md` |
 | **G9** | **Demo trilogy not in-app**: MP4s rendered, but Demos Drawer / first-launch ritual / D-PB paint affordance all gated on PR-A; demo asset licensing unsourced. | 🟡 | `entropic-spec-4-demo-trilogy.md`; `~/.claude/plans/demo-trilogy-stubs/` |
 | **G10** | **B2-lite supersedes #155 button UX** per user correction (drag sampler → MIDI track → drag video); #156 persistence must coordinate with #167's breaking change. | 🟡 | `entropic-B2-performance-track-sampler-2026-06-05.md` |
 | **G11** | **External user-testing resolved "NONE"** (sole-tester) — contradicts vision §9/§11 founder-bias mitigation. Standing tension; revisit at Tier 4 milestone. | 🟡 strategic | master sequence §11 vs vision §11(f) |
 | **G12** | **History-buffer polish**: Gap-2 description-string convention + Gap-3 500-entry memory smoke outstanding; Gap-1/Gap-4 deliberately deferred. | 🟢 | `~/.claude/plans/entropic-history-buffer-validation.md` |
-| **G13** | **Hygiene**: **58 worktrees live** (prune only with per-worktree 6-check audit); cron `b3c47f1c` confirmed dead; effect-count drift across docs (treat 214 as live); `docs/decisions/q7/` has only 4 of ~17 DEC-Q7 records on main. | 🟢 | repo-state sweep |
+| **G13** | **Hygiene**: **45 worktrees live `[corrected 2026-07-02: 24 clean+merged pruned]`** (prune only with per-worktree 6-check audit); cron `b3c47f1c` confirmed dead; effect-count drift across docs (treat 214 as live); `docs/decisions/q7/` has only 4 of ~17 DEC-Q7 records on main. | 🟢 | repo-state sweep |
 | **G14** | **Unnamed prerequisites**: Tier-5 total model disk/download budget unquantified (CLIP+CLAP+DINOv2 = multi-GB; only Q7's 500MB counted); B7 RIFE model weights acquisition/licensing unaddressed → **now pinned to exit-bearing steps in `packets/phase-5b.md` P5b.13 (steps 5–6); memory slice pinned in the G14 addendum below**; PR-A hover-help <8ms@200 gate needs a perf harness that does not exist yet; CI capacity for re-derived draft branches. | 🟡 | CTO review 2026-06-11 |
 
 ### G14 addendum — memory budget (pinned 2026-06-11)
@@ -347,15 +349,13 @@ All RAM math uses one denominator: **`SESSION_BUDGET_BYTES`** = session-start `p
 
 ---
 
-## 6. Suggested execution order (next 5 moves)
+## 6. Suggested execution order — SUPERSEDED 2026-07-02
 
-1. **User runs Q7 REAL** (~30 min of user time, unblocks the single biggest gate) — can happen in parallel with everything.
-2. **Phase 1 frontier drain** — merge the 7 active PRs, disposition the 5 stale ones.
-3. **PR-B 3b+3c+3d** — closes the data-model break while context is fresh.
-4. **PR-A in-place** — the everything-blocker for UX/demos/instruments tab.
-5. **B2→B3→B4→B5** instrument core (with SG-3/SG-5 cherry-picks scheduled just-in-time before B8/B9).
-
----
+The five moves originally listed here (Q7 run, Phase-1 drain, PR-B, PR-A, B2–B5) are ALL DONE.
+Current execution order lives in `docs/plans/2026-07-02-month-audit-fix-plan.md` (fix waves) and
+`docs/plans/2026-07-02-master-tuneup-plan.md` (WS1–WS5 builds; WS0 reconciled as already-executed).
+Next user-facing milestone: live CU-UAT (`docs/UAT-PLAN-2026-07-02-live-cu.md`), then the Q7
+greenlight decision.
 
 ## Appendix A — Source index
 
