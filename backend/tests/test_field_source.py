@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import statistics
+import threading
 import time
 from unittest.mock import MagicMock, patch
 
@@ -297,6 +298,104 @@ def test_lane2d_kind_returns_flat_field_v1(caplog):
         field = provider.resolve(ref, frame_index=0, resolution=_RESOLUTION_SMALL)
     assert np.allclose(field, 0.5)
     assert any("lane2d" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# 9b. P6.11-DEDUP-GAP — dead-source warning dedup (F7a)
+# ---------------------------------------------------------------------------
+
+
+def test_dead_source_warning_deduped_across_60_frames(caplog):
+    """A 60-frame render of one dead (unregistered) ref must warn exactly once,
+    not once per frame."""
+    provider = FieldProvider()
+    ref = _make_ref(kind="image", source_id="dead_src")
+    with caplog.at_level(logging.WARNING, logger="effects.field_source"):
+        for frame_index in range(60):
+            field = provider.resolve(
+                ref, frame_index=frame_index, resolution=_RESOLUTION_SMALL
+            )
+            assert np.allclose(field, 0.5)
+    warnings = [r for r in caplog.records if "dead_src" in r.message]
+    assert len(warnings) == 1
+
+
+def test_two_distinct_dead_sources_each_warn_once(caplog):
+    """Two distinct dead refs, each rendered across 60 frames, must warn exactly
+    once per source (not once total, not once per frame)."""
+    provider = FieldProvider()
+    ref_a = _make_ref(kind="image", source_id="dead_a")
+    ref_b = _make_ref(kind="image", source_id="dead_b")
+    with caplog.at_level(logging.WARNING, logger="effects.field_source"):
+        for frame_index in range(60):
+            provider.resolve(
+                ref_a, frame_index=frame_index, resolution=_RESOLUTION_SMALL
+            )
+            provider.resolve(
+                ref_b, frame_index=frame_index, resolution=_RESOLUTION_SMALL
+            )
+    warnings_a = [r for r in caplog.records if "dead_a" in r.message]
+    warnings_b = [r for r in caplog.records if "dead_b" in r.message]
+    assert len(warnings_a) == 1
+    assert len(warnings_b) == 1
+    assert len(caplog.records) == 2
+
+
+def test_dead_source_warning_refires_after_recovery(caplog):
+    """A source that fails, then succeeds, then fails again must warn twice —
+    dedup suppresses repeats of the SAME failure streak, not all future failures."""
+    provider = FieldProvider()
+    reader = _make_video_reader(frame_count=3)
+    provider.register_reader("vid_flaky", reader)
+    ref = _make_ref(kind="video", source_id="vid_flaky")
+
+    calls = {"n": 0}
+
+    def flaky_decode(idx):
+        calls["n"] += 1
+        if calls["n"] in (1, 3):
+            raise CodecTimeoutError(
+                asset_path="/fake/video.mp4", operation="decode", elapsed_s=5.0
+            )
+        return _make_rgba_frame(100, 80, 64)
+
+    reader.decode_frame.side_effect = flaky_decode
+
+    with caplog.at_level(logging.WARNING, logger="effects.field_source"):
+        provider.resolve(
+            ref, frame_index=0, resolution=_RESOLUTION_SMALL
+        )  # fails: warn #1
+        provider.resolve(
+            ref, frame_index=1, resolution=_RESOLUTION_SMALL
+        )  # succeeds: clears
+        provider.resolve(
+            ref, frame_index=2, resolution=_RESOLUTION_SMALL
+        )  # fails: warn #2
+
+    warnings = [r for r in caplog.records if "vid_flaky" in r.message]
+    assert len(warnings) == 2
+
+
+def test_dead_source_warning_dedup_thread_safe(caplog):
+    """FieldProvider is shared across the export thread and preview thread
+    (see engine/pipeline.py); concurrent resolve() calls against the same dead
+    source must not race past the dedup guard and double-warn."""
+    provider = FieldProvider()
+    ref = _make_ref(kind="image", source_id="dead_concurrent")
+
+    def hammer():
+        for frame_index in range(50):
+            provider.resolve(ref, frame_index=frame_index, resolution=_RESOLUTION_SMALL)
+
+    with caplog.at_level(logging.WARNING, logger="effects.field_source"):
+        threads = [threading.Thread(target=hammer) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+    warnings = [r for r in caplog.records if "dead_concurrent" in r.message]
+    assert len(warnings) == 1
 
 
 # ---------------------------------------------------------------------------
