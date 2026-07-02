@@ -1,0 +1,42 @@
+{
+  "id": "factory-bc16563e",
+  "name": "Film Grain",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "temporal",
+    "subtle"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-2f932ba4",
+        "effectId": "fx.noise",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 0.1
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-f8433f48",
+        "effectId": "fx.levels",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "black": 0.05,
+          "white": 0.95
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

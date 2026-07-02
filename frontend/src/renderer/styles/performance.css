@@ -1,0 +1,341 @@
+/* --- Performance Panel --- */
+
+.performance-panel {
+  background: var(--cx-bg-panel);
+  overflow: hidden;
+}
+
+.performance-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.performance-panel__title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--cx-text-2);
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.performance-panel__indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cx-bg-hover);
+  transition: background-color 0.2s;
+}
+
+.performance-panel__indicator--active {
+  background: var(--cx-action);
+  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+}
+
+.performance-panel__toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--cx-text-3);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  font-family: inherit;
+}
+
+.performance-panel__toggle-btn:hover {
+  color: var(--cx-text-1);
+}
+
+.performance-panel__body {
+  padding: 4px 12px 8px;
+}
+
+/* --- Pad Grid --- */
+
+.pad-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+}
+
+.pad-grid__hint {
+  grid-column: 1 / -1;
+  text-align: center;
+  font-size: 11px;
+  color: var(--cx-text-3);
+  padding: 8px 0;
+}
+
+/* --- Pad Cell --- */
+
+.pad-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: background-color 0.1s, border-color 0.15s, box-shadow 0.15s;
+  user-select: none;
+  min-height: 40px;
+  max-height: 56px;
+}
+
+.pad-cell:hover {
+  border-color: var(--cx-line-2);
+}
+
+.pad-cell--active {
+  background: var(--cx-action);
+  border-color: var(--cx-action);
+  box-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
+}
+
+.pad-cell--active .pad-cell__key,
+.pad-cell--active .pad-cell__label {
+  color: var(--cx-bg-panel);
+}
+
+.pad-cell--releasing {
+  border-color: var(--cx-action);
+  transition: opacity 0.15s ease-out;
+}
+
+.pad-cell--armed {
+  border-color: var(--cx-line-2);
+}
+
+.pad-cell__key {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cx-text-1);
+  line-height: 1;
+}
+
+.pad-cell__label {
+  font-size: 8px;
+  color: var(--cx-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 90%;
+  text-align: center;
+}
+
+.pad-cell__choke-dot {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+/* --- MIDI Dot (on PadCell) --- */
+
+.pad-cell__midi-dot {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--cx-selection);
+}
+
+/* --- MIDI Learn Overlay --- */
+
+.midi-learn-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: rgba(59, 130, 246, 0.9);
+  color: var(--cx-text-1);
+  font-size: 12px;
+  font-weight: 600;
+  z-index: 300;
+  animation: midi-learn-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes midi-learn-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.8; }
+}
+
+.midi-learn-overlay__cancel {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 4px;
+  color: var(--cx-text-1);
+  font-size: 11px;
+  padding: 2px 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.midi-learn-overlay__cancel:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* --- CC Badge (on Knob) --- */
+
+.param-panel__cc-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  background: var(--cx-selection);
+  color: var(--cx-text-1);
+  font-size: 8px;
+  font-weight: 700;
+  padding: 1px 3px;
+  border-radius: 2px;
+  line-height: 1;
+  pointer-events: none;
+}
+
+/* --- Capture Button --- */
+
+.performance-panel__capture-btn {
+  background: transparent;
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-warn);
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 8px;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.5px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.performance-panel__capture-btn:hover {
+  border-color: var(--cx-warn);
+  color: var(--cx-warn);
+}
+
+/* --- MIDI Settings --- */
+
+.performance-panel__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.performance-panel__settings-btn {
+  background: transparent;
+  border: none;
+  color: var(--cx-text-3);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: color 0.15s;
+}
+
+.performance-panel__settings-btn:hover {
+  color: var(--cx-text-1);
+}
+
+.performance-panel__settings {
+  padding: 8px 12px;
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.midi-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.midi-settings__unsupported {
+  font-size: 11px;
+  color: var(--cx-text-3);
+  text-align: center;
+  padding: 8px;
+}
+
+.midi-settings__section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.midi-settings__section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.midi-settings__label {
+  font-size: 10px;
+  color: var(--cx-text-2);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.midi-settings__clear-btn {
+  background: transparent;
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-danger-text);
+  font-size: 9px;
+  padding: 1px 6px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.midi-settings__clear-btn:hover {
+  border-color: var(--cx-danger-text);
+}
+
+.midi-settings__empty {
+  font-size: 11px;
+  color: var(--cx-text-3);
+  text-align: center;
+  padding: 6px;
+}
+
+.midi-settings__mapping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.midi-settings__mapping-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  background: var(--cx-bg-raised);
+  border-radius: 3px;
+  font-size: 11px;
+}
+
+.midi-settings__mapping-cc {
+  color: var(--cx-selection);
+  font-weight: 600;
+  min-width: 40px;
+}
+
+.midi-settings__mapping-target {
+  color: var(--cx-text-2);
+  flex: 1;
+}

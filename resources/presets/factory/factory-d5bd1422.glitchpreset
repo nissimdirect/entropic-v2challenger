@@ -1,0 +1,15 @@
+{
+  "id": "factory-d5bd1422",
+  "name": "Invert Chaos",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.invert",
+    "parameters": {},
+    "modulations": {}
+  }
+}

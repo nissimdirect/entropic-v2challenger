@@ -1,0 +1,55 @@
+{
+  "id": "factory-4f04f3bf",
+  "name": "Noir",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "color",
+    "temporal"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-1139fa3b",
+        "effectId": "fx.saturation",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 0.0
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-a5c62f92",
+        "effectId": "fx.levels",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "black": 0.15,
+          "white": 0.85,
+          "gamma": 0.8
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-27752f9f",
+        "effectId": "fx.sharpen",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 1.2
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

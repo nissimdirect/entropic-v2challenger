@@ -1,0 +1,343 @@
+/* P3.1 — Creatrix CSS-grid app shell (F_CREATRIX_LAYOUT)
+ * Applied ONLY when .app--creatrix class is present (flag ON).
+ * Flag OFF: existing .app rules in global.css are untouched.
+ * No hex literals — use --cx-* tokens from tokens.css only.
+ */
+
+/* Creatrix grid shell — overrides .app when flag is ON.
+ * Selector is .app.app--creatrix (specificity 0,2,0) so it reliably beats the
+ * base `.app` grid (0,1,0) in global.css regardless of CSS bundle/source order.
+ * A single `.app--creatrix` (0,1,0) ties .app and lost to it by source order,
+ * forcing the creatrix children into the base 2-col/4-row grid → collapse
+ * (left col on the base `auto` row, right col wrapping). UAT-found. */
+.app.app--creatrix {
+  display: grid;
+  /* left-col | 6px handle | right-col */
+  grid-template-columns: var(--cx-left-col-w, 260px) 6px 1fr;
+  grid-template-rows: var(--cx-transport-h, 33px) 1fr var(--cx-statusbar-h, 36px);
+  height: 100vh;
+  width: 100vw;
+  position: relative;
+  padding-top: 0; /* transport is in grid row 1 now */
+}
+
+.app--creatrix .app__transport-bar {
+  position: relative; /* Override fixed positioning — now in grid row 1 */
+  grid-row: 1;
+  grid-column: 1 / 4; /* span all 3 columns */
+  top: 0;
+  left: 0;
+  right: 0;
+}
+
+.app--creatrix .cx-left-col {
+  grid-row: 2;
+  grid-column: 1;
+  display: grid;
+  grid-template-rows: 1fr var(--cx-inspector-h, 150px);
+  overflow: hidden;
+  background: var(--cx-bg-panel);
+}
+
+/* The vertical handle lives at grid-column 2, row 2 */
+.app--creatrix .cx-resize-handle--vertical {
+  grid-row: 2;
+  grid-column: 2;
+}
+
+.app--creatrix .cx-right-col {
+  grid-row: 2;
+  grid-column: 3;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Right-col children: preview, handle, main+timeline, handle, device-chain */
+.app--creatrix .cx-right-col .app__main {
+  flex-shrink: 0;
+  height: var(--cx-preview-h, 38%);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app--creatrix .cx-right-col .app__timeline {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app--creatrix .cx-right-col .app__device-chain {
+  flex-shrink: 0;
+  height: var(--cx-device-chain-h, 180px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Horizontal handles inside cx-right-col */
+.app--creatrix .cx-right-col .cx-resize-handle--horizontal {
+  flex-shrink: 0;
+}
+
+.app--creatrix .status-bar {
+  grid-row: 3;
+  grid-column: 1 / 4; /* span all 3 columns */
+}
+
+/* Preview collapsed strip */
+.app--creatrix .cx-preview-strip {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  gap: 8px;
+  background: var(--cx-bg-panel);
+  border-bottom: 1px solid var(--cx-line-1);
+  font-size: 11px;
+  color: var(--cx-text-2);
+}
+
+/* Inspector placeholder (P3.1) — P3.3 fills the real inspector content */
+.app--creatrix .cx-inspector-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--cx-text-3);
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-line-1);
+  overflow: hidden;
+}
+
+/* ============================================================
+   Inspector content (P3.3) — Live Signal info panel.
+   Container sits in cx-left-col row 2 (height var(--cx-inspector-h)).
+   Replaces the unstyled raw markup the polymorphic states shipped with.
+   ============================================================ */
+.app--creatrix .cx-inspector {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-line-1);
+}
+
+/* State body — scrolls when content exceeds the panel height */
+.app--creatrix .cx-inspector-state {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px 12px 10px;
+  font-family: var(--cx-font-ui);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* Empty state — centred prompt */
+.app--creatrix .cx-inspector-state--none {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 12px;
+}
+
+/* Type header — "Effect", "Track", "Clip" … */
+.app--creatrix .cx-inspector-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin: 0 -12px 6px;
+  padding: 0 12px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cx-text-label);
+  background: var(--cx-bg-panel);
+  border-bottom: 1px solid var(--cx-line-1);
+}
+
+/* Key / value row */
+.app--creatrix .cx-inspector-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 20px;
+  padding: 2px 0;
+}
+.app--creatrix .cx-inspector-row + .cx-inspector-row {
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.app--creatrix .cx-inspector-key {
+  flex: 0 0 auto;
+  color: var(--cx-text-3);
+  white-space: nowrap;
+}
+
+.app--creatrix .cx-inspector-val {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-family: var(--cx-font-mono);
+  color: var(--cx-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
+}
+
+/* Status pills — FROZEN, SOLO … */
+.app--creatrix .cx-inspector-badge {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 1px 7px;
+  border-radius: var(--cx-radius-control);
+  background: var(--cx-surface-3);
+  color: var(--cx-text-2);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.app--creatrix .cx-inspector-badge--solo {
+  background: var(--cx-amber);
+  color: var(--cx-amber-on);
+}
+
+/* Secondary hint / empty-state text */
+.app--creatrix .cx-inspector-hint {
+  color: var(--cx-text-3);
+  font-size: 11px;
+}
+
+/* Marker colour chip */
+.app--creatrix .cx-inspector-color-swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  border: 1px solid var(--cx-line-2);
+  vertical-align: middle;
+}
+
+/* Hover-help affordance (P3.4) — top-right collapsible popover */
+.app--creatrix .cx-inspector-hover-help {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: 2;
+}
+.app--creatrix .cx-inspector-hover-help__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-control);
+  background: var(--cx-surface-2);
+  color: var(--cx-text-3);
+  font-family: var(--cx-font-ui);
+  font-size: 10px;
+  cursor: pointer;
+  transition: color var(--cx-dur-feedback) var(--cx-ease),
+              border-color var(--cx-dur-feedback) var(--cx-ease);
+}
+.app--creatrix .cx-inspector-hover-help__toggle:hover {
+  color: var(--cx-text-1);
+  border-color: var(--cx-line-1);
+}
+.app--creatrix .cx-inspector-hover-help__toggle:focus-visible {
+  outline: var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+.app--creatrix .cx-inspector-hover-help__chevron {
+  font-size: 8px;
+  line-height: 1;
+}
+.app--creatrix .cx-inspector-hover-help__body {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 200px;
+  padding: 8px 10px;
+  border: 1px solid var(--cx-line-1);
+  border-radius: var(--cx-radius-card);
+  background: var(--cx-bg-raised);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+.app--creatrix .cx-inspector-hover-help__title {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-text-1);
+}
+.app--creatrix .cx-inspector-hover-help__text {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--cx-text-2);
+}
+
+/* --- Resize handles --- */
+/* 6px visible bar, 16px pointer-events hit zone (5px each side + 6px bar) */
+
+.cx-resize-handle {
+  position: relative;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+/* Vertical handle (left-col right edge) */
+.cx-resize-handle--vertical {
+  width: 6px;
+  cursor: col-resize;
+  background: var(--cx-line-1);
+}
+
+.cx-resize-handle--vertical::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -5px;
+  right: -5px;
+  bottom: 0;
+  cursor: col-resize;
+}
+
+/* Horizontal handle (preview bottom, device-chain top, inspector top) */
+.cx-resize-handle--horizontal {
+  height: 6px;
+  cursor: row-resize;
+  background: var(--cx-line-1);
+}
+
+.cx-resize-handle--horizontal::before {
+  content: '';
+  position: absolute;
+  top: -5px;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  cursor: row-resize;
+}
+
+.cx-resize-handle:hover,
+.cx-resize-handle--dragging {
+  background: var(--cx-line-2);
+}
+
+/* F-0512-36 retirement: when creatrix flag is ON, the transform-panel cap is
+   superseded by the grid row layout. The grid controls the size instead.
+   Flag OFF: .transform-panel in global.css still has min(28vh, 320px) — untouched. */
+.app--creatrix .transform-panel {
+  max-height: none;
+  overflow-y: auto;
+  flex-shrink: 1;
+}

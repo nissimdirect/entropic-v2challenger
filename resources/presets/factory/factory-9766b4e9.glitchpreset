@@ -1,0 +1,65 @@
+{
+  "id": "factory-9766b4e9",
+  "name": "Glitch Stack",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "glitch"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-282f041b",
+        "effectId": "fx.chromatic_aberration",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "offset": 10
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-dee85c9d",
+        "effectId": "fx.scanlines",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "spacing": 3,
+          "intensity": 0.5
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-e000ed5c",
+        "effectId": "fx.pixelate",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "block_size": 3
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-be4ce50f",
+        "effectId": "fx.noise",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 0.2
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

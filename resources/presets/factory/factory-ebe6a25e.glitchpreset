@@ -1,0 +1,17 @@
+{
+  "id": "factory-ebe6a25e",
+  "name": "Emboss Heavy",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "temporal"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.emboss",
+    "parameters": {
+      "strength": 1.0
+    },
+    "modulations": {}
+  }
+}

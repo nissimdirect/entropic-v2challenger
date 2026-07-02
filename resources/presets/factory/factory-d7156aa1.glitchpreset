@@ -1,0 +1,17 @@
+{
+  "id": "factory-d7156aa1",
+  "name": "Color Burn",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.posterize",
+    "parameters": {
+      "levels": 2
+    },
+    "modulations": {}
+  }
+}

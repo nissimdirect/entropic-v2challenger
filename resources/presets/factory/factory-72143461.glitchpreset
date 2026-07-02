@@ -1,0 +1,19 @@
+{
+  "id": "factory-72143461",
+  "name": "Low Key",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "color"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.levels",
+    "parameters": {
+      "black": 0.3,
+      "white": 0.7,
+      "gamma": 0.6
+    },
+    "modulations": {}
+  }
+}

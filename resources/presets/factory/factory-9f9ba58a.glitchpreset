@@ -1,0 +1,17 @@
+{
+  "id": "factory-9f9ba58a",
+  "name": "Blocky",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.pixelate",
+    "parameters": {
+      "block_size": 16
+    },
+    "modulations": {}
+  }
+}

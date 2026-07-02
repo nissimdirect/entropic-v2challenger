@@ -1,0 +1,296 @@
+/*
+ * masking.css — MK.7 MaskStackPanel styles
+ *
+ * Rules:
+ * - No hardcoded hex values (hex-ratchet CI gate). Token-only.
+ * - No grid-template-rows modifications (feedback_test-layout-changes.md).
+ * - surface-3 cards, lowercase mono labels (DESIGN-SPEC §8).
+ * - All typography at or above 11px floor (DESIGN-SPEC §9 a11y table).
+ */
+
+/* ==========================================================================
+   Panel container — flex, inside an existing layout region.
+   NEVER modifies grid-template-rows (DO-NOT-TOUCH per MK.7 spec).
+   ========================================================================== */
+
+.mask-stack-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--cx-surface-2);
+  border-top: 1px solid var(--cx-line-1);
+  overflow-y: auto;
+  max-height: 400px;   /* cap — panel lives inside existing region */
+}
+
+.mask-stack-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  min-height: var(--cx-panel-header);
+  border-bottom: 1px solid var(--cx-line-1);
+  flex-shrink: 0;
+}
+
+.mask-stack-panel__title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--cx-text-2);
+  letter-spacing: 0;
+  /* lowercase per DESIGN-SPEC §8 — text is already lowercase in JSX */
+}
+
+.mask-stack-panel__count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.mask-stack-panel__empty {
+  padding: 12px 8px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-text-3);
+}
+
+/* ==========================================================================
+   Node card — surface-3, 4px radius (DESIGN-SPEC §8 card spec)
+   ========================================================================== */
+
+.mask-stack-panel__nodes {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px;
+}
+
+.mask-stack-panel__node {
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+}
+
+.mask-stack-panel__node--disabled {
+  opacity: 0.5;
+}
+
+/* Header row within each card */
+
+.mask-stack-panel__node-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--cx-row-h);
+}
+
+.mask-stack-panel__kind {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-text-1);
+  flex-shrink: 0;
+}
+
+.mask-stack-panel__node-id {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-text-3);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mask-stack-panel__node-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+/* ==========================================================================
+   Controls — enable/disable, reorder, delete
+   ========================================================================== */
+
+.mask-stack-panel__enable-toggle,
+.mask-stack-panel__reorder-btn,
+.mask-stack-panel__delete-btn,
+.mask-stack-panel__invert-toggle {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  background: var(--cx-surface-4);
+  color: var(--cx-text-2);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 2px;
+  padding: 2px 5px;
+  cursor: pointer;
+  min-height: 20px;
+  /* Effective hit area ≥ 24×24 per DESIGN-SPEC §10.4 — achieved via padding + min-height */
+  min-width: 24px;
+  line-height: 1;
+}
+
+.mask-stack-panel__enable-toggle:hover,
+.mask-stack-panel__reorder-btn:hover,
+.mask-stack-panel__invert-toggle:hover {
+  background: var(--cx-surface-4);
+  color: var(--cx-text-1);
+}
+
+.mask-stack-panel__enable-toggle--on {
+  color: var(--cx-acid);
+}
+
+.mask-stack-panel__reorder-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.mask-stack-panel__delete-btn {
+  color: var(--cx-red-text);
+}
+
+.mask-stack-panel__delete-btn:hover {
+  background: var(--cx-red-wash);
+  color: var(--cx-red-text);
+}
+
+/* Invert toggle active state */
+
+.mask-stack-panel__invert-toggle--on {
+  color: var(--cx-mod);
+  border-color: var(--cx-mod);
+}
+
+/* ==========================================================================
+   Param rows — 18px row height (DESIGN-SPEC §8 device-param-h)
+   ========================================================================== */
+
+.mask-stack-panel__param-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--cx-device-param-h);
+}
+
+.mask-stack-panel__label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-text-2);
+  width: 68px;
+  flex-shrink: 0;
+  /* lowercase — text is already lowercase in JSX */
+}
+
+/* Flat slider-bars per DESIGN-SPEC §8 Ableton idiom.
+   ACID fill (var(--cx-acid)) via accent-color — avoids a custom track hack. */
+.mask-stack-panel__slider {
+  flex: 1;
+  height: var(--cx-device-param-h);
+  cursor: pointer;
+  accent-color: var(--cx-acid);
+  background: transparent;
+}
+
+.mask-stack-panel__value {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-text-1);
+  font-variant-numeric: tabular-nums;
+  width: 46px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* Boolean op select */
+
+.mask-stack-panel__op-select {
+  flex: 1;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--cx-text-1);
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 2px;
+  padding: 2px 4px;
+  cursor: pointer;
+  height: var(--cx-device-param-h);
+}
+
+.mask-stack-panel__op-select:focus {
+  outline: 2px solid var(--cx-acid);
+  outline-offset: 1px;
+}
+
+/* ==========================================================================
+   MK.13 — Tool-mode stack additions, matte chip, clip badge, ants overlay
+   All rules scoped to masking__ BEM namespace. No global.css grid edits.
+   ========================================================================== */
+
+/* Mask tool section header in the [tool] tab */
+.masking__tool-section-header {
+  margin-top: 4px;
+  border-top: 1px solid var(--cx-line-1);
+}
+
+/* Mask tool item — inherits effect-browser__item; active gets MOD-violet accent */
+.masking__tool-item {
+  border-left: 2px solid transparent;
+}
+
+.masking__tool-item--active {
+  border-left-color: var(--cx-mod);
+  color: var(--cx-mod);
+}
+
+/* 64×36 matte-presence chip on masked DeviceCards.
+   No backend mask_thumbnail endpoint yet — renders a text badge instead.
+   (deferred per MK.13 spec note; chip dimensions match the spec stub size) */
+.masking__matte-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--cx-mod) 18%, var(--cx-surface-2) 82%);
+  border: 1px solid var(--cx-mod);
+  border-radius: 2px;
+  margin: 2px 6px;
+  flex-shrink: 0;
+}
+
+.masking__matte-chip-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-mod);
+  letter-spacing: 0.04em;
+}
+
+/* Mask-stack node count badge on clip headers in the timeline.
+   Position: absolute top-right corner inside the clip element. */
+.masking__clip-badge {
+  position: absolute;
+  top: 2px;
+  right: 20px;  /* leave room for right trim handle */
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cx-mod);
+  background: color-mix(in srgb, var(--cx-mod) 15%, transparent 85%);
+  border: 1px solid var(--cx-mod);
+  border-radius: 2px;
+  padding: 0 3px;
+  line-height: 14px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Marching-ants SVG polyline — animated via inline @keyframes injected by MarchingAnts.
+   pointer-events:none is set inline; this rule is a BEM fallback/overrideable anchor. */
+.masking__ants-outline {
+  pointer-events: none;
+}

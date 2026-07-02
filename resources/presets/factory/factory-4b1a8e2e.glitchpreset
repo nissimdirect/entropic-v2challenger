@@ -1,0 +1,17 @@
+{
+  "id": "factory-4b1a8e2e",
+  "name": "Sharpen",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "temporal"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.sharpen",
+    "parameters": {
+      "amount": 1.5
+    },
+    "modulations": {}
+  }
+}

@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build output
+dist/
+build/
+*.egg-info/
+frontend/native/build/
+
+# Nuitka
+*.build/
+*.dist/
+*.onefile-build/
+
+# Electron
+out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Shared memory (runtime)
+/tmp/entropic-frames
+
+# Test artifacts
+.pytest_cache/
+coverage/
+.vitest/
+frontend/test-results/
+frontend/playwright-report/
+test-evidence/
+backend/.hypothesis/
+test-assets/
+
+# Claude Code worktrees
+.claude/worktrees/

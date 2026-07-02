@@ -1,0 +1,286 @@
+/**
+ * P3.5 — Demo drawer + onboarding styles.
+ *
+ * Voice: DESIGN-SPEC ("Live Signal") — sparse, purposeful motion,
+ * ACID for the one primary action per region, MOD for selection/info.
+ * Entries 180ms / exits 140ms / feedback 120ms, cubic-bezier(0.2, 0, 0, 1).
+ *
+ * ZERO hardcoded hex values — all colors come from tokens.css (hex-ratchet gate).
+ */
+
+/* ── Boot line (statusbar, IBM Plex Mono) ─────────────────────────────── */
+
+.boot-line {
+  font-family: var(--cx-font-mono);
+  font-size: var(--cx-text-data);
+  color: var(--cx-text-2);
+  letter-spacing: 0.02em;
+  transition: opacity var(--cx-dur-exit);
+}
+
+.boot-line--done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-line__cursor {
+  opacity: 1;
+  animation: boot-blink 0.6s step-end infinite;
+}
+
+@keyframes boot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+/* ── Demos drawer ─────────────────────────────────────────────────────── */
+
+.demos-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 360px;
+  height: 100%;
+  background: var(--cx-bg-panel);
+  border-left: 1px solid var(--cx-bg-hover);
+  display: flex;
+  flex-direction: column;
+  z-index: 200;
+  overflow-y: auto;
+  animation: demos-drawer-in var(--cx-dur-entry) var(--cx-ease) forwards;
+}
+
+@keyframes demos-drawer-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0);   opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion: demo drawer — opacity-only or instant (ONBOARDING-SPEC §5) */
+  .demos-drawer {
+    animation: none;
+  }
+}
+
+.demos-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 8px;
+  gap: 8px;
+}
+
+.demos-drawer__title {
+  font-family: var(--cx-font-ui);
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--cx-text-1);
+}
+
+.demos-drawer__close {
+  background: none;
+  border: none;
+  color: var(--cx-text-2);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--cx-radius-control);
+  line-height: 1;
+}
+
+.demos-drawer__close:hover {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
+}
+
+.demos-drawer__subtitle {
+  font-family: var(--cx-font-ui);
+  font-size: 13px;
+  color: var(--cx-text-2);
+  padding: 0 16px 12px;
+  margin: 0;
+}
+
+.demos-drawer__cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0 16px;
+  flex: 1;
+}
+
+.demos-drawer__footer {
+  padding: 16px;
+  border-top: 1px solid var(--cx-bg-hover);
+  margin-top: 8px;
+}
+
+.demos-drawer__dismiss-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-family: var(--cx-font-ui);
+  font-size: 13px;
+  color: var(--cx-text-2);
+  user-select: none;
+}
+
+.demos-drawer__dismiss-checkbox {
+  accent-color: var(--cx-action);
+  cursor: pointer;
+}
+
+/* ── Demo card ─────────────────────────────────────────────────────────── */
+
+.demos-card {
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: var(--cx-radius-card);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.demos-card--missing {
+  border-color: var(--cx-danger-text);
+  opacity: 0.7;
+}
+
+.demos-card__media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  background: var(--cx-surface-0);
+  cursor: pointer;
+  overflow: hidden;
+  outline: none;
+}
+
+.demos-card__media:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+}
+
+.demos-card__video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.demos-card__play-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--cx-text-1);
+  background: var(--cx-action-wash);
+  transition: background var(--cx-dur-feedback);
+}
+
+.demos-card__media:hover .demos-card__play-overlay {
+  background: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion: demo cards — no hover autoplay (ONBOARDING-SPEC §5) */
+  .demos-card__media:hover .demos-card__play-overlay {
+    background: var(--cx-action-wash);
+  }
+}
+
+.demos-card__media-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cx-surface-0);
+}
+
+.demos-card__media-icon {
+  font-size: 28px;
+  color: var(--cx-danger-text);
+}
+
+.demos-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 4px;
+}
+
+.demos-card__title {
+  font-family: var(--cx-font-mono);
+  font-size: var(--cx-text-label);
+  color: var(--cx-text-1);
+  font-weight: 500;
+}
+
+.demos-card__desc {
+  font-family: var(--cx-font-ui);
+  font-size: 12px;
+  color: var(--cx-text-2);
+  line-height: 1.4;
+}
+
+.demos-card--missing .demos-card__desc {
+  color: var(--cx-danger-text);
+}
+
+.demos-card__open {
+  font-family: var(--cx-font-mono);
+  font-size: 12px;
+  color: var(--cx-action);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 12px 10px;
+  text-align: left;
+  transition: opacity var(--cx-dur-feedback);
+}
+
+.demos-card__open:hover {
+  opacity: 0.8;
+}
+
+/* ── No-engagement prompt toast ───────────────────────────────────────── */
+
+.onboarding-prompt-toast {
+  position: fixed;
+  bottom: 40px;
+  right: 16px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: var(--cx-radius-dialog);
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--cx-font-ui);
+  font-size: 13px;
+  color: var(--cx-text-1);
+  z-index: 300;
+  box-shadow: 0 4px 16px var(--cx-mod-wash);
+}
+
+.onboarding-prompt-toast__action {
+  font-family: var(--cx-font-mono);
+  font-size: 12px;
+  background: none;
+  border: 1px solid currentColor;
+  border-radius: var(--cx-radius-control);
+  cursor: pointer;
+  padding: 2px 8px;
+  color: var(--cx-action);
+  transition: opacity var(--cx-dur-feedback);
+}
+
+.onboarding-prompt-toast__action:hover {
+  opacity: 0.8;
+}
+
+.onboarding-prompt-toast__action--keep {
+  color: var(--cx-text-2);
+}

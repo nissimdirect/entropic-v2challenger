@@ -1,0 +1,17 @@
+{
+  "id": "factory-295b3a96",
+  "name": "Bit Crush 2",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.posterize",
+    "parameters": {
+      "levels": 2
+    },
+    "modulations": {}
+  }
+}

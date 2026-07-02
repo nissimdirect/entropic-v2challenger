@@ -1,0 +1,17 @@
+{
+  "id": "factory-e47d66a8",
+  "name": "Mirror H",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.mirror",
+    "parameters": {
+      "axis": "horizontal"
+    },
+    "modulations": {}
+  }
+}

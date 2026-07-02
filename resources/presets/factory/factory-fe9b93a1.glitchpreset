@@ -1,0 +1,17 @@
+{
+  "id": "factory-fe9b93a1",
+  "name": "Mega Blocks",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.pixelate",
+    "parameters": {
+      "block_size": 32
+    },
+    "modulations": {}
+  }
+}

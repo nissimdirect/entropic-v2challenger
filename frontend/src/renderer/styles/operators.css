@@ -1,0 +1,608 @@
+/* Operator Rack — horizontal chain of operator cards */
+.operator-rack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px;
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.operator-rack__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.operator-rack__title {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.operator-rack__add-btn {
+  font-size: 11px;
+  padding: 3px 8px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 4px;
+  color: var(--cx-text-1);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.operator-rack__add-btn:hover {
+  background: var(--cx-bg-raised);
+  border-color: var(--cx-action);
+}
+
+.operator-rack__add-menu {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.operator-rack__add-option {
+  font-size: 10px;
+  padding: 2px 6px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-1);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.operator-rack__add-option:hover {
+  border-color: var(--cx-action);
+  color: var(--cx-action);
+}
+
+.operator-rack__add-option--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.operator-rack__cards {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.operator-rack__empty {
+  font-size: 11px;
+  color: var(--cx-text-3);
+  padding: 8px 0;
+}
+
+/* Operator Card */
+.operator-card {
+  min-width: 200px;
+  max-width: 280px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 6px;
+  padding: 8px;
+  flex-shrink: 0;
+}
+
+.operator-card--disabled {
+  opacity: 0.5;
+}
+
+.operator-card--lfo { border-left: 3px solid var(--cx-action); }
+.operator-card--envelope { border-left: 3px solid var(--cx-warn); }
+.operator-card--step-seq { border-left: 3px solid var(--cx-selection); }
+.operator-card--audio { border-left: 3px solid var(--cx-selection); }
+
+.operator-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.operator-card__type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  color: var(--cx-bg-panel);
+}
+
+.operator-card__type-badge--lfo { background: var(--cx-action); }
+.operator-card__type-badge--envelope { background: var(--cx-warn); }
+.operator-card__type-badge--step-seq { background: var(--cx-selection); }
+.operator-card__type-badge--audio { background: var(--cx-selection); }
+
+.operator-card__label {
+  font-size: 11px;
+  color: var(--cx-text-1);
+  font-weight: 600;
+  flex: 1;
+  margin-left: 6px;
+}
+
+.operator-card__active-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cx-action);
+  margin-right: 6px;
+}
+
+.operator-card__active-dot--inactive {
+  background: var(--cx-text-3);
+}
+
+.operator-card__controls {
+  display: flex;
+  gap: 4px;
+}
+
+.operator-card__toggle-btn,
+.operator-card__remove-btn {
+  font-size: 10px;
+  padding: 2px 4px;
+  background: none;
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-2);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.operator-card__toggle-btn:hover,
+.operator-card__remove-btn:hover {
+  color: var(--cx-text-1);
+  border-color: var(--cx-line-2);
+}
+
+.operator-card__remove-btn:hover {
+  color: var(--cx-danger-text);
+  border-color: var(--cx-danger-text);
+}
+
+.operator-card__move-up,
+.operator-card__move-down {
+  font-size: 10px;
+  padding: 2px 4px;
+  background: none;
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-2);
+  cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  line-height: 1;
+}
+
+.operator-card__move-up:hover,
+.operator-card__move-down:hover {
+  color: var(--cx-text-1);
+  border-color: var(--cx-line-2);
+}
+
+.operator-card__move-up:disabled,
+.operator-card__move-down:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.operator-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.operator-card__param-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.operator-card__param-label {
+  font-size: 10px;
+  color: var(--cx-text-2);
+  min-width: 50px;
+}
+
+.operator-card__param-input {
+  font-size: 10px;
+  padding: 2px 4px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-1);
+  width: 60px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.operator-card__param-select {
+  font-size: 10px;
+  padding: 2px 4px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-1);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.operator-card__mappings {
+  margin-top: 4px;
+  border-top: 1px solid var(--cx-line-1);
+  padding-top: 4px;
+}
+
+.operator-card__mapping-count {
+  font-size: 9px;
+  color: var(--cx-text-3);
+  background: var(--cx-bg-raised);
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-left: 4px;
+}
+
+/* 6B: Video Analyzer + Fusion type colors */
+.operator-card--video { border-left: 3px solid #ec4899; }
+.operator-card--fusion { border-left: 3px solid #06b6d4; }
+.operator-card__type-badge--video { background: #ec4899; }
+.operator-card__type-badge--fusion { background: #06b6d4; }
+
+/* Operator Editor shared styles */
+.operator-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.operator-editor__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--cx-text-2);
+}
+
+.operator-editor__select {
+  font-size: 10px;
+  padding: 2px 4px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-1);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.operator-editor__slider {
+  width: 60px;
+  height: 12px;
+  accent-color: var(--cx-action);
+}
+
+.operator-editor__hint {
+  font-size: 9px;
+  color: var(--cx-text-3);
+  font-style: italic;
+}
+
+.operator-editor__sources {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.operator-editor__source-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--cx-text-1);
+}
+
+.operator-editor__source-label {
+  min-width: 40px;
+  color: var(--cx-text-2);
+}
+
+.operator-editor__source-weight {
+  font-size: 9px;
+  color: var(--cx-text-3);
+  min-width: 28px;
+  text-align: right;
+}
+
+.operator-editor__remove-btn {
+  font-size: 10px;
+  background: none;
+  border: none;
+  color: var(--cx-text-3);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.operator-editor__remove-btn:hover {
+  color: var(--cx-danger-text);
+}
+
+/* Modulation Matrix */
+.mod-matrix {
+  padding: 8px;
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.mod-matrix--empty {
+  padding: 8px;
+}
+
+.mod-matrix__header {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cx-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.mod-matrix__hint {
+  font-size: 10px;
+  color: var(--cx-text-3);
+}
+
+.mod-matrix__grid-wrapper {
+  overflow: auto;
+  max-height: 200px;
+}
+
+.mod-matrix__table {
+  border-collapse: collapse;
+  font-size: 10px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.mod-matrix__corner {
+  min-width: 80px;
+  background: var(--cx-bg-panel);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.mod-matrix__col-header {
+  padding: 4px 8px;
+  color: var(--cx-text-2);
+  text-align: center;
+  border-bottom: 1px solid var(--cx-line-1);
+  min-width: 60px;
+}
+
+.mod-matrix__effect-name {
+  display: block;
+  font-size: 9px;
+  color: var(--cx-text-3);
+}
+
+.mod-matrix__param-name {
+  display: block;
+  font-size: 10px;
+  color: var(--cx-text-2);
+}
+
+.mod-matrix__row-header {
+  padding: 4px 8px;
+  color: var(--cx-text-1);
+  border-right: 1px solid var(--cx-line-1);
+  position: sticky;
+  left: 0;
+  background: var(--cx-bg-panel);
+  z-index: 1;
+}
+
+.mod-matrix__op-label {
+  display: block;
+  font-weight: 600;
+}
+
+.mod-matrix__signal-bar {
+  display: block;
+  height: 2px;
+  background: var(--cx-action);
+  border-radius: 1px;
+  margin-top: 2px;
+  transition: width 0.1s ease;
+}
+
+.mod-matrix__cell {
+  padding: 4px;
+  text-align: center;
+  border: 1px solid var(--cx-bg-panel);
+  min-width: 60px;
+}
+
+.mod-matrix__cell--active {
+  background: rgba(74, 222, 128, 0.08);
+  border-color: var(--cx-line-1);
+}
+
+.mod-matrix__cell-content {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.mod-matrix__depth-slider {
+  width: 40px;
+  height: 10px;
+  accent-color: var(--cx-action);
+}
+
+.mod-matrix__depth-value {
+  font-size: 9px;
+  color: var(--cx-text-2);
+  min-width: 24px;
+}
+
+.mod-matrix__remove-btn {
+  font-size: 10px;
+  background: none;
+  border: none;
+  color: var(--cx-text-3);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.mod-matrix__remove-btn:hover {
+  color: var(--cx-danger-text);
+}
+
+.mod-matrix__empty-cell {
+  color: var(--cx-bg-raised);
+}
+
+/* Routing Lines SVG overlay */
+.routing-lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* --- P4.4: Kentaro Cluster editor (token-only; no hardcoded hex) --- */
+.operator-card__type-badge--kentaro,
+.operator-card--kentaro .operator-card__type-badge {
+  background: var(--cx-mod);
+}
+.operator-card--kentaro {
+  border-left: 3px solid var(--cx-mod);
+}
+.operator-kentaro__master {
+  border-bottom: 1px solid var(--cx-line-1);
+  padding-bottom: 4px;
+  margin-bottom: 4px;
+}
+.operator-kentaro__master-depth {
+  flex: 1;
+}
+.operator-kentaro__lfos {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.operator-kentaro__lfo-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--cx-line-1);
+  border-radius: 2px;
+}
+.operator-kentaro__lfo-head {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.operator-kentaro__lfo-head .operator-card__param-input {
+  width: 44px;
+}
+.operator-kentaro__wave {
+  position: relative;
+  height: 32px;
+  background: var(--cx-surface-0);
+  border-radius: 2px;
+  cursor: ns-resize;
+  overflow: hidden;
+  touch-action: none;
+}
+.operator-kentaro__wave-set {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background: var(--cx-action-wash);
+  pointer-events: none;
+}
+.operator-kentaro__wave-effective {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background: var(--cx-action);
+  opacity: 0.55;
+  pointer-events: none;
+  transition: height 60ms linear;
+}
+.operator-kentaro__wave .operator-depth-arc {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  pointer-events: none;
+}
+.operator-kentaro__lfo-map {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+.operator-kentaro__lfo-map .operator-card__param-select {
+  flex: 1;
+  font-size: 9px;
+}
+.mod-matrix__source-key {
+  font-size: 8px;
+  color: var(--cx-mod);
+  margin-left: 2px;
+}
+
+/* ── P4.5 — operator topology graph ───────────────────────────────────────── */
+.operator-rack__topology-section {
+  margin-top: 12px;
+  border-top: 1px solid var(--cx-line-1);
+  padding-top: 8px;
+}
+.operator-rack__topology-toggle {
+  background: none;
+  border: none;
+  color: var(--cx-text-3);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 2px 0;
+}
+.operator-rack__topology-toggle:hover {
+  color: var(--cx-text-2);
+}
+.operator-topology {
+  margin-top: 8px;
+}
+.operator-topology__canvas {
+  /* xyflow needs a sized container to measure node/edge geometry. */
+  width: 100%;
+  height: 240px;
+  background: var(--cx-surface-0);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.operator-topology--empty {
+  padding: 16px;
+  text-align: center;
+}
+.operator-topology__hint {
+  color: var(--cx-text-3);
+  font-size: 11px;
+}
+/* xyflow attribution / controls suppressed — read-only diagram. */
+.operator-topology .react-flow__attribution {
+  display: none;
+}

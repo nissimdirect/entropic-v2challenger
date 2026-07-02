@@ -1,0 +1,17 @@
+{
+  "id": "factory-9f479d39",
+  "name": "High Solar",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.solarize",
+    "parameters": {
+      "threshold": 64
+    },
+    "modulations": {}
+  }
+}

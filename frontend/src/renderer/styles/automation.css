@@ -1,0 +1,222 @@
+/* --- Automation --- */
+
+.auto-lane {
+  pointer-events: all;
+  overflow: visible;
+}
+
+.auto-node__circle {
+  transition: r 0.1s ease;
+  /* pointer-events: none set inline — hit-ring handles all interactions */
+}
+
+/* PUX.5: transparent hit ring — pointer-events surface for interactions.
+   r=12 gives 24px effective diameter (DESIGN-SPEC §4 floor, WCAG 2.5.8).
+   Max r=12 to prevent overlap on dense curves (failure-mode (a) guard). */
+.auto-node__hit-ring {
+  /* transparent fill set inline; cursor set inline */
+}
+
+.auto-node__circle--active {
+  filter: drop-shadow(0 0 4px currentColor);
+}
+
+.auto-node__tooltip {
+  pointer-events: none;
+}
+
+.auto-curve {
+  pointer-events: none;
+}
+
+/* --- Automation Toolbar --- */
+
+.auto-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-line-1);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+}
+
+.auto-toolbar__modes {
+  display: flex;
+  gap: 2px;
+}
+
+.auto-toolbar__mode-btn {
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  min-width: 24px;
+}
+
+.auto-toolbar__mode-btn:hover {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
+}
+
+.auto-toolbar__mode-btn--active {
+  background: var(--cx-action);
+  color: var(--cx-bg-app);
+  border-color: var(--cx-action);
+}
+
+.auto-toolbar__btn {
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-2);
+  font-family: inherit;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.auto-toolbar__btn:hover:not(:disabled) {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
+}
+
+.auto-toolbar__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.auto-toolbar__btn--danger:hover:not(:disabled) {
+  background: var(--cx-danger-fill);
+  color: var(--cx-danger-on);
+  border-color: var(--cx-danger-text);
+}
+
+.auto-toolbar__armed {
+  color: var(--cx-action);
+  margin-left: auto;
+}
+
+/* F-0512-34: discoverability hint shown when no track is armed. */
+.auto-toolbar__hint {
+  color: var(--cx-text-3);
+  margin-left: auto;
+  font-size: 11px;
+}
+
+.auto-toolbar__hint kbd {
+  display: inline-block;
+  padding: 0 4px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--cx-text-1);
+  font-family: inherit;
+}
+
+/* --- Automation Draw Overlay --- */
+
+.auto-draw {
+  background: transparent;
+}
+
+/* --- Track automation toggle --- */
+
+.track-header__auto-btn {
+  background: transparent;
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-3);
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+.track-header__auto-btn:hover {
+  color: var(--cx-action);
+  border-color: var(--cx-action);
+}
+
+.track-header__auto-btn--active {
+  color: var(--cx-action);
+  border-color: var(--cx-action);
+}
+
+/* --- Track ARM button (red when armed) --- */
+
+.track-header__auto-btn--armed {
+  color: var(--cx-danger-text);
+  border-color: var(--cx-danger-text);
+  animation: arm-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes arm-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* --- Lane Badges (TRIG / AUTO) --- */
+
+.track-header__badges {
+  display: flex;
+  gap: 2px;
+  margin-top: 1px;
+}
+
+.track-header__badge {
+  font-size: 8px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 0 3px;
+  border-radius: 2px;
+  line-height: 14px;
+}
+
+.track-header__badge--trig {
+  background: rgba(239, 68, 68, 0.3);
+  color: var(--cx-danger-text);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.track-header__badge--auto {
+  background: rgba(74, 222, 128, 0.2);
+  color: var(--cx-action);
+  border: 1px solid rgba(74, 222, 128, 0.4);
+}
+
+/* SG-3 clause-3 (audit medium #1): MUTED badge shown when the sentinel has
+   aborted an automation lane. The containing row is dimmed so the AUTO badge
+   reads as inactive while the abort is live. */
+.track-header__badge--muted {
+  background: rgba(239, 68, 68, 0.3);
+  color: var(--cx-danger-text);
+  border: 1px solid rgba(239, 68, 68, 0.6);
+}
+
+.track-header__badges--muted .track-header__badge--auto {
+  opacity: 0.4;
+}
+
+/* --- Trigger Lane Blocks --- */
+
+.auto-lane--trigger {
+  cursor: crosshair;
+}
+
+.auto-trigger-block {
+  transition: opacity 0.1s ease;
+}
+
+.auto-trigger-block:hover {
+  opacity: 0.7 !important;
+}

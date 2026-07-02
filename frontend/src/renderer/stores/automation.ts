@@ -1,0 +1,643 @@
+/**
+ * Automation store — manages automation lanes for timeline-locked parameter recording.
+ * Lanes are keyed by trackId, each containing AutomationLane[] with points.
+ * All mutations go through the undo system.
+ */
+import { create } from 'zustand'
+import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode } from '../../shared/types'
+import { isTriggerLane } from '../utils/automation-evaluate'
+import { validateLaneAxisBinding, type LaneAxisBinding, type Axis } from '../../shared/axis-binding'
+
+// PR-B Commit-2: SPEC-2 Tier-1 also restricts the DOMAIN to t/y/x (c/f/l are
+// Tier-4+). The canonical validateLaneAxisBinding only tier-gates bindingRule, so
+// we add this domain guard to match the spec. Returns null if ok, else an error.
+const TIER1_DOMAINS: ReadonlyArray<Axis> = ['t', 'y', 'x']
+// P5b.21 (B9): the shared TIER_1_BINDING_RULES widened to the 4 mod-routing
+// rules, but lane RENDERING still only implements `broadcast` — so lanes keep
+// their own narrower rule set here. Widening lanes would be a half-state
+// (accepted but not honored by the lane renderer). Mod-routing edges use the
+// widened set via validateModRouteBindingRule in the operator store.
+const LANE_TIER1_RULES: ReadonlyArray<LaneAxisBinding['bindingRule']> = ['broadcast']
+function validateLaneAxisTier1(binding: LaneAxisBinding): string | null {
+  if (!TIER1_DOMAINS.includes(binding.domain)) {
+    return `domain '${binding.domain}' requires a later tier; Tier 1 supports t, y, x`
+  }
+  if (!LANE_TIER1_RULES.includes(binding.bindingRule)) {
+    return `bindingRule '${binding.bindingRule}' requires tier 3; lane Tier 1 supports only 'broadcast'`
+  }
+  return validateLaneAxisBinding(binding, 1)
+}
+
+// PR-B Commit-1: map the legacy TriggerMode arg to the unified InterpolationMode.
+// 'toggle' has no lane equivalent (it's a Pad behavior) → treated as 'gate'.
+function triggerModeToInterp(mode: TriggerMode): InterpolationMode {
+  return mode === 'one-shot' ? 'oneShot' : 'gate'
+}
+import { undoable } from './undo'
+import { useToastStore } from './toast'
+import { simplifyPoints } from '../utils/automation-simplify'
+
+export type AutomationMode = 'read' | 'latch' | 'touch' | 'draw'
+
+interface AutomationClipboard {
+  points: AutomationPoint[]
+  duration: number
+}
+
+interface AutomationState {
+  lanes: Record<string, AutomationLane[]>
+  mode: AutomationMode
+  armedTrackId: string | null
+  clipboard: AutomationClipboard | null
+
+  // SG-3 clause-3: muted lane IDs from the sentinel's lane_aborted reply field.
+  // lane_id in the backend reply is "unknown" (the output gate cannot identify
+  // the specific modulation lane that produced the corrupt frame), so a non-empty
+  // set means "an SG-3 abort is active". Two consumers read it (audit medium #1):
+  //   1. App.tsx's render-frame chain build suppresses automation lane payloads
+  //      while the set is non-empty (stops re-sending the corrupt automation).
+  //   2. LaneBadges (Track.tsx) renders a MUTED badge + dimmed styling on tracks
+  //      that have automation lanes while the set is non-empty.
+  // The user clears it with `clearSg3Abort()` / `clearAllSg3Aborts()`.
+  sg3AbortedLaneIds: ReadonlySet<string>
+  /** Mark a lane as SG-3 aborted (from the lane_aborted IPC reply field). */
+  markSg3Aborted: (laneId: string) => void
+  /** Clear the SG-3 aborted state so the user re-enables the lane. */
+  clearSg3Abort: (laneId: string) => void
+  /** Clear ALL SG-3 aborted states (re-enable all). */
+  clearAllSg3Aborts: () => void
+
+  // Lane CRUD
+  addLane: (trackId: string, effectId: string, paramKey: string, color: string) => void
+  addTriggerLane: (trackId: string, effectId: string, paramKey: string, color: string, triggerMode: TriggerMode, triggerADSR?: ADSREnvelope) => string | null
+  removeLane: (trackId: string, laneId: string) => void
+  clearLane: (trackId: string, laneId: string) => void
+  setLaneVisible: (trackId: string, laneId: string, visible: boolean) => void
+  setLaneAxisBinding: (trackId: string, laneId: string, binding: LaneAxisBinding | undefined) => void
+  simplifyLane: (trackId: string, laneId: string, tolerance: number) => void
+
+  // Point CRUD
+  addPoint: (trackId: string, laneId: string, time: number, value: number, curve?: number) => void
+  removePoint: (trackId: string, laneId: string, pointIndex: number) => void
+  updatePoint: (trackId: string, laneId: string, pointIndex: number, updates: Partial<AutomationPoint>) => void
+  setPoints: (trackId: string, laneId: string, points: AutomationPoint[]) => void
+
+  // Recording state
+  setMode: (mode: AutomationMode) => void
+  armTrack: (trackId: string | null) => void
+  /** Record a trigger event (key-down/up) to the appropriate trigger lane during overdub */
+  recordTriggerEvent: (trackId: string, laneId: string, time: number, eventType: 'trigger' | 'release') => void
+  /** Merge retro-captured trigger points into a lane */
+  mergeCapturedTriggers: (trackId: string, laneId: string, points: AutomationPoint[]) => void
+
+  // Clipboard
+  copyRegion: (trackId: string, laneId: string, startTime: number, endTime: number) => void
+  pasteAtPlayhead: (trackId: string, laneId: string, playheadTime: number) => void
+
+  // Selectors
+  getLanesForTrack: (trackId: string) => AutomationLane[]
+  getLanesForEffect: (effectId: string) => AutomationLane[]
+  getAllLanes: () => AutomationLane[]
+
+  // Bulk operations
+  resetAutomation: () => void
+  loadAutomation: (lanes: Record<string, AutomationLane[]>) => void
+}
+
+let nextLaneId = 1
+
+function insertPointSorted(points: AutomationPoint[], point: AutomationPoint): AutomationPoint[] {
+  const result = [...points]
+  let insertIdx = result.length
+  for (let i = 0; i < result.length; i++) {
+    if (result[i].time >= point.time) {
+      insertIdx = i
+      break
+    }
+  }
+  result.splice(insertIdx, 0, point)
+  return result
+}
+
+export const useAutomationStore = create<AutomationState>((set, get) => ({
+  lanes: {},
+  mode: 'read',
+  armedTrackId: null,
+  clipboard: null,
+  sg3AbortedLaneIds: new Set<string>(),
+
+  // SG-3 clause-3: mute state actions
+  markSg3Aborted: (laneId) => {
+    const current = get().sg3AbortedLaneIds
+    if (current.has(laneId)) return // already muted — no-op
+    set({ sg3AbortedLaneIds: new Set([...current, laneId]) })
+  },
+  clearSg3Abort: (laneId) => {
+    const current = get().sg3AbortedLaneIds
+    if (!current.has(laneId)) return
+    const next = new Set([...current])
+    next.delete(laneId)
+    set({ sg3AbortedLaneIds: next })
+  },
+  clearAllSg3Aborts: () => {
+    if (get().sg3AbortedLaneIds.size === 0) return
+    set({ sg3AbortedLaneIds: new Set<string>() })
+  },
+
+
+  addLane: (trackId, effectId, paramKey, color) => {
+    const laneId = `auto-${Date.now()}-${nextLaneId++}`
+    const newLane: AutomationLane = {
+      id: laneId,
+      paramPath: `${effectId}.${paramKey}`,
+      color,
+      isVisible: true,
+      points: [],
+      mode: 'smooth',
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = [...(current[trackId] ?? []), newLane]
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).filter((l) => l.id !== laneId)
+      if (current[trackId].length === 0) delete current[trackId]
+      set({ lanes: current })
+    }
+
+    undoable(`Add automation lane for ${paramKey}`, forward, inverse)
+  },
+
+  addTriggerLane: (trackId, effectId, paramKey, color, triggerMode, triggerADSR) => {
+    // Exclusive param ownership: check no other trigger lane owns this param
+    const paramPath = `${effectId}.${paramKey}`
+    for (const trackLanes of Object.values(get().lanes)) {
+      for (const lane of trackLanes) {
+        if (isTriggerLane(lane) && lane.paramPath === paramPath) {
+          useToastStore.getState().addToast({
+            level: 'warning',
+            message: `Parameter already mapped to trigger lane "${lane.id}"`,
+            source: 'automation',
+          })
+          return null
+        }
+      }
+    }
+
+    const laneId = `trig-${Date.now()}-${nextLaneId++}`
+    const defaultADSR: ADSREnvelope = { attack: 0, decay: 0, sustain: 1, release: 0 }
+    const newLane: AutomationLane = {
+      id: laneId,
+      paramPath,
+      color,
+      isVisible: true,
+      points: [],
+      mode: triggerModeToInterp(triggerMode),
+      triggerADSR: triggerADSR ?? defaultADSR,
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = [...(current[trackId] ?? []), newLane]
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).filter((l) => l.id !== laneId)
+      if (current[trackId].length === 0) delete current[trackId]
+      set({ lanes: current })
+    }
+
+    undoable(`Add trigger lane for ${paramKey}`, forward, inverse)
+    return laneId
+  },
+
+  removeLane: (trackId, laneId) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const index = trackLanes.findIndex((l) => l.id === laneId)
+    if (index === -1) return
+    const removed = trackLanes[index]
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).filter((l) => l.id !== laneId)
+      if (current[trackId].length === 0) delete current[trackId]
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      const arr = [...(current[trackId] ?? [])]
+      arr.splice(index, 0, removed)
+      current[trackId] = arr
+      set({ lanes: current })
+    }
+
+    undoable(`Remove automation lane`, forward, inverse)
+  },
+
+  clearLane: (trackId, laneId) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+    const oldPoints = [...lane.points]
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: [] } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Clear automation lane`, forward, inverse)
+  },
+
+  setLaneVisible: (trackId, laneId, visible) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+    const oldVisible = lane.isVisible
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, isVisible: visible } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, isVisible: oldVisible } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`${visible ? 'Show' : 'Hide'} automation lane`, forward, inverse)
+  },
+
+  // PR-B Commit-2: set/clear a lane's B4-lite axis binding (Tier-1 gated).
+  // Rejects non-broadcast rules / non-t/y/x domains on write (writer-side validator,
+  // mirrors backend modulation.schema.validate_for_save). Pass undefined to clear.
+  setLaneAxisBinding: (trackId, laneId, binding) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+
+    if (binding) {
+      const err = validateLaneAxisTier1(binding)
+      if (err) {
+        useToastStore.getState().addToast({ level: 'warning', message: err, source: 'automation' })
+        return
+      }
+    }
+    const oldBinding = lane.axisBinding
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, axisBinding: binding } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, axisBinding: oldBinding } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(binding ? `Set lane axis → ${binding.domain}` : 'Clear lane axis', forward, inverse)
+  },
+
+  simplifyLane: (trackId, laneId, tolerance) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || lane.points.length <= 2) return
+    const oldPoints = [...lane.points]
+    const simplified = simplifyPoints(lane.points, tolerance)
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: simplified } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Simplify automation lane`, forward, inverse)
+  },
+
+  addPoint: (trackId, laneId, time, value, curve = 0) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+    const oldPoints = [...lane.points]
+    const newPoint: AutomationPoint = { time, value, curve }
+    const newPoints = insertPointSorted(lane.points, newPoint)
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: newPoints } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Add automation point`, forward, inverse)
+  },
+
+  removePoint: (trackId, laneId, pointIndex) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || pointIndex < 0 || pointIndex >= lane.points.length) return
+    const oldPoints = [...lane.points]
+    const newPoints = lane.points.filter((_, i) => i !== pointIndex)
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: newPoints } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Remove automation point`, forward, inverse)
+  },
+
+  updatePoint: (trackId, laneId, pointIndex, updates) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || pointIndex < 0 || pointIndex >= lane.points.length) return
+    const oldPoints = [...lane.points]
+    const newPoints = [...lane.points]
+    newPoints[pointIndex] = { ...newPoints[pointIndex], ...updates }
+    // Re-sort if time changed
+    if (updates.time !== undefined) {
+      newPoints.sort((a, b) => a.time - b.time)
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: newPoints } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Update automation point`, forward, inverse)
+  },
+
+  setPoints: (trackId, laneId, points) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+    const oldPoints = [...lane.points]
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: [...points] } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Set automation points`, forward, inverse)
+  },
+
+  setMode: (mode) => set({ mode }),
+  armTrack: (trackId) => set({ armedTrackId: trackId }),
+
+  recordTriggerEvent: (trackId, laneId, time, eventType) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || !isTriggerLane(lane)) return
+
+    // Clamp value to exactly 0 or 1 (square-wave, numeric trust boundary)
+    const value = eventType === 'trigger' ? 1.0 : 0.0
+    const newPoint: AutomationPoint = { time, value, curve: 0 }
+    const newPoints = insertPointSorted([...lane.points], newPoint)
+
+    const oldPoints = [...lane.points]
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: newPoints } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    // Uses undo transaction when inside overdub recording pass
+    undoable(`Record trigger ${eventType}`, forward, inverse)
+  },
+
+  mergeCapturedTriggers: (trackId, laneId, points) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || !isTriggerLane(lane)) return
+
+    const oldPoints = [...lane.points]
+    // Merge and sort
+    const merged = [...lane.points, ...points].sort((a, b) => a.time - b.time)
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: merged } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Merge captured trigger automation`, forward, inverse)
+  },
+
+  copyRegion: (trackId, laneId, startTime, endTime) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+
+    const regionPoints = lane.points
+      .filter((p) => p.time >= startTime && p.time <= endTime)
+      .map((p) => ({ ...p, time: p.time - startTime }))
+
+    set({ clipboard: { points: regionPoints, duration: endTime - startTime } })
+  },
+
+  pasteAtPlayhead: (trackId, laneId, playheadTime) => {
+    const { clipboard } = get()
+    if (!clipboard || clipboard.points.length === 0) return
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+
+    const oldPoints = [...lane.points]
+    const pastedPoints = clipboard.points.map((p) => ({
+      ...p,
+      time: p.time + playheadTime,
+    }))
+
+    // Merge pasted points into existing, sorted by time
+    let merged = [...lane.points]
+    for (const pp of pastedPoints) {
+      merged = insertPointSorted(merged, pp)
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: merged } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Paste automation region`, forward, inverse)
+  },
+
+  getLanesForTrack: (trackId) => get().lanes[trackId] ?? [],
+
+  getLanesForEffect: (effectId) => {
+    const allLanes: AutomationLane[] = []
+    for (const trackLanes of Object.values(get().lanes)) {
+      for (const lane of trackLanes) {
+        if (lane.paramPath.startsWith(`${effectId}.`)) {
+          allLanes.push(lane)
+        }
+      }
+    }
+    return allLanes
+  },
+
+  getAllLanes: () => {
+    const allLanes: AutomationLane[] = []
+    for (const trackLanes of Object.values(get().lanes)) {
+      allLanes.push(...trackLanes)
+    }
+    return allLanes
+  },
+
+  resetAutomation: () =>
+    set({
+      lanes: {},
+      mode: 'read',
+      armedTrackId: null,
+      clipboard: null,
+      sg3AbortedLaneIds: new Set<string>(),
+    }),
+
+  loadAutomation: (lanes) => {
+    const validated: Record<string, AutomationLane[]> = {}
+    for (const [trackId, trackLanes] of Object.entries(lanes)) {
+      if (!Array.isArray(trackLanes)) continue
+      const validLanes = trackLanes.filter((lane): lane is AutomationLane => {
+        if (typeof lane !== 'object' || lane === null) return false
+        if (typeof lane.id !== 'string' || !lane.id) return false
+        if (typeof lane.paramPath !== 'string') return false
+        if (!Array.isArray(lane.points)) return false
+        return true
+      }).map((lane) => ({
+        ...lane,
+        // PR-B Commit-1: v3 lanes carry `mode`; default to 'smooth' if absent/invalid.
+        mode: (['smooth', 'step', 'gate', 'oneShot'] as const).includes(lane.mode)
+          ? lane.mode
+          : 'smooth',
+        // PR-B Commit-2: drop an axisBinding that fails the Tier-1 validator
+        // (forward-compat: a file written by a future tier won't crash this one).
+        axisBinding: lane.axisBinding && validateLaneAxisTier1(lane.axisBinding) === null
+          ? lane.axisBinding
+          : undefined,
+        // Filter out invalid points and sort by time for binary search
+        points: lane.points
+          .filter((p) =>
+            typeof p === 'object' && p !== null &&
+            typeof p.time === 'number' && Number.isFinite(p.time) &&
+            typeof p.value === 'number' && Number.isFinite(p.value),
+          )
+          .sort((a, b) => a.time - b.time),
+      }))
+      if (validLanes.length > 0) {
+        validated[trackId] = validLanes
+      }
+    }
+    set({ lanes: validated })
+  },
+}))

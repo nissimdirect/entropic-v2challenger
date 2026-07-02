@@ -1,0 +1,17 @@
+{
+  "id": "factory-b1deb64c",
+  "name": "Threshold BW",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.threshold",
+    "parameters": {
+      "level": 128
+    },
+    "modulations": {}
+  }
+}

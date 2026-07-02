@@ -1,0 +1,117 @@
+{
+  "run_date": "2026-06-14",
+  "thresholds": {
+    "drift_pass_px": 8.0,
+    "time_pass_ms": 20.0
+  },
+  "matrix": [
+    {
+      "candidate": "a-farneback",
+      "fixture": "f1-talkinghead",
+      "median_ms_synthetic": 25.95,
+      "median_ms_effective": 25.95,
+      "time_note": "(measured synthetic)",
+      "max_drift_px": 578.9,
+      "verdict": "NO-GO (time 26.0ms > 20.0ms threshold)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-a-farneback-f1-talkinghead-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-a-farneback-f1-talkinghead-worst.png",
+      "total_wall_ms": 821.4
+    },
+    {
+      "candidate": "b-lk-sparse",
+      "fixture": "f1-talkinghead",
+      "median_ms_synthetic": 1.1,
+      "median_ms_effective": 1.1,
+      "time_note": "(measured synthetic)",
+      "max_drift_px": 0.0,
+      "verdict": "GO (time 1.1ms \u2264 20.0ms, drift 0.0px \u2264 8.0px)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-b-lk-sparse-f1-talkinghead-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-b-lk-sparse-f1-talkinghead-worst.png",
+      "total_wall_ms": 100.5
+    },
+    {
+      "candidate": "c-rvm-perframe",
+      "fixture": "f1-talkinghead",
+      "median_ms_synthetic": 4.9,
+      "median_ms_effective": 62.0,
+      "time_note": "(real-model estimate from MK.12 smoke)",
+      "max_drift_px": 0.05,
+      "verdict": "NO-GO (time 62.0ms > 20.0ms threshold)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-c-rvm-perframe-f1-talkinghead-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-c-rvm-perframe-f1-talkinghead-worst.png",
+      "total_wall_ms": 209.7
+    },
+    {
+      "candidate": "a-farneback",
+      "fixture": "f2-fastpan",
+      "median_ms_synthetic": 26.26,
+      "median_ms_effective": 26.26,
+      "time_note": "(measured synthetic)",
+      "max_drift_px": 674.24,
+      "verdict": "NO-GO (time 26.3ms > 20.0ms threshold)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-a-farneback-f2-fastpan-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-a-farneback-f2-fastpan-worst.png",
+      "total_wall_ms": 827.2
+    },
+    {
+      "candidate": "b-lk-sparse",
+      "fixture": "f2-fastpan",
+      "median_ms_synthetic": 0.98,
+      "median_ms_effective": 0.98,
+      "time_note": "(measured synthetic)",
+      "max_drift_px": 16.29,
+      "verdict": "NO-GO (max drift 16.3px > 8.0px threshold)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-b-lk-sparse-f2-fastpan-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-b-lk-sparse-f2-fastpan-worst.png",
+      "total_wall_ms": 83.9
+    },
+    {
+      "candidate": "c-rvm-perframe",
+      "fixture": "f2-fastpan",
+      "median_ms_synthetic": 4.86,
+      "median_ms_effective": 62.0,
+      "time_note": "(real-model estimate from MK.12 smoke)",
+      "max_drift_px": 0.05,
+      "verdict": "NO-GO (time 62.0ms > 20.0ms threshold)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-c-rvm-perframe-f2-fastpan-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-c-rvm-perframe-f2-fastpan-worst.png",
+      "total_wall_ms": 202.1
+    },
+    {
+      "candidate": "a-farneback",
+      "fixture": "f3-occlusion",
+      "median_ms_synthetic": 26.17,
+      "median_ms_effective": 26.17,
+      "time_note": "(measured synthetic)",
+      "max_drift_px": 633.88,
+      "verdict": "NO-GO (time 26.2ms > 20.0ms threshold)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-a-farneback-f3-occlusion-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-a-farneback-f3-occlusion-worst.png",
+      "total_wall_ms": 827.4
+    },
+    {
+      "candidate": "b-lk-sparse",
+      "fixture": "f3-occlusion",
+      "median_ms_synthetic": 1.04,
+      "median_ms_effective": 1.04,
+      "time_note": "(measured synthetic)",
+      "max_drift_px": 0.18,
+      "verdict": "GO (time 1.0ms \u2264 20.0ms, drift 0.2px \u2264 8.0px)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-b-lk-sparse-f3-occlusion-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-b-lk-sparse-f3-occlusion-worst.png",
+      "total_wall_ms": 87.1
+    },
+    {
+      "candidate": "c-rvm-perframe",
+      "fixture": "f3-occlusion",
+      "median_ms_synthetic": 4.9,
+      "median_ms_effective": 62.0,
+      "time_note": "(real-model estimate from MK.12 smoke)",
+      "max_drift_px": 0.06,
+      "verdict": "NO-GO (time 62.0ms > 20.0ms threshold)",
+      "f0_png": "docs/roadmap/specs/masking/2026-06-14/mk14-c-rvm-perframe-f3-occlusion-f0.png",
+      "worst_png": "docs/roadmap/specs/masking/2026-06-14/mk14-c-rvm-perframe-f3-occlusion-worst.png",
+      "total_wall_ms": 204.7
+    }
+  ]
+}

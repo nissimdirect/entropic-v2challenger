@@ -1,0 +1,3 @@
+test-fixtures/videos/valid-4k.mp4 filter=lfs diff=lfs merge=lfs -text
+test-fixtures/videos/valid-long.mp4 filter=lfs diff=lfs merge=lfs -text
+test-fixtures/videos/valid-prores.mov filter=lfs diff=lfs merge=lfs -text

@@ -1,0 +1,39 @@
+[project]
+name = "entropic-backend"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pyzmq>=26.0",
+    "numpy>=2.0",
+    "av>=14.0",
+    "Pillow>=11.0",
+    "opencv-python-headless>=4.10",
+    "scipy",
+    "sentry-sdk",
+    "sounddevice>=0.5",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.5",
+    "pytest-rerunfailures>=14.0",
+    "hypothesis>=6.100",
+]
+# Real Metal/GPU backend (Apple Silicon only). Optional: non-Apple CI omits
+# this extra and the `metal`-marked tests skip cleanly via mlx_available().
+metal = [
+    "mlx>=0.30",
+    "psutil>=5.9",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]
+addopts = "-m 'not perf' -n auto --dist loadfile --reruns=2 --reruns-delay=0.5"
+markers = [
+    "perf: performance gate tests (deselected by default, run with: pytest -m perf)",
+    "smoke: fast unit tests with no I/O, no ZMQ, no filesystem (run with: pytest -m smoke)",
+    "oracle: engine-correctness validators (CLI + FFmpeg/OpenCV signature checks, run with: pytest -m oracle)",
+    "metal: real GPU/Metal-backend tests (skipped without MLX; run with: pytest -m metal)",
+]

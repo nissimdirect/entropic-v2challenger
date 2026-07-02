@@ -1,0 +1,234 @@
+/**
+ * Diagnostic IPC handlers — telemetry consent, crash reports, autosave, system info.
+ * Separate from ZMQ relay handlers. Called from index.ts alongside registerRelayHandlers().
+ */
+import { ipcMain, app } from 'electron'
+import { existsSync, readFileSync, writeFileSync, readdirSync, unlinkSync, mkdirSync } from 'fs'
+import { join, resolve, dirname } from 'path'
+import { homedir, platform, arch, totalmem, release } from 'os'
+import { logger } from './logger'
+import { grantPath } from './file-handlers'
+
+const CREATRIX_DIR = join(homedir(), '.creatrix')
+const CONSENT_FILE = join(CREATRIX_DIR, 'telemetry_consent')
+const CRASH_DIR = join(CREATRIX_DIR, 'crash_reports')
+
+/**
+ * Validate that a path is under ~/.creatrix to prevent path traversal.
+ * Matches Python's _validate_log_dir pattern.
+ */
+function isUnderCreatrixDir(targetPath: string): boolean {
+  const resolved = resolve(targetPath)
+  const allowedPrefix = resolve(CREATRIX_DIR)
+  return resolved === allowedPrefix || resolved.startsWith(allowedPrefix + '/')
+}
+
+export function registerDiagnosticsHandlers(): void {
+  // --- Telemetry consent ---
+
+  ipcMain.handle('telemetry:check', async () => {
+    try {
+      if (!existsSync(CONSENT_FILE)) return null
+      const content = readFileSync(CONSENT_FILE, 'utf8').trim()
+      if (content === 'yes') return true
+      if (content === 'no') return false
+      return null
+    } catch {
+      return null
+    }
+  })
+
+  ipcMain.handle('telemetry:set', async (_event, consent: boolean) => {
+    try {
+      mkdirSync(CREATRIX_DIR, { recursive: true, mode: 0o700 })
+      writeFileSync(CONSENT_FILE, consent ? 'yes' : 'no', { encoding: 'utf8', mode: 0o600 })
+    } catch {
+      // Best-effort — don't crash if filesystem is unwritable
+    }
+  })
+
+  // --- Crash reports ---
+
+  ipcMain.handle('crash:list', async () => {
+    try {
+      if (!existsSync(CRASH_DIR) || !isUnderCreatrixDir(CRASH_DIR)) return []
+
+      const files = readdirSync(CRASH_DIR)
+        .filter((f) => f.startsWith('crash_') && f.endsWith('.json'))
+        .sort()
+        .reverse()
+
+      const reports: Record<string, unknown>[] = []
+      for (const file of files) {
+        const filePath = join(CRASH_DIR, file)
+        if (!isUnderCreatrixDir(filePath)) continue
+        try {
+          const content = readFileSync(filePath, 'utf8')
+          reports.push(JSON.parse(content))
+        } catch {
+          // Skip malformed crash files
+        }
+      }
+      return reports
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('crash:clear', async () => {
+    try {
+      if (!existsSync(CRASH_DIR) || !isUnderCreatrixDir(CRASH_DIR)) return
+
+      const files = readdirSync(CRASH_DIR)
+        .filter((f) => f.startsWith('crash_') && f.endsWith('.json'))
+
+      for (const file of files) {
+        const filePath = join(CRASH_DIR, file)
+        if (isUnderCreatrixDir(filePath)) {
+          try {
+            unlinkSync(filePath)
+          } catch {
+            // Best-effort cleanup
+          }
+        }
+      }
+    } catch {
+      // Best-effort
+    }
+  })
+
+  // --- Autosave ---
+
+  ipcMain.handle('autosave:find', async () => {
+    try {
+      const userDataDir = app.getPath('userData')
+      const autosavePath = join(userDataDir, '.autosave.glitch')
+      if (existsSync(autosavePath)) {
+        return autosavePath
+      }
+      return null
+    } catch {
+      return null
+    }
+  })
+
+  // --- System info ---
+
+  ipcMain.handle('system:info', async () => {
+    return {
+      os: platform(),
+      osVersion: release(),
+      arch: arch(),
+      electron: process.versions.electron,
+      node: process.versions.node,
+      totalMemory: Math.round(totalmem() / 1024 / 1024),
+      appVersion: app.getVersion(),
+    }
+  })
+
+  // --- Preferences persistence ---
+
+  ipcMain.handle('preferences:read', async () => {
+    try {
+      const prefsPath = join(CREATRIX_DIR, 'preferences.json')
+      if (!existsSync(prefsPath)) return {}
+      const content = readFileSync(prefsPath, 'utf8')
+      const parsed = JSON.parse(content)
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return {}
+      return parsed
+    } catch {
+      return {}
+    }
+  })
+
+  ipcMain.handle('preferences:write', async (_event, data: unknown) => {
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+      throw new TypeError('preferences:write expects a plain object')
+    }
+    const json = JSON.stringify(data)
+    if (json.length > 1_000_000) {
+      throw new Error('Preferences data too large (max 1MB)')
+    }
+    try {
+      mkdirSync(CREATRIX_DIR, { recursive: true, mode: 0o700 })
+      const prefsPath = join(CREATRIX_DIR, 'preferences.json')
+      writeFileSync(prefsPath, JSON.stringify(data, null, 2), { encoding: 'utf8', mode: 0o600 })
+    } catch {
+      // Best-effort
+    }
+  })
+
+  // --- Recent projects ---
+
+  ipcMain.handle('recentProjects:read', async () => {
+    try {
+      const recentPath = join(CREATRIX_DIR, 'recent-projects.json')
+      if (!existsSync(recentPath)) return []
+      const content = readFileSync(recentPath, 'utf8')
+      const parsed = JSON.parse(content)
+      if (!Array.isArray(parsed)) return []
+      // Re-grant paths from prior dialog picks so file:read succeeds when the
+      // user clicks an entry on the Welcome screen (the recent list is itself
+      // user-curated: each entry was added after an explicit dialog pick).
+      // Grant both the file and its directory so sibling assets load too.
+      for (const entry of parsed) {
+        if (entry && typeof entry.path === 'string' && existsSync(entry.path)) {
+          grantPath(entry.path)
+          grantPath(dirname(entry.path))
+        }
+      }
+      return parsed
+    } catch {
+      return []
+    }
+  })
+
+  ipcMain.handle('recentProjects:write', async (_event, data: unknown) => {
+    if (!Array.isArray(data)) {
+      throw new TypeError('recentProjects:write expects an array')
+    }
+    const capped = data.slice(0, 20)
+    const json = JSON.stringify(capped)
+    if (json.length > 1_000_000) {
+      throw new Error('Recent projects data too large (max 1MB)')
+    }
+    try {
+      mkdirSync(CREATRIX_DIR, { recursive: true, mode: 0o700 })
+      const recentPath = join(CREATRIX_DIR, 'recent-projects.json')
+      writeFileSync(recentPath, JSON.stringify(capped, null, 2), { encoding: 'utf8', mode: 0o600 })
+    } catch {
+      // Best-effort
+    }
+  })
+
+  // --- Feedback ---
+
+  ipcMain.handle('feedback:submit', async (_event, text: string) => {
+    if (typeof text !== 'string' || text.length === 0 || text.length > 2000) {
+      return
+    }
+    logger.info('[Feedback] User submitted feedback', { length: text.length })
+
+    // Save feedback as JSON to Desktop (always, regardless of Sentry)
+    const now = new Date()
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    const feedbackDir = join(homedir(), '.creatrix', 'feedback')
+    try {
+      mkdirSync(feedbackDir, { recursive: true, mode: 0o700 })
+      const feedbackPath = join(feedbackDir, `feedback-${timestamp}.json`)
+      const payload = {
+        timestamp: now.toISOString(),
+        text,
+        systemInfo: {
+          os: platform(),
+          arch: arch(),
+          electron: process.versions.electron,
+          appVersion: app.getVersion(),
+        },
+      }
+      writeFileSync(feedbackPath, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 })
+    } catch {
+      // Best-effort
+    }
+  })
+}

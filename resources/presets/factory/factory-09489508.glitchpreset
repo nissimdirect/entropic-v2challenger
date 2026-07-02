@@ -1,0 +1,49 @@
+{
+  "id": "factory-09489508",
+  "name": "Thermal Vision",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "color",
+    "destruction"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-4299659c",
+        "effectId": "fx.edge_detect",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {},
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-f4280e47",
+        "effectId": "fx.invert",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {},
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-01634f07",
+        "effectId": "fx.hue_shift",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "shift": 120
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}

@@ -1,0 +1,131 @@
+/* --- Toast Notifications --- */
+
+.toast-container {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-width: 360px;
+  pointer-events: auto;
+}
+
+.toast {
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-left: 3px solid var(--cx-selection);
+  border-radius: 4px;
+  padding: 10px 12px;
+  cursor: pointer;
+  animation: toast-slide-in 200ms ease-out;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: none;
+  }
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.toast__message {
+  font-size: 12px;
+  color: var(--cx-text-1);
+  flex: 1;
+  word-break: break-word;
+}
+
+.toast__count {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  background: var(--cx-bg-hover);
+  border-radius: 8px;
+  font-size: 10px;
+  color: var(--cx-text-2);
+  font-weight: 600;
+}
+
+.toast__action {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-action);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.toast__action:hover {
+  background: var(--cx-bg-hover);
+}
+
+.toast__details {
+  margin-top: 8px;
+}
+
+.toast__details summary {
+  font-size: 11px;
+  color: var(--cx-text-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toast__details-text {
+  margin-top: 4px;
+  padding: 6px 8px;
+  background: var(--cx-bg-panel);
+  border-radius: 3px;
+  font-size: 10px;
+  color: var(--cx-text-2);
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* --- Per-level border-left ticks (DESIGN-SPEC §6 toast row) ---
+ * Replaces the LEVEL_COLORS TSX inline-style map (PUX.1 step 5).
+ * text-1 body is handled by .toast__message. */
+
+/* info: MOD violet tick */
+.toast--info {
+  border-left-color: var(--cx-selection);
+}
+/* success: ACID tick (success = ACID, no separate green) */
+.toast--success {
+  border-left-color: var(--cx-action);
+}
+/* warning / state (suspended/in-progress states): AMBER tick */
+.toast--warning {
+  border-left-color: var(--cx-warn);
+}
+.toast--state {
+  border-left-color: var(--cx-warn);
+}
+/* error: RED tick (text/icon token — 3px tick, per §9 text/fill split) */
+.toast--error {
+  border-left-color: var(--cx-danger-text);
+}

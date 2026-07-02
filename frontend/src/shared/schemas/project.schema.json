@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "entropic:project",
+  "title": "Entropic .glitch Project File",
+  "description": "Project file schema matching backend schema.py",
+  "type": "object",
+  "required": ["version", "id", "created", "modified", "author", "settings", "assets", "timeline"],
+  "properties": {
+    "version": { "type": "string" },
+    "id": { "type": "string" },
+    "created": { "type": "number" },
+    "modified": { "type": "number" },
+    "author": { "type": "string" },
+    "settings": {
+      "type": "object",
+      "required": ["resolution", "frameRate", "audioSampleRate", "masterVolume", "seed"],
+      "properties": {
+        "resolution": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 1 },
+          "minItems": 2,
+          "maxItems": 2
+        },
+        "frameRate": { "type": "integer", "minimum": 1 },
+        "audioSampleRate": { "type": "integer", "minimum": 1 },
+        "masterVolume": { "type": "number", "minimum": 0, "maximum": 2 },
+        "seed": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "assets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["id", "path", "type", "meta"],
+        "properties": {
+          "id": { "type": "string" },
+          "path": { "type": "string" },
+          "type": { "type": "string", "enum": ["video", "image", "audio"] },
+          "meta": {
+            "type": "object",
+            "required": ["width", "height", "duration", "fps", "codec", "hasAudio"],
+            "properties": {
+              "width": { "type": "integer", "minimum": 0 },
+              "height": { "type": "integer", "minimum": 0 },
+              "duration": { "type": "number", "minimum": 0 },
+              "fps": { "type": "number", "minimum": 0 },
+              "codec": { "type": "string" },
+              "hasAudio": { "type": "boolean" }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "required": ["duration", "tracks", "markers", "loopRegion"],
+      "properties": {
+        "duration": { "type": "number", "minimum": 0 },
+        "tracks": { "type": "array", "items": { "type": "object" } },
+        "markers": { "type": "array", "items": { "type": "object" } },
+        "loopRegion": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["in", "out"],
+              "properties": {
+                "in": { "type": "number", "minimum": 0 },
+                "out": { "type": "number", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

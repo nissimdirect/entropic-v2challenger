@@ -1,0 +1,17 @@
+{
+  "id": "factory-28891441",
+  "name": "Solarize",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.solarize",
+    "parameters": {
+      "threshold": 128
+    },
+    "modulations": {}
+  }
+}

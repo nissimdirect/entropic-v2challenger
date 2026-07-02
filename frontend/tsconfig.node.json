@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "composite": true,
+    "outDir": "./out",
+    "declaration": true,
+    "declarationMap": true,
+    "resolveJsonModule": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/__tests__/main/**/*",
+    "src/shared/**/*",
+    "src/shared/**/*.json",
+    "electron.vite.config.ts"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "id": "factory-6a9a7406",
+  "name": "RGB Split",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.chromatic_aberration",
+    "parameters": {
+      "offset": 5
+    },
+    "modulations": {}
+  }
+}

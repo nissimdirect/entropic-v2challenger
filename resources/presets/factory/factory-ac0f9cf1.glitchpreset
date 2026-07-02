@@ -1,0 +1,17 @@
+{
+  "id": "factory-ac0f9cf1",
+  "name": "Kaleidoscope",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "physics"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.mirror",
+    "parameters": {
+      "axis": "horizontal"
+    },
+    "modulations": {}
+  }
+}

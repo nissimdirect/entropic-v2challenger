@@ -1,0 +1,18 @@
+{
+  "id": "factory-e35ac66a",
+  "name": "Heavy Scan",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "glitch"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.scanlines",
+    "parameters": {
+      "spacing": 2,
+      "intensity": 0.9
+    },
+    "modulations": {}
+  }
+}

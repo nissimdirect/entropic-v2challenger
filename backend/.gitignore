@@ -1,0 +1,8 @@
+# Test artifacts
+.test-manifest.json
+.test-results/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo

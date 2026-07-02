@@ -1,0 +1,352 @@
+/* P6.10 (I2) — Routing Canvas overlay.
+ * Modal overlay: 3 columns (sources / graph / destinations) + bottom edge
+ * inspector strip. Tokens from tokens.css (Pop Chaos / Creatrix design language).
+ * Bright = routed, dim = available. */
+
+.routing-canvas-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000; /* above floating panels (1001) and drop overlays */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 11, 16, 0.66);
+  backdrop-filter: blur(2px);
+}
+
+.routing-canvas {
+  width: min(1180px, 94vw);
+  height: min(760px, 90vh);
+  display: flex;
+  flex-direction: column;
+  background: var(--cx-surface-2);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  color: var(--cx-text-1);
+}
+
+/* ── Title bar ─────────────────────────────────────────────────────────── */
+.routing-canvas__titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--cx-surface-3);
+  border-bottom: 1px solid var(--cx-line-1);
+  flex: 0 0 auto;
+}
+
+.routing-canvas__title {
+  font-size: 12px;
+  color: var(--cx-acid);
+}
+
+.routing-canvas__titlebar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.routing-canvas__stat {
+  font-size: 11px;
+  color: var(--cx-text-2);
+}
+
+.routing-canvas__close {
+  background: transparent;
+  border: none;
+  color: var(--cx-text-2);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.routing-canvas__close:hover {
+  color: var(--cx-text-1);
+  background: var(--cx-surface-4);
+}
+
+/* ── Banners ───────────────────────────────────────────────────────────── */
+.routing-canvas__banner {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  font-size: 11px;
+  background: var(--cx-amber-wash);
+  color: var(--cx-amber);
+  border-bottom: 1px solid var(--cx-line-1);
+}
+.routing-canvas__banner--warn {
+  background: var(--cx-red-wash);
+  color: var(--cx-red-text);
+}
+
+/* ── Body: 3 columns ───────────────────────────────────────────────────── */
+.routing-canvas__body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 260px 1fr 260px;
+  min-height: 0;
+}
+
+.routing-canvas__graph {
+  position: relative;
+  border-left: 1px solid var(--cx-line-1);
+  border-right: 1px solid var(--cx-line-1);
+  background: var(--cx-surface-1);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.routing-canvas__empty-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  font-size: 12px;
+  color: var(--cx-text-3);
+}
+
+/* ── Columns ───────────────────────────────────────────────────────────── */
+.routing-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--cx-surface-2);
+}
+
+.routing-column__header {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--cx-text-2);
+}
+
+.routing-column__search {
+  flex: 0 0 auto;
+  padding: 0 10px 8px;
+}
+
+.routing-column__search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-family: inherit;
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  color: var(--cx-text-1);
+}
+.routing-column__search-input::placeholder {
+  color: var(--cx-text-3);
+}
+.routing-column__search-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.routing-column__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 4px 6px 10px;
+}
+
+.routing-column__empty {
+  padding: 12px;
+  font-size: 11px;
+  color: var(--cx-text-3);
+  text-align: center;
+}
+
+.routing-column__group {
+  margin-bottom: 6px;
+}
+
+.routing-column__group-label {
+  padding: 4px 6px 2px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--cx-text-3);
+}
+
+/* ── Items ─────────────────────────────────────────────────────────────── */
+.routing-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  user-select: none;
+}
+
+.routing-item__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  background: var(--cx-text-3);
+}
+
+.routing-item__label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routing-item__badge {
+  font-size: 8px;
+  color: var(--cx-acid);
+  flex: 0 0 auto;
+}
+
+/* Available (dim) vs routed (bright) */
+.routing-item--available {
+  color: var(--cx-text-3);
+  opacity: 0.7;
+}
+.routing-item--routed {
+  color: var(--cx-text-1);
+  opacity: 1;
+}
+.routing-item--routed .routing-item__dot {
+  background: var(--cx-acid);
+}
+
+.routing-item--draggable {
+  cursor: grab;
+}
+.routing-item--draggable:active {
+  cursor: grabbing;
+}
+.routing-item--draggable:hover {
+  background: var(--cx-surface-4);
+}
+
+/* Destination drop hover */
+.routing-item--destination:hover {
+  background: var(--cx-surface-4);
+}
+
+/* Routed items are click-selectable (opens the edge inspector) */
+.routing-item--selectable {
+  cursor: pointer;
+}
+.routing-item--selectable:hover {
+  background: var(--cx-surface-4);
+}
+
+/* Lane sources are read-only (not draggable) */
+.routing-item--lane .routing-item__dot {
+  background: var(--cx-amber);
+}
+
+/* ── Edge inspector strip ──────────────────────────────────────────────── */
+.routing-edge-inspector {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  height: 54px;
+  padding: 0 16px;
+  background: var(--cx-surface-3);
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.routing-edge-inspector--empty {
+  color: var(--cx-text-3);
+  font-size: 11px;
+}
+
+.routing-edge-inspector__hint {
+  font-size: 11px;
+  color: var(--cx-text-3);
+}
+
+.routing-edge-inspector__title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+.routing-edge-inspector__route {
+  font-size: 12px;
+  color: var(--cx-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.routing-edge-inspector__sub {
+  font-size: 10px;
+  color: var(--cx-text-3);
+}
+
+.routing-edge-inspector__field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.routing-edge-inspector__field label {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--cx-text-2);
+}
+.routing-edge-inspector__field input[type='range'] {
+  width: 120px;
+  accent-color: var(--cx-acid);
+}
+.routing-edge-inspector__value {
+  font-size: 11px;
+  color: var(--cx-text-1);
+  min-width: 48px;
+  font-variant-numeric: tabular-nums;
+}
+
+.routing-edge-inspector__polarity {
+  width: 28px;
+  height: 24px;
+  font-size: 13px;
+  background: var(--cx-surface-4);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  color: var(--cx-text-1);
+  cursor: pointer;
+}
+.routing-edge-inspector__polarity:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.routing-edge-inspector__actions {
+  margin-left: auto;
+}
+.routing-edge-inspector__delete {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-family: inherit;
+  background: transparent;
+  border: 1px solid var(--cx-red-text);
+  border-radius: 4px;
+  color: var(--cx-red-text);
+  cursor: pointer;
+}
+.routing-edge-inspector__delete:hover:not(:disabled) {
+  background: var(--cx-red-wash);
+}
+.routing-edge-inspector__delete:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

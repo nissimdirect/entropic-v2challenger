@@ -1,0 +1,208 @@
+"""Integration test — full loop: ingest -> apply effect -> export -> re-decode -> verify."""
+
+import os
+import tempfile
+
+import numpy as np
+
+from video.ingest import probe
+from video.reader import VideoReader
+from video.writer import VideoWriter
+from effects.fx.invert import apply as invert_apply
+
+
+def test_full_pipeline_ingest_apply_export_verify(synthetic_video_path):
+    """Full loop: ingest a video, apply invert, export, re-decode, verify frames changed."""
+    # 1. Ingest — probe the synthetic video
+    info = probe(synthetic_video_path)
+    assert info["ok"] is True
+    assert info["width"] == 1280
+    assert info["height"] == 720
+
+    # 2. Open reader and decode a frame
+    reader = VideoReader(synthetic_video_path)
+    assert reader.frame_count > 0
+    original_frame = reader.decode_frame(0)
+    assert original_frame.shape == (720, 1280, 4)  # RGBA
+    assert original_frame.dtype == np.uint8
+
+    # 3. Apply invert effect (guaranteed to change any non-127 pixels)
+    processed_frame, state_out = invert_apply(
+        original_frame,
+        {},
+        None,
+        frame_index=0,
+        seed=42,
+        resolution=(1280, 720),
+    )
+    assert processed_frame.shape == original_frame.shape
+    assert processed_frame.dtype == np.uint8
+    # Verify the effect actually changed something in-memory
+    assert not np.array_equal(processed_frame[:, :, :3], original_frame[:, :, :3]), (
+        "invert should modify pixels"
+    )
+
+    # 4. Export to a new video file
+    export_path = tempfile.mktemp(suffix=".mp4")
+    try:
+        writer = VideoWriter(export_path, 1280, 720, fps=30)
+        # Write multiple processed frames
+        for i in range(10):
+            frame = reader.decode_frame(i)
+            out, _ = invert_apply(
+                frame,
+                {},
+                None,
+                frame_index=i,
+                seed=42,
+                resolution=(1280, 720),
+            )
+            writer.write_frame(out)
+        writer.close()
+
+        # 5. Re-decode the exported video and verify it's a valid video
+        assert os.path.exists(export_path)
+        assert os.path.getsize(export_path) > 0
+
+        exported_info = probe(export_path)
+        assert exported_info["ok"] is True
+        assert exported_info["width"] == 1280
+        assert exported_info["height"] == 720
+
+        exported_reader = VideoReader(export_path)
+        exported_frame = exported_reader.decode_frame(0)
+        assert exported_frame.shape == (720, 1280, 4)
+
+        exported_reader.close()
+    finally:
+        reader.close()
+        if os.path.exists(export_path):
+            os.unlink(export_path)
+
+
+def test_registry_has_core_effects():
+    """Verify the registry contains the original core effects plus all ported effects."""
+    from effects.registry import list_all
+
+    effects = list_all()
+    effect_ids = {e["id"] for e in effects}
+    core = {
+        "fx.invert",
+        "fx.hue_shift",
+        "fx.noise",
+        "fx.blur",
+        "fx.posterize",
+        "fx.pixelsort",
+        "fx.edge_detect",
+        "fx.vhs",
+        "fx.wave_distort",
+        "fx.channelshift",
+        "util.levels",
+        "util.curves",
+        "util.hsl_adjust",
+        "util.color_balance",
+        "util.auto_levels",
+    }
+    assert core.issubset(effect_ids), f"Missing core effects: {core - effect_ids}"
+    assert len(effects) >= 62, f"Expected >= 62 effects, got {len(effects)}"
+
+
+def test_adjustments_menu_effect_ids_are_registered():
+    """F-0512-39: Every effect ID surfaced in the renderer Adjustments menu must
+    resolve to a registered effect in the backend, or the menu item silently
+    no-ops when clicked (Color Temperature was wired to `util.color_temperature`
+    while the effect is registered as `fx.color_temperature`)."""
+    from effects.registry import list_all
+
+    registered = {e["id"] for e in list_all()}
+    # Mirror of frontend/src/main/menu.ts Adjustments submenu.
+    # Update this list whenever the menu adds/removes an Adjustments item.
+    menu_effect_ids = {
+        "util.curves",
+        "util.levels",
+        "util.auto_levels",
+        "util.hsl_adjust",
+        "util.color_balance",
+        "fx.color_temperature",
+        "fx.brightness_exposure",
+        "fx.contrast_crush",
+        "fx.saturation_warp",
+        "fx.color_invert",
+        "fx.color_filter",
+        "fx.posterize",
+        "fx.duotone",
+        "fx.false_color",
+        "fx.cyanotype",
+        "fx.infrared",
+        "fx.tape_saturation",
+    }
+    missing = menu_effect_ids - registered
+    assert not missing, (
+        f"Adjustments menu sends IDs not in registry: {sorted(missing)}. "
+        f"Either rename the menu action or add the effect."
+    )
+
+
+def test_all_effects_process_without_crash():
+    """Smoke test: every registered effect can process a small frame without error."""
+    from effects.registry import list_all, get
+
+    frame = np.full((64, 64, 4), 128, dtype=np.uint8)
+    frame[:, :, 3] = 255  # opaque alpha
+
+    for effect_info in list_all():
+        # Skip debug/dev-only effects (e.g. debug.crash) — they are intentionally
+        # broken and are tested in test_effect_harness.py::TestZMQCrashIsolation.
+        # test_effect_harness.py sets APP_ENV=development and registers debug.crash
+        # without restoring the env, so this effect may be visible in the registry
+        # when tests share an xdist worker process.
+        if effect_info.get("category") == "debug" or effect_info["id"].startswith(
+            "debug."
+        ):
+            continue
+
+        entry = get(effect_info["id"])
+        assert entry is not None, f"Effect {effect_info['id']} not found in registry"
+
+        # Use default params
+        default_params = {}
+        for pname, pdef in entry["params"].items():
+            default_params[pname] = pdef["default"]
+
+        result, state = entry["fn"](
+            frame,
+            default_params,
+            None,
+            frame_index=0,
+            seed=42,
+            resolution=(64, 64),
+        )
+        assert result.shape == frame.shape, (
+            f"Effect {effect_info['id']} changed frame shape"
+        )
+        assert result.dtype == np.uint8, (
+            f"Effect {effect_info['id']} changed frame dtype"
+        )
+
+
+def test_effect_determinism():
+    """Same seed + same params = same output for effects that use randomness."""
+    from effects.fx.noise import apply as noise_apply
+    from effects.fx.vhs import apply as vhs_apply
+
+    frame = np.full((64, 64, 4), 128, dtype=np.uint8)
+    frame[:, :, 3] = 255
+
+    for apply_fn, params in [
+        (noise_apply, {"intensity": 0.5}),
+        (vhs_apply, {"tracking": 0.5, "noise": 0.5, "chromatic": 0.3}),
+    ]:
+        result1, _ = apply_fn(
+            frame, params, None, frame_index=0, seed=12345, resolution=(64, 64)
+        )
+        result2, _ = apply_fn(
+            frame, params, None, frame_index=0, seed=12345, resolution=(64, 64)
+        )
+        np.testing.assert_array_equal(
+            result1, result2, err_msg=f"Determinism failed for {apply_fn}"
+        )

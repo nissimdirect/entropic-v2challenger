@@ -1,0 +1,234 @@
+/* B1/B2 — Instruments browser + sampler device. BEM, dark theme. */
+
+/* B2: Instruments browser (RACKS list, draggable items). */
+.instruments-browser {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.instruments-browser__group {
+  color: var(--cx-text-3);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 6px 4px 2px;
+}
+.instruments-browser__item {
+  padding: 7px 10px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-action);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: grab;
+  user-select: none;
+}
+.instruments-browser__item:hover {
+  background: var(--cx-bg-raised);
+  border-color: var(--cx-action);
+}
+.instruments-browser__item:active {
+  cursor: grabbing;
+}
+.instruments-browser__item--disabled {
+  /* a11y: --cx-text-disabled renders ~2.4:1 here — a WCAG fail the DESIGN-SPEC
+     itself flags. Use --cx-text-3 (4.8:1 AA, legible-secondary); the dashed
+     border + not-allowed cursor carry the disabled signal without relying on
+     illegible contrast. "(soon)"/"(no clip)" must stay readable. */
+  color: var(--cx-text-3);
+  border-style: dashed;
+  border-color: var(--cx-line-2);
+  cursor: not-allowed;
+}
+.instruments-browser__item--disabled:hover {
+  background: var(--cx-bg-raised);
+  border-color: var(--cx-line-2);
+}
+
+.instruments-panel {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.instruments-panel__add {
+  width: 100%;
+  padding: 10px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-action);
+  border: 1px dashed var(--cx-action);
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.instruments-panel__add:hover:not(:disabled) {
+  background: var(--cx-bg-raised);
+}
+
+.instruments-panel__add:disabled {
+  color: var(--cx-text-disabled);
+  border-color: var(--cx-line-2);
+  cursor: not-allowed;
+}
+
+.instruments-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.instruments-panel__title {
+  color: var(--cx-action);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.instruments-panel__remove {
+  background: transparent;
+  color: var(--cx-danger-text);
+  border: 1px solid var(--cx-danger-text);
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.instruments-panel__remove:hover {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.sampler-device {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-1);
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.sampler-device__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--cx-text-1);
+}
+
+.sampler-device__row input,
+.sampler-device__row select {
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-1);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-family: inherit;
+  font-size: 12px;
+  max-width: 120px;
+}
+
+/* B8 — Granulator device (P5b.19). BEM, dark theme tokens. */
+
+.granulator-device {
+  /* Inherits .sampler-device layout (flex-col, gap, bg, border, padding). */
+}
+
+.granulator-device__viz-row {
+  display: flex;
+  justify-content: center;
+}
+
+.granulator-device__viz-canvas {
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  background: var(--cx-bg-app);
+  display: block;
+  /* Fixed height so the canvas doesn't collapse; width flexible. */
+  height: 80px;
+  width: 100%;
+  max-width: 240px;
+}
+
+.granulator-device__unit {
+  color: var(--cx-text-3);
+  font-size: 10px;
+}
+
+.granulator-device__gated-note {
+  color: var(--cx-text-3);
+  font-size: 10px;
+  font-style: italic;
+}
+
+/* Axes block — each axis row stacks its 4 knobs horizontally. */
+.granulator-device__axes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.granulator-device__axis-row {
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  padding: 5px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.granulator-device__axis-row--gated {
+  opacity: 0.45;
+  border-style: dashed;
+}
+
+.granulator-device__axis-label {
+  font-size: 10px;
+  color: var(--cx-action);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+/* Per-knob label row within an axis: label | range-input | readout. */
+.granulator-device__knob-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--cx-text-1);
+}
+
+.granulator-device__knob-label span:first-child {
+  /* Fixed-width label column for alignment. */
+  min-width: 48px;
+  color: var(--cx-text-3);
+}
+
+.granulator-device__knob-label input[type="range"] {
+  flex: 1;
+  min-width: 60px;
+  max-width: none;
+  accent-color: var(--cx-action);
+}
+
+.granulator-device__knob-label input[type="range"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.granulator-device__knob-label span:last-child {
+  /* Readout value — fixed-width so layout is stable. */
+  min-width: 30px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 10px;
+  color: var(--cx-text-2);
+}

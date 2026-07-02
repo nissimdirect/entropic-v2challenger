@@ -1,0 +1,18 @@
+{
+  "id": "factory-9c63a5e8",
+  "name": "Underexpose",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.levels",
+    "parameters": {
+      "black": 0.5,
+      "gamma": 0.3
+    },
+    "modulations": {}
+  }
+}

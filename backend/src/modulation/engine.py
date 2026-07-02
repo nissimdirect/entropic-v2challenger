@@ -1,0 +1,712 @@
+"""Signal engine orchestrator — evaluates all operators and resolves routings."""
+
+import time
+import logging
+from dataclasses import dataclass, field
+from typing import Callable
+
+from modulation.lfo import evaluate_lfo
+from modulation.kentaro_cluster import evaluate_kentaro_cluster
+from modulation.envelope import evaluate_envelope
+from modulation.step_sequencer import evaluate_step_seq
+from modulation.audio_follower import evaluate_audio
+from modulation.video_analyzer import downscale_proxy, evaluate_video_analyzer
+from modulation.fusion import evaluate_fusion
+from modulation.sidechain import evaluate_sidechain
+from modulation.gate import evaluate_gate
+from modulation.midi_env_stutter import evaluate_midi_env_stutter
+from modulation.processor import process_signal
+from modulation.routing import resolve_routings
+
+# P4.1: import authoritative cap from security (qa-redteam M2).
+# Mirrors frontend/src/shared/limits.ts:LIMITS.MAX_OPERATORS (= 64).
+from security import MAX_OPERATORS_PER_PROJECT
+
+logger = logging.getLogger(__name__)
+
+MAX_OPERATORS = MAX_OPERATORS_PER_PROJECT  # 64; was 16 before P4.1
+
+
+@dataclass(frozen=True)
+class CycleBreakDecision:
+    """Snapshot of a deterministic cycle-break for a given operator graph.
+
+    P5b.8 (SG-5 part B): The cycle-break decision (surviving edge set +
+    removed edge ids) is computed ONCE per export job and injected into
+    every per-frame ``topological_sort_with_runtime`` call so the cyclic
+    graph produces the SAME evaluation order for ALL frames of one export.
+
+    ``survivor_edges``: the (src_idx, dst_idx) pairs surviving after
+      ``break_cycles`` removed the lex-smallest edges; used to call
+      ``_sort_with_edge_set`` instead of re-running ``break_cycles``.
+    ``removed_edge_ids``: edge ids that were removed (for warning emission).
+    ``has_cycle``: True iff a cycle was detected and broken; False for
+      acyclic graphs (fast-path, no injection needed).
+
+    Immutable (frozen dataclass) — safe to share across threads.
+    """
+
+    has_cycle: bool
+    survivor_edges: frozenset[tuple[int, int]] = field(default_factory=frozenset)
+    removed_edge_ids: tuple[str, ...] = field(default_factory=tuple)
+
+
+class ModulationCycleError(Exception):
+    """Raised when the operator routing graph contains a cycle (INJ-2).
+
+    Previously the engine silently fell back to declaration order (stale 0.0
+    reads). Raising makes the cycle explicit so the caller can choose a policy.
+    SG-5 (this packet) catches it and applies a deterministic cycle-break
+    (lex-smallest edge) — the declaration-order degrade is gone.
+    B9 tensor routing + SG-5 depend on this being an explicit, typed failure.
+    """
+
+    def __init__(self, unresolved_ids: list[str]):
+        self.unresolved_ids = unresolved_ids
+        super().__init__(
+            "Modulation routing graph contains a cycle; unresolved operators: "
+            + ", ".join(str(x) for x in unresolved_ids)
+        )
+
+
+def _topological_sort(active_ops: list[dict]) -> list[dict]:
+    """Order operators so source operators evaluate before their consumers.
+
+    Any operator may read another operator's value via
+    `parameters.sources[].operator_id` (Fusion today; B9 tensor routing later) —
+    this walks ALL such operator-to-operator edges, not just Fusion (INJ-2).
+
+    Stable: preserves declaration order for operators with no dependencies.
+    Raises `ModulationCycleError` if the graph contains a cycle (INJ-2); the
+    caller decides the policy (graceful degrade today, SG-5 deterministic break).
+    """
+    n = len(active_ops)
+    if n <= 1:
+        return active_ops
+
+    op_idx: dict[str, int] = {}
+    for i, op in enumerate(active_ops):
+        op_id = op.get("id", "")
+        if op_id and op_id not in op_idx:
+            op_idx[op_id] = i
+
+    # deps[i] = set of declaration indices that op i depends on
+    deps: list[set[int]] = [set() for _ in range(n)]
+    for i, op in enumerate(active_ops):
+        # Walk operator-to-operator edges on ANY operator, not just Fusion —
+        # B9 tensor routing introduces non-Fusion cross-operator sources (INJ-2).
+        params = op.get("parameters", op.get("params", {}))
+        sources = params.get("sources", [])
+        if not isinstance(sources, list):
+            continue
+        for src in sources:
+            if not isinstance(src, dict):
+                continue
+            src_id = src.get("operator_id", "")
+            j = op_idx.get(src_id)
+            if j is not None and j != i:
+                deps[i].add(j)
+
+    # Stable Kahn's algorithm: ready set kept sorted by declaration index
+    in_degree = [len(d) for d in deps]
+    ready = sorted(i for i in range(n) if in_degree[i] == 0)
+    ordered: list[int] = []
+    while ready:
+        i = ready.pop(0)
+        ordered.append(i)
+        for j in range(n):
+            if i in deps[j]:
+                deps[j].discard(i)
+                in_degree[j] -= 1
+                if in_degree[j] == 0:
+                    # Insert preserving sort
+                    pos = 0
+                    while pos < len(ready) and ready[pos] < j:
+                        pos += 1
+                    ready.insert(pos, j)
+
+    if len(ordered) < n:
+        resolved = set(ordered)
+        unresolved = [
+            active_ops[i].get("id", f"<idx {i}>") for i in range(n) if i not in resolved
+        ]
+        raise ModulationCycleError(unresolved)
+
+    return [active_ops[i] for i in ordered]
+
+
+def _sort_with_edge_set(
+    active_ops: list[dict], edge_pairs: set[tuple[str, int]]
+) -> list[dict]:
+    """Stable Kahn's sort using an EXPLICIT (source_idx, consumer_idx) edge set.
+
+    Unlike ``_topological_sort`` (which derives edges from the operator dicts),
+    this consumes a pre-computed dependency set — used after ``break_cycles`` has
+    removed the lex-smallest edges, so the remaining set is acyclic by
+    construction. Preserves declaration order for ready operators (determinism).
+    """
+    n = len(active_ops)
+    deps: list[set[int]] = [set() for _ in range(n)]
+    for src_idx, dst_idx in edge_pairs:
+        if 0 <= src_idx < n and 0 <= dst_idx < n and src_idx != dst_idx:
+            deps[dst_idx].add(src_idx)
+
+    in_degree = [len(d) for d in deps]
+    ready = sorted(i for i in range(n) if in_degree[i] == 0)
+    ordered: list[int] = []
+    while ready:
+        i = ready.pop(0)
+        ordered.append(i)
+        for j in range(n):
+            if i in deps[j]:
+                deps[j].discard(i)
+                in_degree[j] -= 1
+                if in_degree[j] == 0:
+                    pos = 0
+                    while pos < len(ready) and ready[pos] < j:
+                        pos += 1
+                    ready.insert(pos, j)
+
+    # The broken graph is acyclic, but be defensive: append any stragglers in
+    # declaration order so the render never drops an operator.
+    if len(ordered) < n:
+        seen = set(ordered)
+        ordered.extend(i for i in range(n) if i not in seen)
+
+    return [active_ops[i] for i in ordered]
+
+
+def compute_cycle_break_decision(operators: list[dict]) -> "CycleBreakDecision":
+    """Compute the cycle-break decision for an operator list ONCE (P5b.8).
+
+    Runs ``_topological_sort`` → on a cycle, builds the RoutingGraph, calls
+    ``break_cycles``, and captures the surviving edge set + removed ids.
+    For acyclic graphs, returns a decision with ``has_cycle=False`` (fast path,
+    no extra work per frame). This is called ONCE at export-job start so the
+    same break applies to every frame of the job (SPEC-3 §4.2 determinism tail).
+
+    The result is a frozen ``CycleBreakDecision`` — safe to share across threads.
+    """
+    capped = operators[:MAX_OPERATORS]
+    try:
+        _topological_sort(capped)
+        # No cycle — acyclic decision.
+        return CycleBreakDecision(has_cycle=False)
+    except ModulationCycleError:
+        pass
+
+    from modulation.graph_adapter import (
+        operators_to_routing_graph,
+        remaining_source_edges,
+    )
+    from safety.cycle_detection import break_cycles
+
+    # Build index map for the capped list.
+    op_idx: dict[str, int] = {}
+    for i, op in enumerate(capped):
+        oid = op.get("id", "")
+        if oid and oid not in op_idx:
+            op_idx[oid] = i
+
+    graph = operators_to_routing_graph(capped)
+    removed = break_cycles(graph)
+
+    # Translate surviving (src_id, dst_id) to (src_decl_idx, dst_decl_idx).
+    survivors: frozenset[tuple[int, int]] = frozenset(
+        (op_idx[s], op_idx[d])
+        for s, d in remaining_source_edges(graph)
+        if s in op_idx and d in op_idx
+    )
+
+    return CycleBreakDecision(
+        has_cycle=True,
+        survivor_edges=survivors,
+        removed_edge_ids=tuple(removed),
+    )
+
+
+def topological_sort_with_runtime(
+    operators: list[dict],
+    runtime_context=None,
+    precomputed_break: "CycleBreakDecision | None" = None,
+) -> list[dict]:
+    """Runtime-aware topological sort with deterministic cycle-break (SG-5 part A).
+
+    SPEC-3 §4.2 (A+B) + §4.4:
+
+    1. Runtime-conditional edges (painted/learned — none implemented yet, so the
+       seam takes a predicate via ``RuntimeContext``) are evaluated FIRST. Folded
+       into the operator graph BEFORE the static snapshot (§4.3).
+    2. Static-only graphs (no active runtime-conditional edges) bypass straight
+       to the existing ``_topological_sort`` fast path, UNCHANGED (§4.4).
+    3. On a cycle, the engine no longer degrades to declaration order. It builds
+       a ``RoutingGraph`` (via ``graph_adapter``), runs ``break_cycles``
+       (deterministic lex-smallest edge removal), and re-sorts in the broken
+       order. Same cycle → same break across runs (determinism).
+
+    P5b.8 export-path injection: when ``precomputed_break`` is supplied and
+    ``has_cycle`` is True, the per-frame sort SKIPS the RoutingGraph build and
+    ``break_cycles`` call — it uses the pre-computed ``survivor_edges`` directly.
+    This guarantees the same break for every frame of one export job AND avoids
+    re-running cycle detection per frame (perf gate: <16ms).
+
+    Live-render path (``precomputed_break=None``) is byte-identical to before —
+    no behavioral change for the preview path.
+
+    Returns operators in a valid evaluation order. The ``_topological_sort`` raise
+    semantics (INJ-2) are untouched — this wrapper CATCHES the raise and resolves
+    it; it never changes when/how the static sort raises.
+    """
+    # P5b.8: inject path — skip cycle detection, reuse precomputed edge set.
+    if precomputed_break is not None and precomputed_break.has_cycle:
+        return _sort_with_edge_set(
+            operators[:MAX_OPERATORS], precomputed_break.survivor_edges
+        )
+
+    # SG-5 seam guard (P5b.7 fast-follow, task #83):
+    # Evaluate runtime-conditional-edge state inside a try/except so that any
+    # failure (missing attr, raising predicate, garbage context) degrades to the
+    # deterministic static sort instead of crashing the render frame.
+    # Logged ONCE per bad context (one-shot warn); never swallowed silently
+    # (feedback_silent-exception-swallowing).
+    # When runtime_context is None the guard is bypassed entirely — zero overhead
+    # on the hot static path.
+    has_runtime = False
+    augmented = operators
+    if runtime_context is not None:
+        try:
+            has_runtime = bool(
+                getattr(runtime_context, "has_runtime_conditional_edges", False)
+            )
+            # §4.3: evaluate runtime-conditional edges FIRST, fold the active ones
+            # into the graph snapshot used for the sort. (Seam — no edge kinds
+            # implemented yet; predicate-driven. When inactive, this is a no-op and
+            # we fast-path.)
+            # §4.4: static-only graphs (has_runtime False) skip the fold entirely
+            # and hit the existing _topological_sort fast path unchanged.
+            if has_runtime:
+                active = runtime_context.active_conditional_edges()
+                if active:
+                    augmented = _fold_conditional_edges(operators, active)
+        except Exception as exc:  # noqa: BLE001
+            # One-shot warn per actual RuntimeContext INSTANCE (not per CPython
+            # id() address, which is recycled after GC and causes false
+            # suppression across distinct objects). Use a guarded setattr so
+            # the flag travels with the object regardless of address reuse.
+            if not getattr(runtime_context, "_seam_warned", False):
+                try:
+                    runtime_context._seam_warned = True  # type: ignore[attr-defined]
+                except (AttributeError, TypeError):
+                    # setattr blocked (e.g. __slots__ without _seam_warned or a
+                    # C-extension type): fall back to always-log rather than crash.
+                    pass
+                logger.warning(
+                    "SG-5 seam guard: malformed/raising RuntimeContext degraded to"
+                    " static sort (logged once per context). reason=%r",
+                    exc,
+                )
+            has_runtime = False
+            augmented = operators
+
+    try:
+        return _topological_sort(augmented)
+    except ModulationCycleError as exc:
+        # SG-5 part B: deterministic cycle-break replaces declaration-order degrade.
+        return _break_and_resort(augmented, exc)
+
+
+def _fold_conditional_edges(
+    operators: list[dict], active_edges: list[dict]
+) -> list[dict]:
+    """Return a shallow copy of ``operators`` with active conditional edges added.
+
+    Each active edge descriptor (``{"src": consumer_id, "operator_id": source_id}``
+    or ``{"dst": ..., "src": ...}``) is appended to the consumer operator's
+    ``parameters.sources`` so the downstream static sort + adapter see it as a
+    real dependency. Descriptors that don't name a present consumer are ignored.
+    """
+    by_id: dict[str, int] = {}
+    for i, op in enumerate(operators):
+        oid = op.get("id", "")
+        if oid and oid not in by_id:
+            by_id[oid] = i
+
+    # Deep-enough copy: clone the consumer ops we mutate + their sources lists.
+    result = list(operators)
+    for edge in active_edges:
+        consumer_id = edge.get("dst", edge.get("consumer_id", ""))
+        source_id = edge.get("src", edge.get("operator_id", ""))
+        if not consumer_id or not source_id:
+            continue
+        idx = by_id.get(consumer_id)
+        if idx is None:
+            continue
+        op = dict(result[idx])
+        params = dict(op.get("parameters", op.get("params", {})) or {})
+        sources = list(params.get("sources", []))
+        sources.append({"operator_id": source_id})
+        params["sources"] = sources
+        op["parameters"] = params
+        result[idx] = op
+        by_id[consumer_id] = idx  # index unchanged; result list mutated in place
+
+    return result
+
+
+def _break_and_resort(operators: list[dict], exc: ModulationCycleError) -> list[dict]:
+    """Deterministically break the cycle and re-sort (SPEC-3 §4.2 B).
+
+    Builds a RoutingGraph, removes lex-smallest edges until acyclic, then re-runs
+    a stable Kahn sort over the SURVIVING dependency edges. The declaration-order
+    degrade path is GONE — affected consumers now evaluate in a real, broken
+    order instead of reading 0.0.
+    """
+    from modulation.graph_adapter import (
+        operators_to_routing_graph,
+        remaining_source_edges,
+    )
+    from safety.cycle_detection import break_cycles
+
+    op_idx: dict[str, int] = {}
+    for i, op in enumerate(operators):
+        oid = op.get("id", "")
+        if oid and oid not in op_idx:
+            op_idx[oid] = i
+
+    graph = operators_to_routing_graph(operators)
+    removed = break_cycles(graph)
+    logger.warning(
+        "SG-5: %s — broke cycle deterministically by removing edge(s) %s",
+        exc,
+        removed,
+    )
+
+    # Map the surviving (source_id, consumer_id) edges back to declaration indices.
+    survivors: set[tuple[str, int]] = set()
+    for src_id, dst_id in remaining_source_edges(graph):
+        si = op_idx.get(src_id)
+        di = op_idx.get(dst_id)
+        if si is not None and di is not None:
+            survivors.add((si, di))
+
+    return _sort_with_edge_set(operators, survivors)
+
+
+class SignalEngine:
+    """Evaluates all operators and applies modulation to an effect chain."""
+
+    # P4.1: render-budget guard state — rate-limit budget warnings to once/sec,
+    # and track the degrade flag so the NEXT frame can skip video_analyzer proxies.
+    # Skipping the proxy is the cheapest lossy fallback: video_analyzer is the only
+    # op that processes raw frame data; skipping keeps LFOs/envelopes/etc. intact.
+    _budget_warn_last_t: float = 0.0
+    _degrade_next_frame: bool = False
+    # F4: injectable time source for the budget guard (default = real clock).
+    # builtin_function_or_method has no __get__, so this is not bound as a
+    # method — `self._clock()` calls it with zero args, same as time.perf_counter().
+    # Tests may set `engine._clock = fake_fn` for deterministic elapsed-time control.
+    _clock: Callable[[], float] = time.perf_counter
+
+    def evaluate_all(
+        self,
+        operators: list[dict],
+        frame_index: int,
+        fps: float,
+        audio_pcm=None,
+        audio_sample_rate: int = 44100,
+        video_frame=None,
+        state: dict | None = None,
+        bpm: float = 120.0,
+        runtime_context=None,
+        precomputed_break: "CycleBreakDecision | None" = None,
+    ) -> tuple[dict[str, float], dict]:
+        """Evaluate all operators and return their signal values.
+
+        Args:
+            operators: List of operator config dicts.
+            frame_index: Current frame number.
+            fps: Frames per second.
+            audio_pcm: Optional audio samples for audio follower.
+            audio_sample_rate: Audio sample rate.
+            video_frame: Optional numpy array (HxWx3 uint8) for video analyzer.
+            state: Persistent state dict keyed by operator id.
+            bpm: Host tempo, passed to bpm_sync-enabled operators (P4.2
+                kentaroCluster). Defaults to 120.0.
+            precomputed_break: P5b.8 (SG-5 part B) — optional pre-computed
+                cycle-break decision computed ONCE at export-job start. When
+                supplied and ``has_cycle`` is True, skips per-frame cycle
+                detection and reuses the snapshot edge set (perf + determinism).
+                ``None`` (default) → live-render path, byte-identical to before.
+
+        Returns:
+            (operator_values, new_state) where operator_values maps op_id -> float.
+        """
+        if state is None:
+            state = {}
+
+        values: dict[str, float] = {}
+
+        # P4.1: render-budget guard — if the previous frame overran 16ms, suppress
+        # video_analyzer proxy evaluation on this frame (skip the downscale).
+        # video_frame still flows through for consistency; only the proxy is skipped.
+        effective_video_frame = None if self._degrade_next_frame else video_frame
+        self._degrade_next_frame = False  # reset; re-set below if this frame overruns
+
+        # Cap at MAX_OPERATORS, then topo-sort so source operators resolve before
+        # their consumers (otherwise consumers read 0.0 silently).
+        # SG-5 (SPEC-3 §4.2): runtime-aware sort. Static-only graphs hit the
+        # existing _topological_sort fast path inside this wrapper; cycles are
+        # broken deterministically (lex-smallest edge) instead of degrading to
+        # declaration order. The declaration-order fallback is GONE.
+        # P5b.8: pass precomputed_break to skip per-frame cycle detection on the
+        # export path — same break for every frame of one export job.
+        active_ops = topological_sort_with_runtime(
+            operators[:MAX_OPERATORS], runtime_context, precomputed_break
+        )
+
+        _eval_start = self._clock()
+
+        for op in active_ops:
+            op_id = op.get("id", "")
+            op_type = op.get("type", "")
+            is_enabled = op.get("is_enabled", op.get("isEnabled", True))
+
+            if not is_enabled or not op_id:
+                continue
+
+            params = op.get("parameters", op.get("params", {}))
+            processing = op.get("processing", [])
+            op_state = state.get(op_id, {})
+
+            try:
+                if op_type == "lfo":
+                    value, op_state = evaluate_lfo(
+                        waveform=str(params.get("waveform", "sine")),
+                        rate_hz=float(params.get("rate_hz", 1.0)),
+                        phase_offset=float(params.get("phase_offset", 0.0)),
+                        frame_index=frame_index,
+                        fps=fps,
+                        state_in=op_state,
+                    )
+                elif op_type == "envelope":
+                    value, op_state = evaluate_envelope(
+                        trigger=bool(params.get("trigger", False)),
+                        attack=float(params.get("attack", 0)),
+                        decay=float(params.get("decay", 0)),
+                        sustain=float(params.get("sustain", 1.0)),
+                        release=float(params.get("release", 0)),
+                        frame_index=frame_index,
+                        state_in=op_state,
+                    )
+                elif op_type == "step_sequencer":
+                    steps = params.get("steps", [])
+                    if not isinstance(steps, list):
+                        steps = []
+                    value = evaluate_step_seq(
+                        steps=[float(s) for s in steps],
+                        rate_hz=float(params.get("rate_hz", 1.0)),
+                        frame_index=frame_index,
+                        fps=fps,
+                    )
+                    # Step seq is stateless
+                elif op_type == "audio_follower":
+                    value, op_state = evaluate_audio(
+                        pcm=audio_pcm,
+                        method=str(params.get("method", "rms")),
+                        params=params,
+                        sample_rate=audio_sample_rate,
+                        state_in=op_state,
+                    )
+                elif op_type == "video_analyzer":
+                    method = str(params.get("method", "luminance"))
+                    # P4.1: use effective_video_frame (None when degrading last frame)
+                    if effective_video_frame is not None:
+                        proxy = downscale_proxy(effective_video_frame)
+                    else:
+                        proxy = None
+                    value, op_state = evaluate_video_analyzer(
+                        method=method,
+                        proxy=proxy,
+                        state_in=op_state,
+                    )
+                elif op_type == "fusion":
+                    fusion_sources = params.get("sources", [])
+                    if not isinstance(fusion_sources, list):
+                        fusion_sources = []
+                    blend = str(params.get("blend_mode", "weighted_average"))
+                    value = evaluate_fusion(
+                        sources=fusion_sources,
+                        operator_values=values,
+                        blend_mode=blend,
+                    )
+                elif op_type == "kentaroCluster":
+                    # P4.2: 8-LFO cluster. Returns {'': master_mix, 'lfo{i}': v}.
+                    # Master mix becomes this op's value (values[op_id] below);
+                    # each sub-LFO is exposed at values[f"{op_id}/lfo{i}"] so a
+                    # mapping source_key can address one sub-LFO. The '/' can't
+                    # collide: op ids are `op-{ts}-{n}` (no slash).
+                    cluster_vals, op_state = evaluate_kentaro_cluster(
+                        params=params,
+                        frame_index=frame_index,
+                        fps=fps,
+                        bpm=bpm,
+                        state_in=op_state,
+                    )
+                    value = cluster_vals.get("", 0.0)
+                    for sub_key, sub_val in cluster_vals.items():
+                        if sub_key == "":
+                            continue
+                        values[f"{op_id}/{sub_key}"] = sub_val
+                elif op_type == "sidechain":
+                    # P4.3: amplitude follower via the shared RMS kernel.
+                    # v1 keys off PROJECT audio only (source_track_id reserved).
+                    value, op_state = evaluate_sidechain(
+                        pcm=audio_pcm,
+                        params=params,
+                        sample_rate=audio_sample_rate,
+                        state_in=op_state,
+                    )
+                elif op_type == "gate":
+                    # P4.3: threshold a source operator's value. Reads the
+                    # already-evaluated `values` dict (mirrors fusion) — the
+                    # toposort guarantees the source resolved first.
+                    value, op_state = evaluate_gate(
+                        params=params,
+                        operator_values=values,
+                        state_in=op_state,
+                    )
+                elif op_type == "midiEnvStutter":
+                    # P4.3: retriggerable ADSR via the shared envelope kernel.
+                    value, op_state = evaluate_midi_env_stutter(
+                        params=params,
+                        frame_index=frame_index,
+                        state_in=op_state,
+                    )
+                else:
+                    # Unknown operator type — evaluates to 0.0 without crashing.
+                    value = 0.0
+
+                # Apply processing chain (thread state for smooth/slew)
+                if processing:
+                    proc_state = (op_state or {}).get("_proc", None)
+                    value, proc_state = process_signal(value, processing, proc_state)
+                    if op_state is None:
+                        op_state = {}
+                    op_state["_proc"] = proc_state
+
+                values[op_id] = value
+                state[op_id] = op_state if isinstance(op_state, dict) else {}
+
+            except Exception:
+                logger.warning(
+                    "Operator %s (%s) failed, skipping", op_id, op_type, exc_info=True
+                )
+                values[op_id] = 0.0
+
+        # P4.1: render-budget guard — warn (rate-limited to 1/sec) and set degrade
+        # flag for the next frame if eval exceeded 16ms.
+        _eval_elapsed = self._clock() - _eval_start
+        _BUDGET_MS = 0.016  # 16ms
+        if _eval_elapsed > _BUDGET_MS:
+            _now = self._clock()
+            if _now - self._budget_warn_last_t >= 1.0:
+                logger.warning(
+                    "SignalEngine.evaluate_all exceeded 16ms budget: %.1fms "
+                    "(frame %d, %d operators). Degrading next frame.",
+                    _eval_elapsed * 1000,
+                    frame_index,
+                    len(active_ops),
+                )
+                self._budget_warn_last_t = _now
+            self._degrade_next_frame = True
+
+        return values, state
+
+    def apply_modulation(
+        self,
+        operators: list[dict],
+        operator_values: dict[str, float],
+        chain: list[dict],
+        effect_registry_fn=None,
+        automation_overrides: dict[str, float] | None = None,
+    ) -> list[dict]:
+        """Apply operator modulation values to an effect chain.
+
+        Signal order: Base → +OpMod → AutoReplace → Clamp.
+        Delegates operator modulation to routing.resolve_routings,
+        then applies automation overrides (replace, not add).
+
+        Probe recording (P6.7):
+          Probe IDs follow the convention  "<effect_id>:<param_key>:<kind>"
+          where kind is one of param_input / param_postmod / mod_amount.
+          record() is a guard-gated no-op when the inspector is not mounted
+          or no probe is registered for that id — zero cost when inactive.
+        """
+        # P6.7 probe recording — guarded by is_mounted() at the top level.
+        # When inspector is not mounted: one attr check, then straight to
+        # resolve_routings — zero per-frame overhead (no pre_mod copy, no loops).
+        from inspector.registry import global_probe_registry
+
+        _registry = global_probe_registry()
+        _probing = _registry.is_mounted()
+
+        # Snapshot pre-mod values for param_input + mod_amount probes.
+        # Only built when the inspector is mounted (guard above).
+        pre_mod: dict[str, dict[str, float]] = {}
+        if _probing:
+            for effect in chain:
+                eid = effect.get("effect_id", "")
+                if eid:
+                    pre_mod[eid] = dict(effect.get("params", {}))
+
+        modulated = resolve_routings(
+            operator_values, operators, chain, effect_registry_fn
+        )
+
+        # --- P6.7 probe sites 1 (param_input) + 3 (mod_amount) ---
+        if _probing:
+            for effect in modulated:
+                eid = effect.get("effect_id", "")
+                if not eid:
+                    continue
+                params_after_op = effect.get("params", {})
+                params_before = pre_mod.get(eid, {})
+                for param_key, postop_val in params_after_op.items():
+                    input_val = params_before.get(param_key, postop_val)
+                    _registry.record(f"{eid}:{param_key}:param_input", float(input_val))
+                    mod_delta = float(postop_val) - float(input_val)
+                    _registry.record(f"{eid}:{param_key}:mod_amount", mod_delta)
+
+        # Phase 7: Apply automation overrides AFTER operator modulation
+        if automation_overrides:
+            from modulation.routing import _get_param_bounds
+
+            for effect in modulated:
+                eid = effect.get("effect_id", "")
+                if not eid:
+                    continue
+                params = effect.get("params", {})
+                for param_key in list(params.keys()):
+                    override_key = f"{eid}.{param_key}"
+                    if override_key in automation_overrides:
+                        value = automation_overrides[override_key]
+                        if not isinstance(value, (int, float)):
+                            continue
+                        # Clamp to param bounds
+                        p_min, p_max = _get_param_bounds(
+                            eid, param_key, effect_registry_fn
+                        )
+                        params[param_key] = max(p_min, min(p_max, float(value)))
+
+        # --- P6.7 probe site 2 (param_postmod) — after ALL modulation applied ---
+        if _probing:
+            for effect in modulated:
+                eid = effect.get("effect_id", "")
+                if not eid:
+                    continue
+                for param_key, final_val in effect.get("params", {}).items():
+                    _registry.record(
+                        f"{eid}:{param_key}:param_postmod", float(final_val)
+                    )
+
+        return modulated

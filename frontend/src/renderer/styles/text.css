@@ -1,0 +1,270 @@
+/* Text panel — sidebar for text clip properties */
+
+.text-panel {
+  padding: 12px;
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.text-panel__header {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--cx-text-2);
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.text-panel__section {
+  margin-bottom: 10px;
+}
+
+.text-panel__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--cx-text-2);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.text-panel__value {
+  color: var(--cx-action);
+  float: right;
+}
+
+.text-panel__textarea {
+  width: 100%;
+  padding: 6px 8px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 4px;
+  color: var(--cx-text-1);
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+  outline: none;
+  min-height: 48px;
+}
+
+.text-panel__textarea:focus {
+  border-color: var(--cx-action);
+}
+
+.text-panel__select {
+  width: 100%;
+  padding: 5px 8px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 4px;
+  color: var(--cx-text-1);
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+  cursor: pointer;
+}
+
+.text-panel__select:focus {
+  border-color: var(--cx-action);
+}
+
+.text-panel__row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.text-panel__field {
+  flex: 1;
+}
+
+.text-panel__number {
+  width: 100%;
+  padding: 4px 6px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-1);
+  font-family: inherit;
+  font-size: 11px;
+  text-align: center;
+  outline: none;
+}
+
+.text-panel__number:focus {
+  border-color: var(--cx-action);
+}
+
+.text-panel__color {
+  width: 100%;
+  height: 26px;
+  padding: 0;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.text-panel__color::-webkit-color-swatch-wrapper {
+  padding: 2px;
+}
+
+.text-panel__color::-webkit-color-swatch {
+  border: none;
+  border-radius: 2px;
+}
+
+.text-panel__alignment {
+  display: flex;
+  gap: 2px;
+}
+
+.text-panel__align-btn {
+  flex: 1;
+  padding: 4px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
+  color: var(--cx-text-2);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.text-panel__align-btn:hover {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
+}
+
+.text-panel__align-btn--active {
+  background: var(--cx-action);
+  color: var(--cx-bg-panel);
+  border-color: var(--cx-action);
+}
+
+.text-panel__slider {
+  width: 100%;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--cx-bg-raised);
+  border-radius: 2px;
+  outline: none;
+}
+
+.text-panel__slider:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+.text-panel__slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 12px;
+  height: 12px;
+  background: var(--cx-action);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.text-panel__divider {
+  height: 1px;
+  background: var(--cx-bg-raised);
+  margin: 12px 0;
+}
+
+/* Text overlay — draggable bounding box on preview canvas */
+
+.text-overlay {
+  position: absolute;
+  cursor: move;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+.text-overlay--dragging {
+  cursor: grabbing;
+}
+
+.text-overlay--editing {
+  cursor: text;
+}
+
+.text-overlay__box {
+  border: 1px dashed rgba(74, 222, 128, 0.5);
+  border-radius: 2px;
+  padding: 4px 8px;
+  min-width: 40px;
+  min-height: 20px;
+  background: rgba(0, 0, 0, 0.2);
+  transition: border-color 0.15s;
+}
+
+.text-overlay:hover .text-overlay__box {
+  border-color: var(--cx-action);
+}
+
+.text-overlay--editing .text-overlay__box {
+  border-style: solid;
+  border-color: var(--cx-action);
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.text-overlay__preview {
+  font-family: sans-serif;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+}
+
+.text-overlay__edit {
+  font-family: sans-serif;
+  outline: none;
+  min-width: 60px;
+  white-space: pre-wrap;
+}
+
+.text-overlay__edit:focus {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+/* Timeline text track icon */
+
+.timeline-track__icon--text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: var(--cx-selection);
+  color: var(--cx-text-1);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+/* Add Text Track button variant */
+
+.timeline__add-track-btn--text {
+  background: var(--cx-selection);
+  border-color: var(--cx-selection);
+  color: var(--cx-text-1);
+}
+
+.timeline__add-track-btn--text:hover {
+  background: var(--cx-selection);
+}
+
+/* Timeline text clip appearance */
+
+.clip--text {
+  background: linear-gradient(135deg, var(--cx-selection) 0%, var(--cx-selection) 100%);
+  border: 1px solid var(--cx-selection);
+}
+
+.clip__name--text {
+  font-style: italic;
+}

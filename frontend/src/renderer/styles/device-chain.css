@@ -1,0 +1,501 @@
+/* --- Device Chain (Phase 13 — Ableton-style horizontal strip) --- */
+
+.device-chain {
+  background: var(--cx-bg-panel);
+  border-top: 1px solid var(--cx-selection);
+  display: flex;
+  flex-direction: column;
+  min-height: 100px;
+  max-height: 600px;
+  overflow: hidden;
+  position: relative;
+}
+
+.device-chain__resize-handle {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  cursor: ns-resize;
+  z-index: 10;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.device-chain__resize-handle:hover,
+.device-chain__resize-handle:active {
+  background: rgba(155, 123, 181, 0.5);
+}
+
+/* F-0514-7: drag-target affordance. Tinted background + accent border tell the
+   user the drop will land here. Brief enough to feel like a state, not a flash. */
+.device-chain--drag-over {
+  background: var(--cx-bg-raised);
+  outline: 2px dashed var(--cx-action);
+  outline-offset: -4px;
+}
+
+.device-chain__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  background: var(--cx-bg-panel);
+  border-bottom: 1px solid var(--cx-bg-hover);
+  min-height: 24px;
+  flex-shrink: 0;
+}
+
+.device-chain__title {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cx-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+/* B4-pad-chain UI: which device's chain the editor targets (e.g. "Pad 2").
+   Ableton shows the device name; this is the rack-pad equivalent so the user
+   knows the bottom chain edits the selected pad, not the active track. */
+.device-chain__context {
+  margin-left: 8px;
+  padding: 1px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cx-mod);
+  background: var(--cx-mod-wash);
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.device-chain__info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.device-chain__depth {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.device-chain__timing {
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.device-chain__empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cx-text-3);
+  font-size: 12px;
+}
+
+.device-chain__strip {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  padding: 6px 8px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.device-chain__item {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+}
+
+/* --- A/B Switch (Phase 14A) --- */
+
+.ab-switch {
+  width: 28px;
+  height: 14px;
+  background: transparent;
+  border: 1px solid var(--cx-line-1);
+  border-radius: 2px;
+  color: var(--cx-text-3);
+  font-size: 8px;
+  font-weight: 600;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.ab-switch:hover {
+  border-color: var(--cx-selection);
+  color: var(--cx-text-2);
+}
+
+.ab-switch--active {
+  border-color: var(--cx-selection);
+}
+
+.ab-switch__slot--active {
+  color: var(--cx-text-1);
+  font-weight: 700;
+}
+
+.ab-switch__slot--dim {
+  color: var(--cx-line-2);
+}
+
+.device-chain__arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--cx-bg-raised);
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+/* --- Device Card --- */
+
+.device-card {
+  /* F-0512-30: bumped from 130/180 → 160/280. 180px was too narrow for
+     4-knob effects (Levels: Input Black / Input White / Gamma / Output
+     Black) and forced labels to truncate ("Input Bl...", "Output B...")
+     and to wrap to two rows. 280px fits 4 knobs in a single row with
+     full labels at ~64px per knob. Flag-off override below. */
+  min-width: 160px;
+  max-width: 280px;
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.device-card:hover {
+  border-color: var(--cx-line-2);
+}
+
+.device-card--selected {
+  border-color: var(--cx-selection);
+  box-shadow: 0 0 0 1px var(--cx-selection);
+}
+
+.device-card--disabled {
+  opacity: 0.5;
+}
+
+/* F-0512-30 disable override: revert to the pre-fix 130-180px range. */
+body[data-disable-f-0512-30] .device-card {
+  min-width: 130px;
+  max-width: 180px;
+}
+
+.device-card--error {
+  border-color: var(--cx-danger-text);
+}
+
+.device-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--cx-bg-hover);
+  background: var(--cx-bg-raised);
+  border-radius: 3px 3px 0 0;
+  gap: 4px;
+}
+
+.device-card__name {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--cx-text-1);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* PUX.5 — Device bypass toggle: 22×14 painted, ≥24×24 effective via
+ * ::before padding hit-extender (gap = 5px top/bottom, 1px sides). */
+.device-card__toggle {
+  position: relative;
+  width: 22px;
+  height: 14px;
+  background: var(--cx-action);
+  border: none;
+  border-radius: 2px;
+  color: var(--cx-surface-0);
+  font-size: 7px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.device-card__toggle::before {
+  content: '';
+  position: absolute;
+  inset: -5px -1px;
+}
+
+.device-card__toggle--off {
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-3);
+}
+
+.device-card__remove {
+  background: transparent;
+  border: none;
+  color: var(--cx-text-3);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.device-card__remove:hover {
+  color: var(--cx-danger-text);
+}
+
+/* Params area */
+.device-card__params {
+  padding: 6px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 120px;
+}
+
+.device-card__param {
+  position: relative;
+}
+
+.device-card__cc-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  font-size: 7px;
+  font-weight: 700;
+  color: var(--cx-action);
+  background: rgba(74, 222, 128, 0.15);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  border-radius: 2px;
+  padding: 0 2px;
+  line-height: 1.2;
+}
+
+/* Mix slider */
+.device-card__mix {
+  padding: 4px 8px;
+  border-top: 1px solid var(--cx-bg-hover);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.device-card__mix-label {
+  font-size: 8px;
+  color: var(--cx-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.device-card__mix-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  height: 2px;
+  background: var(--cx-bg-raised);
+  border-radius: 1px;
+  outline: none;
+}
+
+.device-card__mix-slider:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+.device-card__mix-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 8px;
+  height: 8px;
+  background: var(--cx-text-2);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.device-card__mix-slider::-webkit-slider-thumb:hover {
+  background: var(--cx-selection);
+}
+
+.device-card__mix-value {
+  font-size: 9px;
+  color: var(--cx-text-3);
+  font-variant-numeric: tabular-nums;
+  min-width: 24px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* MK.3: minimal device mask-routing row (rich UI lives in MK.13). */
+.device-card__mask {
+  padding: 4px 8px;
+  border-top: 1px solid var(--cx-bg-hover);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.device-card__mask-label {
+  font-size: 8px;
+  color: var(--cx-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.device-card__mask-select {
+  flex: 1;
+  min-width: 0;
+  font-size: 9px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-2);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: 2px;
+  padding: 1px 2px;
+  outline: none;
+}
+
+.device-card__mask-select:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+.device-card__mask-invert {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-3);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: 2px;
+  padding: 1px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.device-card__mask-invert--on {
+  background: var(--cx-selection);
+  color: var(--cx-bg);
+  border-color: var(--cx-selection);
+}
+
+.device-card__mask-invert:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* P6.6 — field-param assignment control (image/video as a 2D field). */
+.device-card__field-assign {
+  margin-top: 2px;
+  width: 100%;
+  font-size: 8px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-3);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: 2px;
+  padding: 1px 2px;
+  outline: none;
+}
+
+.device-card__field-assign:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+.device-card__param--field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  flex-wrap: wrap;
+}
+
+.device-card__param-label {
+  font-size: 8px;
+  color: var(--cx-text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-card__field-badge {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  background: var(--cx-selection);
+  color: var(--cx-bg);
+  border-radius: 2px;
+  padding: 1px 4px;
+  text-transform: uppercase;
+}
+
+.device-card__field-gain {
+  flex: 1;
+  min-width: 40px;
+}
+
+.device-card__field-invert,
+.device-card__field-clear {
+  font-size: 8px;
+  letter-spacing: 0.5px;
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-3);
+  border: 1px solid var(--cx-bg-hover);
+  border-radius: 2px;
+  padding: 1px 4px;
+  cursor: pointer;
+}
+
+.device-card__field-invert--on {
+  background: var(--cx-selection);
+  color: var(--cx-bg);
+  border-color: var(--cx-selection);
+}
+
+/* Scrollbar in device chain */
+.device-chain__strip::-webkit-scrollbar {
+  height: 4px;
+}
+
+.device-chain__strip::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.device-chain__strip::-webkit-scrollbar-thumb {
+  background: var(--cx-bg-raised);
+  border-radius: 2px;
+}
+
+.device-chain__strip::-webkit-scrollbar-thumb:hover {
+  background: var(--cx-bg-hover);
+}
+
+/* --- Device Groups (Phase 14B) --- */
+
+.device-chain__item--grouped {
+  border-top: 2px solid var(--cx-selection);
+  border-radius: 4px;
+  margin-top: -2px;
+  padding-top: 2px;
+}

@@ -1,0 +1,17 @@
+{
+  "id": "factory-cf76392c",
+  "name": "Low Threshold",
+  "type": "single_effect",
+  "created": 1710460800000,
+  "tags": [
+    "destruction"
+  ],
+  "isFavorite": false,
+  "effectData": {
+    "effectId": "fx.threshold",
+    "parameters": {
+      "level": 64
+    },
+    "modulations": {}
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "id": "factory-f707f117",
+  "name": "Dream Sequence",
+  "type": "effect_chain",
+  "created": 1710460800000,
+  "tags": [
+    "chain",
+    "temporal",
+    "color"
+  ],
+  "isFavorite": false,
+  "chainData": {
+    "effects": [
+      {
+        "id": "eff-973fe363",
+        "effectId": "fx.blur",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "radius": 4
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-1d20f81d",
+        "effectId": "fx.saturation",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "amount": 1.5
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      },
+      {
+        "id": "eff-f12cc2a7",
+        "effectId": "fx.hue_shift",
+        "isEnabled": true,
+        "isFrozen": false,
+        "parameters": {
+          "shift": 15
+        },
+        "modulations": {},
+        "mix": 1,
+        "mask": null
+      }
+    ],
+    "macros": []
+  }
+}
