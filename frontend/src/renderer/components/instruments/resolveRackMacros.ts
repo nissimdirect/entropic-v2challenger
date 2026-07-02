@@ -77,6 +77,16 @@ export interface ResolveRackMacrosResult {
  */
 export function resolveRackMacrosBounded(
   rack: RackNode | null,
+  // H2 (2026-07-02 master-tuneup WS5): optional macroId -> transient override
+  // value (0-1), supplied by the live CC-bank resolver
+  // (applyBankModulations.ts resolveBankMacroOverrides). When a macro's id is
+  // present here, its OVERRIDE value is used instead of the persisted
+  // macro.value for THIS resolve call only — this function still never
+  // mutates the input rack or writes to any store; the override is applied
+  // exactly like macro.value always was, just sourced differently. Absent /
+  // no entry for a given macro id -> that macro's persisted value is used
+  // unchanged (byte-identical to pre-H2 behavior).
+  macroValueOverrides?: Map<string, number>,
 ): ResolveRackMacrosResult {
   if (!rack) return { next: rack, routesProcessed: 0 }
   const macros = rack.macros
@@ -107,7 +117,8 @@ export function resolveRackMacrosBounded(
     if (routesProcessed >= MAX_TOTAL_EDGES) break // global ceiling reached
     const macro = macros[mi]
     if (!macro || typeof macro !== 'object') continue
-    const value = clamp01(macro.value)
+    const override = typeof macro.id === 'string' ? macroValueOverrides?.get(macro.id) : undefined
+    const value = override !== undefined ? clamp01(override) : clamp01(macro.value)
     if (!Array.isArray(macro.routes)) continue
     // NOTE: we count truncated route-iterations even when value===0, because the
     // ITERATION is the DoS surface, not the write. Capping happens before the
@@ -174,6 +185,9 @@ export function resolveRackMacrosBounded(
  * UNCHANGED when there is nothing to resolve. Iteration is hard-bounded by the
  * fan-out caps — see `resolveRackMacrosBounded`.
  */
-export function resolveRackMacros(rack: RackNode | null): RackNode | null {
-  return resolveRackMacrosBounded(rack).next
+export function resolveRackMacros(
+  rack: RackNode | null,
+  macroValueOverrides?: Map<string, number>,
+): RackNode | null {
+  return resolveRackMacrosBounded(rack, macroValueOverrides).next
 }

@@ -4,6 +4,7 @@
  */
 import type { Axis, BindingRule, LaneAxisBinding } from './axis-binding'
 import type { FieldRefValue } from './field-param'
+import type { CCBankBinding, BankAssignment } from './bankTypes'
 
 // --- Param values ---
 
@@ -559,6 +560,17 @@ export interface MIDIPersistData {
   padMidiNotes: Record<string, number | null>; // padId → midiNote
   ccMappings: CCMapping[];
   channelFilter: number | null; // 0-15 or null (all)
+  /**
+   * H2 — bank-relative hardware mapping (master-tuneup WS5). Additive to the
+   * legacy `ccMappings` (a CC with a bank binding takes precedence at
+   * resolve time — see applyBankModulations.ts). Always emitted (possibly
+   * empty), matching the sibling fields above — NOT additive-optional like
+   * `racks`/`frameBanks`, since it lives inside the always-emitted
+   * `midiMappings` block.
+   */
+  ccBankBindings: CCBankBinding[];
+  /** contextKey (focusContext.ts) -> saved BankAssignment. User-saved entries override deriveDefaultAssignment. */
+  bankAssignments: Record<string, BankAssignment>;
 }
 
 // --- Operators (Phase 6A) ---

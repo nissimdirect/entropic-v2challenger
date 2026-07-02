@@ -71,6 +71,8 @@ describe('MIDI Persistence', () => {
       padMidiNotes: { 'pad-0': 48, 'pad-7': 72 },
       ccMappings: [{ cc: 10, effectId: 'fx-a', paramKey: 'pan' }],
       channelFilter: 3,
+      ccBankBindings: [],
+      bankAssignments: {},
     };
 
     const project = JSON.parse(makeProjectJson(midiData));
@@ -178,6 +180,8 @@ describe('MIDI Persistence', () => {
       padMidiNotes: {},
       ccMappings: [],
       channelFilter: null,
+      ccBankBindings: [],
+      bankAssignments: {},
     };
 
     useMIDIStore.getState().loadMIDIMappings(emptyData);
