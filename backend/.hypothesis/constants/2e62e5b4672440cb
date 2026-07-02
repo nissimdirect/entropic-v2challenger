@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/sidechain_cross_blend.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 0.5, 1.0, 255, 'Bleed Amount', 'Crossfade Amount', 'Feedback', 'Mode', '_sidechain_frame', 'bleed_amount', 'choice', 'cross', 'crossfade_amount', 'crossfeed', 'curve', 'default', 'description', 'feedback', 'float', 'label', 'linear', 'max', 'min', 'mode', 'options', 'prev_output', 'sidechain', 'type', 'unit']

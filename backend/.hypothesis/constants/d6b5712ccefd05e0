@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/memory/writer.py
+# hypothesis_version: 6.151.9
+
+[384, 1024, '.cache', '<I', '<IIIIII', 'ENTROPIC_SHM_PATH', 'entropic', 'frames']

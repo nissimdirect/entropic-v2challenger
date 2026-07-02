@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/project/schema.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 1080, 1920, 48000, '2.0.0', 'assets', 'audioSampleRate', 'author', 'created', 'duration', 'frameRate', 'id', 'loopRegion', 'markers', 'masterVolume', 'modified', 'resolution', 'seed', 'settings', 'timeline', 'tracks', 'version']

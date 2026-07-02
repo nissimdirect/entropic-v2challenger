@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/am_radio.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.15, 0.5, 0.8, 1.0, 2.0, 10.0, 100.0, 255, '%', 'AM Radio', 'Carrier Freq', 'Depth', 'Hz', 'Modulation depth', 'carrier_freq', 'curve', 'default', 'depth', 'description', 'float', 'fx.am_radio', 'label', 'linear', 'logarithmic', 'max', 'min', 'modulation', 'type', 'unit']

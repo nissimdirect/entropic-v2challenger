@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/strange_attractor.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.005, 0.1, 0.2, 0.208186, 0.3, 0.5, 0.7, 1.0, 3.0, 5.0, 5.7, 8.0, 10.0, 28.0, 30.0, 60.0, 255.0, -100, 100, 255, 1000, 10000, '%', 'Attractor', 'Integration speed', 'Mix', 'Particles', 'Speed', 'Strange Attractor', 'Trail Length', 'attractor', 'choice', 'curve', 'default', 'description', 'float', 'fx.strange_attractor', 'int', 'label', 'linear', 'lorenz', 'max', 'min', 'mix', 'options', 'particle_count', 'particles', 'rossler', 'speed', 'thomas', 'trail_buffer', 'trail_length', 'type', 'unit', 'warping']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/entropy_map.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.114, 0.299, 0.33, 0.5, 0.587, 0.66, 1.0, 2.0, 3.0, 8.0, 255, 256, '%', 'Block Size', 'Colormap', 'Entropy Map', 'Overlay', 'block_size', 'choice', 'colormap', 'cool', 'curve', 'default', 'description', 'float', 'fx.entropy_map', 'gray', 'heat', 'info_theory', 'int', 'label', 'linear', 'max', 'min', 'options', 'overlay', 'px', 'type', 'unit']

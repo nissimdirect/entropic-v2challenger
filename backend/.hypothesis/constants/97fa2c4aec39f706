@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/median_filter.py
+# hypothesis_version: 6.151.9
+
+['Median Filter', 'Size', 'curve', 'default', 'description', 'enhance', 'fx.median_filter', 'int', 'label', 'linear', 'max', 'min', 'px', 'size', 'type', 'unit']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/contrast_crush.py
+# hypothesis_version: 6.151.9
+
+[-100.0, 0.0, 0.5, 1.0, 50.0, 100.0, 255.0, 100, 200, 255, 259, '%', 'Amount', 'Contrast Crush', 'Contrast curve shape', 'Curve', 'amount', 'choice', 'color', 'curve', 'default', 'description', 'float', 'fx.contrast_crush', 'hard', 'label', 'linear', 'max', 'min', 'options', 's_curve', 'type', 'unit']

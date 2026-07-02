@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/pencil_sketch.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.05, 0.07, 0.1, 1.0, 60.0, 200.0, '%', 'Pencil Sketch', 'Range Sigma', 'Shade Factor', 'Spatial Sigma', 'curve', 'default', 'description', 'distortion', 'float', 'fx.pencil_sketch', 'label', 'linear', 'max', 'min', 'shade', 'sigma_r', 'sigma_s', 'type', 'unit']

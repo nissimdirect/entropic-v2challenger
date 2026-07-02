@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/lens_flare.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.05, 0.15, 0.3, 0.5, 0.6, 0.7, 1.0, 100.0, 200.0, 255.0, 255, '%', 'Flare brightness', 'Intensity', 'Lens Flare', 'Position X', 'Position Y', 'Size', 'curve', 'default', 'description', 'exponential', 'float', 'fx.lens_flare', 'intensity', 'label', 'linear', 'max', 'min', 'position_x', 'position_y', 'size', 'type', 'unit', 'whimsy']

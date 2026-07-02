@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/row_shift.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 1.0, 500, '%', 'Density', 'Direction', 'Max Shift', 'Row Shift', 'Shift direction', 'both', 'choice', 'curve', 'default', 'density', 'description', 'destruction', 'direction', 'float', 'fx.row_shift', 'horizontal', 'int', 'label', 'linear', 'max', 'max_shift', 'min', 'options', 'px', 'type', 'unit', 'vertical']

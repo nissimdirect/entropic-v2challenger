@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/decimator.py
+# hypothesis_version: 6.151.9
+
+['Decimator', 'Factor', 'counter', 'curve', 'default', 'description', 'factor', 'fx.decimator', 'held_frame', 'int', 'label', 'linear', 'max', 'min', 'temporal', 'type', 'unit']

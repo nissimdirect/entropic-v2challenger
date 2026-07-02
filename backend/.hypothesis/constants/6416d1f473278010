@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/frame_drop.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 1.0, 'Drop Rate', 'Frame Drop', 'curve', 'default', 'description', 'drop_rate', 'float', 'fx.frame_drop', 'label', 'linear', 'max', 'min', 'temporal', 'type', 'unit']

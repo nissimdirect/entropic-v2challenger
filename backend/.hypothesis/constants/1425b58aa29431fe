@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/solarize.py
+# hypothesis_version: 6.151.9
+
+[0.5, 1.0, 2.0, 128, 255, '%', 'Brightness', 'Solarize', 'Threshold', 'brightness', 'curve', 'default', 'description', 'enhance', 'float', 'fx.solarize', 'int', 'label', 'linear', 'max', 'min', 'threshold', 'type', 'unit']

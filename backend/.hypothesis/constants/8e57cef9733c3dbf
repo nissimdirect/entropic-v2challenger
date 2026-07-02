@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/temporal_crystal.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 255, '%', 'Mix', 'Period', 'Temporal Crystal', 'Transform', 'choice', 'curve', 'default', 'description', 'float', 'fx.temporal_crystal', 'int', 'invert', 'label', 'linear', 'max', 'min', 'mirror', 'misc', 'mix', 'options', 'pattern_a', 'pattern_b', 'period', 'phase', 'rotate', 'transform', 'type', 'unit']

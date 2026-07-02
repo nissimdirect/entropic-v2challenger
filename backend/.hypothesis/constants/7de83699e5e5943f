@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/shared/dct_utils.py
+# hypothesis_version: 6.151.9
+
+[100, 101, 103, 104, 109, 112, 113, 120, 121, 255, 768, 1024, 'constant', 'ortho']

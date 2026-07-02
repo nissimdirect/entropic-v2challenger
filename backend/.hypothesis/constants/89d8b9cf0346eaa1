@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/diagnostics.py
+# hypothesis_version: 6.151.9
+
+[384, 448, 1024, 10000000, '%Y%m%dT%H%M%SZ', '<HOME>', '<USER>', 'APP_LOG_DIR', 'APP_LOG_LEVEL', 'INFO', 'Unknown', 'a', 'crash_*.json', 'darwin', 'exception', 'exception_message', 'exception_type', 'extra', 'last_command', 'level', 'logger', 'memory_usage_mb', 'message', 'platform', 'python_version', 'sidecar.log', 'sidecar.log*', 'sidecar_fault.log', 'timestamp', 'traceback', 'type', 'w', '~', '~/.entropic', '~/.entropic/logs']

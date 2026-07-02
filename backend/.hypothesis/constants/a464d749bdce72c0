@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/glitch_repeat.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 1.0, 128, 200, '%', 'Block Height', 'Glitch Repeat', 'Max Offset', 'Probability', 'block_height', 'curve', 'default', 'description', 'destruction', 'float', 'fx.glitch_repeat', 'int', 'label', 'linear', 'max', 'max_offset', 'min', 'probability', 'px', 'type', 'unit']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/afterimage.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.01, 0.05, 0.2, 0.5, 1.0, 255.0, 255, 'Adaptation Rate', 'Afterimage', 'Afterimage intensity', 'Strength', 'adaptation', 'adaptation_rate', 'curve', 'default', 'description', 'float', 'fx.afterimage', 'label', 'linear', 'max', 'min', 'misc', 'strength', 'type', 'unit']

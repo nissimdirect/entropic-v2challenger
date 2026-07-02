@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/util/curves.py
+# hypothesis_version: 6.151.9
+
+[0.0, 255.0, 128, 192, 255, 256, 'Channel', 'Control Points', 'Curves', 'Interpolation', 'a', 'b', 'channel', 'choice', 'cubic', 'curve', 'default', 'description', 'float', 'g', 'interpolation', 'label', 'linear', 'master', 'max', 'min', 'options', 'points', 'r', 'type', 'unit', 'util', 'util.curves']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/emboss.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 255, '%', 'Amount', 'Emboss', 'amount', 'curve', 'default', 'description', 'enhance', 'float', 'fx.emboss', 'label', 'linear', 'max', 'min', 'type', 'unit']

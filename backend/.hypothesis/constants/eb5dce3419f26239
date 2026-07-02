@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/util/color_balance.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.114, 0.299, 0.587, 1.0, 1.5, 85.0, 100.0, 128.0, 170.0, -100, 100, 255, 'Color Balance', 'Highlights Blue', 'Highlights Green', 'Highlights Red', 'Midtones Blue', 'Midtones Green', 'Midtones Red', 'Preserve Luminosity', 'Shadows Blue', 'Shadows Green', 'Shadows Red', 'bool', 'curve', 'default', 'description', 'float', 'highlights_b', 'highlights_g', 'highlights_r', 'label', 'linear', 'max', 'midtones_b', 'midtones_g', 'midtones_r', 'min', 'preserve_luma', 'shadows_b', 'shadows_g', 'shadows_r', 'type', 'unit', 'util', 'util.color_balance']

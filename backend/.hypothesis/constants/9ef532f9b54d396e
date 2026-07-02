@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/cyanotype.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 0.5, 0.9, 1.0, 255, '%', 'Cyanotype', 'Intensity', 'color', 'curve', 'default', 'description', 'float', 'fx.cyanotype', 'intensity', 'label', 'linear', 'max', 'min', 'type', 'unit']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/util/levels.py
+# hypothesis_version: 6.151.9
+
+[0.1, 1.0, 10.0, 255, 256, 'Channel', 'Gamma', 'Input Black', 'Input White', 'Levels', 'Output Black', 'Output White', 'b', 'channel', 'choice', 'curve', 'default', 'description', 'float', 'g', 'gamma', 'input_black', 'input_white', 'int', 'label', 'linear', 'logarithmic', 'master', 'max', 'min', 'options', 'output_black', 'output_white', 'r', 'type', 'unit', 'util', 'util.levels']

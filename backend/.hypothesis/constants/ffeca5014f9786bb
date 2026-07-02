@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/bitcrush.py
+# hypothesis_version: 6.151.9
+
+[0.05, 0.5, 1.0, 256.0, 'Bitcrush', 'Color Depth', 'Resolution Scale', 'bits', 'color_depth', 'curve', 'default', 'description', 'destruction', 'float', 'fx.bitcrush', 'int', 'label', 'linear', 'max', 'min', 'resolution_scale', 'type', 'unit', 'x']

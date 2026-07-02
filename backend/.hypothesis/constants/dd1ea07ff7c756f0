@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/util/hsl_adjust.py
+# hypothesis_version: 6.151.9
+
+[-180.0, -100.0, 0.0, 1.0, 15.0, 30.0, 60.0, 100.0, 120.0, 180.0, 240.0, 255.0, 270.0, 300.0, 360.0, 255, '%', 'Adjust saturation', 'HSL Adjust', 'Hue', 'Lightness', 'Rotate hue', 'Saturation', 'Target Hue', 'all', 'blues', 'choice', 'curve', 'cyans', 'default', 'description', 'float', 'greens', 'hue_shift', 'label', 'lightness', 'linear', 'magentas', 'max', 'min', 'options', 'oranges', 'purples', 'reds', 'saturation', 'target_hue', 'type', 'unit', 'util', 'util.hsl_adjust', 'yellows', '°']

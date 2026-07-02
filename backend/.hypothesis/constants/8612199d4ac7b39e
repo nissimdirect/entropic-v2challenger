@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/infrared.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 0.8, 1.0, 2.0, 255, '%', 'Infrared', 'Vegetation Glow', 'color', 'curve', 'default', 'description', 'float', 'fx.infrared', 'label', 'linear', 'max', 'min', 'type', 'unit', 'vegetation_glow']

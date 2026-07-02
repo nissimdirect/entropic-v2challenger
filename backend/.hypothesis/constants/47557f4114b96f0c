@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/audio/decoder.py
+# hypothesis_version: 6.151.9
+
+[0.0, 'channels', 'duration_s', 'error', 'inf', 'ok', 'sample_rate', 'samples']

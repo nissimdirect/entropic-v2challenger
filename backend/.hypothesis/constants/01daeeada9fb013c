@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/contour_lines.py
+# hypothesis_version: 6.151.9
+
+[0.3, 256.0, 255, 'Contour Lines', 'Levels', 'Outline Only', 'choice', 'count', 'curve', 'default', 'description', 'distortion', 'false', 'fx.contour_lines', 'int', 'label', 'levels', 'linear', 'max', 'min', 'options', 'outline_only', 'true', 'type', 'unit']

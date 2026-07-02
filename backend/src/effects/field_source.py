@@ -200,6 +200,32 @@ class FieldProvider:
         # source_id → ImageReader | VideoReader
         self._sources: dict[str, ImageReader | VideoReader] = {}
         self._lock = threading.Lock()
+        # Dead-source warning dedup: {(source_id, category)} already warned
+        # this provider lifetime. A source that recovers (see _clear_warned)
+        # and later dies again is allowed to warn once more.
+        self._warned: set[tuple[str, str]] = set()
+        self._warn_lock = threading.Lock()
+
+    # ------------------------------------------------------------------
+    # Dead-source warning dedup
+    # ------------------------------------------------------------------
+
+    def _warn_once(
+        self, source_id: str, category: str, message: str, *args: Any
+    ) -> None:
+        """Log ``message`` at WARNING level at most once per (source_id,
+        category) until the source recovers via ``_clear_warned``."""
+        key = (source_id, category)
+        with self._warn_lock:
+            if key in self._warned:
+                return
+            self._warned.add(key)
+        logger.warning(message, *args)
+
+    def _clear_warned(self, source_id: str, category: str) -> None:
+        """Reset dedup state so a future failure of this category warns again."""
+        with self._warn_lock:
+            self._warned.discard((source_id, category))
 
     # ------------------------------------------------------------------
     # Source registration
@@ -256,7 +282,9 @@ class FieldProvider:
 
         # lane2d: Tier 3 — reserved, not implemented in Phase 6
         if ref.kind == "lane2d":
-            logger.warning(
+            self._warn_once(
+                ref.source_id,
+                "lane2d",
                 "FieldProvider: lane2d kind is reserved (Tier 3); "
                 "returning flat 0.5 field for source_id=%r",
                 ref.source_id,
@@ -267,17 +295,22 @@ class FieldProvider:
             reader = self._sources.get(ref.source_id)
 
         if reader is None:
-            logger.warning(
+            self._warn_once(
+                ref.source_id,
+                "unknown_source",
                 "FieldProvider: unknown source_id=%r; returning flat 0.5 field",
                 ref.source_id,
             )
             return _flat_field(width, height)
+        self._clear_warned(ref.source_id, "unknown_source")
 
         # Source dimension guard (check reader dims BEFORE any decode)
         src_w = getattr(reader, "width", 0)
         src_h = getattr(reader, "height", 0)
         if src_w > MAX_IMAGE_DIMENSION or src_h > MAX_IMAGE_DIMENSION:
-            logger.warning(
+            self._warn_once(
+                ref.source_id,
+                "oversize",
                 "FieldProvider: source_id=%r dimensions %dx%d exceed max %d; "
                 "returning flat 0.5 field",
                 ref.source_id,
@@ -286,6 +319,7 @@ class FieldProvider:
                 MAX_IMAGE_DIMENSION,
             )
             return _flat_field(width, height)
+        self._clear_warned(ref.source_id, "oversize")
 
         # Compute cache key
         if isinstance(reader, ImageReader):
@@ -335,7 +369,9 @@ class FieldProvider:
                 actual_frame = int(frame_index) % frame_count
                 raw = reader.decode_frame(actual_frame)
         except CodecTimeoutError as exc:
-            logger.warning(
+            self._warn_once(
+                source_id,
+                "sg7_timeout",
                 "FieldProvider: SG-7 timeout decoding source_id=%r: %s; "
                 "returning flat 0.5 field",
                 source_id,
@@ -343,13 +379,19 @@ class FieldProvider:
             )
             return None
         except Exception as exc:  # noqa: BLE001
-            logger.warning(
+            self._warn_once(
+                source_id,
+                "decode_error",
                 "FieldProvider: decode error for source_id=%r: %s; "
                 "returning flat 0.5 field",
                 source_id,
                 exc,
             )
             return None
+
+        # Decode succeeded — clear dedup state so a future failure warns again
+        self._clear_warned(source_id, "sg7_timeout")
+        self._clear_warned(source_id, "decode_error")
 
         # Inject NaN/Inf safety before luma computation
         if raw.dtype != np.uint8:

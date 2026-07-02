@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/sidechain_gate.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.3, 1.0, 255.0, 150, 255, 'Attack', 'Mode', 'Sidechain Gate', 'Threshold', '_sidechain_frame', 'attack', 'brightness', 'choice', 'curve', 'default', 'description', 'float', 'fx.sidechain_gate', 'gate_state', 'label', 'linear', 'max', 'min', 'mode', 'motion', 'options', 'sidechain', 'threshold', 'type', 'unit']

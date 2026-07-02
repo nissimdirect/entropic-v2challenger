@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/grid_scale_mix.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 255, 'Grid Scale Mix', 'Mix', 'Scale A', 'Scale B', 'codec_archaeology', 'curve', 'default', 'description', 'float', 'fx.grid_scale_mix', 'int', 'label', 'linear', 'max', 'min', 'mix', 'px', 'scale_a', 'scale_b', 'type', 'unit']

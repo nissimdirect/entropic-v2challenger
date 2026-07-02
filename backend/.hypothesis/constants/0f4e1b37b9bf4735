@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/histogram_eq.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 255, '%', 'Histogram EQ', 'Strength', 'curve', 'default', 'description', 'enhance', 'float', 'fx.histogram_eq', 'label', 'linear', 'max', 'min', 'strength', 'type', 'unit']

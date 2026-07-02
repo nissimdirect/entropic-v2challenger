@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/bokeh_shaper.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 0.7, 0.8, 0.9, 1.0, 255.0, 255, 'Bokeh Shaper', 'Intensity', 'Shape', 'Size', 'Size of bokeh shapes', 'Threshold', 'choice', 'circle', 'curve', 'default', 'description', 'float', 'fx.bokeh_shaper', 'heart', 'hexagon', 'int', 'intensity', 'label', 'linear', 'max', 'min', 'optics', 'options', 'px', 'shape', 'size', 'threshold', 'type', 'unit']

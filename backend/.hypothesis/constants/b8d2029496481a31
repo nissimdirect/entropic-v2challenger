@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/ring_mod.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.01, 0.1, 0.5, 1.0, 2.0, 4.0, 50.0, 255, '%', 'Carrier wave shape', 'Depth', 'Direction', 'Frequency', 'Hz', 'Modulation depth', 'Ring Mod', 'Waveform', 'choice', 'curve', 'default', 'depth', 'description', 'direction', 'float', 'frequency', 'fx.ring_mod', 'horizontal', 'label', 'linear', 'logarithmic', 'max', 'min', 'modulation', 'options', 'radial', 'saw', 'sine', 'square', 'triangle', 'type', 'unit', 'vertical', 'waveform']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/color_invert.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 255.0, 255, '%', 'Amount', 'Channel', 'Color Invert', 'all', 'amount', 'b', 'channel', 'choice', 'color', 'curve', 'default', 'description', 'float', 'fx.color_invert', 'g', 'label', 'linear', 'max', 'min', 'options', 'r', 'type', 'unit']

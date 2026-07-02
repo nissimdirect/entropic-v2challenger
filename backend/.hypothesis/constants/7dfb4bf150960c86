@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/engine/pipeline.py
+# hypothesis_version: 6.151.9
+
+[0.95, 100, 500, 1000, '_mix', 'chain_position', 'disabled_effects', 'drop_rate', 'effect', 'effect_id', 'enabled', 'failure_counts', 'fn', 'frame_index', 'max', 'mix', 'p50', 'p95', 'params', 'samples', 'warning']

@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/tv_static.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.2, 0.3, 0.8, 1.0, 255, 256, '%', 'Intensity', 'Sync Drift', 'TV Static', 'curve', 'default', 'description', 'distortion', 'exponential', 'float', 'fx.tv_static', 'intensity', 'label', 'linear', 'max', 'min', 'sync_drift', 'type', 'unit']

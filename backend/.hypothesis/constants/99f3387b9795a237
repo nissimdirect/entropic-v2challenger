@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/block_corrupt.py
+# hypothesis_version: 6.151.9
+
+[200, 255, 256, 'Block Corrupt', 'Block Size', 'Blocks', 'Corruption mode', 'Mode', 'block_size', 'choice', 'count', 'curve', 'default', 'description', 'destruction', 'fx.block_corrupt', 'int', 'invert', 'label', 'linear', 'max', 'min', 'mode', 'noise', 'num_blocks', 'options', 'px', 'random', 'repeat', 'shift', 'smear', 'type', 'unit', 'zero']

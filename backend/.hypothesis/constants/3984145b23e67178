@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/chromatic_aberration_pro.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 5.0, 20.0, 'Blue Shift', 'Center X', 'Center Y', 'Red Shift', 'blue_shift', 'center_x', 'center_y', 'curve', 'default', 'description', 'float', 'label', 'linear', 'max', 'min', 'optics', 'px', 'red_shift', 'type', 'unit']

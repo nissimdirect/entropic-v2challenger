@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/chroma_key.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 2.0, 10.0, 30.0, 50.0, 120.0, 180.0, 360.0, 180, 255, 360, 'Chroma Key', 'Hue', 'Hue range to key out', 'Softness', 'Tolerance', 'curve', 'default', 'deg', 'description', 'float', 'fx.chroma_key', 'hue', 'key', 'label', 'linear', 'max', 'min', 'px', 'softness', 'tolerance', 'type', 'unit']

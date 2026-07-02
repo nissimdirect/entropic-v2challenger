@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/compression_oracle.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 10.0, 50.0, 128.0, 100, 255, '%', 'Amplify', 'Compression Oracle', 'JPEG', 'Original Blend', 'Quality', 'RGB', 'amplify', 'curve', 'default', 'description', 'float', 'info_theory', 'int', 'label', 'linear', 'max', 'min', 'quality', 'show_original_weight', 'type', 'unit', 'x']

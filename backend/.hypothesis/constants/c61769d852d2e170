@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/false_color.py
+# hypothesis_version: 6.151.9
+
+['Colormap', 'False Color', 'autumn', 'bone', 'choice', 'colormap', 'cool', 'default', 'description', 'enhance', 'fx.false_color', 'hot', 'inferno', 'jet', 'label', 'magma', 'ocean', 'options', 'plasma', 'rainbow', 'spring', 'summer', 'turbo', 'type', 'viridis', 'winter']

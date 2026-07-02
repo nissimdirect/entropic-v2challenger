@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/audio/player.py
+# hypothesis_version: 6.151.9
+
+[0.0, 1.0, 1024, 48000, 'channels', 'duration_s', 'float32', 'num_samples', 'ok', 'sample_rate', 'samples']

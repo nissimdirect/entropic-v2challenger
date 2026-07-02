@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/channel_destroy.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.3, 0.4, 0.5, 1.0, 2.5, 128, 255, '%', 'Channel Destroy', 'Intensity', 'Mode', 'choice', 'crush', 'curve', 'default', 'description', 'destruction', 'eliminate', 'exponential', 'float', 'fx.channel_destroy', 'intensity', 'invert_ch', 'label', 'max', 'min', 'mode', 'options', 'separate', 'swap', 'type', 'unit', 'xor_channels']

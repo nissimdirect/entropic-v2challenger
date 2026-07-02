@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/dsp_phaser.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.002, 0.005, 0.01, 0.02, 0.05, 0.06, 0.1, 0.2, 0.3, 0.4, 0.5, 0.8, 0.9, 1.0, 2.0, 5.0, 255.0, 255, 'Band Width', 'DSP Phaser', 'Depth', 'Hz', 'Mode', 'Offset', 'Phaser algorithm', 'Rate', 'Stages', 'Sweep speed', 'band_width', 'brightness_phaser', 'channel_phaser', 'choice', 'curve', 'default', 'depth', 'description', 'float', 'fx.dsp_phaser', 'int', 'label', 'linear', 'max', 'min', 'mode', 'modulation', 'offset', 'options', 'rate', 'stages', 'type', 'unit', 'video_phaser']

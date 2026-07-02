@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/pixel_annihilate.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.5, 1.0, 255.0, 255, 256, '%', 'Mode', 'Pixel Annihilate', 'Replacement', 'Threshold', 'black', 'channel_rip', 'choice', 'curve', 'default', 'description', 'destruction', 'dissolve', 'edge_kill', 'float', 'fx.pixel_annihilate', 'invert', 'label', 'linear', 'max', 'min', 'mode', 'noise', 'options', 'replacement', 'threshold', 'type', 'unit', 'white']

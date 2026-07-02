@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/effects/fx/flow_distort.py
+# hypothesis_version: 6.151.9
+
+[0.0, 0.1, 0.5, 1.2, 2.0, 5.0, 10.0, 20.0, 255, 'Flow Distort', 'Intensity', 'Smooth', 'clamp', 'curve', 'default', 'description', 'destruction', 'exponential', 'float', 'fx.flow_distort', 'intensity', 'label', 'linear', 'max', 'min', 'prev_frame', 'smooth', 'type', 'unit', 'x']

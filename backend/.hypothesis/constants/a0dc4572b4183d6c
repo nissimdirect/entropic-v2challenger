@@ -1,0 +1,4 @@
+# file: /Users/nissimagent/Development/entropic-v2challenger/backend/src/engine/compositor.py
+# hypothesis_version: 6.151.9
+
+[1.0, 2.0, 128.0, 255.0, 255, 'add', 'blend_mode', 'chain', 'darken', 'difference', 'exclusion', 'frame', 'frame_index', 'lighten', 'multiply', 'normal', 'opacity', 'overlay', 'screen']
