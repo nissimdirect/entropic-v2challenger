@@ -8,12 +8,14 @@
  */
 import { create } from 'zustand';
 import type { CCMapping, MIDIDevice, LearnTarget, MIDIPersistData } from '../../shared/types';
-import type { CCBankBinding, BankAssignment, BankSlotAddress } from '../../shared/bankTypes';
+import type { CCBankBinding, BankAssignment, BankSlotAddress, CCSlotMapping } from '../../shared/bankTypes';
 import {
   isValidCCBankBinding,
   isValidBankAssignment,
+  isValidCCSlotMapping,
   MAX_CC_BANK_BINDINGS,
   MAX_BANK_ASSIGNMENT_CONTEXTS,
+  MAX_CC_SLOT_MAPPINGS,
 } from '../../shared/bankTypes';
 import { usePerformanceStore } from './performance';
 import { handlePadTrigger, releasePadWithCapture } from '../components/performance/padActions';
@@ -71,6 +73,12 @@ interface MIDIState {
   ccBankBindings: CCBankBinding[];
   bankAssignments: Record<string, BankAssignment>;
 
+  // H3 — direct CC->SlotTarget mappings from the widened MIDI-learn surface
+  // (macro/transform/mask/instrument). Absolute (not focus-relative); the
+  // legacy effect-knob learn still writes ccMappings, so this list holds the
+  // NEW target kinds only. See bankTypes.ts CCSlotMapping doc.
+  ccSlotMappings: CCSlotMapping[];
+
   // Actions
   setDevices: (devices: MIDIDevice[]) => void;
   setActiveDevice: (id: string | null) => void;
@@ -85,6 +93,10 @@ interface MIDIState {
   clearCCBankBindings: () => void;
   setBankAssignment: (contextKey: string, assignment: BankAssignment) => void;
   clearBankAssignment: (contextKey: string) => void;
+  // H3 direct CC->SlotTarget mapping CRUD
+  addCCSlotMapping: (mapping: CCSlotMapping) => void;
+  removeCCSlotMapping: (cc: number) => void;
+  clearCCSlotMappings: () => void;
   applyControllerProfile: (bindings: CCBankBinding[]) => void;
   setIsSupported: (supported: boolean) => void;
   handleMIDIMessage: (data: Uint8Array, frameIndex: number) => void;
@@ -103,6 +115,7 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
   isSupported: false,
   ccBankBindings: [],
   bankAssignments: {},
+  ccSlotMappings: [],
 
   setDevices: (devices) => set({ devices }),
   setActiveDevice: (id) => set({ activeDeviceId: id }),
@@ -178,6 +191,26 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
     });
   },
 
+  // H3 — direct CC->SlotTarget mapping CRUD. Mirrors addCCMapping's
+  // "one CC → one target" overwrite semantics plus a MAX_CC_SLOT_MAPPINGS
+  // evict-oldest cap. Invalid shapes (bad cc / malformed target) are DROPPED
+  // (trust boundary: this is the learn-consume write path).
+  addCCSlotMapping: (mapping) => {
+    if (!isValidCCSlotMapping(mapping)) return;
+    const { ccSlotMappings } = get();
+    let next = ccSlotMappings.filter((m) => m.cc !== mapping.cc);
+    if (next.length >= MAX_CC_SLOT_MAPPINGS) {
+      next = next.slice(next.length - MAX_CC_SLOT_MAPPINGS + 1); // evict oldest
+    }
+    set({ ccSlotMappings: [...next, { cc: mapping.cc, target: mapping.target }] });
+  },
+
+  removeCCSlotMapping: (cc) => {
+    set((s) => ({ ccSlotMappings: s.ccSlotMappings.filter((m) => m.cc !== cc) }));
+  },
+
+  clearCCSlotMappings: () => set({ ccSlotMappings: [] }),
+
   // Bulk-set convenience for a built-in controller profile (e.g. MIDImix
   // factory map, controllerProfiles.ts). Validates + truncates to the same
   // cap as setCCBankBinding; replaces (does not merge with) existing bindings.
@@ -225,12 +258,21 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
         }
       } else if (learnTarget.type === 'cc') {
         if (statusByte === 0xb0) {
-          // CC → create mapping
+          // CC → create legacy effect-knob mapping (unchanged by H3)
           get().addCCMapping({
             cc: byte1,
             effectId: learnTarget.effectId,
             paramKey: learnTarget.paramKey,
           });
+          set({ learnTarget: null });
+        }
+      } else if (learnTarget.type === 'slot') {
+        // H3 — widened learn surface. First CC after arming binds a direct
+        // CC->SlotTarget mapping for the armed macro/transform/mask/instrument
+        // target. byte1 (the CC number) is already a valid 0-127 MIDI byte;
+        // addCCSlotMapping re-validates at the trust boundary.
+        if (statusByte === 0xb0) {
+          get().addCCSlotMapping({ cc: byte1, target: learnTarget.target });
           set({ learnTarget: null });
         }
       }
@@ -303,11 +345,12 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       channelFilter: null,
       ccBankBindings: [],
       bankAssignments: {},
+      ccSlotMappings: [],
     });
   },
 
   getMIDIPersistData: (): MIDIPersistData => {
-    const { ccMappings, channelFilter, ccBankBindings, bankAssignments } = get();
+    const { ccMappings, channelFilter, ccBankBindings, bankAssignments, ccSlotMappings } = get();
     const perfStore = usePerformanceStore.getState();
 
     const padMidiNotes: Record<string, number | null> = {};
@@ -323,6 +366,7 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       channelFilter,
       ccBankBindings,
       bankAssignments,
+      ccSlotMappings,
     };
   },
 
@@ -388,12 +432,21 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       }
     }
 
+    // H3 — validate ccSlotMappings: each must have integer cc 0-127 and a
+    // valid SlotTarget (allowlisted kind + non-empty id fields). Malformed
+    // entries are DROPPED (trust boundary, mirrors ccMappings above). Absent
+    // on pre-H3 projects → []. Cap mirrors addCCSlotMapping.
+    const validSlotMappings = Array.isArray(data.ccSlotMappings)
+      ? data.ccSlotMappings.filter(isValidCCSlotMapping).slice(0, MAX_CC_SLOT_MAPPINGS)
+      : [];
+
     set({
       ccMappings: validMappings,
       channelFilter: validChannel,
       ccValues: {},
       ccBankBindings: validBankBindings,
       bankAssignments: validBankAssignments,
+      ccSlotMappings: validSlotMappings,
     });
   },
 }));

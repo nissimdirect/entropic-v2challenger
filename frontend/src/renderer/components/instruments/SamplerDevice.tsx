@@ -16,6 +16,7 @@ import { useProjectStore } from '../../stores/project'
 import { SAMPLER_SPEED_MAX, SAMPLER_SPEED_MIN } from './types'
 import { clampFinite } from '../../../shared/numeric'
 import type { BlendMode } from '../../../shared/types'
+import { instrumentLearnContextMenu } from './instrumentLearn'
 
 const BLEND_MODES: BlendMode[] = [
   'normal', 'add', 'multiply', 'screen', 'overlay',
@@ -55,6 +56,7 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
           data-testid="sampler-start"
           value={inst.startFrame}
           min={0}
+          onContextMenu={instrumentLearnContextMenu(trackId, 'startFrame')}
           onChange={(e) =>
             updateSampler(trackId, {
               startFrame: Math.round(clampFinite(Number(e.target.value), 0, 1_000_000, 0)),
@@ -72,6 +74,7 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
           step={0.1}
           min={SAMPLER_SPEED_MIN}
           max={SAMPLER_SPEED_MAX}
+          onContextMenu={instrumentLearnContextMenu(trackId, 'speed')}
           onChange={(e) =>
             updateSampler(trackId, {
               speed: clampFinite(Number(e.target.value), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
@@ -89,6 +92,7 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
           min={0}
           max={1}
           step={0.01}
+          onContextMenu={instrumentLearnContextMenu(trackId, 'opacity')}
           onChange={(e) =>
             updateSampler(trackId, { opacity: clampFinite(Number(e.target.value), 0, 1, 1) })
           }

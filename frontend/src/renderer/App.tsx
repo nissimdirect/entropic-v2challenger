@@ -3468,6 +3468,7 @@ function AppInner() {
         )}
         {selectedClip && !selectedClip.textConfig && (
           <TransformPanel
+            clipId={selectedClip.id}
             transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
             onChange={(t) => {
               const prevTransform = selectedClip.transform ?? IDENTITY_TRANSFORM
