@@ -168,6 +168,7 @@ class MixerPlayer:
                 device=self._bake_device,
                 callback_errors=errors,
                 flag_on=self._read_flag_on(),
+                app_mode=self._read_app_mode(),
             )
         except Exception:  # pragma: no cover — defensive, must never raise
             pass
@@ -213,6 +214,19 @@ class MixerPlayer:
             return val in ("true", "1", "yes", "on")
         except Exception:
             return True
+
+    @staticmethod
+    def _read_app_mode() -> str:
+        """Read the CREATRIX_APP_MODE provenance tag for the bake-log line.
+
+        Fail-silent — defaults to "unknown" via bake_log.resolve_app_mode()
+        on any error, matching the fail-silent contract of the rest of this
+        logging path.
+        """
+        try:
+            return bake_log.resolve_app_mode()
+        except Exception:  # pragma: no cover — defensive, must never raise
+            return "unknown"
 
     # --- Observability ---
 
