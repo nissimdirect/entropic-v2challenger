@@ -27,6 +27,7 @@ import { resolve, join, extname } from 'path'
 const FRONTEND_ROOT = resolve(__dirname, '../../../')
 const RENDERER_ROOT = join(FRONTEND_ROOT, 'src', 'renderer')
 const ZMQ_RELAY_PATH = join(FRONTEND_ROOT, 'src', 'main', 'zmq-relay.ts')
+const ZMQ_SERVER_PATH = resolve(FRONTEND_ROOT, '..', 'backend', 'src', 'zmq_server.py')
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -122,6 +123,63 @@ function extractAllowedCommands(): Set<string> {
   return commands
 }
 
+/**
+ * Extract the string literals inside the BACKEND_ONLY_COMMANDS Set
+ * declaration in zmq-relay.ts, the same way extractAllowedCommands() reads
+ * ALLOWED_COMMANDS.
+ */
+function extractBackendOnlyCommands(): Set<string> {
+  const source = readFileSync(ZMQ_RELAY_PATH, 'utf-8')
+
+  const anchorIdx = source.indexOf('BACKEND_ONLY_COMMANDS = new Set([')
+  if (anchorIdx === -1) throw new Error('Could not find BACKEND_ONLY_COMMANDS Set in zmq-relay.ts')
+  const setStart = source.indexOf('new Set([', anchorIdx)
+
+  let depth = 0
+  let setEnd = setStart
+  for (let i = setStart; i < source.length; i++) {
+    if (source[i] === '[') depth++
+    if (source[i] === ']') {
+      depth--
+      if (depth === 0) { setEnd = i; break }
+    }
+  }
+
+  const block = source.slice(setStart, setEnd + 1)
+  const LITERAL_RE = /['"]([^'"]+)['"]/g
+  const commands = new Set<string>()
+  let m: RegExpExecArray | null
+  while ((m = LITERAL_RE.exec(block)) !== null) {
+    commands.add(m[1])
+  }
+  return commands
+}
+
+/**
+ * Extract every command name registered in the backend's ZMQ dispatch table
+ * by parsing `handle_message()`'s `if cmd == "x":` / `elif cmd == "x":`
+ * chain directly out of zmq_server.py source text. Regex-over-source (no
+ * Python execution) mirrors the renderer-side extraction above and keeps
+ * this test dependency-free.
+ *
+ * Returns a map of cmdName → "zmq_server.py:lineNumber" for error reporting.
+ */
+function extractBackendDispatchCommands(): Map<string, string> {
+  const source = readFileSync(ZMQ_SERVER_PATH, 'utf-8')
+  const lines = source.split('\n')
+  const DISPATCH_RE = /^\s*(?:if|elif)\s+cmd\s*==\s*["']([^"']+)["']\s*:/
+  const found = new Map<string, string>()
+
+  lines.forEach((line, idx) => {
+    const match = DISPATCH_RE.exec(line)
+    if (match) {
+      found.set(match[1], `zmq_server.py:${idx + 1}`)
+    }
+  })
+
+  return found
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -188,5 +246,77 @@ describe('relay-allowlist contract (task #89)', () => {
 
     // The set must contain at least the original ~30 commands + the new ones
     expect(allowedCmds.size).toBeGreaterThanOrEqual(40)
+  })
+})
+
+/**
+ * CONTRACT TEST: bidirectional relay allowlist cohesion (task F5)
+ *
+ * The tests above only check renderer → ALLOWED_COMMANDS (a command sent
+ * from the frontend must be allowlisted). They say nothing about the other
+ * direction: a backend handler can be registered in zmq_server.py's dispatch
+ * table and never be reachable from the renderer because nobody added it to
+ * ALLOWED_COMMANDS — the class of bug task #89 fixed for 8 commands, alive
+ * again for 'audio_tracks_clear', 'mask_gc_sidecars', 'render_text_frame'
+ * (found by the 2026-07-02 month audit, packet F5).
+ *
+ * This suite asserts every command registered in the backend's dispatch
+ * table is either in ALLOWED_COMMANDS (reachable) or BACKEND_ONLY_COMMANDS
+ * (explicitly, deliberately excluded) — no third, silent option.
+ */
+describe('relay-allowlist bidirectional contract (task F5)', () => {
+  const backendCmds = extractBackendDispatchCommands()
+  const allowedCmds = extractAllowedCommands()
+  const backendOnlyCmds = extractBackendOnlyCommands()
+
+  it('backend dispatch scan finds at least the known command count (scan sanity)', () => {
+    // Sanity floor: proves the regex is matching zmq_server.py's dispatch
+    // chain and not silently returning zero. 57 commands measured at
+    // authoring time (2026-07-02); floor is intentionally below that to not
+    // flake on future additions.
+    expect(backendCmds.size).toBeGreaterThanOrEqual(50)
+    expect(backendCmds.has('ping')).toBe(true)
+  })
+
+  it('every backend dispatch command is allowlisted or explicitly backend-only', () => {
+    const orphans: { cmd: string; site: string }[] = []
+
+    for (const [cmd, site] of backendCmds) {
+      if (!allowedCmds.has(cmd) && !backendOnlyCmds.has(cmd)) {
+        orphans.push({ cmd, site })
+      }
+    }
+
+    if (orphans.length > 0) {
+      const report = orphans.map(({ cmd, site }) => `  '${cmd}' registered at ${site}`).join('\n')
+      throw new Error(
+        `${orphans.length} backend command(s) registered in zmq_server.py's dispatch table ` +
+        `but unreachable — not in ALLOWED_COMMANDS and not in BACKEND_ONLY_COMMANDS:\n${report}\n\n` +
+        `Every new backend handler needs an explicit decision: add it to ALLOWED_COMMANDS ` +
+        `(wire it) or to BACKEND_ONLY_COMMANDS with a comment explaining why the renderer ` +
+        `never sends it (exclude it). There is no third, silent option.`
+      )
+    }
+  })
+
+  it('oracle sanity — task F5 orphans are resolved; sentinel absent', () => {
+    // These 3 commands were the confirmed orphans from the F5 month audit.
+    const f5Fixes = ['audio_tracks_clear', 'mask_gc_sidecars', 'render_text_frame']
+    for (const cmd of f5Fixes) {
+      expect(backendCmds.has(cmd), `scan sanity: '${cmd}' should be registered in zmq_server.py`).toBe(true)
+      expect(
+        allowedCmds.has(cmd) || backendOnlyCmds.has(cmd),
+        `'${cmd}' must be in ALLOWED_COMMANDS or BACKEND_ONLY_COMMANDS (F5 fix). If neither, it's unreachable again.`
+      ).toBe(true)
+    }
+
+    // 'shutdown' must be the explicit backend-only exclusion, not just absent
+    expect(backendOnlyCmds.has('shutdown'),
+      `'shutdown' must be in BACKEND_ONLY_COMMANDS — it is main-process only`
+    ).toBe(true)
+    expect(allowedCmds.has('shutdown')).toBe(false)
+
+    // Sentinel: proves the negative side of the oracle is live
+    expect(backendCmds.has('__drift_sentinel_9eb4c__')).toBe(false)
   })
 })
