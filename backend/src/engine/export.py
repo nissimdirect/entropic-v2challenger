@@ -23,6 +23,7 @@ from engine.codecs import (
     get_codec_config,
 )
 from effects import registry
+from engine.clip_transform import apply_clip_transform, fold_transform_override
 from engine.compositor import render_composite
 from engine.composite_tree import expand_group_layer, validate_composite_tree
 from safety.latent_sentinel import detect_nan_in_frame
@@ -208,6 +209,8 @@ class ExportManager:
         automation_by_frame: dict | None = None,
         audio_pcm_provider=None,
         mask_stack: list[dict] | None = None,
+        transform: dict | None = None,
+        transform_clip_id: str | None = None,
     ) -> ExportJob:
         """Start a background export. Returns the job for status tracking.
 
@@ -287,6 +290,13 @@ class ExportManager:
         # SAME masked output preview shows (the headline preview/export parity).
         # Absent → byte-identical legacy export (no masking).
         snap_mask_stack = copy.deepcopy(mask_stack) if mask_stack else None
+        # A2b — snapshot the active clip's STATIC transform (position/scale/
+        # rotation/flip) and its id, so the export applies it via the SAME shared
+        # clip_transform helper preview uses AND folds per-frame
+        # `clipTransform.<clip_id>.<field>` lanes (carried on automation_by_frame)
+        # over it. Absent → byte-identical legacy export (no transform applied).
+        snap_transform = copy.deepcopy(transform) if transform else None
+        snap_transform_clip_id = transform_clip_id
 
         # P5b.8 (SG-5 part B): compute the cycle-break decision ONCE at job start
         # so the same break applies to every frame of this export job. This snapshot
@@ -328,6 +338,8 @@ class ExportManager:
                 "audio_pcm_provider": audio_pcm_provider,
                 "cycle_decision": snap_cycle_decision,
                 "mask_stack": snap_mask_stack,
+                "transform": snap_transform,
+                "transform_clip_id": snap_transform_clip_id,
             },
             daemon=True,
         )
@@ -561,6 +573,8 @@ class ExportManager:
         audio_pcm_provider=None,
         cycle_decision=None,
         mask_stack: list[dict] | None = None,
+        transform: dict | None = None,
+        transform_clip_id: str | None = None,
     ):
         reader = None
         writer = None
@@ -701,6 +715,43 @@ class ExportManager:
                     automation_overrides=auto_overrides,
                 )
 
+            # A2b — clip transform for export (preview/export parity). Applies the
+            # clip's STATIC transform (position/scale/rotation/flip) and folds any
+            # per-frame `clipTransform.<clip_id>.<field>` lane values (carried on
+            # automation_by_frame) over it, via the SAME shared helper preview's
+            # render_frame path uses (zmq_server:768). Active when a static
+            # transform is supplied OR the clip has transform lanes; absent both →
+            # returns the frame unchanged (byte-identical legacy export).
+            transform_lanes_present = (
+                bool(transform_clip_id)
+                and bool(automation_by_frame)
+                and any(
+                    isinstance(k, str)
+                    and k.startswith(f"clipTransform.{transform_clip_id}.")
+                    for fmap in automation_by_frame.values()
+                    if isinstance(fmap, dict)
+                    for k in fmap
+                )
+            )
+            has_clip_transform = bool(transform) or transform_lanes_present
+
+            def apply_export_clip_transform(f: np.ndarray, src_idx: int) -> np.ndarray:
+                """Fold static+lane transform and apply it to `f` (parity with
+                preview render_frame). No-op when no transform is active."""
+                if not has_clip_transform:
+                    return f
+                per_frame = None
+                if automation_by_frame:
+                    per_frame = automation_by_frame.get(
+                        src_idx
+                    ) or automation_by_frame.get(str(src_idx))
+                    if not isinstance(per_frame, dict):
+                        per_frame = None
+                merged = fold_transform_override(
+                    transform, per_frame, transform_clip_id
+                )
+                return apply_clip_transform(f, merged, resolution)
+
             # P5a.4: shared per-frame renderer the GIF / image-sequence
             # generators call. Returns the composited frame for `src_idx`,
             # taking the composite-replay branch when a performance payload is
@@ -711,8 +762,15 @@ class ExportManager:
                 base = reader.decode_frame(src_idx)
                 # P2.3: modulate the base chain per frame (operators + automation)
                 # before it is applied — same as preview. video_frame=base feeds
-                # the video_analyzer operator its proxy.
+                # the video_analyzer operator its proxy. Modulation evaluates on
+                # the PRE-transform frame (preview render_frame order: evaluate_all
+                # sees the raw decode; transform is applied after — zmq_server:729
+                # vs :766).
                 frame_chain = modulate_chain_for_frame(chain, src_idx, base)
+                # A2b: apply the clip transform AFTER modulation eval, BEFORE the
+                # chain/mask — exactly as preview render_frame does (:766-768). For
+                # the composite branch this transforms the base layer (base_frame).
+                base = apply_export_clip_transform(base, src_idx)
                 if perf_active:
                     out, voice_states = self._composite_export_frame(
                         base_frame=base,
@@ -833,6 +891,11 @@ class ExportManager:
                 # P2.3: per-frame operator + automation modulation (export==preview).
                 # Returns `chain` unchanged when no modulation is active.
                 frame_chain = modulate_chain_for_frame(chain, src_idx, frame)
+
+                # A2b: apply the clip transform (static + per-frame lanes) AFTER
+                # modulation eval, BEFORE the chain/mask — preview render_frame
+                # order (:766-768). Composite branch → transforms the base layer.
+                frame = apply_export_clip_transform(frame, src_idx)
 
                 if perf_active:
                     # P5a.4 composite branch (O1): reconstruct voice layers from
