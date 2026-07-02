@@ -206,6 +206,14 @@ body {
 .app__device-chain {
   grid-row: 3;
   grid-column: 1 / -1;
+  /* UAT P4: row 3 is `auto` in the base grid (line 24), so a tall instrument
+     device editor (.sampler-device has no cap — instruments.css) plus a
+     selected clip's MaskStackPanel could grow this row without limit,
+     squeezing the `1fr` preview row (row 1) toward zero height. Cap + scroll
+     this region instead of touching grid-template-rows (MEMORY
+     feedback_test-layout-changes warns against editing the root grid). */
+  max-height: min(45vh, 520px);
+  overflow-y: auto;
 }
 
 .status-bar {
