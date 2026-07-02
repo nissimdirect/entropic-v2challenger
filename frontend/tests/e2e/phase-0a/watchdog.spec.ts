@@ -11,19 +11,37 @@
 import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected, waitForEngineStatus } from '../fixtures/test-helpers'
 import { execSync } from 'child_process'
+import { readFileSync, existsSync } from 'fs'
+import { join } from 'path'
+import { homedir } from 'os'
 
 test.describe('Phase 0A — Watchdog', () => {
-  test('5. watchdog detects sidecar and reports connected', async ({
-    window,
-    consoleMessages,
-  }) => {
+  test('5. watchdog detects sidecar and reports connected', async ({ window }) => {
+    const testStart = new Date()
     await waitForEngineConnected(window, 20_000)
 
     const statusText = await window.locator('.status-text').textContent()
     expect(statusText).toContain('Connected')
 
-    // Main process should have logged Python startup
-    const hasPythonLog = consoleMessages.some((m) => m.includes('Python sidecar started'))
+    // Main process should have logged Python startup.
+    // Migrated off stdout/consoleMessages: the diagnostics/PII-stripping
+    // logger (frontend/src/main/logger.ts, introduced in ef895e1) writes
+    // this line to ~/.creatrix/logs/electron-main.log only — it is never
+    // printed to stdout, so the old consoleMessages assertion is stale.
+    const logPath = join(homedir(), '.creatrix', 'logs', 'electron-main.log')
+    const hasPythonLog = existsSync(logPath)
+      && readFileSync(logPath, 'utf8')
+        .trim()
+        .split('\n')
+        .some((line) => {
+          try {
+            const entry = JSON.parse(line)
+            return entry.message === '[Main] Python sidecar started'
+              && new Date(entry.timestamp) >= testStart
+          } catch {
+            return false
+          }
+        })
     expect(hasPythonLog).toBe(true)
   })
 

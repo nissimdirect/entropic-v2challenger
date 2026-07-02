@@ -85,8 +85,10 @@ test.describe('Phase 1 — Import Video', () => {
     const browseBtn = window.locator('.file-dialog-btn')
     await browseBtn.click()
 
-    // Should still show drop zone (no import started)
-    await expect(window.locator('.drop-zone')).toBeVisible()
+    // Should still show the empty-timeline idle state (no import started).
+    // DropZone.tsx (.drop-zone) is dead code — unused since the empty-state
+    // UI moved into Timeline.tsx's own tracks.length===0 branch.
+    await expect(window.locator('.timeline__empty')).toBeVisible()
     const assetCount = await window.locator('.asset-badge').count()
     expect(assetCount).toBe(0)
   })
@@ -98,10 +100,15 @@ test.describe('Phase 1 — Import Video', () => {
     await expect(browseBtn).toHaveText('Browse...')
   })
 
-  // Test 4 (drop zone hint) kept — verifies real window DOM structure
+  // Test 4 (drop zone hint) kept — verifies real window DOM structure.
+  // DropZone.tsx (.drop-zone__text/.drop-zone__hint) is dead code, unused by
+  // any component — the empty-timeline state (Timeline.tsx, tracks.length===0)
+  // is the real "drop zone" hint the user sees, and it dropped the separate
+  // "supported formats" line when video/image/audio import was unified.
   test('4. drop zone is visible with correct hint text', async ({ window }) => {
-    await expect(window.locator('.drop-zone__text')).toHaveText('Drop video file here')
-    await expect(window.locator('.drop-zone__hint')).toHaveText('MP4, MOV, AVI, WebM, MKV')
+    await expect(window.locator('.timeline__empty-hint')).toContainText('Drag media here')
+    await expect(window.locator('.timeline__empty-hint')).toContainText('Import')
+    await expect(window.locator('.timeline__add-track-btn').first()).toBeVisible()
   })
 
   // Test 5 PRUNED — migrated to Vitest: interactions.test.tsx (Preview Canvas empty state)
