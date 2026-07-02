@@ -38,7 +38,7 @@ describe('validateProjectStructure', () => {
     const data = { version: '2.0.0', id: 'abc', timeline: { tracks: [] }, assets: {} }
     const result = validateProjectStructure(data)
     expect(result.valid).toBe(false)
-    expect(result.reason).toBe('v2 projects unsupported — start a new project')
+    expect(result.reason).toBe("Unsupported project format (v2 / pre-3.0) — this version can't open it.")
   })
 
   // Red-team RT-2: "v2.0.0" (non-digit head) made parseInt return NaN and the

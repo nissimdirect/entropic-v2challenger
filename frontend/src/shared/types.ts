@@ -102,7 +102,7 @@ export interface Track {
   // at the end of `effectChain` (see CompositeEffect / getTerminalComposite below).
   // A track with no terminal composite renders fully opaque, blend mode 'normal'
   // (COMPOSITE_DEFAULTS). v2 projects that carried these track-level fields are
-  // rejected at load by the backend schema validator ("v2 projects unsupported").
+  // rejected at load by the backend schema validator ("Unsupported project format").
   clips: Clip[];
   effectChain: EffectInstance[];
   automationLanes: AutomationLane[];

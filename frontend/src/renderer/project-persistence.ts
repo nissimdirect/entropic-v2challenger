@@ -334,7 +334,7 @@ export function validateProjectStructure(data: unknown): StructureCheckResult {
       if (Number.isFinite(major) && major < PROJECT_VERSION_MAJOR) {
         return {
           valid: false,
-          reason: 'v2 projects unsupported — start a new project',
+          reason: "Unsupported project format (v2 / pre-3.0) — this version can't open it.",
         }
       }
     }
