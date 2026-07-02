@@ -35,6 +35,14 @@ snap, quantize grid, changing quantization.
 
 ## WS0 — Stability & correctness fixes (FIRST — everything else stands on these)
 
+> **⚠️ RECONCILIATION 2026-07-02 (same-day parallel session):** a parallel session authored the month-audit
+> fix plan (PR #321, its own F1–F8 numbering ≠ this table's) and ALREADY SHIPPED most of this workstream:
+> **P1-B fixed + merged (#323)** · sampler persistence + exhaustiveness guard + sibling sweep (#322 — fully
+> covers this table's F2, verified by an independent re-audit) · sidecar flake via injected clock (#324) ·
+> e2e red cluster in flight (#326). **The month-audit plan OWNS WS0 execution.** This table's F1/F2/F3 are
+> superseded-as-shipped; F4 here == month-audit F5 (one executor in flight — reconcile at PR time); F5–F8
+> papercuts remain live in whichever plan dispatches first. **WS1–WS5 remain owned by THIS plan.**
+
 | ID | Packet | Priority | Effort | Depends |
 |----|--------|----------|--------|---------|
 | F1 | **Execute the P1-B fix plan P1+P2+P3** (backend voice-marker exemption in `_is_v2_compositing_shape`, sibling hardening, regression suite). STEP 0 reproduce-before-fix gate per the committed plan — needs sidecar restart, run on user go. | P0 | S–M | none |
