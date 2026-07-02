@@ -86,6 +86,10 @@ import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
+// H1 (2026-07-02 master-tuneup WS5): focused-mapping-context statusbar chip —
+// the foundation the hardware-bank system (H2+) keys off. See
+// utils/focusContext.ts (derivation) + components/layout/MappingContextChip.tsx.
+import MappingContextChip from './components/layout/MappingContextChip'
 import { buildAxisLanes } from '../shared/axis-lanes'
 import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
@@ -3916,6 +3920,8 @@ function AppInner() {
           )}
           {/* P3.2: cursor tool chip — reads data-cursor-tool set by EffectBrowser tool tab */}
           <CursorToolChip />
+          {/* H1: focused-mapping-context chip — foundation for hardware-bank (H2+) targeting */}
+          <MappingContextChip />
           {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>
