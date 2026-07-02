@@ -74,8 +74,8 @@ import { applyPadModulations } from './components/performance/applyPadModulation
 import { applyCCModulations } from './components/performance/applyCCModulations'
 import { applyBankModulations, resolveBankMacroOverrides } from './components/performance/applyBankModulations'
 import { useMIDIStore } from './stores/midi'
-import { deriveMappingContext } from './utils/focusContext'
-import type { DefaultAssignmentSources } from './utils/deriveDefaultAssignment'
+import { snapshotMappingContext, defaultAssignmentSourcesFor } from './utils/mappingSnapshot'
+import { installCCRecordSubscriber } from './utils/cc-record'
 import { useMIDI } from './hooks/useMIDI'
 import { useAudioMeterPoll } from './hooks/useAudioMeterPoll'
 import { useMemoryPressurePoll } from './hooks/useMemoryPressurePoll'
@@ -134,42 +134,6 @@ import RenderQueue from './components/export/RenderQueue'
 import { RoutingCanvas } from './components/routing-canvas'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
-
-/**
- * H2 (2026-07-02 master-tuneup WS5): pure snapshot of the CURRENT focus
- * MappingContext, for non-component call sites (the render loop below is a
- * plain function, not a React component — deriveMappingContext is exactly
- * the store-snapshot-friendly pure sibling of useMappingContext() for this).
- */
-function snapshotMappingContext() {
-  const timeline = useTimelineStore.getState()
-  const project = useProjectStore.getState()
-  return deriveMappingContext(
-    { selectedTrackId: timeline.selectedTrackId, selectedClipIds: timeline.selectedClipIds, tracks: timeline.tracks },
-    { selectedEffectId: project.selectedEffectId, selectedRackPad: project.selectedRackPad },
-  )
-}
-
-/**
- * H2: live-data slices deriveDefaultAssignment needs for the GIVEN context,
- * read fresh from the instruments/effects stores each call (cheap — bounded
- * by MAX_MACROS_PER_RACK=8 / a slice(0,8) of one effect's params).
- */
-function defaultAssignmentSourcesFor(context: ReturnType<typeof snapshotMappingContext>): DefaultAssignmentSources {
-  if (context.kind === 'rack-pad' || context.kind === 'track') {
-    const rack = useInstrumentsStore.getState().racks[context.trackId]
-    return { rackMacros: rack?.macros }
-  }
-  if (context.kind === 'effect') {
-    const track = useTimelineStore.getState().tracks.find((t) => t.id === context.trackId)
-    const effect = track?.effectChain.find((e) => e.id === context.effectId)
-    if (!effect) return {}
-    const info = useEffectsStore.getState().registry.find((r) => r.id === effect.effectId)
-    if (!info) return {}
-    return { effectParamEntries: Object.entries(info.params) }
-  }
-  return {}
-}
 
 /**
  * D4 (Epic 02): Pure helper — apply pad + CC modulation to ANY chain at a given frame.
@@ -394,6 +358,25 @@ function AppInner() {
   const [hasAudio, setHasAudio] = useState(false)
   const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
   const [clipThumbnails, setClipThumbnails] = useState<{ time: number; data: string }[]>([])
+
+  // H4: imperative mirror of hasAudio so the mount-only CC-record subscriber can
+  // compute isPlaying (= hasAudio ? audioStore.isPlaying : isTimerPlaying) at
+  // fire time without re-installing on every hasAudio flip.
+  const hasAudioRef = useRef(false)
+  useEffect(() => {
+    hasAudioRef.current = hasAudio
+  }, [hasAudio])
+
+  // H4 (master-tuneup WS5 capstone): record hardware CC moves as automation.
+  // Subscribes to ccValues changes (already rate-limited/echo-suppressed by B10)
+  // and, ONLY when recording is armed + transport playing, commits each moved CC
+  // through the same latch/touch record path as a manual knob drag. Installed
+  // once; unsubscribes on unmount.
+  useEffect(() => {
+    return installCCRecordSubscriber(() =>
+      hasAudioRef.current ? useAudioStore.getState().isPlaying : isTimerPlayingRef.current,
+    )
+  }, [])
 
   // Startup diagnostics state
   const { telemetryConsent, consentChecked, checkConsent, setConsent } = useSettingsStore()
