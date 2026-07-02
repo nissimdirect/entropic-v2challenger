@@ -8,6 +8,13 @@
  */
 import { create } from 'zustand';
 import type { CCMapping, MIDIDevice, LearnTarget, MIDIPersistData } from '../../shared/types';
+import type { CCBankBinding, BankAssignment, BankSlotAddress } from '../../shared/bankTypes';
+import {
+  isValidCCBankBinding,
+  isValidBankAssignment,
+  MAX_CC_BANK_BINDINGS,
+  MAX_BANK_ASSIGNMENT_CONTEXTS,
+} from '../../shared/bankTypes';
 import { usePerformanceStore } from './performance';
 import { handlePadTrigger, releasePadWithCapture } from '../components/performance/padActions';
 import { MIDICCRateLimiter } from '../../shared/midi-utils';
@@ -58,6 +65,12 @@ interface MIDIState {
   learnTarget: LearnTarget | null;
   isSupported: boolean;
 
+  // H2 — bank-relative hardware mapping (master-tuneup WS5). See bankTypes.ts
+  // module doc for the semantic model (transient overlay, never a store write
+  // for the RESOLVED value — these two fields are the model/config only).
+  ccBankBindings: CCBankBinding[];
+  bankAssignments: Record<string, BankAssignment>;
+
   // Actions
   setDevices: (devices: MIDIDevice[]) => void;
   setActiveDevice: (id: string | null) => void;
@@ -66,6 +79,13 @@ interface MIDIState {
   removeCCMapping: (index: number) => void;
   clearCCMappings: () => void;
   setLearnTarget: (target: LearnTarget | null) => void;
+  // H2 bank actions
+  setCCBankBinding: (cc: number, slot: BankSlotAddress) => void;
+  removeCCBankBinding: (cc: number) => void;
+  clearCCBankBindings: () => void;
+  setBankAssignment: (contextKey: string, assignment: BankAssignment) => void;
+  clearBankAssignment: (contextKey: string) => void;
+  applyControllerProfile: (bindings: CCBankBinding[]) => void;
   setIsSupported: (supported: boolean) => void;
   handleMIDIMessage: (data: Uint8Array, frameIndex: number) => void;
   resetMIDI: () => void;
@@ -81,6 +101,8 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
   ccValues: {},
   learnTarget: null,
   isSupported: false,
+  ccBankBindings: [],
+  bankAssignments: {},
 
   setDevices: (devices) => set({ devices }),
   setActiveDevice: (id) => set({ activeDeviceId: id }),
@@ -110,6 +132,62 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
 
   setLearnTarget: (target) => set({ learnTarget: target }),
   setIsSupported: (supported) => set({ isSupported: supported }),
+
+  // H2 — bank binding CRUD. Mirrors addCCMapping's "one CC → one target"
+  // overwrite semantics, plus the MAX_CC_BANK_BINDINGS evict-oldest cap
+  // (bindings are a small, ordered array — FIFO shift is O(n) but n<=64).
+  setCCBankBinding: (cc, slot) => {
+    if (!Number.isInteger(cc) || cc < 0 || cc > 127) return;
+    if (!Number.isInteger(slot.row) || slot.row < 0 || slot.row > 3) return;
+    if (!Number.isInteger(slot.col) || slot.col < 0 || slot.col > 7) return;
+    const { ccBankBindings } = get();
+    let next = ccBankBindings.filter((b) => b.cc !== cc);
+    if (next.length >= MAX_CC_BANK_BINDINGS) {
+      next = next.slice(next.length - MAX_CC_BANK_BINDINGS + 1); // evict oldest
+    }
+    set({ ccBankBindings: [...next, { cc, slot: { row: slot.row, col: slot.col } }] });
+  },
+
+  removeCCBankBinding: (cc) => {
+    set((s) => ({ ccBankBindings: s.ccBankBindings.filter((b) => b.cc !== cc) }));
+  },
+
+  clearCCBankBindings: () => set({ ccBankBindings: [] }),
+
+  setBankAssignment: (contextKey, assignment) => {
+    if (typeof contextKey !== 'string' || contextKey.length === 0) return;
+    if (!isValidBankAssignment(assignment)) return;
+    const { bankAssignments } = get();
+    let next = bankAssignments;
+    if (!(contextKey in bankAssignments) && Object.keys(bankAssignments).length >= MAX_BANK_ASSIGNMENT_CONTEXTS) {
+      // Evict-oldest: string-keyed object preserves insertion order in JS,
+      // so the first key is genuinely the oldest surviving entry.
+      const oldestKey = Object.keys(bankAssignments)[0];
+      next = { ...bankAssignments };
+      delete next[oldestKey];
+    }
+    set({ bankAssignments: { ...next, [contextKey]: assignment } });
+  },
+
+  clearBankAssignment: (contextKey) => {
+    set((s) => {
+      if (!(contextKey in s.bankAssignments)) return s;
+      const next = { ...s.bankAssignments };
+      delete next[contextKey];
+      return { bankAssignments: next };
+    });
+  },
+
+  // Bulk-set convenience for a built-in controller profile (e.g. MIDImix
+  // factory map, controllerProfiles.ts). Validates + truncates to the same
+  // cap as setCCBankBinding; replaces (does not merge with) existing bindings.
+  applyControllerProfile: (bindings) => {
+    const valid = bindings.filter(isValidCCBankBinding).slice(0, MAX_CC_BANK_BINDINGS);
+    // De-dupe by cc (last write wins), mirroring one-CC-one-target.
+    const byCc = new Map<number, CCBankBinding>();
+    for (const b of valid) byCc.set(b.cc, b);
+    set({ ccBankBindings: Array.from(byCc.values()) });
+  },
 
   handleMIDIMessage: (data, frameIndex) => {
     if (data.length < 2) return;
@@ -223,11 +301,13 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       ccValues: {},
       learnTarget: null,
       channelFilter: null,
+      ccBankBindings: [],
+      bankAssignments: {},
     });
   },
 
   getMIDIPersistData: (): MIDIPersistData => {
-    const { ccMappings, channelFilter } = get();
+    const { ccMappings, channelFilter, ccBankBindings, bankAssignments } = get();
     const perfStore = usePerformanceStore.getState();
 
     const padMidiNotes: Record<string, number | null> = {};
@@ -241,6 +321,8 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       padMidiNotes,
       ccMappings,
       channelFilter,
+      ccBankBindings,
+      bankAssignments,
     };
   },
 
@@ -284,10 +366,34 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       ? data.channelFilter
       : null;
 
+    // H2 — validate ccBankBindings: each must have integer cc 0-127 and a
+    // valid BankSlotAddress (row 0-3, col 0-7). Cap mirrors setCCBankBinding.
+    const validBankBindings = Array.isArray(data.ccBankBindings)
+      ? data.ccBankBindings.filter(isValidCCBankBinding).slice(0, MAX_CC_BANK_BINDINGS)
+      : [];
+
+    // H2 — validate bankAssignments: object of contextKey -> BankAssignment,
+    // each shape-checked (exact 4x8 grid, allowlisted slot-target kinds).
+    // Malformed entries are DROPPED, never throw (trust boundary, mirrors the
+    // rest of this function). Cap mirrors setBankAssignment.
+    const validBankAssignments: Record<string, BankAssignment> = {};
+    if (data.bankAssignments && typeof data.bankAssignments === 'object' && !Array.isArray(data.bankAssignments)) {
+      let count = 0;
+      for (const [key, value] of Object.entries(data.bankAssignments)) {
+        if (count >= MAX_BANK_ASSIGNMENT_CONTEXTS) break;
+        if (typeof key !== 'string' || key.length === 0) continue;
+        if (!isValidBankAssignment(value)) continue;
+        validBankAssignments[key] = value;
+        count++;
+      }
+    }
+
     set({
       ccMappings: validMappings,
       channelFilter: validChannel,
       ccValues: {},
+      ccBankBindings: validBankBindings,
+      bankAssignments: validBankAssignments,
     });
   },
 }));

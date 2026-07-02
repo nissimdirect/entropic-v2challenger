@@ -72,7 +72,10 @@ import { usePerformanceStore } from './stores/performance'
 import { usePerformanceFreezeStore, buildBakePayload } from './stores/performanceFreeze'
 import { applyPadModulations } from './components/performance/applyPadModulations'
 import { applyCCModulations } from './components/performance/applyCCModulations'
+import { applyBankModulations, resolveBankMacroOverrides } from './components/performance/applyBankModulations'
 import { useMIDIStore } from './stores/midi'
+import { deriveMappingContext } from './utils/focusContext'
+import type { DefaultAssignmentSources } from './utils/deriveDefaultAssignment'
 import { useMIDI } from './hooks/useMIDI'
 import { useAudioMeterPoll } from './hooks/useAudioMeterPoll'
 import { useMemoryPressurePoll } from './hooks/useMemoryPressurePoll'
@@ -131,10 +134,53 @@ import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
 
 /**
+ * H2 (2026-07-02 master-tuneup WS5): pure snapshot of the CURRENT focus
+ * MappingContext, for non-component call sites (the render loop below is a
+ * plain function, not a React component — deriveMappingContext is exactly
+ * the store-snapshot-friendly pure sibling of useMappingContext() for this).
+ */
+function snapshotMappingContext() {
+  const timeline = useTimelineStore.getState()
+  const project = useProjectStore.getState()
+  return deriveMappingContext(
+    { selectedTrackId: timeline.selectedTrackId, selectedClipIds: timeline.selectedClipIds, tracks: timeline.tracks },
+    { selectedEffectId: project.selectedEffectId, selectedRackPad: project.selectedRackPad },
+  )
+}
+
+/**
+ * H2: live-data slices deriveDefaultAssignment needs for the GIVEN context,
+ * read fresh from the instruments/effects stores each call (cheap — bounded
+ * by MAX_MACROS_PER_RACK=8 / a slice(0,8) of one effect's params).
+ */
+function defaultAssignmentSourcesFor(context: ReturnType<typeof snapshotMappingContext>): DefaultAssignmentSources {
+  if (context.kind === 'rack-pad' || context.kind === 'track') {
+    const rack = useInstrumentsStore.getState().racks[context.trackId]
+    return { rackMacros: rack?.macros }
+  }
+  if (context.kind === 'effect') {
+    const track = useTimelineStore.getState().tracks.find((t) => t.id === context.trackId)
+    const effect = track?.effectChain.find((e) => e.id === context.effectId)
+    if (!effect) return {}
+    const info = useEffectsStore.getState().registry.find((r) => r.id === effect.effectId)
+    if (!info) return {}
+    return { effectParamEntries: Object.entries(info.params) }
+  }
+  return {}
+}
+
+/**
  * D4 (Epic 02): Pure helper — apply pad + CC modulation to ANY chain at a given frame.
  * Called per-track in the render path so each track's chain is independently modulated.
  * CC/pad modulations target a specific effectId; applying this to each track's chain
  * only mutates matching effects — equivalent to the old single-chain behaviour.
+ *
+ * H2: CC resolution now goes through applyBankModulations, which merges the
+ * legacy direct `ccMappings` with any bank-bound CC's LIVE, focus-resolved
+ * target (bank wins on CC collision) before delegating to the same
+ * applyCCModulations this always called. When there are no bank bindings at
+ * all, applyBankModulations degrades to exactly the old direct-mappings path
+ * (regression-safe — see applyBankModulations.ts).
  */
 function modulateChain(chain: EffectInstance[], frame: number): EffectInstance[] {
   const perf = usePerformanceStore.getState()
@@ -143,8 +189,19 @@ function modulateChain(chain: EffectInstance[], frame: number): EffectInstance[]
     ? applyPadModulations(chain, perf.drumRack.pads, env)
     : chain
   const midi = useMIDIStore.getState()
-  if (midi.ccMappings.length > 0 && Object.keys(midi.ccValues).length > 0) {
-    out = applyCCModulations(out, midi.ccMappings, midi.ccValues)
+  const hasDirectMappings = midi.ccMappings.length > 0
+  const hasBankBindings = midi.ccBankBindings.length > 0
+  if ((hasDirectMappings || hasBankBindings) && Object.keys(midi.ccValues).length > 0) {
+    const context = snapshotMappingContext()
+    out = applyBankModulations(
+      out,
+      midi.ccMappings,
+      midi.ccBankBindings,
+      midi.ccValues,
+      midi.bankAssignments,
+      context,
+      defaultAssignmentSourcesFor(context),
+    )
   }
   return out
 }
@@ -1252,6 +1309,31 @@ function AppInner() {
         // rack appends nothing here, so the bare-sampler path above is untouched
         // (no-rack regression-safe).
         const rackState = instrState.racks
+        // H2 (2026-07-02 master-tuneup WS5): a bank-bound CC targeting a
+        // 'macro' slot transiently overrides that macro's value for THIS
+        // frame only (never a RackMacro.value store write — see
+        // applyBankModulations.ts doc). Resolved ONCE per frame (not
+        // per-track): the overlay is keyed by macro id and only the
+        // CURRENTLY FOCUSED rack's macro ids can appear in it, so passing
+        // the same map to every track's resolveRackMacros call below is
+        // safe — a non-focused track's rack simply finds no matching ids
+        // (byte-identical to the no-override path). LIVE PREVIEW ONLY: the
+        // export-time resolveRackMacros call (export path, "macros are
+        // STATIC at export time") intentionally does NOT receive this
+        // overlay — hardware input has no meaning for a non-live export.
+        const midiForMacros = useMIDIStore.getState()
+        const bankMacroOverrides = midiForMacros.ccBankBindings.length > 0
+          ? (() => {
+              const macroContext = snapshotMappingContext()
+              return resolveBankMacroOverrides(
+                midiForMacros.ccBankBindings,
+                midiForMacros.ccValues,
+                midiForMacros.bankAssignments,
+                macroContext,
+                defaultAssignmentSourcesFor(macroContext),
+              )
+            })()
+          : undefined
         const rackLayers = Array.from(perfTrackIds).flatMap((trackId) => {
           // B10.1b — FROZEN track plays its baked clip (frozenLayers), not live voices.
           if (freezeState.isFrozen(trackId)) return []
@@ -1262,7 +1344,10 @@ function AppInner() {
           // speed/opacity. No-macros / all-at-0 → rawRack returned unchanged
           // (regression-safe). Fan-out caps are the backend trust boundary
           // (security.validate_rack_macros); this is the pure local resolver.
-          const rack = resolveRackMacros(rawRack)
+          // H2: bankMacroOverrides (live hardware overlay, see above) is
+          // threaded through as the SECOND arg — additive-optional, absent
+          // -> byte-identical to pre-H2 behavior.
+          const rack = resolveRackMacros(rawRack, bankMacroOverrides)
           if (!rack) return []
           const eventsByPad: Record<string, typeof perfState.trackEvents[string]> = {}
           // B5.1 — recursively gather per-pad events keyed by PATH-FROM-ROOT so a
@@ -2904,6 +2989,11 @@ function AppInner() {
           const rawRack = instrState.racks[trackId]
           if (!rawRack) continue
           // Resolve macros ONCE (preview parity) — static at export time.
+          // H2: intentionally NOT passed a bankMacroOverrides overlay —
+          // hardware CC input is a live-only concept (there is no "focus" or
+          // "now" during a batch export), so this call stays exactly the
+          // pre-H2 macro.value-only resolve. See the live rackLayers call
+          // site above for the overlay this mirrors in preview.
           const rack = resolveRackMacros(rawRack)
           if (!rack) continue
           const padPayloads = rack.pads.map((pad, i) =>

@@ -892,6 +892,11 @@ function validateProject(data: unknown): data is Project {
     if (typeof midi !== 'object' || midi === null) return false
     if (midi.ccMappings !== undefined && !Array.isArray(midi.ccMappings)) return false
     if (midi.padMidiNotes !== undefined && (typeof midi.padMidiNotes !== 'object' || midi.padMidiNotes === null)) return false
+    // H2: shape-check only (object of objects) — per-binding/per-assignment
+    // field validation happens at hydrate (useMIDIStore.loadMIDIMappings,
+    // the real deserialization trust boundary, mirrors ccMappings above).
+    if (midi.ccBankBindings !== undefined && !Array.isArray(midi.ccBankBindings)) return false
+    if (midi.bankAssignments !== undefined && (typeof midi.bankAssignments !== 'object' || midi.bankAssignments === null || Array.isArray(midi.bankAssignments))) return false
   }
 
   // B4.1: optional racks. Shape-check only (object of objects) — per-pad
