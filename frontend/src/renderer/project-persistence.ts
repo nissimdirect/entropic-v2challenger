@@ -15,9 +15,9 @@ import { useAutomationStore } from './stores/automation'
 import { useMIDIStore } from './stores/midi'
 import { useToastStore } from './stores/toast'
 import { useInstrumentsStore } from './stores/instruments'
-import type { SamplerInstrumentV1, RackNode, RackPad, FrameBankInstrument, GranulatorInstrument } from './components/instruments/types'
+import type { SamplerInstrumentV1, SamplerLoopConfig, RackNode, RackPad, RackMacro, FrameBankInstrument, GranulatorInstrument } from './components/instruments/types'
 import type { TriggerEvent } from './components/instruments/voiceFSM'
-import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, MAX_BRANCH_DEPTH, MAX_FRAMEBANK_SLOTS, FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX, GRANULATOR_AXES, defaultGranulatorInstrument } from './components/instruments/types'
+import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, RACK_CHOKE_GROUP_MIN, RACK_CHOKE_GROUP_MAX, MAX_BRANCH_DEPTH, MAX_FRAMEBANK_SLOTS, FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX, GRANULATOR_AXES, defaultGranulatorInstrument, MAX_MACROS_PER_RACK, MAX_MODROUTES_PER_MACRO, MAX_TOTAL_EDGES } from './components/instruments/types'
 import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { FF } from '../shared/feature-flags'
@@ -28,6 +28,120 @@ const VALID_BLEND_MODES = new Set<BlendMode>([
   'normal', 'add', 'multiply', 'screen', 'overlay',
   'difference', 'exclusion', 'darken', 'lighten',
 ])
+
+// F2 — sampler B3/B9 trust-boundary bounds. No frame count is available at the
+// persistence layer (asset resolution happens later), so frame-index fields
+// mirror the existing startFrame clamp bound (1,000,000) — a generous cap.
+// glide/crossfade bounds MIRROR computeSamplerVoice.ts's local SAMPLER_GLIDE_MAX
+// / LOOP_CROSSFADE_MAX (not exported there — duplicated here at the load
+// boundary; the render-time clamp is defense in depth, not a substitute).
+const SAMPLER_FRAME_INDEX_MAX = 1_000_000
+const SAMPLER_GLIDE_MIN = 0
+const SAMPLER_GLIDE_MAX = 300
+const LOOP_CROSSFADE_MIN = 0
+const LOOP_CROSSFADE_MAX = 32
+const MELODIC_ROOT_NOTE_MIN = 0
+const MELODIC_ROOT_NOTE_MAX = 127
+const RGB_OFFSET_MIN = -SAMPLER_FRAME_INDEX_MAX
+const RGB_OFFSET_MAX = SAMPLER_FRAME_INDEX_MAX
+const VALID_LOOP_DIRS = new Set(['fwd', 'rev', 'pingpong'])
+const VALID_MELODIC_MODES = new Set(['startFrame', 'speed'])
+const VALID_TIME_AXES = new Set(['t', 'y', 'x'])
+
+/**
+ * F2 exhaustiveness guard — the real fix, not the field restore below. A
+ * `Record<keyof SamplerInstrumentV1, ...>` requires TOTAL coverage of the
+ * interface's keys, so adding a new field to SamplerInstrumentV1 (types.ts)
+ * without classifying it here fails `tsc`. This is what stops the #315-class
+ * bug (save writes the full spread, load hand-picks a stale field list) from
+ * recurring — the maximal-fixture round-trip test below catches it too, but
+ * this catches it BEFORE any test even runs.
+ *
+ * `scrub` is the one INTENTIONALLY unpersisted field: it's a modulation
+ * DESTINATION (resolveSamplerModulations writes it per-frame from automation),
+ * never a saved value — persisting it would freeze a live-modulated scrub
+ * position into the file.
+ */
+const SAMPLER_FIELD_CLASSIFICATION: Record<keyof SamplerInstrumentV1, 'persisted' | 'unpersisted'> = {
+  id: 'persisted',
+  type: 'persisted',
+  clipId: 'persisted',
+  startFrame: 'persisted',
+  speed: 'persisted',
+  opacity: 'persisted',
+  blendMode: 'persisted',
+  endFrame: 'persisted',
+  loop: 'persisted',
+  scrub: 'unpersisted',
+  rgbOffset: 'persisted',
+  glide: 'persisted',
+  melodic: 'persisted',
+  timeAxis: 'persisted',
+}
+
+const PERSISTED_SAMPLER_FIELDS = (Object.keys(SAMPLER_FIELD_CLASSIFICATION) as (keyof SamplerInstrumentV1)[])
+  .filter((k) => SAMPLER_FIELD_CLASSIFICATION[k] === 'persisted') satisfies ReadonlyArray<keyof SamplerInstrumentV1>
+const UNPERSISTED_SAMPLER_FIELDS = (Object.keys(SAMPLER_FIELD_CLASSIFICATION) as (keyof SamplerInstrumentV1)[])
+  .filter((k) => SAMPLER_FIELD_CLASSIFICATION[k] === 'unpersisted') satisfies ReadonlyArray<keyof SamplerInstrumentV1>
+
+/**
+ * F2 — Validate + restore the B3/B9 sampler fields #315's load whitelist
+ * dropped: endFrame, loop, rgbOffset, glide, melodic, timeAxis. Every numeric
+ * crosses the trust boundary through clampFinite (finite + range); enums fall
+ * back to the engine's own regression-safe default on an unknown value
+ * (mirrors the frameBank interp/timeAxis convention elsewhere in this file —
+ * additive-optional sub-fields clamp silently, no per-field toast; a toast
+ * fires only when a whole NODE/PAD is dropped, e.g. loadMaskStack/rack-load).
+ * `scrub` is never read here — see SAMPLER_FIELD_CLASSIFICATION above.
+ */
+function restoreSamplerAdditiveFields(
+  raw: Record<string, unknown>,
+): Pick<SamplerInstrumentV1, 'endFrame' | 'loop' | 'rgbOffset' | 'glide' | 'melodic' | 'timeAxis'> {
+  const out: Pick<SamplerInstrumentV1, 'endFrame' | 'loop' | 'rgbOffset' | 'glide' | 'melodic' | 'timeAxis'> = {}
+
+  if (raw.endFrame !== undefined) {
+    out.endFrame = Math.round(clampFinite(Number(raw.endFrame), 0, SAMPLER_FRAME_INDEX_MAX, 0))
+  }
+
+  if (raw.loop !== undefined && raw.loop !== null && typeof raw.loop === 'object') {
+    const l = raw.loop as Record<string, unknown>
+    const loop: SamplerLoopConfig = { enabled: Boolean(l.enabled) }
+    if (l.in !== undefined) loop.in = Math.round(clampFinite(Number(l.in), 0, SAMPLER_FRAME_INDEX_MAX, 0))
+    if (l.out !== undefined) loop.out = Math.round(clampFinite(Number(l.out), 0, SAMPLER_FRAME_INDEX_MAX, SAMPLER_FRAME_INDEX_MAX))
+    if (typeof l.dir === 'string' && VALID_LOOP_DIRS.has(l.dir)) loop.dir = l.dir as SamplerLoopConfig['dir']
+    if (l.crossfade !== undefined) loop.crossfade = clampFinite(Number(l.crossfade), LOOP_CROSSFADE_MIN, LOOP_CROSSFADE_MAX, 0)
+    out.loop = loop
+  }
+
+  if (raw.rgbOffset !== undefined && raw.rgbOffset !== null && typeof raw.rgbOffset === 'object') {
+    const o = raw.rgbOffset as Record<string, unknown>
+    out.rgbOffset = {
+      r: clampFinite(Number(o.r), RGB_OFFSET_MIN, RGB_OFFSET_MAX, 0),
+      g: clampFinite(Number(o.g), RGB_OFFSET_MIN, RGB_OFFSET_MAX, 0),
+      b: clampFinite(Number(o.b), RGB_OFFSET_MIN, RGB_OFFSET_MAX, 0),
+    }
+  }
+
+  if (raw.glide !== undefined) {
+    out.glide = clampFinite(Number(raw.glide), SAMPLER_GLIDE_MIN, SAMPLER_GLIDE_MAX, 0)
+  }
+
+  if (raw.melodic !== undefined && raw.melodic !== null && typeof raw.melodic === 'object') {
+    const m = raw.melodic as Record<string, unknown>
+    const mode = typeof m.mode === 'string' && VALID_MELODIC_MODES.has(m.mode) ? (m.mode as 'startFrame' | 'speed') : 'startFrame'
+    out.melodic = {
+      enabled: Boolean(m.enabled),
+      mode,
+      rootNote: Math.round(clampFinite(Number(m.rootNote), MELODIC_ROOT_NOTE_MIN, MELODIC_ROOT_NOTE_MAX, 60)),
+    }
+  }
+
+  if (typeof raw.timeAxis === 'string' && VALID_TIME_AXES.has(raw.timeAxis)) {
+    out.timeAxis = raw.timeAxis as 't' | 'y' | 'x'
+  }
+
+  return out
+}
 
 const GLITCH_FILTERS = [{ name: 'Creatrix Project', extensions: ['glitch'] }]
 const AUTOSAVE_INTERVAL_MS = 60_000
@@ -47,6 +161,11 @@ const FEATHER_MIN = 0
 const FEATHER_MAX = 100
 const GROW_SHRINK_MIN = -50
 const GROW_SHRINK_MAX = 50
+// F2 sibling fix: polygon vertices are capped at 256 at COMMIT time
+// (MaskSelectOverlay's RDP-simplify), so 512 is a generous load-time ceiling
+// covering both the flat number[] and the number[][] pair encodings.
+const MAX_MATTE_PARAM_ARRAY_LEN = 512
+const MAX_MATTE_PARAM_PAIR_LEN = 16
 
 /**
  * MK.1: Load-time validator for a single MatteNode from persisted JSON.
@@ -92,17 +211,35 @@ function validateMatteNode(raw: unknown): MatteNode | null {
   const invert = Boolean(r.invert)
   const enabled = r.enabled === undefined ? true : Boolean(r.enabled)
 
-  // params: sanitize numeric values, pass strings through
+  // params: sanitize numeric values, pass strings through, sanitize array
+  // shapes (polygon vertices — number[] flat or number[][] pairs, per the
+  // MatteNode.params type). F2 sibling fix: this sanitizer used to silently
+  // DROP every array-valued param — that reached zero downstream error, but
+  // it meant `_rasterize_polygon`'s `vertices` param vanished on every save/
+  // reload, so a polygon matte survived save→load as an EMPTY node (renders
+  // nothing). Cap array length so a weaponized .glitch can't inflate memory.
   const rawParams = (typeof r.params === 'object' && r.params !== null)
     ? r.params as Record<string, unknown>
     : {}
-  const params: Record<string, number | string> = {}
+  const params: Record<string, number | string | number[] | number[][]> = {}
   for (const [k, v] of Object.entries(rawParams)) {
     if (typeof v === 'number') {
       params[k] = Number.isFinite(v) ? v : 0
     } else if (typeof v === 'string') {
       params[k] = v
+    } else if (Array.isArray(v)) {
+      if (v.every((el) => typeof el === 'number')) {
+        params[k] = (v as unknown[])
+          .slice(0, MAX_MATTE_PARAM_ARRAY_LEN)
+          .map((n) => (Number.isFinite(n as number) ? (n as number) : 0))
+      } else if (v.every((el) => Array.isArray(el) && (el as unknown[]).every((n) => typeof n === 'number'))) {
+        params[k] = (v as unknown[])
+          .slice(0, MAX_MATTE_PARAM_ARRAY_LEN)
+          .map((pair) => (pair as unknown[]).slice(0, MAX_MATTE_PARAM_PAIR_LEN).map((n) => (Number.isFinite(n as number) ? (n as number) : 0)))
+      }
+      // else: array of an unrecognized shape → dropped (this one key omitted)
     }
+    // any other type → dropped (this one key omitted)
   }
 
   return { id, kind: kind as MatteNodeKind, params, op, invert, feather, growShrink, enabled }
@@ -133,6 +270,57 @@ function loadMaskStack(raw: unknown, clipId: string): MatteNode[] {
     }
   }
   return validated
+}
+
+/**
+ * Shared effect-chain sanitizer — the trust-boundary logic used for the
+ * per-track effectChain (below, in hydrateStores) AND, as of F2, the per-pad
+ * insert chain (B4-pad-chain) and branch-level chain (B5.1). Drops entries
+ * missing identity (id/effectId — a missing id would orphan operator/
+ * automation/CC/group refs), finite-guards numeric params, clamps mix to
+ * [0,1], and validates `__field__` dicts via validateFieldRefOnLoad. Returns
+ * the UNCAPPED chain — callers cap to LIMITS.MAX_EFFECTS_PER_CHAIN themselves
+ * (the per-track caller also needs the composite-placement guard to run
+ * first, so length-capping happens after that; pad/branch chains cap right
+ * away since they have no composite-placement rule).
+ */
+function sanitizeEffectChain(raw: unknown): { chain: EffectInstance[]; fieldDropped: boolean } {
+  const rawChain = Array.isArray(raw) ? raw : []
+  let fieldDropped = false
+  const chain = (rawChain as unknown[]).reduce<EffectInstance[]>((acc, entry) => {
+    if (typeof entry !== 'object' || entry === null) return acc
+    const e = entry as Record<string, unknown>
+    if (typeof e.id !== 'string' || typeof e.effectId !== 'string') return acc // missing identity -> drop (would orphan)
+    const parameters: Record<string, ParamValue> = {}
+    if (e.parameters && typeof e.parameters === 'object') {
+      for (const [k, v] of Object.entries(e.parameters as Record<string, unknown>)) {
+        if (typeof v === 'number') { if (Number.isFinite(v)) parameters[k] = v } // drop NaN/Inf
+        else if (typeof v === 'string' || typeof v === 'boolean') parameters[k] = v
+        else if (isFieldRef(v)) {
+          const validated = validateFieldRefOnLoad(v)
+          if (validated) {
+            parameters[k] = validated
+          } else {
+            fieldDropped = true
+          }
+        }
+        // any other object shape → dropped (param uses default), as before
+      }
+    }
+    acc.push({
+      id: e.id,
+      effectId: e.effectId,
+      isEnabled: typeof e.isEnabled === 'boolean' ? e.isEnabled : true,
+      isFrozen: typeof e.isFrozen === 'boolean' ? e.isFrozen : false,
+      parameters,
+      modulations: (e.modulations && typeof e.modulations === 'object' ? e.modulations : {}) as EffectInstance['modulations'],
+      mix: typeof e.mix === 'number' && Number.isFinite(e.mix) ? Math.max(0, Math.min(1, e.mix)) : 1,
+      mask: (e.mask && typeof e.mask === 'object' ? e.mask : null) as EffectInstance['mask'],
+      ...(e.abState && typeof e.abState === 'object' ? { abState: e.abState as EffectInstance['abState'] } : {}),
+    })
+    return acc
+  }, [])
+  return { chain, fieldDropped }
 }
 
 // B4.1 — Sample Rack load-time validation (additive optional; no version bump).
@@ -202,7 +390,37 @@ function validateRackPad(raw: unknown, depth = 0): RackPad | null {
     instrument = { id: 'sampler', type: 'sampler', clipId: '', startFrame: 0, speed: 1, opacity: 1, blendMode: 'normal' }
   }
 
-  return { id: r.id, instrument, opacity, blend, mute, solo, ...(branch ? { branch } : {}) }
+  // F2 sibling fix: chokeGroup (B4-choke) and chain (B4-pad-chain) were BOTH
+  // dropped here — same silent-loss bug class as the sampler headline bug.
+  // Both are real, consumed fields: chokeGroup drives voiceFSM's choke
+  // resolution (see stores/performance.ts triggerRackPad), chain rides on the
+  // voice layer and is applied by render_composite (buildRackLayers.ts).
+  // chokeGroup: null = explicit "no group" (kept); malformed/out-of-range →
+  // omitted (same effective "no group" — every consumer checks `!= null`).
+  let chokeGroup: number | null | undefined
+  if (r.chokeGroup === null) {
+    chokeGroup = null
+  } else if (r.chokeGroup !== undefined) {
+    const n = Number(r.chokeGroup)
+    if (Number.isInteger(n) && n >= RACK_CHOKE_GROUP_MIN && n <= RACK_CHOKE_GROUP_MAX) chokeGroup = n
+  }
+
+  let chain: EffectInstance[] | undefined
+  if (Array.isArray(r.chain)) {
+    chain = sanitizeEffectChain(r.chain).chain.slice(0, LIMITS.MAX_EFFECTS_PER_CHAIN)
+  }
+
+  return {
+    id: r.id,
+    instrument,
+    opacity,
+    blend,
+    mute,
+    solo,
+    ...(branch ? { branch } : {}),
+    ...(chokeGroup !== undefined ? { chokeGroup } : {}),
+    ...(chain !== undefined ? { chain } : {}),
+  }
 }
 
 /**
@@ -232,7 +450,58 @@ function validateRackNodeBranch(raw: unknown, parentId: string, depth: number): 
       blend: VALID_BLEND_MODES.has(c.blend as BlendMode) ? (c.blend as BlendMode) : 'normal',
     }
   }
+  // F2 sibling fix: branch-level chain (B5.1) was dropped here — it runs on
+  // the COMPOSITED children sub-frame (buildRackLayers.ts: `pad.branch.chain`)
+  // before the branch emits its single layer upward, so losing it on reload
+  // silently un-does every branch-level insert effect. `macros` is
+  // INTENTIONALLY not restored on a branch: resolveRackMacrosBounded only
+  // ever reads the TOP-LEVEL rack's `pads` (App.tsx calls it once on the
+  // per-track rack, never recursing into `pad.branch`), so a branch-level
+  // `macros` field is unreachable dead data — same "ignored for a branch" /
+  // "ignored for top-level" split the type comments already document for
+  // chain/composite, just the other direction.
+  if (Array.isArray(r.chain)) {
+    node.chain = sanitizeEffectChain(r.chain).chain.slice(0, LIMITS.MAX_EFFECTS_PER_CHAIN)
+  }
   return node
+}
+
+/**
+ * B4.2 — validate a rack's macros array (top-level rack ONLY — see the
+ * "ignored on a branch" note in validateRackNodeBranch). Malformed macros /
+ * routes are dropped individually, never a throw. Mirrors the SAME fan-out
+ * caps enforced at the store-write boundary (addMacroRoute) and at resolve
+ * time (resolveRackMacrosBounded): MAX_MACROS_PER_RACK macros,
+ * MAX_MODROUTES_PER_MACRO routes per macro, MAX_TOTAL_EDGES routes total
+ * across the whole rack (defense in depth — resolveRackMacrosBounded
+ * re-enforces all three regardless, but the loader should never construct an
+ * over-cap rack to begin with).
+ */
+function validateRackMacros(raw: unknown): RackMacro[] {
+  if (!Array.isArray(raw)) return []
+  const macros: RackMacro[] = []
+  let totalEdges = 0
+  for (const entry of raw) {
+    if (macros.length >= MAX_MACROS_PER_RACK) break
+    if (typeof entry !== 'object' || entry === null) continue
+    const m = entry as Record<string, unknown>
+    if (typeof m.id !== 'string' || !m.id) continue
+    const value = clampFinite(Number(m.value), 0, 1, 0)
+    const rawRoutes = Array.isArray(m.routes) ? m.routes : []
+    const routes: RackMacro['routes'] = []
+    for (const routeRaw of rawRoutes) {
+      if (routes.length >= MAX_MODROUTES_PER_MACRO) break
+      if (totalEdges >= MAX_TOTAL_EDGES) break
+      if (typeof routeRaw !== 'object' || routeRaw === null) continue
+      const rr = routeRaw as Record<string, unknown>
+      if (typeof rr.targetPath !== 'string' || !rr.targetPath) continue
+      const depthNum = Number(rr.depth)
+      routes.push({ targetPath: rr.targetPath, depth: Number.isFinite(depthNum) ? depthNum : 0 })
+      totalEdges++
+    }
+    macros.push({ id: m.id, name: typeof m.name === 'string' ? m.name : '', value, routes })
+  }
+  return macros
 }
 
 /**
@@ -241,6 +510,8 @@ function validateRackNodeBranch(raw: unknown, parentId: string, depth: number): 
  *   - malformed pads are DROPPED individually (with a toast), additive-safe
  *   - pad list capped at MAX_PADS_PER_RACK
  *   - a rack that ends up with zero valid pads is dropped (null)
+ *   - F2: macros (B4.2) restored + capped (was dropped entirely — same bug
+ *     class as chokeGroup/chain above; resolveRackMacros consumes it)
  */
 function validateRackNode(raw: unknown, trackId: string): RackNode | null {
   if (typeof raw !== 'object' || raw === null) return null
@@ -263,7 +534,13 @@ function validateRackNode(raw: unknown, trackId: string): RackNode | null {
   }
 
   if (pads.length === 0) return null
-  return { id: typeof r.id === 'string' ? r.id : 'rack', type: 'rack', pads }
+  const macros = validateRackMacros(r.macros)
+  return {
+    id: typeof r.id === 'string' ? r.id : 'rack',
+    type: 'rack',
+    pads,
+    ...(macros.length > 0 ? { macros } : {}),
+  }
 }
 
 // F-0514-10 + F-0514-11: numeric range guards mirrored from backend schema.py.
@@ -823,45 +1100,10 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     // use it; a missing id orphans operator/automation/CC/group refs) AND effectId (effect type)
     // as strings. (b) Finite-guard numeric params + clamp mix to [0,1] (numeric-trust-boundary rule).
     // (c) Cap to the per-track chain limit (hydrate must not bypass MAX_EFFECTS_PER_CHAIN).
-    const rawChain = Array.isArray((track as any).effectChain) ? (track as any).effectChain : []
-    // P6.6: set when any malformed __field__ dict was dropped to default on load.
-    let fieldDropped = false
-    const sanitized = (rawChain as unknown[]).reduce<EffectInstance[]>((acc, raw) => {
-      if (typeof raw !== 'object' || raw === null) return acc
-      const e = raw as Record<string, unknown>
-      if (typeof e.id !== 'string' || typeof e.effectId !== 'string') return acc // missing identity -> drop (would orphan)
-      const parameters: Record<string, ParamValue> = {}
-      if (e.parameters && typeof e.parameters === 'object') {
-        for (const [k, v] of Object.entries(e.parameters as Record<string, unknown>)) {
-          if (typeof v === 'number') { if (Number.isFinite(v)) parameters[k] = v } // drop NaN/Inf
-          else if (typeof v === 'string' || typeof v === 'boolean') parameters[k] = v
-          else if (isFieldRef(v)) {
-            // P6.6 trust boundary: validate the persisted __field__ dict.
-            // Valid → clamped (gain → [-4,4]); malformed → dropped to default
-            // (param key simply omitted → effect uses its default scalar) + toast.
-            const validated = validateFieldRefOnLoad(v)
-            if (validated) {
-              parameters[k] = validated
-            } else {
-              fieldDropped = true
-            }
-          }
-          // any other object shape → dropped (param uses default), as before
-        }
-      }
-      acc.push({
-        id: e.id,
-        effectId: e.effectId,
-        isEnabled: typeof e.isEnabled === 'boolean' ? e.isEnabled : true,
-        isFrozen: typeof e.isFrozen === 'boolean' ? e.isFrozen : false,
-        parameters,
-        modulations: (e.modulations && typeof e.modulations === 'object' ? e.modulations : {}) as EffectInstance['modulations'],
-        mix: typeof e.mix === 'number' && Number.isFinite(e.mix) ? Math.max(0, Math.min(1, e.mix)) : 1,
-        mask: (e.mask && typeof e.mask === 'object' ? e.mask : null) as EffectInstance['mask'],
-        ...(e.abState && typeof e.abState === 'object' ? { abState: e.abState as EffectInstance['abState'] } : {}),
-      })
-      return acc
-    }, [])
+    // F2: this per-effect sanitize/finite-guard/mix-clamp/__field__-validate
+    // logic is now shared (sanitizeEffectChain) — also used for the per-pad
+    // insert chain and the branch-level chain, which #315 never restored.
+    const { chain: sanitized, fieldDropped } = sanitizeEffectChain((track as any).effectChain)
     // P6.6: surface a single toast per track if any malformed field dict was
     // dropped (param fell back to its default).
     if (fieldDropped) {
@@ -960,6 +1202,12 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
         speed: clampFinite(Number(s.speed), SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, 1),
         opacity: clampFinite(Number(s.opacity), 0, 1, 1),
         blendMode: VALID_BLEND_MODES.has(s.blendMode as BlendMode) ? s.blendMode : 'normal',
+        // F2 headline fix: endFrame/loop/rgbOffset/glide/melodic/timeAxis were
+        // silently dropped here — save writes the full spread (serializeProject
+        // above), so every B3/B9 feature vanished on reload. `scrub` is the one
+        // field intentionally excluded (modulation destination, never saved —
+        // see SAMPLER_FIELD_CLASSIFICATION).
+        ...restoreSamplerAdditiveFields(s as unknown as Record<string, unknown>),
       })
     }
   }
@@ -1014,6 +1262,15 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
       // Fix 3: restore timeAxis — clamped to valid values; unknown → 't' (legacy default).
       const VALID_AXIS = new Set(['t', 'y', 'x'])
       const timeAxis: FrameBankInstrument['timeAxis'] = VALID_AXIS.has(String(r.timeAxis)) ? (r.timeAxis as FrameBankInstrument['timeAxis']) : 't'
+      // F2 sibling fix: opacity/blendMode were dropped here even though #317
+      // wired real setters (setFrameBankOpacity/setFrameBankBlendMode) and
+      // save writes the full spread — same silent-loss bug class as the
+      // sampler headline bug. Both fields are optional on the type (a legacy
+      // bank has neither), so they're restored ONLY when present.
+      const opacity = r.opacity !== undefined ? clampFinite(Number(r.opacity), 0, 1, 1) : undefined
+      const blendMode = r.blendMode !== undefined
+        ? (VALID_BLEND_MODES.has(r.blendMode as BlendMode) ? (r.blendMode as BlendMode) : 'normal')
+        : undefined
       restoredBanks[newId] = {
         id: typeof r.id === 'string' ? r.id : newId,
         type: 'frameBank',
@@ -1022,6 +1279,8 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
         interp,
         byteBudget,
         timeAxis,
+        ...(opacity !== undefined ? { opacity } : {}),
+        ...(blendMode !== undefined ? { blendMode } : {}),
       }
     }
     if (Object.keys(restoredBanks).length > 0) {
@@ -1739,4 +1998,14 @@ export function relinkAsset(assetId: string, newPath: string): void {
 }
 
 // Export for testing
-export { serializeProject, validateProject, hydrateStores, validateRackNode, validateRackPad }
+export {
+  serializeProject,
+  validateProject,
+  hydrateStores,
+  validateRackNode,
+  validateRackPad,
+  validateRackNodeBranch,
+  validateMatteNode,
+  PERSISTED_SAMPLER_FIELDS,
+  UNPERSISTED_SAMPLER_FIELDS,
+}

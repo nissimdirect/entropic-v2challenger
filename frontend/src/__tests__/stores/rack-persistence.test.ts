@@ -25,6 +25,7 @@ import {
   hydrateStores,
   validateRackNode,
   validateRackPad,
+  validateRackNodeBranch,
 } from '../../renderer/project-persistence'
 import { useInstrumentsStore } from '../../renderer/stores/instruments'
 import { useTimelineStore } from '../../renderer/stores/timeline'
@@ -244,5 +245,122 @@ describe('Sample Rack persistence (B4.1)', () => {
     expect(validateProject(project)).toBe(true)
     hydrateStores(project)
     expect(Object.keys(useInstrumentsStore.getState().racks)).toHaveLength(0)
+  })
+})
+
+/**
+ * F2 sibling sweep — RackPad.chokeGroup (B4-choke) and RackPad.chain
+ * (B4-pad-chain) were BOTH dropped on load even though they're real,
+ * consumed fields (voiceFSM's choke resolution reads chokeGroup; buildRackLayers
+ * puts pad.chain on the voice layer for render_composite). RackNode.macros
+ * (B4.2, top-level rack only) was dropped entirely.
+ */
+describe('F2 — RackPad chokeGroup + chain, RackNode macros persistence', () => {
+  it('round-trips pad chokeGroup and pad insert chain through save -> load', () => {
+    const trackId = useTimelineStore.getState().addTrack('Perf', '#8F7DFF', 'performance')!
+    useInstrumentsStore.getState().addRack(trackId, 1)
+    const padId = useInstrumentsStore.getState().racks[trackId].pads[0].id
+    useInstrumentsStore.getState().updateRackPad(trackId, padId, {
+      chokeGroup: 3,
+      chain: [{ id: 'fx-1', effectId: 'glitch_shift', isEnabled: true, isFrozen: false, parameters: { amount: 0.4 }, modulations: {}, mix: 0.8, mask: null }],
+    })
+
+    const parsed = JSON.parse(serializeProject())
+    expect(parsed.racks[trackId].pads[0].chokeGroup).toBe(3)
+    expect(parsed.racks[trackId].pads[0].chain).toHaveLength(1)
+    expect(validateProject(parsed)).toBe(true)
+
+    hydrateStores(parsed)
+    const restored = Object.values(useInstrumentsStore.getState().racks)[0]
+    expect(restored.pads[0].chokeGroup).toBe(3)
+    expect(restored.pads[0].chain).toHaveLength(1)
+    expect(restored.pads[0].chain![0].effectId).toBe('glitch_shift')
+    expect(restored.pads[0].chain![0].parameters.amount).toBe(0.4)
+    expect(restored.pads[0].chain![0].mix).toBe(0.8)
+  })
+
+  it('round-trips a rack macro fanned out across two pad params', () => {
+    const trackId = useTimelineStore.getState().addTrack('Perf', '#8F7DFF', 'performance')!
+    useInstrumentsStore.getState().addRack(trackId, 2)
+    const [p1, p2] = useInstrumentsStore.getState().racks[trackId].pads
+    const macroId = useInstrumentsStore.getState().addRackMacro(trackId, 'Chaos')!
+    useInstrumentsStore.getState().addMacroRoute(trackId, macroId, { targetPath: `pad.${p1.id}.opacity`, depth: 0.5 })
+    useInstrumentsStore.getState().addMacroRoute(trackId, macroId, { targetPath: `pad.${p2.id}.speed`, depth: -2 })
+
+    const parsed = JSON.parse(serializeProject())
+    expect(parsed.racks[trackId].macros).toHaveLength(1)
+    expect(validateProject(parsed)).toBe(true)
+
+    hydrateStores(parsed)
+    const restored = Object.values(useInstrumentsStore.getState().racks)[0]
+    expect(restored.macros).toHaveLength(1)
+    expect(restored.macros![0].routes).toHaveLength(2)
+    expect(restored.macros![0].routes.map((r) => r.depth).sort()).toEqual([-2, 0.5])
+  })
+
+  it('validateRackPad: chokeGroup out of [1,8] or non-integer is dropped to undefined (not a fake group)', () => {
+    expect(validateRackPad(makePadJson('a', { chokeGroup: 99 }))!.chokeGroup).toBeUndefined()
+    expect(validateRackPad(makePadJson('b', { chokeGroup: 0 }))!.chokeGroup).toBeUndefined()
+    expect(validateRackPad(makePadJson('c', { chokeGroup: 'zzz' }))!.chokeGroup).toBeUndefined()
+    expect(validateRackPad(makePadJson('d', { chokeGroup: 4.5 }))!.chokeGroup).toBeUndefined()
+    expect(validateRackPad(makePadJson('e', { chokeGroup: 4 }))!.chokeGroup).toBe(4)
+    expect(validateRackPad(makePadJson('f', { chokeGroup: null }))!.chokeGroup).toBeNull()
+    expect(validateRackPad(makePadJson('g'))!.chokeGroup).toBeUndefined() // absent
+  })
+
+  it('validateRackPad: pad chain drops malformed entries and caps to MAX_EFFECTS_PER_CHAIN', () => {
+    const chain = [
+      { id: 'e1', effectId: 'good', isEnabled: true, isFrozen: false, parameters: {}, modulations: {}, mix: NaN, mask: null },
+      { id: 'e2' }, // missing effectId -> dropped
+      'not an object', // dropped
+    ]
+    const pad = validateRackPad(makePadJson('p', { chain }))
+    expect(pad!.chain).toHaveLength(1)
+    expect(pad!.chain![0].id).toBe('e1')
+    expect(pad!.chain![0].mix).toBe(1) // NaN mix -> default 1
+  })
+
+  it('validateRackNodeBranch: restores branch-level chain', () => {
+    const branch = validateRackNodeBranch(
+      {
+        id: 'inner',
+        type: 'rack',
+        pads: [makePadJson('c1')],
+        chain: [{ id: 'bx1', effectId: 'branch_fx', isEnabled: true, isFrozen: false, parameters: {}, modulations: {}, mix: 1, mask: null }],
+      },
+      'parent-pad',
+      0,
+    )
+    expect(branch).not.toBeNull()
+    expect(branch!.chain).toHaveLength(1)
+    expect(branch!.chain![0].effectId).toBe('branch_fx')
+  })
+
+  it('validateRackNode: macros capped at MAX_MACROS_PER_RACK and MAX_MODROUTES_PER_MACRO, malformed routes dropped', () => {
+    const rawMacros = Array.from({ length: 12 }, (_, i) => ({
+      id: `m${i}`,
+      name: `Macro ${i}`,
+      value: 2, // out of [0,1] -> clamped
+      routes: [
+        { targetPath: `pad.p1.opacity`, depth: 1 },
+        { targetPath: 123, depth: 1 }, // non-string targetPath -> dropped
+        { targetPath: 'pad.p1.speed', depth: NaN }, // NaN depth -> 0, kept
+      ],
+    }))
+    const node = validateRackNode({ id: 'r', type: 'rack', pads: [makePadJson('p1')], macros: rawMacros }, 't1')
+    expect(node).not.toBeNull()
+    // capped at MAX_MACROS_PER_RACK (8)
+    expect(node!.macros).toHaveLength(8)
+    expect(node!.macros![0].value).toBe(1) // clamped from 2
+    // 3 routes offered per macro, 1 dropped (bad targetPath) -> 2 survive
+    expect(node!.macros![0].routes).toHaveLength(2)
+    expect(node!.macros![0].routes[1].depth).toBe(0) // NaN depth -> 0
+  })
+
+  it('a rack with no macros omits the macros key (additive-safe, byte-identical to pre-F2)', () => {
+    const trackId = useTimelineStore.getState().addTrack('Perf', '#8F7DFF', 'performance')!
+    useInstrumentsStore.getState().addRack(trackId, 1)
+    const parsed = JSON.parse(serializeProject())
+    expect('macros' in parsed.racks[trackId]).toBe(false)
   })
 })

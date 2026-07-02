@@ -224,3 +224,59 @@ describe('Frame-Bank persistence (B6.4)', () => {
     expect(validateProject(project)).toBe(false)
   })
 })
+
+/**
+ * F2 sibling sweep — opacity/blendMode are real, settable FrameBankInstrument
+ * fields (cohesion PR #317 wired setFrameBankOpacity/setFrameBankBlendMode),
+ * and serializeProject writes them (full-object spread), but hydrateStores
+ * never restored them — same silent-loss bug class as the sampler headline bug.
+ */
+describe('F2 — frameBank opacity/blendMode persistence', () => {
+  it('round-trips opacity and blendMode through save -> load', () => {
+    const trackId = useTimelineStore.getState().addTrack('Perf', '#8F7DFF', 'performance')!
+    useInstrumentsStore.getState().addFrameBank(trackId, ['asset-A'])
+    useInstrumentsStore.getState().setFrameBankOpacity(trackId, 0.4)
+    useInstrumentsStore.getState().setFrameBankBlendMode(trackId, 'multiply')
+
+    const parsed = JSON.parse(serializeProject())
+    expect(parsed.frameBanks[trackId].opacity).toBe(0.4)
+    expect(parsed.frameBanks[trackId].blendMode).toBe('multiply')
+    expect(validateProject(parsed)).toBe(true)
+
+    hydrateStores(parsed)
+    const restored = Object.values(useInstrumentsStore.getState().frameBanks)[0]
+    expect(restored.opacity).toBe(0.4)
+    expect(restored.blendMode).toBe('multiply')
+  })
+
+  it('a legacy bank with no opacity/blendMode keys loads without them (additive-safe)', () => {
+    const trackId = useTimelineStore.getState().addTrack('Perf', '#8F7DFF', 'performance')!
+    const project = makeValidProject({
+      timeline: { duration: 0, tracks: [{ id: trackId, name: 'Perf', type: 'performance', clips: [], color: '#8F7DFF' }], markers: [], loopRegion: null },
+      frameBanks: {
+        [trackId]: { id: 'fb-legacy', type: 'frameBank', slots: [{ clipId: 'x', frameIndex: 0 }], position: 0, interp: 'nearest', byteBudget: FRAMEBANK_BYTE_BUDGET_MIN },
+      },
+    })
+    hydrateStores(project)
+    const restored = Object.values(useInstrumentsStore.getState().frameBanks)[0] as unknown as Record<string, unknown>
+    expect(restored.opacity).toBeUndefined()
+    expect(restored.blendMode).toBeUndefined()
+  })
+
+  it('fuzz: out-of-range opacity clamped, unknown blendMode dropped to normal', () => {
+    const trackId = useTimelineStore.getState().addTrack('Perf', '#8F7DFF', 'performance')!
+    const project = makeValidProject({
+      timeline: { duration: 0, tracks: [{ id: trackId, name: 'Perf', type: 'performance', clips: [], color: '#8F7DFF' }], markers: [], loopRegion: null },
+      frameBanks: {
+        [trackId]: {
+          id: 'fb-fuzz', type: 'frameBank', slots: [{ clipId: 'x', frameIndex: 0 }], position: 0, interp: 'nearest',
+          byteBudget: FRAMEBANK_BYTE_BUDGET_MIN, opacity: 99, blendMode: 'not-a-mode',
+        },
+      },
+    })
+    hydrateStores(project)
+    const restored = Object.values(useInstrumentsStore.getState().frameBanks)[0]
+    expect(restored.opacity).toBe(1)
+    expect(restored.blendMode).toBe('normal')
+  })
+})
