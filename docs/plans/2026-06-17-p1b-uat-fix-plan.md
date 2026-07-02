@@ -1,6 +1,6 @@
 ---
 title: Creatrix UAT Fix-Plan — P1-B v2-Compositing-Guard Regression + Latent Siblings + Coverage + UX Papercuts
-status: active
+status: completed (all 6 packets shipped 2026-07-02 — P1-P3 via month-audit F1 #323, P4 #338, P5 #337, P6 #336)
 created: 2026-06-17
 source: docs/UAT-RESULTS-2026-06-17.md (12/12 UAT) + ultracode audit workflow wf_8299a75d-998 (5 agents)
 ---
@@ -52,21 +52,21 @@ pad-with-chain (or any instrument-voice-with-chain) through the actual frontend-
 ### P1 — Fix P1-B core: backend voice-marker exemption  · priority P1 · effort S · depends: none
 Unblocks the two ⏸ UAT areas (Area 2 Sampler trigger, Area 7 Freeze FSM).
 
-- [ ] **STEP 0 (reproduce-before-fix, runtime gate):** add a one-line log of `layer_info`
+- [x] **STEP 0 (reproduce-before-fix, runtime gate):** add a one-line log of `layer_info`
   (type/chain-length/has-opacity/voice_id/layer_id) immediately before the
   `_is_v2_compositing_shape(layer_info)` call at `zmq_server.py:1423`; rebuild/restart the sidecar;
   reproduce **(a)** Sampler-on-perf-track triggering a voice alongside a clip with a non-empty chain,
   and **(b)** a Sample Rack pad WITH a per-pad insert chain triggering; read `~/.creatrix/logs/sidecar.log`
   to confirm the rejected layer is the **voice layer** (not the clip) and matches the predicted shape.
   Then **remove the temporary log**.
-- [ ] **STEP 1:** in `_is_v2_compositing_shape`, add a positive voice-marker early-return —
+- [x] **STEP 1:** in `_is_v2_compositing_shape`, add a positive voice-marker early-return —
   `voice_id` present OR `layer_id` starts with `voice:`/`framebank:` → `return False`.
-- [ ] **STEP 2:** relax the empty-chain branch (`:1248-1253`) so an empty-chain video layer is **not**
+- [x] **STEP 2:** relax the empty-chain branch (`:1248-1253`) so an empty-chain video layer is **not**
   auto-rejected (required because the silent-track fallback `buildSamplerLayer.ts:30-41` emits **no**
   `voice_id`). A real v2 clip still rejects: clips carry no voice marker AND send `clip_opacity`
   (not top-level `opacity`), so a marker-less video clip with non-empty chain + top-level
   opacity/blend + no terminal composite still hits `:1254-1258`.
-- [ ] **STEP 3:** correct the stale docstring (`:1219-1238`) to match the new code.
+- [x] **STEP 3:** correct the stale docstring (`:1219-1238`) to match the new code.
 - **NO frontend builder changes.** Compositor already reads top-level opacity/blend (`:1630-1633`).
 - **Files:** `backend/src/zmq_server.py`, `backend/src/project/schema.py`, `backend/src/security.py`
 - **Acceptance:** sampler voice (video, voice_id, opacity/blend, empty chain) → ok:true · rack-pad voice
@@ -80,11 +80,11 @@ Unblocks the two ⏸ UAT areas (Area 2 Sampler trigger, Area 7 Freeze FSM).
   (already rejected at load).
 
 ### P2 — Close latent P1-B siblings  · priority P1 · effort S · depends: P1
-- [ ] (1) Ensure the P1 voice-marker exemption recognizes **rack-group leaf voices** (`voice:`-prefixed);
+- [x] (1) Ensure the P1 voice-marker exemption recognizes **rack-group leaf voices** (`voice:`-prefixed);
   add a unit test asserting a group-leaf voice dict → `False`.
-- [ ] (2) **Rewrite `V2_UNSUPPORTED_MESSAGE`** (`schema.py:17`) so it no longer tells a valid-v3-project
+- [x] (2) **Rewrite `V2_UNSUPPORTED_MESSAGE`** (`schema.py:17`) so it no longer tells a valid-v3-project
   user to "start a new project"; sweep for the literal string first, update the rejection-path assertions.
-- [ ] (3) Add a defensive comment + regression test pinning that **frame-bank** (`zmq_server.py:~1718`) and
+- [x] (3) Add a defensive comment + regression test pinning that **frame-bank** (`zmq_server.py:~1718`) and
   **granulator** (`~1909`) voice layers return `False` from the guard (today they're safe only by
   append-order, not by design). **Do NOT move the guard relative to the appends.** **Do NOT broaden the
   guard to non-video layers** — `composite_tree.py:259-262,317-320` deliberately reads top-level
@@ -93,7 +93,7 @@ Unblocks the two ⏸ UAT areas (Area 2 Sampler trigger, Area 7 Freeze FSM).
 - **Note:** may ride in the **same PR as P1** (same function + message constant).
 
 ### P3 — Regression coverage for the P1-B class  · priority P1 · effort M · depends: P1
-- [ ] NEW `backend/tests/test_instrument_voice_composite_regression.py` (`pytestmark = smoke`):
+- [x] NEW `backend/tests/test_instrument_voice_composite_regression.py` (`pytestmark = smoke`):
   - **(A) handler-gate** (`_handle_render_composite`, mirror `:213`): instrument/rack/group voice shapes
     (video + top-level opacity/blend + non-empty chain + voice marker) → ok:true; **false-positive guard**:
     clip layer with chain + `clip_opacity` (no voice marker) → ok:true; genuine v2 clip → ok:false.
@@ -101,18 +101,18 @@ Unblocks the two ⏸ UAT areas (Area 2 Sampler trigger, Area 7 Freeze FSM).
     real asset + `fx.invert` → ok:true and `frame_data` decodes to JPEG (`raw[:2]==b'\xff\xd8'`).
   - **(C) pixel oracle:** decode source frame + rendered output, assert they **DIFFER** (deterministic
     `fx.invert`, byte/hash inequality — not an exact value). Parametrize across flat-sampler / rack-pad / group-leaf.
-- [ ] AMEND `frontend/src/__tests__/components/instruments/buildRackLayers.test.ts`: add a **pad-WITH-chain**
+- [x] AMEND `frontend/src/__tests__/components/instruments/buildRackLayers.test.ts`: add a **pad-WITH-chain**
   case asserting the emitted layer is v3-contract-acceptable (carries a voice marker → exempt); replace the
   stale lines 12-13 comment with the v3 contract.
-- [ ] Annotate backend `test_ht2` (`:433`) that `layer_type:'sampler'` is not a production shape (frontend sends `'video'`).
+- [x] Annotate backend `test_ht2` (`:433`) that `layer_type:'sampler'` is not a production shape (frontend sends `'video'`).
 - **Land as RED guards** that flip green when P1 lands — **never skip/xfail-permanent.** Prefer same PR as P1.
 
 ### P4 — Layout cramping: bound the device-editor region  · priority P2 · effort S · depends: none
-- [ ] Base grid (default; `F_CREATRIX_LAYOUT` off): give `.app__device-chain` (`global.css:206`) a
+- [x] Base grid (default; `F_CREATRIX_LAYOUT` off): give `.app__device-chain` (`global.css:206`) a
   `max-height` + `overflow-y:auto`, OR change base row 3 from `auto` → `minmax(0, <cap>)` so the `1fr`
   preview can't collapse. **Prefer the wrapper/overflow approach** (MEMORY `feedback_test-layout-changes`
   warns against editing root `grid-template-rows`).
-- [ ] Creatrix-flag path: add `overflow-y:auto` to `creatrix-layout.css:70-75` so the fixed-height device
+- [x] Creatrix-flag path: add `overflow-y:auto` to `creatrix-layout.css:70-75` so the fixed-height device
   editor scrolls internally instead of clipping.
 - **Verify in BOTH flag states** in the running Electron app. Test: Playwright `_electron` (preview has
   non-zero height; device region scrollable/bounded).
@@ -121,9 +121,9 @@ Unblocks the two ⏸ UAT areas (Area 2 Sampler trigger, Area 7 Freeze FSM).
 ### P5 — Color Invert "no-op" is a unit-label bug  · priority P2 · effort S · depends: none
 Default is **1.0 = full invert** (`color_invert.py:17-26`) — NOT ~1%. The defect: `unit:'%'` on a 0..1
 param with no ×100 in the formatter → renders `"1.00%"`, which reads as one percent.
-- [ ] Fix the **shared** formatter (`Slider.tsx:95`, `ParamLabel.tsx:14`, `Knob.tsx:207`) to render a param
+- [x] Fix the **shared** formatter (`Slider.tsx:95`, `ParamLabel.tsx:14`, `Knob.tsx:207`) to render a param
   whose `unit==='%'` AND `max<=1` as `Math.round(value*100)+'%'` → `"100%"`.
-- [ ] **MANDATORY PRECONDITION:** sweep **every** `%`-unit param in the backend registry; if any already uses
+- [x] **MANDATORY PRECONDITION:** sweep **every** `%`-unit param in the backend registry; if any already uses
   a 0–100 range, the `max<=1` guard must exclude it (no double-scale). Fall back to backend-only
   `color_invert.py:24` `unit:'%'→''` only if the sweep finds the shared change unsafe.
 - Test: vitest formatter (1.0 → "100%"; 0–100 `%` param unchanged; non-`%` unchanged).
@@ -132,10 +132,10 @@ param with no ×100 in the formatter → renders `"1.00%"`, which reads as one p
 `Clip.tsx` has **no drag-distance threshold**: `upHandler` always runs the new-track check
 (`:375-413`); a pointerup slightly below the last lane (`belowAllTracks`, `:389`) calls `addTrack` +
 `moveClip`, and `moveClip` doesn't prune the emptied source track.
-- [ ] Add a **>4px drag threshold** in `Clip.tsx`; only run the below-lane/drop-zone new-track logic
+- [x] Add a **>4px drag threshold** in `Clip.tsx`; only run the below-lane/drop-zone new-track logic
   (`:398`) on a real drag. A pure click/select must never reach it. Keep the explicit drop-zone path
   (`Timeline.tsx:330-336`) and legitimate drag-to-new-track working.
-- [ ] **Reproduce the exact UAT gesture before merging** (mechanism code-confirmed; gesture lower-confidence).
+- [x] **Reproduce the exact UAT gesture before merging** (mechanism code-confirmed; gesture lower-confidence).
 - Test: vitest — `<4px` pointerup does NOT call `addTrack`; below-lane after a real drag DOES.
 
 ---

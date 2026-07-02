@@ -40,6 +40,7 @@ from instruments.granulator_gpu import (
     register_sg8_texture_pool_hook,
     render_grain_layer_dispatch,
 )
+from engine.clip_transform import apply_clip_transform
 from engine.guards import clamp_finite, guard_positive
 from engine.pipeline import (
     apply_chain,
@@ -155,6 +156,12 @@ class ZMQServer:
             audio_mixer=self.audio_mixer,
             experimental_audio_tracks=self._experimental_audio_tracks,
         )
+        # MK.12 — AI subject matte (local RVM) bake manager. A SEPARATE job
+        # class (never a fork of the export queue); torch loads only in the
+        # rvm_runner subprocess it spawns, so this constructor imports no torch.
+        from masking.ai_matte import AiMatteManager
+
+        self.ai_matte_manager = AiMatteManager()
         # Sentry breadcrumb rate-limiter for render_frame (every 30th frame)
         self._breadcrumb_frame_counter = 0
         # Signal engine for operator modulation (Phase 6A)
@@ -575,6 +582,12 @@ class ZMQServer:
             return self._handle_mask_gc_sidecars(message, msg_id)
         elif cmd == "mask_thumbnail":
             return self._handle_mask_thumbnail(message, msg_id)
+        elif cmd == "mask_ai_generate":
+            return self._handle_mask_ai_generate(message, msg_id)
+        elif cmd == "mask_ai_status":
+            return self._handle_mask_ai_status(msg_id)
+        elif cmd == "mask_ai_cancel":
+            return self._handle_mask_ai_cancel(msg_id)
         else:
             return {"id": msg_id, "ok": False, "error": f"unknown: {cmd}"}
 
@@ -2604,6 +2617,19 @@ class ZMQServer:
         mask_stack = message.get("mask_stack")
         if mask_stack is not None and not isinstance(mask_stack, list):
             mask_stack = None
+        # A2b — the active clip's static transform (position/scale/rotation/flip)
+        # + its clip id. The export applies this via the SAME shared
+        # clip_transform helper preview uses AND folds per-frame
+        # `clipTransform.<clip_id>.<field>` lanes (on automation_by_frame) over
+        # it. Optional/additive: absent → legacy export (no transform). Trust
+        # boundary: apply_clip_transform clamps every field via clamp_finite, so a
+        # malformed transform degrades to the unmodified frame, never crashes.
+        transform = message.get("transform")
+        if transform is not None and not isinstance(transform, dict):
+            transform = None
+        transform_clip_id = message.get("transform_clip_id")
+        if not isinstance(transform_clip_id, str) or not transform_clip_id:
+            transform_clip_id = None
 
         if not input_path:
             return {"id": msg_id, "ok": False, "error": "missing input_path"}
@@ -2709,6 +2735,8 @@ class ZMQServer:
                 automation_by_frame=automation_by_frame,
                 audio_pcm_provider=self._get_audio_pcm_for_frame,
                 mask_stack=mask_stack,
+                transform=transform,
+                transform_clip_id=transform_clip_id,
             )
             return {"id": msg_id, "ok": True}
         except Exception as e:
@@ -2893,107 +2921,12 @@ class ZMQServer:
     ) -> np.ndarray:
         """Apply position/scale/rotation/flip transform to frame.
 
-        Supports: scaleX/scaleY (independent), anchorX/anchorY, flipH/flipV.
-        Falls back to legacy 'scale' field for old project compatibility.
-        All values are clamped at the trust boundary via clamp_finite.
+        A2b: the implementation now lives in ``engine.clip_transform`` so the
+        export engine calls the SAME math (preview/export parity). This thin
+        delegator preserves both preview call sites (render_frame:768,
+        render_composite:1605) byte-for-byte.
         """
-        import cv2
-
-        try:
-            # Support both new scaleX/scaleY and legacy scale field
-            legacy_scale = transform.get("scale", None)
-            scale_x = clamp_finite(
-                float(
-                    transform.get(
-                        "scaleX", legacy_scale if legacy_scale is not None else 1.0
-                    )
-                ),
-                0.01,
-                100.0,
-                1.0,
-            )
-            scale_y = clamp_finite(
-                float(
-                    transform.get(
-                        "scaleY", legacy_scale if legacy_scale is not None else 1.0
-                    )
-                ),
-                0.01,
-                100.0,
-                1.0,
-            )
-            rotation = clamp_finite(
-                float(transform.get("rotation", 0.0)), -36000.0, 36000.0, 0.0
-            )
-            tx = clamp_finite(float(transform.get("x", 0.0)), -10000.0, 10000.0, 0.0)
-            ty = clamp_finite(float(transform.get("y", 0.0)), -10000.0, 10000.0, 0.0)
-            anchor_x = clamp_finite(
-                float(transform.get("anchorX", 0.0)), -10000.0, 10000.0, 0.0
-            )
-            anchor_y = clamp_finite(
-                float(transform.get("anchorY", 0.0)), -10000.0, 10000.0, 0.0
-            )
-            flip_h = bool(transform.get("flipH", False))
-            flip_v = bool(transform.get("flipV", False))
-        except (ValueError, TypeError):
-            return frame  # Malformed transform values — render unmodified
-
-        # No-op check
-        if (
-            scale_x == 1.0
-            and scale_y == 1.0
-            and rotation == 0.0
-            and tx == 0.0
-            and ty == 0.0
-            and anchor_x == 0.0
-            and anchor_y == 0.0
-            and not flip_h
-            and not flip_v
-        ):
-            return frame
-
-        h, w = frame.shape[:2]
-        canvas_w, canvas_h = resolution
-
-        # Flip
-        if flip_h:
-            frame = cv2.flip(frame, 1)
-        if flip_v:
-            frame = cv2.flip(frame, 0)
-
-        # Scale (independent X/Y)
-        if scale_x != 1.0 or scale_y != 1.0:
-            new_w = max(1, int(w * scale_x))
-            new_h = max(1, int(h * scale_y))
-            frame = cv2.resize(frame, (new_w, new_h), interpolation=cv2.INTER_LINEAR)
-            h, w = frame.shape[:2]
-
-        # Create canvas and center the frame
-        channels = frame.shape[2] if frame.ndim == 3 else 1
-        canvas = np.zeros((canvas_h, canvas_w, channels), dtype=np.uint8)
-        x_off = int((canvas_w - w) / 2 + tx)
-        y_off = int((canvas_h - h) / 2 + ty)
-
-        # Compute source and destination regions (clip to canvas bounds)
-        src_x1 = max(0, -x_off)
-        src_y1 = max(0, -y_off)
-        dst_x1 = max(0, x_off)
-        dst_y1 = max(0, y_off)
-        copy_w = min(w - src_x1, canvas_w - dst_x1)
-        copy_h = min(h - src_y1, canvas_h - dst_y1)
-
-        if copy_w > 0 and copy_h > 0:
-            canvas[dst_y1 : dst_y1 + copy_h, dst_x1 : dst_x1 + copy_w] = frame[
-                src_y1 : src_y1 + copy_h, src_x1 : src_x1 + copy_w
-            ]
-
-        # Rotation (around anchor point offset from canvas center)
-        if rotation != 0.0:
-            center = (canvas_w / 2 + anchor_x, canvas_h / 2 + anchor_y)
-            rot_mat = cv2.getRotationMatrix2D(center, rotation, 1.0)
-            canvas = cv2.warpAffine(canvas, rot_mat, (canvas_w, canvas_h))
-
-        return canvas
+        return apply_clip_transform(frame, transform, resolution)
 
     # --- Freeze/Flatten handlers ---
 
@@ -3722,6 +3655,114 @@ class ZMQServer:
             "width": width,
             "height": height,
         }
+
+    # ------------------------------------------------------------------ #
+    #  MK.12 — AI subject matte (local RVM) offline bake job
+    # ------------------------------------------------------------------ #
+
+    def _handle_mask_ai_generate(self, message: dict, msg_id: str | None) -> dict:
+        """Start (or cache-hit) an offline RVM matte bake for a clip's source.
+
+        Trust boundary (THIS is the real one — schema deserialize is dead in
+        production): every numeric arriving from IPC passes clamp_finite here at
+        the zmq parse boundary before it reaches the job. quality maps to the
+        RVM downsample_ratio [0.1, 1.0]; max_dimension [480, 2160]; frame range
+        [0, 10_000_000].
+
+        Returns immediately: ``{ok, cached, status, content_hash, matte_path?}``.
+        Progress is polled via ``mask_ai_status``; a cache hit reports
+        ``status='complete', cached=true`` with no bake.
+        """
+        from masking.ai_matte import (
+            DEFAULT_DOWNSAMPLE_RATIO,
+            DEFAULT_MAX_DIMENSION,
+            MemoryHeadroomError,
+            RvmUnavailableError,
+        )
+
+        input_path = message.get("input_path")
+        if not input_path or not isinstance(input_path, str):
+            return {"id": msg_id, "ok": False, "error": "missing input_path"}
+
+        # SEC-5: path-traversal guard (same gate as export/ingest).
+        errors = validate_upload(input_path)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # --- numeric trust boundary (clamp_finite at the zmq parse seam) ---
+        quality = clamp_finite(
+            message.get("quality", DEFAULT_DOWNSAMPLE_RATIO),
+            0.1,
+            1.0,
+            DEFAULT_DOWNSAMPLE_RATIO,
+        )
+        max_dimension = int(
+            clamp_finite(
+                message.get("max_dimension", DEFAULT_MAX_DIMENSION),
+                480.0,
+                2160.0,
+                float(DEFAULT_MAX_DIMENSION),
+            )
+        )
+        start_frame = int(
+            clamp_finite(message.get("start_frame", 0), 0.0, 10_000_000.0, 0.0)
+        )
+        end_frame = int(
+            clamp_finite(message.get("end_frame", -1), -1.0, 10_000_000.0, -1.0)
+        )
+
+        try:
+            job = self.ai_matte_manager.start(
+                input_path,
+                downsample_ratio=quality,
+                max_dimension=max_dimension,
+                start_frame=start_frame,
+                end_frame=end_frame,
+            )
+        except RuntimeError as e:
+            # RvmUnavailableError / MemoryHeadroomError / already-running: surface
+            # the structured code + actionable message (NO traceback).
+            code = getattr(e, "code", "ai_matte_error")
+            return {"id": msg_id, "ok": False, "error": str(e), "code": code}
+        except Exception as e:  # noqa: BLE001
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "mask_ai_generate error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+        return {
+            "id": msg_id,
+            "ok": True,
+            "cached": job.cached,
+            "status": job.status.value,
+            "content_hash": job.content_hash,
+            "matte_path": job.matte_path if job.cached else "",
+        }
+
+    def _handle_mask_ai_status(self, msg_id: str | None) -> dict:
+        try:
+            status = self.ai_matte_manager.get_status()
+            status["id"] = msg_id
+            status["ok"] = True
+            return status
+        except Exception as e:  # noqa: BLE001
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "mask_ai_status error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
+
+    def _handle_mask_ai_cancel(self, msg_id: str | None) -> dict:
+        try:
+            cancelled = self.ai_matte_manager.cancel()
+            return {"id": msg_id, "ok": True, "cancelled": cancelled}
+        except Exception as e:  # noqa: BLE001
+            sentry_sdk.capture_exception(e)
+            logging.getLogger(__name__).error(
+                "mask_ai_cancel error: %s", type(e).__name__
+            )
+            return {"id": msg_id, "ok": False, "error": "Internal processing error"}
 
     def run(self):
         self.running = True

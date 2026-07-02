@@ -4,7 +4,7 @@
  */
 import type { Axis, BindingRule, LaneAxisBinding } from './axis-binding'
 import type { FieldRefValue } from './field-param'
-import type { CCBankBinding, BankAssignment } from './bankTypes'
+import type { CCBankBinding, BankAssignment, SlotTarget, CCSlotMapping } from './bankTypes'
 
 // --- Param values ---
 
@@ -568,7 +568,13 @@ export interface MIDIDevice {
 
 export type LearnTarget =
   | { type: 'pad'; padId: string }
-  | { type: 'cc'; effectId: string; paramKey: string };
+  // Legacy effect-knob learn (ParamPanel). Kept as its own variant — it binds
+  // via the direct ccMappings list (CCMapping), UNCHANGED by H3.
+  | { type: 'cc'; effectId: string; paramKey: string }
+  // H3 (master plan WS5) — widened learn surface. Carries an H2 SlotTarget so
+  // rack macros, instrument knobs, transform fields and mask op sliders can be
+  // armed. The first CC after arming binds a CCSlotMapping (see midi.ts).
+  | { type: 'slot'; target: SlotTarget };
 
 export interface MIDIPersistData {
   padMidiNotes: Record<string, number | null>; // padId → midiNote
@@ -585,6 +591,15 @@ export interface MIDIPersistData {
   ccBankBindings: CCBankBinding[];
   /** contextKey (focusContext.ts) -> saved BankAssignment. User-saved entries override deriveDefaultAssignment. */
   bankAssignments: Record<string, BankAssignment>;
+  /**
+   * H3 — direct (context-free) CC->SlotTarget mappings from the widened
+   * MIDI-learn surface (macro/transform/mask/instrument knobs). Additive-
+   * optional: absent on pre-H3 projects (loadMIDIMappings defaults to []),
+   * always emitted by getMIDIPersistData. Legacy effect-knob learn stays in
+   * `ccMappings`, so this list never holds effectParam-shaped entries in
+   * practice.
+   */
+  ccSlotMappings?: CCSlotMapping[];
 }
 
 // --- Operators (Phase 6A) ---

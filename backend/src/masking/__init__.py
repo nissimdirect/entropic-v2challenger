@@ -28,6 +28,13 @@ from masking.key_kernels import register_key_evaluators as _register_key_evaluat
 
 _register_key_evaluators()
 
+# MK.12: register the ai_matte evaluator on package import (mirrors MK.8). This
+# imports masking.ai_matte, which is torch-FREE at module top (torch loads only
+# inside the rvm_runner subprocess), so package import stays lean.
+from masking.ai_matte import register_ai_matte_evaluator as _register_ai_matte
+
+_register_ai_matte()
+
 __all__ = [
     "MatteNode",
     "validate_stack",

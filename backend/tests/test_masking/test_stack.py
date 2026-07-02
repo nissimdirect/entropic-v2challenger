@@ -258,14 +258,16 @@ class TestFeatherThenGrowOrderMatchesDocstring:
     def test_procedural_kind_raises_not_implemented(self):
         """Unregistered procedural kinds must raise NotImplementedError.
 
-        MK.8 note: ``chroma_key``/``luma_key`` are now REGISTERED (MK.8), so this
-        test uses ``ai_matte`` (MK.12, still unregistered) to exercise the
-        unregistered-procedural-kind path. The behavior under test is unchanged.
+        MK.8/MK.12 note: ``chroma_key``/``luma_key``/``color_range``/``ai_matte``
+        are now all REGISTERED, so this test constructs a MatteNode directly
+        (bypassing schema validation) with a synthetic, never-registered
+        procedural kind to exercise the unregistered-procedural-kind path. The
+        behavior under test is unchanged.
         """
         _fresh()
         node = MatteNode(
             id="proc-01",
-            kind="ai_matte",
+            kind="_never_registered_procedural_",
             params={},
         )
         with pytest.raises(NotImplementedError):

@@ -49,9 +49,15 @@ PARAMS: dict = {
     "ca_rule": {
         "type": "choice",
         "options": ["life", "highlife", "seeds", "daynight", "replicator"],
-        "default": "life",
+        "default": "daynight",
         "label": "CA Rule",
         "description": "Cellular automaton rule (Conway B3/S23, HighLife B36/S23, Seeds B2/S, Day&Night, Replicator)",
+        # PFX.2a: "life" (Conway B3/S23) is the mathematically classic choice but
+        # its colony dies off within ~5-8 frames at any reasonable seed_density,
+        # decaying the visible pixel-sort diff toward zero on natural (spatially
+        # correlated) footage. "daynight" (B3678/S34678) sustains a stable,
+        # non-decaying alive population, keeping the effect durably visible at
+        # defaults. See test_visible_at_defaults in test_cellular_pixel_sort.py.
     },
     "ca_steps_per_frame": {
         "type": "int",
@@ -234,9 +240,9 @@ def apply(
     if sort_key not in _VALID_SORT_KEYS:
         sort_key = "luminance"
     reverse = bool(params.get("reverse", False))
-    ca_rule = str(params.get("ca_rule", "life"))
+    ca_rule = str(params.get("ca_rule", "daynight"))
     if ca_rule not in _VALID_RULES:
-        ca_rule = "life"
+        ca_rule = "daynight"
     ca_steps = max(1, min(8, int(params.get("ca_steps_per_frame", 1))))
     ca_scale = max(1, min(8, int(params.get("ca_scale", 4))))
     seed_density = max(0.0, min(1.0, float(params.get("seed_density", 0.4))))

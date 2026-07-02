@@ -26,6 +26,12 @@ metal = [
     "mlx>=0.30",
     "psutil>=5.9",
 ]
+# MK.12 — local RVM subject matting (torch). Optional: absent installs never
+# import torch (import-guarded via rvm_available()); the sidecar stays lean and
+# the model runs only in the masking.rvm_runner subprocess.
+masking-ai = [
+    "torch>=2.10",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

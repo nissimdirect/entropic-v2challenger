@@ -12,6 +12,7 @@ import type { MenuItem } from './ContextMenu'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
 import { computeSnapPosition, collectClipEdges } from '../../utils/snap-candidates'
+import { generateAiMatte } from '../../stores/aiMatte'
 
 /**
  * UE.7: 8-swatch equal-luminance palette (DESIGN-SPEC §8, ≈oklch 0.65 0.09).
@@ -252,6 +253,18 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
       },
       { label: 'Reverse', action: () => store.reverseClip(clip.id) },
       { label: '', action: () => {}, separator: true },
+      // MK.12 — AI subject matte (local RVM): offline bake + twin-track split.
+      {
+        label: 'Generate AI matte (local)…',
+        action: () => { void generateAiMatte(clip.id) },
+      },
+      {
+        label: 'Split by matte',
+        action: () => store.splitByMatte(clip.id),
+        // Enabled only once an ai_matte node exists on the clip.
+        disabled: !(clip.maskStack ?? []).some((n) => n.kind === 'ai_matte'),
+      },
+      { label: '', action: () => {}, separator: true },
       {
         label: clip.isEnabled === false ? 'Enable' : 'Disable',
         action: () => store.toggleClipEnabled(clip.id),
@@ -264,7 +277,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
         action: () => store.setClipLock(clip.id, !(clip.locked === true)),
       },
     ]
-  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled, clip.locked, startRename])
+  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled, clip.locked, clip.maskStack, startRename])
 
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom

@@ -99,9 +99,19 @@ function resolveBankTargets(
         macroOverrides.set(target.macroId, clamp01(value))
         break
       case 'transform':
-      case 'mask': {
-        const id = target.kind === 'transform' ? target.clipId : target.nodeId
-        const field = target.kind === 'transform' ? target.field : target.param
+      case 'mask':
+      case 'instrument': {
+        // v1 NO-OP targets (H4 wires the live overlay). 'instrument' (H3) joins
+        // 'transform'/'mask' here: the binding IS matched (so legacy-collision
+        // precedence still applies) but produces no chain/macro change yet.
+        const id =
+          target.kind === 'transform' ? target.clipId
+          : target.kind === 'mask' ? target.nodeId
+          : target.trackId
+        const field =
+          target.kind === 'transform' ? target.field
+          : target.kind === 'mask' ? target.param
+          : target.paramKey
         const key = `${target.kind}:${id}:${field}`
         if (!_warnedNoopTargets.has(key)) {
           _warnedNoopTargets.add(key)
@@ -182,6 +192,36 @@ export function resolveBankMacroOverrides(
   sources: DefaultAssignmentSources,
 ): Map<string, number> {
   return resolveBankTargets(ccBankBindings, ccValues, bankAssignments, context, sources).macroOverrides
+}
+
+/**
+ * H4 — resolve ONE physical CC to the SlotTarget it drives for the CURRENTLY
+ * FOCUSED context, or null if that CC has no bank binding / the bound slot is
+ * empty at this focus / focus is 'none'. This is the recording counterpart of
+ * the per-frame overlay: `applyBankModulations`/`resolveBankMacroOverrides`
+ * answer "what value does every bound CC push this frame"; this answers "which
+ * lane does THIS CC's move record into". Both go through the SAME
+ * resolveAssignment + getSlot pair, so a knob records to exactly the lane it
+ * modulates. "Focus-follows-records" falls straight out: the same CC resolves
+ * to a DIFFERENT target as `context` changes, because the assignment lookup is
+ * keyed by contextKey.
+ *
+ * Unlike the overlay resolvers this returns ALL slot kinds (including
+ * transform/mask/instrument) — the H4 record dispatcher decides which kinds it
+ * can commit; the v1 overlay no-op'd them because it had no store to write to.
+ */
+export function resolveBankSlotTargetForCC(
+  cc: number,
+  ccBankBindings: CCBankBinding[],
+  bankAssignments: Record<string, BankAssignment>,
+  context: MappingContext,
+  sources: DefaultAssignmentSources,
+): SlotTarget | null {
+  if (context.kind === 'none') return null
+  const binding = ccBankBindings.find((b) => b.cc === cc)
+  if (!binding) return null
+  const assignment = resolveAssignment(bankAssignments, context, sources)
+  return getSlot(assignment, binding.slot.row, binding.slot.col)
 }
 
 /** Test-only: reset warn-once dedup state between test cases. */

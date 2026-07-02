@@ -18,6 +18,7 @@
 import React, { useCallback, useId } from 'react'
 import type { MatteNode, MatteOp } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
+import { useMIDIStore } from '../../stores/midi'
 
 // Stable empty array for the no-mask-stack case. A clip with no `maskStack`
 // (the default for a freshly imported clip) MUST resolve to this shared
@@ -101,6 +102,19 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
   const handleDelete = useCallback(() => {
     removeMatteNode(clipId, node.id)
   }, [clipId, node.id, removeMatteNode])
+
+  // H3 — arm MIDI-learn for a mask op slider. The next CC binds a CCSlotMapping
+  // with a {kind:'mask', nodeId, param} target (feather / growShrink).
+  const learnParam = useCallback(
+    (param: string) => (e: React.MouseEvent) => {
+      e.preventDefault()
+      useMIDIStore.getState().setLearnTarget({
+        type: 'slot',
+        target: { kind: 'mask', nodeId: node.id, param },
+      })
+    },
+    [node.id],
+  )
 
   return (
     <div
@@ -194,6 +208,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
           max={100}
           step={1}
           value={clampFeather(node.feather)}
+          onContextMenu={learnParam('feather')}
           onChange={handleFeatherChange}
         />
         <span className="mask-stack-panel__value" data-testid={`mask-node-feather-val-${node.id}`}>
@@ -212,6 +227,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
           max={50}
           step={1}
           value={clampGrowShrink(node.growShrink)}
+          onContextMenu={learnParam('growShrink')}
           onChange={handleGrowShrinkChange}
         />
         <span className="mask-stack-panel__value" data-testid={`mask-node-growshrink-val-${node.id}`}>

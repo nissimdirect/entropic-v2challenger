@@ -33,6 +33,7 @@
 import { useEffect, useRef } from 'react'
 import { useInstrumentsStore } from '../../stores/instruments'
 import { clampFinite } from '../../../shared/numeric'
+import { instrumentLearnContextMenu } from './instrumentLearn'
 import {
   GRANULATOR_AXES,
   GRANULATOR_DENSITY_MIN,
@@ -269,6 +270,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
           min={GRANULATOR_DENSITY_MIN}
           max={GRANULATOR_DENSITY_MAX}
           step={1}
+          onContextMenu={instrumentLearnContextMenu(trackId, 'density')}
           onChange={(e) =>
             setGranulatorDensity(
               trackId,
@@ -354,6 +356,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
                   max={1}
                   step={0.01}
                   disabled={disabled}
+                  onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.grain`)}
                   onChange={(e) =>
                     setGranulatorAxisParam(
                       trackId, ax, 'grain',
@@ -375,6 +378,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
                   max={1}
                   step={0.01}
                   disabled={disabled}
+                  onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.jitter`)}
                   onChange={(e) =>
                     setGranulatorAxisParam(
                       trackId, ax, 'jitter',
@@ -396,6 +400,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
                   max={1}
                   step={0.01}
                   disabled={disabled}
+                  onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.position`)}
                   onChange={(e) =>
                     setGranulatorAxisParam(
                       trackId, ax, 'position',
@@ -417,6 +422,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
                   max={1}
                   step={0.01}
                   disabled={disabled}
+                  onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.envelope`)}
                   onChange={(e) =>
                     setGranulatorAxisParam(
                       trackId, ax, 'envelope',

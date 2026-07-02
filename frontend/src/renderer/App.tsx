@@ -74,8 +74,8 @@ import { applyPadModulations } from './components/performance/applyPadModulation
 import { applyCCModulations } from './components/performance/applyCCModulations'
 import { applyBankModulations, resolveBankMacroOverrides } from './components/performance/applyBankModulations'
 import { useMIDIStore } from './stores/midi'
-import { deriveMappingContext } from './utils/focusContext'
-import type { DefaultAssignmentSources } from './utils/deriveDefaultAssignment'
+import { snapshotMappingContext, defaultAssignmentSourcesFor } from './utils/mappingSnapshot'
+import { installCCRecordSubscriber } from './utils/cc-record'
 import { useMIDI } from './hooks/useMIDI'
 import { useAudioMeterPoll } from './hooks/useAudioMeterPoll'
 import { useMemoryPressurePoll } from './hooks/useMemoryPressurePoll'
@@ -89,7 +89,8 @@ import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
-import { evaluateTransformOverrides, mergeTransformOverride } from './utils/transformLanes'
+import { evaluateTransformOverrides, mergeTransformOverride, formatTransformLanePath, parseTransformLanePath, type TransformField } from './utils/transformLanes'
+import { recordChangedTransformFields } from './utils/transform-record'
 // H1 (2026-07-02 master-tuneup WS5): focused-mapping-context statusbar chip —
 // the foundation the hardware-bank system (H2+) keys off. See
 // utils/focusContext.ts (derivation) + components/layout/MappingContextChip.tsx.
@@ -133,42 +134,6 @@ import RenderQueue from './components/export/RenderQueue'
 import { RoutingCanvas } from './components/routing-canvas'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
-
-/**
- * H2 (2026-07-02 master-tuneup WS5): pure snapshot of the CURRENT focus
- * MappingContext, for non-component call sites (the render loop below is a
- * plain function, not a React component — deriveMappingContext is exactly
- * the store-snapshot-friendly pure sibling of useMappingContext() for this).
- */
-function snapshotMappingContext() {
-  const timeline = useTimelineStore.getState()
-  const project = useProjectStore.getState()
-  return deriveMappingContext(
-    { selectedTrackId: timeline.selectedTrackId, selectedClipIds: timeline.selectedClipIds, tracks: timeline.tracks },
-    { selectedEffectId: project.selectedEffectId, selectedRackPad: project.selectedRackPad },
-  )
-}
-
-/**
- * H2: live-data slices deriveDefaultAssignment needs for the GIVEN context,
- * read fresh from the instruments/effects stores each call (cheap — bounded
- * by MAX_MACROS_PER_RACK=8 / a slice(0,8) of one effect's params).
- */
-function defaultAssignmentSourcesFor(context: ReturnType<typeof snapshotMappingContext>): DefaultAssignmentSources {
-  if (context.kind === 'rack-pad' || context.kind === 'track') {
-    const rack = useInstrumentsStore.getState().racks[context.trackId]
-    return { rackMacros: rack?.macros }
-  }
-  if (context.kind === 'effect') {
-    const track = useTimelineStore.getState().tracks.find((t) => t.id === context.trackId)
-    const effect = track?.effectChain.find((e) => e.id === context.effectId)
-    if (!effect) return {}
-    const info = useEffectsStore.getState().registry.find((r) => r.id === effect.effectId)
-    if (!info) return {}
-    return { effectParamEntries: Object.entries(info.params) }
-  }
-  return {}
-}
 
 /**
  * D4 (Epic 02): Pure helper — apply pad + CC modulation to ANY chain at a given frame.
@@ -393,6 +358,25 @@ function AppInner() {
   const [hasAudio, setHasAudio] = useState(false)
   const [waveformPeaks, setWaveformPeaks] = useState<WaveformPeaks | null>(null)
   const [clipThumbnails, setClipThumbnails] = useState<{ time: number; data: string }[]>([])
+
+  // H4: imperative mirror of hasAudio so the mount-only CC-record subscriber can
+  // compute isPlaying (= hasAudio ? audioStore.isPlaying : isTimerPlaying) at
+  // fire time without re-installing on every hasAudio flip.
+  const hasAudioRef = useRef(false)
+  useEffect(() => {
+    hasAudioRef.current = hasAudio
+  }, [hasAudio])
+
+  // H4 (master-tuneup WS5 capstone): record hardware CC moves as automation.
+  // Subscribes to ccValues changes (already rate-limited/echo-suppressed by B10)
+  // and, ONLY when recording is armed + transport playing, commits each moved CC
+  // through the same latch/touch record path as a manual knob drag. Installed
+  // once; unsubscribes on unmount.
+  useEffect(() => {
+    return installCCRecordSubscriber(() =>
+      hasAudioRef.current ? useAudioStore.getState().isPlaying : isTimerPlayingRef.current,
+    )
+  }, [])
 
   // Startup diagnostics state
   const { telemetryConsent, consentChecked, checkConsent, setConsent } = useSettingsStore()
@@ -2778,6 +2762,27 @@ function AppInner() {
         return serializeMaskStack(maskedClip?.maskStack)
       })()
 
+      // A2b — resolve the active clip's STATIC transform (position/scale/rotation/
+      // flip) + its id so the export applies it via the SAME shared clip_transform
+      // helper preview's render_frame path uses (was: export dropped ALL clip
+      // transforms → a positioned/scaled/rotated clip exported at default
+      // placement). The export is single-input on activeAssetPath.current; the
+      // transformed clip is the active-track clip backing that asset (same
+      // resolution as exportMaskStack). Per-frame `clipTransform.<clipId>.<field>`
+      // lanes fold over it backend-side (see automationByFrame below).
+      const exportTransformInfo = (() => {
+        const activeTid = getActiveTrackId()
+        const tracks = useTimelineStore.getState().tracks
+        const activeTrack = tracks.find((t) => t.id === activeTid)
+        if (!activeTrack) return undefined
+        const assets = useProjectStore.getState().assets
+        const clip = activeTrack.clips.find(
+          (c) => assets[c.assetId]?.path === activeAssetPath.current,
+        )
+        if (!clip) return undefined
+        return { clipId: clip.id, transform: clip.transform }
+      })()
+
       // P2.3 (slice 3d — full export parity): the export must run the SAME
       // modulation engine the preview render path runs, so the exported video
       // matches the live canvas (previously export dropped operators + automation
@@ -2805,15 +2810,49 @@ function AppInner() {
       const automationByFrame: Record<number, Record<string, number>> = {}
       if (exportLanes.length > 0) {
         for (let f = exportStartFrame; f <= exportEndFrame; f++) {
-          const overrides = evaluateAutomationOverrides(
-            exportLanes, f / exportSourceFps, registry,
-          )
+          const t = f / exportSourceFps
+          const overrides = evaluateAutomationOverrides(exportLanes, t, registry)
+          // A2b: transform lanes share the automation_by_frame channel but need
+          // their OWN evaluator — evaluateAutomationOverrides mis-scales the
+          // `clipTransform.*` keys (no registry entry → raw 0..1). Overwrite them
+          // with the display-range-denormalized + store-clamped values
+          // evaluateTransformOverrides produces (the SAME numbers preview's
+          // mergeTransformOverride uses), so the backend fold pixel-matches preview.
+          const tOverrides = evaluateTransformOverrides(exportLanes, t)
+          for (const clipId of Object.keys(tOverrides)) {
+            const fields = tOverrides[clipId]
+            for (const field of Object.keys(fields) as TransformField[]) {
+              const v = fields[field]
+              if (v !== undefined) {
+                overrides[formatTransformLanePath(clipId, field)] = v
+              }
+            }
+          }
           if (Object.keys(overrides).length > 0) {
             automationByFrame[f] = overrides
           }
         }
       }
       const hasAutomation = Object.keys(automationByFrame).length > 0
+
+      // A2b — send the static clip transform + its id when the clip carries a
+      // non-identity transform OR has transform lanes (so the backend knows which
+      // `clipTransform.<clipId>.*` keys to fold). Omitted otherwise → byte-
+      // identical legacy export payload.
+      const exportTransform = exportTransformInfo?.transform
+      const exportTransformClipId = exportTransformInfo?.clipId
+      const staticTransformNonIdentity = !!exportTransform && (
+        exportTransform.x !== 0 || exportTransform.y !== 0 ||
+        exportTransform.scaleX !== 1 || exportTransform.scaleY !== 1 ||
+        exportTransform.rotation !== 0 || exportTransform.flipH ||
+        exportTransform.flipV || exportTransform.anchorX !== 0 ||
+        exportTransform.anchorY !== 0
+      )
+      const hasTransformLanesForClip = !!exportTransformClipId && exportLanes.some((l) => {
+        const p = parseTransformLanePath(l.paramPath)
+        return p !== null && p.clipId === exportTransformClipId
+      })
+      const sendTransform = !!exportTransformClipId && (staticTransformNonIdentity || hasTransformLanesForClip)
 
       // Status string surfaces the snapshot semantics to the user (the export
       // renders from a frozen snapshot taken at job start; edits during export
@@ -3082,6 +3121,10 @@ function AppInner() {
         // export — the backend treats absent payloads as the old single-input path.
         ...(exportOperators.length > 0 ? { operators: exportOperators } : {}),
         ...(hasAutomation ? { automation_by_frame: automationByFrame } : {}),
+        // A2b — static clip transform + id (backend applies via the shared
+        // clip_transform helper preview uses, folds per-frame clipTransform lanes
+        // over it). Omitted when identity + no lanes → byte-identical legacy export.
+        ...(sendTransform ? { transform: exportTransform ?? {}, transform_clip_id: exportTransformClipId } : {}),
         settings: {
           codec: settings.codec,
           resolution: settings.resolution,
@@ -3467,10 +3510,14 @@ function AppInner() {
         )}
         {selectedClip && !selectedClip.textConfig && (
           <TransformPanel
+            clipId={selectedClip.id}
             transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
             onChange={(t) => {
+              const prevTransform = selectedClip.transform ?? IDENTITY_TRANSFORM
               useTimelineStore.getState().setClipTransform(selectedClip.id, t)
               requestRenderFrame(currentFrame)
+              // A3: additive automation recording — does not alter the store write above.
+              recordChangedTransformFields(selectedClip.id, prevTransform, t, isPlaying)
             }}
             canvasWidth={frameWidth || 1920}
             canvasHeight={frameHeight || 1080}
@@ -3682,8 +3729,11 @@ function AppInner() {
               <BoundingBoxOverlay
                 transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
                 onChange={(t) => {
+                  const prevTransform = selectedClip.transform ?? IDENTITY_TRANSFORM
                   useTimelineStore.getState().setClipTransform(selectedClip.id, t)
                   requestRenderFrame(currentFrame)
+                  // A3: additive automation recording — does not alter the store write above.
+                  recordChangedTransformFields(selectedClip.id, prevTransform, t, isPlaying)
                 }}
                 containerRef={previewContainerRef}
                 sourceWidth={assets[selectedClip.assetId]?.meta?.width ?? 1920}

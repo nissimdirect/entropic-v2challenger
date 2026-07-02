@@ -169,6 +169,21 @@ class MatteNode:
         # --- params (sanitize numerics) ----------------------------------
         params = _sanitize_params(data.get("params", {}))
 
+        # --- ai_matte matte_path JAIL (MK.12 trust boundary) --------------
+        # SECURITY (qa-redteam Surface 3+4): matte_path is a STRING param that
+        # _sanitize_params passes through untouched. It must be confined to the
+        # matte cache (~/.creatrix/mattes/*.mp4), else av.open would honor a
+        # hostile local path / URL (arbitrary-file read / SSRF). Reject the whole
+        # node when a present matte_path escapes the jail (validate_stack drops
+        # None → the ref degrades to the no-mask path). An ABSENT matte_path is
+        # allowed (node created pre-bake; the evaluator degrades to flat-0.5).
+        # Lazy import avoids a cycle (schema ← ai_matte ← stack ← schema).
+        if kind == "ai_matte" and "matte_path" in params:
+            from masking.ai_matte import is_valid_matte_path
+
+            if not is_valid_matte_path(params.get("matte_path")):
+                return None
+
         return cls(
             id=node_id,
             kind=kind,

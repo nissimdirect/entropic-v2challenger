@@ -922,6 +922,9 @@ function validateProject(data: unknown): data is Project {
     // the real deserialization trust boundary, mirrors ccMappings above).
     if (midi.ccBankBindings !== undefined && !Array.isArray(midi.ccBankBindings)) return false
     if (midi.bankAssignments !== undefined && (typeof midi.bankAssignments !== 'object' || midi.bankAssignments === null || Array.isArray(midi.bankAssignments))) return false
+    // H3: shape-check only (array) — per-mapping validation happens at hydrate
+    // (loadMIDIMappings, the real trust boundary), mirrors ccBankBindings above.
+    if (midi.ccSlotMappings !== undefined && !Array.isArray(midi.ccSlotMappings)) return false
   }
 
   // B4.1: optional racks. Shape-check only (object of objects) — per-pad

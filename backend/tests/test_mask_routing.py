@@ -69,17 +69,28 @@ def _invert_rgb_fn(frame, params, state_in, *, frame_index, seed, resolution):
 
 @pytest.fixture(scope="module", autouse=True)
 def _register_test_effects():
-    """Register deterministic test effects for chain crafting."""
+    """Register deterministic test effects for chain crafting.
+
+    F4b (PR #333) discipline: registrations must NOT survive this module — a
+    leaked `test.*` id on the same xdist worker fails
+    test_registry.py::test_registrations_from_prior_tests_do_not_leak and can
+    crash test_all_effects_process_without_crash. Teardown pops exactly the
+    ids THIS fixture registered.
+    """
     specs = [
         ("test.add10", _add_const_fn(10)),
         ("test.add40", _add_const_fn(40)),
         ("test.add100", _add_const_fn(100)),
         ("test.invert_rgb", _invert_rgb_fn),
     ]
+    registered: list[str] = []
     for eid, fn in specs:
         if registry.get(eid) is None:
             registry.register(eid, fn, {}, eid, "test")
+            registered.append(eid)
     yield
+    for eid in registered:
+        registry._REGISTRY.pop(eid, None)
 
 
 # --------------------------------------------------------------------------- #

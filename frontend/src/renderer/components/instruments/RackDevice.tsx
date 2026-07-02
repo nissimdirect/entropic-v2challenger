@@ -28,6 +28,7 @@ import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
 import { routeRackTrigger, usePerformanceFreezeStore } from '../../stores/performanceFreeze'
 import { useToastStore } from '../../stores/toast'
+import { useMIDIStore } from '../../stores/midi'
 import { useLayoutStore } from '../../stores/layout'
 import { useAudioStore } from '../../stores/audio'
 import { clampFinite } from '../../../shared/numeric'
@@ -628,6 +629,15 @@ function MacroRow({
         max={1}
         step={0.01}
         value={macro.value}
+        // H3 — right-click arms MIDI-learn for this rack macro. The next CC
+        // binds a CCSlotMapping with a {kind:'macro', trackId, macroId} target.
+        onContextMenu={(e) => {
+          e.preventDefault()
+          useMIDIStore.getState().setLearnTarget({
+            type: 'slot',
+            target: { kind: 'macro', trackId, macroId: macro.id },
+          })
+        }}
         onChange={(e) =>
           onUpdate(trackId, macro.id, { value: clampFinite(Number(e.target.value), 0, 1, 0) })
         }

@@ -158,6 +158,19 @@ interface TimelineState {
    * Same no-op / cap-refusal guards as copyRegionToTrack.
    */
   cutRegionToTrack: (clipId: string) => void
+  /**
+   * MK.12 — Split a clip into subject + background twins by its ai_matte node.
+   * One click, ONE undo entry: a new track is inserted directly above the
+   * source carrying the SUBJECT twin (same source, deep copy of the ai_matte
+   * node, maskMode='deleteOutside' → only the subject shows). The ORIGINAL
+   * becomes the BACKGROUND twin: it keeps its matte node and gains the
+   * INVERTED consumption (maskMode='deleteInside' → hole where the subject is)
+   * — complementary refs over the same matte, zero new engine machinery
+   * (SPEC §4.2). Tracks are named `<clip> · subject` / `<clip> · background`.
+   * No-op + toast when the clip has no ai_matte node; refuses + toast at the
+   * track / composite-layer caps (MK.9 guard parity).
+   */
+  splitByMatte: (clipId: string) => void
   toggleClipEnabled: (clipId: string) => void
   reverseClip: (clipId: string) => void
   /** UE.7: Set or clear clip label. Empty string clears it (falls back to asset name). Clamped to MAX_CLIP_NAME_LENGTH. */
@@ -505,6 +518,163 @@ function cutOrCopyRegionToTrack(
         tracks: capturedTracks,
         duration: recalcDuration(capturedTracks),
         committedMaskSelection: capturedSelection,
+        selectedClipId: capturedSelClipId,
+        selectedClipIds: capturedSelClipIds,
+      })
+    },
+  )
+}
+
+/**
+ * MK.12 — shared implementation for splitByMatte.
+ *
+ * Mirrors cutOrCopyRegionToTrack's shape (pre-flight guards → pre-generated
+ * ids → ONE undoable() with a verbatim pre-state inverse) but keys on the
+ * clip's ai_matte node instead of a committed marquee selection:
+ *
+ *   SUBJECT twin — NEW track `<clip> · subject` inserted directly above the
+ *   source, carrying a copy of the clip with maskStack=[deep copy of the
+ *   ai_matte node] and maskMode='deleteOutside' (only the subject shows).
+ *
+ *   BACKGROUND twin — the ORIGINAL clip in place: keeps its full maskStack
+ *   (device mask_refs by node id keep resolving) and gains
+ *   maskMode='deleteInside' — the INVERTED consumption of the same matte (a
+ *   subject-shaped hole). The original track is renamed `<clip> · background`.
+ *
+ * Complementary refs over one matte source = the packet's "maskRef on one,
+ * inverted on the other", expressed through the existing MK.4/MK.9 clip
+ * machinery (zero new engine machinery — SPEC §4.2).
+ */
+function splitByMatteImpl(
+  get: () => TimelineState,
+  set: (partial: Partial<TimelineState>) => void,
+  clipId: string,
+): void {
+  const toast = useToastStore.getState()
+
+  // Locate the source clip + its track.
+  let sourceClip: Clip | undefined
+  let sourceTrackId: string | undefined
+  let sourceTrackIdx = -1
+  const prevTracks = get().tracks
+  for (let i = 0; i < prevTracks.length; i++) {
+    const c = prevTracks[i].clips.find((cl) => cl.id === clipId)
+    if (c) { sourceClip = c; sourceTrackId = prevTracks[i].id; sourceTrackIdx = i; break }
+  }
+  if (!sourceClip || !sourceTrackId || sourceTrackIdx === -1) {
+    toast.addToast({
+      level: 'warning',
+      message: 'Split by matte: clip not found',
+      source: 'mk12-split-by-matte',
+    })
+    return
+  }
+
+  // Guard 1: the clip must carry an ai_matte node (the LAST one wins — the
+  // most recently generated matte).
+  const aiNode = [...(sourceClip.maskStack ?? [])].reverse().find((n) => n.kind === 'ai_matte')
+  if (!aiNode) {
+    toast.addToast({
+      level: 'warning',
+      message: 'Split by matte: generate an AI matte on this clip first',
+      source: 'mk12-split-by-matte',
+    })
+    return
+  }
+
+  // Guard 2: layer cap — the split adds exactly ONE composite layer.
+  if (countCompositeLayers(prevTracks) >= LIMITS.MAX_COMPOSITE_LAYERS) {
+    toast.addToast({
+      level: 'warning',
+      message: `Composite layer limit (${LIMITS.MAX_COMPOSITE_LAYERS}) reached — cannot split by matte`,
+      source: 'mk12-split-by-matte',
+    })
+    return
+  }
+
+  // Guard 3: track cap (addTrack's own contract — compose, not bypass).
+  if (prevTracks.length >= LIMITS.MAX_TRACKS) {
+    toast.addToast({
+      level: 'warning',
+      message: `Track limit (${LIMITS.MAX_TRACKS}) reached`,
+      source: 'mk12-split-by-matte',
+    })
+    return
+  }
+
+  // Pre-generate ids OUTSIDE the undoable (deterministic redo — undo.ts contract).
+  const subjectTrackId = randomUUID()
+  const subjectClipId = randomUUID()
+  const subjectNodeId = randomUUID()
+
+  const baseName = sourceClip.name ?? 'Clip'
+
+  // Deep copy of the ai_matte node for the subject twin (own params object —
+  // the MK.9 aliasing failure mode; deep-equal undo test catches it).
+  const subjectNode: MatteNode = {
+    ...aiNode,
+    id: subjectNodeId,
+    params: { ...aiNode.params },
+  }
+
+  // SUBJECT twin clip: same media/timing, only the matte copy, deleteOutside.
+  const subjectClip: Clip = {
+    ...sourceClip,
+    id: subjectClipId,
+    trackId: subjectTrackId,
+    name: `${baseName} · subject`,
+    maskStack: [subjectNode],
+    maskMode: 'deleteOutside',
+    maskFillColor: undefined,
+    ...(sourceClip.transform ? { transform: { ...sourceClip.transform } } : {}),
+    ...(sourceClip.textConfig ? { textConfig: { ...sourceClip.textConfig } } : {}),
+  }
+
+  // New track: EMPTY chain (independent processing is the whole point).
+  const subjectTrack = makeEmptyTrack(
+    `${baseName} · subject`,
+    prevTracks[sourceTrackIdx].color,
+    subjectTrackId,
+    'video',
+  )
+  subjectTrack.clips = [subjectClip]
+
+  // Capture FULL pre-state for the inverse (deep-equal restore).
+  const capturedTracks = prevTracks
+  const capturedSelClipId = get().selectedClipId
+  const capturedSelClipIds = get().selectedClipIds
+
+  undoable(
+    'Split by matte',
+    () => {
+      const cur = [...get().tracks]
+      const insertAt = cur.findIndex((t) => t.id === sourceTrackId)
+      const idx = insertAt === -1 ? cur.length : insertAt
+      cur.splice(idx, 0, subjectTrack)
+
+      // BACKGROUND twin: the original clip gains the inverted consumption
+      // (deleteInside) and the original track is renamed.
+      const tracks = cur.map((t) =>
+        t.id === sourceTrackId
+          ? {
+              ...t,
+              name: `${baseName} · background`,
+              clips: t.clips.map((c) =>
+                c.id === clipId
+                  ? { ...c, name: `${baseName} · background`, maskMode: 'deleteInside' as const }
+                  : c,
+              ),
+            }
+          : t,
+      )
+
+      set({ tracks, duration: recalcDuration(tracks) })
+    },
+    () => {
+      // Restore the captured pre-state verbatim → deep-equal pre-state.
+      set({
+        tracks: capturedTracks,
+        duration: recalcDuration(capturedTracks),
         selectedClipId: capturedSelClipId,
         selectedClipIds: capturedSelClipIds,
       })
@@ -1661,6 +1831,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   cutRegionToTrack: (clipId) => {
     cutOrCopyRegionToTrack(get, set, clipId, 'cut')
+  },
+
+  // MK.12 — subject/background twin split keyed on the clip's ai_matte node.
+  splitByMatte: (clipId) => {
+    splitByMatteImpl(get, set, clipId)
   },
 
   toggleClipEnabled: (clipId) => {
