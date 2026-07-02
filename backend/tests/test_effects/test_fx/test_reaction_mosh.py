@@ -59,6 +59,69 @@ def test_default_params_sane():
             assert d in pspec["options"], pname
 
 
+def test_default_params_visible_change_within_warmup():
+    """PFX.2b regression lock: unmodified DEFAULT params must produce a
+    visible change within a short warm-up window.
+
+    Effect-level guard for the ROADMAP §0.1 PFX.2 concern ("fx.reaction_mosh
+    renders no visible change at defaults", flagged against #166's
+    pde_steps_per_frame 3->1 default reduction). Investigation (2026-07-02):
+    this was already root-caused and fixed at the oracle-test level by #226
+    (single-shot frame-0 check replaced with a stateful warm-up — the effect
+    was never broken, it correctly passes-through on its state-seeding first
+    frame). Reproduction on current defaults (pde_steps_per_frame=1) confirms
+    visible change appears immediately at frame 1 on realistic content
+    (mean abs diff ~1.0-1.4, threshold 0.5) — no code change to apply()
+    defaults was warranted or applied. This test pins that guarantee
+    per-effect (in addition to the general aggregate coverage in
+    test_all_effects.py::TestAllEffectsVisibleChange) so a future default
+    change cannot silently regress visibility without a local, named failure.
+    """
+    params = {k: v["default"] for k, v in PARAMS.items()}
+    assert params["pde_steps_per_frame"] == 1  # documents the #166 default this guards
+
+    h, w = 64, 64
+    rng = np.random.default_rng(42)
+    state = None
+    best_diff = 0.0
+    for fi in range(8):
+        base = rng.integers(0, 256, (h, w, 4), dtype=np.uint8)
+        shift = float(fi * 16)
+        ramp = np.clip(
+            np.linspace(shift, shift + 255, w, dtype=np.float32)[
+                np.newaxis, :, np.newaxis
+            ]
+            * np.ones((h, 1, 1), dtype=np.float32),
+            0,
+            255,
+        ).astype(np.uint8)
+        ramp_rgba = np.concatenate(
+            [ramp, ramp, ramp, np.full((h, w, 1), 255, np.uint8)], axis=2
+        )
+        frame = np.clip(
+            base.astype(np.int32) + ramp_rgba.astype(np.int32), 0, 255
+        ).astype(np.uint8)
+        ref = frame.copy()
+        kw = {"frame_index": fi, "seed": 42, "resolution": (w, h)}
+        result, state = apply(frame, params, state, **kw)
+        diff = float(
+            np.mean(
+                np.abs(
+                    result[:, :, :3].astype(np.float64)
+                    - ref[:, :, :3].astype(np.float64)
+                )
+            )
+        )
+        best_diff = max(best_diff, diff)
+        if best_diff >= 0.5:
+            break
+
+    assert best_diff >= 0.5, (
+        f"fx.reaction_mosh: no visible change in 8 warm-up frames at DEFAULT "
+        f"params (best mean abs diff = {best_diff:.4f}, threshold = 0.5)"
+    )
+
+
 def test_intensity_zero_is_near_identity():
     """At intensity=0 no mosh leakage — output should match current frame."""
     f1 = _frame()
