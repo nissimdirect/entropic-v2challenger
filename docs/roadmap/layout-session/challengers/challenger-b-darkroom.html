@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Challenger B — DARKROOM (Photoshop-max)</title>
+<link rel="stylesheet" href="live-signal.css">
+<link rel="stylesheet" href="states.css">
+<style>
+  .app { display: grid; height: 100vh; grid-template-rows: 40px 32px 1fr 176px 28px; }
+  body[data-state="automation"] .app { grid-template-rows: 40px 32px 1fr 330px 28px; }
+
+  /* ---------- transport ---------- */
+  .transport { display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--cx-surface-2); border-bottom: 1px solid var(--cx-line-1); font-size: 12.5px; }
+  .tc { font-variant-numeric: tabular-nums; color: var(--cx-text-2); font-size: 13px; }
+
+  /* ---------- options bar ---------- */
+  .options { display: flex; align-items: center; gap: 14px; padding: 0 14px; background: var(--cx-surface-3); border-bottom: 1px solid var(--cx-line-1); font-size: 11.5px; color: var(--cx-text-2); position: relative; }
+  .options .toolico { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; background: var(--cx-acid-wash); border: 1px solid var(--cx-acid); border-radius: 3px; color: var(--cx-acid); font-size: 12px; }
+  .options label { display: flex; align-items: center; gap: 6px; }
+  .options .slider { width: 110px; height: 4px; background: var(--cx-line-2); border-radius: 2px; position: relative; }
+  .options .slider::after { content: ''; position: absolute; left: var(--v, 40%); top: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--cx-text-1); }
+  .options select { font: inherit; font-size: 11px; background: var(--cx-surface-2); color: var(--cx-text-1); border: 1px solid var(--cx-line-2); border-radius: 3px; height: 24px; }
+  .options .seg { display: flex; border: 1px solid var(--cx-line-2); border-radius: 3px; overflow: hidden; }
+  .options .seg span { padding: 4px 10px; border-right: 1px solid var(--cx-line-2); }
+  .options .seg span:last-child { border-right: 0; }
+  .options .seg span.on { background: var(--cx-mod-wash); color: var(--cx-mod); }
+  .options--tool { display: flex; }
+  .options--audio { display: none; }
+  body[data-state="volume"] .options--tool { display: none; }
+  body[data-state="volume"] .options--audio { display: flex; }
+
+  /* ---------- body ---------- */
+  .body { display: grid; grid-template-columns: 46px 1fr 340px; min-height: 0; position: relative; }
+
+  /* tool rail */
+  .rail { background: var(--cx-surface-2); border-right: 1px solid var(--cx-line-1); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 0; }
+  .rail .t { width: 34px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--cx-text-2); font-size: 14px; position: relative; }
+  .rail .t:hover { background: var(--cx-surface-4); color: var(--cx-text-1); }
+  .rail .t.on { background: var(--cx-acid-wash); color: var(--cx-acid); outline: 1px solid var(--cx-acid); }
+  .rail .t .k { position: absolute; right: 3px; bottom: 2px; font-size: 8px; color: var(--cx-text-3); }
+  .rail hr { width: 22px; border: 0; border-top: 1px solid var(--cx-line-1); margin: 5px 0; }
+
+  /* canvas */
+  .canvas { background: var(--cx-surface-0); position: relative; display: flex; flex-direction: column; min-width: 0; }
+  .hruler { height: 16px; flex: none; background: var(--cx-surface-2); border-bottom: 1px solid var(--cx-line-1); background-image: repeating-linear-gradient(90deg, var(--cx-line-2) 0 1px, transparent 1px 60px); margin-left: 16px; }
+  .canvas .inner { flex: 1; display: flex; min-height: 0; }
+  .vruler { width: 16px; flex: none; background: var(--cx-surface-2); border-right: 1px solid var(--cx-line-1); background-image: repeating-linear-gradient(0deg, var(--cx-line-2) 0 1px, transparent 1px 60px); }
+  .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 30px; position: relative; min-width: 0; }
+  .frame { width: min(100%, 150vh); aspect-ratio: 16/9; max-height: 100%; position: relative; box-shadow: 0 0 0 1px var(--cx-line-2), 0 12px 40px rgba(0,0,0,.55); }
+  .ants { position: absolute; inset: 22% 30% 26% 18%; border: 1.5px dashed var(--cx-text-1); border-radius: 40% 60% 55% 45% / 55% 45% 60% 40%; }
+  .bbox { position: absolute; inset: 12% 55% 45% 6%; border: 1px solid var(--cx-mod); }
+  .bbox i { position: absolute; width: 8px; height: 8px; background: var(--cx-mod); border: 1px solid var(--cx-surface-0); }
+  .bbox i:nth-child(1){top:-4px;left:-4px} .bbox i:nth-child(2){top:-4px;right:-4px}
+  .bbox i:nth-child(3){bottom:-4px;left:-4px} .bbox i:nth-child(4){bottom:-4px;right:-4px}
+  .canvhud { position: absolute; left: 50%; transform: translateX(-50%); bottom: 10px; display: flex; gap: 10px; align-items: center; font-size: 10.5px; color: var(--cx-text-3); background: rgba(18,18,24,.85); border: 1px solid var(--cx-line-1); border-radius: 4px; padding: 5px 12px; }
+
+  /* ---------- right dock ---------- */
+  .dock { background: var(--cx-surface-2); border-left: 1px solid var(--cx-line-1); display: flex; flex-direction: column; min-height: 0; position: relative; }
+
+  .layers { flex: 1.3; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--cx-line-1); }
+  .layers .toolbar { height: 30px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 11px; color: var(--cx-text-2); border-bottom: 1px solid var(--cx-line-1); }
+  .layers .toolbar select { font: inherit; font-size: 11px; height: 22px; background: var(--cx-surface-3); color: var(--cx-text-1); border: 1px solid var(--cx-line-2); border-radius: 3px; }
+  body[data-state="blend"] .layers .toolbar select { border-color: var(--cx-mod); color: var(--cx-mod); }
+  .llist { flex: 1; overflow-y: auto; }
+  .lrow { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 10px; border-bottom: 1px solid var(--cx-line-1); font-size: 12px; }
+  .lrow:hover { background: var(--cx-surface-3); }
+  .lrow.sel { background: var(--cx-mod-wash); box-shadow: inset 2px 0 0 var(--cx-mod); }
+  .lrow .eye { width: 18px; text-align: center; color: var(--cx-text-2); }
+  .lrow .eye.off { color: var(--cx-text-disabled); }
+  .lrow .th { width: 46px; height: 28px; flex: none; border-radius: 2px; }
+  .lrow .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lrow .op { font-size: 10.5px; color: var(--cx-text-3); font-variant-numeric: tabular-nums; }
+  .fxrow { display: flex; align-items: center; gap: 7px; height: 24px; padding: 0 10px 0 44px; font-size: 10.5px; color: var(--cx-text-2); border-bottom: 1px solid var(--cx-line-1); background: var(--cx-surface-1); }
+  .fxrow .tick { width: 3px; height: 11px; border-radius: 1px; flex: none; }
+  .fxrow .pwr { width: 8px; height: 8px; border-radius: 50%; background: var(--cx-acid); flex: none; }
+  .fxrow.off .pwr { background: transparent; border: 1px solid var(--cx-line-2); }
+  .fxrow.off { color: var(--cx-text-disabled); }
+  .fxrow .mod { color: var(--cx-mod); }
+  .fxrow .add { color: var(--cx-text-3); }
+
+  /* adjustments ⇄ history */
+  .adjust { flex: 1; display: flex; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--cx-line-1); }
+  body[data-state="history"] .adjust { display: none; }
+  .histdock { flex: 1; flex-direction: column; min-height: 0; border-bottom: 1px solid var(--cx-line-1); }
+  .adjust .grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 8px; align-content: start; }
+  .fxcell { aspect-ratio: 1.5; border: 1px solid var(--cx-line-1); border-radius: 4px; background: var(--cx-surface-3); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 9px; color: var(--cx-text-2); text-align: center; padding: 3px; overflow: hidden; }
+  .fxcell:hover { background: var(--cx-surface-4); color: var(--cx-text-1); }
+  .fxcell .sw { width: 100%; flex: 1; border-radius: 2px; }
+
+  /* properties */
+  .props { flex: 1.1; display: flex; flex-direction: column; min-height: 0; }
+  .props .rows { flex: 1; overflow-y: auto; padding: 8px 10px; display: flex; flex-direction: column; gap: 9px; }
+  .prow { display: grid; grid-template-columns: 86px 1fr 44px; align-items: center; gap: 10px; font-size: 11px; color: var(--cx-text-2); }
+  .prow .bar { height: 4px; background: var(--cx-line-2); border-radius: 2px; position: relative; }
+  .prow .bar::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v, 50%); background: var(--cx-acid); border-radius: 2px; }
+  .prow .bar.mod::after { background: var(--cx-mod); }
+  .prow .v { text-align: right; color: var(--cx-text-1); font-size: 10.5px; font-variant-numeric: tabular-nums; }
+
+  /* ---------- filmstrip timeline ---------- */
+  .strip { background: var(--cx-surface-2); border-top: 1px solid var(--cx-line-1); display: flex; flex-direction: column; min-height: 0; position: relative; }
+  .strip .rows { flex: 1; overflow-y: auto; position: relative; }
+  .srow { display: grid; grid-template-columns: 140px 1fr; height: 34px; border-bottom: 1px solid var(--cx-line-1); }
+  .srow.auto { height: 30px; }
+  .srow .hd { display: flex; align-items: center; gap: 6px; padding: 0 10px; font-size: 10.5px; background: var(--cx-surface-2); border-right: 1px solid var(--cx-line-1); color: var(--cx-text-2); }
+  .srow .lane { position: relative; background: repeating-linear-gradient(90deg, transparent 0 69px, var(--cx-line-1) 69px 70px); }
+  .sclip { position: absolute; top: 5px; bottom: 5px; border-radius: 2px; border: 1px solid var(--cx-line-2); font-size: 9.5px; padding: 1px 5px; color: var(--cx-text-1); overflow: hidden; }
+  .sclip.sel { border-color: var(--cx-mod); box-shadow: 0 0 0 1px var(--cx-mod); }
+  .playhead { position: absolute; top: 0; bottom: 0; left: 42%; width: 1px; background: var(--cx-acid); z-index: 5; }
+  .autolane svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .srow.st-automation { --st-disp: grid; }
+  .srow.auto.big { height: 64px; }
+
+  .statusbar { display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--cx-surface-2); border-top: 1px solid var(--cx-line-1); font-size: 11px; color: var(--cx-text-3); }
+  .statusbar .ok { width: 8px; height: 8px; border-radius: 50%; background: var(--cx-acid); }
+
+  /* volume popover near audio row */
+  .volpop { position: absolute; left: 150px; bottom: 46px; z-index: 210; background: var(--cx-surface-2); border: 1px solid var(--cx-probe); border-radius: 6px; box-shadow: 0 10px 34px rgba(0,0,0,.6); padding: 12px; gap: 12px; align-items: stretch; height: 160px; }
+
+  /* PERFORM ROOM takeover */
+  .performroom { position: fixed; inset: 0; z-index: 320; background: rgba(11,11,16,.94); flex-direction: column; align-items: center; justify-content: center; gap: 22px; }
+  .performroom .bigpads { grid-template-columns: repeat(4, 110px); }
+  .performroom .bigpad { min-height: 92px; }
+
+  /* blending options dialog (Layer Style) */
+  .lsdialog { width: 700px; }
+  .lsbody { display: grid; grid-template-columns: 180px 1fr; min-height: 360px; }
+  .lsnav { border-right: 1px solid var(--cx-line-1); background: var(--cx-surface-1); padding: 8px 0; }
+  .lsnav .ni { height: 30px; display: flex; align-items: center; padding: 0 14px; font-size: 12px; color: var(--cx-text-2); }
+  .lsnav .ni.on { background: var(--cx-mod-wash); color: var(--cx-mod); box-shadow: inset 2px 0 0 var(--cx-mod); }
+  .lsmain { padding: 16px 18px; display: flex; flex-direction: column; gap: 16px; }
+  .blendgrid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .bmode { height: 46px; border: 1px solid var(--cx-line-1); border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 11px; color: var(--cx-text-2); }
+  .bmode .sw { width: 40px; height: 14px; border-radius: 2px; background: linear-gradient(135deg, var(--cx-mod-wash), var(--cx-acid-wash)); }
+  .bmode.sel { border-color: var(--cx-mod); color: var(--cx-mod); background: var(--cx-mod-wash); }
+  .lsrow { display: grid; grid-template-columns: 110px 1fr 46px; gap: 12px; align-items: center; font-size: 12px; color: var(--cx-text-2); }
+  .lsrow .bar { height: 4px; background: var(--cx-line-2); border-radius: 2px; position: relative; }
+  .lsrow .bar::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v, 50%); background: var(--cx-acid); border-radius: 2px; }
+  .keyrange { position: relative; height: 14px; border-radius: 3px; background: linear-gradient(90deg, #000, #fff); border: 1px solid var(--cx-line-2); }
+  .keyrange i { position: absolute; top: -4px; bottom: -4px; width: 5px; background: var(--cx-mod); border-radius: 2px; }
+
+  /* operators modal */
+  .opsoverlay { position: fixed; inset: 70px 60px 90px 100px; z-index: 310; background: var(--cx-surface-1); border: 1px solid var(--cx-line-2); border-radius: 8px; box-shadow: 0 30px 90px rgba(0,0,0,.75); flex-direction: column; overflow: hidden; }
+  .opscanvas { flex: 1; position: relative; background: radial-gradient(circle at 1px 1px, var(--cx-line-1) 1px, transparent 0); background-size: 22px 22px; }
+  .opnode { position: absolute; width: 210px; }
+  .opsedges { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+</style>
+</head>
+<body data-state="default">
+
+<div class="proto-badge">
+  <button onclick="document.body.classList.toggle('show-annos')">ⓘ annotations</button>
+  <a href="index.html">← index</a>
+</div>
+
+<div class="app">
+
+  <!-- TRANSPORT -->
+  <div class="transport">
+    <span class="btn btn--icon btn--on">▶</span>
+    <span class="btn btn--icon">⏹</span>
+    <span class="btn btn--icon">⟳</span>
+    <span class="tc">0:16.1 / 0:38.2</span>
+    <span class="chip">BPM 128</span>
+    <span style="flex:1"></span>
+    <span style="font-size:11px; letter-spacing:.16em; color:var(--cx-text-3)">CREATRIX · DARKROOM</span>
+    <span style="flex:1"></span>
+    <span class="chip chip--acid">⌘E EXPORT</span>
+  </div>
+
+  <!-- OPTIONS BAR — tool variant -->
+  <div class="options options--tool">
+    <span class="toolico">⚡</span>
+    <b style="color:var(--cx-text-1)">MAGIC WAND</b>
+    <label>tolerance <span class="slider" style="--v:38%"></span> 168</label>
+    <label>feather <span class="slider" style="--v:12%"></span> 6px</label>
+    <div class="seg"><span class="on">new</span><span>add</span><span>subtract</span><span>intersect</span></div>
+    <label><input type="checkbox" checked> sample all layers</label>
+    <span style="flex:1"></span>
+    <span class="chip chip--mod">⌘J copy sel → new track</span>
+    <span class="chip">alt⌫ delete outside</span>
+  </div>
+
+  <!-- OPTIONS BAR — audio variant (volume state) -->
+  <div class="options options--audio">
+    <span class="toolico" style="color:var(--cx-probe); border-color:var(--cx-probe); background:var(--cx-probe-wash)">∿</span>
+    <b style="color:var(--cx-text-1)">A1 · AUDIO</b>
+    <label>gain <span class="slider" style="--v:56%"></span> <b style="color:var(--cx-text-1)">-6.2 dB</b></label>
+    <label><input type="checkbox"> mute</label>
+    <label><input type="checkbox"> solo</label>
+    <span class="chip chip--acid">-14 LUFS target</span>
+    <span class="chip">true peak -1.0 dBTP</span>
+    <span style="flex:1"></span>
+    <span class="chip chip--mod">audio follower → dm.strength 88</span>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+
+    <!-- TOOL RAIL -->
+    <div class="rail">
+      <div class="t">▙<span class="k">V</span></div>
+      <div class="t">✂<span class="k">B</span></div>
+      <div class="t">⇆<span class="k">S</span></div>
+      <div class="t">⇉<span class="k">D</span></div>
+      <hr>
+      <div class="t">▢<span class="k">Q</span></div>
+      <div class="t">◯<span class="k">Q</span></div>
+      <div class="t">✎<span class="k">W</span></div>
+      <div class="t on">⚡<span class="k">A</span></div>
+      <div class="t">⌖<span class="k">K</span></div>
+      <hr>
+      <div class="t">T<span class="k">T</span></div>
+      <div class="t">✥<span class="k">H</span></div>
+      <div class="t">⌕<span class="k">Z</span></div>
+    </div>
+
+    <!-- CANVAS -->
+    <div class="canvas">
+      <div class="hruler"></div>
+      <div class="inner">
+        <div class="vruler"></div>
+        <div class="stage">
+          <div class="frame vthumb">
+            <div class="ants"></div>
+            <div class="bbox"><i></i><i></i><i></i><i></i></div>
+          </div>
+          <div class="canvhud">fit 62% · 1080p · <span style="color:var(--cx-acid)">29.7fps</span> · matte: wand +2 nodes · <span style="color:var(--cx-mod)">selection → V1 datamosh only</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT DOCK -->
+    <div class="dock">
+      <!-- LAYERS -->
+      <div class="layers">
+        <div class="panel-header">LAYERS <span class="spacer"></span><span class="chip">z = track order</span></div>
+        <div class="toolbar">
+          <select><option>Normal</option><option>Screen</option><option>Multiply</option></select>
+          <span>opacity 72%</span>
+          <span style="flex:1"></span>
+          <span title="blending options">◨</span><span>＋</span><span>🗑</span>
+        </div>
+        <div class="llist">
+          <div class="lrow"><span class="eye">👁</span><span class="th" style="background:var(--cx-surface-4); display:flex;align-items:center;justify-content:center; font-size:10px;">T</span><span class="nm">title_card</span><span class="op">100%</span></div>
+          <div class="lrow sel"><span class="eye">👁</span><span class="th vthumb"></span><span class="nm">V1 · MAIN — intro_run</span><span class="op">72%</span><span style="font-size:10px">▾</span></div>
+          <div class="fxrow"><span class="tick" style="background:var(--cx-cat-color)"></span><span class="pwr"></span>chroma_key <span class="mod">⌁ tol←LFO1</span> <span class="chip chip--mod" style="font-size:8px; margin-left:auto">mask 2</span></div>
+          <div class="fxrow"><span class="tick" style="background:var(--cx-cat-distortion)"></span><span class="pwr"></span>datamosh <span class="mod">⌁ str←audio</span> <span style="margin-left:auto; font-size:9px">A|B</span></div>
+          <div class="fxrow off"><span class="tick" style="background:var(--cx-cat-temporal)"></span><span class="pwr"></span>frame_echo (bypassed)</div>
+          <div class="fxrow"><span class="add">＋ add effect… (dbl-click an adjustment)</span></div>
+          <div class="lrow"><span class="eye">👁</span><span class="th vthumb" style="filter:hue-rotate(90deg)"></span><span class="nm">V2 · OVERLAY — vhs_bed</span><span class="op">45%</span></div>
+          <div class="lrow"><span class="eye off">–</span><span class="th" style="background:var(--cx-mod-wash); display:flex;align-items:center;justify-content:center; font-size:10px; color:var(--cx-mod)">⌨</span><span class="nm">P1 · PADS (perform)</span><span class="op">·</span></div>
+          <div class="lrow"><span class="eye">👁</span><span class="th" style="background:var(--cx-probe-wash); display:flex;align-items:center;justify-content:center; font-size:10px; color:var(--cx-probe)">∿</span><span class="nm">A1 · AUDIO — track_stem</span><span class="op">-6.2dB</span></div>
+        </div>
+      </div>
+
+      <!-- ADJUSTMENTS (⇄ HISTORY) -->
+      <div class="adjust">
+        <div class="panel-header">ADJUSTMENTS <span class="spacer"></span><span class="chip">193 fx</span><span style="font-size:10px">⌕</span></div>
+        <div class="grid">
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-distortion),transparent)"></span>datamosh</div>
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-glitch),transparent)"></span>pixel_sort</div>
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-color),transparent)"></span>chroma_key</div>
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-temporal),transparent)"></span>frame_echo</div>
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-destruction),transparent)"></span>macroblock</div>
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-modulation),transparent)"></span>scan_warp</div>
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-texture),transparent)"></span>grain_field</div>
+          <div class="fxcell"><span class="sw" style="background:linear-gradient(135deg,var(--cx-cat-enhance),transparent)"></span>codec_arch</div>
+        </div>
+      </div>
+
+      <!-- HISTORY (replaces Adjustments in history state — PS behavior) -->
+      <div class="histdock st-history">
+        <div class="panel-header">HISTORY <span class="spacer"></span><span class="chip">snapshot ◈</span></div>
+        <div class="hrow" style="background:var(--cx-surface-3)"><span class="hi">◈</span>Snapshot — before wand pass<span class="hk">click to restore</span></div>
+        <div class="hlist">
+          <div class="hrow"><span class="hi">◷</span>Import intro_run.mp4</div>
+          <div class="hrow"><span class="hi">⚡</span>Add chroma_key → V1</div>
+          <div class="hrow"><span class="hi">⚡</span>Add datamosh → V1</div>
+          <div class="hrow"><span class="hi">⚡</span>Wand select (tol 168)</div>
+          <div class="hrow"><span class="hi">✎</span>Grow matte +4px</div>
+          <div class="hrow"><span class="hi">◨</span>Blend V2 → Screen</div>
+          <div class="hrow cur"><span class="hi">●</span>Set datamosh.strength 0.78<span class="hk">now</span></div>
+          <div class="hrow future"><span class="hi">○</span>Delete outside</div>
+          <div class="hrow future"><span class="hi">○</span>⌘J copy sel → new track</div>
+        </div>
+      </div>
+
+      <!-- PROPERTIES -->
+      <div class="props">
+        <div class="panel-header">PROPERTIES <span class="chip chip--mod">datamosh</span><span class="spacer"></span><span style="font-size:10px">A|B</span></div>
+        <div class="rows">
+          <div class="prow"><span>strength</span><span class="bar mod" style="--v:78%"></span><span class="v">0.78 ⌁</span></div>
+          <div class="prow"><span>block size</span><span class="bar" style="--v:50%"></span><span class="v">16</span></div>
+          <div class="prow"><span>iterations</span><span class="bar" style="--v:25%"></span><span class="v">2</span></div>
+          <div class="prow"><span>field</span><span class="bar" style="--v:66%"></span><span class="v">img_04</span></div>
+          <div class="prow"><span>mix</span><span class="bar" style="--v:82%"></span><span class="v">82%</span></div>
+          <div class="prow"><span>mask</span><span style="font-size:10px; color:var(--cx-mod)">node-2 · feather 8 · INV</span><span class="v">✓</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FILMSTRIP TIMELINE -->
+  <div class="strip">
+    <div class="autobar st-automation">
+      <b style="color:var(--cx-mod)">AUTOMATION</b>
+      <span>domain</span>
+      <span class="mode"><b class="on">TIME</b><b>Y-SCAN</b><b>X-SCAN</b></span>
+      <span>mode</span>
+      <span class="mode"><b>R</b><b>L</b><b>T</b><b class="on">D</b></span>
+      <select><option>datamosh · strength</option><option>chroma_key · tolerance</option></select>
+      <span style="flex:1"></span>
+      <span class="chip chip--mod">DRAW — paint freehand points</span>
+    </div>
+    <div class="panel-header">TIMELINE <span class="chip">filmstrip</span><span class="spacer"></span><span class="chip">snap ✓</span><span class="chip">1/8</span><span style="font-size:10px">▾ collapse</span></div>
+    <div class="rows">
+      <div class="playhead"></div>
+      <div class="srow">
+        <div class="hd">T1 · title_card</div>
+        <div class="lane"><div class="sclip" style="left:5%; width:18%; background:var(--cx-surface-4)">TITLE</div></div>
+      </div>
+      <div class="srow">
+        <div class="hd" style="color:var(--cx-mod)">V1 · MAIN</div>
+        <div class="lane">
+          <div class="sclip sel vthumb" style="left:2%; width:36%">intro_run</div>
+          <div class="sclip vthumb" style="left:40%; width:26%">corrupt_a</div>
+        </div>
+      </div>
+      <div class="srow auto autolane big st-automation">
+        <div class="hd" style="font-size:10px; color:var(--cx-mod)">└ AUTO · dm.strength · T · <b>draw</b></div>
+        <div class="lane">
+          <svg preserveAspectRatio="none" viewBox="0 0 100 20"><polyline points="0,15 8,14 14,12 22,9 30,11 36,4 44,6 52,9 60,7 68,3 76,5 84,8 92,10 100,11" fill="none" stroke="#8F7DFF" stroke-width="1"/><circle cx="36" cy="4" r="1.5" fill="#8F7DFF"/><circle cx="68" cy="3" r="1.5" fill="#8F7DFF"/><circle cx="52" cy="9" r="1.5" fill="#8F7DFF"/></svg>
+        </div>
+      </div>
+      <div class="srow auto autolane big st-automation">
+        <div class="hd" style="font-size:10px; color:var(--cx-mod)">└ AUTO · chroma.tol · Y-scan</div>
+        <div class="lane"><svg preserveAspectRatio="none" viewBox="0 0 100 20"><polyline points="0,10 25,10 25,4 50,4 50,14 100,14" fill="none" stroke="#8F7DFF" stroke-width="1"/></svg></div>
+      </div>
+      <div class="srow">
+        <div class="hd">V2 · OVERLAY</div>
+        <div class="lane"><div class="sclip vthumb" style="left:12%; width:55%; filter:hue-rotate(90deg)">vhs_bed</div></div>
+      </div>
+      <div class="srow">
+        <div class="hd" style="color:var(--cx-probe)">A1 · AUDIO</div>
+        <div class="lane"><div class="sclip" style="left:2%; width:82%; background:var(--cx-probe-wash); border-color:var(--cx-probe)">∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿∿</div></div>
+      </div>
+    </div>
+
+    <!-- VOLUME popover anchored to audio row -->
+    <div class="volpop st-volume">
+      <div style="display:flex; flex-direction:column; gap:6px; align-items:center">
+        <span style="font-size:10px; color:var(--cx-text-2)">A1 GAIN</span>
+        <div class="vfader" style="--v:62%; flex:1"></div>
+        <span style="font-size:11px; font-variant-numeric:tabular-nums">-6.2 dB</span>
+      </div>
+      <div style="display:flex; gap:5px; align-items:stretch">
+        <div class="bigmeter" style="--v:74%"></div>
+        <div class="bigmeter" style="--v:68%"></div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; justify-content:center">
+        <span class="btn">M</span><span class="btn">S</span>
+        <span class="chip">peak -3.1</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="statusbar">
+    <span class="ok"></span> ENGINE · 00:41:12 <span>1080p</span> <span>29.7fps</span> <span style="color:var(--cx-acid)">6.2ms</span>
+    <span style="flex:1"></span>
+    <span class="chip chip--acid">TOOL: WAND (A)</span>
+    <span>mem 61%</span>
+  </div>
+</div>
+
+<!-- BLENDING OPTIONS dialog (Layer Style) -->
+<div class="scrim st-blend">
+  <div class="dialog lsdialog">
+    <header>BLENDING OPTIONS — V1 · MAIN <span class="chip chip--mod">writes terminal composite</span><span class="x">✕</span></header>
+    <div class="lsbody">
+      <div class="lsnav">
+        <div class="ni on">Blending Options</div>
+        <div class="ni">Opacity & Fill</div>
+        <div class="ni">Matte Stack (2)</div>
+        <div class="ni">Chroma Key</div>
+        <div class="ni">Luma Ranges</div>
+        <div class="ni">Effects (4)</div>
+      </div>
+      <div class="lsmain">
+        <div class="blendgrid">
+          <div class="bmode"><span class="sw"></span>Normal</div>
+          <div class="bmode"><span class="sw"></span>Add</div>
+          <div class="bmode"><span class="sw"></span>Multiply</div>
+          <div class="bmode sel"><span class="sw"></span>Screen</div>
+          <div class="bmode"><span class="sw"></span>Overlay</div>
+          <div class="bmode"><span class="sw"></span>Difference</div>
+          <div class="bmode"><span class="sw"></span>Exclusion</div>
+          <div class="bmode"><span class="sw"></span>Darken</div>
+          <div class="bmode"><span class="sw"></span>Lighten</div>
+        </div>
+        <div class="lsrow"><span>track opacity</span><span class="bar" style="--v:72%"></span><span class="v" style="color:var(--cx-text-1)">72%</span></div>
+        <div class="lsrow"><span>clip opacity</span><span class="bar" style="--v:100%"></span><span class="v" style="color:var(--cx-text-1)">100%</span></div>
+        <div class="lsrow">
+          <span>luma range<br><i style="font-size:9px; color:var(--cx-text-3)">→ luma_key params</i></span>
+          <span class="keyrange"><i style="left:18%"></i><i style="left:78%"></i></span>
+          <span class="v" style="color:var(--cx-text-1)">46–200</span>
+        </div>
+        <div style="font-size:10.5px; color:var(--cx-text-3); line-height:1.5">Hover any mode = live canvas preview. "Luma Ranges" maps PS blend-if to the shipped luma_key effect — same engine, familiar handles.</div>
+      </div>
+    </div>
+    <footer>
+      <span class="btn">Cancel</span>
+      <span class="btn btn--primary">OK</span>
+    </footer>
+  </div>
+</div>
+
+<!-- PERFORM ROOM takeover -->
+<div class="performroom st-perform">
+  <div style="font-size:13px; letter-spacing:.2em; color:var(--cx-mod); font-weight:700">⌨ PERFORM ROOM — P1 ARMED</div>
+  <div class="bigpads" style="grid-template-columns: repeat(4, 120px)">
+    <div class="bigpad lit"><span class="bk">Q</span>kick_cut<span class="bm">GATE</span></div>
+    <div class="bigpad"><span class="bk">W</span>stutter<span class="bm">1-SHOT</span></div>
+    <div class="bigpad"><span class="bk">E</span>reverse<span class="bm">GATE</span></div>
+    <div class="bigpad hold"><span class="bk">R</span>freeze<span class="bm">TOGGLE</span></div>
+    <div class="bigpad"><span class="bk">A</span>gran_a<span class="bm">GATE</span></div>
+    <div class="bigpad"><span class="bk">S</span>gran_b<span class="bm">GATE</span></div>
+    <div class="bigpad"><span class="bk">D</span>wave_04<span class="bm">1-SHOT</span></div>
+    <div class="bigpad rec"><span class="bk">F</span>morph<span class="bm">REC→AUTO</span></div>
+    <div class="bigpad"><span class="bk">Z</span>slice_1<span class="bm">GATE</span></div>
+    <div class="bigpad"><span class="bk">X</span>slice_2<span class="bm">GATE</span></div>
+    <div class="bigpad lit"><span class="bk">C</span>slice_3<span class="bm">GATE</span></div>
+    <div class="bigpad"><span class="bk">V</span>slice_4<span class="bm">GATE</span></div>
+  </div>
+  <div style="display:flex; gap:16px; align-items:center">
+    <div class="knob"><div class="knob__ring" style="--v:65%"></div><span class="knob__label">CHAOS</span></div>
+    <div class="knob"><div class="knob__ring knob__ring--mod" style="--v:40%"></div><span class="knob__label">WET</span></div>
+    <div class="knob"><div class="knob__ring" style="--v:80%"></div><span class="knob__label">RATE</span></div>
+    <div class="knob"><div class="knob__ring" style="--v:25%"></div><span class="knob__label">GRAIN</span></div>
+  </div>
+  <div style="font-size:11px; color:var(--cx-text-3)">launch-quantize 1/4 · retro-capture ON · Esc = exit + panic-all</div>
+</div>
+
+<!-- OPERATORS modal -->
+<div class="opsoverlay st-operators">
+  <div class="panel-header">ROUTING CANVAS (⌘⇧I) <span class="spacer"></span><span class="chip">modal in PS-max — no dock space</span><span class="x">✕</span></div>
+  <div class="opscanvas">
+    <svg class="opsedges">
+      <path d="M 320 95 C 410 95, 450 155, 550 155" fill="none" stroke="#8F7DFF" stroke-width="1.5"/>
+      <path d="M 320 245 C 420 245, 440 170, 550 165" fill="none" stroke="#5FD7A8" stroke-width="1.5"/>
+      <path d="M 320 245 C 430 245, 460 300, 550 300" fill="none" stroke="#8F7DFF" stroke-width="1.5" stroke-dasharray="4 3"/>
+    </svg>
+    <div class="opcard opnode" style="left:100px; top:55px;">
+      <header>LFO 1 <span class="chip chip--mod">sine</span><span class="sig" style="--v:80%"></span></header>
+      <div class="obody">
+        <div class="wave"><svg preserveAspectRatio="none" viewBox="0 0 100 40"><path d="M0,20 C12,2 24,2 36,20 C48,38 60,38 72,20 C84,2 96,2 100,12" fill="none" stroke="#C8F321" stroke-width="1.5"/></svg></div>
+        <div class="knob"><div class="knob__ring" style="--v:44%"></div><span class="knob__label">rate</span></div>
+      </div>
+    </div>
+    <div class="opcard opnode" style="left:100px; top:200px;">
+      <header>AUDIO FOLLOWER <span class="sig" style="--v:35%"></span></header>
+      <div class="obody">
+        <div class="wave"><svg preserveAspectRatio="none" viewBox="0 0 100 40"><path d="M0,36 L8,20 L14,30 L22,8 L30,26 L38,14 L46,32 L54,6 L62,24 L70,16 L78,30 L86,10 L94,28 L100,20" fill="none" stroke="#5FD7A8" stroke-width="1.2"/></svg></div>
+        <span class="chip chip--acid">src: A1</span>
+      </div>
+    </div>
+    <div class="opcard opnode" style="left:550px; top:120px; width:250px">
+      <header style="color:var(--cx-mod)">DEST · datamosh.strength</header>
+      <div class="obody" style="flex-direction:column; align-items:stretch">
+        <div style="display:flex; justify-content:space-between; font-size:11px"><span>2 edges</span><span class="chip chip--mod">Σ clamped 0–1</span></div>
+      </div>
+    </div>
+    <div class="opcard opnode" style="left:550px; top:265px; width:250px">
+      <header style="color:var(--cx-mod)">DEST · chroma_key.tol</header>
+      <div class="obody" style="flex-direction:column; align-items:stretch">
+        <div style="display:flex; justify-content:space-between; font-size:11px"><span>LFO1 · depth 0.62</span><span class="chip">curve: lin</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT dialog (PS Export-As style) -->
+<div class="scrim st-export">
+  <div class="dialog" style="width:760px">
+    <header>EXPORT AS (⌘E) <span class="x">✕</span></header>
+    <div style="display:grid; grid-template-columns: 1fr 280px; min-height:340px">
+      <div style="display:flex; align-items:center; justify-content:center; padding:20px; border-right:1px solid var(--cx-line-1)">
+        <div class="vthumb" style="width:100%; aspect-ratio:16/9; position:relative">
+          <span style="position:absolute; left:8px; bottom:6px; font-size:10px; color:var(--cx-text-2); background:rgba(11,11,16,.7); padding:2px 6px; border-radius:3px">frame 412 / 1146 — scrub to preview</span>
+        </div>
+      </div>
+      <div class="exp-grid" style="grid-template-columns: 90px 1fr; align-content:start">
+        <span>codec</span><select><option>H.264 · MP4</option><option>ProRes 4444 (alpha)</option><option>GIF</option></select>
+        <span>resolution</span><select><option>1080p</option><option>4K</option></select>
+        <span>fps</span><select><option>29.97</option><option>24</option></select>
+        <span>range</span><select><option>Work area</option><option>Whole timeline</option></select>
+        <span>audio</span><select><option>Mux A1</option><option>None</option></select>
+        <span>alpha</span><label style="display:flex; gap:6px"><input type="checkbox"> matte channel</label>
+        <span style="grid-column:1/-1; padding-top:6px">
+          <span style="display:flex; justify-content:space-between; font-size:11px; color:var(--cx-text-2)"><span>queue: darkroom_v2.mp4</span><span>ETA 0:42</span></span>
+          <span class="exp-progress" style="display:block; margin-top:6px; --v:36%"></span>
+        </span>
+      </div>
+    </div>
+    <footer>
+      <span style="margin-right:auto; font-size:11px; color:var(--cx-text-3)">~/Movies/creatrix/</span>
+      <span class="btn">Cancel</span>
+      <span class="btn btn--primary">Export</span>
+    </footer>
+  </div>
+</div>
+
+<!-- state captions -->
+<div class="state-caption st-blend"><b>BLEND:</b> the full Photoshop move — a Layer-Style-type dialog. Blend mode grid + opacity + luma ranges (blend-if handles mapped onto the shipped luma_key engine). Heavier than a dropdown, but discoverable.</div>
+<div class="state-caption st-volume"><b>VOLUME:</b> select the audio layer → the OPTIONS BAR becomes the audio options bar (gain/mute/solo/LUFS) and a meter popover anchors to the filmstrip row. PS pattern: context lives in the top bar, not a dock.</div>
+<div class="state-caption st-perform"><b>PERFORM (P):</b> PS-max has no dock space for pads, so perform is a full-screen PERFORM ROOM takeover — pads + macros over a dimmed canvas. Cleanest stage, but you lose sight of layers while playing.</div>
+<div class="state-caption st-automation"><b>AUTOMATION (A):</b> the filmstrip grows upward into a curve editor (like PS's timeline expanding) — DRAW mode active, painting freehand points. Y-scan lane shows the cross-modal domain.</div>
+<div class="state-caption st-history"><b>HISTORY:</b> the classic PS History panel replaces Adjustments in the dock — with a restorable snapshot row on top (maps to the undo store + crash-recovery autosave).</div>
+<div class="state-caption st-operators"><b>OPERATORS (⌘⇧I):</b> modal routing canvas — PS-max keeps modulation out of the chrome entirely; the only always-visible traces are the ⌁ badges in Layers.</div>
+<div class="state-caption st-export"><b>EXPORT (⌘E):</b> PS Export-As layout — big scrubbable preview left, settings right.</div>
+
+<!-- STATE SWITCHER -->
+<div class="statebar">
+  <span class="lbl">STATES</span>
+  <button data-s="default" class="on" onclick="setState('default')">DEFAULT</button>
+  <button data-s="blend" onclick="setState('blend')">BLEND</button>
+  <button data-s="volume" onclick="setState('volume')">VOLUME</button>
+  <button data-s="perform" onclick="setState('perform')">PERFORM</button>
+  <button data-s="automation" onclick="setState('automation')">AUTOMATION</button>
+  <button data-s="history" onclick="setState('history')">HISTORY</button>
+  <button data-s="operators" onclick="setState('operators')">OPERATORS</button>
+  <button data-s="export" onclick="setState('export')">EXPORT</button>
+</div>
+
+<script>
+  function setState(s) {
+    document.body.dataset.state = s;
+    document.querySelectorAll('.statebar button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+  }
+  document.addEventListener('keydown', e => {
+    const map = {'1':'default','2':'blend','3':'volume','4':'perform','5':'automation','6':'history','7':'operators','8':'export'};
+    if (map[e.key]) setState(map[e.key]);
+    if (e.key === 'Escape') setState('default');
+  });
+</script>
+</body>
+</html>

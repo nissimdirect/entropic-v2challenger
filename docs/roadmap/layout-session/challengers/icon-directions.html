@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Creatrix Iconography — 3 Directions</title>
+<link rel="stylesheet" href="live-signal.css">
+<style>
+  html, body { overflow: auto; }
+  .wrap { max-width: 1360px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 20px; letter-spacing: .06em; margin-bottom: 6px; }
+  h1 b { color: var(--cx-acid); }
+  .sub { color: var(--cx-text-2); font-size: 12px; margin-bottom: 26px; max-width: 900px; line-height: 1.6; }
+  .dirs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .dir { border: 1px solid var(--cx-line-1); border-radius: 8px; background: var(--cx-surface-2); overflow: hidden; display: flex; flex-direction: column; }
+  .dir > header { padding: 14px 16px 10px; border-bottom: 1px solid var(--cx-line-1); }
+  .dir > header h2 { font-size: 14px; letter-spacing: .1em; }
+  .dir > header p { font-size: 11px; color: var(--cx-text-2); line-height: 1.55; margin-top: 6px; }
+  .dir .demo { display: grid; grid-template-columns: 54px 1fr; min-height: 0; }
+
+  /* life-size rail replica */
+  .rail { background: var(--cx-surface-2); border-right: 1px solid var(--cx-line-1); display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 0; }
+  .rail .g { font-size: 6.5px; letter-spacing: .14em; color: var(--cx-text-3); margin: 4px 0 1px; }
+  .rail .t { width: 34px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--cx-text-2); position: relative; }
+  .rail .t:hover { background: var(--cx-surface-4); color: var(--cx-text-1); }
+  .rail .t.on { background: var(--cx-acid-wash); color: var(--cx-acid); outline: 1px solid var(--cx-acid); }
+  .rail .t .k { position: absolute; right: 3px; bottom: 2px; font-size: 8px; color: var(--cx-text-3); }
+  .rail hr { width: 20px; border: 0; border-top: 1px solid var(--cx-line-1); margin: 4px 0 0; }
+  .rail svg { width: 20px; height: 20px; }
+
+  /* grid of all icons */
+  .icongrid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; padding: 12px; align-content: start; }
+  .ic { display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 10px 2px 8px; border: 1px solid transparent; border-radius: 5px; color: var(--cx-text-1); }
+  .ic:hover { background: var(--cx-surface-3); border-color: var(--cx-line-1); }
+  .ic svg { width: 24px; height: 24px; }
+  .ic span { font-size: 8.5px; color: var(--cx-text-3); letter-spacing: .04em; }
+
+  /* states + sizes strip */
+  .strip { border-top: 1px solid var(--cx-line-1); padding: 12px 16px; display: flex; flex-direction: column; gap: 12px; }
+  .strip .row { display: flex; align-items: center; gap: 14px; }
+  .strip .lbl { font-size: 9px; letter-spacing: .12em; color: var(--cx-text-3); width: 52px; flex: none; }
+  .sizebox { display: flex; align-items: flex-end; gap: 14px; color: var(--cx-text-1); }
+  .statebox { display: flex; align-items: center; gap: 10px; }
+  .sbtn { width: 34px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: var(--cx-text-2); }
+  .sbtn svg { width: 20px; height: 20px; }
+  .sbtn.hov { background: var(--cx-surface-4); color: var(--cx-text-1); }
+  .sbtn.act { background: var(--cx-acid-wash); color: var(--cx-acid); outline: 1px solid var(--cx-acid); }
+  .sbtn.dis { color: var(--cx-text-disabled); }
+  .slabel { font-size: 8.5px; color: var(--cx-text-3); text-align: center; }
+  .tradeoff { border-top: 1px solid var(--cx-line-1); padding: 10px 16px 14px; font-size: 10.5px; color: var(--cx-text-2); line-height: 1.55; }
+  .tradeoff b { color: var(--cx-amber); }
+  .note { font-size: 11px; color: var(--cx-text-3); margin-top: 22px; line-height: 1.6; max-width: 900px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CREATRIX <b>ICONOGRAPHY</b> — three directions, same 14 tools</h1>
+  <p class="sub">
+    The tool rail you liked, drawn three ways. Same 24px grid, same tools (TRANSFORM / EDIT / MASK / MISC),
+    real SVG — not font glyphs — so whichever wins becomes the sprite. Each column shows the life-size rail,
+    the full set, sizes 16/24/32, and interaction states. No default is marked — pick by eye.
+  </p>
+
+  <div class="dirs" id="dirs"></div>
+
+  <p class="note">
+    Rules shared by all three (proposed for the design system §Iconography): 24×24 grid, 2px padding safe-zone ·
+    currentColor only — state colors come from the button, never the icon · keyboard badge bottom-right in
+    --cx-text-3 · group order TRNS / EDIT / MASK / MISC with hairline separators · active = ACID wash + outline
+    (never a filled ACID block behind an icon). &nbsp;|&nbsp; <a href="design-system.html" style="color:var(--cx-acid)">design system draft →</a>
+    &nbsp;·&nbsp; <a href="index.html" style="color:var(--cx-text-2)">← index</a>
+  </p>
+</div>
+
+<script>
+// ---------- icon path library (24x24, stroke-based, currentColor) ----------
+const ICONS = {
+  transform: { label: 'transform', key: 'V', body: `
+    <rect x="6.5" y="6.5" width="11" height="11"/>
+    <rect class="fillme" x="4.5" y="4.5" width="4" height="4"/>
+    <rect class="fillme" x="15.5" y="4.5" width="4" height="4"/>
+    <rect class="fillme" x="4.5" y="15.5" width="4" height="4"/>
+    <rect class="fillme" x="15.5" y="15.5" width="4" height="4"/>
+    <circle cx="12" cy="2.8" r="1.3"/>` },
+  text: { label: 'text', key: 'T', body: `
+    <path d="M6 6.5h12M6 6.5v2.5M18 6.5v2.5M12 6.5v12M9.5 18.5h5"/>` },
+  razor: { label: 'razor', key: 'B', body: `
+    <path class="fillme" d="M4.5 15.5L14 6l4 4-9.5 9.5H4.5v-4z"/>
+    <path d="M12.5 7.5l4 4"/>` },
+  slip: { label: 'slip', key: 'S', body: `
+    <path d="M5.5 5v14M18.5 5v14"/>
+    <path d="M11.5 12H8.5M10 9.8L7.8 12l2.2 2.2"/>
+    <path d="M12.5 12h3M14 9.8l2.2 2.2-2.2 2.2"/>` },
+  slide: { label: 'slide', key: 'D', body: `
+    <path d="M4 6.5h16M4 17.5h16"/>
+    <rect class="fillme" x="9" y="9.5" width="6" height="5"/>
+    <path d="M5 12h2.2M16.8 12H19"/>` },
+  rippledel: { label: 'ripple del', key: 'X', body: `
+    <path d="M12.5 6l-6 6 6 6M6.5 12h8"/>
+    <path d="M18.5 5.5v13"/>` },
+  marqrect: { label: 'marquee', key: 'Q', body: `
+    <rect x="5" y="6" width="14" height="12" stroke-dasharray="3 2.4"/>` },
+  marqellipse: { label: 'ellipse', key: 'Q', body: `
+    <ellipse cx="12" cy="12" rx="7.2" ry="6" stroke-dasharray="3 2.4"/>` },
+  lasso: { label: 'lasso', key: 'W', body: `
+    <path d="M12 4.5c4.7 0 8.5 2.2 8.5 5s-3.8 5-8.5 5c-1.2 0-2.3-.14-3.3-.4M6.2 13.2C4.5 12.3 3.5 11 3.5 9.5c0-2.8 3.8-5 8.5-5"/>
+    <path d="M8.7 14.1c-1.6 1.5-1.6 3.7-.2 5.4"/>` },
+  polylasso: { label: 'polygon', key: 'W', body: `
+    <path d="M12 4l7.5 3.5-1.8 7-7.2 3-5.5-5.5L7.5 6z"/>
+    <path d="M10 17.5c-1.5 1.2-1.7 2.8-.7 4"/>` },
+  wand: { label: 'wand', key: 'A', body: `
+    <path d="M4.5 19.5L14 10"/>
+    <path class="fillme" d="M13 8l2.6-1 1-2.6 1 2.6 2.6 1-2.6 1-1 2.6-1-2.6z"/>
+    <path d="M19.5 13.5v3M18 15h3"/>` },
+  keypicker: { label: 'key pick', key: 'K', body: `
+    <path d="M12.5 8.5l3 3L7.5 19.5H4.5v-3z"/>
+    <path class="fillme" d="M14 4.5L19.5 10l-2.6 2.6-5.5-5.5z"/>` },
+  hand: { label: 'hand', key: 'H', body: `
+    <path d="M17.5 11V6.5a1.8 1.8 0 00-3.6 0V10M13.9 9.5V4.8a1.8 1.8 0 00-3.6 0V10M10.3 10.3V6.3a1.8 1.8 0 00-3.6 0v7.2"/>
+    <path d="M17.5 8.3a1.8 1.8 0 013.6 0v5.2c0 3.9-2.6 6.9-6.6 6.9h-1.6c-2.4 0-3.9-.8-5.2-2.2l-3-3.4a1.7 1.7 0 012.5-2.3l1.5 1.4"/>` },
+  zoom: { label: 'zoom', key: 'Z', body: `
+    <circle cx="11" cy="11" r="6"/>
+    <path d="M15.4 15.4L20 20M8.8 11h4.4M11 8.8v4.4"/>` },
+};
+const GROUPS = [
+  ['TRNS', ['transform','text']],
+  ['EDIT', ['razor','slip','slide','rippledel']],
+  ['MASK', ['marqrect','marqellipse','lasso','polylasso','wand','keypicker']],
+  ['MISC', ['hand','zoom']],
+];
+
+// ---------- style directions ----------
+const DIRS = [
+  { id: 'hairline', name: '1 · HAIRLINE', desc: 'Thin geometric line, rounded caps. Calm, surgical, disappears into the chrome — the "pro tool" read (Lucide/Figma family).',
+    svgAttrs: 'fill="none" stroke="currentColor" stroke-width="1.25" stroke-linecap="round" stroke-linejoin="round"',
+    fillRule: 'none',
+    tradeoff: '<b>Tradeoff:</b> quietest of the three; at 16px the strokes thin out on non-retina displays. Least differentiated — reads "generic modern app."' },
+  { id: 'block', name: '2 · BLOCK', desc: 'Heavy stroke, squared joins, solid fills on blades/handles/stars. Industrial, unmissable at small sizes — closer to Ableton’s chunky glyphs.',
+    svgAttrs: 'fill="none" stroke="currentColor" stroke-width="2.7" stroke-linecap="square" stroke-linejoin="miter"',
+    fillRule: 'fill',
+    tradeoff: '<b>Tradeoff:</b> boldest and most legible at 16px, but visually loud — 14 of these stacked in the rail carry real weight, and fine icons (lasso tail, hand) lose detail.' },
+  { id: 'interrupt', name: '3 · INTERRUPT', desc: 'Square caps with visible cuts in every stroke — the line "drops signal." Ownable Creatrix identity: the glitch lives in the chrome’s icons without decorating anything else.',
+    svgAttrs: 'fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt" stroke-linejoin="miter" stroke-dasharray="4.5 2.6"',
+    fillRule: 'none',
+    tradeoff: '<b>Tradeoff:</b> most distinctive, but the cuts add noise on already-dashed icons (marquee) and can read as "broken" in disabled states. Needs a no-dash exception for marquee/ellipse.' },
+];
+
+function iconSVG(dir, name, size) {
+  let body = ICONS[name].body;
+  // direction-specific fill handling
+  if (dir.fillRule === 'fill') body = body.replaceAll('class="fillme"', 'fill="currentColor" stroke="none"');
+  else body = body.replaceAll('class="fillme"', '');
+  // interrupt: marquee icons are already dashed — don't double-dash
+  let attrs = dir.svgAttrs;
+  if (dir.id === 'interrupt' && (name === 'marqrect' || name === 'marqellipse')) attrs = attrs.replace(/stroke-dasharray="[^"]*"/, '');
+  return `<svg viewBox="0 0 24 24" ${attrs} ${size ? `style="width:${size}px;height:${size}px"` : ''}>${body}</svg>`;
+}
+
+const dirsEl = document.getElementById('dirs');
+DIRS.forEach(dir => {
+  const railGroups = GROUPS.map(([g, names]) => `
+    <div class="g">${g}</div>
+    ${names.map((n, i) => `<div class="t ${g==='TRNS' && i===0 ? 'on' : ''}" title="${ICONS[n].label}">${iconSVG(dir, n)}<span class="k">${ICONS[n].key}</span></div>`).join('')}
+    <hr>`).join('');
+  const grid = Object.keys(ICONS).map(n => `<div class="ic">${iconSVG(dir, n)}<span>${ICONS[n].label}</span></div>`).join('');
+  dirsEl.insertAdjacentHTML('beforeend', `
+    <div class="dir">
+      <header><h2>${dir.name}</h2><p>${dir.desc}</p></header>
+      <div class="demo">
+        <div class="rail">${railGroups}</div>
+        <div class="icongrid">${grid}</div>
+      </div>
+      <div class="strip">
+        <div class="row"><span class="lbl">SIZES</span>
+          <span class="sizebox">${iconSVG(dir,'wand',16)} ${iconSVG(dir,'wand',24)} ${iconSVG(dir,'wand',32)}</span>
+          <span class="sizebox" style="margin-left:14px">${iconSVG(dir,'transform',16)} ${iconSVG(dir,'transform',24)} ${iconSVG(dir,'transform',32)}</span>
+        </div>
+        <div class="row"><span class="lbl">STATES</span>
+          <span class="statebox">
+            <span><span class="sbtn">${iconSVG(dir,'lasso')}</span><div class="slabel">rest</div></span>
+            <span><span class="sbtn hov">${iconSVG(dir,'lasso')}</span><div class="slabel">hover</div></span>
+            <span><span class="sbtn act">${iconSVG(dir,'lasso')}</span><div class="slabel">active</div></span>
+            <span><span class="sbtn dis">${iconSVG(dir,'lasso')}</span><div class="slabel">disabled</div></span>
+          </span>
+        </div>
+      </div>
+      <div class="tradeoff">${dir.tradeoff}</div>
+    </div>`);
+});
+</script>
+</body>
+</html>

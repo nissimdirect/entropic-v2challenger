@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Creatrix UX Challengers — Ableton × Photoshop</title>
+<link rel="stylesheet" href="live-signal.css">
+<style>
+  html, body { overflow: auto; }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 20px; letter-spacing: .06em; margin-bottom: 6px; }
+  h1 b { color: var(--cx-acid); }
+  .sub { color: var(--cx-text-2); font-size: 12px; margin-bottom: 28px; max-width: 860px; line-height: 1.6; }
+  h2 { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--cx-text-2); margin: 34px 0 12px; border-bottom: 1px solid var(--cx-line-1); padding-bottom: 6px; }
+
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { border: 1px solid var(--cx-line-1); border-radius: 6px; background: var(--cx-surface-2); overflow: hidden; display: flex; flex-direction: column; }
+  .card:hover { border-color: var(--cx-line-2); }
+  .thumb { position: relative; width: 100%; aspect-ratio: 16/10; overflow: hidden; background: var(--cx-surface-0); border-bottom: 1px solid var(--cx-line-1); }
+  .thumb iframe {
+    width: 400%; height: 400%; transform: scale(.25); transform-origin: 0 0;
+    border: 0; pointer-events: none;
+  }
+  .thumb a { position: absolute; inset: 0; }
+  .card .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 8px; }
+  .card .name { font-size: 13px; font-weight: 700; letter-spacing: .04em; }
+  .card .name a { color: var(--cx-text-1); text-decoration: none; }
+  .card .name a:hover { color: var(--cx-acid); }
+  .blend { display: flex; align-items: center; gap: 8px; font-size: 9px; color: var(--cx-text-3); }
+  .blendbar { flex: 1; height: 5px; border-radius: 3px; background: linear-gradient(90deg, var(--cx-acid), var(--cx-mod)); position: relative; }
+  .blendbar i { position: absolute; top: -3px; left: var(--v, 50%); width: 3px; height: 11px; background: var(--cx-text-1); border-radius: 2px; }
+  .card p { font-size: 11px; color: var(--cx-text-2); line-height: 1.55; }
+  .card ul { font-size: 10.5px; color: var(--cx-text-2); line-height: 1.6; padding-left: 16px; }
+  .card .risk { font-size: 10px; color: var(--cx-amber); line-height: 1.5; }
+
+  table.cmp { width: 100%; border-collapse: collapse; font-size: 11px; }
+  table.cmp th, table.cmp td { border: 1px solid var(--cx-line-1); padding: 7px 10px; text-align: left; vertical-align: top; line-height: 1.5; }
+  table.cmp th { background: var(--cx-surface-2); color: var(--cx-text-2); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+  table.cmp td { color: var(--cx-text-1); }
+  table.cmp td.dim { color: var(--cx-text-2); }
+  .a { color: var(--cx-acid); } .m { color: var(--cx-mod); }
+
+  .inv { columns: 3; gap: 24px; font-size: 11px; color: var(--cx-text-2); line-height: 1.7; }
+  .inv b { color: var(--cx-text-1); display: block; margin-top: 8px; }
+  .inv span { display: block; }
+  .note { font-size: 11px; color: var(--cx-text-3); margin-top: 10px; line-height: 1.6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>CREATRIX <b>UX CHALLENGERS</b> — Ableton × Photoshop</h1>
+  <p class="sub">
+    Three non-functional prototypes reconfiguring the <em>same</em> shipped component set (inventoried from
+    <code>entropic-v2challenger</code>) along a blend spectrum — now <b>life-size</b> (real Live Signal token
+    densities) with a <b>STATES switcher</b> in every prototype (bottom pill, or keys <code>1–8</code>, <code>Esc</code> = default):
+    <b>BLEND · VOLUME · PERFORM · AUTOMATION · HISTORY · OPERATORS · EXPORT</b>. Each state shows how that
+    configuration absorbs the edge case in its own idiom — captions explain the move. Click a card to open;
+    <b>ⓘ annotations</b> overlays the default-layout rationale. Challenger A also has a working SESSION ⇄ ARRANGE toggle.
+  </p>
+
+  <p class="sub" style="margin-top:-14px">
+    <b>Design system:</b> <a href="design-system.html" style="color:var(--cx-acid)">Creatrix DS v1.2 draft</a> (vocabulary · tokens · components · states · layout grammar) ·
+    <a href="icon-directions.html" style="color:var(--cx-acid)">icon directions</a> (Hairline / Block / Interrupt — pick one)
+  </p>
+
+  <h2>B3 · Darkroom v3 — front-runner (user direction 2026-07-02)</h2>
+  <div class="cards" style="grid-template-columns: 1fr; margin-bottom: 18px;">
+    <div class="card" style="border-color: var(--cx-acid);">
+      <div class="thumb" style="aspect-ratio: 16/7;"><iframe src="challenger-b3-arrangement.html" tabindex="-1" loading="lazy"></iframe><a href="challenger-b3-arrangement.html"></a></div>
+      <div class="body">
+        <div class="name"><a href="challenger-b3-arrangement.html">B3 · DARKROOM v3 — the arrangement IS the layers</a></div>
+        <p>No layers panel anywhere. The bottom <b>arrangement view is the layer stack</b> (After Effects model): row order = z-order,
+        and every track header carries eye · <b>blend dropdown</b> · opacity · <b>◨ per-track blending options</b> · M/S. The twirl ▾
+        opens a track's <b>effects and automation lanes inside the track itself</b>. Right dock keeps only the effects browser +
+        properties. Tool rail kept, grouped TRANSFORM / EDIT / MASK / MISC. All 8 states included.
+        <span style="color:var(--cx-text-3)">(B2's panel-based attempt is kept at <a href="challenger-b2-darkroom.html" style="color:var(--cx-text-3)">challenger-b2-darkroom.html</a> — rejected.)</span></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <div class="thumb"><iframe src="challenger-a-session.html" tabindex="-1" loading="lazy"></iframe><a href="challenger-a-session.html"></a></div>
+      <div class="body">
+        <div class="name"><a href="challenger-a-session.html">A · SESSION</a></div>
+        <div class="blend"><span class="a">ABLETON</span><span class="blendbar"><i style="--v:12%"></i></span><span class="m">PHOTOSHOP</span></div>
+        <p>Ableton-max. Clips become launchable <b>session slots</b> in track columns with per-track mixer strips (blend + opacity fader = channel strip). Scene column fires combos. Full-width bottom device chain. Preview docked right like clip detail.</p>
+        <ul>
+          <li>Perform/pads system becomes a first-class view, not an overlay</li>
+          <li>SESSION ⇄ ARRANGE toggle (works in this mockup)</li>
+          <li>Photoshop DNA: only the mask-tool strip under preview</li>
+        </ul>
+        <div class="risk">Risk: session slots imply clip-launch semantics the engine doesn't have yet (launch-quantized clip triggering exists only for pads).</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="thumb"><iframe src="challenger-c-splice.html" tabindex="-1" loading="lazy"></iframe><a href="challenger-c-splice.html"></a></div>
+      <div class="body">
+        <div class="name"><a href="challenger-c-splice.html">C · SPLICE — the target blend</a></div>
+        <div class="blend"><span class="a">ABLETON</span><span class="blendbar"><i style="--v:50%"></i></span><span class="m">PHOTOSHOP</span></div>
+        <p>The 50/50 hybrid. <b>PS skeleton for space</b> (tool rail + options bar + layers dock), <b>Ableton skeleton for time</b> (browser, arrangement timeline, full-width device chain, pads). One selection model: pick a layer OR a track OR a pad — chain, matrix and inspector all follow.</p>
+        <ul>
+          <li>Layers panel ↔ timeline tracks: same objects, two views</li>
+          <li>Mod matrix docked under Layers — modulation always visible</li>
+          <li>Pad grid lives beside the device chain (perform without modal overlay)</li>
+        </ul>
+        <div class="risk">Risk: densest of the three; needs the focus-mode (F) escape hatch to stay usable on a laptop.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="thumb"><iframe src="challenger-b-darkroom.html" tabindex="-1" loading="lazy"></iframe><a href="challenger-b-darkroom.html"></a></div>
+      <div class="body">
+        <div class="name"><a href="challenger-b-darkroom.html">B · DARKROOM</a></div>
+        <div class="blend"><span class="a">ABLETON</span><span class="blendbar"><i style="--v:88%"></i></span><span class="m">PHOTOSHOP</span></div>
+        <p>Photoshop-max. Canvas is the hero (~70% of screen) with rulers + marching ants. Left <b>tool rail</b> unifies edit + mask tools; contextual <b>options bar</b> carries tool params. Tracks become a <b>Layers panel</b> (eye = mute, blend + opacity per layer, effects nested like layer styles). Timeline demoted to a filmstrip.</p>
+        <ul>
+          <li>Effect browser as an "Adjustments" thumbnail grid</li>
+          <li>Properties panel = vertical device card for the selected effect</li>
+          <li>Ableton DNA: only transport + BPM survive up top</li>
+        </ul>
+        <div class="risk">Risk: hides the time axis — automation lanes and multi-clip editing suffer; weakest fit for the "video DAW" identity (learning #239: market as Ableton-for-video, not Photoshop-for-video).</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>How each config handles the edge cases (the STATES switcher)</h2>
+  <table class="cmp">
+    <tr><th>State</th><th class="a">A · Session</th><th>C · Splice</th><th class="m">B · Darkroom</th></tr>
+    <tr><td><b>Blend options</b></td><td>Menu pops up from the track's channel strip (Ableton mixer idiom)</td><td>Layers-panel dropdown ↔ terminal composite device — two entries, one param</td><td>Full Layer-Style dialog: mode grid + opacity + luma ranges mapped to luma_key</td></tr>
+    <tr><td><b>Volume / audio</b></td><td>All channel strips expand: fader + live meter per track, LUFS/TP on A1</td><td>Selecting A1 retargets the device chain (gain device + meters + audio follower)</td><td>Options bar becomes the audio bar; meter popover anchors to the filmstrip row</td></tr>
+    <tr><td><b>Perform mode</b></td><td>Pads column transforms in-grid — slots and pads are peers</td><td>Timeline collapses, pad bank doubles to 16 + macros beside the chain</td><td>Full-screen PERFORM ROOM takeover (no dock space in PS-max)</td></tr>
+    <tr><td><b>Automation</b></td><td>Auto-jumps to ARRANGE view + T/Y/X + R/L/T/D toolbar, lanes unfold</td><td>Toolbar over the docked timeline; value + trigger lanes expand in place</td><td>Filmstrip grows upward into a DRAW-mode curve editor</td></tr>
+    <tr><td><b>History</b></td><td>Floating panel by the browser (matches shipped HistoryPanel)</td><td>Takes over the browser column, PS-style</td><td>Classic PS History panel replaces Adjustments, with snapshot row</td></tr>
+    <tr><td><b>Operators / routing</b></td><td>Right slide-in rack (grid stays visible while patching)</td><td>Docked mini-matrix always visible; ⌘⇧I opens full canvas</td><td>Modal canvas only — chrome stays clean, modulation hidden</td></tr>
+    <tr><td><b>Export</b></td><td>Modal; range picker understands scenes</td><td>Modal with render queue + parity badge</td><td>PS Export-As: scrubbable preview left, settings right</td></tr>
+  </table>
+
+  <h2>What's docked where</h2>
+  <table class="cmp">
+    <tr><th>Surface (shipped component)</th><th class="a">A · Session</th><th>C · Splice</th><th class="m">B · Darkroom</th></tr>
+    <tr><td><b>Preview canvas</b> + bbox/mask overlays</td><td class="dim">Docked right (34%), clip-detail style</td><td>Center hero, above timeline</td><td>Full-bleed hero with rulers (~70%)</td></tr>
+    <tr><td><b>Timeline</b> (tracks, clips, automation)</td><td class="dim">Alternate view (toggle with session grid)</td><td>Center, below canvas, resizable</td><td>Demoted filmstrip strip, collapsible</td></tr>
+    <tr><td><b>Device chain</b> (cards, knobs, A/B, mix, mask row, freeze)</td><td>Bottom, full width — the Ableton move</td><td>Bottom, beside pad grid</td><td>Split: nested under layers + Properties panel</td></tr>
+    <tr><td><b>Effect browser</b> (193 fx, 5 tabs)</td><td>Left tree with category ticks</td><td>Left tree (narrower), presets/macros pinned below</td><td>Right "Adjustments" thumbnail grid</td></tr>
+    <tr><td><b>Cursor + mask tools</b> (V/B/S/D · Q/W/A/K)</td><td class="dim">Strip under preview</td><td>PS tool rail + options bar</td><td>PS tool rail + options bar (signature)</td></tr>
+    <tr><td><b>Tracks-as-layers</b> (opacity, blend, z-order)</td><td>Per-column mixer strips (faders)</td><td>Layers panel, synced with timeline selection</td><td>Layers panel with nested fx rows (layer styles)</td></tr>
+    <tr><td><b>Operators / mod matrix / routing</b></td><td class="dim">Stays ⌘⇧O overlay + ⌘⇧I canvas</td><td>Mini matrix docked right, always visible</td><td class="dim">Stays overlay (⌁ badges hint in Layers)</td></tr>
+    <tr><td><b>Pads / instruments / perform</b></td><td>Session columns ARE the perform surface</td><td>Pad grid docked beside device chain</td><td class="dim">Layer row only; perform stays overlay</td></tr>
+    <tr><td><b>Inspector</b></td><td class="dim">Absorbed into status bar + headers</td><td class="dim">Absorbed into Layers/Matrix headers</td><td>Properties panel doubles as inspector</td></tr>
+  </table>
+
+  <h2>Component inventory this was built from</h2>
+  <div class="inv">
+    <b>Transport</b>
+    <span>play/stop/loop · JKL shuttle · timecode · BPM (modulatable) · snap · quantize + division</span>
+    <b>Browser (left sidebar)</b>
+    <span>5 tabs: fx / op / composite / tool / instruments · fuzzy search · ~193 effects in 10+ categories · drag-with-nonce to chain/track · presets + macro knobs</span>
+    <b>Preview</b>
+    <span>MJPEG canvas · bounding-box transform (drag/resize/rotate) · text overlay · marquee/lasso/wand/key-picker mask drawing · pop-out (⌘⇧P) · 7-level Escape</span>
+    <b>Timeline</b>
+    <span>video/text/MIDI/audio/inspector tracks · M/S/R + opacity/blend per track · clips (trim, snap, split, speed, reverse, color, masks badge) · markers, loop region, quantize grid · wheel pan, ⌘wheel zoom</span>
+    <b>Automation</b>
+    <span>value + trigger lanes · Read/Latch/Touch/Draw · domains T/Y/X (cross-modal scanline axes) · node/curve editing · copy/paste regions</span>
+    <b>Device chain</b>
+    <span>horizontal cards · category tick · ON/OFF · A/B per device · param knobs w/ ghost mod values · Field… (image/video as 2D param field) · mix · mask routing row · group/freeze/flatten · drop-operator-on-knob</span>
+    <b>Operators / modulation</b>
+    <span>LFO, envelope, step-seq, audio follower, video analyzer, fusion, Kentaro 8-LFO cluster, sidechain, gate, MIDI env stutter · mod matrix w/ depth cells · xyflow routing canvas · MIDI-learn CC</span>
+    <b>Perform / instruments</b>
+    <span>pad grid (keyboard-armed, gate/one-shot/toggle) · pad editor (ADSR) · sampler / rack / frame-bank wavetable / granulator devices · retro-capture to automation · launch quantize</span>
+    <b>Masking</b>
+    <span>matte node stack (add/subtract/intersect · feather/grow/invert) · wand tolerance · chroma/luma key with modulatable params · ⌘J/⌘⇧J region → new track</span>
+    <b>Chrome</b>
+    <span>inspector (8 selection states) · undo history panel · export dialog + render queue · toasts · status bar (engine, fps, frame-time, tool chip, memory)</span>
+  </div>
+
+  <p class="note">
+    Files: <code>~/Development/entropic-layout-mockup/challengers/</code> · tokens copied from
+    <code>frontend/src/renderer/styles/tokens.css</code> (Live Signal v1.1) · prototypes are static HTML/CSS —
+    nothing is wired to the app. Positioning note per learning #239: the winning frame is
+    <b>"Ableton for video effects"</b>, which argues for A or C skeletons with B's tool-rail/options-bar/layers grafts.
+  </p>
+</div>
+</body>
+</html>

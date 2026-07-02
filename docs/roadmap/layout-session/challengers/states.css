@@ -1,0 +1,163 @@
+/* Shared machinery for the life-size state-switcher prototypes.
+   Each page sets body[data-state="..."]; elements tagged .st-<state> appear only in that state. */
+
+/* ---------- life-size overrides ---------- */
+:root {
+  --ls-transport-h: 40px;
+  --ls-options-h: 32px;
+  --ls-status-h: 28px;
+}
+body { font-size: var(--cx-text-body); }
+
+.knob { width: 56px; }
+.knob__ring { width: 34px; height: 34px; }
+.knob__label { font-size: 10.5px; max-width: 56px; }
+.knob__val { font-size: 10px; }
+.chip { font-size: 10.5px; padding: 2px 7px; }
+.btn { height: 26px; font-size: 12px; }
+.btn--icon { width: 26px; }
+.panel-header { font-size: 11px; }
+
+/* ---------- state switcher pill ---------- */
+.statebar {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 40px; z-index: 400;
+  display: flex; gap: 2px; padding: 4px;
+  background: rgba(11,11,16,.92); border: 1px solid var(--cx-line-2); border-radius: 8px;
+  box-shadow: 0 8px 30px rgba(0,0,0,.6);
+}
+.statebar button {
+  font-family: var(--cx-font-mono); font-size: 10px; letter-spacing: .08em;
+  padding: 6px 10px; border: 0; border-radius: 5px; cursor: pointer;
+  background: transparent; color: var(--cx-text-2);
+}
+.statebar button:hover { background: var(--cx-surface-4); color: var(--cx-text-1); }
+.statebar button.on { background: var(--cx-acid); color: var(--cx-acid-on); font-weight: 700; }
+.statebar .lbl { align-self: center; font-size: 9px; color: var(--cx-text-3); padding: 0 8px 0 6px; letter-spacing: .1em; }
+
+/* ---------- state visibility ---------- */
+.st-blend, .st-volume, .st-perform, .st-automation, .st-history, .st-operators, .st-export { display: none !important; }
+body[data-state="blend"]      .st-blend      { display: var(--st-disp, flex) !important; }
+body[data-state="volume"]     .st-volume     { display: var(--st-disp, flex) !important; }
+body[data-state="perform"]    .st-perform    { display: var(--st-disp, flex) !important; }
+body[data-state="automation"] .st-automation { display: var(--st-disp, flex) !important; }
+body[data-state="history"]    .st-history    { display: var(--st-disp, flex) !important; }
+body[data-state="operators"]  .st-operators  { display: var(--st-disp, flex) !important; }
+body[data-state="export"]     .st-export     { display: var(--st-disp, flex) !important; }
+
+/* ---------- modal scaffolding ---------- */
+.scrim {
+  position: fixed; inset: 0; z-index: 300;
+  background: rgba(11,11,16,.62);
+  align-items: center; justify-content: center;
+}
+.dialog {
+  background: var(--cx-surface-2); border: 1px solid var(--cx-line-2); border-radius: var(--cx-radius-dialog);
+  box-shadow: 0 24px 80px rgba(0,0,0,.7);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.dialog > header {
+  height: 36px; flex: none; display: flex; align-items: center; gap: 10px; padding: 0 14px;
+  border-bottom: 1px solid var(--cx-line-1); background: var(--cx-surface-3);
+  font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+}
+.dialog > header .x { margin-left: auto; color: var(--cx-text-3); font-size: 14px; }
+.dialog > footer {
+  height: 44px; flex: none; display: flex; align-items: center; gap: 8px; padding: 0 14px;
+  border-top: 1px solid var(--cx-line-1); justify-content: flex-end;
+}
+.btn--primary { background: var(--cx-acid); color: var(--cx-acid-on); border-color: var(--cx-acid); font-weight: 700; }
+
+/* ---------- dropdown menu (blend modes etc.) ---------- */
+.menu {
+  position: absolute; z-index: 320; min-width: 170px;
+  background: var(--cx-surface-4); border: 1px solid var(--cx-line-2); border-radius: 4px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.65);
+  flex-direction: column; padding: 4px 0;
+}
+.menu .mi {
+  height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  font-size: 12px; color: var(--cx-text-1);
+}
+.menu .mi:hover { background: var(--cx-mod); color: #0B0B10; }
+.menu .mi.sel { color: var(--cx-acid); }
+.menu .mi.sel::before { content: '✓'; font-size: 10px; }
+.menu .sep { height: 1px; background: var(--cx-line-1); margin: 4px 0; }
+.menu .cap { font-size: 9px; letter-spacing: .12em; color: var(--cx-text-3); padding: 4px 12px 2px; }
+
+/* ---------- vertical fader + big meter (volume state) ---------- */
+.vfader { width: 26px; position: relative; background: var(--cx-surface-1); border: 1px solid var(--cx-line-1); border-radius: 3px; }
+.vfader::before { content: ''; position: absolute; left: 50%; top: 6px; bottom: 6px; width: 2px; margin-left: -1px; background: var(--cx-line-2); }
+.vfader::after {
+  content: ''; position: absolute; left: 2px; right: 2px; height: 14px; bottom: var(--v, 60%);
+  background: linear-gradient(var(--cx-surface-4), var(--cx-surface-3)); border: 1px solid var(--cx-text-3); border-radius: 2px;
+  box-shadow: 0 2px 6px rgba(0,0,0,.6);
+}
+.bigmeter { width: 10px; border-radius: 2px; background: var(--cx-surface-1); border: 1px solid var(--cx-line-1); position: relative; overflow: hidden; }
+.bigmeter::after {
+  content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: var(--v, 60%);
+  background: linear-gradient(to top, var(--cx-acid) 0 68%, var(--cx-amber) 68% 88%, var(--cx-red-text) 88%);
+}
+
+/* ---------- history entries ---------- */
+.hlist { flex: 1; overflow-y: auto; }
+.hrow { height: 28px; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 11.5px; color: var(--cx-text-2); border-bottom: 1px solid var(--cx-line-1); }
+.hrow .hi { width: 16px; text-align: center; color: var(--cx-text-3); font-size: 11px; }
+.hrow.cur { background: var(--cx-acid-wash); color: var(--cx-text-1); box-shadow: inset 2px 0 0 var(--cx-acid); }
+.hrow.future { color: var(--cx-text-disabled); font-style: italic; }
+.hrow .hk { margin-left: auto; font-size: 9px; color: var(--cx-text-3); }
+
+/* ---------- pads (perform state, life-size) ---------- */
+.bigpads { display: grid; gap: 8px; }
+.bigpad {
+  border: 1px solid var(--cx-line-2); border-radius: 6px; background: var(--cx-surface-3);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 12px; color: var(--cx-text-2); position: relative; min-height: 64px;
+}
+.bigpad .bk { position: absolute; top: 5px; left: 7px; font-size: 10px; color: var(--cx-text-3); }
+.bigpad .bm { font-size: 9px; color: var(--cx-text-3); letter-spacing: .08em; }
+.bigpad.lit { background: var(--cx-acid-wash); border-color: var(--cx-acid); color: var(--cx-acid); box-shadow: 0 0 18px rgba(200,243,33,.15); }
+.bigpad.hold { background: var(--cx-mod-wash); border-color: var(--cx-mod); color: var(--cx-mod); }
+.bigpad.rec { border-color: var(--cx-red-text); }
+
+/* ---------- automation toolbar ---------- */
+.autobar {
+  height: 32px; display: flex; align-items: center; gap: 8px; padding: 0 12px;
+  background: var(--cx-surface-3); border-bottom: 1px solid var(--cx-line-1);
+  font-size: 11px; color: var(--cx-text-2); flex: none;
+}
+.autobar .mode { display: flex; border: 1px solid var(--cx-line-2); border-radius: 3px; overflow: hidden; }
+.autobar .mode b { font-weight: 400; font-size: 10.5px; padding: 4px 10px; border-right: 1px solid var(--cx-line-2); color: var(--cx-text-2); }
+.autobar .mode b:last-child { border-right: 0; }
+.autobar .mode b.on { background: var(--cx-mod); color: #0B0B10; font-weight: 700; }
+.autobar select { font: inherit; font-size: 11px; background: var(--cx-surface-2); color: var(--cx-text-1); border: 1px solid var(--cx-line-2); border-radius: 3px; height: 24px; }
+
+/* ---------- operator blocks (operators state) ---------- */
+.opcard {
+  background: var(--cx-surface-3); border: 1px solid var(--cx-line-2); border-radius: 5px;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.opcard > header { height: 26px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border-bottom: 1px solid var(--cx-line-1); font-size: 11px; font-weight: 700; }
+.opcard > header .sig { width: 34px; height: 4px; border-radius: 2px; background: var(--cx-line-1); position: relative; margin-left: auto; overflow: hidden; }
+.opcard > header .sig::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v, 60%); background: var(--cx-probe); }
+.opcard .obody { padding: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wave { flex: 1; min-width: 90px; height: 40px; border: 1px solid var(--cx-line-1); border-radius: 3px; background: var(--cx-surface-1); position: relative; overflow: hidden; }
+.wave svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+/* ---------- export dialog internals ---------- */
+.exp-grid { display: grid; grid-template-columns: 130px 1fr; gap: 10px 14px; align-items: center; font-size: 12px; color: var(--cx-text-2); padding: 16px; }
+.exp-grid select, .exp-grid input {
+  font: inherit; font-size: 12px; height: 28px; background: var(--cx-surface-3); color: var(--cx-text-1);
+  border: 1px solid var(--cx-line-2); border-radius: 3px; padding: 0 8px; width: 100%;
+}
+.exp-progress { height: 6px; background: var(--cx-surface-1); border-radius: 3px; position: relative; overflow: hidden; }
+.exp-progress::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v, 40%); background: var(--cx-acid); }
+
+/* state caption — names the state + how this challenger handles it */
+.state-caption {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px; z-index: 399;
+  max-width: 720px; text-align: center;
+  background: rgba(20,20,28,.95); border: 1px solid var(--cx-mod); border-radius: 6px;
+  color: var(--cx-text-1); font-size: 11.5px; line-height: 1.5; padding: 8px 16px;
+}
+.state-caption b { color: var(--cx-mod); }
+body[data-state="default"] .state-caption { display: none; }
