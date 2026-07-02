@@ -152,20 +152,24 @@ class TestReservedParamNamespace:
 
 
 def test_registrations_from_prior_tests_do_not_leak():
-    """F4b regression: registry mutations must not survive past the test
-    that made them.
+    """F4b / F4b-2 regression: registry mutations must not survive past the
+    test that made them, regardless of which test directory made them.
 
     `test_register_allows_normal_param_keys` (above) registers
-    `test._reserved_namespace_ok` with a bad-signature `_noop` fn. Without
-    the `_restore_effect_registry` autouse fixture in
-    `tests/test_effects/conftest.py`, that entry would persist in the
-    shared global registry and crash
+    `test._reserved_namespace_ok` with a bad-signature `_noop` fn.
+    `test_mask_routing.py`'s `_register_test_effects` fixture registers
+    `test.add10`/`test.add40`/`test.add100`/`test.invert_rgb`. Neither
+    tears down its registration. Without the `_restore_effect_registry`
+    autouse fixture in the ROOT `tests/conftest.py` (F4b-2: promoted from a
+    `tests/test_effects/`-local fixture, which only covered leaks that
+    originated inside that one directory), any of these entries would
+    persist in the shared global registry and crash
     `test_integration.py::test_all_effects_process_without_crash` whenever
-    pytest-xdist scheduled both files onto the same worker.
+    pytest-xdist scheduled the leaking test's file onto the same worker.
     """
     leaked = [e["id"] for e in list_all() if e["id"].startswith("test.")]
     assert not leaked, (
         f"Test-only effect id(s) leaked into the shared registry: {leaked}. "
-        f"The directory-local autouse registry-restore fixture "
-        f"(tests/test_effects/conftest.py) should have reverted this."
+        f"The root-level autouse registry-restore fixture "
+        f"(tests/conftest.py) should have reverted this."
     )
