@@ -80,3 +80,22 @@ def pressure_percent() -> float:
     if SESSION_BUDGET_BYTES <= 0:
         return 0.0
     return (q7_resident_bytes() / SESSION_BUDGET_BYTES) * 100.0
+
+
+def headroom_bytes() -> int:
+    """Live available system memory in bytes — the SG-8 start-gate denominator.
+
+    Unlike ``SESSION_BUDGET_BYTES`` (captured once at import, DEC-Q7-011), this
+    is a LIVE read: a heavy offline job (MK.12 RVM matting) must refuse to start
+    when the machine is currently short on RAM, not merely relative to the
+    session-start snapshot. Falls back to the session budget when psutil is
+    absent (smoke envs) so callers never crash.
+    """
+    try:
+        import psutil
+    except ImportError:
+        return SESSION_BUDGET_BYTES
+    try:
+        return int(psutil.virtual_memory().available)
+    except Exception:  # noqa: BLE001 — a psutil hiccup must not crash the gate
+        return SESSION_BUDGET_BYTES
