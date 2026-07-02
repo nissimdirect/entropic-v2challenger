@@ -24,6 +24,7 @@ def _make_1080p_frame(rng):
     return rng.integers(0, 256, size=(1080, 1920, 4), dtype=np.uint8)
 
 
+@pytest.mark.perf  # wall-clock ms budget — flakes under parallel load (F4c 2026-07-02); CI runs -m 'not perf'
 def test_v1_write_300_frames_throughput(shm_path):
     """Write 300 random 1080p RGBA frames. PASS: avg <33ms (>=30fps), P95 <50ms."""
     rng = np.random.default_rng(42)
