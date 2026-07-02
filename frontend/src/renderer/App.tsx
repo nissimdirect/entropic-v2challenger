@@ -89,7 +89,7 @@ import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
-import { evaluateTransformOverrides, mergeTransformOverride } from './utils/transformLanes'
+import { evaluateTransformOverrides, mergeTransformOverride, formatTransformLanePath, parseTransformLanePath, type TransformField } from './utils/transformLanes'
 // H1 (2026-07-02 master-tuneup WS5): focused-mapping-context statusbar chip —
 // the foundation the hardware-bank system (H2+) keys off. See
 // utils/focusContext.ts (derivation) + components/layout/MappingContextChip.tsx.
@@ -2778,6 +2778,27 @@ function AppInner() {
         return serializeMaskStack(maskedClip?.maskStack)
       })()
 
+      // A2b — resolve the active clip's STATIC transform (position/scale/rotation/
+      // flip) + its id so the export applies it via the SAME shared clip_transform
+      // helper preview's render_frame path uses (was: export dropped ALL clip
+      // transforms → a positioned/scaled/rotated clip exported at default
+      // placement). The export is single-input on activeAssetPath.current; the
+      // transformed clip is the active-track clip backing that asset (same
+      // resolution as exportMaskStack). Per-frame `clipTransform.<clipId>.<field>`
+      // lanes fold over it backend-side (see automationByFrame below).
+      const exportTransformInfo = (() => {
+        const activeTid = getActiveTrackId()
+        const tracks = useTimelineStore.getState().tracks
+        const activeTrack = tracks.find((t) => t.id === activeTid)
+        if (!activeTrack) return undefined
+        const assets = useProjectStore.getState().assets
+        const clip = activeTrack.clips.find(
+          (c) => assets[c.assetId]?.path === activeAssetPath.current,
+        )
+        if (!clip) return undefined
+        return { clipId: clip.id, transform: clip.transform }
+      })()
+
       // P2.3 (slice 3d — full export parity): the export must run the SAME
       // modulation engine the preview render path runs, so the exported video
       // matches the live canvas (previously export dropped operators + automation
@@ -2805,15 +2826,49 @@ function AppInner() {
       const automationByFrame: Record<number, Record<string, number>> = {}
       if (exportLanes.length > 0) {
         for (let f = exportStartFrame; f <= exportEndFrame; f++) {
-          const overrides = evaluateAutomationOverrides(
-            exportLanes, f / exportSourceFps, registry,
-          )
+          const t = f / exportSourceFps
+          const overrides = evaluateAutomationOverrides(exportLanes, t, registry)
+          // A2b: transform lanes share the automation_by_frame channel but need
+          // their OWN evaluator — evaluateAutomationOverrides mis-scales the
+          // `clipTransform.*` keys (no registry entry → raw 0..1). Overwrite them
+          // with the display-range-denormalized + store-clamped values
+          // evaluateTransformOverrides produces (the SAME numbers preview's
+          // mergeTransformOverride uses), so the backend fold pixel-matches preview.
+          const tOverrides = evaluateTransformOverrides(exportLanes, t)
+          for (const clipId of Object.keys(tOverrides)) {
+            const fields = tOverrides[clipId]
+            for (const field of Object.keys(fields) as TransformField[]) {
+              const v = fields[field]
+              if (v !== undefined) {
+                overrides[formatTransformLanePath(clipId, field)] = v
+              }
+            }
+          }
           if (Object.keys(overrides).length > 0) {
             automationByFrame[f] = overrides
           }
         }
       }
       const hasAutomation = Object.keys(automationByFrame).length > 0
+
+      // A2b — send the static clip transform + its id when the clip carries a
+      // non-identity transform OR has transform lanes (so the backend knows which
+      // `clipTransform.<clipId>.*` keys to fold). Omitted otherwise → byte-
+      // identical legacy export payload.
+      const exportTransform = exportTransformInfo?.transform
+      const exportTransformClipId = exportTransformInfo?.clipId
+      const staticTransformNonIdentity = !!exportTransform && (
+        exportTransform.x !== 0 || exportTransform.y !== 0 ||
+        exportTransform.scaleX !== 1 || exportTransform.scaleY !== 1 ||
+        exportTransform.rotation !== 0 || exportTransform.flipH ||
+        exportTransform.flipV || exportTransform.anchorX !== 0 ||
+        exportTransform.anchorY !== 0
+      )
+      const hasTransformLanesForClip = !!exportTransformClipId && exportLanes.some((l) => {
+        const p = parseTransformLanePath(l.paramPath)
+        return p !== null && p.clipId === exportTransformClipId
+      })
+      const sendTransform = !!exportTransformClipId && (staticTransformNonIdentity || hasTransformLanesForClip)
 
       // Status string surfaces the snapshot semantics to the user (the export
       // renders from a frozen snapshot taken at job start; edits during export
@@ -3082,6 +3137,10 @@ function AppInner() {
         // export — the backend treats absent payloads as the old single-input path.
         ...(exportOperators.length > 0 ? { operators: exportOperators } : {}),
         ...(hasAutomation ? { automation_by_frame: automationByFrame } : {}),
+        // A2b — static clip transform + id (backend applies via the shared
+        // clip_transform helper preview uses, folds per-frame clipTransform lanes
+        // over it). Omitted when identity + no lanes → byte-identical legacy export.
+        ...(sendTransform ? { transform: exportTransform ?? {}, transform_clip_id: exportTransformClipId } : {}),
         settings: {
           codec: settings.codec,
           resolution: settings.resolution,
