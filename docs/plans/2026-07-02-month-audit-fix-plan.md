@@ -1,6 +1,6 @@
 ---
 title: Month-Audit Fix Plan — everything found by the 2026-07-02 adversarial audit
-status: active
+status: executed (Waves 1-3 merged 2026-07-02: F1 #323 F2 #322 F3 #326+F3b #340 F4 #324+F4b #333+F4b-2 #349+F4c #334+F4c-2 #352 F5 #329 F6 #335 F7a #332 F8 #328; remaining: F7 optional-P3, D-items user-gated)
 created: 2026-07-02
 source: 2026-07-02 five-agent audit of the June 2-17 campaign (175 PRs) + session-log mining
 supersedes: nothing — ADOPTS docs/plans/2026-06-17-p1b-uat-fix-plan.md as Wave 1 F1 (unchanged)
