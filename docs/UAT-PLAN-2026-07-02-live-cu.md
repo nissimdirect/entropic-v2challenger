@@ -9,6 +9,31 @@ NOT repeated here unless a fix touched them).
 (F1 P1-B, F2 persistence, F3 e2e). Running UAT before F1/F2 re-blocks Areas 2/7 and makes
 every save/reload check false-fail. If the user wants a pass sooner, run Stage A only.
 
+**SCOPE EXPANSION (2026-07-02, runs LAST in the session per user directive "put CU last and
+make it even more comprehensive" + tune-up-campaign CU-lane handoff).** This pass now also owns,
+in ADDITION to Stages A–F below:
+- **WS2 instrument live pass** — the deep items P1-B was blocking (sampler trigger 2.2, rack
+  macros/choke/nesting, frame-bank scan, granulator 6-axis, freeze FSM end-to-end, MIDI Learn).
+  P1-B is fixed (#323) so these should finally pass → **Stage C is the home for these (C2/C3).**
+- **PS1 — MK.CU J1–J5** (Stage F): build the suite for real. It was FABRICATED as "in rule-9
+  rotation" (EXECUTION-PLAN:477, corrected by F8) — this is its first real run.
+- **PS3 — MK.13 mode-banner visual gate** (new Stage F.2): spec §14.9 (banner ≤120ms naming the
+  Escape level); a code sweep couldn't find the component — CONFIRM VISUALLY or file 🐛.
+- **CU-confirm the parallel session's fresh merges** (new Stage A.7): #336 (no stray track on
+  click), #337 (Color-Invert reads "100%" not "1.00%"), #338 (device editor scrolls, preview
+  never collapses — BOTH `F_CREATRIX_LAYOUT` states), #339 (razor/ripple/marker/loop/range cursor
+  tools work by click AND hotkey).
+- **B3 layout CU pass** (new Stage G) — gated on B3 build L2–L4 landing; if the flag layout isn't
+  built yet at run time, Stage G is ⏸ (blocker named: L2–L4 not merged).
+- **MK.12 subject-matte** (new Stage H) — gated on MK.12a (#342) landing; U1–U10 subject-driven
+  modulation incl. the honest v1 single-dominant-subject limitation (corrected by stacking a
+  lasso/wand node). ⏸ if MK.12a not merged at run time.
+
+**File-ownership boundary (do NOT fix in this lane — file as tasks/issues):** the parallel session
+owns `stores/{midi,layout,timeline}.ts`, `App.tsx`, `BoundingBoxOverlay.tsx`, `TransformPanel.tsx`,
+`ParamPanel.tsx`, `utils/automation-record.ts` (WS4/WS5), and `backend/src/masking/ai_matte.py`
+(MK.12a). Bugs found there → TaskCreate/issue with repro, never an edit.
+
 **Runtime protocol (hard rules):**
 - Request computer-use access for Electron (and Finder if file dialogs need it) at session START,
   not mid-pass; run a 2-minute smoke (launch + click + screenshot) before starting the clock.
@@ -37,6 +62,10 @@ every save/reload check false-fail. If the user wants a pass sooner, run Stage A
 | A4 | #318 regression: add effect to clip repeatedly, stack 5 effects fast | no crash-loop, React devtools error count 0 |
 | A5 | #319 regression: Creatrix layout renders in BOTH flag states | screenshot each |
 | A6 | The 4 e2e-red journeys, manually: watchdog reconnect, effect move-down, full journey (import→effect→param→export), import-dialog hint | match e2e expectations |
+| A7a | **#337 confirm:** add Color Invert to a clip → param label reads **"100%"** at full, not "1.00%" | zoom on the label |
+| A7b | **#338 confirm:** open a tall instrument device editor with a clip selected → preview never collapses; device region scrolls internally — verify in BOTH `F_CREATRIX_LAYOUT` states | screenshot each state |
+| A7c | **#339 confirm:** razor/ripple/marker/loop/range cursor tools each work by CLICK and by HOTKEY | one screenshot per tool showing its effect |
+| A7d | **#336 confirm:** click-select clips near a lane's bottom edge ×10 → NO stray empty tracks appear (the June-17 gesture) | track count stable |
 
 ## Stage B — persistence & round-trip (the F2 class, ~45 min)
 
@@ -108,11 +137,43 @@ individual feature "works."
   understand the sequencer the ux is not intuitive" — June 13, never re-tested).
 - Output: ranked papercut list with screenshots → feeds a design-fix packet wave.
 
-## Stage F — MK.CU exit gate (formally closes the fabricated ledger claim)
+## Stage F.1 — MK.CU exit gate (PS1; formally closes the fabricated ledger claim)
 
-Run MASKING-INTERACTIONS §0 J1-J5 journeys (draw/refine/route/key/export with masks) as a named
-suite; record per-journey verdicts. This is the FIRST real MK.CU run — EXECUTION-PLAN.md's prior
-"active in rotation" claim was false (corrected by fix-plan F8).
+Run MASKING-INTERACTIONS §0 **J1–J5** journeys as a named suite, per-journey verdict + screenshot.
+This is the FIRST real MK.CU run — EXECUTION-PLAN:477's "active in rotation" claim was false
+(corrected by F8). Each journey draws/refines/routes/keys/exports through a mask; a journey FAILS
+if the masked region doesn't visibly gate the effect, or export alpha ≠ preview.
+- J1 draw (marquee/lasso/wand → MatteNode visible in stack)
+- J2 refine (feather / grow-shrink / invert change the composite)
+- J3 route (device chain applies THROUGH the matte — inside-only)
+- J4 key (chroma/luma matte, live-modulated key param)
+- J5 export (ProRes 4444 alpha round-trips; re-import honors alpha)
+
+## Stage F.2 — MK.13 mode-banner visual gate (PS3)
+
+Spec §14.9: switching mask tool mode shows a banner **within ≤120ms naming the Escape level**.
+A code sweep couldn't locate the banner component — so this is verify-or-file: enter each mask
+tool mode, confirm the banner appears, is legible, names the right Escape level, and clears.
+If absent → 🐛 (spec'd hard gate unshipped), file as a task; do NOT fix here.
+
+## Stage G — B3 layout CU pass (gated on B3 build L2–L4)
+
+⏸ if `F_CREATRIX_LAYOUT` layout (lean headers + LAYER panel) isn't built/merged at run time —
+name the blocker (L2–L4 not merged). When present:
+- G1 arrangement = layers: drag a track row to restack → composite z-order changes (top renders
+  front); render-diff confirms front/back swap.
+- G2 lean header: name·eye·`blend·opacity` chip·M/S·twirl only; chip click focuses the LAYER panel.
+- G3 LAYER panel reflects the selected track; edit blend/opacity/fill/blending-options/transform →
+  preview updates; Save → reload → all panel-edited values survive (the F2 persistence class).
+- G4 twirl nests the track's fx + automation lanes; edit a nested fx → preview updates.
+- G5 both flag states shippable (flag OFF = today's layout unchanged).
+
+## Stage H — MK.12 subject-driven modulation (gated on MK.12a #342)
+
+⏸ if MK.12a not merged. When present, run the PRD's **U1–U10** (music-video shot → AI subject matte
+→ subject-driven modulation). Explicitly probe the **honest v1 limitation**: a scene with TWO
+prominent subjects → confirm it tracks the single dominant one, and that stacking a lasso/wand node
+corrects it (documented, not a silent failure). Verdict per U-step + the limitation behavior.
 
 ---
 
@@ -121,7 +182,10 @@ suite; record per-journey verdicts. This is the FIRST real MK.CU run — EXECUTI
 `docs/UAT-RESULTS-2026-07-02.md`: per-stage tables, verdict + evidence link per row; bug list
 with severity; the Stage E ranked papercut list; final tally (Gate 20: full scope / executed /
 remaining, with named blockers for any ⏸). Bugs get filed into a fix wave, NOT fixed mid-UAT
-(stock-take rule) except a P0 crash blocking the rest of the pass.
+(stock-take rule) except a P0 crash blocking the rest of the pass. **Cross-lane bugs (in the
+parallel session's owned files) → TaskCreate with repro, never an edit.**
 
-**Estimated wall-clock:** ~4h for A-F. If budget-constrained: A+B+C are the core (P1/P2 risk);
-D+E+F can run as a second session.
+**Estimated wall-clock:** ~5–6h for A–H (expanded). Core = A+B+C (P1/P2 risk) + F (MK.CU gate).
+G/H are conditional on their builds landing. D+E can run as a second sitting if time-boxed.
+**This pass runs LAST in the session** (user directive 2026-07-02) — after the B3 build,
+the e2e pyramid, and the Q7 rerun, so it exercises the most complete app state.
