@@ -5,7 +5,9 @@ Tests:
   - test_evaluate_all_refuses_65th_operator_silently_with_one_warning_log
   - test_resolve_routings_ignores_mappings_beyond_32_per_operator
   - test_unknown_operator_type_evaluates_to_zero_without_crash
-  - test_render_budget_guard_warns_when_eval_exceeds_16ms
+  - test_render_budget_guard_warns_exactly_at_threshold_boundary
+  - test_render_budget_guard_rate_limits_repeated_warnings
+  - test_render_budget_guard_warns_at_least_once_across_slow_frames
   - test_render_budget_guard_silent_when_eval_under_16ms
 """
 
@@ -36,6 +38,34 @@ def _make_op(op_id: str, op_type: str) -> dict:
         "processing": [],
         "mappings": [],
     }
+
+
+class _FakeClock:
+    """Deterministic time source for `SignalEngine._clock` (F4).
+
+    Callable like `time.perf_counter` (returns the current value), but
+    advanced explicitly via `.advance(dt)` instead of real wall-clock time.
+    Injecting this into `engine._clock` makes the render-budget guard's
+    elapsed-time and rate-limit math exact instead of dependent on actual
+    sleep durations, which is what made the guard tests flake on slower
+    CI runners (60 real 20ms sleeps landing 1-6 warnings depending on
+    scheduler jitter).
+
+    Starts at 1000.0 (not 0.0) so it behaves like `time.perf_counter`,
+    whose value is always a large positive number — the guard's rate
+    limiter compares `_now - self._budget_warn_last_t >= 1.0`, and a
+    near-zero clock would make that comparison behave differently than
+    it does in production.
+    """
+
+    def __init__(self, start: float = 1000.0):
+        self.t = start
+
+    def __call__(self) -> float:
+        return self.t
+
+    def advance(self, dt: float) -> None:
+        self.t += dt
 
 
 class TestOperatorCap:
@@ -125,17 +155,113 @@ class TestOperatorCap:
         assert values["op-garbage"] == 0.0
         assert values["op-unknown"] == 0.0
 
-    def test_render_budget_guard_warns_when_eval_exceeds_16ms(
+    def test_render_budget_guard_warns_exactly_at_threshold_boundary(
         self, caplog, monkeypatch
     ):
-        """Slow evaluator → exactly 1 warning per 1s window across 60 frames; degrade flag set."""
+        """Guard logic unit test: elapsed <=16ms silent, elapsed >16ms warns.
+
+        Uses `_FakeClock` (advanced by the monkeypatched evaluator itself,
+        not real sleep) so the 16ms boundary is an exact value instead of a
+        real-time measurement — this is the part of F4's original assertion
+        that could never be tested precisely with `time.sleep`.
+        """
         import logging
 
-        # Monkeypatch evaluate_lfo to sleep 20ms so the budget guard fires
-        call_count = {"n": 0}
+        clock = _FakeClock()
+        engine = SignalEngine()
+        engine._clock = clock
+        engine._budget_warn_last_t = 0.0
+        engine._degrade_next_frame = False
+        ops = [_make_lfo("op-boundary")]
+
+        def evaluator_advancing_by(dt):
+            def _evaluate(**kwargs):
+                clock.advance(dt)
+                return 0.5, {}
+
+            return _evaluate
+
+        # Exactly at budget: guard uses strict `>`, so this must stay silent.
+        monkeypatch.setattr(
+            "modulation.engine.evaluate_lfo", evaluator_advancing_by(0.016)
+        )
+        with caplog.at_level(logging.WARNING, logger="modulation.engine"):
+            engine.evaluate_all(ops, frame_index=0, fps=30.0)
+        at_budget = [r for r in caplog.records if "budget" in r.message.lower()]
+        assert at_budget == [], "eval landing exactly on the 16ms budget must not warn"
+
+        caplog.clear()
+
+        # Just over budget: must warn exactly once.
+        monkeypatch.setattr(
+            "modulation.engine.evaluate_lfo", evaluator_advancing_by(0.0161)
+        )
+        with caplog.at_level(logging.WARNING, logger="modulation.engine"):
+            engine.evaluate_all(ops, frame_index=1, fps=30.0)
+        over_budget = [r for r in caplog.records if "budget" in r.message.lower()]
+        assert len(over_budget) == 1, (
+            f"Expected exactly 1 warning just over budget, got {len(over_budget)}"
+        )
+
+    def test_render_budget_guard_rate_limits_repeated_warnings(
+        self, caplog, monkeypatch
+    ):
+        """Guard rate-limit policy: 1 warning per 1s window, deterministically.
+
+        Every frame overruns budget by a fixed, clock-advanced 1/32s (31.25ms
+        — no real sleep). 1/32 is exactly representable in binary floating
+        point, so 60 accumulations introduce zero rounding error and the
+        warning count is exactly predictable: warn on frame 0, then again once
+        32 more frames have accumulated >=1.0s since that warning (32 *
+        1/32 == 1.0), i.e. frame 32 — and nowhere else in the 60-frame run.
+        This replaces the old test's wall-clock-dependent "1 to 2 warnings"
+        tolerance band, which is what flaked on CI.
+        """
+        import logging
+
+        clock = _FakeClock()
+        engine = SignalEngine()
+        engine._clock = clock
+        engine._budget_warn_last_t = 0.0
+        engine._degrade_next_frame = False
+        ops = [_make_lfo("op-slow")]
 
         def slow_evaluate_lfo(**kwargs):
-            call_count["n"] += 1
+            clock.advance(1 / 32)  # 31.25ms > 16ms budget, every frame
+            return 0.5, {}
+
+        monkeypatch.setattr("modulation.engine.evaluate_lfo", slow_evaluate_lfo)
+
+        warned_frames = []
+        with caplog.at_level(logging.WARNING, logger="modulation.engine"):
+            for frame in range(60):
+                before = len(caplog.records)
+                engine.evaluate_all(ops, frame_index=frame, fps=30.0)
+                after = [
+                    r for r in caplog.records[before:] if "budget" in r.message.lower()
+                ]
+                if after:
+                    warned_frames.append(frame)
+
+        assert warned_frames == [0, 32], (
+            f"Expected warnings on frames [0, 32] exactly, got {warned_frames}"
+        )
+
+    def test_render_budget_guard_warns_at_least_once_across_slow_frames(
+        self, caplog, monkeypatch
+    ):
+        """Integration test with a REAL clock: slow frames must warn at least once.
+
+        Uses actual `time.sleep` (default `engine._clock` = `time.perf_counter`,
+        unset) so this exercises the guard end-to-end including real elapsed-time
+        measurement. Only asserts a wall-clock-independent LOWER bound — the
+        exact count depends on runner speed/jitter (that upper-bound assertion
+        was the flake); the precise rate-limit count is covered deterministically
+        by test_render_budget_guard_rate_limits_repeated_warnings above.
+        """
+        import logging
+
+        def slow_evaluate_lfo(**kwargs):
             time.sleep(0.020)  # 20ms > 16ms budget
             return 0.5, {}
 
@@ -147,7 +273,6 @@ class TestOperatorCap:
 
         ops = [_make_lfo("op-slow")]
 
-        warning_count = 0
         with caplog.at_level(logging.WARNING, logger="modulation.engine"):
             for frame in range(60):
                 engine.evaluate_all(ops, frame_index=frame, fps=30.0)
@@ -157,15 +282,10 @@ class TestOperatorCap:
                 if r.name == "modulation.engine" and "budget" in r.message.lower()
             )
 
-        # Rate-limited to 1/sec → with 60 frames at 20ms each (1.2s total),
-        # we expect exactly 2 warnings (one at start, one after the 1s window resets).
-        # Accept 1–2 warnings (timing is wall-clock dependent in test env).
-        assert 1 <= warning_count <= 2, (
-            f"Expected 1-2 budget warnings across 60 slow frames, got {warning_count}"
+        assert warning_count >= 1, (
+            f"Expected at least 1 budget warning across 60 slow frames, got "
+            f"{warning_count}"
         )
-        # After a slow frame, degrade_next_frame was set at least once during the run
-        # (it gets reset each frame, so we can't check after the loop; the test above
-        # verifies the guard ran by checking the warning was emitted)
 
     def test_render_budget_guard_silent_when_eval_under_16ms(self, caplog, monkeypatch):
         """Fast evaluator → 0 budget warnings."""

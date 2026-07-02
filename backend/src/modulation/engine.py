@@ -3,6 +3,7 @@
 import time
 import logging
 from dataclasses import dataclass, field
+from typing import Callable
 
 from modulation.lfo import evaluate_lfo
 from modulation.kentaro_cluster import evaluate_kentaro_cluster
@@ -400,6 +401,11 @@ class SignalEngine:
     # op that processes raw frame data; skipping keeps LFOs/envelopes/etc. intact.
     _budget_warn_last_t: float = 0.0
     _degrade_next_frame: bool = False
+    # F4: injectable time source for the budget guard (default = real clock).
+    # builtin_function_or_method has no __get__, so this is not bound as a
+    # method — `self._clock()` calls it with zero args, same as time.perf_counter().
+    # Tests may set `engine._clock = fake_fn` for deterministic elapsed-time control.
+    _clock: Callable[[], float] = time.perf_counter
 
     def evaluate_all(
         self,
@@ -458,7 +464,7 @@ class SignalEngine:
             operators[:MAX_OPERATORS], runtime_context, precomputed_break
         )
 
-        _eval_start = time.perf_counter()
+        _eval_start = self._clock()
 
         for op in active_ops:
             op_id = op.get("id", "")
@@ -599,10 +605,10 @@ class SignalEngine:
 
         # P4.1: render-budget guard — warn (rate-limited to 1/sec) and set degrade
         # flag for the next frame if eval exceeded 16ms.
-        _eval_elapsed = time.perf_counter() - _eval_start
+        _eval_elapsed = self._clock() - _eval_start
         _BUDGET_MS = 0.016  # 16ms
         if _eval_elapsed > _BUDGET_MS:
-            _now = time.perf_counter()
+            _now = self._clock()
             if _now - self._budget_warn_last_t >= 1.0:
                 logger.warning(
                     "SignalEngine.evaluate_all exceeded 16ms budget: %.1fms "
