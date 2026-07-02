@@ -235,3 +235,56 @@ One `mask` row at 18px param height: label lowercase mono `text-2` · dropdown (
 | Mode announcement | banner + statusbar chips mirror to `aria-live="polite"`; view/tool changes are announced, not color-only |
 | Keyboard-only operation | full path table in `MASKING-INTERACTIONS.md` §12 — every operation reachable; brush strokes pointer-only v1 (flagged gap, MK.13 a11y row) |
 | Chip text contrast | ACID-on-wash 14.5:1 AAA; AMBER disabled-chip labels 7.7:1 AA; banner `text-3` hints 4.8:1 AA |
+
+---
+
+# Creatrix Design Language v1.2 — "Live Signal + Layer Model" (2026-07-02)
+
+**Status:** DRAFT extending v1.1 (all v1.1 tokens/laws above stay canonical). Adds the object
+model, the B3 layout grammar, and locked iconography. **Visual source of truth:** the backed-up
+prototypes in [`layout-session/challengers/`](./layout-session/challengers/) — open
+`challenger-b3-arrangement.html` (signed-off layout), `design-system.html` (full DS draft),
+`icon-directions.html` (icon families). These HTML files were built in an untracked scratch dir
+and copied here 2026-07-02 so the design survives in-repo.
+
+## §0. Object model — the naming law
+
+**Track = Layer.** The arrangement view IS the layer stack; there is no separate "layers panel."
+- Row order = **z-order** (top row renders in front). Drag a row to restack.
+- A track carries: visibility (eye), a compact **blend·opacity** readout, mute/solo, and a twirl
+  that nests its effect chain + automation lanes *inside* the track (After Effects model).
+- "Layer order" belongs to the arrangement, not to any single layer — it is never duplicated in
+  an inspector.
+
+## §5. Iconography — BLOCK (locked 2026-07-02)
+
+The 14-tool left rail uses the **Block** family (user decision, "definitely block is best"):
+heavy `stroke-width: 2.7`, `stroke-linecap: square`, `stroke-linejoin: miter`, solid fills on
+blades/handles/stars. Ableton-chunky, legible at 16px.
+- 24×24 grid, 2px safe-zone · **currentColor only** (state color comes from the button, never the
+  icon) · keyboard badge bottom-right in `--cx-text-3` · group order TRNS / EDIT / MASK / MISC with
+  hairline separators · active = ACID wash + outline (never a filled ACID block behind an icon).
+- Path source: `icon-directions.html` `ICONS` map; React impl ships in L0 (`tool-icons.tsx`).
+- 14 tools: transform · text · razor · slip · slide · ripple-delete · marquee · ellipse · lasso ·
+  polygon-lasso · wand · key-picker · hand · zoom.
+
+## §6. New components (anatomy)
+
+**Track header (lean, ~214px):** twirl · eye · color-chip · name · **blend·opacity bchip** (a
+glanceable read; click focuses the LAYER panel) · M/S. The deep controls are NOT in the header.
+
+**LAYER panel (right dock, above EFFECTS):** the selected track's inspector — blend-mode grid,
+opacity + fill, blending options (luma range / matte / knockout), transform. Reflects selection;
+never lists order. Coexists with the effect-level PROPERTIES panel (LAYER = the track; PROPERTIES
+= the selected effect within it).
+
+## §8. Layout grammar — B3 (signed off 2026-07-02)
+
+Left tool-rail (Block icons) · center canvas/preview (hero) · right dock (LAYER · EFFECTS ·
+HISTORY · PROPERTIES) · bottom arrangement = the layer stack. Ships behind `F_CREATRIX_LAYOUT`.
+Build phases: PRD `docs/plans/2026-07-02-b3-layout-redesign-prd.md` (L0–L5).
+
+## §10. Remaining
+- Full markdown transcription of `design-system.html` §1–§9 (this section is the load-bearing
+  subset + the locked decisions; the HTML remains the exhaustive visual reference).
+- Opacity-draggable-in-header (deferred; revisit after L3).

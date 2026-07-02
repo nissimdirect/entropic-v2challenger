@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Challenger A — SESSION (Ableton-max)</title>
+<link rel="stylesheet" href="live-signal.css">
+<link rel="stylesheet" href="states.css">
+<style>
+  .app { display: grid; height: 100vh; grid-template-rows: 40px 1fr 240px 28px; }
+
+  /* ---------- transport ---------- */
+  .transport { display: flex; align-items: center; gap: 12px; padding: 0 14px; background: var(--cx-surface-2); border-bottom: 1px solid var(--cx-line-1); font-size: 12.5px; }
+  .transport .tc { font-variant-numeric: tabular-nums; color: var(--cx-text-2); font-size: 13px; }
+  .view-toggle { display: flex; border: 1px solid var(--cx-line-2); border-radius: 4px; overflow: hidden; }
+  .view-toggle button { font: inherit; font-size: 11px; letter-spacing: .08em; padding: 5px 16px; background: var(--cx-surface-3); color: var(--cx-text-2); border: 0; cursor: pointer; }
+  .view-toggle button.on { background: var(--cx-acid); color: var(--cx-acid-on); font-weight: 700; }
+
+  /* ---------- body ---------- */
+  .body { display: grid; grid-template-columns: 290px 1fr 34%; min-height: 0; position: relative; }
+
+  /* browser */
+  .browser { background: var(--cx-surface-2); border-right: 1px solid var(--cx-line-1); display: flex; flex-direction: column; min-height: 0; }
+  .browser .search { margin: 10px; height: 28px; padding: 0 10px; display: flex; align-items: center; background: var(--cx-surface-3); border: 1px solid var(--cx-line-2); border-radius: 4px; color: var(--cx-text-3); font-size: 12px; flex: none; }
+  .browser-tabs { display: flex; gap: 3px; padding: 0 10px 8px; flex: none; }
+  .browser-tabs .t { flex: 1; text-align: center; font-size: 10px; letter-spacing: .06em; padding: 5px 0; border: 1px solid var(--cx-line-1); border-radius: 3px; color: var(--cx-text-3); }
+  .browser-tabs .t.on { color: var(--cx-acid); border-color: var(--cx-acid); background: var(--cx-acid-wash); }
+  .cats { overflow-y: auto; padding: 0 6px 10px; }
+  .cat > header { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; font-size: 12px; color: var(--cx-text-2); }
+  .cat > header:hover { background: var(--cx-surface-3); }
+  .cat > header .tick { width: 3px; height: 13px; border-radius: 1px; }
+  .cat > header .n { margin-left: auto; color: var(--cx-text-3); font-size: 10px; }
+  .cat ul { list-style: none; }
+  .cat li { height: 24px; display: flex; align-items: center; padding: 0 8px 0 26px; font-size: 12px; color: var(--cx-text-1); border-radius: 2px; }
+  .cat li:hover { background: var(--cx-surface-4); }
+  .cat li.sel { background: var(--cx-mod-wash); color: var(--cx-mod); }
+
+  /* ---------- session grid ---------- */
+  .center { min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--cx-surface-1); position: relative; }
+  .session { flex: 1; display: grid; grid-template-columns: repeat(5, 1fr) 80px; gap: 1px; background: var(--cx-line-1); min-height: 0; padding: 1px; }
+  .tcol { background: var(--cx-surface-2); display: flex; flex-direction: column; min-height: 0; }
+  .tcol > header { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 8px; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; border-bottom: 1px solid var(--cx-line-1); flex: none; }
+  .tcol > header .dot { width: 9px; height: 9px; border-radius: 2px; }
+  .tcol.sel > header { background: var(--cx-mod-wash); color: var(--cx-mod); }
+  .slots { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 2px; overflow: hidden; }
+  .slot { flex: 1; min-height: 30px; border-radius: 3px; background: var(--cx-surface-3); display: flex; align-items: center; gap: 8px; padding: 0 8px; font-size: 11px; color: var(--cx-text-3); }
+  .slot .go { width: 0; height: 0; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent var(--cx-line-2); flex: none; }
+  .slot.filled { color: var(--cx-text-1); }
+  .slot.filled .go { border-left-color: var(--cx-acid); }
+  .slot.playing { outline: 1px solid var(--cx-acid); background: var(--cx-acid-wash); }
+  .slot.playing .go { border-left-color: var(--cx-acid); filter: drop-shadow(0 0 3px var(--cx-acid)); }
+
+  /* mixer strip — grows in volume state */
+  .mixer { height: 110px; border-top: 1px solid var(--cx-line-1); padding: 7px 8px; display: flex; flex-direction: column; gap: 5px; flex: none; position: relative; }
+  body[data-state="volume"] .mixer { height: 232px; }
+  .mixer select, .mixer .blendbtn { font: inherit; font-size: 10.5px; background: var(--cx-surface-3); color: var(--cx-text-2); border: 1px solid var(--cx-line-2); border-radius: 3px; height: 22px; width: 100%; display: flex; align-items: center; padding: 0 7px; }
+  body[data-state="blend"] .tcol.sel .blendbtn { border-color: var(--cx-mod); color: var(--cx-mod); }
+  .mixer .mrow { display: flex; gap: 5px; flex: 1; min-height: 0; }
+  .mixer .msr { display: flex; flex-direction: column; gap: 4px; }
+  .mixer .msr b { width: 22px; text-align: center; font-size: 10px; line-height: 20px; border-radius: 2px; border: 1px solid var(--cx-line-2); color: var(--cx-text-3); font-weight: 400; }
+  .mixer .msr b.m-on { background: var(--cx-amber-wash); color: var(--cx-amber); border-color: var(--cx-amber); }
+  .mixer .msr b.s-on { background: var(--cx-probe-wash); color: var(--cx-probe); border-color: var(--cx-probe); }
+  .mixer .msr b.r-on { background: var(--cx-red-wash); color: var(--cx-red-text); border-color: var(--cx-red-text); }
+  .mixer .fader { flex: 1; position: relative; background: var(--cx-line-1); border-radius: 3px; min-width: 18px; }
+  .mixer .fader::after { content: ''; position: absolute; left: 2px; right: 2px; height: 10px; bottom: var(--v, 60%); background: var(--cx-text-1); border-radius: 2px; box-shadow: 0 1px 3px rgba(0,0,0,.6); }
+  .mixer .stat { font-size: 10px; color: var(--cx-text-3); display: flex; justify-content: space-between; }
+  .mixer .volx { display: none; flex-direction: column; gap: 4px; font-size: 10px; color: var(--cx-text-2); }
+  body[data-state="volume"] .mixer .volx { display: flex; }
+
+  .scenes { background: var(--cx-surface-2); display: flex; flex-direction: column; min-height: 0; }
+  .scenes > header { height: 30px; display: flex; align-items: center; justify-content: center; font-size: 10px; letter-spacing: .1em; color: var(--cx-text-3); border-bottom: 1px solid var(--cx-line-1); flex: none; }
+  .scenes .slots .slot { justify-content: center; color: var(--cx-text-2); }
+  .scenes .mixer { justify-content: flex-end; }
+
+  /* perform state: P1 column becomes big pads */
+  body[data-state="perform"] .tcol--pads .slots { display: none; }
+  .tcol--pads .bigpads { display: none; }
+  body[data-state="perform"] .tcol--pads .bigpads { display: grid; flex: 1; grid-template-columns: 1fr 1fr; padding: 8px; }
+  body[data-state="perform"] .tcol--pads { outline: 2px solid var(--cx-mod); outline-offset: -2px; }
+  .performbanner { position: absolute; top: 0; left: 0; right: 0; height: 32px; z-index: 60; align-items: center; gap: 12px; padding: 0 14px; background: var(--cx-mod); color: #0B0B10; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; }
+  .performbanner .esc { margin-left: auto; font-weight: 400; }
+
+  /* ---------- arrangement ---------- */
+  .arrange { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  body.arrange-mode .session { display: none; }
+  body.arrange-mode .arrange { display: flex; }
+  .ruler { height: 22px; flex: none; border-bottom: 1px solid var(--cx-line-1); background: repeating-linear-gradient(90deg, var(--cx-line-1) 0 1px, transparent 1px 90px), var(--cx-surface-2); display: flex; align-items: center; font-size: 9.5px; color: var(--cx-text-3); }
+  .ruler span { width: 90px; padding-left: 4px; }
+  .arrange .rows { flex: 1; overflow-y: auto; position: relative; }
+  .arow { display: grid; grid-template-columns: 170px 1fr; border-bottom: 1px solid var(--cx-line-1); height: 52px; }
+  .arow.auto { height: 34px; }
+  .arow .hd { background: var(--cx-surface-2); border-right: 1px solid var(--cx-line-1); display: flex; align-items: center; gap: 7px; padding: 0 8px; font-size: 11px; }
+  .arow .hd .dot { width: 9px; height: 9px; border-radius: 2px; }
+  .arow .hd .mini { margin-left: auto; display: flex; gap: 3px; }
+  .arow .hd .mini b { font-size: 9px; font-weight: 400; border: 1px solid var(--cx-line-2); border-radius: 2px; padding: 1px 4px; color: var(--cx-text-3); }
+  .arow .lane { position: relative; background: repeating-linear-gradient(90deg, transparent 0 89px, var(--cx-line-1) 89px 90px); }
+  .aclip { position: absolute; top: 6px; bottom: 6px; border-radius: 3px; border: 1px solid var(--cx-line-2); font-size: 10.5px; padding: 2px 6px; overflow: hidden; color: var(--cx-text-1); }
+  .aclip.sel { border-color: var(--cx-mod); box-shadow: 0 0 0 1px var(--cx-mod); }
+  .playhead { position: absolute; top: 0; bottom: 0; left: 38%; width: 1px; background: var(--cx-acid); z-index: 5; }
+  .playhead::before { content: ''; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: var(--cx-acid); }
+  .autolane svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .arow.st-automation { --st-disp: grid; }
+
+  /* ---------- preview ---------- */
+  .preview { background: var(--cx-surface-0); border-left: 1px solid var(--cx-line-1); display: flex; flex-direction: column; min-height: 0; position: relative; }
+  .preview .stage { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; min-height: 0; }
+  .preview .frame { width: 100%; aspect-ratio: 16/9; max-height: 100%; position: relative; }
+  .bbox { position: absolute; inset: 18% 24% 30% 20%; border: 1px solid var(--cx-mod); }
+  .bbox i { position: absolute; width: 8px; height: 8px; background: var(--cx-mod); border: 1px solid var(--cx-surface-0); }
+  .bbox i:nth-child(1) { top: -4px; left: -4px; } .bbox i:nth-child(2) { top: -4px; right: -4px; }
+  .bbox i:nth-child(3) { bottom: -4px; left: -4px; } .bbox i:nth-child(4) { bottom: -4px; right: -4px; }
+  .preview .pctl { height: 30px; flex: none; border-top: 1px solid var(--cx-line-1); display: flex; align-items: center; gap: 8px; padding: 0 10px; font-size: 10.5px; color: var(--cx-text-3); background: var(--cx-surface-2); }
+
+  /* ---------- device chain ---------- */
+  .devchain { background: var(--cx-surface-2); border-top: 1px solid var(--cx-line-1); display: flex; flex-direction: column; min-height: 0; position: relative; }
+  .devstrip { flex: 1; display: flex; align-items: stretch; overflow-x: auto; padding: 10px 12px; min-height: 0; }
+  .dev { width: 230px; flex: none; background: var(--cx-surface-3); border: 1px solid var(--cx-line-2); border-radius: var(--cx-radius-card); display: flex; flex-direction: column; position: relative; }
+  .dev .tick { position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 0 1px 1px 0; }
+  .dev > header { height: 26px; display: flex; align-items: center; gap: 7px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--cx-line-1); font-size: 11.5px; font-weight: 700; }
+  .dev > header .pwr { width: 11px; height: 11px; border-radius: 50%; border: 1px solid var(--cx-acid); background: var(--cx-acid); flex: none; }
+  .dev.off > header .pwr { background: transparent; border-color: var(--cx-line-2); }
+  .dev.off { opacity: .55; }
+  .dev > header .ab { margin-left: auto; font-size: 9.5px; color: var(--cx-text-3); border: 1px solid var(--cx-line-2); border-radius: 2px; padding: 1px 4px; }
+  .dev > header .ab b { color: var(--cx-acid); }
+  .dev .params { flex: 1; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 2px 6px; padding: 8px; overflow: hidden; }
+  .dev .mixrow { height: 22px; flex: none; border-top: 1px solid var(--cx-line-1); display: flex; align-items: center; gap: 6px; padding: 0 9px; font-size: 9.5px; color: var(--cx-text-3); }
+  .dev .mixrow .bar { flex: 1; height: 4px; background: var(--cx-line-1); border-radius: 2px; position: relative; }
+  .dev .mixrow .bar::after { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: var(--v, 100%); background: var(--cx-acid); border-radius: 2px; }
+  .arrow { align-self: center; padding: 0 5px; color: var(--cx-text-3); flex: none; font-size: 13px; }
+  .dropdev { width: 140px; flex: none; border: 1px dashed var(--cx-line-2); border-radius: var(--cx-radius-card); display: flex; align-items: center; justify-content: center; font-size: 10.5px; color: var(--cx-text-3); text-align: center; padding: 10px; }
+
+  /* ---------- statusbar ---------- */
+  .statusbar { display: flex; align-items: center; gap: 14px; padding: 0 12px; background: var(--cx-surface-2); border-top: 1px solid var(--cx-line-1); font-size: 11px; color: var(--cx-text-3); }
+  .statusbar .ok { width: 8px; height: 8px; border-radius: 50%; background: var(--cx-acid); }
+
+  /* ---------- overlays ---------- */
+  .histfloat { position: fixed; left: 306px; top: 56px; bottom: 300px; width: 300px; z-index: 200; flex-direction: column; background: var(--cx-surface-2); border: 1px solid var(--cx-line-2); border-radius: 6px; box-shadow: 0 16px 50px rgba(0,0,0,.65); overflow: hidden; }
+  .opsslide { position: fixed; right: 0; top: 40px; bottom: 268px; width: 380px; z-index: 200; flex-direction: column; background: var(--cx-surface-2); border-left: 1px solid var(--cx-line-2); box-shadow: -16px 0 50px rgba(0,0,0,.5); overflow-y: auto; }
+  .opsslide .opcard { margin: 10px 12px 0; }
+  .blendmenu-anchor { position: relative; }
+</style>
+</head>
+<body data-state="default">
+
+<div class="proto-badge">
+  <button onclick="document.body.classList.toggle('show-annos')">ⓘ annotations</button>
+  <a href="index.html">← index</a>
+</div>
+
+<div class="app">
+
+  <!-- TRANSPORT -->
+  <div class="transport">
+    <span class="btn btn--icon btn--on">▶</span>
+    <span class="btn btn--icon">⏹</span>
+    <span class="btn btn--icon">⟳</span>
+    <span class="tc">0:12.4 / 0:38.2</span>
+    <span class="chip">BPM <b style="color:var(--cx-text-1)">128</b></span>
+    <span class="btn btn--on" style="height:22px">S</span>
+    <span class="btn" style="height:22px">Q</span>
+    <span class="chip">1/8</span>
+    <span style="flex:1"></span>
+    <div class="view-toggle">
+      <button class="on" id="bt-session" onclick="setView(false)">SESSION</button>
+      <button id="bt-arrange" onclick="setView(true)">ARRANGE</button>
+    </div>
+    <span style="flex:1"></span>
+    <span class="chip chip--mod">PERFORM P</span>
+    <span class="chip chip--acid">⌘E EXPORT</span>
+  </div>
+
+  <!-- BODY -->
+  <div class="body">
+    <span class="anno" style="left:70px; top:8px;">BROWSER = Ableton left rail: fx/op/comp/tool/instr in one tree</span>
+
+    <!-- PERFORM banner -->
+    <div class="performbanner st-perform">
+      ⌨ PERFORM MODE — session slots + P1 pads keyboard-armed · launch-quantize 1/4
+      <span class="esc">Esc = panic-all</span>
+    </div>
+
+    <!-- BROWSER -->
+    <div class="browser">
+      <div class="search">⌕ search 193 effects…</div>
+      <div class="browser-tabs">
+        <span class="t on">FX</span><span class="t">OP</span><span class="t">COMP</span><span class="t">TOOL</span><span class="t">INSTR</span>
+      </div>
+      <div class="cats">
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-glitch)"></span>▸ Glitch <span class="n">31</span></header></div>
+        <div class="cat">
+          <header><span class="tick" style="background:var(--cx-cat-distortion)"></span>▾ Distortion <span class="n">24</span></header>
+          <ul><li>pixel_sort</li><li class="sel">datamosh</li><li>chromatic_pull</li><li>row_shift</li></ul>
+        </div>
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-color)"></span>▸ Color <span class="n">22</span></header></div>
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-temporal)"></span>▸ Temporal <span class="n">18</span></header></div>
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-modulation)"></span>▸ Modulation <span class="n">15</span></header></div>
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-texture)"></span>▸ Texture <span class="n">17</span></header></div>
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-destruction)"></span>▸ Destruction <span class="n">21</span></header></div>
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-enhance)"></span>▸ Codec Archaeology <span class="n">12</span></header></div>
+        <div class="cat"><header><span class="tick" style="background:var(--cx-cat-texture)"></span>▸ Emergent Systems <span class="n">14</span></header></div>
+      </div>
+    </div>
+
+    <!-- CENTER: SESSION GRID -->
+    <div class="center">
+      <div class="session">
+        <div class="tcol sel">
+          <header><span class="dot" style="background:var(--cx-cat-glitch)"></span>V1 · MAIN</header>
+          <div class="slots">
+            <div class="slot playing"><span class="go"></span>intro_run.mp4</div>
+            <div class="slot filled"><span class="go"></span>corrupt_a</div>
+            <div class="slot filled"><span class="go"></span>corrupt_b</div>
+            <div class="slot"><span class="go"></span></div>
+          </div>
+          <div class="mixer blendmenu-anchor">
+            <span class="blendbtn">Normal ▾</span>
+            <div class="mrow">
+              <div class="msr"><b>M</b><b class="s-on">S</b><b>R</b></div>
+              <div class="fader" style="--v:72%"></div>
+              <div class="bigmeter st-volume" style="--v:70%; --st-disp:block"></div>
+            </div>
+            <div class="stat"><span>OP</span><span>72%</span></div>
+            <div class="volx"><span>clip × track = 0.72 × 1.0</span><span class="chip chip--mod" style="align-self:flex-start">⌁ KENTARO·3 → op</span></div>
+
+            <!-- BLEND menu -->
+            <div class="menu st-blend" style="bottom:100%; left:6px; margin-bottom:4px;">
+              <div class="cap">BLEND MODE — V1 (terminal composite)</div>
+              <div class="mi sel">Normal</div>
+              <div class="mi">Add</div>
+              <div class="mi">Multiply</div>
+              <div class="mi" style="background:var(--cx-mod); color:#0B0B10">Screen</div>
+              <div class="mi">Overlay</div>
+              <div class="mi">Difference</div>
+              <div class="mi">Exclusion</div>
+              <div class="mi">Darken</div>
+              <div class="mi">Lighten</div>
+            </div>
+          </div>
+        </div>
+        <div class="tcol">
+          <header><span class="dot" style="background:var(--cx-cat-color)"></span>V2 · OVERLAY</header>
+          <div class="slots">
+            <div class="slot filled"><span class="go"></span>texture_01</div>
+            <div class="slot playing"><span class="go"></span>vhs_bed</div>
+            <div class="slot"><span class="go"></span></div>
+            <div class="slot filled"><span class="go"></span>grain_loop</div>
+          </div>
+          <div class="mixer">
+            <span class="blendbtn">Screen ▾</span>
+            <div class="mrow">
+              <div class="msr"><b>M</b><b>S</b><b>R</b></div>
+              <div class="fader" style="--v:45%"></div>
+              <div class="bigmeter st-volume" style="--v:40%; --st-disp:block"></div>
+            </div>
+            <div class="stat"><span>OP</span><span>45%</span></div>
+            <div class="volx"><span>screen · z-order 2</span></div>
+          </div>
+        </div>
+        <div class="tcol tcol--pads">
+          <header><span class="dot" style="background:var(--cx-mod)"></span>P1 · PADS ⌨</header>
+          <div class="slots">
+            <div class="slot filled"><span class="go"></span>sampler: kick_cut</div>
+            <div class="slot filled"><span class="go"></span>rack: stutter_kit</div>
+            <div class="slot filled"><span class="go"></span>granulator</div>
+            <div class="slot"><span class="go"></span></div>
+          </div>
+          <div class="bigpads">
+            <div class="bigpad lit"><span class="bk">Q</span>kick_cut<span class="bm">GATE</span></div>
+            <div class="bigpad"><span class="bk">W</span>stutter<span class="bm">1-SHOT</span></div>
+            <div class="bigpad hold"><span class="bk">E</span>freeze<span class="bm">TOGGLE</span></div>
+            <div class="bigpad"><span class="bk">R</span>gran_a<span class="bm">GATE</span></div>
+            <div class="bigpad"><span class="bk">A</span>gran_b<span class="bm">GATE</span></div>
+            <div class="bigpad rec"><span class="bk">S</span>morph<span class="bm">REC→AUTO</span></div>
+          </div>
+          <div class="mixer">
+            <span class="blendbtn">—instrument—</span>
+            <div class="mrow">
+              <div class="msr"><b>M</b><b>S</b><b class="r-on">R</b></div>
+              <div class="fader" style="--v:80%"></div>
+              <div class="bigmeter st-volume" style="--v:85%; --st-disp:block"></div>
+            </div>
+            <div class="stat"><span>MIDI ●</span><span>ch1</span></div>
+            <div class="volx"><span class="chip chip--red" style="align-self:flex-start">retro-capture armed</span></div>
+          </div>
+        </div>
+        <div class="tcol">
+          <header><span class="dot" style="background:var(--cx-cat-temporal)"></span>T1 · TEXT</header>
+          <div class="slots">
+            <div class="slot filled"><span class="go"></span>title_card</div>
+            <div class="slot"><span class="go"></span></div>
+            <div class="slot"><span class="go"></span></div>
+            <div class="slot"><span class="go"></span></div>
+          </div>
+          <div class="mixer">
+            <span class="blendbtn">Add ▾</span>
+            <div class="mrow">
+              <div class="msr"><b class="m-on">M</b><b>S</b><b>R</b></div>
+              <div class="fader" style="--v:100%"></div>
+              <div class="bigmeter st-volume" style="--v:0%; --st-disp:block"></div>
+            </div>
+            <div class="stat"><span>OP</span><span>100%</span></div>
+            <div class="volx"><span>muted — meter dark</span></div>
+          </div>
+        </div>
+        <div class="tcol">
+          <header><span class="dot" style="background:var(--cx-probe)"></span>A1 · AUDIO</header>
+          <div class="slots">
+            <div class="slot playing"><span class="go"></span>track_stem.wav</div>
+            <div class="slot"><span class="go"></span></div>
+            <div class="slot"><span class="go"></span></div>
+            <div class="slot"><span class="go"></span></div>
+          </div>
+          <div class="mixer">
+            <span class="blendbtn">—audio—</span>
+            <div class="mrow">
+              <div class="msr"><b>M</b><b>S</b><b>R</b></div>
+              <div class="fader" style="--v:62%"></div>
+              <div class="bigmeter st-volume" style="--v:74%; --st-disp:block"></div>
+              <div class="bigmeter st-volume" style="--v:68%; --st-disp:block"></div>
+            </div>
+            <div class="stat"><span>GAIN</span><span>-6.2 dB</span></div>
+            <div class="volx"><span>peak -3.1 · <b style="color:var(--cx-acid)">-14 LUFS</b> · TP -1.0</span><span class="chip chip--acid" style="align-self:flex-start">audio follower → dm.str 88</span></div>
+          </div>
+        </div>
+        <div class="scenes">
+          <header>SCENES</header>
+          <div class="slots">
+            <div class="slot filled">▶ 1</div>
+            <div class="slot filled">▶ 2</div>
+            <div class="slot filled">▶ 3</div>
+            <div class="slot">▶ 4</div>
+          </div>
+          <div class="mixer">
+            <div style="font-size:10px; color:var(--cx-text-3)">MASTER<br>launch-q 1/4</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ARRANGEMENT -->
+      <div class="arrange">
+        <div class="autobar st-automation">
+          <b style="color:var(--cx-mod)">AUTOMATION</b>
+          <span>domain</span>
+          <span class="mode"><b class="on">TIME</b><b>Y-SCAN</b><b>X-SCAN</b></span>
+          <span>mode</span>
+          <span class="mode"><b>R</b><b class="on">L</b><b>T</b><b>D</b></span>
+          <select><option>datamosh · strength</option><option>project · BPM</option></select>
+          <span style="flex:1"></span>
+          <span class="chip chip--red">LATCH recording</span>
+        </div>
+        <div class="ruler"><span>0:00</span><span>0:05</span><span>0:10</span><span>0:15</span><span>0:20</span><span>0:25</span><span>0:30</span><span>0:35</span></div>
+        <div class="rows">
+          <div class="playhead"></div>
+          <div class="arow">
+            <div class="hd"><span class="dot" style="background:var(--cx-cat-glitch)"></span>V1 · MAIN <span class="mini"><b>M</b><b>S</b><b>R</b></span></div>
+            <div class="lane">
+              <div class="aclip sel vthumb" style="left:2%; width:34%;">intro_run.mp4 <span class="chip chip--mod" style="font-size:8px">M2</span></div>
+              <div class="aclip vthumb" style="left:38%; width:28%;">corrupt_a</div>
+            </div>
+          </div>
+          <div class="arow auto autolane">
+            <div class="hd" style="font-size:10px; color:var(--cx-mod)">└ AUTO · datamosh.strength (T)</div>
+            <div class="lane">
+              <svg preserveAspectRatio="none" viewBox="0 0 100 20"><polyline points="0,16 20,14 38,4 55,9 78,3 100,12" fill="none" stroke="#8F7DFF" stroke-width="1"/><circle cx="38" cy="4" r="1.8" fill="#8F7DFF"/><circle cx="78" cy="3" r="1.8" fill="#8F7DFF"/></svg>
+            </div>
+          </div>
+          <div class="arow auto autolane st-automation">
+            <div class="hd" style="font-size:10px; color:var(--cx-mod)">└ AUTO · V1.opacity (T)</div>
+            <div class="lane"><svg preserveAspectRatio="none" viewBox="0 0 100 20"><polyline points="0,6 30,6 55,14 100,10" fill="none" stroke="#8F7DFF" stroke-width="1"/><circle cx="55" cy="14" r="1.8" fill="#8F7DFF"/></svg></div>
+          </div>
+          <div class="arow auto autolane st-automation">
+            <div class="hd" style="font-size:10px; color:var(--cx-red-text)">└ TRIG · pad.freeze · gate</div>
+            <div class="lane"><svg preserveAspectRatio="none" viewBox="0 0 100 20"><polyline points="0,17 22,17 22,5 34,5 34,17 62,17 62,5 73,5 73,17 100,17" fill="none" stroke="#E5484D" stroke-width="1"/></svg></div>
+          </div>
+          <div class="arow">
+            <div class="hd"><span class="dot" style="background:var(--cx-cat-color)"></span>V2 · OVERLAY <span class="mini"><b>M</b><b>S</b><b>R</b></span></div>
+            <div class="lane"><div class="aclip vthumb" style="left:12%; width:52%;">vhs_bed</div></div>
+          </div>
+          <div class="arow">
+            <div class="hd"><span class="dot" style="background:var(--cx-probe)"></span>A1 · AUDIO <span class="mini"><b>M</b><b>S</b></span></div>
+            <div class="lane"><div class="aclip" style="left:2%; width:80%; background:var(--cx-probe-wash); border-color:var(--cx-probe)">track_stem.wav ∿∿∿∿∿∿∿∿∿∿∿∿</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="preview">
+      <div class="panel-header">PREVIEW <span class="spacer"></span><span class="chip">1080p</span><span class="chip chip--acid">29.7 fps</span></div>
+      <div class="stage">
+        <div class="frame vthumb">
+          <div class="bbox"><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+      <div class="pctl">□ ◯ ✎ ⚡ ⌖ mask tools <span style="margin-left:auto">mask: 2 nodes · pop-out ⌘⇧P</span></div>
+    </div>
+  </div>
+
+  <!-- DEVICE CHAIN -->
+  <div class="devchain">
+    <div class="panel-header">
+      DEVICE CHAIN <span class="chip chip--mod">V1 · MAIN</span> <span class="chip">4 / 20</span>
+      <span class="spacer"></span>
+      <span class="chip chip--amber">FROZEN → 2</span>
+      <span class="chip chip--acid">6.2 ms</span>
+    </div>
+    <div class="devstrip">
+      <div class="dev">
+        <span class="tick" style="background:var(--cx-cat-color)"></span>
+        <header><span class="pwr"></span>chroma_key <span class="ab">A|<b>B</b></span> <span>×</span></header>
+        <div class="params">
+          <div class="knob"><div class="knob__ring" style="--v:35%"></div><span class="knob__label">hue</span><span class="knob__val">120°</span></div>
+          <div class="knob"><div class="knob__ring knob__ring--mod" style="--v:60%"></div><span class="knob__label">tol ⌁LFO1</span><span class="knob__val">0.42</span></div>
+          <div class="knob"><div class="knob__ring" style="--v:20%"></div><span class="knob__label">feather</span><span class="knob__val">8px</span></div>
+        </div>
+        <div class="mixrow">MASK <span class="chip chip--mod" style="font-size:8px">node-2 INV</span> MIX <span class="bar" style="--v:100%"></span></div>
+      </div>
+      <span class="arrow">→</span>
+      <div class="dev">
+        <span class="tick" style="background:var(--cx-cat-distortion)"></span>
+        <header><span class="pwr"></span>datamosh <span class="ab"><b>A</b>|B</span> <span>×</span></header>
+        <div class="params">
+          <div class="knob"><div class="knob__ring knob__ring--mod" style="--v:78%"></div><span class="knob__label">strength ⌁</span><span class="knob__val">0.78</span></div>
+          <div class="knob"><div class="knob__ring" style="--v:50%"></div><span class="knob__label">block</span><span class="knob__val">16</span></div>
+          <div class="knob"><div class="knob__ring" style="--v:66%"></div><span class="knob__label">Field…</span><span class="knob__val">img_04</span></div>
+        </div>
+        <div class="mixrow">MIX <span class="bar" style="--v:82%"></span> 82%</div>
+      </div>
+      <span class="arrow">→</span>
+      <div class="dev off">
+        <span class="tick" style="background:var(--cx-cat-temporal)"></span>
+        <header><span class="pwr"></span>frame_echo <span class="ab"><b>A</b>|B</span> <span>×</span></header>
+        <div class="params">
+          <div class="knob"><div class="knob__ring" style="--v:40%"></div><span class="knob__label">taps</span><span class="knob__val">4</span></div>
+          <div class="knob"><div class="knob__ring" style="--v:30%"></div><span class="knob__label">decay</span><span class="knob__val">.3</span></div>
+        </div>
+        <div class="mixrow">MIX <span class="bar" style="--v:100%"></span> 100%</div>
+      </div>
+      <span class="arrow">→</span>
+      <div class="dev">
+        <span class="tick" style="background:var(--cx-cat-enhance)"></span>
+        <header><span class="pwr"></span>composite <span class="ab"><b>A</b>|B</span></header>
+        <div class="params">
+          <div class="knob"><div class="knob__ring" style="--v:72%"></div><span class="knob__label">opacity</span><span class="knob__val">72%</span></div>
+          <div class="knob"><div class="knob__ring" style="--v:15%"></div><span class="knob__label">blend</span><span class="knob__val">normal</span></div>
+        </div>
+        <div class="mixrow">TERMINAL · track compositor</div>
+      </div>
+      <span class="arrow">→</span>
+      <div class="dropdev">drop effect / operator<br>⠿ from browser</div>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="statusbar">
+    <span class="ok"></span> ENGINE · 00:41:12 <span>1080p</span> <span>29.7fps</span> <span style="color:var(--cx-acid)">6.2ms</span>
+    <span style="flex:1"></span>
+    <span class="chip chip--mod">TOOL: SELECT (V)</span>
+    <span>mem 61%</span>
+  </div>
+</div>
+
+<!-- HISTORY floating panel -->
+<div class="histfloat st-history">
+  <div class="panel-header">HISTORY <span class="spacer"></span><span class="chip">⌘Z / ⌘⇧Z</span><span class="x">✕</span></div>
+  <div class="hlist">
+    <div class="hrow"><span class="hi">◷</span>Import intro_run.mp4</div>
+    <div class="hrow"><span class="hi">＋</span>Add track V2 · OVERLAY</div>
+    <div class="hrow"><span class="hi">⚡</span>Add effect chroma_key → V1</div>
+    <div class="hrow"><span class="hi">⚡</span>Add effect datamosh → V1</div>
+    <div class="hrow"><span class="hi">▶</span>Launch scene 2</div>
+    <div class="hrow"><span class="hi">◨</span>Blend V2 → Screen</div>
+    <div class="hrow"><span class="hi">⌁</span>Map AUDIO FLW → dm.strength</div>
+    <div class="hrow cur"><span class="hi">●</span>Set dm.strength 0.78<span class="hk">now</span></div>
+    <div class="hrow future"><span class="hi">○</span>Delete slot corrupt_b<span class="hk">⌘⇧Z</span></div>
+    <div class="hrow future"><span class="hi">○</span>Rename V2 → TEXTURES</div>
+  </div>
+</div>
+
+<!-- OPERATORS slide-in -->
+<div class="opsslide st-operators">
+  <div class="panel-header">OPERATORS (⌘⇧O) <span class="spacer"></span><span class="chip">+ LFO ▾</span><span class="x">✕</span></div>
+  <div class="opcard">
+    <header>LFO 1 <span class="chip chip--mod">sine</span><span class="sig" style="--v:80%"></span></header>
+    <div class="obody">
+      <div class="wave"><svg preserveAspectRatio="none" viewBox="0 0 100 40"><path d="M0,20 C12,2 24,2 36,20 C48,38 60,38 72,20 C84,2 96,2 100,12" fill="none" stroke="#C8F321" stroke-width="1.5"/></svg></div>
+      <div class="knob"><div class="knob__ring" style="--v:44%"></div><span class="knob__label">rate</span><span class="knob__val">0.8Hz</span></div>
+      <div class="knob"><div class="knob__ring" style="--v:62%"></div><span class="knob__label">depth</span><span class="knob__val">62%</span></div>
+    </div>
+  </div>
+  <div class="opcard">
+    <header>AUDIO FOLLOWER <span class="sig" style="--v:35%"></span></header>
+    <div class="obody">
+      <div class="wave"><svg preserveAspectRatio="none" viewBox="0 0 100 40"><path d="M0,36 L8,20 L14,30 L22,8 L30,26 L38,14 L46,32 L54,6 L62,24 L70,16 L78,30 L86,10 L94,28 L100,20" fill="none" stroke="#5FD7A8" stroke-width="1.2"/></svg></div>
+      <span class="chip chip--acid">src: A1</span>
+      <div class="knob"><div class="knob__ring knob__ring--mod" style="--v:88%"></div><span class="knob__label">→ dm.str</span><span class="knob__val">88</span></div>
+    </div>
+  </div>
+  <div class="opcard">
+    <header>KENTARO CLUSTER <span class="chip">8×LFO</span><span class="sig" style="--v:55%"></span></header>
+    <div class="obody">
+      <div class="wave"><svg preserveAspectRatio="none" viewBox="0 0 100 40"><path d="M0,20 Q10,0 20,20 T40,20 T60,20 T80,20 T100,20" fill="none" stroke="#8F7DFF" stroke-width="1"/><path d="M0,28 Q15,10 30,28 T60,28 T90,28" fill="none" stroke="#8F7DFF" stroke-width="1" opacity=".5"/></svg></div>
+      <span style="font-size:10px; color:var(--cx-text-3)">drag waves directly · → V1 opacity 45</span>
+    </div>
+  </div>
+  <div class="opcard" style="margin-bottom:12px">
+    <header style="color:var(--cx-mod)">MOD MATRIX</header>
+    <div class="obody" style="flex-direction:column; align-items:stretch; gap:5px; font-size:11px; color:var(--cx-text-2)">
+      <div style="display:flex; justify-content:space-between"><span>LFO1 → chroma.tol</span><b style="color:var(--cx-mod)">62</b></div>
+      <div style="display:flex; justify-content:space-between"><span>AUDIO FLW → dm.strength</span><b style="color:var(--cx-mod)">88</b></div>
+      <div style="display:flex; justify-content:space-between"><span>KENTARO·3 → V1.opacity</span><b style="color:var(--cx-mod)">45</b></div>
+      <div style="display:flex; justify-content:space-between"><span>ENV1 → sampler.scrub</span><b style="color:var(--cx-mod)">100</b></div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPORT modal -->
+<div class="scrim st-export">
+  <div class="dialog" style="width:560px">
+    <header>EXPORT (⌘E) <span class="chip chip--acid">preview/export parity: guaranteed</span><span class="x">✕</span></header>
+    <div class="exp-grid">
+      <span>codec</span><select><option>H.264 · MP4</option><option>ProRes 4444 (alpha)</option><option>GIF</option><option>Image sequence</option></select>
+      <span>resolution</span><select><option>1080p (project)</option><option>4K</option></select>
+      <span>frame rate</span><select><option>29.97 (source)</option><option>24</option></select>
+      <span>range</span><select><option>Scene 1–3 (session capture)</option><option>Loop region</option><option>Whole arrangement</option></select>
+      <span>audio</span><select><option>Mux A1 (AAC 320k)</option><option>None</option></select>
+    </div>
+    <div style="padding:0 16px 8px; display:flex; flex-direction:column; gap:8px">
+      <div style="display:flex; justify-content:space-between; font-size:11px; color:var(--cx-text-2)"><span>RENDER QUEUE — session_take_04.mp4</span><span>frame 412 / 1146 · ETA 0:42</span></div>
+      <div class="exp-progress" style="--v:36%"></div>
+    </div>
+    <footer>
+      <span style="margin-right:auto; font-size:11px; color:var(--cx-text-3)">~/Movies/creatrix/</span>
+      <span class="btn">Cancel</span>
+      <span class="btn btn--primary">Add to Queue</span>
+    </footer>
+  </div>
+</div>
+
+<!-- state captions -->
+<div class="state-caption st-blend"><b>BLEND:</b> the channel strip owns compositing — blend menu pops UP from the selected track's mixer, Ableton-style. Same 9 modes as the terminal composite device.</div>
+<div class="state-caption st-volume"><b>VOLUME:</b> every mixer strip expands into a full channel strip — fader + live meter per track (dB for audio, opacity% for video), LUFS/true-peak on A1. The DAW answer: volume is always one glance away.</div>
+<div class="state-caption st-perform"><b>PERFORM (P):</b> the pads column transforms into a live pad bank inside the grid — session slots and pads are peers. Banner shows arming; REC pad is retro-capturing to automation.</div>
+<div class="state-caption st-automation"><b>AUTOMATION (A):</b> auto-switches to ARRANGE (automation is a time-domain activity) — toolbar with T/Y/X domains + R/L/T/D, value and trigger lanes unfold under their tracks.</div>
+<div class="state-caption st-history"><b>HISTORY:</b> floating panel docked by the browser (matches the shipped HistoryPanel) — scrubbable undo stack, grayed steps redoable.</div>
+<div class="state-caption st-operators"><b>OPERATORS (⌘⇧O):</b> right slide-in rack — LFO/Follower/Kentaro editors with live signal meters + a compact matrix. Session grid stays visible for performing while patching.</div>
+<div class="state-caption st-export"><b>EXPORT (⌘E):</b> modal; range picker understands scenes (export a session capture) as well as loop/arrangement.</div>
+
+<!-- STATE SWITCHER -->
+<div class="statebar">
+  <span class="lbl">STATES</span>
+  <button data-s="default" class="on" onclick="setState('default')">DEFAULT</button>
+  <button data-s="blend" onclick="setState('blend')">BLEND</button>
+  <button data-s="volume" onclick="setState('volume')">VOLUME</button>
+  <button data-s="perform" onclick="setState('perform')">PERFORM</button>
+  <button data-s="automation" onclick="setState('automation')">AUTOMATION</button>
+  <button data-s="history" onclick="setState('history')">HISTORY</button>
+  <button data-s="operators" onclick="setState('operators')">OPERATORS</button>
+  <button data-s="export" onclick="setState('export')">EXPORT</button>
+</div>
+
+<script>
+  function setView(arr) {
+    document.body.classList.toggle('arrange-mode', arr);
+    document.getElementById('bt-session').classList.toggle('on', !arr);
+    document.getElementById('bt-arrange').classList.toggle('on', arr);
+  }
+  function setState(s) {
+    document.body.dataset.state = s;
+    document.querySelectorAll('.statebar button').forEach(b => b.classList.toggle('on', b.dataset.s === s));
+    // automation lives in the time domain → force arrange view; session states force session view
+    if (s === 'automation') setView(true);
+    if (s === 'blend' || s === 'volume' || s === 'perform') setView(false);
+  }
+  document.addEventListener('keydown', e => {
+    const map = {'1':'default','2':'blend','3':'volume','4':'perform','5':'automation','6':'history','7':'operators','8':'export'};
+    if (map[e.key]) setState(map[e.key]);
+    if (e.key === 'Escape') setState('default');
+  });
+</script>
+</body>
+</html>
