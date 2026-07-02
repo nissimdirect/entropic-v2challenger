@@ -2,15 +2,30 @@
 """Machine gate-check for the audio-tracks 1-week user bake (PD.1b).
 
 This script IS PD.2's un-flag gate. PASS (exit 0, prints ``BAKE GATE: PASS``)
-requires ALL of the following, computed over ``flag_on: true`` sessions newer
-than ``--since`` when given:
+requires ALL of the following, computed over sessions that are (a)
+``flag_on: true``, (b) real-usage ``app_mode`` (i.e. NOT ``"test"`` — see
+below), (c) ``duration_s >= 5`` (shorter sessions are noise: rapid
+start/stop cycles from tests or accidental double-clicks, not real playback),
+and (d) newer than ``--since`` when given:
 
-  1. >= 7 distinct local dates with >= 1 session
+  1. >= 7 distinct local dates with >= 1 counted session
   2. Sigma duration_s >= 7200 (>= 2h cumulative)
   3. Sigma callback_errors == 0
   4. zero malformed / unparseable lines in the file (a tampered or truncated
      line is a FAIL, not a skip)
   5. log file exists and is non-empty
+
+``app_mode`` filtering: a session's ``app_mode`` field is one of ``"packaged"``
+(shipped app), ``"dev"`` (electron-vite dev launch), ``"test"`` (automated
+Playwright/e2e run), or absent/unrecognized (treated as ``"unknown"`` for
+back-compat with records written before this field existed). Only
+``app_mode == "test"`` is excluded — "unknown" counts, so pre-existing real
+sessions from before this field shipped are not silently dropped.
+
+When zero sessions survive filtering entirely, the fail message reads
+"no real usage yet" rather than "under 7 days" — the two are different
+states: the former means the clock hasn't started, the latter means it has
+and just needs more time.
 
 Any failure -> exit 1 + the first failed criterion printed on stdout.
 
@@ -28,6 +43,8 @@ from pathlib import Path
 
 REQUIRED_DISTINCT_DAYS = 7
 REQUIRED_DURATION_S = 7200.0
+NOISE_DURATION_S = 5.0  # sessions shorter than this are excluded as noise
+EXCLUDED_APP_MODES = frozenset({"test"})  # automated test runs never count
 
 
 def _fail(msg: str) -> int:
@@ -88,6 +105,13 @@ def check_bake_gate(log_path: Path, since: str | None) -> tuple[bool, str]:
             duration_s = float(rec["duration_s"])
             callback_errors = int(rec["callback_errors"])
             flag_on = bool(rec["flag_on"])
+            # app_mode is additive (absent in pre-F6 records) — default to
+            # "unknown" rather than treating a missing/unrecognized value as
+            # malformed. Only a recognized-and-excluded value (currently
+            # "test") is filtered below.
+            app_mode = rec.get("app_mode", "unknown")
+            if not isinstance(app_mode, str):
+                app_mode = "unknown"
             if not isinstance(ts_start, str):
                 raise ValueError("ts_start not a string")
             local_date = _local_date_of(ts_start)
@@ -96,6 +120,12 @@ def check_bake_gate(log_path: Path, since: str | None) -> tuple[bool, str]:
 
         # Only flag_on sessions count toward the gate.
         if not flag_on:
+            continue
+        # Exclude automated-test provenance — never counts as real usage.
+        if app_mode in EXCLUDED_APP_MODES:
+            continue
+        # Exclude noise sessions (rapid start/stop, not real playback).
+        if duration_s < NOISE_DURATION_S:
             continue
         # Honor --since (inclusive) on the session's local date.
         if since_date is not None and local_date < since_date:
@@ -107,6 +137,8 @@ def check_bake_gate(log_path: Path, since: str | None) -> tuple[bool, str]:
 
     # Criterion 1: distinct days.
     if len(distinct_days) < REQUIRED_DISTINCT_DAYS:
+        if len(distinct_days) == 0:
+            return False, "no real usage yet (0 sessions counted after filtering)"
         return False, (
             f"under 7 days ({len(distinct_days)} distinct day(s), "
             f"need {REQUIRED_DISTINCT_DAYS})"
@@ -128,7 +160,16 @@ def check_bake_gate(log_path: Path, since: str | None) -> tuple[bool, str]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Audio-tracks bake gate check.")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Audio-tracks bake gate check. Counts flag_on sessions with "
+            f"app_mode != 'test' and duration_s >= {NOISE_DURATION_S:.0f}s "
+            "(app_mode absent/unrecognized counts as real usage for "
+            "back-compat with pre-F6 records). Needs "
+            f">= {REQUIRED_DISTINCT_DAYS} distinct days, "
+            f">= {REQUIRED_DURATION_S:.0f}s cumulative, 0 callback errors."
+        )
+    )
     parser.add_argument("--log", required=True, help="path to audio-bake-log.jsonl")
     parser.add_argument(
         "--since", default=None, help="only count sessions on/after YYYY-MM-DD"

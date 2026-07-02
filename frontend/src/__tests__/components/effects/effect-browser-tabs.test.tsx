@@ -16,6 +16,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent, act } from '@testing-library/react'
 import { setupMockEntropic, teardownMockEntropic } from '../../helpers/mock-entropic'
 
+import { useLayoutStore } from '../../../renderer/stores/layout'
 import EffectBrowser, {
   EFFECT_DRAG_TYPE,
   CREATRIX_NONCE_TYPE,
@@ -43,6 +44,10 @@ const ALL_EFFECTS = [...FX_EFFECTS, ...COMPOSITE_EFFECTS]
 function resetStores() {
   useBrowserStore.setState({ activeTab: 'fx' })
   useToastStore.setState({ toasts: [] })
+  // T1 (2026-07-02): cursorTool moved from EffectBrowser local useState to
+  // useLayoutStore (module-singleton) — must reset explicitly between tests
+  // now, since it no longer resets for free on component unmount.
+  useLayoutStore.setState({ cursorTool: 'select' })
 }
 
 beforeEach(() => {

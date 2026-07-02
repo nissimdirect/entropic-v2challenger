@@ -15,15 +15,28 @@ Line schema (``schema: 1``)::
       "duration_s": <float>,
       "device": "<sounddevice device name>",
       "callback_errors": <int session delta>,
-      "flag_on": <bool>
+      "flag_on": <bool>,
+      "app_mode": "<packaged|dev|test|unknown>"
     }
+
+``app_mode`` is additive (schema stays ``1`` — old readers that ignore unknown
+keys are unaffected). It is provenance, not the isolation mechanism: it lets
+``scripts/check_bake_gate.py`` exclude automated-test sessions from the real-
+usage clock. Records written before this field existed, or written by a bare
+``python main.py`` invocation with no Electron parent, have no ``app_mode``
+key at all — readers must default missing/unrecognized values to
+``"unknown"`` (back-compat) rather than treating that as malformed.
 
 HARD REQUIREMENT — fail-silent: every filesystem / serialization operation here
 is wrapped so that an I/O error appending the log NEVER raises into the audio
 start/stop path. A broken log must never kill playback. The log is append-only
 (``open(..., "a")`` + flush per line).
 
-Test override: set ``CREATRIX_BAKE_LOG=<path>`` to redirect the log file.
+Test override: set ``CREATRIX_BAKE_LOG=<path>`` to redirect the log file. The
+backend test suite sets this suite-wide via an autouse fixture in
+``tests/conftest.py`` so no test — not just the ones that opt in — can ever
+append to the real ``~/.creatrix/audio-bake-log.jsonl`` (F6 audit finding: the
+full pytest run was contaminating the real bake log).
 """
 
 from __future__ import annotations
@@ -39,6 +52,8 @@ log = logging.getLogger(__name__)
 SCHEMA_VERSION = 1
 
 _DEFAULT_LOG_PATH = Path.home() / ".creatrix" / "audio-bake-log.jsonl"
+
+VALID_APP_MODES = ("packaged", "dev", "test")
 
 
 def bake_log_path() -> Path:
@@ -63,6 +78,26 @@ def now_iso() -> str:
         return ""
 
 
+def resolve_app_mode() -> str:
+    """Resolve the ``app_mode`` provenance tag from ``CREATRIX_APP_MODE``.
+
+    Set by the Electron main process on the sidecar's spawn env
+    (``frontend/src/main/python.ts`` — ``resolveAppMode()``), so a bake-log
+    line can be traced to a packaged build, a dev launch, or an automated
+    Playwright/e2e test run. Falls back to ``"unknown"`` when the env var is
+    absent or holds an unrecognized value — e.g. a bare ``python main.py``
+    invocation with no Electron parent, or a pytest run that (by design) never
+    sets this var to a real-usage value. Never raises.
+    """
+    try:
+        val = os.environ.get("CREATRIX_APP_MODE", "").strip().lower()
+        if val in VALID_APP_MODES:
+            return val
+    except Exception:  # pragma: no cover — os.environ access should not fail
+        pass
+    return "unknown"
+
+
 def append_session(
     *,
     ts_start: str,
@@ -71,8 +106,13 @@ def append_session(
     device: str,
     callback_errors: int,
     flag_on: bool,
+    app_mode: str | None = None,
 ) -> bool:
     """Append one bake-session JSONL line. Fail-silent.
+
+    ``app_mode`` defaults to ``resolve_app_mode()`` (reads ``CREATRIX_APP_MODE``)
+    when omitted, so existing callers that don't pass it still get correct
+    provenance without a call-site change.
 
     Returns True on a successful write, False if anything went wrong (the
     failure is swallowed and logged at debug level — it never propagates into
@@ -87,6 +127,7 @@ def append_session(
             "device": str(device),
             "callback_errors": int(callback_errors),
             "flag_on": bool(flag_on),
+            "app_mode": app_mode if app_mode is not None else resolve_app_mode(),
         }
         line = json.dumps(record, separators=(",", ":"))
         path = bake_log_path()

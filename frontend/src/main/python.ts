@@ -23,6 +23,24 @@ export interface PythonPorts {
   token: string
 }
 
+/**
+ * Resolve the app-mode provenance tag passed to the Python sidecar as
+ * CREATRIX_APP_MODE. Read by backend/src/audio/bake_log.py so the audio
+ * bake-gate (scripts/check_bake_gate.py) can exclude automated-test sessions
+ * from the real-usage clock (F6 audit finding).
+ *
+ * NODE_ENV=test takes priority over isPackaged: Playwright's electron-e2e
+ * fixture launches the unpacked dev build (app.isPackaged is false) with
+ * NODE_ENV=test set on the Electron process env
+ * (frontend/tests/e2e/fixtures/electron-app.fixture.ts) — without this
+ * priority, e2e sessions would misclassify as "dev" real usage instead of
+ * "test".
+ */
+export function resolveAppMode(isPackaged: boolean, nodeEnv: string | undefined): string {
+  if (nodeEnv === 'test') return 'test'
+  return isPackaged ? 'packaged' : 'dev'
+}
+
 export function spawnPython(): Promise<PythonPorts> {
   return new Promise((resolve, reject) => {
     const isDev = !app.isPackaged
@@ -45,9 +63,11 @@ export function spawnPython(): Promise<PythonPorts> {
     logger.info('[Python] spawn config', { isDev, backendDir, pythonPath, args })
 
     const srcDir = path.join(backendDir, 'src')
+    const appMode = resolveAppMode(app.isPackaged, process.env.NODE_ENV)
     pythonProcess = spawn(pythonPath, args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd: srcDir,
+      env: { ...process.env, CREATRIX_APP_MODE: appMode },
     })
 
     pythonProcess.stderr?.on('data', (data: Buffer) => {

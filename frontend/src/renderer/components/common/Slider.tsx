@@ -1,6 +1,6 @@
 import React, { useState, useRef, useCallback } from 'react'
 import type { ParamCurve } from '../../../shared/types'
-import { valueToSlider, sliderToValue } from '../../utils/paramScaling'
+import { valueToSlider, sliderToValue, formatParamValue } from '../../utils/paramScaling'
 import NumberInput from './NumberInput'
 
 interface SliderProps {
@@ -92,8 +92,7 @@ export default function Slider({
     }
   }, [value, range, onChange, clampAndRound])
 
-  const formatted = type === 'int' ? Math.round(value).toString() : value.toFixed(2)
-  const display = unit ? `${formatted}${unit}` : formatted
+  const display = formatParamValue(value, type, unit, max)
 
   return (
     <div className="hslider" title={description}>

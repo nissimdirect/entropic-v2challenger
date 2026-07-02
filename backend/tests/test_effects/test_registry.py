@@ -149,3 +149,23 @@ class TestReservedParamNamespace:
                 f"Effect {effect['id']!r} declares reserved param key(s): "
                 f"{reserved}. Rename without leading underscore."
             )
+
+
+def test_registrations_from_prior_tests_do_not_leak():
+    """F4b regression: registry mutations must not survive past the test
+    that made them.
+
+    `test_register_allows_normal_param_keys` (above) registers
+    `test._reserved_namespace_ok` with a bad-signature `_noop` fn. Without
+    the `_restore_effect_registry` autouse fixture in
+    `tests/test_effects/conftest.py`, that entry would persist in the
+    shared global registry and crash
+    `test_integration.py::test_all_effects_process_without_crash` whenever
+    pytest-xdist scheduled both files onto the same worker.
+    """
+    leaked = [e["id"] for e in list_all() if e["id"].startswith("test.")]
+    assert not leaked, (
+        f"Test-only effect id(s) leaked into the shared registry: {leaked}. "
+        f"The directory-local autouse registry-restore fixture "
+        f"(tests/test_effects/conftest.py) should have reverted this."
+    )

@@ -71,7 +71,12 @@
   flex-shrink: 0;
   height: var(--cx-device-chain-h, 180px);
   min-height: 0;
-  overflow: hidden;
+  /* UAT P4: was `overflow: hidden`, which clipped a tall instrument device
+     editor + selected clip's MaskStackPanel instead of letting the user
+     reach the cut-off controls. Scroll internally at the fixed row height
+     rather than clipping (mirrors .cx-inspector-state's overflow-y:auto
+     convention above). */
+  overflow-y: auto;
 }
 
 /* Horizontal handles inside cx-right-col */

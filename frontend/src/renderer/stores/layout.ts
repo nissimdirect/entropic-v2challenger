@@ -1,5 +1,10 @@
 import { create } from 'zustand'
 import { clampFinite } from '../../shared/numeric'
+// T1 (2026-07-02): type-only import — erased at compile time, so this does NOT
+// create a runtime circular dependency even though EffectBrowser.tsx imports
+// useLayoutStore below. CursorTool stays defined in EffectBrowser.tsx (its
+// canonical owner); the layout store just promotes the VALUE to shared state.
+import type { CursorTool } from '../components/effects/EffectBrowser'
 
 interface PopOutBounds {
   x: number
@@ -27,6 +32,14 @@ interface LayoutState {
    * and timeline-quantize are different concerns that can be toggled independently.
    */
   launchQuantizeEnabled: boolean
+  /**
+   * T1 (2026-07-02): single source of truth for the active cursor tool,
+   * promoted from EffectBrowser's local useState so keyboard shortcuts
+   * (App.tsx) and click handlers (Clip.tsx, TimeRuler.tsx) can read/write
+   * the same value. NOT persisted — resets to 'select' every session,
+   * matching quantizeEnabled/launchQuantizeEnabled (ephemeral UI mode).
+   */
+  cursorTool: CursorTool
   toggleSidebar: () => void
   toggleTimeline: () => void
   setTimelineHeight: (h: number) => void
@@ -40,6 +53,8 @@ interface LayoutState {
   toggleSnap: () => void
   /** B10.2: Toggle launch-quantize for performance-track pad triggers. */
   toggleLaunchQuantize: () => void
+  /** T1: set the active cursor tool (see `cursorTool` doc above). */
+  setCursorTool: (tool: CursorTool) => void
   // Creatrix grid layout vars (F_CREATRIX_LAYOUT) — P3.1
   leftColW: number
   inspectorH: number
@@ -155,6 +170,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   quantizeDivision: 4, // 1/4 note
   snapEnabled: persisted.snapEnabled ?? true, // on by default
   launchQuantizeEnabled: false, // B10.2: OFF by default (B10 spec §15)
+  cursorTool: 'select', // T1: OFF-by-default select tool, not persisted
   // Creatrix layout vars — P3.1
   leftColW: persistedCx.leftColW ?? CX_LEFT_COL_W.def,
   inspectorH: persistedCx.inspectorH ?? CX_INSPECTOR_H.def,
@@ -220,6 +236,11 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   // B10.2: Toggle launch-quantize (not persisted — off by default every session)
   toggleLaunchQuantize: () => {
     set({ launchQuantizeEnabled: !get().launchQuantizeEnabled })
+  },
+
+  // T1: set active cursor tool (not persisted — every session starts on 'select')
+  setCursorTool: (tool: CursorTool) => {
+    set({ cursorTool: tool })
   },
 
   // Creatrix resize actions — P3.1
