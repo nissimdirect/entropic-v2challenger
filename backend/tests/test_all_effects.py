@@ -237,6 +237,13 @@ class TestAllEffectsVisibleChange:
         "fx.sidechain_crossfeed",
         "fx.sidechain_gate",
         "fx.sidechain_interference",
+        # 53-transitions content sprint (docs/addendums/LAYER-TRANSITIONS.md):
+        # transitions read the incoming layer via the same `_sidechain_frame`
+        # convention as the sidechain effects above — no key frame present
+        # (as in this generic sweep) means identity passthrough by design.
+        "fx.transition_column_cascade",
+        "fx.transition_column_cascade_reverse",
+        "fx.transition_row_waterfall",
         # Stateful effects that may not visibly change on frame_index=0
         "fx.logistic_generation_loss",
         "fx.datamosh",

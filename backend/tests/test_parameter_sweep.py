@@ -250,6 +250,13 @@ class TestParameterSweep:
             "fx.reaction_mosh",
             "fx.resonant_paulstretch",
             "fx.temporal_dispersion",
+            # 53-transitions content sprint: transitions blend toward a
+            # `_sidechain_frame` key (see fx.sidechain_* above) — with no key
+            # frame present (as in this generic sweep) they short-circuit to
+            # identity regardless of `progress`/`edge_softness`.
+            "fx.transition_column_cascade",
+            "fx.transition_column_cascade_reverse",
+            "fx.transition_row_waterfall",
         }
         if eid in STATEFUL_FRAME0:
             pytest.skip(

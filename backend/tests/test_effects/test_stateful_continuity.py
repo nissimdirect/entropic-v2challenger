@@ -78,6 +78,13 @@ INPUT_CONDITIONAL_EFFECT_IDS = {
     # probabilistic schedule. Default rate is low; 10 frames may not hit
     # a spray event.
     "fx.subliminal_spray": "probabilistic injection at low default rate — needs longer sequence to fire",
+    # 53-transitions content sprint (docs/plans/transitions-pattern.md):
+    # transitions blend toward a `_sidechain_frame` key layer, same as the
+    # fx.sidechain_* entries above — not populated in this isolated chain,
+    # so they short-circuit to exact identity regardless of `progress`.
+    "fx.transition_column_cascade": "reveals a `_sidechain_frame` key layer — not present in isolated chain",
+    "fx.transition_column_cascade_reverse": "reveals a `_sidechain_frame` key layer — not present in isolated chain",
+    "fx.transition_row_waterfall": "reveals a `_sidechain_frame` key layer — not present in isolated chain",
 }
 
 # Number of frames to run. 10 is enough for stateful effects to accumulate

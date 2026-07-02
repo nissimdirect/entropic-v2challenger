@@ -440,6 +440,16 @@ def _auto_register():
         temporal_dispersion,
     )
 
+    # 53-transitions content sprint (docs/addendums/LAYER-TRANSITIONS.md,
+    # ROADMAP.md §2.5 decision 2): first 3 transitions establish the pattern
+    # documented in docs/plans/transitions-pattern.md. Remaining 50 append
+    # here the same way.
+    from effects.fx import (
+        transition_column_cascade,
+        transition_column_cascade_reverse,
+        transition_row_waterfall,
+    )
+
     phase12_mods = [
         subliminal,
         ascii_phantom,
@@ -450,6 +460,9 @@ def _auto_register():
         histogram_attractor,
         reaction_mosh,
         temporal_dispersion,
+        transition_column_cascade,
+        transition_column_cascade_reverse,
+        transition_row_waterfall,
     ]
 
     # Dev-only effects (UAT crash testing)
