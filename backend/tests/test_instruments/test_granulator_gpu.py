@@ -132,6 +132,7 @@ def test_gpu_vs_cpu_pixel_tolerance(density):
 
 
 @requires_mlx
+@pytest.mark.perf  # wall-clock ms budget — flakes under parallel load (F4c 2026-07-02); CI runs -m 'not perf'
 def test_gpu_pass_200_grains_1080p_under_16ms():
     """Median GPU grain-composite over 100 frames < 16ms (one 60fps frame) at
     200 grains, 1080p, on this M-series Mac. RECORDS the median for the PR table.
