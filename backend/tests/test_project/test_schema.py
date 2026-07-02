@@ -5,7 +5,13 @@ import pathlib
 
 import pytest
 
-from project.schema import deserialize, new_project, serialize, validate
+from project.schema import (
+    V2_UNSUPPORTED_MESSAGE,
+    deserialize,
+    new_project,
+    serialize,
+    validate,
+)
 
 pytestmark = pytest.mark.smoke
 
@@ -333,20 +339,22 @@ _V2_LEGACY_FIXTURE = (
 
 
 def test_v2_legacy_fixture_rejected_with_unsupported_message_no_traceback():
-    """v2 legacy fixture rejected with 'v2 projects unsupported' message, no traceback."""
+    """v2 legacy fixture rejected with the contractual unsupported-format message,
+    no traceback (assert against the constant so a copy rewrite can't silently
+    break the contract)."""
     raw = _V2_LEGACY_FIXTURE.read_text()
 
     # deserialize must raise a ValueError carrying the contractual message — a
     # clean rejection, NOT an uncaught crash. Assert the message text verbatim.
     with pytest.raises(ValueError) as excinfo:
         deserialize(raw)
-    assert "v2 projects unsupported — start a new project" in str(excinfo.value)
+    assert V2_UNSUPPORTED_MESSAGE in str(excinfo.value)
 
     # validate() (the non-raising path) returns exactly the contractual error and
     # short-circuits — no traceback, no partial structure leaking through.
     project = json.loads(raw)
     errors = validate(project)
-    assert errors == ["v2 projects unsupported — start a new project"]
+    assert errors == [V2_UNSUPPORTED_MESSAGE]
 
 
 def test_v2_legacy_fixture_is_actually_v2():
@@ -396,8 +404,20 @@ def test_forged_version_prefix_rejected_not_skipped():
 
     base = _load_v2_legacy_dict() if "_load_v2_legacy_dict" in dir() else None
     for forged in ("v2.0.0", "x3.0.0", "A2.0.0", " v2.0.0"):
-        project = {"version": forged, "id": "p", "created": 1, "modified": 1,
-                   "settings": {}, "assets": {}, "timeline": {"duration": 0, "tracks": [], "markers": [], "loopRegion": None}}
+        project = {
+            "version": forged,
+            "id": "p",
+            "created": 1,
+            "modified": 1,
+            "settings": {},
+            "assets": {},
+            "timeline": {
+                "duration": 0,
+                "tracks": [],
+                "markers": [],
+                "loopRegion": None,
+            },
+        }
         errors = schema.validate(copy.deepcopy(project))
         assert any("Invalid version format" in e for e in errors), (
             f"forged version {forged!r} produced no version error: {errors}"
@@ -407,6 +427,7 @@ def test_forged_version_prefix_rejected_not_skipped():
 def test_numeric_version_strings_still_parse():
     """Sanity: digit-headed versions keep their existing semantics."""
     from project import schema
+
     assert schema._major_version("3.0.0") == 3
     assert schema._major_version("2.0.0") == 2
     assert schema._major_version("10.1") == 10
@@ -436,8 +457,14 @@ def test_project_without_performance_is_unchanged():
 def test_project_load_rejects_event_referencing_unknown_instrumentid():
     """project load rejects event referencing unknown instrumentId (§10 P1-2)."""
     events = [
-        {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100,
-         "kind": "trigger", "instrumentId": "ghost-instrument"},
+        {
+            "frameIndex": 0,
+            "eventIndex": 0,
+            "note": 60,
+            "velocity": 100,
+            "kind": "trigger",
+            "instrumentId": "ghost-instrument",
+        },
     ]
     p = _project_with_performance(events, instruments={"sampler-1": {}})
     errors = validate(p)
@@ -446,8 +473,14 @@ def test_project_load_rejects_event_referencing_unknown_instrumentid():
 
 def test_project_load_accepts_event_referencing_known_instrumentid():
     events = [
-        {"frameIndex": 5, "eventIndex": 0, "note": 60, "velocity": 100,
-         "kind": "trigger", "instrumentId": "sampler-1"},
+        {
+            "frameIndex": 5,
+            "eventIndex": 0,
+            "note": 60,
+            "velocity": 100,
+            "kind": "trigger",
+            "instrumentId": "sampler-1",
+        },
     ]
     p = _project_with_performance(events, instruments={"sampler-1": {}})
     assert validate(p) == []
@@ -455,10 +488,38 @@ def test_project_load_accepts_event_referencing_known_instrumentid():
 
 def test_project_load_rejects_malformed_event_fields():
     for bad in [
-        {"frameIndex": -1, "eventIndex": 0, "note": 60, "velocity": 100, "kind": "trigger", "instrumentId": "sampler-1"},
-        {"frameIndex": 0, "eventIndex": 0, "note": 999, "velocity": 100, "kind": "trigger", "instrumentId": "sampler-1"},
-        {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 999, "kind": "trigger", "instrumentId": "sampler-1"},
-        {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100, "kind": "boom", "instrumentId": "sampler-1"},
+        {
+            "frameIndex": -1,
+            "eventIndex": 0,
+            "note": 60,
+            "velocity": 100,
+            "kind": "trigger",
+            "instrumentId": "sampler-1",
+        },
+        {
+            "frameIndex": 0,
+            "eventIndex": 0,
+            "note": 999,
+            "velocity": 100,
+            "kind": "trigger",
+            "instrumentId": "sampler-1",
+        },
+        {
+            "frameIndex": 0,
+            "eventIndex": 0,
+            "note": 60,
+            "velocity": 999,
+            "kind": "trigger",
+            "instrumentId": "sampler-1",
+        },
+        {
+            "frameIndex": 0,
+            "eventIndex": 0,
+            "note": 60,
+            "velocity": 100,
+            "kind": "boom",
+            "instrumentId": "sampler-1",
+        },
     ]:
         p = _project_with_performance([bad], instruments={"sampler-1": {}})
         assert validate(p), f"expected rejection for {bad}"
@@ -467,8 +528,14 @@ def test_project_load_rejects_malformed_event_fields():
 def test_project_load_panic_event_exempt_from_instrument_check():
     """A global panic event needs no matching instrument."""
     events = [
-        {"frameIndex": 0, "eventIndex": 0, "note": 0, "velocity": 0,
-         "kind": "panic", "instrumentId": "anything"},
+        {
+            "frameIndex": 0,
+            "eventIndex": 0,
+            "note": 0,
+            "velocity": 0,
+            "kind": "panic",
+            "instrumentId": "anything",
+        },
     ]
     p = _project_with_performance(events, instruments={"sampler-1": {}})
     assert validate(p) == []

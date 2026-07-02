@@ -1221,23 +1221,54 @@ class ZMQServer:
         P2.2c (Decision D1 clean break): video-track compositing moved out of
         layer-level `opacity`/`blend_mode` fields (the removed `Track.opacity` /
         `Track.blendMode`) into a TERMINAL `composite` effect on the chain. The
-        v2-era signature is a VIDEO layer that carries an effect chain (a real
-        track-clip context) AND orphaned top-level `opacity`/`blend_mode` AND no
-        terminal composite — that is a pre-v3 payload, rejected loudly (no crash,
-        sidecar stays alive) rather than silently honored.
+        v2-era signature is a VIDEO CLIP that carries a real effect chain AND
+        orphaned top-level `opacity`/`blend_mode` AND no terminal composite — that
+        is a pre-v3 payload, rejected loudly (no crash, sidecar stays alive) rather
+        than silently honored.
 
         Deliberately NARROW so legitimate v3 layers are never flagged:
+          * VOICE layers are exempt (P1-B) — instrument/sampler/rack/frame-bank/
+            granulator voices carry a voice MARKER (`voice_id`, or a `voice:` /
+            `framebank:` `layer_id`) and legitimately use top-level opacity/blend
+            with ANY chain (a rack pad's per-pad INSERT chain rides its voice layer
+            with no terminal composite). The compositor reads their opacity/blend
+            from the top-level fields (`:1630-1633`), so exempting them here keeps
+            preview == export with zero frontend-builder changes. This is the first
+            check so it wins over the video-shape branches below.
           * `layer_type != "video"` (text) is exempt — text composites in normal
             mode and forwards its fade via `clip_opacity`.
-          * An EMPTY chain is exempt — that is the sampler/instrument voice path
-            (and the no-clip fallback), which legitimately carries instrument-level
-            opacity/blend_mode and never had Track-level compositing.
+          * An EMPTY chain is exempt (P1-B) — the sampler/instrument voice path AND
+            the silent-track no-clip fallback (`buildSamplerLayer`, which emits NO
+            voice_id so the marker check above cannot catch it). NOTE: the v2-era
+            builder ALSO emitted an empty chain for an EFFECT-LESS track carrying
+            top-level opacity/blend (git 316a207~1 App.tsx:895), so this branch DOES
+            admit that empty-chain v2 clip. That is safe — with no terminal composite
+            the compositor's `_resolve_compositing` (compositor.py) reads the SAME
+            clamped top-level opacity + `BLEND_MODES`-validated (normal-fallback) mode
+            for the v2 clip and a legitimate voice alike, so the two render
+            byte-identically. This is verified in the regression suite.
           * A chain ENDING in a terminal composite is exempt — it is v3-shaped even
             if a belt-and-suspenders sender also passed stray top-level fields.
-        Only a video layer with a NON-EMPTY chain, top-level opacity/blend_mode, and
-        no terminal composite is the v2 track-clip shape we reject.
+        Only a marker-less video layer with a NON-EMPTY chain, top-level
+        opacity/blend_mode, and no terminal composite is the v2 shape we reject.
+
+        Trust boundary: a FORGED voice-marker on a genuine v2 clip IS exempted here,
+        but that is not a vulnerability and does NOT rely on load-time rejection —
+        `render_composite` arrives over IPC, where `schema.MIN_SUPPORTED_MAJOR` never
+        runs. The admitted layer renders CORRECTLY via the clamped
+        `_resolve_compositing` fallback (identical to the legitimate voice path), and
+        the render endpoint is a 127.0.0.1 ZMQ socket gated by per-session token auth
+        — that, not this shape check, is the security boundary.
         """
         if not isinstance(layer_info, dict):
+            return False
+        # P1-B voice-marker exemption (FIRST — wins over the video-shape checks).
+        if layer_info.get("voice_id"):
+            return False
+        layer_id = layer_info.get("layer_id")
+        if isinstance(layer_id, str) and (
+            layer_id.startswith("voice:") or layer_id.startswith("framebank:")
+        ):
             return False
         if layer_info.get("layer_type", "video") != "video":
             return False
@@ -1246,11 +1277,16 @@ class ZMQServer:
             return False
         chain = layer_info.get("chain") or []
         if not chain:
-            # red-team HT-2: an EMPTY-chain VIDEO layer carrying top-level
-            # opacity/blend_mode is a v2 shape — only non-video layers
-            # (sampler/instrument voices, no-clip fallbacks) legitimately use the
-            # top-level fields with no chain.
-            return layer_info.get("layer_type", "video") == "video"
+            # P1-B (reverses the original red-team HT-2 rejection): admit an
+            # EMPTY-chain video layer. It is normally an instrument/sampler voice or
+            # the silent-track no-clip fallback — but the v2-era builder ALSO emitted
+            # chain:[] for an effect-less track (git 316a207~1 App.tsx:895), so an
+            # empty-chain v2 clip is admitted too. Safe: with no terminal composite,
+            # _resolve_compositing (compositor.py) applies identical clamped v2/v3
+            # semantics (clamped opacity + normal-fallback blend), so it renders
+            # byte-identically to the legitimate voice path. Not relying on load-time
+            # rejection — render_composite is IPC-only (localhost + token auth).
+            return False
         terminal = chain[-1]
         has_terminal_composite = (
             isinstance(terminal, dict) and terminal.get("effect_id") == "composite"

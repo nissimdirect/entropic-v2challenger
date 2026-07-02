@@ -25,7 +25,7 @@ const V2_FIXTURE_PATH = join(
 )
 const v2FixtureJson = readFileSync(V2_FIXTURE_PATH, 'utf-8')
 
-const V2_UNSUPPORTED_MESSAGE = 'v2 projects unsupported — start a new project'
+const V2_UNSUPPORTED_MESSAGE = "Unsupported project format (v2 / pre-3.0) — this version can't open it."
 
 const mockEntropic = {
   onEngineStatus: () => {},
