@@ -86,6 +86,7 @@ import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
+import { evaluateTransformOverrides, mergeTransformOverride } from './utils/transformLanes'
 // H1 (2026-07-02 master-tuneup WS5): focused-mapping-context statusbar chip —
 // the foundation the hardware-bank system (H2+) keys off. See
 // utils/focusContext.ts (derivation) + components/layout/MappingContextChip.tsx.
@@ -1144,6 +1145,14 @@ function AppInner() {
           ? evaluateAutomationOverrides(allLanes, currentTime, registry)
           : undefined
 
+        // A1+A2: resolve clip-transform lanes at the playhead → per-clip partial
+        // transforms (keyed by clipId). Folded onto each clip's base transform
+        // below (mergeTransformOverride). Empty when no transform lanes exist, so
+        // the render payload is byte-identical to today (regression guard).
+        const transformOverrides = allLanes.length > 0
+          ? evaluateTransformOverrides(allLanes, currentTime)
+          : undefined
+
         // P6.6: build axis_lanes payload for Y/X-domain lanes. Sampled curve
         // profiles ride to the backend banded-render (P6.1). Only attached when
         // non-empty (don't bloat every render IPC with []).
@@ -1337,7 +1346,11 @@ function AppInner() {
             const clipFrame = Math.max(0, Math.round(
               (srcTime * (clip.speed || 1) + clip.inPoint) * activeFps,
             ))
-            const ct = clip.transform
+            // A1+A2: fold clip-transform lane values onto the base transform for
+            // this frame (a lane value REPLACES the field it drives; unautomated
+            // fields keep the base). tov undefined → ct === base (byte-identical).
+            const tov = transformOverrides?.[clip.id]
+            const ct = tov ? mergeTransformOverride(clip.transform, tov) : clip.transform
             // P2.2c (slice 3c): track compositing (opacity + blend mode) now lives
             // in the TERMINAL CompositeEffect on the track's chain — the backend
             // compositor reads it from there (Decision D3/D4). We no longer send the
@@ -1361,14 +1374,17 @@ function AppInner() {
                 ? serializeEffectChain(chainOverride)
                 : serializeEffectChain(modulateChain(track.effectChain, frame)),
               clip_opacity: clipOpacity,
-              ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
+              ...((ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)) || tov
                 ? { transform: ct } : {}),
               ...(layerMaskStack ? { mask_stack: layerMaskStack } : {}),
             }
           })
 
           const textLayers: Record<string, unknown>[] = activeTextClips.map((clip) => {
-            const ct = clip.transform
+            // A1+A2: fold clip-transform lane values onto the text clip's base
+            // transform (same evaluator as video; tov undefined → byte-identical).
+            const ttov = transformOverrides?.[clip.id]
+            const ct = ttov ? mergeTransformOverride(clip.transform, ttov) : clip.transform
             // P2.2c: text layers composite in normal mode; their effective opacity
             // (clip × textConfig) is a clip-level fade forwarded as `clip_opacity`.
             return {
@@ -1378,7 +1394,7 @@ function AppInner() {
               fps: 30,
               chain: [],
               clip_opacity: (clip.opacity ?? 1) * (clip.textConfig!.opacity ?? 1),
-              ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV)
+              ...((ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV)) || ttov
                 ? { transform: ct } : {}),
             }
           })
@@ -1458,7 +1474,10 @@ function AppInner() {
         } else {
           // Single video clip — use fast render_frame path
           const { clip: singleClip, track: singleTrack, assetPath: singleAssetPath } = activeVideoClips[0]
-          const ct = singleClip.transform
+          // A1+A2: fold clip-transform lane values onto the base transform for the
+          // single-clip fast path (tov undefined → ct === base → byte-identical).
+          const stov = transformOverrides?.[singleClip.id]
+          const ct = stov ? mergeTransformOverride(singleClip.transform, stov) : singleClip.transform
           // Speed-adjusted source frame; reverse flips local time across clip duration
           const localTime = currentTime - singleClip.position
           const srcTime = singleClip.reversed ? Math.max(0, singleClip.duration - localTime) : localTime
@@ -1482,7 +1501,7 @@ function AppInner() {
             ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
             ...(axisLanes.length > 0 ? { axis_lanes: axisLanes } : {}),
-            ...(ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)
+            ...((ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)) || stov
               ? { transform: ct } : {}),
             ...(singleMaskStack ? { mask_stack: singleMaskStack } : {}),
           })
@@ -2002,7 +2021,17 @@ function AppInner() {
 
     // Single clip path — mirrors App.tsx:902-925
     const { clip: singleClip, track: singleTrack, assetPath: singleAssetPath } = activeVideoClips[0]
-    const ct = singleClip.transform
+    // A1+A2: fold clip-transform lane values at the playhead so the exported PNG
+    // matches the live preview (export_frame applies `transform` on the backend
+    // via _apply_clip_transform — SAME mechanism as preview render_frame). No
+    // transform lanes → ct === base → byte-identical to the legacy export_frame.
+    const frameTransformOverride = evaluateTransformOverrides(
+      useAutomationStore.getState().getAllLanes(),
+      currentTime,
+    )[singleClip.id]
+    const ct = frameTransformOverride
+      ? mergeTransformOverride(singleClip.transform, frameTransformOverride)
+      : singleClip.transform
     const localTime = currentTime - singleClip.position
     const srcTime = singleClip.reversed ? Math.max(0, singleClip.duration - localTime) : localTime
     const clipFrame = Math.max(
@@ -2028,7 +2057,10 @@ function AppInner() {
       project_seed: projectSeed,
       output_path: outputPath,
     }
-    if (ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)) {
+    if (
+      (ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)) ||
+      frameTransformOverride
+    ) {
       payload['transform'] = ct
     }
 

@@ -20,6 +20,7 @@ import type { TriggerEvent } from './components/instruments/voiceFSM'
 import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OPACITY_MAX, RACK_CHOKE_GROUP_MIN, RACK_CHOKE_GROUP_MAX, MAX_BRANCH_DEPTH, MAX_FRAMEBANK_SLOTS, FRAMEBANK_BYTE_BUDGET_MIN, FRAMEBANK_BYTE_BUDGET_MAX, FRAMEBANK_POSITION_MIN, FRAMEBANK_POSITION_MAX, GRANULATOR_DENSITY_MIN, GRANULATOR_DENSITY_MAX, GRANULATOR_AXES, defaultGranulatorInstrument, MAX_MACROS_PER_RACK, MAX_MODROUTES_PER_MACRO, MAX_TOTAL_EDGES } from './components/instruments/types'
 import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
+import { CLIP_TRANSFORM_NAMESPACE, parseTransformLanePath } from './utils/transformLanes'
 import { FF } from '../shared/feature-flags'
 import { LIMITS } from '../shared/limits'
 
@@ -284,13 +285,28 @@ function loadMaskStack(raw: unknown, clipId: string): MatteNode[] {
  * first, so length-capping happens after that; pad/branch chains cap right
  * away since they have no composite-placement rule).
  */
-function sanitizeEffectChain(raw: unknown): { chain: EffectInstance[]; fieldDropped: boolean } {
+function sanitizeEffectChain(raw: unknown): { chain: EffectInstance[]; fieldDropped: boolean; reservedIds: string[] } {
   const rawChain = Array.isArray(raw) ? raw : []
   let fieldDropped = false
+  const reservedIds: string[] = []
   const chain = (rawChain as unknown[]).reduce<EffectInstance[]>((acc, entry) => {
     if (typeof entry !== 'object' || entry === null) return acc
     const e = entry as Record<string, unknown>
     if (typeof e.id !== 'string' || typeof e.effectId !== 'string') return acc // missing identity -> drop (would orphan)
+    // PR #344 red-team fix: `clipTransform` is a RESERVED lane-addressing
+    // namespace (transformLanes.ts). An effect INSTANCE id inside it would make
+    // an ordinary effect-param lane's `${effectId}.${paramKey}` collide with the
+    // transform-lane scheme (`clipTransform.<clipId>.<field>`) and silently
+    // hijack the addressed clip's transform every frame. Project files are
+    // attacker-controlled, so reserve the namespace at THIS trust boundary —
+    // strip the node + report its id (caller poisons the addressed clipId so the
+    // paired hijack lane is dropped too), never crash. Covers ALL persisted
+    // chain paths (per-track, rack pad, branch) since they all sanitize here.
+    if (e.id === CLIP_TRANSFORM_NAMESPACE || e.id.startsWith(`${CLIP_TRANSFORM_NAMESPACE}.`)) {
+      reservedIds.push(e.id)
+      console.warn(`[project-load] effect node id "${e.id}" uses the reserved "${CLIP_TRANSFORM_NAMESPACE}" namespace — stripped`)
+      return acc
+    }
     const parameters: Record<string, ParamValue> = {}
     if (e.parameters && typeof e.parameters === 'object') {
       for (const [k, v] of Object.entries(e.parameters as Record<string, unknown>)) {
@@ -320,7 +336,16 @@ function sanitizeEffectChain(raw: unknown): { chain: EffectInstance[]; fieldDrop
     })
     return acc
   }, [])
-  return { chain, fieldDropped }
+  return { chain, fieldDropped, reservedIds }
+}
+
+/**
+ * PR #344 red-team fix: extract the addressed clipId from a stripped reserved
+ * effect id (`clipTransform.<clipId>`). Returns null for the bare namespace.
+ */
+function reservedEffectIdToClipId(reservedId: string): string | null {
+  const prefix = `${CLIP_TRANSFORM_NAMESPACE}.`
+  return reservedId.startsWith(prefix) ? reservedId.slice(prefix.length) : null
 }
 
 // B4.1 — Sample Rack load-time validation (additive optional; no version bump).
@@ -951,6 +976,12 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // Used to re-key the per-track samplers after the track loop.
   const trackIdMap: Record<string, string> = {}
 
+  // PR #344 red-team fix: clipIds whose `clipTransform.<clipId>` namespace was
+  // claimed by a (now-stripped) forged effect node. Their paired hijack
+  // transform lanes are dropped at lane hydration. Populated in the track loop
+  // (which runs BEFORE lane hydration).
+  const poisonedTransformClipIds = new Set<string>()
+
   // HT-4: hydrate project-level seed for deterministic renders + freeze caches.
   // Validation already clamped it to [0, 2^31-1] in validateProject().
   if (project.settings && typeof project.settings.seed === 'number') {
@@ -1103,11 +1134,22 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     // F2: this per-effect sanitize/finite-guard/mix-clamp/__field__-validate
     // logic is now shared (sanitizeEffectChain) — also used for the per-pad
     // insert chain and the branch-level chain, which #315 never restored.
-    const { chain: sanitized, fieldDropped } = sanitizeEffectChain((track as any).effectChain)
+    const { chain: sanitized, fieldDropped, reservedIds } = sanitizeEffectChain((track as any).effectChain)
     // P6.6: surface a single toast per track if any malformed field dict was
     // dropped (param fell back to its default).
     if (fieldDropped) {
       useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}": malformed field assignment(s) reset to default on load`, source: 'project-load' })
+    }
+    // PR #344 red-team fix: an effect node claiming a reserved `clipTransform.*`
+    // id was stripped inside sanitizeEffectChain. Poison the addressed clipId so
+    // the PAIRED hijack lane (`clipTransform.<clipId>.<field>`) is dropped at
+    // lane hydration below — the effect strip alone does not remove the lane.
+    if (reservedIds.length > 0) {
+      for (const rid of reservedIds) {
+        const cid = reservedEffectIdToClipId(rid)
+        if (cid) poisonedTransformClipIds.add(cid)
+      }
+      useToastStore.getState().addToast({ level: 'warning', message: `Track "${track.name}": effect with reserved "${CLIP_TRANSFORM_NAMESPACE}" id removed on load`, source: 'project-load' })
     }
     // P2.2a load-time composite placement guard (red-team RT-1): hydration writes
     // chains via the raw store primitive, BYPASSING the transaction-commit
@@ -1180,7 +1222,48 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
 
   // Hydrate automation lanes (backward compat: missing = empty)
   if (project.automationLanes && typeof project.automationLanes === 'object') {
-    useAutomationStore.getState().loadAutomation(project.automationLanes)
+    // PR #344 red-team fix: transform lanes (`clipTransform.<clipId>.<field>`)
+    // address CLIPS, so validate them at THIS trust boundary (clips hydrated
+    // above, ids preserved verbatim). Drop a clipTransform-namespace lane when:
+    //  (a) its paramPath fails the strict parse (forged/malformed shape), or
+    //  (b) the addressed clipId was POISONED — a forged effect node claimed the
+    //      `clipTransform.<clipId>` id (this is the confirmed PoC: a fake effect
+    //      + a paired effect-param lane that reads as a transform lane). The
+    //      effect strip removes the effect; this removes the paired hijack lane
+    //      that would otherwise animate the victim clip. Or
+    //  (c) the addressed clip does not exist in the loaded timeline (dead lane).
+    // Legit toolbar-created transform lanes (real clip, no forged effect) pass.
+    // Non-transform lanes pass through untouched (loadAutomation shape-checks).
+    const validClipIds = new Set(
+      useTimelineStore.getState().tracks.flatMap((t) => t.clips.map((c) => c.id)),
+    )
+    let transformLanesDropped = 0
+    const filteredLanes: Record<string, AutomationLane[]> = {}
+    for (const [laneTrackId, rawLanes] of Object.entries(project.automationLanes)) {
+      if (!Array.isArray(rawLanes)) {
+        filteredLanes[laneTrackId] = rawLanes // loadAutomation drops non-arrays itself
+        continue
+      }
+      filteredLanes[laneTrackId] = rawLanes.filter((lane) => {
+        const paramPath = (lane as { paramPath?: unknown } | null)?.paramPath
+        if (typeof paramPath !== 'string') return true // loadAutomation drops these
+        if (paramPath !== CLIP_TRANSFORM_NAMESPACE && !paramPath.startsWith(`${CLIP_TRANSFORM_NAMESPACE}.`)) return true
+        const parsed = parseTransformLanePath(paramPath)
+        if (!parsed || poisonedTransformClipIds.has(parsed.clipId) || !validClipIds.has(parsed.clipId)) {
+          transformLanesDropped++
+          return false
+        }
+        return true
+      })
+    }
+    if (transformLanesDropped > 0) {
+      useToastStore.getState().addToast({
+        level: 'warning',
+        message: `${transformLanesDropped} transform automation lane(s) referencing unknown clips removed on load`,
+        source: 'project-load',
+      })
+    }
+    useAutomationStore.getState().loadAutomation(filteredLanes)
   }
 
   // Hydrate MIDI mappings (backward compat: missing = empty)
