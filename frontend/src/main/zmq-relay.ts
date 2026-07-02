@@ -86,6 +86,8 @@ export const ALLOWED_COMMANDS = new Set([
   // (invoke on node-delete with the live node-id set) is a documented
   // follow-up, not built here.
   'mask_gc_sidecars',
+  // MK.12 — AI subject matte (local RVM) offline bake job — stores/aiMatte.ts
+  'mask_ai_generate', 'mask_ai_status', 'mask_ai_cancel',
   // Audio track clear — audio_mixer.clear() companion to audio_tracks_set,
   // needed by the EXPERIMENTAL_AUDIO_TRACKS flag work (F5 audit finding).
   'audio_tracks_clear',

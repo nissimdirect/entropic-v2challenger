@@ -148,6 +148,10 @@ describe('IPC Contract', () => {
       'invalidate_cache',
       'list_effects',
       'list_fonts',
+      // MK.12 — AI subject matte (local RVM) bake job
+      'mask_ai_cancel',
+      'mask_ai_generate',
+      'mask_ai_status',
       'mask_gc_sidecars',
       'mask_thumbnail',
       'mask_wand_sample',
