@@ -20,6 +20,8 @@ const mockEntropic = {
 import { validateProjectStructure, loadProject, hydrateStores } from '../../renderer/project-persistence'
 import { useToastStore } from '../../renderer/stores/toast'
 import { useTimelineStore } from '../../renderer/stores/timeline'
+import { useAutomationStore } from '../../renderer/stores/automation'
+import { evaluateTransformOverrides } from '../../renderer/utils/transformLanes'
 
 describe('validateProjectStructure', () => {
   it('accepts a normal v3.0.0 project shape', () => {
@@ -301,5 +303,104 @@ describe('hydrateStores — load-time composite placement guard (RT-1)', () => {
     const video = useTimelineStore.getState().tracks.find((t) => t.type === 'video')
     expect(video?.effectChain).toHaveLength(2)
     expect(video?.effectChain[1].effectId).toBe('composite')
+  })
+})
+
+// PR #344 red-team fix (CONFIRMED tiger, PoC-proven): a tampered .glitch can
+// set an effect node id to `clipTransform.<victimClipId>` (sanitizeEffectChain
+// accepted any string id); an ordinary effect-param automation lane on that
+// effect's `rotation` param then has paramPath `clipTransform.<victim>.rotation`,
+// which parses as a TRANSFORM lane and hijacks the victim clip's transform every
+// frame. Fix: reserve the namespace at load (strip the effect + poison the
+// clipId) AND drop the paired hijack lane. Legit transform lanes still work.
+describe('hydrateStores — clipTransform namespace hijack (PR #344 red-team)', () => {
+  const clip = (id: string) => ({
+    id, assetId: 'a1', trackId: 't-video', position: 0, duration: 5,
+    inPoint: 0, outPoint: 5, speed: 1,
+  })
+  const rotationLane = (clipId: string) => ({
+    id: `lane-${clipId}`,
+    paramPath: `clipTransform.${clipId}.rotation`,
+    color: '#ef4444',
+    isVisible: true,
+    mode: 'smooth',
+    // normalized 1.0 → denormalizes to the rotation display max (360°) if evaluated.
+    points: [{ time: 0, value: 1, curve: 0 }],
+  })
+
+  function projectWith(tracks: unknown[], automationLanes: Record<string, unknown[]>) {
+    return {
+      version: '3.0.0', id: 'p1', created: 1, modified: 1, author: '',
+      settings: { resolution: [1920, 1080], frameRate: 30, audioSampleRate: 44100, masterVolume: 1, seed: 42 },
+      assets: {}, timeline: { duration: 0, tracks, markers: [], loopRegion: null },
+      automationLanes,
+    } as unknown as Parameters<typeof hydrateStores>[0]
+  }
+
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+    useToastStore.setState({ toasts: [] })
+    useAutomationStore.getState().resetAutomation()
+  })
+
+  it('PoC: forged effect id `clipTransform.victim` + paired lane → effect stripped AND no override for the victim clip', () => {
+    hydrateStores(projectWith(
+      [{
+        id: 't-video', type: 'video', name: 'V1', color: '#fff',
+        clips: [clip('victim')],
+        // The weaponized node: an effect claiming the reserved namespace id.
+        effectChain: [{
+          id: 'clipTransform.victim', effectId: 'kaleidoscope', isEnabled: true,
+          isFrozen: false, parameters: { rotation: 0.5 }, modulations: {}, mix: 1, mask: null,
+        }],
+      }],
+      { 't-video': [rotationLane('victim')] },
+    ))
+
+    // 1. The forged effect node is stripped from the loaded chain.
+    const video = useTimelineStore.getState().tracks.find((t) => t.type === 'video')
+    expect(video?.effectChain ?? []).toHaveLength(0)
+
+    // 2. The paired hijack lane is dropped → evaluateTransformOverrides yields
+    //    NO override for the victim clip at any time.
+    const lanes = useAutomationStore.getState().getAllLanes()
+    const overrides = evaluateTransformOverrides(lanes, 0)
+    expect(overrides.victim).toBeUndefined()
+
+    // 3. The user is warned (the reserved-id + hijack-lane removals both emit a
+    //    `project-load` warning; the toast store dedups by source, collapsing
+    //    them into one whose message ends "removed on load").
+    expect(
+      useToastStore.getState().toasts.some(
+        (t) => t.source === 'project-load' && /removed on load/i.test(t.message),
+      ),
+    ).toBe(true)
+  })
+
+  it('legit toolbar-created transform lane (real clip, no forged effect) still animates the clip', () => {
+    hydrateStores(projectWith(
+      [{
+        id: 't-video', type: 'video', name: 'V1', color: '#fff',
+        clips: [clip('realclip')],
+        effectChain: [], // NO forged effect — a normal project
+      }],
+      { 't-video': [rotationLane('realclip')] },
+    ))
+
+    const lanes = useAutomationStore.getState().getAllLanes()
+    // The legit lane survived load.
+    expect(lanes.some((l) => l.paramPath === 'clipTransform.realclip.rotation')).toBe(true)
+    // And it produces a live override.
+    const overrides = evaluateTransformOverrides(lanes, 0)
+    expect(overrides.realclip).toEqual({ rotation: 360 })
+  })
+
+  it('transform lane referencing a NONEXISTENT clip is dropped (dead-lane cleanup)', () => {
+    hydrateStores(projectWith(
+      [{ id: 't-video', type: 'video', name: 'V1', color: '#fff', clips: [clip('realclip')], effectChain: [] }],
+      { 't-video': [rotationLane('ghost')] }, // 'ghost' clip does not exist
+    ))
+    const lanes = useAutomationStore.getState().getAllLanes()
+    expect(lanes.some((l) => l.paramPath === 'clipTransform.ghost.rotation')).toBe(false)
   })
 })

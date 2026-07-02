@@ -52,17 +52,21 @@ describe('transformLanes — addressing (A1)', () => {
     expect(parseTransformLanePath(paramPath)).toEqual({ clipId: 'clip-A', field: 'rotation' })
   })
 
-  it('parses a clipId that itself contains dots (field read from the end)', () => {
-    const parsed = parseTransformLanePath('clipTransform.weird.clip.id.scaleX')
-    expect(parsed).toEqual({ clipId: 'weird.clip.id', field: 'scaleX' })
+  it('STRICT: rejects a paramPath with more than 3 segments (dotted middle)', () => {
+    // Red-team hardening: clip ids are randomUUID (dot-free), so a dotted middle
+    // segment can only be a forged/malformed path — reject it.
+    expect(parseTransformLanePath('clipTransform.weird.clip.id.scaleX')).toBeNull()
+    expect(parseTransformLanePath('clipTransform.a.b.rotation')).toBeNull()
   })
 
   it('rejects non-transform / malformed paths', () => {
     expect(parseTransformLanePath('fx-1.amount')).toBeNull()
     expect(parseTransformLanePath('projectParam.bpm')).toBeNull()
     expect(parseTransformLanePath('clipTransform.clip-1.notAField')).toBeNull()
-    expect(parseTransformLanePath('clipTransform.x')).toBeNull() // no clipId segment
+    expect(parseTransformLanePath('clipTransform.x')).toBeNull() // only 2 segments
     expect(parseTransformLanePath('clipTransform.')).toBeNull()
+    expect(parseTransformLanePath('clipTransform..x')).toBeNull() // empty clipId
+    expect(parseTransformLanePath('clipTransform')).toBeNull()
   })
 })
 

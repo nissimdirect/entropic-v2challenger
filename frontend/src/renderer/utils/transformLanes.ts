@@ -82,20 +82,24 @@ export function formatTransformLanePath(clipId: string, field: TransformField): 
 /**
  * Parse a transform-lane paramPath → {clipId, field}, or null if it isn't one.
  * One function, one place — everything transform-lane-shaped goes through here
- * (no scattered string.split). Parses field from the END so a clipId that
- * itself contains dots still resolves correctly.
+ * (no scattered string.split).
+ *
+ * Red-team hardening (PR #344 review): STRICT shape — exactly 3 dot-separated
+ * segments (`clipTransform` · clipId · field) with a non-empty, dot-free clipId.
+ * Clip ids are `randomUUID()` (never contain dots), so every toolbar-created
+ * lane parses; anything looser (extra segments, empty/dotted middle) is
+ * rejected. Defense-in-depth against forged paramPaths in tampered .glitch
+ * files — the primary guard is the reserved-namespace strip at project load
+ * (project-persistence.ts sanitizeEffectChain + transform-lane clip check).
  */
 export function parseTransformLanePath(
   paramPath: string,
 ): { clipId: string; field: TransformField } | null {
-  const prefix = `${CLIP_TRANSFORM_NAMESPACE}.`
-  if (!paramPath.startsWith(prefix)) return null
-  const rest = paramPath.slice(prefix.length)
-  const lastDot = rest.lastIndexOf('.')
-  if (lastDot <= 0) return null // need a non-empty clipId before the field
-  const field = rest.slice(lastDot + 1)
-  const clipId = rest.slice(0, lastDot)
-  if (!clipId) return null
+  const segments = paramPath.split('.')
+  if (segments.length !== 3) return null
+  const [ns, clipId, field] = segments
+  if (ns !== CLIP_TRANSFORM_NAMESPACE) return null
+  if (!clipId) return null // non-empty; dot-free is guaranteed by the 3-way split
   if (!TRANSFORM_FIELDS.includes(field as TransformField)) return null
   return { clipId, field: field as TransformField }
 }
