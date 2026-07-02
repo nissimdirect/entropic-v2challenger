@@ -280,12 +280,21 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
 
       const clipId = clip.id
       const startX = e.clientX
+      const startY = e.clientY
       const startPos = clip.position
       const pointerId = e.pointerId
       const zoomAtStart = zoom
       let active = true
       let lastClientY = e.clientY
       let autoScrollRaf: number | null = null
+      // UAT P6: upHandler used to always run the below-lane/drop-zone new-track
+      // check, so a plain click/select (pointerdown+pointerup with near-zero
+      // travel) could spawn a stray empty track if the release point happened
+      // to land past the last lane's bottom edge. hasDragged only flips once
+      // real pointer travel exceeds DRAG_THRESHOLD_PX, gating the new-track
+      // logic (:below) to genuine drags — a pure click never reaches it.
+      const DRAG_THRESHOLD_PX = 4
+      let hasDragged = false
       document.body.classList.add('clip-dragging')
 
       // Edge-scroll loop: while the cursor sits in the top/bottom 40 px of the
@@ -329,6 +338,13 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const moveHandler = (ev: PointerEvent) => {
         if (!active || ev.pointerId !== pointerId) return
         lastClientY = ev.clientY
+        if (!hasDragged) {
+          const travelX = Math.abs(ev.clientX - startX)
+          const travelY = Math.abs(ev.clientY - startY)
+          if (travelX > DRAG_THRESHOLD_PX || travelY > DRAG_THRESHOLD_PX) {
+            hasDragged = true
+          }
+        }
         const dx = ev.clientX - startX
         const dt = dx / zoomAtStart
         const newPos = Math.max(0, startPos + dt)
@@ -375,39 +391,45 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       const upHandler = (ev: PointerEvent) => {
         if (ev.pointerId !== pointerId) return
 
-        // Generous "below all tracks" detection: either pointer is past every
-        // lane's bottom edge, OR pointer is over the explicit new-track drop
-        // zone. The drop zone gives users a reliable, visible hit target —
-        // the bare clientY check failed in practice when the timeline scroll
-        // container ended flush with the last lane.
-        const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
-        let maxBottom = -Infinity
-        for (const lane of lanes) {
-          const rect = lane.getBoundingClientRect()
-          if (rect.bottom > maxBottom) maxBottom = rect.bottom
-        }
-        const belowAllTracks = maxBottom !== -Infinity && ev.clientY > maxBottom
+        // UAT P6: a pure click/select (no real drag) must never trigger the
+        // new-track logic below, even if the release point geometrically
+        // lands past the last lane or over the (CSS-hidden-until-dragging)
+        // drop zone.
+        if (hasDragged) {
+          // Generous "below all tracks" detection: either pointer is past every
+          // lane's bottom edge, OR pointer is over the explicit new-track drop
+          // zone. The drop zone gives users a reliable, visible hit target —
+          // the bare clientY check failed in practice when the timeline scroll
+          // container ended flush with the last lane.
+          const lanes = document.querySelectorAll<HTMLElement>('.track-lane[data-track-id]')
+          let maxBottom = -Infinity
+          for (const lane of lanes) {
+            const rect = lane.getBoundingClientRect()
+            if (rect.bottom > maxBottom) maxBottom = rect.bottom
+          }
+          const belowAllTracks = maxBottom !== -Infinity && ev.clientY > maxBottom
 
-        // Drop-zone hit: walk up from elementFromPoint to find the new-track zone.
-        let overDropZone = false
-        const hit = document.elementFromPoint(ev.clientX, ev.clientY)
-        if (hit && hit.closest('[data-drop-zone="new-track"]')) {
-          overDropZone = true
-        }
+          // Drop-zone hit: walk up from elementFromPoint to find the new-track zone.
+          let overDropZone = false
+          const hit = document.elementFromPoint(ev.clientX, ev.clientY)
+          if (hit && hit.closest('[data-drop-zone="new-track"]')) {
+            overDropZone = true
+          }
 
-        if (belowAllTracks || overDropZone) {
-          const s = useTimelineStore.getState()
-          const current = s.tracks.find((t) => t.clips.some((c) => c.id === clipId))
-          const currentClip = current?.clips.find((c) => c.id === clipId)
-          const newTrackId = s.addTrack(`Track ${s.tracks.length + 1}`, '#4ade80', 'video')
-          if (newTrackId && currentClip) {
-            s.moveClip(clipId, newTrackId, currentClip.position)
-          } else if (!newTrackId) {
-            useToastStore.getState().addToast({
-              level: 'warning',
-              message: 'Could not create new track — limit reached.',
-              source: 'clip-drag-new-track',
-            })
+          if (belowAllTracks || overDropZone) {
+            const s = useTimelineStore.getState()
+            const current = s.tracks.find((t) => t.clips.some((c) => c.id === clipId))
+            const currentClip = current?.clips.find((c) => c.id === clipId)
+            const newTrackId = s.addTrack(`Track ${s.tracks.length + 1}`, '#4ade80', 'video')
+            if (newTrackId && currentClip) {
+              s.moveClip(clipId, newTrackId, currentClip.position)
+            } else if (!newTrackId) {
+              useToastStore.getState().addToast({
+                level: 'warning',
+                message: 'Could not create new track — limit reached.',
+                source: 'clip-drag-new-track',
+              })
+            }
           }
         }
         teardown()
