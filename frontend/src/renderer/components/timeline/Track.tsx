@@ -187,6 +187,15 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     [track.id],
   )
 
+  // T3: toggle track lock. Undoable (setTrackLock wraps in `undoable`).
+  const handleLockToggle = useCallback(
+    (e: React.MouseEvent) => {
+      e.stopPropagation()
+      useTimelineStore.getState().setTrackLock(track.id, !(track.locked === true))
+    },
+    [track.id, track.locked],
+  )
+
   // P2.2a (slice 3c): compositing is a terminal CompositeEffect on the chain, not a
   // Track field. The displayed value derives from the chain terminal; the slider /
   // dropdown edit that effect's params when one exists. Creating a composite via the
@@ -384,6 +393,18 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
             >
               R
             </button>
+            {/* T3: track lock toggle. Padlock glyph; --active when locked. Guards
+                all clips on this track + rejects reorder/drops onto it. */}
+            <button
+              className={`track-header__btn${track.locked === true ? ' track-header__btn--active' : ''}`}
+              onClick={handleLockToggle}
+              data-testid="track-lock-btn"
+              title={track.locked === true ? 'Unlock track' : 'Lock track'}
+              aria-label={track.locked === true ? 'Unlock track' : 'Lock track'}
+              aria-pressed={track.locked === true}
+            >
+              {track.locked === true ? '\u{1F512}' : '\u{1F513}'}
+            </button>
           </div>
         </div>
         <div className="track-header__row track-header__row--bottom">
@@ -528,6 +549,7 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds, w
             zoom={zoom}
             scrollX={scrollX}
             isSelected={selectedClipIds.includes(clip.id)}
+            trackLocked={track.locked === true}
             assetName={assetName}
             waveformPeaks={clipHasAudio ? waveformPeaks : undefined}
             assetDuration={clipHasAudio ? asset?.meta?.duration : undefined}

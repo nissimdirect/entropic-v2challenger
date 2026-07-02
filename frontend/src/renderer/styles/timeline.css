@@ -856,6 +856,32 @@ body.clip-dragging .timeline__new-track-zone {
   opacity: 0.4;
 }
 
+/* T3 — locked clip: not-grabbable cursor + a subtle border so the lock state
+ * reads even when the padlock glyph is clipped on a very narrow clip. */
+.clip--locked {
+  cursor: not-allowed;
+  border-color: var(--cx-warn);
+}
+
+.clip--locked:active {
+  cursor: not-allowed;
+}
+
+/* T3 — padlock affordance rendered inside the clip body (right-aligned, left of
+ * the right trim handle). Decorative; the actionable toggle lives in the context
+ * menu / track header. */
+.clip__lock {
+  position: absolute;
+  right: 10px;
+  top: 3px;
+  font-size: 10px;
+  line-height: 1;
+  z-index: 2;
+  pointer-events: none;
+  color: var(--cx-warn);
+  text-shadow: 0 1px 2px var(--cx-bg-app);
+}
+
 .clip__name {
   font-size: 10px;
   color: var(--cx-text-1);
@@ -1003,6 +1029,28 @@ body[data-disable-f-0512-8] .clip__thumb {
 
 .marker-flag:hover .marker-flag__line {
   opacity: 1;
+}
+
+/* T4: inline rename editor — double-click a flag to open. Anchored at the head
+   so the field floats just right of the marker line without shifting layout. */
+.marker-flag__rename-input {
+  position: absolute;
+  top: 0;
+  left: 4px;
+  z-index: 5;
+  width: 90px;
+  padding: 1px 4px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-action);
+  border-radius: 2px;
+  color: var(--cx-text-1);
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+}
+
+.marker-flag__rename-input:focus {
+  border-color: var(--cx-action-hover);
 }
 
 /* --- History Panel --- */
