@@ -29,6 +29,22 @@ export function useMIDI(): void {
       if (cancelled) return;
       accessRef.current = access;
 
+      // H5 — resolve the active input's identity (name+manufacturer) and hand
+      // it to the store so a known controller's saved cc->slot bindings auto-
+      // load. Passes null when there is no connected active device, releasing
+      // the applied identity. Reads from the store's `devices` list (populated
+      // by updateDevices) which carries name+manufacturer per input.
+      const applyActiveControllerIdentity = () => {
+        const s = useMIDIStore.getState();
+        const activeId = s.activeDeviceId;
+        const active = activeId !== null
+          ? s.devices.find((d) => d.id === activeId && d.state === 'connected')
+          : undefined;
+        s.applyControllerIdentity(
+          active ? { name: active.name, manufacturer: active.manufacturer } : null,
+        );
+      };
+
       // Enumerate devices
       const updateDevices = () => {
         const devices: MIDIDevice[] = [];
@@ -55,6 +71,14 @@ export function useMIDI(): void {
             usePerformanceStore.getState().panicAll();
           }
         }
+
+        // H5 — controller-identity auto-load. Resolve the active input's
+        // stable fingerprint (name+manufacturer) and adopt its saved bindings.
+        // Idempotent across statechange bursts (guarded on fingerprint change
+        // inside the store action). A connected active device passes its
+        // identity; anything else (no active device, or the active device
+        // disconnected) passes null to release the identity.
+        applyActiveControllerIdentity();
       };
 
       updateDevices();
@@ -108,6 +132,9 @@ export function useMIDI(): void {
         (state, prev) => {
           if (state.activeDeviceId !== prev.activeDeviceId) {
             rebindListeners();
+            // H5 — switching the active controller re-derives its identity and
+            // auto-loads that controller's saved bindings.
+            applyActiveControllerIdentity();
           }
         },
       );
