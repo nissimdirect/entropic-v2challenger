@@ -15,6 +15,41 @@ from zmq_server import ZMQServer
 pytest_plugins = ["conftest_plugins.manifest"]
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _isolate_bake_log_for_suite(tmp_path_factory):
+    """F6: redirect the audio bake-log writer away from the real
+    ~/.creatrix/audio-bake-log.jsonl for the ENTIRE test session.
+
+    Without this, any test that exercises MixerPlayer.start()/stop() — even
+    indirectly, not just tests that opt in via a dedicated fixture — appends
+    real telemetry lines to the user's bake log. The 2026-07-02 audit found
+    181 real entries were test-generated (microsecond durations, empty
+    device), which would poison the 1-week/2h bake-gate clock
+    (scripts/check_bake_gate.py). This is isolation AT THE WRITER
+    (audio/bake_log.py:bake_log_path() honors CREATRIX_BAKE_LOG), applied
+    once for the whole suite rather than per-test, so no test can forget it.
+
+    Also sets CREATRIX_APP_MODE=test so any session that IS written (e.g. by
+    a test that deliberately overrides CREATRIX_BAKE_LOG to inspect the
+    writer) carries correct provenance — the gate excludes app_mode=="test"
+    sessions from the real-usage count as defense in depth.
+    """
+    log_dir = tmp_path_factory.mktemp("bake-log-isolation")
+    prev_log = os.environ.get("CREATRIX_BAKE_LOG")
+    prev_mode = os.environ.get("CREATRIX_APP_MODE")
+    os.environ["CREATRIX_BAKE_LOG"] = str(log_dir / "audio-bake-log.jsonl")
+    os.environ["CREATRIX_APP_MODE"] = "test"
+    yield
+    if prev_log is None:
+        os.environ.pop("CREATRIX_BAKE_LOG", None)
+    else:
+        os.environ["CREATRIX_BAKE_LOG"] = prev_log
+    if prev_mode is None:
+        os.environ.pop("CREATRIX_APP_MODE", None)
+    else:
+        os.environ["CREATRIX_APP_MODE"] = prev_mode
+
+
 def _wait_for_server(srv: ZMQServer, timeout: float = 2.0) -> bool:
     """Ping the server until it responds or timeout expires."""
     ctx = zmq.Context()
