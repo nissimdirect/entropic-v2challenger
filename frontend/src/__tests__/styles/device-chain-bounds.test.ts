@@ -43,7 +43,9 @@ function ruleBody(css: string, selectorRegex: RegExp): string | null {
   if (openBrace === -1) return null
   const closeBrace = css.indexOf('}', openBrace)
   if (closeBrace === -1) return null
-  return css.slice(openBrace + 1, closeBrace)
+  // Strip /* ... */ comments: only real declarations count, otherwise an
+  // explanatory comment mentioning the old value trips the negative asserts.
+  return css.slice(openBrace + 1, closeBrace).replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
 describe('global.css .app__device-chain — base grid bounding (UAT P4)', () => {
