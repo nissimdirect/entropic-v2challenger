@@ -90,6 +90,7 @@ import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
 import { evaluateTransformOverrides, mergeTransformOverride } from './utils/transformLanes'
+import { recordChangedTransformFields } from './utils/transform-record'
 // H1 (2026-07-02 master-tuneup WS5): focused-mapping-context statusbar chip —
 // the foundation the hardware-bank system (H2+) keys off. See
 // utils/focusContext.ts (derivation) + components/layout/MappingContextChip.tsx.
@@ -3469,8 +3470,11 @@ function AppInner() {
           <TransformPanel
             transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
             onChange={(t) => {
+              const prevTransform = selectedClip.transform ?? IDENTITY_TRANSFORM
               useTimelineStore.getState().setClipTransform(selectedClip.id, t)
               requestRenderFrame(currentFrame)
+              // A3: additive automation recording — does not alter the store write above.
+              recordChangedTransformFields(selectedClip.id, prevTransform, t, isPlaying)
             }}
             canvasWidth={frameWidth || 1920}
             canvasHeight={frameHeight || 1080}
@@ -3682,8 +3686,11 @@ function AppInner() {
               <BoundingBoxOverlay
                 transform={selectedClip.transform ?? IDENTITY_TRANSFORM}
                 onChange={(t) => {
+                  const prevTransform = selectedClip.transform ?? IDENTITY_TRANSFORM
                   useTimelineStore.getState().setClipTransform(selectedClip.id, t)
                   requestRenderFrame(currentFrame)
+                  // A3: additive automation recording — does not alter the store write above.
+                  recordChangedTransformFields(selectedClip.id, prevTransform, t, isPlaying)
                 }}
                 containerRef={previewContainerRef}
                 sourceWidth={assets[selectedClip.assetId]?.meta?.width ?? 1920}
