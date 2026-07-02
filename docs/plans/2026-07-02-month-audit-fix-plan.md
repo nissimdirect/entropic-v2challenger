@@ -151,9 +151,9 @@ in there (grep for tests constructing expected payloads from store state without
   Options: (a) greenlight the 24 parked q7 drafts now; (b) first re-run the benchmark under
   concurrent render load to qualify the flag (~30-45 min, runbook exists); (c) keep parked.
   **Recommend (b) then (a)** — the flag is exactly the condition a live DAW hits.
-- **D2 — VST universal binary.** `~/Desktop/PopChaos-VST3/` is arm64-only; the universal rebuild
-  died mid-session Jun 16. Need: is the other Mac Intel or Apple Silicon? Intel → rebuild
-  required (packet exists in session bc96f5dd's transcript); Apple Silicon → ship as-is.
+- **D2 — VST universal binary.** OUT OF SCOPE for Creatrix (user, 2026-07-02) — belongs to the
+  AudioPlugins/JUCE track. Noted here only so the June-16 half-done state isn't silently lost:
+  `~/Desktop/PopChaos-VST3/` is arm64-only.
 - **D3 — stale local branches + stashes.** 24 squash-merged branches (hook blocks my `-D`) —
   one-liner available on request. 10 stashes (April-June) need a 5-minute triage: keep
   `preserve-before-cu-uat-relaunch` until UAT passes; the April `torn-edges`/`bug-6/13` ones are
