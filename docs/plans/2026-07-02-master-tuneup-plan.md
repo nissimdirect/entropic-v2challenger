@@ -33,21 +33,6 @@ snap, quantize grid, changing quantization.
 
 ---
 
-## WS0 — ⚠️ RECONCILIATION 2026-07-02 16:45 — WS0 ALREADY EXECUTED, DO NOT DISPATCH
-
-Another session (58bd6f0f, month-audit orchestrator) executed WS0 before this plan landed, via
-`docs/plans/2026-07-02-month-audit-fix-plan.md` (same audit ground truth, same scope). Status:
-
-- WS0-F1 (P1-B) = **MERGED PR #323** (`5b637b6`) — voice-marker exemption + qa-redteam SAFE + 5 adversarial pins. STEP-0 repro was done HEADLESSLY (real IPC shapes vs `_handle_render_composite`) — no sidecar-restart user-go needed; already landed.
-- WS0-F2 (persistence) = **MERGED PR #322** (`3142157`) — sampler + full sibling sweep (rack chokeGroup/chains/macros, frameBank opacity/blend, polygon matte vertices) + compile-time exhaustiveness guards.
-- WS0-F3(a) (sidecar flake) = **MERGED PR #324** (`3c4910e`) — NOTE: implemented as a DETERMINISTIC fake-clock seam, deliberately NOT the CI-tolerant-bound approach this table proposed (that is the #228 band-aid pattern; it re-flakes on slower runners).
-- WS0-F3(b) (e2e cluster) = **PR #326** (merge imminent, CI running) — root cause was a REAL grid overlap (`.app__sidebar` row-span painting `.app__timeline` over sidebar clicks) + 2 stale specs. NOT a bisect-to-#317-319 artifact.
-- WS0-F4 (IPC allowlist) = still open; queued as month-audit-plan F5 in session 58bd6f0f (dispatching ~now). DO NOT double-dispatch.
-- WS0-F8 (non-rack sampler export chain) = **RESOLVED inside PR #323** — SamplerInstrumentV1 has no `chain` field; `chain:[]` at App.tsx:2729/2763 is correct; explanatory comments added in-code. No build needed.
-- WS0-F5/F6/F7 (papercuts, June-17 plan P4/P5/P6) = unclaimed — free for either session, coordinate via this doc before dispatch.
-
-WS1–WS5 are untouched by session 58bd6f0f and remain this plan's exclusive scope, EXCEPT: WS2 (instruments live pass) overlaps the month-audit UAT plan (`docs/UAT-PLAN-2026-07-02-live-cu.md` Stages A–C) — merge the two checklists before running either, or the user pays for the same CU pass twice.
-
 ## WS0 — Stability & correctness fixes (FIRST — everything else stands on these)
 
 > **⚠️ RECONCILIATION 2026-07-02 (same-day parallel session):** a parallel session authored the month-audit
