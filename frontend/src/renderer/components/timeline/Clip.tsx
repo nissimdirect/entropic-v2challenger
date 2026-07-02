@@ -80,13 +80,15 @@ interface ClipProps {
   zoom: number
   scrollX: number
   isSelected: boolean
+  /** T3: true when the CONTAINING track is locked (cascades lock to this clip). */
+  trackLocked?: boolean
   assetName: string
   waveformPeaks?: WaveformPeaks | null
   assetDuration?: number
   thumbnails?: { time: number; data: string }[]
 }
 
-export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
+export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLocked, assetName, waveformPeaks, assetDuration, thumbnails }: ClipProps) {
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   // UE.7: inline rename
   const [renaming, setRenaming] = useState(false)
@@ -253,8 +255,15 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
         label: clip.isEnabled === false ? 'Enable' : 'Disable',
         action: () => store.toggleClipEnabled(clip.id),
       },
+      // T3: per-clip lock toggle. When the track is locked, the clip is
+      // effectively locked regardless; toggling here only sets the clip's own
+      // flag (the label reflects clip.locked).
+      {
+        label: clip.locked === true ? 'Unlock Clip' : 'Lock Clip',
+        action: () => store.setClipLock(clip.id, !(clip.locked === true)),
+      },
     ]
-  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled, startRename])
+  }, [clip.id, clip.position, clip.duration, clip.speed, clip.isEnabled, clip.locked, startRename])
 
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
@@ -548,6 +557,10 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       : assetName
 
   const isDisabled = clip.isEnabled === false
+  // T3: a clip is effectively locked by its own flag OR by its track's lock.
+  // All mutation guards live in the store (trust boundary); this only drives the
+  // visible padlock affordance + a modifier class for the not-grabbable cursor.
+  const isLocked = clip.locked === true || trackLocked === true
 
   // UE.7: colour tint — 40% opacity overlay keeps selection/disabled states legible
   const colorStyle: React.CSSProperties = clip.color
@@ -557,7 +570,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
   return (
     <>
       <div
-        className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}${isDisabled ? ' clip--disabled' : ''}`}
+        className={`clip${isSelected ? ' clip--selected' : ''}${isTextClip ? ' clip--text' : ''}${isDisabled ? ' clip--disabled' : ''}${isLocked ? ' clip--locked' : ''}`}
         style={{ left: `${left}px`, width: `${Math.max(4, width)}px`, ...colorStyle }}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -621,6 +634,19 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
             title={`${clip.maskStack!.length} matte node${clip.maskStack!.length !== 1 ? 's' : ''}`}
           >
             M{clip.maskStack!.length}
+          </span>
+        )}
+        {/* T3: padlock affordance — shown when the clip is locked (own flag) or its
+            track is locked. Aria-hidden decorative glyph; the actionable toggle is
+            in the context menu / track header. */}
+        {isLocked && (
+          <span
+            className="clip__lock"
+            data-testid="clip-lock-badge"
+            aria-hidden="true"
+            title={clip.locked === true ? 'Clip locked' : 'Track locked'}
+          >
+            {'\u{1F512}'}
           </span>
         )}
         <div

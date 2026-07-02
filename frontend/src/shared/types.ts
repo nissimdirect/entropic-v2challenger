@@ -98,6 +98,13 @@ export interface Track {
   color: string;
   isMuted: boolean;
   isSoloed: boolean;
+  /**
+   * T3: track lock. Optional, additive — absent/false = editable. When true, ALL
+   * of this track's clips are guarded against move/trim/split/delete, the track
+   * itself rejects reorder + drops onto it, and ripple ops that would shift it are
+   * skipped. Serialized and re-applied on load (see project-persistence hydrate).
+   */
+  locked?: boolean;
   // P2.2a (slice 3c, Decision D1 clean break): `opacity` and `blendMode` were
   // removed from Track. Compositing now lives in a TERMINAL `CompositeEffect`
   // at the end of `effectChain` (see CompositeEffect / getTerminalComposite below).
@@ -272,6 +279,13 @@ export interface Clip {
   opacity?: number;      // 0.0–1.0, default 1.0 (undefined = fully opaque)
   isEnabled?: boolean;   // default true (undefined = enabled)
   reversed?: boolean;    // default false
+  /**
+   * T3: per-clip lock. Optional, additive — absent/false = editable. A locked
+   * clip (or any clip on a locked track) cannot be moved, trimmed, split, or
+   * deleted; guarded actions become no-ops (no undo entry). Serialized + restored
+   * at the persistence trust boundary (only `true` survives, else dropped).
+   */
+  locked?: boolean;
   missing?: boolean;     // true when the referenced asset path is no longer resolvable (UE.5)
   name?: string;         // UE.7: optional user-set label (≤ LIMITS.MAX_CLIP_NAME_LENGTH chars)
   color?: string;        // UE.7: optional clip body tint (one of the 8 DESIGN-SPEC §8 swatches)
