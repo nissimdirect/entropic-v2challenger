@@ -9,10 +9,69 @@ import numpy as np
 import pytest
 import zmq
 
+from effects.registry import _REGISTRY
 from zmq_server import ZMQServer
 
 # Register conftest plugins
 pytest_plugins = ["conftest_plugins.manifest"]
+
+
+@pytest.fixture(scope="function", autouse=True)
+def _restore_effect_registry_per_function():
+    """Function-scoped half of the registry guard: undoes any registration a
+    single test makes directly in its own body (e.g.
+    TestReservedParamNamespace.test_register_allows_normal_param_keys calling
+    `registry.register(...)` inline). See `_restore_effect_registry_per_module`
+    below for the module-scoped half — both are needed, see that fixture's
+    docstring for why one alone is insufficient.
+    """
+    snapshot = dict(_REGISTRY)
+    try:
+        yield
+    finally:
+        _REGISTRY.clear()
+        _REGISTRY.update(snapshot)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _restore_effect_registry_per_module():
+    """Root-level guard against effect-registry pollution (F4b-2 regression;
+    promoted from the function-scoped-only fixture in
+    tests/test_effects/conftest.py, now deleted).
+
+    F4b regression: TestReservedParamNamespace.test_register_allows_normal_param_keys
+    (test_registry.py) registers `test._reserved_namespace_ok` directly into the
+    shared, module-level `effects.registry._REGISTRY` dict and never unregisters
+    it — the function-scoped fixture above handles that case.
+
+    `test_mask_routing.py`'s `_register_test_effects` fixture leaks
+    `test.add10`/`test.add40`/`test.add100`/`test.invert_rgb` a different way:
+    it is itself `scope="module", autouse=True` with no teardown. Pytest sets up
+    higher-scoped (module) autouse fixtures before same-request lower-scoped
+    (function) ones, so by the time the function-scoped fixture above takes its
+    first snapshot within that module, the leak has ALREADY happened — a
+    function-scoped guard alone can never undo a module-scoped leak, because its
+    "clean" snapshot is taken after the pollution occurred and its restore just
+    puts the pollution straight back. Only a fixture at the SAME scope as (or
+    broader than) the leaking fixture, torn down after that fixture, can catch
+    it. This module-scoped guard snapshots before any module-scoped fixture in
+    the module runs (conftest fixtures are instantiated before same-scoped
+    fixtures declared in the test module itself) and restores after the module's
+    own fixtures tear down, so it closes the gap the function-scoped guard
+    leaves open. Together the two fixtures ensure no registration — whether made
+    inline in a test body or via a module-scoped setup fixture — survives past
+    the module that created it, which is what `pytest-xdist --dist loadfile`
+    (whole-file worker assignment) requires: the crash in
+    `test_integration.py::test_all_effects_process_without_crash` (or
+    `test_effects/test_registry.py`'s own leak guard) only happens if a leak
+    survives past its own FILE's tests, and both fixtures close that off.
+    """
+    snapshot = dict(_REGISTRY)
+    try:
+        yield
+    finally:
+        _REGISTRY.clear()
+        _REGISTRY.update(snapshot)
 
 
 @pytest.fixture(scope="session", autouse=True)
