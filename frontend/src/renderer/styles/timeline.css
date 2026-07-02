@@ -1031,6 +1031,28 @@ body[data-disable-f-0512-8] .clip__thumb {
   opacity: 1;
 }
 
+/* T4: inline rename editor — double-click a flag to open. Anchored at the head
+   so the field floats just right of the marker line without shifting layout. */
+.marker-flag__rename-input {
+  position: absolute;
+  top: 0;
+  left: 4px;
+  z-index: 5;
+  width: 90px;
+  padding: 1px 4px;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-action);
+  border-radius: 2px;
+  color: var(--cx-text-1);
+  font-family: inherit;
+  font-size: 11px;
+  outline: none;
+}
+
+.marker-flag__rename-input:focus {
+  border-color: var(--cx-action-hover);
+}
+
 /* --- History Panel --- */
 
 .history-panel {

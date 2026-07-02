@@ -157,6 +157,7 @@ interface TimelineState {
   addMarker: (time: number, label: string, color: string) => void
   removeMarker: (id: string) => void
   moveMarker: (id: string, newTime: number) => void
+  renameMarker: (id: string, label: string) => void
 
   // Loop
   setLoopRegion: (inTime: number, outTime: number) => void
@@ -1744,6 +1745,29 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       'Move marker',
       () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, time: newTime } : m)) }),
       () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, time: oldTime } : m)) }),
+    )
+  },
+
+  renameMarker: (id, label) => {
+    const marker = get().markers.find((m) => m.id === id)
+    if (!marker) return
+    const oldLabel = marker.label
+
+    // T4: trust boundary — this is user text rendered into the DOM. React escapes
+    // it, but we still (a) strip control chars (incl. newlines/tabs that would
+    // corrupt a single-line flag label), (b) collapse to trimmed text, and
+    // (c) cap length. Empty/whitespace-only input falls back to the default
+    // 'Marker' label rather than leaving an invisible flag.
+    // eslint-disable-next-line no-control-regex
+    const sanitized = label.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, LIMITS.MAX_MARKER_LABEL_LENGTH)
+    const newLabel = sanitized.length > 0 ? sanitized : 'Marker'
+
+    if (newLabel === oldLabel) return
+
+    undoable(
+      'Rename marker',
+      () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, label: newLabel } : m)) }),
+      () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, label: oldLabel } : m)) }),
     )
   },
 

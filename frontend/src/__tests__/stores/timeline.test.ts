@@ -15,6 +15,7 @@ import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useUndoStore } from '../../renderer/stores/undo'
 import type { Clip } from '../../shared/types'
 import { getTrackCompositing } from '../../shared/types'
+import { LIMITS } from '../../shared/limits'
 
 function makeClip(overrides: Partial<Clip> = {}): Clip {
   return {
@@ -1029,6 +1030,78 @@ describe('TimelineStore', () => {
       const clip = state.tracks[0].clips.find((c) => c.id === 'c1')!
       expect(clip.duration).toBe(5)
       expect(state.playheadTime).toBeLessThanOrEqual(5)
+    })
+  })
+
+  // --- Marker rename (T4) ---
+
+  describe('renameMarker (T4)', () => {
+    function addOneMarker(label = 'Marker'): string {
+      useTimelineStore.getState().addMarker(2.0, label, '#f59e0b')
+      useUndoStore.getState().clear()
+      return useTimelineStore.getState().markers[0].id
+    }
+
+    it('updates a marker label', () => {
+      const id = addOneMarker()
+      useTimelineStore.getState().renameMarker(id, 'Chorus')
+      expect(useTimelineStore.getState().markers[0].label).toBe('Chorus')
+    })
+
+    it('rename is undoable back to the prior label', () => {
+      const id = addOneMarker('Intro')
+      useTimelineStore.getState().renameMarker(id, 'Verse')
+      expect(useTimelineStore.getState().markers[0].label).toBe('Verse')
+      useUndoStore.getState().undo()
+      expect(useTimelineStore.getState().markers[0].label).toBe('Intro')
+      useUndoStore.getState().redo()
+      expect(useTimelineStore.getState().markers[0].label).toBe('Verse')
+    })
+
+    it('empty input falls back to the default "Marker" label', () => {
+      const id = addOneMarker('Drop')
+      useTimelineStore.getState().renameMarker(id, '')
+      expect(useTimelineStore.getState().markers[0].label).toBe('Marker')
+    })
+
+    it('whitespace-only input falls back to the default "Marker" label', () => {
+      const id = addOneMarker('Drop')
+      useTimelineStore.getState().renameMarker(id, '   \t  ')
+      expect(useTimelineStore.getState().markers[0].label).toBe('Marker')
+    })
+
+    it('trims surrounding whitespace', () => {
+      const id = addOneMarker()
+      useTimelineStore.getState().renameMarker(id, '  Bridge  ')
+      expect(useTimelineStore.getState().markers[0].label).toBe('Bridge')
+    })
+
+    it('strips control characters (newlines, tabs, NUL) from the label', () => {
+      const id = addOneMarker()
+      useTimelineStore.getState().renameMarker(id, 'A B\nC\tD')
+      expect(useTimelineStore.getState().markers[0].label).toBe('ABCD')
+    })
+
+    it('clamps the label to MAX_MARKER_LABEL_LENGTH', () => {
+      const id = addOneMarker()
+      const long = 'x'.repeat(500)
+      useTimelineStore.getState().renameMarker(id, long)
+      expect(useTimelineStore.getState().markers[0].label.length).toBe(LIMITS.MAX_MARKER_LABEL_LENGTH)
+    })
+
+    it('a no-op rename (same label) pushes nothing onto the undo stack', () => {
+      const id = addOneMarker('Same')
+      const before = useUndoStore.getState().past.length
+      useTimelineStore.getState().renameMarker(id, 'Same')
+      expect(useUndoStore.getState().past.length).toBe(before)
+    })
+
+    it('renaming a nonexistent marker id is a no-op', () => {
+      addOneMarker()
+      const before = useUndoStore.getState().past.length
+      useTimelineStore.getState().renameMarker('does-not-exist', 'Ghost')
+      expect(useUndoStore.getState().past.length).toBe(before)
+      expect(useTimelineStore.getState().markers[0].label).toBe('Marker')
     })
   })
 })

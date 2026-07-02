@@ -116,6 +116,10 @@ export default function Timeline({
     useTimelineStore.getState().removeMarker(id)
   }, [])
 
+  const handleRenameMarker = useCallback((id: string, label: string) => {
+    useTimelineStore.getState().renameMarker(id, label)
+  }, [])
+
   // Native wheel listener with { passive: false } so preventDefault() works.
   // React's onWheel uses passive listeners in Chrome/Electron, which makes
   // preventDefault() a no-op and breaks Cmd+scroll zoom and pinch-to-zoom.
@@ -292,6 +296,7 @@ export default function Timeline({
                   scrollX={scrollX}
                   onSeek={onSeek}
                   onDelete={handleDeleteMarker}
+                  onRename={handleRenameMarker}
                 />
               ))}
               {tracks.map((track) =>
