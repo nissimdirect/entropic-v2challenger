@@ -5,6 +5,7 @@ import { LIMITS } from '../../../shared/limits'
 import { useBrowserStore, type BrowserTab, BROWSER_TABS } from '../../stores/browser'
 import { useToastStore } from '../../stores/toast'
 import { useTimelineStore } from '../../stores/timeline'
+import { useLayoutStore } from '../../stores/layout'
 // P3.5: instruments tab now renders the real InstrumentsBrowser (INJ-4 fill).
 import InstrumentsBrowser from '../instruments/InstrumentsBrowser'
 // P4.6: op-tab operator entries (grouped) + drag-source handler.
@@ -221,7 +222,12 @@ export default function EffectBrowser({
   }, [clearSearch])
 
   // Cursor tool stack for the [tool] tab (PLAN §3.7 / qa-redteam H5)
-  const [cursorTool, setCursorTool] = useState<CursorTool>('select')
+  // T1 (2026-07-02): promoted from local useState to useLayoutStore.cursorTool
+  // so keyboard shortcuts (App.tsx) and click handlers (Clip.tsx, TimeRuler.tsx)
+  // read/write the same single source of truth. The store subscription re-renders
+  // this component on change exactly like useState did — no other behavior change.
+  const cursorTool = useLayoutStore((s) => s.cursorTool)
+  const setCursorTool = useLayoutStore((s) => s.setCursorTool)
   const cursorStackRef = useRef<CursorTool[]>([])
 
   // MK.6: wand tolerance — read by MaskSelectOverlay's wand-sample IPC. The slider

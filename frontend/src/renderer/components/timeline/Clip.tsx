@@ -275,6 +275,29 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, assetNa
       if ((e.target as HTMLElement).classList.contains('clip__trim-handle')) return
       if (e.button !== 0) return
 
+      // T1 (2026-07-02): razor/ripple-delete cursor tools short-circuit the
+      // normal select+drag flow below. 'select' (and every other tool — marker,
+      // loop-in/out, range-select, mask tools, slip/slide) falls through
+      // unchanged, so clicking with tool 'select' behaves exactly as today
+      // (regression guard).
+      const activeTool = useLayoutStore.getState().cursorTool
+      if (activeTool === 'razor') {
+        e.preventDefault()
+        e.stopPropagation()
+        // Reuse the same px→time math as the `left`/`width` style below:
+        // left = clip.position * zoom - scrollX, so time = position + offsetWithinClip/zoom.
+        const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+        const clickTime = clip.position + (e.clientX - rect.left) / zoom
+        useTimelineStore.getState().splitClip(clip.id, clickTime)
+        return
+      }
+      if (activeTool === 'ripple-delete') {
+        e.preventDefault()
+        e.stopPropagation()
+        useTimelineStore.getState().rippleRemoveClip(clip.id)
+        return
+      }
+
       e.preventDefault()
       e.stopPropagation()
 
