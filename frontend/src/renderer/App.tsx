@@ -99,7 +99,7 @@ import ModulationMatrix from './components/operators/ModulationMatrix'
 import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
-import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
+import { evaluateAutomationOverrides, applyAutomationOverridesToChain } from './utils/evaluateAutomationOverrides'
 import { buildSyntheticLaneOperators, buildOperatorLaneSpecs } from './utils/operatorLaneSpecs'
 import { evaluateTransformOverrides, mergeTransformOverride, formatTransformLanePath, parseTransformLanePath, type TransformField } from './utils/transformLanes'
 import { recordChangedTransformFields } from './utils/transform-record'
@@ -1457,8 +1457,18 @@ function AppInner() {
         // M.2b (Master-Out Bus wiring) — the Master track's effect chain, read
         // off timelineState (already captured this frame, same rationale as
         // perfTrackIds above: a coalesced render must not read a stale value).
+        // M.3 — fold this frame's automation overrides (autoOverrides, already
+        // evaluated above at `currentTime` — the SAME evaluator/values the
+        // single-clip render_frame path sends as `automation_overrides`) onto
+        // the master chain's params BEFORE it is serialized, so a master
+        // effect param under automation renders its time-varying value here
+        // too. No overrides → returned unchanged (byte-identical, M.1 no-op
+        // contract preserved).
         const masterTrack = timelineState.tracks.find((t) => t.type === 'master')
-        const masterChain = masterTrack?.effectChain ?? []
+        const masterChain = applyAutomationOverridesToChain(
+          masterTrack?.effectChain ?? [],
+          autoOverrides,
+        )
 
         // M.2b THE TRAP fix: render_frame (single-clip fast path, below) never
         // reads master_chain, so a non-empty Master chain must force the
@@ -2878,6 +2888,30 @@ function AppInner() {
       // backend keys the map by source frame index (src_idx) and looks it up per
       // frame; automation is time-based, so frame f's time = f / activeFps.
       const exportLanes = useAutomationStore.getState().getAllLanes()
+      // HIGH silent-parity fix (redteam-confirmed, PR #406): master-chain
+      // automation lanes are TYPE-keyed (paramPath = "<effectId>.<paramKey>",
+      // see evaluateAutomationOverrides.ts's applyAutomationOverridesToChain
+      // docstring), and the backend's apply_modulation matches ANY chain's
+      // effects by that SAME type key — it has no notion of which track an
+      // effect belongs to. Previously ALL lanes (master + clip/track) were
+      // folded into ONE `automation_by_frame` map and fed to BOTH the master
+      // chain AND the per-clip/track chain's modulate_chain_for_frame call
+      // (export.py), so a master lane on e.g. "fx.color_invert.amount" also
+      // overrode any CLIP effect of that same type — contamination invisible
+      // in preview (whose composite path never calls apply_modulation for
+      // the per-clip chain) but present in export. Fix: resolve the Master
+      // track's lanes SEPARATELY into their own per-frame map
+      // (`master_automation_by_frame`, sent alongside — see below) and
+      // exclude them from `automationByFrame` here so the per-clip/track
+      // chain never sees a master override.
+      const masterTrackForAuto = useTimelineStore.getState().tracks.find((t) => t.type === 'master')
+      const masterLanesOnly = masterTrackForAuto
+        ? useAutomationStore.getState().getLanesForTrack(masterTrackForAuto.id)
+        : []
+      const masterLaneIds = new Set(masterLanesOnly.map((l) => l.id))
+      const clipAutomationLanes = masterLaneIds.size > 0
+        ? exportLanes.filter((l) => !masterLaneIds.has(l.id))
+        : exportLanes
       // #28: same tracks-context threading as preview (requestRenderFrame) —
       // see evaluateAutomationOverrides's doc comment. Hoisted outside the
       // per-frame loop below since tracks don't change during a single bake.
@@ -2899,17 +2933,21 @@ function AppInner() {
       const exportLaneOperators = buildSyntheticLaneOperators(exportLanes)
       const { specs: exportOperatorLaneSpecs } = buildOperatorLaneSpecs(exportLanes, 0, registry)
       const operatorLaneBaseByFrame: Record<number, Record<string, number | null>> = {}
-      if (exportLanes.length > 0) {
+      // M.3 + AA.3-A: run the shared per-frame loop when there's clip/track
+      // automation to resolve (clipAutomationLanes, master-excluded per the
+      // HIGH silent-parity fix above) OR operator-sourced lanes to resolve
+      // (exportOperatorLaneSpecs) — either can be non-empty independently.
+      if (clipAutomationLanes.length > 0 || exportOperatorLaneSpecs.length > 0) {
         for (let f = exportStartFrame; f <= exportEndFrame; f++) {
           const t = f / exportSourceFps
-          const overrides = evaluateAutomationOverrides(exportLanes, t, registry, exportTracksForAutomation)
+          const overrides = evaluateAutomationOverrides(clipAutomationLanes, t, registry, exportTracksForAutomation)
           // A2b: transform lanes share the automation_by_frame channel but need
           // their OWN evaluator — evaluateAutomationOverrides mis-scales the
           // `clipTransform.*` keys (no registry entry → raw 0..1). Overwrite them
           // with the display-range-denormalized + store-clamped values
           // evaluateTransformOverrides produces (the SAME numbers preview's
           // mergeTransformOverride uses), so the backend fold pixel-matches preview.
-          const tOverrides = evaluateTransformOverrides(exportLanes, t)
+          const tOverrides = evaluateTransformOverrides(clipAutomationLanes, t)
           for (const clipId of Object.keys(tOverrides)) {
             const fields = tOverrides[clipId]
             for (const field of Object.keys(fields) as TransformField[]) {
@@ -2930,6 +2968,22 @@ function AppInner() {
       }
       const hasAutomation = Object.keys(automationByFrame).length > 0
       const hasOperatorLanes = exportOperatorLaneSpecs.length > 0
+
+      // Master-only per-frame automation map (see comment above) — resolved
+      // the SAME way as automationByFrame but scoped strictly to the Master
+      // track's own lanes, so it is safe to apply exclusively to master_chain
+      // backend-side without ever touching a per-clip/track effect.
+      const masterAutomationByFrame: Record<number, Record<string, number>> = {}
+      if (masterLanesOnly.length > 0) {
+        for (let f = exportStartFrame; f <= exportEndFrame; f++) {
+          const t = f / exportSourceFps
+          const overrides = evaluateAutomationOverrides(masterLanesOnly, t, registry, exportTracksForAutomation)
+          if (Object.keys(overrides).length > 0) {
+            masterAutomationByFrame[f] = overrides
+          }
+        }
+      }
+      const hasMasterAutomation = Object.keys(masterAutomationByFrame).length > 0
 
       // A2b — send the static clip transform + its id when the clip carries a
       // non-identity transform OR has transform lanes (so the backend knows which
@@ -3201,8 +3255,19 @@ function AppInner() {
       // M.2b (Master-Out Bus wiring) — export mirrors preview's master_chain
       // seam (M.2 already made export's single-input path apply master; this
       // wires the send side so export actually forwards the chain).
-      const masterTrack = useTimelineStore.getState().tracks.find((t) => t.type === 'master')
-      const masterChain = masterTrack?.effectChain ?? []
+      // M.3 — unlike preview (one render = one frame, so autoOverrides can be
+      // baked in client-side before sending), export sends ONE master_chain
+      // for the WHOLE job while automation varies per output frame. So the
+      // static chain is sent as-is here, and `master_automation_by_frame`
+      // below (scoped strictly to the Master track's own lanes — see the
+      // HIGH silent-parity fix comment above) carries the master-effect
+      // paramPath keys. The backend (engine/export.py) re-resolves
+      // master_chain per source frame via the SAME modulate_chain_for_frame()
+      // helper the per-clip chain uses, but reading `master_automation_by_frame`
+      // instead of `automation_by_frame` for the master call — no parallel
+      // mechanism, but no cross-chain key bleed either.
+      // masterTrackForAuto is resolved once above (used for the lane split).
+      const masterChain = masterTrackForAuto?.effectChain ?? []
 
       const res = await window.entropic.sendCommand({
         cmd: 'export_start',
@@ -3227,6 +3292,10 @@ function AppInner() {
         ...(exportOperators.length > 0 || exportLaneOperators.length > 0
           ? { operators: [...exportOperators, ...exportLaneOperators] } : {}),
         ...(hasAutomation ? { automation_by_frame: automationByFrame } : {}),
+        // HIGH silent-parity fix (PR #406) — master lane overrides travel in
+        // their OWN map, applied backend-side ONLY to master_chain, so they
+        // never bleed onto a same-type clip/track effect via automation_by_frame.
+        ...(hasMasterAutomation ? { master_automation_by_frame: masterAutomationByFrame } : {}),
         // AA.3-A: operator-lane descriptors (constant) + per-source-frame
         // normalized base map. Omitted when no operator lanes exist —
         // byte-identical legacy export payload.

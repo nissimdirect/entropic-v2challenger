@@ -2646,6 +2646,14 @@ class ZMQServer:
         # legacy export, byte-identical.
         operators = message.get("operators")
         automation_by_frame = message.get("automation_by_frame")
+        # HIGH silent-parity fix (PR #406): the frontend now sends Master-track
+        # lane overrides SEPARATELY from `automation_by_frame` (which is
+        # clip/track-only as of this fix) — see engine/export.py's
+        # `master_automation_by_frame` docstring for why the two maps must
+        # never be merged (apply_modulation matches by effect TYPE, so a
+        # merged map would let a Master lane override a same-type CLIP
+        # effect). Absent → no master automation, byte-identical.
+        master_automation_by_frame = message.get("master_automation_by_frame")
         # AA.3-A: operator-sourced lane descriptors (constant across the export)
         # + their per-source-frame normalized base map. Both optional/additive:
         # absent → legacy export (no operator-lane REPLACE applied). The
@@ -2727,6 +2735,14 @@ class ZMQServer:
         mod_errors = validate_export_modulation(operators, automation_by_frame)
         if mod_errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(mod_errors)}
+
+        # HIGH silent-parity fix (PR #406): same trust boundary on the
+        # Master-only automation map — structurally identical shape to
+        # `automation_by_frame`, so the SAME validator applies (operators=None
+        # skips re-validating the already-validated operator list).
+        master_mod_errors = validate_export_modulation(None, master_automation_by_frame)
+        if master_mod_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(master_mod_errors)}
 
         # P5a.4: enforce-before-decode trust boundary on the performance payload.
         # The serialized event list is replayed by evaluate_voices to reconstruct
@@ -2813,6 +2829,7 @@ class ZMQServer:
                 transform=transform,
                 transform_clip_id=transform_clip_id,
                 master_chain=master_chain,
+                master_automation_by_frame=master_automation_by_frame,
             )
             return {"id": msg_id, "ok": True}
         except Exception as e:
