@@ -1,0 +1,285 @@
+/*
+ * H-UI (2026-07-02 master-tuneup WS5) — MIDI Map mode overlay.
+ * --cx-* tokens ONLY (hex-ratchet CI); mirrors floating-panel / device-chain
+ * surface + token conventions. The overlay is a centered floating panel over a
+ * dimming scrim; the 4x8 grid uses the modulation ("--cx-mod") token family to
+ * echo the statusbar mapping-context chip, ACID for the live knob-turn flash.
+ */
+
+.midi-map-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(11, 11, 16, 0.62); /* scrim — surface-0 at alpha, no new token */
+  animation: midi-map-fade var(--cx-dur-entry) var(--cx-ease);
+}
+
+@keyframes midi-map-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.midi-map-overlay__panel {
+  min-width: 620px;
+  max-width: 90vw;
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-dialog);
+  padding: 16px;
+  box-shadow: 0 12px 40px rgba(11, 11, 16, 0.5);
+  font-family: var(--cx-font-ui);
+}
+
+.midi-map-overlay__header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.midi-map-overlay__title {
+  font-size: var(--cx-text-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--cx-text-1);
+}
+
+.midi-map-overlay__context {
+  flex: 1;
+  font-size: var(--cx-text-data);
+  font-family: var(--cx-font-mono);
+  color: var(--cx-mod);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.midi-map-overlay__close {
+  background: var(--cx-action);
+  color: var(--cx-action-on);
+  border: none;
+  border-radius: var(--cx-radius-control);
+  padding: 4px 12px;
+  font-size: var(--cx-text-label);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--cx-dur-feedback) var(--cx-ease);
+}
+
+.midi-map-overlay__close:hover {
+  background: var(--cx-action-hover);
+}
+
+.midi-map-overlay__hint {
+  margin: 0 0 12px;
+  font-size: var(--cx-text-data);
+  color: var(--cx-text-3);
+}
+
+/* ── grid ─────────────────────────────────────────────────────────────── */
+
+.midi-map-grid {
+  display: grid;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.midi-map-grid__corner {
+  /* empty top-left cell */
+}
+
+.midi-map-grid__col-label {
+  text-align: center;
+  font-size: var(--cx-text-data);
+  font-weight: 600;
+  color: var(--cx-text-2);
+  padding-bottom: 2px;
+}
+
+.midi-map-grid__row-label {
+  display: flex;
+  align-items: center;
+  font-size: var(--cx-text-data);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--cx-text-2);
+  padding-right: 8px;
+}
+
+.midi-map-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-height: 52px;
+  padding: 6px;
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-1);
+  border-radius: var(--cx-radius-card);
+  cursor: pointer;
+  text-align: left;
+  position: relative;
+  transition:
+    border-color var(--cx-dur-feedback) var(--cx-ease),
+    background var(--cx-dur-feedback) var(--cx-ease);
+}
+
+.midi-map-slot:hover:not(:disabled) {
+  border-color: var(--cx-mod);
+  background: var(--cx-surface-4);
+}
+
+.midi-map-slot:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.midi-map-slot[data-slot-state='overridden'] {
+  border-color: var(--cx-mod);
+  background: var(--cx-mod-wash);
+}
+
+.midi-map-slot[data-selected='true'] {
+  border-color: var(--cx-action);
+  box-shadow: 0 0 0 1px var(--cx-action) inset;
+}
+
+.midi-map-slot[data-flashing='true'] {
+  border-color: var(--cx-acid);
+  background: var(--cx-acid-wash);
+  box-shadow: 0 0 0 1px var(--cx-acid) inset;
+}
+
+.midi-map-slot__cc {
+  font-size: var(--cx-text-data);
+  font-family: var(--cx-font-mono);
+  font-weight: 600;
+  color: var(--cx-text-1);
+}
+
+.midi-map-slot__target {
+  font-size: var(--cx-text-data);
+  color: var(--cx-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+}
+
+.midi-map-slot__badge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 0 3px;
+  border-radius: var(--cx-radius-control);
+}
+
+.midi-map-slot__badge[data-slot-badge='overridden'] {
+  color: var(--cx-mod);
+  background: var(--cx-mod-wash);
+}
+
+.midi-map-slot__badge[data-slot-badge='default'] {
+  color: var(--cx-text-3);
+}
+
+/* ── param picker ─────────────────────────────────────────────────────── */
+
+.midi-map-picker {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.midi-map-picker__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.midi-map-picker__title {
+  font-size: var(--cx-text-label);
+  font-weight: 600;
+  color: var(--cx-text-1);
+}
+
+.midi-map-picker__cancel,
+.midi-map-picker__clear {
+  background: var(--cx-surface-3);
+  color: var(--cx-text-2);
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-control);
+  padding: 3px 10px;
+  font-size: var(--cx-text-data);
+  cursor: pointer;
+}
+
+.midi-map-picker__cancel:hover,
+.midi-map-picker__clear:hover {
+  color: var(--cx-text-1);
+  border-color: var(--cx-mod);
+}
+
+.midi-map-picker__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.midi-map-picker__item {
+  background: var(--cx-surface-3);
+  color: var(--cx-text-1);
+  border: 1px solid var(--cx-line-1);
+  border-radius: var(--cx-radius-control);
+  padding: 4px 10px;
+  font-size: var(--cx-text-data);
+  cursor: pointer;
+  transition:
+    border-color var(--cx-dur-feedback) var(--cx-ease),
+    background var(--cx-dur-feedback) var(--cx-ease);
+}
+
+.midi-map-picker__item:hover {
+  border-color: var(--cx-mod);
+  background: var(--cx-mod-wash);
+}
+
+.midi-map-picker__item[data-current='true'] {
+  border-color: var(--cx-mod);
+  color: var(--cx-mod);
+}
+
+/* ── statusbar toggle button ──────────────────────────────────────────── */
+
+.status-bar__map-toggle {
+  background: transparent;
+  color: var(--cx-text-2);
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-control);
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    color var(--cx-dur-feedback) var(--cx-ease),
+    border-color var(--cx-dur-feedback) var(--cx-ease);
+}
+
+.status-bar__map-toggle:hover {
+  color: var(--cx-text-1);
+  border-color: var(--cx-mod);
+}
+
+.status-bar__map-toggle[data-active='true'] {
+  color: var(--cx-mod);
+  border-color: var(--cx-mod);
+  background: var(--cx-mod-wash);
+}
