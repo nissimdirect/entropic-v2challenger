@@ -1,0 +1,28 @@
+# Nightly performance job — routing-budget + effect timing harnesses.
+# Runs the opt-in `perf` marker tier that is DESELECTED from all default/per-PR
+# suites (pyproject markers). Uploads the measured baseline as an artifact and
+# soft-reports; regression gating is deliberate/manual (baselines re-committed
+# by a human, never auto). See docs/perf/ and the LayerTap perf plan.
+name: perf-nightly
+on:
+  schedule:
+    - cron: "17 9 * * *"   # daily, off-peak
+  workflow_dispatch: {}
+jobs:
+  perf:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install backend deps
+        run: cd backend && pip install -e ".[dev]" 2>/dev/null || pip install -r requirements.txt || pip install numpy opencv-python pytest pytest-xdist
+      - name: Run perf tier
+        run: cd backend && RUN_PERF=1 PYTHONPATH=src python3 -m pytest -m perf tests/perf/ tests/test_effect_harness.py -n 0 -s --tb=short
+      - name: Upload measured baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: routing-baseline-${{ github.run_id }}
+          path: docs/perf/routing-baseline.json

@@ -234,5 +234,7 @@
   "meter": {
     "yellow_ms": 10,
     "red_ms": 20
-  }
+  },
+  "optimized_field_tap_ms_1080p": 4.3,
+  "naive_field_tap_ms_1080p": 20.39
 }

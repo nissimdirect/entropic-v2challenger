@@ -190,6 +190,47 @@ def test_routing_budget_curves():
     print(f"baseline written: {out_path / 'routing-baseline.json'}")
 
 
+def test_optimized_tap_path_quantifies_mandates():
+    """The two implementation mandates (hoist float conversion; contiguous buffers)
+    measured against the naive path — this delta is WHY they are mandates, and the
+    optimized number is what the budget meter constants should assume."""
+    w, h = RES["1080p"]
+    raw = _frame(w, h, 7)
+    src_naive = raw[:, :, :3]                      # NON-contiguous view (the trap)
+    dst_naive = _frame(w, h, 8)[:, :, :3]
+    src_opt = np.ascontiguousarray(src_naive)      # mandate 2
+    dst_f32 = np.ascontiguousarray(dst_naive).astype(np.float32)  # mandate 1: hoisted once
+
+    def _naive():
+        _tap_field(src_naive, dst_naive)
+
+    def _opt():
+        field = cv2.cvtColor(src_opt, cv2.COLOR_RGB2GRAY)
+        field = cv2.LUT(field, _GAMMA_LUT).astype(np.float32) / 255.0
+        m3 = cv2.merge([field, field, field])
+        cv2.add(cv2.multiply(dst_f32, 1 - m3), cv2.multiply(dst_f32, m3))
+
+    def _t(fn):
+        fn()
+        ts = []
+        for _ in range(20):
+            t0 = time.perf_counter(); fn(); ts.append((time.perf_counter() - t0) * 1000)
+        return median(ts)
+
+    naive, opt = _t(_naive), _t(_opt)
+    print(f"field tap @1080p: naive {naive:.2f}ms -> optimized {opt:.2f}ms ({naive/opt:.1f}x)")
+    assert opt < naive, "optimized path must beat naive"
+    # record beside the grid baseline
+    out_path = Path(__file__).resolve().parents[2].parent / "docs" / "perf"
+    out_path.mkdir(parents=True, exist_ok=True)
+    p = out_path / "routing-baseline.json"
+    if p.exists():
+        data = json.loads(p.read_text())
+        data["optimized_field_tap_ms_1080p"] = round(opt, 2)
+        data["naive_field_tap_ms_1080p"] = round(naive, 2)
+        p.write_text(json.dumps(data, indent=2))
+
+
 def test_fanout_computes_tap_once():
     """Perf-plan Phase 2 requirement: one source feeding N consumers must extract
     the tap ONCE and share the buffer. Demonstrated numerically: shared-tap cost
