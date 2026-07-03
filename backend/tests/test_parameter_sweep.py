@@ -187,6 +187,11 @@ class TestParameterSweep:
         "fx.pixel_bubbles",
         "fx.pixel_inkdrop",
         "fx.pixel_haunt",
+        # fx.extrude_spin (#369): a temporal 3D-extrude/spin that accumulates
+        # generations over frames — at frame_index=0 no generations have built up,
+        # so every param produces identical output. Exercised at non-zero frames by
+        # its own test_extrude_spin.py.
+        "fx.extrude_spin",
     )
 
     def test_param_has_impact(self, case):
