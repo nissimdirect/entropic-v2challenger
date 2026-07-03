@@ -20,6 +20,11 @@ import {
 import { usePerformanceStore } from './performance';
 import { handlePadTrigger, releasePadWithCapture } from '../components/performance/padActions';
 import { MIDICCRateLimiter } from '../../shared/midi-utils';
+import {
+  deriveControllerFingerprint,
+  getBindingsForFingerprint,
+  saveControllerBindings,
+} from '../../shared/controllerIdentity';
 
 // Module-level singleton limiter — survives store resets (state reset ≠ device
 // reconnect; throttle context is cleared on resetMIDI via _resetCCLimiter()).
@@ -58,6 +63,17 @@ function _resetCCLimiter(): void {
   _ccLimiter.reset();
 }
 
+/**
+ * H5 — persist the current ccBankBindings under the active controller's
+ * fingerprint. No-op when no controller identity is applied (nothing to key on).
+ * Takes the store's `get` so it can read the freshest post-set state.
+ */
+function _persistBindingsForActiveController(get: () => MIDIState): void {
+  const { activeControllerFingerprint, ccBankBindings } = get();
+  if (!activeControllerFingerprint) return;
+  saveControllerBindings(activeControllerFingerprint, ccBankBindings);
+}
+
 interface MIDIState {
   devices: MIDIDevice[];
   activeDeviceId: string | null;
@@ -72,6 +88,13 @@ interface MIDIState {
   // for the RESOLVED value — these two fields are the model/config only).
   ccBankBindings: CCBankBinding[];
   bankAssignments: Record<string, BankAssignment>;
+
+  // H5 — controller-identity persistence (master plan WS5). The fingerprint of
+  // the currently active controller (name+manufacturer, sanitized — see
+  // controllerIdentity.ts). Learns are persisted at APP level keyed by this
+  // fingerprint; on device connect, a known fingerprint auto-loads its saved
+  // ccBankBindings. null when no controller identity has been applied yet.
+  activeControllerFingerprint: string | null;
 
   // H3 — direct CC->SlotTarget mappings from the widened MIDI-learn surface
   // (macro/transform/mask/instrument). Absolute (not focus-relative); the
@@ -93,6 +116,9 @@ interface MIDIState {
   clearCCBankBindings: () => void;
   setBankAssignment: (contextKey: string, assignment: BankAssignment) => void;
   clearBankAssignment: (contextKey: string) => void;
+  // H5 controller-identity: apply the saved binding-set for a connected device
+  // (or clear identity when device is null). See action impl for semantics.
+  applyControllerIdentity: (device: { name: string; manufacturer: string } | null) => void;
   // H3 direct CC->SlotTarget mapping CRUD
   addCCSlotMapping: (mapping: CCSlotMapping) => void;
   removeCCSlotMapping: (cc: number) => void;
@@ -116,6 +142,7 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
   ccBankBindings: [],
   bankAssignments: {},
   ccSlotMappings: [],
+  activeControllerFingerprint: null,
 
   setDevices: (devices) => set({ devices }),
   setActiveDevice: (id) => set({ activeDeviceId: id }),
@@ -158,14 +185,21 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
     if (next.length >= MAX_CC_BANK_BINDINGS) {
       next = next.slice(next.length - MAX_CC_BANK_BINDINGS + 1); // evict oldest
     }
-    set({ ccBankBindings: [...next, { cc, slot: { row: slot.row, col: slot.col } }] });
+    next = [...next, { cc, slot: { row: slot.row, col: slot.col } }];
+    set({ ccBankBindings: next });
+    // H5 — persist the LEARN at app level keyed by the active controller.
+    _persistBindingsForActiveController(get);
   },
 
   removeCCBankBinding: (cc) => {
     set((s) => ({ ccBankBindings: s.ccBankBindings.filter((b) => b.cc !== cc) }));
+    _persistBindingsForActiveController(get); // H5 — keep saved set in sync
   },
 
-  clearCCBankBindings: () => set({ ccBankBindings: [] }),
+  clearCCBankBindings: () => {
+    set({ ccBankBindings: [] });
+    _persistBindingsForActiveController(get); // H5 — empty set forgets the controller
+  },
 
   setBankAssignment: (contextKey, assignment) => {
     if (typeof contextKey !== 'string' || contextKey.length === 0) return;
@@ -189,6 +223,46 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       delete next[contextKey];
       return { bankAssignments: next };
     });
+  },
+
+  // H5 — controller-identity auto-load. Called from useMIDI on device connect /
+  // active-device change with the active input's {name, manufacturer} (or null
+  // when no device is active). Derives the stable fingerprint and, if it DIFFERS
+  // from the currently applied identity, adopts it: a known fingerprint's saved
+  // bindings are applied (auto-load, "already mapped"); an unknown fingerprint
+  // leaves the current bindings untouched (getBindingsForFingerprint → []), so a
+  // fresh controller inherits nothing and starts a clean LEARN that then
+  // persists under its own fingerprint.
+  //
+  // The fingerprint-change guard makes this idempotent across the frequent
+  // onstatechange bursts: once applied, in-session learns keep the store == the
+  // saved set (every binding CRUD persists), so re-applying the same identity
+  // is a no-op and never clobbers an in-progress learn.
+  applyControllerIdentity: (device) => {
+    const fingerprint = device
+      ? deriveControllerFingerprint(device.name, device.manufacturer)
+      : null;
+    if (fingerprint === get().activeControllerFingerprint) return;
+    set({ activeControllerFingerprint: fingerprint });
+    if (fingerprint) {
+      // Data-loss guard (redteam-confirmed): resetMIDI() (project open/new)
+      // clears activeControllerFingerprint to null WITHOUT clearing
+      // ccBankBindings from the newly-loaded project — and a learn made while
+      // fingerprint is null lands in ccBankBindings too, just unpersisted (see
+      // _persistBindingsForActiveController's null-fingerprint no-op above).
+      // Either way, a NON-EMPTY ccBankBindings here means something the user
+      // already has — the project's own saved bindings, or an in-session
+      // learn — that must never be silently blown away by a stale app-level
+      // "known controller" profile. The saved-profile auto-load is only a
+      // convenience for an EMPTY session; once bindings exist, skip it.
+      if (get().ccBankBindings.length > 0) return;
+      const saved = getBindingsForFingerprint(fingerprint); // validated + capped
+      if (saved.length > 0) {
+        // applyControllerProfile re-validates, de-dupes by cc, and caps —
+        // second trust-boundary pass on the persisted payload.
+        get().applyControllerProfile(saved);
+      }
+    }
   },
 
   // H3 — direct CC->SlotTarget mapping CRUD. Mirrors addCCMapping's
@@ -346,6 +420,10 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       ccBankBindings: [],
       bankAssignments: {},
       ccSlotMappings: [],
+      // H5 — clear the applied identity so the next device connect re-derives
+      // and re-applies its app-level saved bindings. This does NOT touch the
+      // app-level localStorage store (that persists across projects/sessions).
+      activeControllerFingerprint: null,
     });
   },
 
