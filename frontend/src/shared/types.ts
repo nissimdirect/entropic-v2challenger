@@ -549,6 +549,15 @@ export interface PadRuntimeState {
   releaseFrame: number;
   currentValue: number;
   releaseStartValue: number;
+  /**
+   * H6 — MIDI note-on velocity (0-127) captured at trigger time. Scales the
+   * ADSR envelope's peak intensity in computeADSR (velocity-sensitive pads
+   * like nanoPAD2/Launchpad hit softer → lower modulation intensity reaching
+   * applyPadModulations). Optional: absent/undefined (keyboard/mouse
+   * triggers, or legacy state) defaults to 127 (full intensity) —
+   * byte-identical to pre-H6 behavior.
+   */
+  velocity?: number;
 }
 
 // --- MIDI (Phase 9) ---

@@ -27,6 +27,15 @@ export function computeADSR(
   const sustain = clamp01(sanitize(envelope.sustain));
   const release = sanitize(envelope.release);
 
+  // H6 — velocity (0-127) scales the envelope's PEAK intensity (attack/decay/
+  // sustain only). Missing/invalid velocity (keyboard/mouse triggers, or
+  // legacy padStates predating H6) defaults to 127 → scale=1, byte-identical
+  // to pre-H6 output. The release branch below intentionally does NOT
+  // re-apply this scale: it ramps from `state.releaseStartValue`, which was
+  // itself computed via this same (already-scaled) attack/decay/sustain path
+  // at the moment release began — re-scaling here would double-apply it.
+  const velocityScale = clamp01(sanitizeVelocity(state.velocity) / 127);
+
   if (state.phase === 'idle') {
     return { value: 0, phase: 'idle' };
   }
@@ -61,25 +70,25 @@ export function computeADSR(
 
   // Attack phase
   if (elapsed < attack) {
-    const value = elapsed / attack;
+    const value = (elapsed / attack) * velocityScale;
     return { value: clamp01(value), phase: 'attack' };
   }
 
-  // Instant attack (0 frames): value jumps to 1.0
+  // Instant attack (0 frames): value jumps to 1.0 (pre-velocity-scale)
   const postAttack = elapsed - attack;
 
   // Decay phase
   if (postAttack < decay) {
     if (decay === 0) {
-      return { value: clamp01(sustain), phase: 'sustain' };
+      return { value: clamp01(sustain * velocityScale), phase: 'sustain' };
     }
     const progress = postAttack / decay;
-    const value = 1.0 - (1.0 - sustain) * progress;
+    const value = (1.0 - (1.0 - sustain) * progress) * velocityScale;
     return { value: clamp01(value), phase: 'decay' };
   }
 
   // Sustain phase
-  return { value: clamp01(sustain), phase: 'sustain' };
+  return { value: clamp01(sustain * velocityScale), phase: 'sustain' };
 }
 
 function sanitize(n: number): number {
@@ -90,4 +99,19 @@ function sanitize(n: number): number {
 function clamp01(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.max(0, Math.min(1, n));
+}
+
+/**
+ * H6 — sanitize a raw velocity value (e.g. a PadRuntimeState.velocity or a
+ * MIDI note-on velocity byte) for envelope scaling / TriggerEvent stamping.
+ * Missing/non-finite/out-of-range → 127 (full intensity, pre-H6 default).
+ * Negative → 0 (silent/no intensity, not full — a malformed negative byte
+ * should not be treated as "unset"). Exported so trigger-time call sites
+ * (stores/performance.ts) apply the SAME trust-boundary guard as the
+ * envelope-scaling read here.
+ */
+export function sanitizeVelocity(v: number | undefined): number {
+  if (v === undefined || !Number.isFinite(v)) return 127;
+  if (v < 0) return 0;
+  return Math.min(127, v);
 }

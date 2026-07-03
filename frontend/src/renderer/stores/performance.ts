@@ -17,7 +17,7 @@ import type {
   PadMode,
 } from '../../shared/types';
 import { DEFAULT_PAD_BINDINGS, DEFAULT_ADSR, RESERVED_KEYS } from '../../shared/constants';
-import { computeADSR } from '../components/performance/computeADSR';
+import { computeADSR, sanitizeVelocity } from '../components/performance/computeADSR';
 import { useUndoStore, undoable } from './undo';
 import { useMIDIStore } from './midi';
 import type { TriggerEvent } from '../components/instruments/voiceFSM';
@@ -114,7 +114,15 @@ interface PerformanceState {
   trackEvents: Record<string, TriggerEvent[]>;
 
   // Pad trigger actions
-  triggerPad: (padId: string, frameIndex: number, trackId?: string) => void;
+  /**
+   * H6 — `velocity` (0-127, MIDI note-on velocity byte) is OPTIONAL and
+   * defaults to 127 (full intensity) when omitted — byte-identical to
+   * pre-H6 behavior for keyboard/mouse triggers. Stored on the pad's
+   * PadRuntimeState (scales computeADSR's envelope peak — see
+   * computeADSR.ts) and stamped onto the TriggerEvent's `velocity` field
+   * (replacing the previous hardcoded 127) when `trackId` is also supplied.
+   */
+  triggerPad: (padId: string, frameIndex: number, trackId?: string, velocity?: number) => void;
   /**
    * B4-editor — trigger a Sample Rack pad. Writes a TriggerEvent to
    * `trackEvents['${trackId}:${padId}']` (the COMPOSITE key the rack render path
@@ -221,7 +229,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
   padStates: {},
   trackEvents: {},
 
-  triggerPad: (padId, frameIndex, trackId) => {
+  triggerPad: (padId, frameIndex, trackId, velocity) => {
     const { drumRack, padStates } = get();
     const pad = drumRack.pads.find((p) => p.id === padId);
     if (!pad) return;
@@ -238,6 +246,11 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       }
     }
 
+    // H6: sanitize once, reuse for both the runtime state (envelope scaling
+    // in computeADSR) and the TriggerEvent below — a single trust-boundary
+    // pass on the caller-supplied MIDI velocity byte.
+    const safeVelocity = sanitizeVelocity(velocity);
+
     // Activate this pad
     newStates[padId] = {
       phase: 'attack',
@@ -245,6 +258,7 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
       releaseFrame: 0,
       currentValue: 0,
       releaseStartValue: 0,
+      velocity: safeVelocity,
     };
 
     // P5a.3: append TriggerEvent to the owning track's event log.
@@ -256,7 +270,9 @@ export const usePerformanceStore = create<PerformanceState>((set, get) => ({
         frameIndex: Math.round(frameIndex),
         eventIndex: idx,
         note: 60, // default MIDI note; extended in P5a.8
-        velocity: 127,
+        // H6: real MIDI velocity (was hardcoded 127 — always discarded the
+        // actual note-on velocity byte from velocity-sensitive pads).
+        velocity: safeVelocity,
         kind: 'trigger',
         instrumentId: trackId,
       };

@@ -360,7 +360,13 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       // Note-on: find pad by midiNote
       const pad = perfStore.drumRack.pads.find((p) => p.midiNote === byte1);
       if (!pad) return;
-      handlePadTrigger(pad, perfStore, frameIndex, 'midi');
+      // H6: byte2 IS the note-on velocity (0-127) here — plumb it through
+      // instead of discarding it, so velocity-sensitive pads (nanoPAD2,
+      // Launchpad) reach the performance layer as trigger intensity
+      // (handlePadTrigger → triggerPad → PadRuntimeState.velocity → scales
+      // computeADSR's envelope peak → applyPadModulations) and, when a
+      // trackId is present, as the TriggerEvent.velocity field.
+      handlePadTrigger(pad, perfStore, frameIndex, 'midi', byte2);
     } else if (statusByte === 0x80 || (statusByte === 0x90 && byte2 === 0)) {
       // Note-off: release pad for gate/one-shot
       const pad = perfStore.drumRack.pads.find((p) => p.midiNote === byte1);
