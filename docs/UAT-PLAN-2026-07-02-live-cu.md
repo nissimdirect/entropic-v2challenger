@@ -238,3 +238,72 @@ both present and rendered — tonight's headline merges are in the running build
   additive-vs-replace; `+ Lane` adds an automation lane, `+ Trigger` a trigger lane.
 - Export (Stage 11/C1/C6): Cmd+E → `.export-dialog` → codec select → `.export-dialog__export-btn`
   → `.export-progress__done` (encode can take >30s; wait to 90s).
+
+---
+
+# NEW FEATURES THIS SESSION (2026-07-03) — added to the CU-UAT scope
+
+Everything below shipped to main on 2026-07-03 and needs live CU coverage. Kill+relaunch the DEV
+app first (store-shape changed). All of it is Ableton-parity automation + a new Master bus.
+
+## Stage I — Automation EDITING suite (Ableton parity) (~60 min)
+Arm a track (R in the automation toolbar), add a lane on an effect param (context menu → Add Lane),
+then exercise each editing gesture and confirm the drawn shape SURVIVES save→reload AND matches on
+export (preview==export is the invariant).
+- **I1 Curves (AA.1):** Alt+DRAG a segment/node → continuous tension; Alt+double-click → straighten.
+  Confirm the eased ramp renders (not linear). Simplify preserves the curve shape.
+- **I2 Select + move (AA.4):** marquee-drag over breakpoints → they select (highlighted); drag to move
+  in time+value; **copy/paste**; quantize toggle (Cmd+U) snaps moved points to grid when on.
+- **I3 Transform box (AA.4b):** with a selection, an edge/corner box appears — drag an edge to scale,
+  **drag one side down to skew/tilt** (flat → ramp), corner to scale both. **Flatten** (→ constant line),
+  **Ramp** (interior → straight line). Each is ONE undo step.
+- **I4 Insert Shape (AA.3a):** the "Shape" picker on the toolbar → sine/tri/saw-up/saw-down/square/
+  ramp-up/ramp-down/random → bakes REAL editable breakpoints into the lane/selected range (then tweak
+  them with I1–I3). Honors quantize.
+- **I5 Is-automated LED (AA.6):** a small green dot on any effect knob (ParamPanel + DeviceChain rack)
+  that has an active lane; appears/disappears as lanes are added/removed.
+- **Oracle:** for at least one param, decode the exported frames (PIL) and confirm the automated value
+  matches preview at the same frame. **KNOWN BUG to probe — task #28:** modulation/automation on a param
+  whose range is NOT [0,1] (e.g. Hue Shift amount [0,360]) may clamp to [0,1] → value pins low. Test a
+  non-[0,1] param explicitly and report if it mis-scales.
+
+## Stage J — Modulation + LFO operator lanes (the differentiators) (~45 min)
+- **J1 Modulation lanes (AA.2):** on a param that already has an absolute lane, "+ Mod" adds a
+  RELATIVE (blue) modulation lane; blendOp add/multiply/max. Confirm the modulation SUPERIMPOSES on the
+  absolute (both coexist, absolute not overwritten). Draw it; confirm preview==export.
+- **J2 LFO operator lanes (AA.3-A):** set a lane's source to an operator (LFO) with rate/depth/phase/
+  waveform → the param oscillates each frame (generative, not baked). Confirm DETERMINISTIC (same project
+  → same output) and preview==export (the LFO runs backend-side in both). Try all waveforms.
+- **J3 Spatial axis (the moat):** where exposed, set a lane's domain to Y/X (not just T) → the value
+  varies DOWN/ACROSS the frame (spatial ripple), not over time. (AA.3-C spatial-operator is spiked-out —
+  don't expect operator-source over Y/X yet; drawn/absolute over Y/X should work.)
+
+## Stage K — Master-Out Bus (~45 min)
+A new permanent **Master track** (pinned bottom of the timeline, amber, no clips) processes the FINAL
+SUMMED video (all tracks composited).
+- **K1 Exists + guards:** every project has exactly one Master track; it can't be deleted, duplicated,
+  or hold clips; dragging an INSTRUMENT onto it is rejected with a toast; effects (fx/op/tool) are allowed.
+- **K2 Effects on the sum:** add e.g. an invert/color-grade to the Master → confirm it applies to the
+  COMPOSITED output (all tracks), not per-track. Empty Master chain = no visual change (byte-identical).
+- **K3 Preview==export:** the master effect looks identical in preview AND the exported file. Test the
+  single-clip case specifically (M.2b forced it onto the composite path; "Export current frame as PNG"
+  should bail to the Export dialog when the Master has effects).
+- **K4 Master automation (M.3):** arm the Master track, automate a master effect param → it varies over
+  time in preview AND export. **KNOWN-FIXED regression to spot-check:** a master lane on effect type X must
+  NOT change a per-CLIP effect of the same type X (contamination was fixed — verify a clip with the same
+  effect type as an automated master effect is untouched on export).
+
+## Stage G UPDATE — B3 layout is now DEFAULT-ON (no longer gated)
+F_CREATRIX_LAYOUT ships ON (PR #398). Run Stage G against the default layout. Escape hatch:
+localStorage 'entropic-disable-creatrix-layout'=1 to compare to legacy. Lock/arm/drag affordances were
+ported into the lean header (#395) — verify all three work on the Master + normal tracks.
+
+## Also new: clip thumbnails scale with zoom (#397)
+Zoom the timeline in/out → clip filmstrips show more/fewer poster frames (capped at 12). Verify no perf
+regression on many-clip timelines.
+
+## KNOWN-BUG WATCHLIST (report against these, don't re-file)
+- **#28 (HIGH, open):** automation/modulation clamps to [0,1] on non-[0,1]-range params (Stage I5 oracle).
+- **#26:** sg3-aborted lanes filtered in preview but not export bake (preview≠export on sg3-abort).
+- **#15:** e2e-full suite broadly red (test-infra debt, not app breakage — smoke is the merge gate).
+- **#27:** one timeline-ui component test quarantined (master-pinned-last, CI-flaky) — behavior is sound.
