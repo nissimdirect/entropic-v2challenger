@@ -189,3 +189,52 @@ parallel session's owned files) → TaskCreate with repro, never an edit.**
 G/H are conditional on their builds landing. D+E can run as a second sitting if time-boxed.
 **This pass runs LAST in the session** (user directive 2026-07-02) — after the B3 build,
 the e2e pyramid, and the Q7 rerun, so it exercises the most complete app state.
+
+---
+
+## LIVE UI MAP — verified 2026-07-03 against the running DEV build
+
+**Runtime guard (repeat every session):** target the DEV Electron (`cd frontend && npm start`,
+:5173), NEVER `~/Desktop/Creatrix.app` (stale package). Confirm via DevTools: `./index.tsx` +
+`var(--cx-bg-app)` tokens present = dev build. `open_application Creatrix` launches the WRONG
+(packaged) app — surface the dev window via its dock icon / app switcher instead.
+
+**Menu bar (macOS):** Electron · File · Edit · Select · Clip · Timeline · Adjustments · View ·
+Window · Help. Export = File → Export (Cmd+E). Import = File → Import (Cmd+I) or drag onto timeline.
+
+**Welcome screen:** "New Project" / "Open Project" + a RECENT PROJECTS list. New Project → the DAW.
+
+**DAW layout (New Project state) — exact regions:**
+- **Transport (top-left):** play ▶ / stop ■ / loop ◇ · `0:00.0 / 0:00.0` · BPM field (120) ·
+  `S` (solo) · `Q` (quantize) · grid selector (1/4).
+- **Left dock — browser:** `Browse…` button; tabs **EFFECTS · PRESETS · INSTRUMENTS**; a search
+  box; sub-tabs **fx · op · composite · tool · instruments** (the PR-A 5-tab browser); `+ Add Text
+  Track`; effect categories with counts (codec_archaeology, color, creative, destruction 22,
+  distortion 18, enhance, fx, generator…). "Hover an effect for details" hint at the bottom.
+- **Center — preview canvas:** "No video loaded" until import; two small icons bottom-left of the
+  preview = the **mask/lasso preview-overlay tools** (MaskSelectOverlay; press `q` for marquee).
+- **Timeline (mid):** empty state "Drag media here, press Cmd+I, or use File → Import" · `+ Add
+  Track` · `+ MIDI Track`.
+- **Automation toolbar (above device chain):** mode buttons **R · L · T · D** · **Overdub** toggle
+  (A4 #372) · `+ Lane` · `+ Trigger` · `Simplify` · `Clear` · hint "Click R on a track to arm".
+- **DEVICE CHAIN (bottom):** "Add effects from the browser (click or drag)".
+- **Status bar (bottom):** left = **`Engine: Connected · Uptime Ns`** (green dot = sidecar up);
+  right = **`tool: select`** + **`MAP`** button (H-UI #375 hardware-mapping overlay toggle).
+
+**Confirmed-live tonight (Stage A):** clean launch, engine connect, **A4 Overdub** + **H-UI MAP**
+both present and rendered — tonight's headline merges are in the running build, not just git.
+
+**Concrete stage entry points (use these, don't re-discover):**
+- Import (A2/A3/B/C/export): Cmd+I → the file dialog (`.file-dialog-btn`); wait for `.asset-badge`
+  (up to 90s ingest) then the preview frame.
+- Add effect: click a category → click/drag an effect into DEVICE CHAIN; params appear in the panel.
+- Sampler/instrument (Stage C2/C3): INSTRUMENTS tab → drag onto a MIDI track (`+ MIDI Track` first;
+  guard toast "select a MIDI track first" = expected).
+- Masking (Stage F): press `q` on the preview for marquee; the two preview-overlay icons; MAP button
+  is HARDWARE mapping, NOT masking.
+- Hardware-map UI (H-UI, new): the **MAP** button (status bar) → the MIDI-Map overlay (Stage — new,
+  add: highlight mappables, MIDImix 4×8 grid, click-slot→click-param, flash-on-knob).
+- Automation record (A1–A4 live): arm a track (R), pick mode R/L/T/D, **Overdub** toggles
+  additive-vs-replace; `+ Lane` adds an automation lane, `+ Trigger` a trigger lane.
+- Export (Stage 11/C1/C6): Cmd+E → `.export-dialog` → codec select → `.export-dialog__export-btn`
+  → `.export-progress__done` (encode can take >30s; wait to 90s).
