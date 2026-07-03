@@ -9,6 +9,7 @@ import { useAutomationStore } from './automation'
 import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
 import type { PruneSnapshot } from './crossStoreCleanup'
 import { useInstrumentsStore } from './instruments'
+import { parseTransformLanePath } from '../utils/transformLanes'
 
 /**
  * D4/D5 helper: swap a leading `${oldId}.` prefix with `${newId}.` for any
@@ -22,6 +23,38 @@ function rekeyPath(paramPath: string, idMap: Map<string, string>): string {
     }
   }
   return paramPath
+}
+
+/**
+ * moveClip bugfix: clip-transform automation lanes (paramPath
+ * `clipTransform.<clipId>.<field>`, see utils/transformLanes.ts) store RAW
+ * timeline-time AutomationPoints keyed to a clipId. Moving the clip must
+ * shift those points by the same delta so the keyframes ride the footage.
+ * Track-level effect lanes (any paramPath that doesn't parse as a transform
+ * lane for THIS clipId) are left untouched. Scans every track's lane list
+ * (canonical state lives in useAutomationStore, not the Track object) since
+ * a clip-transform lane is keyed to the clip, not necessarily the clip's
+ * current track.
+ */
+function shiftClipTransformLaneTimes(clipId: string, delta: number): void {
+  if (delta === 0) return
+  const current = useAutomationStore.getState().lanes
+  let changed = false
+  const next: typeof current = { ...current }
+  for (const [trackId, trackLanes] of Object.entries(current)) {
+    let laneChanged = false
+    const newLanes = trackLanes.map((lane) => {
+      const parsed = parseTransformLanePath(lane.paramPath)
+      if (!parsed || parsed.clipId !== clipId) return lane
+      laneChanged = true
+      return { ...lane, points: lane.points.map((p) => ({ ...p, time: p.time + delta })) }
+    })
+    if (laneChanged) {
+      next[trackId] = newLanes
+      changed = true
+    }
+  }
+  if (changed) useAutomationStore.setState({ lanes: next })
 }
 
 /**
@@ -1218,6 +1251,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       return
     }
 
+    // Bugfix: clip-transform automation lanes are keyed to this clipId and
+    // store raw timeline-time points — they must ride the clip. Compute the
+    // delta once so undo/redo shift the keyframes symmetrically.
+    const positionDelta = newPosition - oldPosition
+
     undoable(
       'Move clip',
       () => {
@@ -1235,6 +1273,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           t.id === newTrackId ? { ...t, clips: [...t.clips, movedClip!] } : t,
         )
         set({ tracks, duration: recalcDuration(tracks) })
+        shiftClipTransformLaneTimes(clipId, positionDelta)
       },
       () => {
         let movedBack: Clip | null = null
@@ -1251,6 +1290,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           t.id === oldTrackId ? { ...t, clips: [...t.clips, movedBack!] } : t,
         )
         set({ tracks, duration: recalcDuration(tracks) })
+        shiftClipTransformLaneTimes(clipId, -positionDelta)
       },
     )
   },
