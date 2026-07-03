@@ -183,6 +183,7 @@ PARAMS: dict = {
             "(feedback mode only). High = damage compounds hard; the remainder "
             "(1 - amount) is fresh source, letting motion ghost through the rot."
         ),
+        "curve": "linear",
     },
     "freeze": {
         "type": "bool",
