@@ -43,3 +43,32 @@ GO needs: the register bugs fixed/accepted; cross-cutting gates (parity, automat
 
 ## 7. Plan integrity
 Plan file last commit: `0fc33f6` on branch `docs/uat-comprehensive-audit` → merging to main via PR #410.
+
+---
+
+## 8. OPEN ITEMS LEDGER (complete — nothing lives only in a session task-tracker)
+Snapshot 2026-07-03 after the automation/master-bus campaign + audit landed on main.
+
+**Campaign = DONE and on main:** automation suite (AA.1–AA.6), audio-follower lanes (AA.3-B),
+Master-Out Bus (M.1–M.3), B3 layout (default-ON), whole-app UAT audit + plan + this handoff. All 5
+audit-found bugs (#28/C15, #29, #30/B7, E18) fixed, independently validated (bug reproduced-on-main,
+then fixed), and merged.
+
+**Open — for the CU / next session:**
+| # | Item | Where it lives | Owner |
+|---|---|---|---|
+| #1 | Run CU-UAT Stages A–K + N/E/X/C | `UAT-PLAN-2026-07-02-live-cu.md` + this handoff | CU session |
+| #31 | Flagged findings register (silent no-ops = Nielsen-1 feedback fails, freeze-vs-chain-mutation gap, device-group dangling ids, no server-side double-bake lock, export NOT pressure-gated → parity risk, text no-wrap, silent font fallback, MIDI-learn no arm-timeout, eyedropper black fallback, F7 routing-cycle guard gap, F2 hardware-CC-vs-automation-record) | `UAT-COMPREHENSIVE-AUDIT-2026-07-03.md` (FLAGGED register) | verify-then-fix |
+| #26 | sg3-aborted lanes filtered in preview but NOT export bake (preview≠export) | plan watchlist L306 | fix |
+| #27 | quarantined 'master-pinned-last' timeline-ui test — re-enable order-independently | plan watchlist L308 | test |
+| #15 | e2e-full suite broadly red = TEST-ENV (security.py blocks os.tmpdir() exports), NOT app bug; smoke is the merge gate | plan watchlist L307 + salvaged addendum | test-infra; needs a dedicated app/Playwright session (opens windows) |
+| #7 | Q7 harness: verdict gate never measures under load (runner.py:190 vs :205) — Q7 track, NOT this campaign | THIS ledger (only durable record) | Q7 session |
+
+**Needs the repo owner (cannot be agent-merged):**
+| PR | Why blocked |
+|---|---|
+| #416 | perf(tests) LayerTap routing-budget harness — **touches `.github/workflows/`**, so workflow-change-guard requires MANUAL merge via the GitHub UI. Validated + smoke-green + MERGEABLE; one click. Opt-in/nightly, nothing depends on it. |
+
+**Design/UX backlog (from the Don-Norman + CDO expert passes, not bugs):** modifier-consistency sweep,
+the three-"freeze" naming collision, focus-visible 8-state gap, hit-target measurements — all in the
+audit's EXPERT PASS sections, feeding Stage E's ranked papercut list.
