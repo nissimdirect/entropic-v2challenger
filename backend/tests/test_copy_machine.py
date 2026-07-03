@@ -482,3 +482,59 @@ def test_ascii_glyph_sets_differ():
         float(np.mean(np.abs(outs[0].astype(int) - o.astype(int)))) for o in outs[1:]
     ]
     assert max(diffs) > 1.0, "all glyph sets produced identical output"
+
+
+def test_feedback_amount_param_compounds():
+    """feedback_amount=0.9 over 30 frames on a STATIC source must degrade far more
+    than the early frames — recursion compounds (user spec 2026-07-02)."""
+    frame = _subject_frame()
+    p = {"machine": "toner", "generation": 2, "feedback": True, "feedback_amount": 0.9}
+
+    # compounding metric: divergence from the PRISTINE source. (High-frequency
+    # energy saturates immediately under a binarizing machine like toner, so it
+    # cannot measure compounding — divergence keeps growing as recursion erodes
+    # the shapes through optics resample + noise, pass after pass.)
+    src = frame[:, :, :3].astype(np.float32)
+
+    def divergence(img):
+        return float(np.abs(img[:, :, :3].astype(np.float32) - src).mean())
+
+    st = None
+    d5 = d30 = None
+    for fi in range(30):
+        out, st = _apply(frame, p, st, frame_index=fi)
+        if fi == 4:
+            d5 = divergence(out)
+        if fi == 29:
+            d30 = divergence(out)
+    assert d5 is not None and d30 is not None
+    assert d30 > d5 * 1.15, (
+        f"recursion is not compounding: div@5={d5:.2f} div@30={d30:.2f}"
+    )
+
+
+def test_feedback_amount_low_vs_high_differ():
+    """The param must actually steer the blend: low vs high recursion diverge."""
+    frame = _subject_frame()
+    lo_state = hi_state = None
+    lo = hi = None
+    for fi in range(6):
+        lo, lo_state = _apply(
+            frame,
+            {"machine": "toner", "generation": 2, "feedback": True, "feedback_amount": 0.1},
+            lo_state,
+            frame_index=fi,
+        )
+        hi, hi_state = _apply(
+            frame,
+            {"machine": "toner", "generation": 2, "feedback": True, "feedback_amount": 0.95},
+            hi_state,
+            frame_index=fi,
+        )
+    assert not np.array_equal(lo, hi), "feedback_amount had no effect on output"
+
+
+def test_feedback_amount_in_schema():
+    assert "feedback_amount" in copy_machine.PARAMS
+    spec = copy_machine.PARAMS["feedback_amount"]
+    assert spec["default"] == 0.88 and spec["max"] == 0.98

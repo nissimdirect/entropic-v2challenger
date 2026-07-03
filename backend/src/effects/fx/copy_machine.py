@@ -74,10 +74,10 @@ _INK = np.array([23, 21, 15], dtype=np.float32)
 # run inverted (in ink-space) and un-inverted, making the LIGHT spread.
 _INVERT_LUM_THRESHOLD = 110.0
 
-# In feedback mode, how much of the base is the previous output vs fresh input.
-# High => strong generation-loss compounding; the (1 - mix) lets a moving video
-# still enter, which is what makes feedback distinct from freeze.
-_FEEDBACK_MIX = 0.8
+# Default for the feedback_amount param: how much of the base is the previous
+# output vs fresh input. High => strong generation-loss compounding; the
+# (1 - amount) lets a moving video still enter, distinguishing feedback from freeze.
+_FEEDBACK_MIX = 0.88
 
 # Hard cap on generations (recipe settled on 120).
 _MAX_GEN = 120.0
@@ -170,6 +170,18 @@ PARAMS: dict = {
             "On: each output frame is fed back as the next frame's input "
             "(true generation loss across a moving video). Off: stateless, "
             "driven by Generation."
+        ),
+    },
+    "feedback_amount": {
+        "type": "float",
+        "min": 0.0,
+        "max": 0.98,
+        "default": 0.88,
+        "label": "Feedback Amount",
+        "description": (
+            "How much of the previous OUTPUT re-enters the machine each frame "
+            "(feedback mode only). High = damage compounds hard; the remainder "
+            "(1 - amount) is fresh source, letting motion ghost through the rot."
         ),
     },
     "freeze": {
@@ -763,6 +775,12 @@ def apply(
     except (TypeError, ValueError):
         mix = 1.0
     feedback = _truthy(params.get("feedback", False))
+    try:
+        feedback_amount = max(
+            0.0, min(0.98, float(params.get("feedback_amount", _FEEDBACK_MIX)))
+        )
+    except (TypeError, ValueError):
+        feedback_amount = _FEEDBACK_MIX
     freeze = _truthy(params.get("freeze", False))
     invert = _truthy(params.get("invert", False))
     invert_auto = _truthy(params.get("invert_auto", True))
@@ -797,7 +815,7 @@ def apply(
     if feedback:
         prev = state.get("prev")
         if isinstance(prev, np.ndarray) and prev.shape == source.shape:
-            base = _lerp_u8(source, prev, _FEEDBACK_MIX)
+            base = _lerp_u8(source, prev, feedback_amount)
         else:
             base = source
         rng = make_rng(_seed_for(seed, frame_index, 0))
