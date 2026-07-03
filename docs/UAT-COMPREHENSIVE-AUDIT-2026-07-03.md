@@ -245,3 +245,54 @@ treatment.
 These CD rows + the DN rows ARE Stage E's checklist. Output: ranked papercut list (severity × frequency
 × effort), token-conformance diff vs docs/roadmap/DESIGN-SPEC.md, and the focus-visible score. Anything
 scoring FAIL on DN2 (silent no-ops) graduates from papercut to bug.
+
+---
+
+# COHESION PASS (2026-07-03) — canonical conventions + document map
+
+## Canonical conventions (apply to EVERY layer of this audit; earlier sections conform to these)
+- **Priorities (one scheme):** P0 = blocks release / data-loss / parity break · P1 = must-fix before ship ·
+  P2 = verify/polish · P3 = nice-to-have. (Effects matrix rows using P1 as top ⇒ read P1=P0-equivalent
+  where marked "highest-value"; the register entries above carry the calibrated severity.)
+- **Row namespaces (for cross-referencing):** TL-(timeline) IM-(import) FX-(effects) AU-(audio/instr/text/perf)
+  MK-(masking/operators/MIDI) EX-(export/persist/shell) G-(gap enrichment) DN-(Norman pass) CD-(CDO pass).
+  Numeric-only rows in the FX/AU matrices are read as FX-n / AU-n.
+- **Category set (every subsystem, every layer):** HAPPY · NEGATIVE · EDGE · CHAOS(state/sequence) ·
+  COMPOSABILITY · ACCEPTANCE. The G-rows inherit priorities from their cluster header; where absent, treat
+  interaction-bearing G-rows as P1 and informational ones as P2.
+- **Verdict vocabulary:** ✅ PASS · 🐛 FAIL(bug, file/ref task) · 📄 PAPERCUT(ranked, Stage E) · ⏸ BLOCKED
+  (named blocker) · N/A(out of scope, declared). Expert-pass rows score PASS/PAPERCUT/FAIL per DN/CD text.
+
+## UAT DOCUMENT MAP (all scattered UAT/UIT docs, tiered — nothing orphaned)
+**TIER 1 — CANONICAL, CURRENT (drive from these):**
+- `UAT-COMPREHENSIVE-AUDIT-2026-07-03.md` (this doc) — discovery: matrices + gaps + DN/CD passes + bug register + gates.
+- `UAT-PLAN-2026-07-02-live-cu.md` — EXECUTION plan: Stages A–K, N/E/X/C, live UI map, #387-salvaged key-map/riders, watchlist.
+- `UAT-FEATURE-FLAG-AUDIT-2026-07-03.md` — per-flag round-trip protocol (a first-class stage input; re-grep flags at CU start).
+- `UAT-RESULTS-2026-07-03.md` — CURRENT results ledger (Stage A partial + #392 pre-CU findings). CU session APPENDS here.
+
+**TIER 2 — BASELINE, PARTIALLY STALE (mine for retry-lists; do not drive blindly):**
+- `UAT-UIT-GUIDE.md` (v4.3, 2026-03-24, 517 cases) — canonical MANUAL guide for phases 0A–11.5 + sprints 1-3.
+  STALE for: automation suite (AA.*), master bus (M.*), B3 layout, MK-series masking, H-UI hardware, T-series
+  editing. Those are covered by Stages I/J/K + this audit. A FULL pass = UIT-guide (retry/never-tested rows per
+  /uat continuation protocol vs the 04-09 results) + this audit's rows.
+- `UAT-RESULTS-2026-04-09.md` (230/574 verified, 11 bugs) — last full-guide execution baseline; source of
+  skip-lists (PASS/FIXED) per /uat Phase 0.
+- `V2-AUTOMATED-UAT-PLAN.md` — automated equivalents of the guide; superseded in part by the e2e pyramid (#15).
+
+**TIER 3 — HISTORICAL (context only, do not execute):** UAT-RESULTS-2026-03-16 / -2026-06-17 /
+-DIM-TRANSLATION-2026-04-10, UAT-PLAN-2026-06-17-full-coverage, MASTER-UAT-AND-BUILD-PLAN-2026-04-10,
+UAT-TEST-PLANS-FROM-BDD, UAT-BUGS-2026-04-09, UAT-VALIDATION-*/BUG-REPORT-*/PHASE4-UAT-REPORT (02-23 era),
+docs/plans/*uat*. Evidence store: `docs/uat-evidence-2026-07-03/`.
+
+## UPDATED GO/NO-GO (supersedes the earlier gate; now spans all four layers + legacy delta)
+GO requires ALL of:
+1. The 5 CONFIRMED register bugs (+#29/#30) fixed or explicitly accepted; #31 flagged register triaged.
+2. Cross-cutting gates 1–6 (parity, automation coherence, no-silent-data-loss, composability, caps, master)
+   spot-checked live.
+3. G-cluster spot-checks: at minimum G1 (direct manipulation), G7 (engine crash recovery), G5 (menu sweep),
+   G10 (disk hygiene) — the four highest-risk unmapped surfaces.
+4. DN pass: zero FAILs on DN2 (feedback) and DN4.2 (destructive-op inventory); papercuts ranked.
+5. CD pass: focus-visible score recorded; contrast + hit-target FAILs filed.
+6. Legacy delta: UIT-guide retry-list (from 04-09 results) triaged — executed or explicitly deferred with count.
+A green happy-path with a failing C3-contamination, E2/#28 clamp, any silent-data-loss path, or an
+unexplained preview≠export divergence is a NO-GO regardless of pass-rate.
