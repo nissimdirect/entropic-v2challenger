@@ -44,10 +44,9 @@ const REGISTRY: Record<string, HelpEntry> = {
     title: 'Marker (Shift+M)',
     body: 'Place a named marker at the cursor. Drag to move; double-click to rename.',
   },
-  'tool-range-select': {
-    title: 'Range Select (R)',
-    body: 'Draw a selection rectangle to select all clips within the range.',
-  },
+  // T5: 'tool-range-select' entry removed along with the 'range-select'
+  // cursor tool (see EffectBrowser.tsx CursorTool comment) — this help
+  // entry had no `data-help-id="tool-range-select"` consumer anyway.
 
   // --- Loop / quantize ---
   'loop-toggle': {

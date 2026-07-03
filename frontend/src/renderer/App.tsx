@@ -57,6 +57,7 @@ import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
 import { shouldClearLoopOnStop } from './utils/transport-stop'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
+import { splitSelectedClipsAtPlayhead } from './utils/split-clip-at-playhead'
 import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave, probeForMissingAssets, relinkAsset, markAssetMissing } from './project-persistence'
 import { getActiveTrackId, getActiveEffectChain, useActiveEffectChain } from './stores/project'
 import { FF } from '../shared/feature-flags'
@@ -607,12 +608,6 @@ function AppInner() {
       if (useUndoStore.getState().isDirty) setPendingNav({ kind: 'new' })
       else handleNewProject()
     })
-    shortcutRegistry.register('split_clip', () => {
-      const timeline = useTimelineStore.getState()
-      if (timeline.selectedClipId) {
-        timeline.splitClip(timeline.selectedClipId, timeline.playheadTime)
-      }
-    })
     shortcutRegistry.register('add_marker', () => {
       const timeline = useTimelineStore.getState()
       timeline.addMarker(timeline.playheadTime, 'Marker', '#f59e0b')
@@ -682,20 +677,10 @@ function AppInner() {
     shortcutRegistry.register('import_media', () => handleImportMedia())
     shortcutRegistry.register('add_text_track', () => handleAddTextTrack())
     shortcutRegistry.register('toggle_quantize', () => useLayoutStore.getState().toggleQuantize())
-    const splitAtPlayheadHandler = () => {
-      const ts = useTimelineStore.getState()
-      for (const clipId of ts.selectedClipIds) {
-        for (const track of ts.tracks) {
-          const clip = track.clips.find((c) => c.id === clipId)
-          if (clip && ts.playheadTime > clip.position && ts.playheadTime < clip.position + clip.duration) {
-            ts.splitClip(clipId, ts.playheadTime)
-            break
-          }
-        }
-      }
-    }
-    shortcutRegistry.register('split_at_playhead', splitAtPlayheadHandler)
-    shortcutRegistry.register('split_at_playhead_e', splitAtPlayheadHandler)
+    // T5: consolidated to the single 'split_at_playhead' shortcut (meta+k) —
+    // see utils/split-clip-at-playhead.ts for why 'split_clip' and
+    // 'split_at_playhead_e' were removed rather than kept as aliases.
+    shortcutRegistry.register('split_at_playhead', splitSelectedClipsAtPlayhead)
 
     // T1 (2026-07-02): cursor tool hotkeys (PLAN §3.7 tool mode stack) — write
     // through the same useLayoutStore.cursorTool that EffectBrowser's [tool] tab
@@ -718,10 +703,11 @@ function AppInner() {
       useLayoutStore.getState().setCursorTool('marker')
       useTimelineStore.getState().setPreviewToolMode(null)
     })
-    shortcutRegistry.register('tool_range_select', () => {
-      useLayoutStore.getState().setCursorTool('range-select')
-      useTimelineStore.getState().setPreviewToolMode(null)
-    })
+    // T5: 'range-select' tool removed as a genuinely-redundant cursor tool —
+    // see MarqueeOverlay.tsx's header comment: rubber-band select on the
+    // track background is already un-gated and works identically in every
+    // cursor-tool mode including 'select', so the dedicated tool added zero
+    // behavior beyond a statusbar chip label.
 
     // Automation copy/paste
     shortcutRegistry.register('automation_copy', () => {

@@ -87,6 +87,12 @@ export function parseDragPayload(
  * timeline store so MaskSelectOverlay activates the correct drawing mode.
  * Non-mask tools clear previewToolMode (null = normal pointer).
  */
+// T5: 'range-select' removed — it was a genuinely-redundant cursor tool.
+// Rubber-band marquee select on the track background (MarqueeOverlay.tsx)
+// is already un-gated and works identically in every cursor-tool mode
+// including 'select', so the dedicated tool/hotkey added zero behavior
+// beyond a statusbar chip label. See MarqueeOverlay.tsx's header comment
+// for the original T1 investigation that first surfaced this.
 export type CursorTool =
   | 'select'
   | 'razor'
@@ -96,7 +102,6 @@ export type CursorTool =
   | 'marker'
   | 'loop-in'
   | 'loop-out'
-  | 'range-select'
   // MK.13: mask tool modes (mirror previewToolMode values in timeline store)
   | 'mask-marquee-rect'
   | 'mask-marquee-ellipse'
@@ -114,7 +119,6 @@ const TOOL_ENTRIES: Array<{ id: CursorTool; label: string }> = [
   { id: 'marker', label: 'Marker' },
   { id: 'loop-in', label: 'Loop In' },
   { id: 'loop-out', label: 'Loop Out' },
-  { id: 'range-select', label: 'Range Select' },
 ]
 
 /**

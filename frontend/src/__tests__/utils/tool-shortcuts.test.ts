@@ -7,12 +7,17 @@
  *   - "all 12 tool hotkeys register without conflict against the default set"
  *   - "tool hotkeys fire handler in normal context"
  *   - "tool hotkeys do NOT fire when target is a text input"
+ *
+ * T5 (2026-07-02): 'tool_range_select' removed from the P3.4 table — the
+ * 'range-select' cursor tool was a no-op duplicate of 'select' (see
+ * MarqueeOverlay.tsx header comment). Table is now 11 entries; counts below
+ * updated accordingly.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shortcutRegistry, keyEventToString } from '../../renderer/utils/shortcuts'
 import { DEFAULT_SHORTCUTS } from '../../renderer/utils/default-shortcuts'
 
-// Tool hotkey actions added in P3.4 (12 new entries, conflict-checked)
+// Tool hotkey actions added in P3.4 (11 entries post-T5, conflict-checked)
 const TOOL_SHORTCUT_ACTIONS = [
   'tool_select',
   'tool_razor',
@@ -20,7 +25,6 @@ const TOOL_SHORTCUT_ACTIONS = [
   'tool_slide',
   'tool_ripple_delete',
   'tool_marker',
-  'tool_range_select',
   'loop_toggle',
   'grid_up',
   'grid_down',
@@ -33,8 +37,8 @@ beforeEach(() => {
   shortcutRegistry.resetAllOverrides()
 })
 
-describe('P3.4 tool shortcuts — 12/12 conflict-check', () => {
-  it('all 12 tool hotkeys register without conflict against the default set', () => {
+describe('P3.4 tool shortcuts — 11/11 conflict-check (post-T5)', () => {
+  it('all 11 tool hotkeys register without conflict against the default set', () => {
     // Each tool action must have a binding
     const allBindings = shortcutRegistry.getAllBindings()
     const allActions = new Set(allBindings.map((b) => b.action))
@@ -50,7 +54,7 @@ describe('P3.4 tool shortcuts — 12/12 conflict-check', () => {
     ).toHaveLength(0)
   })
 
-  it('all 12 tool hotkey key strings are unique (no duplicates within the tool table)', () => {
+  it('all 11 tool hotkey key strings are unique (no duplicates within the tool table)', () => {
     const allBindings = shortcutRegistry.getAllBindings()
     const toolBindings = allBindings.filter((b) =>
       TOOL_SHORTCUT_ACTIONS.includes(b.action as (typeof TOOL_SHORTCUT_ACTIONS)[number]),
@@ -115,7 +119,7 @@ describe('P3.4 tool shortcuts — 12/12 conflict-check', () => {
     warnSpy.mockRestore()
   })
 
-  it('table contains exactly 12 tool-category entries (the 12-entry count)', () => {
+  it('table contains exactly 11 tool-category entries (the 11-entry count, post-T5)', () => {
     const allBindings = shortcutRegistry.getAllBindings()
     // Count entries matching either category 'tool' OR the specific P3.4 non-tool categories
     // that were added in P3.4 (loop_toggle, grid_up, grid_down, toggle_popout).
@@ -127,8 +131,8 @@ describe('P3.4 tool shortcuts — 12/12 conflict-check', () => {
 
     expect(
       totalP34,
-      `Expected exactly 12 P3.4 shortcut entries, got ${totalP34}`,
-    ).toBe(12)
+      `Expected exactly 11 P3.4 shortcut entries (post-T5 range-select cull), got ${totalP34}`,
+    ).toBe(11)
   })
 })
 
