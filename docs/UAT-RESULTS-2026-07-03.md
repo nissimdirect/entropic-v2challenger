@@ -145,3 +145,17 @@ yet GO** — the spine is proven, the breadth pass is outstanding.
 - 🐛 **E-1 (P1 layout):** B3 left column — LAYER panel "Fill" opacity slider renders OVER the EFFECTS/PRESETS/INSTRUMENTS tab row (z-order/overflow when LAYER panel + browser coexist in the cramped column). Zoom-confirmed. Same family as the June-17 device-editor cramping.
 - 🐛 **E-2 (P2):** a slider also bleeds across the INSTRUMENTS "Wavetable" rack row — same overflow bug.
 - ⚠️ **E-3 (P3):** transport = raw Unicode glyphs (▶ ■ ⟳), instrument racks text-only — DESIGN-SPEC §8 wants schematic line icons; "missing icons" = no custom iconography. device-chain.css also has sub-11px (7-8px) fonts, below the §9 floor.
+
+
+### Stage F masking (J1) — mask tools activate, DRAW unconfirmed via CU
+- Mask chips EXIST in the EFFECTS→tool sub-tab under "Mask Tools": **Mask Rect / Mask Ellipse / Mask Lasso / Mask Polygon** (naming diverges from J1 j1-02 spec which expects marquee/lasso/wand/key — no wand/key chip in this list).
+- 🐛 **F-1 (P2):** `q` hotkey did NOT activate the marquee tool (3 attempts) while an effect was the active selection context (status stayed "tool: select"). Clicking the **Mask Rect chip** DID activate it (status "tool: mask-marquee-rect"). So the tool-tab path works; the `q` binding is blocked/broken when an effect is selected.
+- ⚠️ **F-2 (needs human-pointer retry):** with mask-marquee-rect active, drawing on the preview produced NO visible marquee/marching-ants — via synthetic left_click_drag AND a manual mouse-down→move→up sequence, and after toggling both preview-overlay icons. Either the MaskSelectOverlay does not respond to synthetic PointerEvents (CU limitation) or the draw is broken. **J1–J5 draw remains UNCONFIRMED** — needs a real human pointer test to disambiguate.
+
+### RUNTIME/ENV note (session interrupted)
+- App relaunched cleanly on main af9ba3b (verified: no commits merged since original launch). A hard renderer reload (Cmd+R) crashed the renderer window; relaunched fresh.
+- CU display then went UNAVAILABLE (screen lock/sleep — input events register, screenshot capture blocked). Live pass halted here pending display recovery (user must wake/unlock).
+
+### "Missing UI work / icons" (user report during pass) — diagnosis
+- Running app IS latest main (af9ba3b). On main the UI shows: transport as Unicode glyphs (▶ ■ ⟳), instrument racks text-only (no icons), and the E-1/E-2 LAYER-panel-slider-over-tabs overlap. App renders icons as inline SVG (frontend/src/renderer/assets/tool-icons.tsx exists).
+- The polished/newer UI work is in UNMERGED build/* worktree branches (parallel session ultracode wave-1): build/aa1-curves-polish, aa2-modulation-lanes, aa3a-lfo-lane, aa4b-automation-transform-box, aa6-param-automated-indicator, **hui**, m1-master-bus-schema, t5 — none on main yet → the running (main) app does not show them. This explains "the UI work is not there."
