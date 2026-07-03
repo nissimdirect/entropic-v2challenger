@@ -921,6 +921,96 @@ describe('loadProject', () => {
   })
 })
 
+// #30 B7: every load-rejection path (structure check / version check / JSON
+// parse fail / read fail) must fire a user-facing error toast — pre-fix, the
+// corrupt-JSON and read-failure paths (the outer catch in loadProject) only
+// logged console.error, leaving the user staring at a silent no-op.
+describe('loadProject — B7 error toasts', () => {
+  beforeEach(() => {
+    useProjectStore.getState().resetProject()
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    useToastStore.getState().clearAll()
+    resetMocks()
+  })
+
+  it('fires an error toast on corrupt/malformed JSON (JSON.parse failure)', async () => {
+    mockEntropic.showOpenDialog.mockResolvedValue('/test/corrupt.glitch')
+    mockEntropic.readFile.mockResolvedValue('{not valid json!!!}')
+    useTimelineStore.getState().addTrack('Existing', '#fff')
+    const trackCountBefore = useTimelineStore.getState().tracks.length
+
+    const result = await loadProject()
+
+    expect(result).toBe(false)
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.level === 'error' && t.source === 'project-load')).toBe(true)
+    // Prior state untouched — hydrateStores never ran.
+    expect(useTimelineStore.getState().tracks).toHaveLength(trackCountBefore)
+  })
+
+  it('fires an error toast when readFile rejects (disk/permission failure)', async () => {
+    mockEntropic.showOpenDialog.mockResolvedValue('/test/unreadable.glitch')
+    mockEntropic.readFile.mockRejectedValue(new Error('EACCES: permission denied'))
+    useTimelineStore.getState().addTrack('Existing', '#fff')
+    const trackCountBefore = useTimelineStore.getState().tracks.length
+
+    const result = await loadProject()
+
+    expect(result).toBe(false)
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.level === 'error' && t.source === 'project-load')).toBe(true)
+    expect(useTimelineStore.getState().tracks).toHaveLength(trackCountBefore)
+  })
+
+  it('fires an error toast when the structure check rejects (e.g. forbidden __proto__ key)', async () => {
+    mockEntropic.showOpenDialog.mockResolvedValue('/test/malicious.glitch')
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify({ __proto__: { polluted: true } }))
+
+    const result = await loadProject()
+
+    expect(result).toBe(false)
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.level === 'error' && t.source === 'project-load')).toBe(true)
+  })
+
+  it('fires an error toast when the project version is unsupported (v2/pre-3.0)', async () => {
+    const legacyProject = makeValidProject({ version: '2.0.0' })
+    mockEntropic.showOpenDialog.mockResolvedValue('/test/legacy.glitch')
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify(legacyProject))
+
+    const result = await loadProject()
+
+    expect(result).toBe(false)
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.level === 'error' && t.source === 'project-load')).toBe(true)
+  })
+
+  it('fires an error toast when schema validation fails (valid JSON, invalid shape)', async () => {
+    const invalidProject = { version: '3.0.0', id: 'bad' } // missing required fields
+    mockEntropic.showOpenDialog.mockResolvedValue('/test/invalid-shape.glitch')
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify(invalidProject))
+
+    const result = await loadProject()
+
+    expect(result).toBe(false)
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.level === 'error' && t.source === 'project-load')).toBe(true)
+  })
+
+  it('does NOT fire an error toast on a clean, valid load', async () => {
+    const validProject = makeValidProject()
+    mockEntropic.showOpenDialog.mockResolvedValue('/test/clean.glitch')
+    mockEntropic.readFile.mockResolvedValue(JSON.stringify(validProject))
+
+    const result = await loadProject()
+
+    expect(result).toBe(true)
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.level === 'error' && t.source === 'project-load')).toBe(false)
+  })
+})
+
 describe('restoreAutosave', () => {
   beforeEach(() => {
     useProjectStore.getState().resetProject()

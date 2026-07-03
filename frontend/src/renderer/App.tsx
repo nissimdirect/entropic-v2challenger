@@ -381,7 +381,12 @@ function AppInner() {
   const [showHistory, setShowHistory] = useState(false)
   // F-0514-17: discard-changes prompt before destructive nav (Cmd+O / Cmd+N).
   // Pre-fix, Cmd+O silently overwrote unsaved work — real data-loss risk.
-  const [pendingNav, setPendingNav] = useState<null | { kind: 'open' | 'new' }>(null)
+  // #30: `recentPath` carries a WelcomeScreen "open recent" target through the
+  // gate (loadProject(undefined,...) would otherwise pop the file picker
+  // instead of reopening the intended recent file). `fromWelcome` re-applies
+  // setWelcomeDismissed(true) once the deferred nav actually runs, since the
+  // WelcomeScreen entry points used to do that inline before this gate existed.
+  const [pendingNav, setPendingNav] = useState<null | { kind: 'open' | 'new'; recentPath?: string; fromWelcome?: boolean }>(null)
   // RT-1: tracks an in-flight Save-and-Continue. Pre-lock, a user clicking
   // Discard during the saveProject await could clobber the freshly-loaded
   // project's projectPath/projectName/isDirty with the OLD project's metadata
@@ -4337,17 +4342,18 @@ function AppInner() {
         onCancel={() => setPendingNav(null)}
         onDiscard={() => {
           if (isNavSaving || !pendingNav) return
-          const kind = pendingNav.kind
+          const { kind, recentPath, fromWelcome } = pendingNav
           setPendingNav(null)
+          if (fromWelcome) setWelcomeDismissed(true)
           if (kind === 'open') {
-            loadProject(undefined, handleProjectHydrated)
+            loadProject(recentPath, handleProjectHydrated)
           } else {
             handleNewProject()
           }
         }}
         onSaveAndContinue={async () => {
           if (isNavSaving || !pendingNav) return
-          const kind = pendingNav.kind
+          const { kind, recentPath, fromWelcome } = pendingNav
           setIsNavSaving(true)
           try {
             const saved = await saveProject()
@@ -4355,8 +4361,9 @@ function AppInner() {
             // dialog — keep the prompt up so unsaved work doesn't vanish.
             if (!saved) return
             setPendingNav(null)
+            if (fromWelcome) setWelcomeDismissed(true)
             if (kind === 'open') {
-              loadProject(undefined, handleProjectHydrated)
+              loadProject(recentPath, handleProjectHydrated)
             } else {
               handleNewProject()
             }
@@ -4381,9 +4388,24 @@ function AppInner() {
       <WelcomeScreen
         isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
-        onNewProject={() => { handleNewProject(); setWelcomeDismissed(true) }}
-        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, handleProjectHydrated) }}
-        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, handleProjectHydrated) }}
+        onNewProject={() => {
+          // #30: route through the same dirty-gate as the File menu / Cmd+N —
+          // WelcomeScreen used to call handleNewProject() directly, bypassing
+          // the UnsavedChangesDialog and silently discarding unsaved work.
+          if (useUndoStore.getState().isDirty) { setPendingNav({ kind: 'new', fromWelcome: true }); return }
+          handleNewProject()
+          setWelcomeDismissed(true)
+        }}
+        onOpenProject={() => {
+          if (useUndoStore.getState().isDirty) { setPendingNav({ kind: 'open', fromWelcome: true }); return }
+          setWelcomeDismissed(true)
+          loadProject(undefined, handleProjectHydrated)
+        }}
+        onOpenRecent={(path) => {
+          if (useUndoStore.getState().isDirty) { setPendingNav({ kind: 'open', recentPath: path, fromWelcome: true }); return }
+          setWelcomeDismissed(true)
+          loadProject(path, handleProjectHydrated)
+        }}
       />
 
       <Toast />
