@@ -98,6 +98,13 @@
   border-color: var(--cx-danger-text);
 }
 
+/* A4 — overdub toggle active state (mirrors .auto-toolbar__mode-btn--active). */
+.auto-toolbar__btn--active {
+  background: var(--cx-action);
+  color: var(--cx-bg-app);
+  border-color: var(--cx-action);
+}
+
 .auto-toolbar__armed {
   color: var(--cx-action);
   margin-left: auto;

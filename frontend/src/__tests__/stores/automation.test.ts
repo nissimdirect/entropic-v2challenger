@@ -121,6 +121,18 @@ describe('Automation Store', () => {
     expect(useAutomationStore.getState().armedTrackId).toBeNull()
   })
 
+  // A4 — continuous-lane overdub toggle.
+  it('recordMode defaults to "replace" (D2 locked default)', () => {
+    expect(useAutomationStore.getState().recordMode).toBe('replace')
+  })
+
+  it('setRecordMode switches between replace and overdub', () => {
+    useAutomationStore.getState().setRecordMode('overdub')
+    expect(useAutomationStore.getState().recordMode).toBe('overdub')
+    useAutomationStore.getState().setRecordMode('replace')
+    expect(useAutomationStore.getState().recordMode).toBe('replace')
+  })
+
   // --- Undo/Redo ---
 
   it('undo reverts addLane', () => {
@@ -163,11 +175,13 @@ describe('Automation Store', () => {
     addTestLane()
     useAutomationStore.getState().setMode('latch')
     useAutomationStore.getState().armTrack('track-1')
+    useAutomationStore.getState().setRecordMode('overdub')
     useAutomationStore.getState().resetAutomation()
     const s = useAutomationStore.getState()
     expect(s.getAllLanes()).toHaveLength(0)
     expect(s.mode).toBe('read')
     expect(s.armedTrackId).toBeNull()
+    expect(s.recordMode).toBe('replace')
   })
 
   it('loadAutomation hydrates lanes', () => {

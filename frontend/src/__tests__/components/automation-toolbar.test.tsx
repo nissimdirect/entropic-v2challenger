@@ -83,6 +83,38 @@ describe('AutomationToolbar — mode selector', () => {
   })
 })
 
+// A4 — continuous-lane overdub toggle.
+describe('AutomationToolbar — overdub toggle', () => {
+  it('renders the Overdub toggle button, inactive by default (replace mode)', () => {
+    const { container } = render(<AutomationToolbar />)
+    const btn = container.querySelector('[data-testid="overdub-toggle-btn"]') as HTMLElement
+    expect(btn).toBeTruthy()
+    expect(btn.textContent).toBe('Overdub')
+    expect(btn.className).not.toContain('auto-toolbar__btn--active')
+    expect(btn.getAttribute('aria-pressed')).toBe('false')
+  })
+
+  it('is NOT gated on armedTrackId — clickable with no track armed', () => {
+    const { container } = render(<AutomationToolbar />)
+    const btn = container.querySelector('[data-testid="overdub-toggle-btn"]') as HTMLButtonElement
+    expect(btn.disabled).toBe(false)
+  })
+
+  it('clicking toggles recordMode to "overdub" and back to "replace"', () => {
+    const { container } = render(<AutomationToolbar />)
+    const btn = container.querySelector('[data-testid="overdub-toggle-btn"]') as HTMLElement
+    fireEvent.click(btn)
+    expect(useAutomationStore.getState().recordMode).toBe('overdub')
+    expect(btn.className).toContain('auto-toolbar__btn--active')
+    expect(btn.getAttribute('aria-pressed')).toBe('true')
+
+    fireEvent.click(btn)
+    expect(useAutomationStore.getState().recordMode).toBe('replace')
+    expect(btn.className).not.toContain('auto-toolbar__btn--active')
+    expect(btn.getAttribute('aria-pressed')).toBe('false')
+  })
+})
+
 describe('AutomationToolbar — arm hint references R (post-F-0516-10)', () => {
   it('when no track is armed, hint label reads "Click R on a track"', () => {
     const { container } = render(<AutomationToolbar />)
