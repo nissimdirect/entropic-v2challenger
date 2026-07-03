@@ -3,7 +3,7 @@
 **For:** the session driving computer-use UAT on the running Creatrix app.
 **From:** the docs/bugfix session (audit + fixes). **This session does NOT drive the screen.**
 
-## 1. Where the plan is (all on `main` once PR #410 merges — docs-only)
+## 1. Where the plan is (ALL on `main` now — #410 merged)
 | Doc | Role | Drive? |
 |---|---|---|
 | `docs/UAT-PLAN-2026-07-02-live-cu.md` | **EXECUTION plan** — Stages A–K + N/E/X/C + live UI map + salvaged key-map/riders + watchlist | ✅ primary |
@@ -23,7 +23,7 @@
 - **range-select cursor tool** — CUT in T5 (rangeSelectClips store action survives, no tool binding). A7c: do NOT test a range cursor tool.
 - **export e2e cluster red** = TEST-ENV (security.py blocks os.tmpdir() outputs), NOT an app bug — exports to ~/Desktop are fine; do NOT down-verdict C1/C6/J5.
 
-## 4. Bugs already IN FLIGHT — do NOT re-file (fixes under validation this session)
+## 4. Bugs already FIXED + MERGED this session — do NOT re-file
 | Bug | What | PR |
 |---|---|---|
 | #29 (P0) | ripple/split don't rebase clip-transform automation | #411 |
@@ -31,18 +31,18 @@
 | #28/C15 | modulation clamps non-[0,1] params to [0,1]; depth range mismatch | #414 |
 | E18 | MIDImix factory profile orphaned (no UI) | #412 |
 | AA.3-B | audio-follower lanes + export SR parity | #415 |
-> These 6 are validated-then-merged by THIS session. If you observe them live, note "matches known #NN (fix in flight)" — don't open a new task. The full flagged register (silent no-ops, freeze-mutation gaps, export-not-pressure-gated…) is task #31 + the audit — verify-don't-refile.
+> All 6 are independently-validated + MERGED to main (bug reproduced-on-main, fixed, verified). If you observe the OLD behavior live, you're on a stale build — kill+relaunch. Do NOT open a new task. The full flagged register (silent no-ops, freeze-mutation gaps, export-not-pressure-gated…) is task #31 + the audit — verify-don't-refile.
 
 ## 5. Coordination (two sessions, one repo)
 - **Do NOT `git pull` the canonical source checkout** while a CU pass runs — a source pull triggers Vite HMR mid-pass. Docs-only merges are safe.
-- This session merges ONLY docs + the 6 validated fix PRs (server-side, no app). It will not touch your running runtime.
+- This session's merges are DONE (docs + the 6 fix PRs + M.3 master-bus, all server-side, no app). It will not touch your running runtime.
 - Never pkill-by-name (both sessions run python/node).
 
 ## 6. GO/NO-GO (from the audit, spans all four layers)
 GO needs: the register bugs fixed/accepted; cross-cutting gates (parity, automation coherence, no-silent-data-loss, composability, caps, master) spot-checked; G1/G7/G5/G10 spot-checks; DN2/DN4.2 zero-FAIL; CD focus-visible recorded; UIT-guide retry-list triaged. **A green happy-path with a failing parity/data-loss/composability case is a NO-GO.**
 
 ## 7. Plan integrity
-Plan file last commit: `0fc33f6` on branch `docs/uat-comprehensive-audit` → merging to main via PR #410.
+Plan + audit + this handoff are all on `main` (#409/#410 merged). Master-Out Bus M.3 (#406) merged. Campaign complete.
 
 ---
 
@@ -64,10 +64,10 @@ then fixed), and merged.
 | #15 | e2e-full suite broadly red = TEST-ENV (security.py blocks os.tmpdir() exports), NOT app bug; smoke is the merge gate | plan watchlist L307 + salvaged addendum | test-infra; needs a dedicated app/Playwright session (opens windows) |
 | #7 | Q7 harness: verdict gate never measures under load (runner.py:190 vs :205) — Q7 track, NOT this campaign | THIS ledger (only durable record) | Q7 session |
 
-**Needs the repo owner (cannot be agent-merged):**
+**Was owner-only (now resolved):**
 | PR | Why blocked |
 |---|---|
-| #416 | perf(tests) LayerTap routing-budget harness — **touches `.github/workflows/`**, so workflow-change-guard requires MANUAL merge via the GitHub UI. Validated + smoke-green + MERGEABLE; one click. Opt-in/nightly, nothing depends on it. |
+| #416 | ✅ MERGED by the repo owner 2026-07-03 (touched `.github/workflows/perf-nightly.yml`, so it required manual UI merge — done). Perf tier is opt-in: `RUN_PERF=1 pytest -m perf`. |
 
 **Design/UX backlog (from the Don-Norman + CDO expert passes, not bugs):** modifier-consistency sweep,
 the three-"freeze" naming collision, focus-visible 8-state gap, hit-target measurements — all in the
