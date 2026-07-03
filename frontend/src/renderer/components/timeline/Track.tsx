@@ -6,6 +6,7 @@ import { EFFECT_DRAG_TYPE } from '../effects/EffectBrowser'
 import { parseOperatorDrop, dragHasOperatorChannel } from '../effects/operator-drag'
 import { useOperatorStore } from '../../stores/operators'
 import { useTimelineStore } from '../../stores/timeline'
+import { useLayoutStore } from '../../stores/layout'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
@@ -261,6 +262,150 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     isSelected ? 'track-header--selected' : '',
     dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
   ].filter(Boolean).join(' ')
+
+  // ── B3 / L2 + L4: lean track header + twirl ─────────────────────────────
+  // Behind F_CREATRIX_LAYOUT. The header shrinks to name · eye · color ·
+  // compact blend·opacity readout chip · M/S · twirl; the deep blend/opacity/
+  // blending-options controls move OUT to the right-dock LAYER panel (L3). The
+  // twirl reveals the track's nested fx + automation lanes ("arrangement-is-
+  // the-layers" AE model). Rendered as an early return so the legacy two-row
+  // header (flag OFF) is untouched — both paths stay shippable (flag divergence).
+  const expandedTrackIds = useLayoutStore((s) => s.expandedTrackIds)
+  const registry = useEffectsStore((s) => s.registry)
+  const leanAutoLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
+  if (FF.F_CREATRIX_LAYOUT) {
+    const isExpanded = expandedTrackIds.includes(track.id)
+    const modeLabel = compositing.mode.charAt(0).toUpperCase() + compositing.mode.slice(1)
+    const opacityPct = Math.round(compositing.opacity * 100)
+    // Nested fx = the chain minus its terminal composite (compositing is the
+    // LAYER panel's job, not a nested-fx row).
+    const nestedFx = track.effectChain.filter((e) => e.id !== terminalComposite?.id)
+    const leanHeaderClasses = [
+      'track-header',
+      'track-header--lean',
+      isSelected ? 'track-header--selected' : '',
+      dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
+    ].filter(Boolean).join(' ')
+    return (
+      <>
+        <div
+          className={leanHeaderClasses}
+          data-track-idx={drag.ownIdx}
+          data-testid="lean-track-header"
+          onClick={handleClick}
+          onContextMenu={handleContextMenu}
+          onPointerDown={drag.onPointerDown}
+        >
+          <div className="track-header__lean-row">
+            <button
+              className="track-header__twirl"
+              data-testid="track-twirl"
+              aria-label={isExpanded ? 'Collapse track' : 'Expand track'}
+              aria-expanded={isExpanded}
+              onClick={(e) => { e.stopPropagation(); useLayoutStore.getState().toggleTrackExpanded(track.id) }}
+            >
+              {isExpanded ? '▾' : '▸'}
+            </button>
+            <button
+              className={`track-header__eye${track.isMuted ? ' track-header__eye--off' : ''}`}
+              data-testid="track-eye"
+              aria-label={track.isMuted ? 'Show layer' : 'Hide layer'}
+              aria-pressed={!track.isMuted}
+              title={track.isMuted ? 'Layer hidden (muted)' : 'Layer visible'}
+              onClick={handleMute}
+            >
+              {track.isMuted ? '–' : '\u{1F441}'}
+            </button>
+            <span className="track-header__cc" style={{ background: track.color }} />
+            <div className="track-header__info track-header__info--lean" onDoubleClick={isRenaming ? undefined : startRename}>
+              {isRenaming ? (
+                <input
+                  ref={renameInputRef}
+                  className="track-header__rename-input"
+                  type="text"
+                  value={renameText}
+                  onChange={(e) => setRenameText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') confirmRename()
+                    else if (e.key === 'Escape') cancelRename()
+                    e.stopPropagation()
+                  }}
+                  onBlur={confirmRename}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <div className="track-header__name" data-testid="lean-track-name">
+                  {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
+                  {' '}{track.name}
+                </div>
+              )}
+            </div>
+            {track.type !== 'audio' && track.type !== 'performance' && (
+              <button
+                className="track-header__bchip"
+                data-testid="track-bchip"
+                title="Edit blend & opacity in the LAYER panel"
+                aria-label={`Blend ${modeLabel}, opacity ${opacityPct}% — open LAYER panel`}
+                onClick={(e) => { e.stopPropagation(); useTimelineStore.getState().selectTrack(track.id) }}
+              >
+                {modeLabel} <span className="track-header__bchip-o">{opacityPct}%</span>
+              </button>
+            )}
+            <div className="track-header__controls track-header__controls--lean">
+              <button
+                className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
+                onClick={handleMute}
+                title="Mute"
+              >
+                M
+              </button>
+              <button
+                className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
+                onClick={handleSolo}
+                title="Solo"
+              >
+                S
+              </button>
+            </div>
+          </div>
+          <LaneBadges trackId={track.id} />
+          {isExpanded && (
+            <div className="track-header__nested" data-testid="track-nested">
+              {nestedFx.length === 0 && leanAutoLanes.length === 0 && (
+                <div className="track-header__nested-empty">no fx or automation</div>
+              )}
+              {nestedFx.map((fx) => {
+                const info = registry.find((r) => r.id === fx.effectId)
+                return (
+                  <div
+                    key={fx.id}
+                    className={`track-header__nested-fx${fx.isEnabled === false ? ' track-header__nested-fx--off' : ''}`}
+                    data-testid="nested-fx-row"
+                  >
+                    <span className="track-header__nested-pwr" />
+                    {info?.name ?? fx.effectId}
+                  </div>
+                )
+              })}
+              {leanAutoLanes.map((lane) => (
+                <div key={lane.id} className="track-header__nested-auto" data-testid="nested-auto-row">
+                  {'└'} {isTriggerLane(lane) ? 'TRIG' : 'AUTO'} · {lane.paramPath}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {ctxMenu && (
+          <ContextMenu
+            x={ctxMenu.x}
+            y={ctxMenu.y}
+            items={getTrackMenuItems()}
+            onClose={() => setCtxMenu(null)}
+          />
+        )}
+      </>
+    )
+  }
 
   return (
     <>

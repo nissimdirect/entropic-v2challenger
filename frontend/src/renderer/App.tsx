@@ -27,6 +27,9 @@ import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
 // P3.3: Polymorphic inspector (8 states, info-only)
 import Inspector from './components/inspector/Inspector'
+// B3 / L3: LAYER inspector panel (right-dock, above EFFECTS) — bound to the
+// selected track. Mounted flag-gated (F_CREATRIX_LAYOUT) in the sidebar.
+import LayerPanel from './components/timeline/LayerPanel'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
 // P5a.3: buildVoiceLayers replaces buildSamplerLayer in the render path (multi-voice FSM).
 //        buildSamplerLayer kept for legacy callers outside the voice path.
@@ -46,6 +49,7 @@ import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
 import './styles/creatrix-layout.css'
+import './styles/b3-layout.css'
 import type { Asset, EffectInstance } from '../shared/types'
 import { IDENTITY_TRANSFORM, getTrackCompositing } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
@@ -3538,6 +3542,9 @@ function AppInner() {
             }}
           />
         )}
+        {/* B3 / L3: LAYER inspector — above EFFECTS, contextual to the selected
+            track. Flag-gated so the legacy sidebar is untouched when off. */}
+        {FF.F_CREATRIX_LAYOUT && <LayerPanel />}
         <div className="sidebar-tabs">
           <button
             className={`sidebar-tabs__btn ${sidebarTab === 'effects' ? 'sidebar-tabs__btn--active' : ''}`}
