@@ -159,3 +159,7 @@ yet GO** — the spine is proven, the breadth pass is outstanding.
 ### "Missing UI work / icons" (user report during pass) — diagnosis
 - Running app IS latest main (af9ba3b). On main the UI shows: transport as Unicode glyphs (▶ ■ ⟳), instrument racks text-only (no icons), and the E-1/E-2 LAYER-panel-slider-over-tabs overlap. App renders icons as inline SVG (frontend/src/renderer/assets/tool-icons.tsx exists).
 - The polished/newer UI work is in UNMERGED build/* worktree branches (parallel session ultracode wave-1): build/aa1-curves-polish, aa2-modulation-lanes, aa3a-lfo-lane, aa4b-automation-transform-box, aa6-param-automated-indicator, **hui**, m1-master-bus-schema, t5 — none on main yet → the running (main) app does not show them. This explains "the UI work is not there."
+
+
+### CORRECTION + ROOT CAUSE (user report: "missing icons on the side, like Photoshop")
+- The Photoshop-style **left tool rail** is the missing UI. **L0 icon SET WAS built** (#347 → tool-icons.tsx, 14 Block icons) but its ONLY consumer is EffectBrowser.tsx (the browser tool sub-tab) — **the left RAIL surface was NEVER built** (no ToolRail component). B3 shipped L1/L2/L3/L4 (#346/#377/#398) but not the rail. Full reconciliation: docs/UAT-COVERAGE-RECONCILIATION-2026-07-03.md.
