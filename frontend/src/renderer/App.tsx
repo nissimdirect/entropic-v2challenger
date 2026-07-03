@@ -95,6 +95,10 @@ import { recordChangedTransformFields } from './utils/transform-record'
 // the foundation the hardware-bank system (H2+) keys off. See
 // utils/focusContext.ts (derivation) + components/layout/MappingContextChip.tsx.
 import MappingContextChip from './components/layout/MappingContextChip'
+// H-UI (2026-07-02 master-tuneup WS5): Ableton-style visual hardware-mapping
+// overlay ("MIDI Map mode") — the view/hand-edit layer over the H1–H5 engine.
+import MIDIMapOverlay from './components/performance/MIDIMapOverlay'
+import { useMIDIMapModeStore } from './stores/midiMapMode'
 import { buildAxisLanes } from '../shared/axis-lanes'
 import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
@@ -113,6 +117,7 @@ import './styles/performance.css'
 import './styles/operators.css'
 import './styles/routing-canvas.css'
 import './styles/floating-panel.css'
+import './styles/midi-map.css'
 import './styles/automation.css'
 import './styles/library.css'
 import './styles/toast.css'
@@ -202,6 +207,26 @@ function CursorToolChip() {
     >
       tool: {tool}
     </span>
+  )
+}
+
+// H-UI (2026-07-02 master-tuneup WS5): statusbar toggle for MIDI Map mode.
+// Opens the visual hardware-mapping overlay (MIDIMapOverlay). Sits next to the
+// focus chip since it acts on the same mapping context the chip displays.
+function MapModeToggle() {
+  const mapMode = useMIDIMapModeStore((s) => s.mapMode)
+  const toggleMapMode = useMIDIMapModeStore((s) => s.toggleMapMode)
+  return (
+    <button
+      className="status-bar__map-toggle"
+      data-testid="statusbar-map-toggle"
+      data-active={mapMode ? 'true' : 'false'}
+      aria-pressed={mapMode}
+      title="Toggle MIDI Map mode — visualize and edit hardware bindings"
+      onClick={() => toggleMapMode()}
+    >
+      MAP
+    </button>
   )
 }
 
@@ -4094,9 +4119,14 @@ function AppInner() {
           <CursorToolChip />
           {/* H1: focused-mapping-context chip — foundation for hardware-bank (H2+) targeting */}
           <MappingContextChip />
+          {/* H-UI: MIDI Map mode toggle — opens the visual hardware-mapping overlay */}
+          <MapModeToggle />
           {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>
+
+      {/* H-UI: MIDI Map mode overlay (self-gating — renders null unless mapMode). */}
+      <MIDIMapOverlay />
 
       <ExportDialog
         isOpen={showExportDialog}
