@@ -1,11 +1,16 @@
 /**
  * Phase 1 — UX Combination & Permutation Tests
  *
- * 14 tests (pruned from 30) — kept tests requiring real playback, video replace, error recovery:
+ * 11 tests (re-audited from 14; Group 2 deleted as dead) — kept tests requiring
+ * real playback, live IPC error recovery, and full-lifecycle integration:
  * - Group 1: Playback + Live Operations (5 tests) — real video playback + live effect operations
- * - Group 2: Replace Video (3 tests) — real sidecar re-ingest
  * - Group 6: Error Recovery (3 tests) — real IPC error + recovery
  * - Group 8: State Machine Transitions (3 tests) — full lifecycle integration
+ *
+ * Group 2: Replace Video (3 tests) — DELETED. Was already test.describe.skip
+ * with no code path (app has no "replace video" feature — see git history for
+ * the prior investigation). Skipped-forever tests assert nothing; removed
+ * rather than kept as dead weight.
  *
  * PRUNED groups (migrated to Vitest: ux-combinations.test.tsx):
  * - Group 3: Multi-Effect Param Editing (5 tests) → Vitest: param switching, toggle preservation
@@ -349,131 +354,9 @@ test.describe('UX Combos — Group 1: Playback + Live Operations', () => {
   })
 })
 
-// ═══════════════════════════════════════════════════════════
-// GROUP 2: Replace Video
-// ═══════════════════════════════════════════════════════════
-
-// "Replace Video" (in-place media swap: same track/clip/effects, new source
-// file) is not a feature the current app has. handleFileIngest (App.tsx,
-// used by both the initial-import FileDialog button and the Cmd+I
-// "Import Media" shortcut) unconditionally does "Auto-create track + clip on
-// import (CapCut behavior)" — every import adds a brand-new track, there is
-// no code path that swaps an existing clip's source media. Confirmed
-// empirically: importing the same file twice via Cmd+I after an initial
-// import took .asset-badge count from 1 to 2, not back to 1. RelinkDialog.tsx
-// looked like a candidate but is a different feature entirely — it only
-// fires automatically on project load when a referenced file is missing on
-// disk, not manually invokable mid-session. There is also no "Replace"
-// button anymore (the FileDialog button that these tests targeted via
-// `.file-dialog-btn.last()` only renders while `!hasAssets`; after import it
-// is removed from the DOM, which is why these tests hung on a 30s click
-// timeout waiting for a second instance that was never there).
-// These 3 tests are skipped rather than rewritten to fit a different
-// behavior (e.g. "import adds a 2nd track") — that would test something
-// other than what the test names/descriptions claim to verify.
-test.describe.skip('UX Combos — Group 2: Replace Video', () => {
-  test.beforeEach(async ({ window }) => {
-    await waitForEngineConnected(window, 25_000)
-  })
-
-  test('6. Import → Add effects → Replace video → Effects preserved, preview shows new video', async ({
-    electronApp,
-    window,
-  }) => {
-    test.setTimeout(150_000)
-    await importAndWaitForFrame(electronApp, window)
-
-    // Add 2 effects
-    const effectItems = window.locator('.effect-browser__item')
-    await expect(effectItems.first()).toBeVisible({ timeout: 5_000 })
-    await effectItems.nth(0).click()
-    await window.waitForTimeout(300)
-    if ((await effectItems.count()) >= 2) {
-      await effectItems.nth(1).click()
-      await window.waitForTimeout(300)
-    }
-
-    const rackItems = window.locator('.device-chain__item')
-    const effectCountBefore = await rackItems.count()
-    expect(effectCountBefore).toBeGreaterThanOrEqual(1)
-
-    // Replace video — click the "Replace" FileDialog button
-    const videoPath = getTestVideoPath()
-    await stubFileDialog(electronApp, videoPath)
-    const replaceBtns = window.locator('.file-dialog-btn')
-    // The second file-dialog-btn is the "Replace" button (visible when asset loaded)
-    const replaceBtn = replaceBtns.last()
-    await replaceBtn.click()
-
-    // Wait for re-ingest
-    await window.waitForSelector('.asset-badge', { timeout: 90_000 })
-    await waitForFrame(window, 15_000)
-
-    // Effects should still be in the rack
-    const effectCountAfter = await rackItems.count()
-    expect(effectCountAfter).toBe(effectCountBefore)
-
-    // Preview should show a rendered frame
-    await waitForFrame(window, 10_000)
-    await expect(window.locator('.app')).toBeVisible()
-  })
-
-  test('7. Import → Scrub to frame 50 → Replace → Frame resets to 0', async ({
-    electronApp,
-    window,
-  }) => {
-    test.setTimeout(150_000)
-    await importAndWaitForFrame(electronApp, window)
-
-    // Scrub to frame 50
-    await seekToFrame(window, 50)
-    const frameAfterScrub = await getCurrentFrame(window)
-    expect(frameAfterScrub).toBe(50)
-
-    // Replace video
-    const videoPath = getTestVideoPath()
-    await stubFileDialog(electronApp, videoPath)
-    const replaceBtns = window.locator('.file-dialog-btn')
-    await replaceBtns.last().click()
-
-    await window.waitForSelector('.asset-badge', { timeout: 90_000 })
-    await waitForFrame(window, 15_000)
-
-    // Frame should reset to 0 after re-ingest
-    const frameAfterReplace = await getCurrentFrame(window)
-    expect(frameAfterReplace).toBe(0)
-
-    await expect(window.locator('.app')).toBeVisible()
-  })
-
-  test('8. Import → Playing → Replace → Playback stops, new video loads', async ({
-    electronApp,
-    window,
-  }) => {
-    test.setTimeout(150_000)
-    await importAndWaitForFrame(electronApp, window)
-
-    // Start playback
-    await startPlayback(window)
-    expect(await isPlaying(window)).toBe(true)
-    await window.waitForTimeout(1500)
-
-    // Replace video while playing
-    const videoPath = getTestVideoPath()
-    await stubFileDialog(electronApp, videoPath)
-    const replaceBtns = window.locator('.file-dialog-btn')
-    await replaceBtns.last().click()
-
-    // Wait for re-ingest
-    await window.waitForSelector('.asset-badge', { timeout: 90_000 })
-    await waitForFrame(window, 15_000)
-
-    // The new video should load successfully regardless of playback state
-    await waitForFrame(window, 10_000)
-    await expect(window.locator('.app')).toBeVisible()
-    await expect(window.locator('.asset-badge')).toBeVisible()
-  })
-})
+// Group 2 (Replace Video, 3 tests) DELETED — was already test.describe.skip
+// with no code path (see docstring above). "Replace Video" is not a feature
+// the current app has; handleFileIngest always adds a new track on import.
 
 // Groups 3-5, 7 PRUNED — migrated to Vitest: ux-combinations.test.tsx
 // Group 3: Multi-Effect Param Editing (tests 9-13) → param switching, toggle preservation, reorder selection
