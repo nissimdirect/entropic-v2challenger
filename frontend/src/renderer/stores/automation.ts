@@ -80,6 +80,122 @@ function quantizeTime(time: number, quantize?: QuantizeGridOptions): number {
   return Math.round(time / gridInterval) * gridInterval
 }
 
+// AA.4b — transform box (scale / skew / flatten / ramp). See
+// docs/plans/2026-07-03-automation-editing-gestures.md. All four gestures
+// (edge-scale, corner-scale, skew, flatten, ramp) are ONE pure affine mapping
+// of the selected (time, value) points, parameterized differently per gesture:
+//
+//   u = normalized time position of a selected point within the selection's
+//       own [timeMin, timeMax] span (0 at the earliest selected point, 1 at
+//       the latest). Time never skews (only the horizontal axis is genuinely
+//       "time"); value skews AS A FUNCTION OF u — that's what turns a flat
+//       selection into a ramp.
+//
+//   newTime  = anchorTime + (time - anchorTime) * timeScale
+//   newValue = anchorValue + (value - anchorValue) * lerp(valueScaleLeft, valueScaleRight, u)
+//              + lerp(valueShiftLeft, valueShiftRight, u)
+//
+// - Edge (time) scale:              timeScale != 1, value* untouched (scale 1/1, shift 0/0).
+// - Edge (value) scale, no skew:    valueScaleLeft === valueScaleRight (uniform), shift 0/0.
+// - Skew ("drag one side down"):    valueScaleLeft = valueScaleRight = 1 (no scale), and
+//                                    valueShiftLeft != valueShiftRight (the shift ramps
+//                                    linearly across u) — this is what turns flat -> ramp,
+//                                    since a pure *scale* of a flat selection is a no-op
+//                                    (value - anchorValue === 0 everywhere).
+// - Corner scale (both dims):       timeScale != 1 AND valueScaleLeft === valueScaleRight != 1.
+// - Flatten:                        valueScaleLeft = valueScaleRight = 0, shiftLeft = shiftRight
+//                                    = target value (scale-to-zero collapses the range; the
+//                                    constant shift places it).
+// - Ramp (interior -> line):        valueScaleLeft = valueScaleRight = 0, shiftLeft =
+//                                    firstSelected.value, shiftRight = lastSelected.value —
+//                                    endpoints land back on their own original value (u=0/1
+//                                    reconstruct exactly), interior points land on the
+//                                    straight line between them.
+export interface BoxTransformParams {
+  timeScale: number
+  anchorTime: number
+  valueScaleLeft: number
+  valueScaleRight: number
+  valueShiftLeft: number
+  valueShiftRight: number
+  anchorValue: number
+}
+
+export const IDENTITY_TRANSFORM: BoxTransformParams = {
+  timeScale: 1,
+  anchorTime: 0,
+  valueScaleLeft: 1,
+  valueScaleRight: 1,
+  valueShiftLeft: 0,
+  valueShiftRight: 0,
+  anchorValue: 0,
+}
+
+/** Flatten: collapse every selected point to a single constant `target` value. */
+export function flattenParams(target: number): BoxTransformParams {
+  return {
+    timeScale: 1,
+    anchorTime: 0,
+    valueScaleLeft: 0,
+    valueScaleRight: 0,
+    valueShiftLeft: target,
+    valueShiftRight: target,
+    anchorValue: 0,
+  }
+}
+
+/** Ramp: straight line from `firstValue` (earliest selected) to `lastValue` (latest selected). */
+export function rampParams(firstValue: number, lastValue: number): BoxTransformParams {
+  return {
+    timeScale: 1,
+    anchorTime: 0,
+    valueScaleLeft: 0,
+    valueScaleRight: 0,
+    valueShiftLeft: firstValue,
+    valueShiftRight: lastValue,
+    anchorValue: 0,
+  }
+}
+
+/**
+ * Pure mapping — applies `params` to the points at `indices`, leaving every
+ * other point untouched. Clamps time >= 0 and value to [0, 1] (lane bounds),
+ * grid-snaps time when `quantize.enabled`. Does NOT re-sort or mutate the
+ * input array (callers that need re-sort + reselect, e.g. the store action
+ * below, do that themselves — mirrors moveSelectedPoints' own re-sort step).
+ */
+export function applyBoxTransform(
+  points: AutomationPoint[],
+  indices: number[],
+  params: BoxTransformParams,
+  quantize?: QuantizeGridOptions,
+): AutomationPoint[] {
+  if (indices.length === 0) return points
+  const idxSet = new Set(indices)
+  const selectedTimes = indices
+    .map((i) => points[i]?.time)
+    .filter((t): t is number => typeof t === 'number' && Number.isFinite(t))
+  if (selectedTimes.length === 0) return points
+  const timeMin = Math.min(...selectedTimes)
+  const timeMax = Math.max(...selectedTimes)
+  const timeSpan = timeMax - timeMin
+
+  return points.map((p, i) => {
+    if (!idxSet.has(i)) return p
+    const u = timeSpan > 0 ? (p.time - timeMin) / timeSpan : 0
+
+    let newTime = params.anchorTime + (p.time - params.anchorTime) * params.timeScale
+    newTime = Math.max(0, quantizeTime(newTime, quantize))
+
+    const localScale = params.valueScaleLeft + (params.valueScaleRight - params.valueScaleLeft) * u
+    const localShift = params.valueShiftLeft + (params.valueShiftRight - params.valueShiftLeft) * u
+    let newValue = params.anchorValue + (p.value - params.anchorValue) * localScale + localShift
+    newValue = Math.max(0, Math.min(1, newValue))
+
+    return { ...p, time: newTime, value: newValue }
+  })
+}
+
 interface AutomationState {
   lanes: Record<string, AutomationLane[]>
   mode: AutomationMode
@@ -175,6 +291,43 @@ interface AutomationState {
    * exactly like region-based ones.
    */
   copySelectedPoints: () => void
+
+  // AA.4b — transform box (scale / skew / flatten / ramp). See BoxTransformParams
+  // doc comment above for the shared affine mapping every gesture parameterizes.
+  /**
+   * Apply `params` to the current selection as ONE undoable step. `quantize`
+   * grid-snaps the resulting time the same way moveSelectedPoints does.
+   * `description` labels the undo-history entry (defaults to a generic one so
+   * flatten/ramp — which call through this — can give a more specific label).
+   */
+  transformSelectedPoints: (
+    params: BoxTransformParams,
+    quantize?: QuantizeGridOptions,
+    description?: string,
+  ) => void
+  /**
+   * Collapse the selection to a single constant value — a horizontal line.
+   * `mode: 'release'` uses `releaseValue` (e.g. the value under the pointer
+   * when the user releases the drag); `mode: 'average'` uses the mean of the
+   * currently selected values. ONE undo step (delegates to transformSelectedPoints).
+   */
+  flattenSelectedPoints: (mode: 'average' | 'release', releaseValue?: number) => void
+  /**
+   * Replace the selection with a straight line from the earliest selected
+   * point to the latest selected point (both keep their own original value;
+   * everything between is re-laid onto that line). No-op with < 2 selected
+   * points. ONE undo step (delegates to transformSelectedPoints).
+   */
+  rampSelectedPoints: () => void
+  /**
+   * Non-undoable raw point replace for a single lane — used ONLY for the
+   * transform box's live drag preview (AutomationTransformBox.tsx), which
+   * repaints from an origin snapshot on every pointermove and then restores
+   * + recommits through transformSelectedPoints (the undoable action) on
+   * release. Not for general use — every other mutation should go through an
+   * undoable() action.
+   */
+  setPointsRaw: (trackId: string, laneId: string, points: AutomationPoint[]) => void
 
   // Selectors
   getLanesForTrack: (trackId: string) => AutomationLane[]
@@ -777,6 +930,111 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     const regionPoints = pts.map((p) => ({ ...p, time: p.time - minTime }))
 
     set({ clipboard: { points: regionPoints, duration: maxTime - minTime } })
+  },
+
+  // AA.4b — transform box (scale / skew / flatten / ramp)
+
+  transformSelectedPoints: (params, quantize, description = 'Transform automation points') => {
+    const selection = get().selectedPoints
+    if (!selection || selection.indices.length === 0) return
+    const trackLanes = get().lanes[selection.trackId]
+    const lane = trackLanes?.find((l) => l.id === selection.laneId)
+    if (!lane) return
+
+    const oldPoints = lane.points
+    const oldSelection = selection
+    const transformed = applyBoxTransform(oldPoints, selection.indices, params, quantize)
+
+    // Same "track moved points by reference, relocate by identity after
+    // sort" idiom as moveSelectedPoints — survives points landing on the
+    // same time/value after the transform.
+    const movedRefs = new Map<number, AutomationPoint>()
+    for (const i of selection.indices) {
+      const p = transformed[i]
+      if (!p) continue
+      movedRefs.set(i, p)
+    }
+    if (movedRefs.size === 0) return
+
+    const combined = oldPoints.map((p, i) => movedRefs.get(i) ?? p)
+    const sorted = [...combined].sort((a, b) => a.time - b.time)
+    const movedRefSet = new Set(movedRefs.values())
+    const newIndices = sorted.reduce<number[]>((acc, p, i) => {
+      if (movedRefSet.has(p)) acc.push(i)
+      return acc
+    }, [])
+    const newSelection: AutomationPointSelection = {
+      trackId: oldSelection.trackId,
+      laneId: oldSelection.laneId,
+      indices: newIndices,
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[oldSelection.trackId] = (current[oldSelection.trackId] ?? []).map((l) =>
+        l.id === oldSelection.laneId ? { ...l, points: sorted } : l,
+      )
+      set({ lanes: current, selectedPoints: newSelection })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[oldSelection.trackId] = (current[oldSelection.trackId] ?? []).map((l) =>
+        l.id === oldSelection.laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current, selectedPoints: oldSelection })
+    }
+
+    undoable(description, forward, inverse)
+  },
+
+  flattenSelectedPoints: (mode, releaseValue) => {
+    const selection = get().selectedPoints
+    if (!selection || selection.indices.length === 0) return
+    const trackLanes = get().lanes[selection.trackId]
+    const lane = trackLanes?.find((l) => l.id === selection.laneId)
+    if (!lane) return
+
+    const selectedValues = selection.indices
+      .map((i) => lane.points[i]?.value)
+      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+    if (selectedValues.length === 0) return
+
+    const target =
+      mode === 'release' && typeof releaseValue === 'number' && Number.isFinite(releaseValue)
+        ? Math.max(0, Math.min(1, releaseValue))
+        : selectedValues.reduce((a, b) => a + b, 0) / selectedValues.length
+
+    get().transformSelectedPoints(flattenParams(target), undefined, 'Flatten automation selection')
+  },
+
+  rampSelectedPoints: () => {
+    const selection = get().selectedPoints
+    if (!selection || selection.indices.length < 2) return
+    const trackLanes = get().lanes[selection.trackId]
+    const lane = trackLanes?.find((l) => l.id === selection.laneId)
+    if (!lane) return
+
+    // `indices` is documented as always sorted ascending, and it indexes
+    // into a time-sorted `points` array — so the first/last index really are
+    // the earliest/latest selected points in time.
+    const firstPt = lane.points[selection.indices[0]]
+    const lastPt = lane.points[selection.indices[selection.indices.length - 1]]
+    if (!firstPt || !lastPt) return
+
+    get().transformSelectedPoints(
+      rampParams(firstPt.value, lastPt.value),
+      undefined,
+      'Ramp automation selection',
+    )
+  },
+
+  setPointsRaw: (trackId, laneId, points) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    if (!trackLanes.some((l) => l.id === laneId)) return
+    const current = { ...get().lanes }
+    current[trackId] = (current[trackId] ?? []).map((l) => (l.id === laneId ? { ...l, points } : l))
+    set({ lanes: current })
   },
 
   getLanesForTrack: (trackId) => get().lanes[trackId] ?? [],

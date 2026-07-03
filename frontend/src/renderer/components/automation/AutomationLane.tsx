@@ -23,6 +23,7 @@ import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
 import { isTriggerLane } from '../../utils/automation-evaluate'
 import AutomationNode from './AutomationNode'
+import AutomationTransformBox from './AutomationTransformBox'
 import CurveSegment from './CurveSegment'
 
 interface MarqueeRect {
@@ -177,8 +178,10 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
     (e: React.PointerEvent<SVGSVGElement>) => {
       if (e.button !== 0) return
       // Let an existing node own its own drag gesture (AutomationNode.tsx) —
-      // don't also start a marquee underneath it.
+      // don't also start a marquee underneath it. AA.4b: same guard for the
+      // transform box's own handles (AutomationTransformBox.tsx).
       if ((e.target as Element).closest?.('.auto-node')) return
+      if ((e.target as Element).closest?.('.auto-transform-box__handle')) return
       if (!svgRef.current) return
 
       marqueeDraggingRef.current = true
@@ -349,6 +352,20 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
           onMoveSelection={handleMoveSelection}
         />
       ))}
+      {/* AA.4b — transform box (scale/skew/flatten/ramp) over the active
+          breakpoint selection. Not rendered for trigger lanes (square-wave
+          0/1 blocks — no meaningful value axis to scale/skew). */}
+      {!trigger && (
+        <AutomationTransformBox
+          trackId={trackId}
+          laneId={lane.id}
+          timeToX={timeToX}
+          valueToY={valueToY}
+          xToTime={xToTime}
+          yToValue={yToValue}
+          height={height}
+        />
+      )}
       {/* AA.4 — marquee-select rubber-band rect (visual only; pointerEvents
           none so it never intercepts the pointer handlers above). */}
       {marqueeRect && (marqueeRect.width > 1 || marqueeRect.height > 1) && (

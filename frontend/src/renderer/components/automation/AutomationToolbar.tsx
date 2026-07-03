@@ -68,6 +68,8 @@ export default function AutomationToolbar() {
   // A4 — continuous-lane overdub toggle (D2: 'replace'/punch-replace is the
   // locked default; 'overdub' additively layers new points instead).
   const recordMode = useAutomationStore((s) => s.recordMode)
+  // AA.4b — Flatten/Ramp act on the active breakpoint selection (AA.4).
+  const selectedPoints = useAutomationStore((s) => s.selectedPoints)
   const tracks = useTimelineStore((s) => s.tracks)
   // A1+A2: transform lanes target the SELECTED clip on the armed track. Subscribe
   // so the picker refreshes when the selection changes.
@@ -94,6 +96,16 @@ export default function AutomationToolbar() {
         state.simplifyLane(state.armedTrackId, lane.id, 0.01)
       }
     }
+  }, [])
+
+  // AA.4b — Flatten: collapse the active selection to its average value.
+  const handleFlatten = useCallback(() => {
+    useAutomationStore.getState().flattenSelectedPoints('average')
+  }, [])
+
+  // AA.4b — Ramp: replace the selection with a straight first->last line.
+  const handleRamp = useCallback(() => {
+    useAutomationStore.getState().rampSelectedPoints()
   }, [])
 
   const handleClear = useCallback(() => {
@@ -251,6 +263,27 @@ export default function AutomationToolbar() {
         data-testid="add-trigger-btn"
       >
         + Trigger
+      </button>
+      {/* AA.4b — Flatten/Ramp: only meaningful with an active breakpoint
+          selection (AA.4); the transform box (drag handles) is the primary
+          gesture, these buttons are a discoverable one-click fallback. */}
+      <button
+        className="auto-toolbar__btn"
+        onClick={handleFlatten}
+        title="Flatten selected breakpoints to their average value"
+        disabled={!selectedPoints || selectedPoints.indices.length === 0}
+        data-testid="flatten-selection-btn"
+      >
+        Flatten
+      </button>
+      <button
+        className="auto-toolbar__btn"
+        onClick={handleRamp}
+        title="Replace selection with a straight line from first to last selected point"
+        disabled={!selectedPoints || selectedPoints.indices.length < 2}
+        data-testid="ramp-selection-btn"
+      >
+        Ramp
       </button>
       <button
         className="auto-toolbar__btn"
