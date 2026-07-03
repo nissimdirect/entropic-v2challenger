@@ -48,14 +48,8 @@ test.describe('Phase 11.5 — Observability & Layout', () => {
     expect(gridCols).toContain('280')
   })
 
-  test('3. timeline footer renders with zoom control', async ({ window }) => {
-    // The timeline footer should have the zoom slider
-    const zoomLabel = window.locator('.zoom-scroll__label')
-    await expect(zoomLabel).toBeVisible({ timeout: 5_000 })
-
-    const text = await zoomLabel.textContent()
-    expect(text).toContain('Zoom')
-  })
+  // Deleted "timeline footer renders with zoom control" — the .zoom-scroll footer
+  // widget was removed (commit 58647bb, ZoomScroll orphaned); zoom is now Cmd+scroll.
 
   test('4. CSS layout tokens resolve in computed style', async ({ window }) => {
     // Check that grid-template-columns resolves properly (proves CSS vars work)
