@@ -62,7 +62,14 @@ function resolveCCTarget(cc: number): SlotTarget | null {
   const context = snapshotMappingContext()
   const sources = defaultAssignmentSourcesFor(context)
 
-  const bankTarget = resolveBankSlotTargetForCC(cc, midi.ccBankBindings, midi.bankAssignments, context, sources)
+  const bankTarget = resolveBankSlotTargetForCC(
+    cc,
+    midi.ccBankBindings,
+    midi.bankAssignments,
+    context,
+    sources,
+    midi.activeBankIndex, // H7 — record into the SAME paged lane the live overlay resolves
+  )
   if (bankTarget) return bankTarget
 
   const legacy = midi.ccMappings.find((m) => m.cc === cc)
