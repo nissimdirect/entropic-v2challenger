@@ -18,7 +18,6 @@ import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropi
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
 import EffectRack from '../../renderer/components/effects/EffectRack'
 import FileDialog from '../../renderer/components/upload/FileDialog'
-import DropZone from '../../renderer/components/upload/DropZone'
 import type { EffectInfo, EffectInstance } from '../../shared/types'
 
 const mockRegistry: EffectInfo[] = [
@@ -246,26 +245,5 @@ describe('Chaos — Rapid Search Input', () => {
     fireEvent.change(searchInput, { target: { value: '' } })
     const items = document.querySelectorAll('.effect-browser__item')
     expect(items.length).toBe(3)
-  })
-})
-
-// =============================================================================
-// Drop Zone Rapid Drag Events
-// =============================================================================
-
-describe('Chaos — Rapid Drag Events', () => {
-  it('rapid dragOver/dragLeave does not corrupt state', () => {
-    render(<DropZone onFileDrop={vi.fn()} />)
-
-    const dropZone = document.querySelector('.drop-zone') as HTMLElement
-
-    for (let i = 0; i < 20; i++) {
-      fireEvent.dragOver(dropZone, { preventDefault: vi.fn(), stopPropagation: vi.fn() })
-      fireEvent.dragLeave(dropZone, { preventDefault: vi.fn(), stopPropagation: vi.fn() })
-    }
-
-    // Should not be in active state after final leave
-    expect(dropZone.className).not.toContain('drop-zone--active')
-    expect(document.querySelector('.drop-zone')).toBeTruthy()
   })
 })

@@ -614,6 +614,179 @@ def _get_param_bounds(
     return 0.0, 1.0
 
 
+# --------------------------------------------------------------------------- #
+#  AA.3-A — operator-sourced automation lanes: resolve_operator_lanes
+# --------------------------------------------------------------------------- #
+
+
+def apply_blend_op(base: float, mod: float, op: str) -> float:
+    """AA.3 — Python port of frontend automation-evaluate.ts's applyBlendOp.
+
+    Mirrors 'add' (default/identity), 'multiply', 'max'. Pure, no clamping —
+    callers clamp the composed result (mirrors composeModulatedValue).
+    """
+    if op == "multiply":
+        return base * mod
+    if op == "max":
+        return max(base, mod)
+    return base + mod  # 'add' (default, and any unrecognized op)
+
+
+def resolve_operator_lanes(
+    operator_lanes: list[dict] | None,
+    operator_values: dict[str, float],
+    base_map: dict[str, float | None] | None,
+    chain: list[dict],
+    effect_registry_fn=None,
+) -> list[dict]:
+    """AA.3-A — superimpose live-operator-sourced lane values onto their
+    absolute base and REPLACE the target param.
+
+    Mirrors frontend automation-evaluate.ts's composeModulatedValue +
+    applyBlendOp + denormalize exactly, so preview (zmq_server._render_frame_core)
+    and export (engine/export.py's modulate_chain_for_frame) — which both call
+    this from the SAME seam, ``SignalEngine.apply_modulation`` — produce
+    byte-identical per-frame param values (the AA.3 parity contract).
+
+    Args:
+        operator_lanes: ``[{param_path, operator_id, blend_op, depth, min, max}]``
+            — constant descriptors (frontend's buildOperatorLaneSpecs `specs`).
+        operator_values: this frame's ``evaluate_all`` output (``op_id -> float``),
+            including the synthetic ``"__lane__"+lane.id`` operators.
+        base_map: ``{param_path: float|None}`` — the NORMALIZED [0,1] base
+            (absolute + drawn-mod lanes), computed frontend-side
+            (buildOperatorLaneSpecs `baseNormalized`). ``None`` (or a missing
+            key) means no absolute/drawn lane exists on that param — mirrors
+            composeModulatedValue's null-base fallback (seed from the first mod).
+        chain: the effect chain, already operator-routed (resolve_routings) and
+            automation-REPLACEd by the time this runs (called from
+            apply_modulation AFTER both of those seams — §2.3 of the AA.3 spec).
+
+    Trust boundary (mirrors resolve_mask_modulations / resolve_sampler_modulations):
+    a malformed spec entry, an unknown effect, a non-finite operator value, or a
+    non-numeric base param is SKIPPED — never raises, param left untouched.
+    Mutates `chain`'s effect params in place (the caller already owns a
+    deep-copied chain via resolve_routings) and returns it.
+    """
+    if not operator_lanes:
+        return chain
+
+    effect_map: dict[str, dict] = {}
+    for effect in chain:
+        eid = effect.get("effect_id", "")
+        if eid:
+            effect_map[eid] = effect
+
+    # Group specs by param_path, preserving declaration order (mirrors
+    # composeModulatedValue's "in lane-array order" contract).
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for spec in operator_lanes:
+        if not isinstance(spec, dict):
+            continue
+        param_path = spec.get("param_path")
+        if not isinstance(param_path, str) or "." not in param_path:
+            continue
+        groups[param_path].append(spec)
+
+    base_map = base_map or {}
+
+    for param_path, specs in groups.items():
+        # Split on the LAST '.', not the first: real effect ids are themselves
+        # dotted (e.g. "fx.hue_shift"), so a first-dot split (the naive mirror
+        # of evaluateAutomationOverrides.ts's registry-bounds-lookup split)
+        # would misresolve every real project's effect id. Param keys never
+        # contain dots (registry param names are single identifiers), so the
+        # LAST dot unambiguously separates {effect_id}.{param_key} for both
+        # dotted type ids ("fx.hue_shift.amount") and dot-free instance ids.
+        dot_idx = param_path.rfind(".")
+        if dot_idx <= 0:
+            continue
+        effect_id = param_path[:dot_idx]
+        param_key = param_path[dot_idx + 1 :]
+        if not param_key:
+            continue
+
+        effect = effect_map.get(effect_id)
+        if effect is None:
+            continue
+        params = effect.get("params")
+        if not isinstance(params, dict):
+            continue
+
+        # "non-numeric base param" guard (mirrors resolve_routings): only
+        # REPLACE a param slot that already holds a real numeric value.
+        existing = params.get(param_key)
+        if existing is None:
+            continue
+        if not isinstance(existing, (int, float)) or isinstance(existing, bool):
+            continue
+
+        # Build this param's mod contributions, in spec order. A spec whose
+        # operator value is missing/non-finite is SKIPPED (never coerced to
+        # 0.0 here — a silently-injected 0.0 would still move the param;
+        # skipping leaves it genuinely untouched by that one contribution).
+        mods: list[tuple[float, str]] = []
+        for spec in specs:
+            operator_id = spec.get("operator_id")
+            if not isinstance(operator_id, str) or not operator_id:
+                continue
+            raw_v = operator_values.get(operator_id)
+            if (
+                not isinstance(raw_v, (int, float))
+                or isinstance(raw_v, bool)
+                or not math.isfinite(raw_v)
+            ):
+                continue
+            v = float(raw_v)
+            m_min = _finite(spec.get("min", 0.0), 0.0)
+            m_max = _finite(spec.get("max", 1.0), 1.0)
+            depth = _finite(spec.get("depth", 1.0), 1.0)
+            blend_op = spec.get("blend_op", "add")
+            if not isinstance(blend_op, str):
+                blend_op = "add"
+            mod_val = (m_min + v * (m_max - m_min)) * depth
+            mods.append((mod_val, blend_op))
+
+        if not mods:
+            continue
+
+        base = base_map.get(param_path)
+        if base is not None and (
+            not isinstance(base, (int, float)) or isinstance(base, bool)
+        ):
+            base = None
+        elif base is not None and not math.isfinite(base):
+            base = None
+
+        # Mirror composeModulatedValue exactly: a present base seeds the
+        # accumulator and EVERY mod (including the first) blends onto it; an
+        # absent base seeds the accumulator from the first mod's raw value and
+        # only the REMAINING mods blend.
+        if base is not None:
+            acc = float(base)
+            rest = mods
+        else:
+            acc = mods[0][0]
+            rest = mods[1:]
+
+        for mod_val, blend_op in rest:
+            acc = apply_blend_op(acc, mod_val, blend_op)
+
+        if not math.isfinite(acc):
+            continue
+        acc = max(0.0, min(1.0, acc))
+
+        p_min, p_max = _get_param_bounds(effect_id, param_key, effect_registry_fn)
+        value = p_min + acc * (p_max - p_min)
+        lo, hi = (p_min, p_max) if p_min <= p_max else (p_max, p_min)
+        value = max(lo, min(hi, value))
+        if not math.isfinite(value):
+            continue
+        params[param_key] = value
+
+    return chain
+
+
 def check_cycle(routings: list[tuple[str, str]], new_edge: tuple[str, str]) -> bool:
     """Check if adding new_edge would create a cycle in the routing DAG.
 

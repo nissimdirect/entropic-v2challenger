@@ -100,6 +100,7 @@ import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
 import { evaluateAutomationOverrides, applyAutomationOverridesToChain } from './utils/evaluateAutomationOverrides'
+import { buildSyntheticLaneOperators, buildOperatorLaneSpecs } from './utils/operatorLaneSpecs'
 import { evaluateTransformOverrides, mergeTransformOverride, formatTransformLanePath, parseTransformLanePath, type TransformField } from './utils/transformLanes'
 import { recordChangedTransformFields } from './utils/transform-record'
 // H1 (2026-07-02 master-tuneup WS5): focused-mapping-context statusbar chip —
@@ -1210,6 +1211,18 @@ function AppInner() {
           ? evaluateAutomationOverrides(allLanes, currentTime, registry)
           : undefined
 
+        // AA.3-A: operator-sourced lane payloads — a synthetic, mapping-less
+        // operator per lane (so the backend's evaluate_all computes its
+        // per-frame value for free) + the constant descriptors + this frame's
+        // normalized drawn base. Empty when no operator lanes exist, so the
+        // render payload is byte-identical to today (regression guard, same
+        // convention as autoOverrides/axisLanes above).
+        const laneOperators = allLanes.length > 0 ? buildSyntheticLaneOperators(allLanes) : []
+        const { specs: operatorLaneSpecs, baseNormalized: operatorLaneBase } =
+          allLanes.length > 0
+            ? buildOperatorLaneSpecs(allLanes, currentTime, registry)
+            : { specs: [], baseNormalized: {} }
+
         // A1+A2: resolve clip-transform lanes at the playhead → per-clip partial
         // transforms (keyed by clipId). Folded onto each clip's base transform
         // below (mergeTransformOverride). Empty when no transform lanes exist, so
@@ -1621,8 +1634,14 @@ function AppInner() {
             frame_index: clipFrame,
             chain: serializeEffectChain(singleTrackChain),
             project_seed: projectSeed,
-            ...(serializedOps.length > 0 ? { operators: serializedOps } : {}),
+            // AA.3-A: synthetic lane operators ride alongside the real
+            // operator-rack operators in the SAME `operators` array — the
+            // backend's evaluate_all does not distinguish them.
+            ...(serializedOps.length > 0 || laneOperators.length > 0
+              ? { operators: [...serializedOps, ...laneOperators] } : {}),
             ...(autoOverrides && Object.keys(autoOverrides).length > 0 ? { automation_overrides: autoOverrides } : {}),
+            ...(operatorLaneSpecs.length > 0
+              ? { operator_lanes: operatorLaneSpecs, operator_lane_base: operatorLaneBase } : {}),
             ...(axisLanes.length > 0 ? { axis_lanes: axisLanes } : {}),
             ...((ct && (ct.x !== 0 || ct.y !== 0 || ct.scaleX !== 1 || ct.scaleY !== 1 || ct.rotation !== 0 || ct.flipH || ct.flipV || ct.anchorX !== 0 || ct.anchorY !== 0)) || stov
               ? { transform: ct } : {}),
@@ -2892,7 +2911,20 @@ function AppInner() {
         ? Math.max(0, totalFrames - 1)
         : Math.max(exportStartFrame, settings.endFrame ?? (totalFrames - 1))
       const automationByFrame: Record<number, Record<string, number>> = {}
-      if (clipAutomationLanes.length > 0) {
+      // AA.3-A: synthetic lane operators ride alongside the real operators in
+      // the SAME `operators` array the export sends (mirrors the preview send
+      // site — the backend's evaluate_all doesn't distinguish them). `specs`
+      // is constant across the export (built once, outside the per-frame
+      // loop); `operatorLaneBaseByFrame` accumulates the per-SOURCE-frame
+      // normalized base, the export analogue of preview's `operatorLaneBase`.
+      const exportLaneOperators = buildSyntheticLaneOperators(exportLanes)
+      const { specs: exportOperatorLaneSpecs } = buildOperatorLaneSpecs(exportLanes, 0, registry)
+      const operatorLaneBaseByFrame: Record<number, Record<string, number | null>> = {}
+      // M.3 + AA.3-A: run the shared per-frame loop when there's clip/track
+      // automation to resolve (clipAutomationLanes, master-excluded per the
+      // HIGH silent-parity fix above) OR operator-sourced lanes to resolve
+      // (exportOperatorLaneSpecs) — either can be non-empty independently.
+      if (clipAutomationLanes.length > 0 || exportOperatorLaneSpecs.length > 0) {
         for (let f = exportStartFrame; f <= exportEndFrame; f++) {
           const t = f / exportSourceFps
           const overrides = evaluateAutomationOverrides(clipAutomationLanes, t, registry)
@@ -2915,9 +2947,14 @@ function AppInner() {
           if (Object.keys(overrides).length > 0) {
             automationByFrame[f] = overrides
           }
+          if (exportOperatorLaneSpecs.length > 0) {
+            const { baseNormalized } = buildOperatorLaneSpecs(exportLanes, t, registry)
+            operatorLaneBaseByFrame[f] = baseNormalized
+          }
         }
       }
       const hasAutomation = Object.keys(automationByFrame).length > 0
+      const hasOperatorLanes = exportOperatorLaneSpecs.length > 0
 
       // Master-only per-frame automation map (see comment above) — resolved
       // the SAME way as automationByFrame but scoped strictly to the Master
@@ -3239,12 +3276,19 @@ function AppInner() {
         // P2.3: export-parity modulation payloads. Both omitted when empty so a
         // project with no operators/automation produces a legacy (byte-identical)
         // export — the backend treats absent payloads as the old single-input path.
-        ...(exportOperators.length > 0 ? { operators: exportOperators } : {}),
+        ...(exportOperators.length > 0 || exportLaneOperators.length > 0
+          ? { operators: [...exportOperators, ...exportLaneOperators] } : {}),
         ...(hasAutomation ? { automation_by_frame: automationByFrame } : {}),
         // HIGH silent-parity fix (PR #406) — master lane overrides travel in
         // their OWN map, applied backend-side ONLY to master_chain, so they
         // never bleed onto a same-type clip/track effect via automation_by_frame.
         ...(hasMasterAutomation ? { master_automation_by_frame: masterAutomationByFrame } : {}),
+        // AA.3-A: operator-lane descriptors (constant) + per-source-frame
+        // normalized base map. Omitted when no operator lanes exist —
+        // byte-identical legacy export payload.
+        ...(hasOperatorLanes
+          ? { operator_lanes: exportOperatorLaneSpecs, operator_lane_base_by_frame: operatorLaneBaseByFrame }
+          : {}),
         // A2b — static clip transform + id (backend applies via the shared
         // clip_transform helper preview uses, folds per-frame clipTransform lanes
         // over it). Omitted when identity + no lanes → byte-identical legacy export.

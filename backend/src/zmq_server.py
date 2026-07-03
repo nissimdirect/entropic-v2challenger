@@ -754,6 +754,18 @@ class ZMQServer:
             if auto_overrides and not isinstance(auto_overrides, dict):
                 auto_overrides = None
 
+            # AA.3-A: operator-sourced lane descriptors + their frontend-composed
+            # normalized base. Both optional/additive — absent → byte-identical
+            # legacy render (apply_modulation no-ops the operator-lane REPLACE).
+            operator_lanes = message.get("operator_lanes")
+            if operator_lanes is not None and not isinstance(operator_lanes, list):
+                operator_lanes = None
+            operator_lane_base = message.get("operator_lane_base")
+            if operator_lane_base is not None and not isinstance(
+                operator_lane_base, dict
+            ):
+                operator_lane_base = None
+
             # P6.7 probe site 4 — lane_output: auto_overrides are the
             # frontend-evaluated T-domain lane values (one per effect.param).
             # Record each before apply_modulation consumes them.
@@ -773,6 +785,8 @@ class ZMQServer:
                 chain,
                 registry.get,
                 automation_overrides=auto_overrides,
+                operator_lane_specs=operator_lanes,
+                operator_lane_base=operator_lane_base,
             )
 
         # Apply clip transform if present (before effect chain)
@@ -2640,6 +2654,19 @@ class ZMQServer:
         # merged map would let a Master lane override a same-type CLIP
         # effect). Absent → no master automation, byte-identical.
         master_automation_by_frame = message.get("master_automation_by_frame")
+        # AA.3-A: operator-sourced lane descriptors (constant across the export)
+        # + their per-source-frame normalized base map. Both optional/additive:
+        # absent → legacy export (no operator-lane REPLACE applied). The
+        # synthetic lane operators themselves arrive inside `operators` above
+        # (frontend appends them via buildSyntheticLaneOperators before sending).
+        operator_lanes = message.get("operator_lanes")
+        if operator_lanes is not None and not isinstance(operator_lanes, list):
+            operator_lanes = None
+        operator_lane_base_by_frame = message.get("operator_lane_base_by_frame")
+        if operator_lane_base_by_frame is not None and not isinstance(
+            operator_lane_base_by_frame, dict
+        ):
+            operator_lane_base_by_frame = None
         # MK.10 — the active clip's matte stack (per-clip mattes referenced by
         # the chain's device mask_refs). Optional/additive: absent → legacy export.
         # Trust boundary: a non-list degrades to the no-mask path inside the
@@ -2783,6 +2810,10 @@ class ZMQServer:
                 # (graceful degrade, identical to preview with no audio loaded).
                 operators=operators,
                 automation_by_frame=automation_by_frame,
+                # AA.3-A: operator-sourced lane descriptors + per-source-frame
+                # normalized base map. Absent → legacy export, byte-identical.
+                operator_lanes=operator_lanes,
+                operator_lane_base_by_frame=operator_lane_base_by_frame,
                 audio_pcm_provider=self._get_audio_pcm_for_frame,
                 mask_stack=mask_stack,
                 transform=transform,
