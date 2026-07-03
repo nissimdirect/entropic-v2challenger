@@ -64,3 +64,13 @@ export function evaluateAutomation(lane: AutomationLane, time: number): number |
 export function denormalize(normalized: number, min: number, max: number): number {
   return min + normalized * (max - min)
 }
+
+/**
+ * AA.6 — Ableton-parity "is this param automated" check (§25.1).
+ * Pure/read-only: true iff `lanes` contains a lane whose paramPath matches
+ * and which has at least one recorded point. An empty lane (created but
+ * never drawn/recorded into) does NOT count as "active" automation.
+ */
+export function isParamAutomated(paramPath: string, lanes: AutomationLane[]): boolean {
+  return lanes.some((lane) => lane.paramPath === paramPath && lane.points.length >= 1)
+}

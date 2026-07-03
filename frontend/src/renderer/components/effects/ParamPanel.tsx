@@ -1,5 +1,5 @@
-import { useRef, useCallback } from 'react'
-import type { EffectInstance, EffectInfo, ParamDef } from '../../../shared/types'
+import { useRef, useCallback, useMemo } from 'react'
+import type { EffectInstance, EffectInfo, ParamDef, AutomationLane } from '../../../shared/types'
 import Knob from '../common/Knob'
 import ParamChoice from './ParamChoice'
 import ParamToggle from './ParamToggle'
@@ -8,6 +8,7 @@ import { useAutomationStore } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
 import { recordPointWithMode } from '../../utils/automation-record'
+import { isParamAutomated } from '../../utils/automation-evaluate'
 
 /**
  * P6.8 (I1) — drag MIME type for "drag a param onto the inspector track to
@@ -59,6 +60,16 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
     [onUpdateParam],
   )
 
+  // AA.6 — read-only subscription to automation lanes (Ableton parity §25.1).
+  // We only READ lane state here to drive the per-control automated-dot
+  // indicator; lane CRUD stays owned entirely by stores/automation.ts.
+  // Declared before the early return below to preserve hook ordering.
+  const lanesByTrack = useAutomationStore((s) => s.lanes)
+  const allLanes = useMemo<AutomationLane[]>(
+    () => Object.values(lanesByTrack).flat(),
+    [lanesByTrack],
+  )
+
   if (!effect || !effectInfo) {
     return (
       <div className="param-panel param-panel--empty">
@@ -80,6 +91,10 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
     const hasCCMapping = midiStore.ccMappings.some(
       (m) => m.effectId === effect.id && m.paramKey === key
     )
+
+    // AA.6 — is this param currently under an active automation lane
+    // (a lane with matching paramPath and >=1 recorded point)?
+    const isAutomated = isParamAutomated(`${effect.id}.${key}`, allLanes)
 
     return (
       <div
@@ -127,6 +142,13 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
         />
         {hasCCMapping && (
           <span className="param-panel__cc-badge">CC</span>
+        )}
+        {isAutomated && (
+          <span
+            className="param-panel__automated-dot"
+            data-testid={`param-automated-dot-${effect.id}-${key}`}
+            title="Parameter is automated"
+          />
         )}
       </div>
     )
