@@ -79,6 +79,11 @@ _INVERT_LUM_THRESHOLD = 110.0
 # (1 - amount) lets a moving video still enter, distinguishing feedback from freeze.
 _FEEDBACK_MIX = 0.88
 
+# Output-ring bounds for the rewind pulse: frames stored at half resolution to
+# bound memory (36 frames of 1080p halves ~= 56 MB worst case in state).
+_RING_MAX = 36
+_RING_MIN_FIRE = 5
+
 # Hard cap on generations (recipe settled on 120).
 _MAX_GEN = 120.0
 
@@ -178,12 +183,38 @@ PARAMS: dict = {
         "max": 0.98,
         "default": 0.88,
         "label": "Feedback Amount",
+        "curve": "linear",
+        "unit": "",
         "description": (
             "How much of the previous OUTPUT re-enters the machine each frame "
             "(feedback mode only). High = damage compounds hard; the remainder "
             "(1 - amount) is fresh source, letting motion ghost through the rot."
         ),
         "curve": "linear",
+    },
+    "rewind": {
+        "type": "bool",
+        "default": False,
+        "label": "Rewind",
+        "description": (
+            "Binary pulse lane: while true, plays the effect's recorded output "
+            "ring BACKWARD (true visual rewind). The ring refills when forward "
+            "processing resumes."
+        ),
+    },
+    "reverse_at": {
+        "type": "float",
+        "min": 0.0,
+        "max": 120.0,
+        "default": 0.0,
+        "label": "Auto-Reverse At",
+        "curve": "linear",
+        "unit": "",
+        "description": (
+            "When generation crosses this value (and the ring has frames), fire "
+            "a rewind until the ring drains; re-arms once generation drops back "
+            "below. 0 = off."
+        ),
     },
     "freeze": {
         "type": "bool",
@@ -783,6 +814,11 @@ def apply(
     except (TypeError, ValueError):
         feedback_amount = _FEEDBACK_MIX
     freeze = _truthy(params.get("freeze", False))
+    rewind = _truthy(params.get("rewind", False))
+    try:
+        reverse_at = max(0.0, min(120.0, float(params.get("reverse_at", 0.0))))
+    except (TypeError, ValueError):
+        reverse_at = 0.0
     invert = _truthy(params.get("invert", False))
     invert_auto = _truthy(params.get("invert_auto", True))
 
@@ -843,11 +879,46 @@ def apply(
             )
             out = _lerp_u8(out, nxt, frac)
 
+    # --- rewind pulse: play the output ring backward instead of the fresh pass ---
+    h, w = out.shape[:2]
+    # The ring only exists when some temporal lane can use it — stateless stays stateless.
+    ring_active = feedback or freeze or rewind or reverse_at > 0.0
+    ring = state.get("ring")
+    if not isinstance(ring, list):
+        ring = []
+    if generation < reverse_at:
+        state["rev_armed"] = True  # hysteresis: re-arm below the threshold
+    auto_fire = (
+        reverse_at > 0.0
+        and generation >= reverse_at
+        and state.get("rev_armed", True)
+        and len(ring) >= _RING_MIN_FIRE
+    )
+    if (rewind or auto_fire or state.get("rewinding")) and ring:
+        state["rewinding"] = True
+        half = ring.pop()
+        out = cv2.resize(half, (w, h), interpolation=cv2.INTER_LINEAR)
+        state["prev"] = out.copy()  # forward resumes from the landed frame
+        if not ring:
+            state["rewinding"] = False
+            state["rev_armed"] = False
+    elif ring_active:
+        state["rewinding"] = False
+        ring.append(cv2.resize(out, (w // 2, h // 2), interpolation=cv2.INTER_AREA))
+        if len(ring) > _RING_MAX:
+            ring.pop(0)
+    if ring_active:
+        state["ring"] = ring
+    else:
+        state.pop("ring", None)
+        state.pop("rewinding", None)
+        state.pop("rev_armed", None)
+
     # --- blend with original ---
     if mix < 1.0:
         out = _lerp_u8(out, rgb, 1.0 - mix)
 
     result = np.concatenate([out, alpha], axis=2) if has_alpha else out
-    # Only carry state when a stateful mode is active (parity with stateless effects).
-    state_out = state if (feedback or freeze) else None
+    # State carries whenever any temporal mechanism is active (ring included).
+    state_out = state if (feedback or freeze or (ring_active and ring)) else None
     return result, state_out
