@@ -55,6 +55,14 @@ interface LayoutState {
   toggleLaunchQuantize: () => void
   /** T1: set the active cursor tool (see `cursorTool` doc above). */
   setCursorTool: (tool: CursorTool) => void
+  /**
+   * B3/L4 twirl: the set of track ids whose nested fx + automation lanes are
+   * revealed under the lean header ("arrangement-is-the-layers" AE model).
+   * Ephemeral UI-only state — NOT persisted; every session starts collapsed.
+   */
+  expandedTrackIds: string[]
+  /** B3/L4: toggle a track's twirl (expand ↔ collapse its nested fx/automation). */
+  toggleTrackExpanded: (trackId: string) => void
   // Creatrix grid layout vars (F_CREATRIX_LAYOUT) — P3.1
   leftColW: number
   inspectorH: number
@@ -171,6 +179,7 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   snapEnabled: persisted.snapEnabled ?? true, // on by default
   launchQuantizeEnabled: false, // B10.2: OFF by default (B10 spec §15)
   cursorTool: 'select', // T1: OFF-by-default select tool, not persisted
+  expandedTrackIds: [], // B3/L4: twirl state, ephemeral (not persisted)
   // Creatrix layout vars — P3.1
   leftColW: persistedCx.leftColW ?? CX_LEFT_COL_W.def,
   inspectorH: persistedCx.inspectorH ?? CX_INSPECTOR_H.def,
@@ -241,6 +250,17 @@ export const useLayoutStore = create<LayoutState>((set, get) => ({
   // T1: set active cursor tool (not persisted — every session starts on 'select')
   setCursorTool: (tool: CursorTool) => {
     set({ cursorTool: tool })
+  },
+
+  // B3/L4: twirl a track open/closed. Ephemeral — the nested fx + automation
+  // lanes reveal under the lean header; unknown ids simply toggle in/out of the set.
+  toggleTrackExpanded: (trackId: string) => {
+    const current = get().expandedTrackIds
+    set({
+      expandedTrackIds: current.includes(trackId)
+        ? current.filter((id) => id !== trackId)
+        : [...current, trackId],
+    })
   },
 
   // Creatrix resize actions — P3.1
