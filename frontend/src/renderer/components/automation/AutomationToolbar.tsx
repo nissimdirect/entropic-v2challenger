@@ -45,6 +45,8 @@ interface ParamOption {
   paramLabel: string
   /** P2.1: When true, paramPath = 'projectParam.<paramKey>' instead of '<effectId>.<paramKey>'. */
   isProjectParam?: boolean
+  /** F-0703: bool params are TRIGGER-only targets (gate/toggle/one-shot pulses). */
+  boolOnly?: boolean
 }
 
 /**
@@ -109,8 +111,12 @@ export default function AutomationToolbar() {
       const info = registry.find((r) => r.id === effect.effectId)
       if (!info) continue
       for (const [key, def] of Object.entries(info.params)) {
-        // Only show numeric params for automation lanes
-        if (def.type !== 'float' && def.type !== 'int') continue
+        // Numeric params take continuous lanes; bool params are valid TRIGGER
+        // targets (binary pulse lanes — freeze/rewind etc., F-0703). The value
+        // path already works: lanes emit normalized 0..1 and the backend
+        // coerces any nonzero to true.
+        const isBool = def.type === 'bool'
+        if (def.type !== 'float' && def.type !== 'int' && !isBool) continue
         const paramPath = `${effect.id}.${key}`
         if (existingPaths.has(paramPath)) continue
         options.push({
@@ -118,6 +124,7 @@ export default function AutomationToolbar() {
           effectName: info.name,
           paramKey: key,
           paramLabel: def.label,
+          ...(isBool ? { boolOnly: true } : {}),
         })
       }
     }
@@ -187,7 +194,9 @@ export default function AutomationToolbar() {
     setPickerMode(null)
   }, [armedTrackId, pickerMode, pickDomain])
 
-  const paramOptions = pickerMode ? getAvailableParams() : []
+  const allParamOptions = pickerMode ? getAvailableParams() : []
+  // bool params only make sense as pulses — hide them from the continuous-lane picker
+  const paramOptions = pickerMode === 'trigger' ? allParamOptions : allParamOptions.filter((o) => !o.boolOnly)
 
   return (
     <div className="auto-toolbar">

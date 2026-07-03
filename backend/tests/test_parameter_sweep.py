@@ -101,6 +101,18 @@ class TestParameterSweep:
         # to prevent off-axis strobe; osc_rate / osc_depth / osc_shape are no-ops
         # at frame_index=0 because the oscillator hasn't ticked yet (HT-1+HT-2).
         # F-0514-13 (2026-05-15): osc_depth + osc_shape added — same root cause.
+        # copy_machine (F-0703): ascii-only params are no-ops under the default
+        # toner machine; the temporal params (freeze / rewind / reverse_at /
+        # feedback_amount) act on carried STATE, absent on a single stateless
+        # frame at frame_index=0; invert_auto's detection equals the manual
+        # default on the bright sweep frame.
+        ("fx.copy_machine", "cell_size"),
+        ("fx.copy_machine", "glyph_set"),
+        ("fx.copy_machine", "feedback_amount"),
+        ("fx.copy_machine", "freeze"),
+        ("fx.copy_machine", "rewind"),
+        ("fx.copy_machine", "reverse_at"),
+        ("fx.copy_machine", "invert_auto"),
         ("fx.torn_edges", "osc_rate"),
         ("fx.torn_edges", "osc_depth"),
         ("fx.torn_edges", "osc_shape"),
