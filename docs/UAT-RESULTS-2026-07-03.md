@@ -124,7 +124,7 @@ Verdict key: ✅ pass · 🐛 bug · ⚠️ observation-to-investigate · ⏸ no
 
 ### Findings
 - 🐛 **UAT-1 (P2 papercut, NEW):** on every cold import, frame-0 render fires during the sidecar socket handshake → user sees a "Frame render failed" toast + console `[Render] frame 0 error: Engine error: Socket is closed` (App.tsx:1741). Recovers fully (all later frames render). Not in the known register. Fix: gate frame-0 render on socket-ready, or suppress the toast during startup.
-- ⚠️ **UAT-2 (investigate — possible parity/precedence bug):** after adding a Sampler (MIDI 1, source=test-video, opacity 1.0, no triggered note), the preview stopped showing Track 2's chromatic aberration — the clean sampler source appears to composite OVER the effected track. Either correct top-layer-wins semantics OR (a) an instrument rendering its source with no note trigger, or (b) a layer-precedence bug hiding a lower track's effect. Needs: confirm layer order intent + whether an un-triggered sampler should paint. Render time stayed 68-75ms (work happening).
+- 🐛 **UAT-2 (P1 candidate — CONFIRMED via discriminating test):** an un-triggered Sampler (MIDI 1, source=test-video, opacity 1.0, NO MIDI note fired) composites its clean source frame over the lower effected Track 2, silently occluding Track 2's chromatic aberration in the preview. **Discriminator run:** muting MIDI 1 → Track 2's CA returns in preview AND render time drops 75ms→25ms → confirms the sampler layer was actively compositing with no note. Design question for the user: an instrument with no note triggered should render nothing (transparent), not paint its full source over other tracks. If MIDI-layer-always-paints is intended, the parity gate still holds; if not, this is a composability/precedence bug. NOT in the known register.
 - ⚠️ **UAT-3 (inconclusive):** marquee tool did not activate via `q` with a video track selected (2 attempts; status bar stayed "select"/"effect", no marching ants). May require preview focus or the `tool`-tab chip (addendum notes the chip path). MK.CU J1–J5 remain ⏸ UNRUN — needs a clean retry next session.
 - Console noise: `useTrackDragReorder.ts:199/67` "UP armed=false moves=0 swaps=0 / DETACH listeners removed" fire on drag-onto-track gestures — harmless, no reorder committed.
 
@@ -136,6 +136,6 @@ H MK.12 U1–U10 · I automation-editing suite · J modulation/LFO lanes · K ma
 ### GO/NO-GO (partial — Session 2 scope only)
 Of the 6 cross-cutting gates, **Gate 1 (preview==export parity) = PASS** on the effect category on a
 1-effect project. The P1-B instrument unblock holds. No NO-GO condition tripped in what was exercised.
-UAT-2 must be resolved before a full GO (it touches the parity/composability gates). Gates 2–6 and the
+UAT-2 is now CONFIRMED (un-triggered sampler occludes lower track) and must get a user design-decision before a full GO — it touches the composability gate. Gates 2–6 and the
 full journey/data-loss/composability matrix remain UNVERIFIED live → **overall verdict: INCOMPLETE, not
 yet GO** — the spine is proven, the breadth pass is outstanding.
