@@ -21,7 +21,7 @@ import type { AutomationLane as LaneType, AutomationPoint } from '../../../share
 import { useAutomationStore } from '../../stores/automation'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
-import { isTriggerLane } from '../../utils/automation-evaluate'
+import { isTriggerLane, isModulationLane, MODULATION_LANE_COLOR } from '../../utils/automation-evaluate'
 import AutomationNode from './AutomationNode'
 import AutomationTransformBox from './AutomationTransformBox'
 import CurveSegment from './CurveSegment'
@@ -101,6 +101,11 @@ function TriggerBlocks({
 export default function AutomationLane({ lane, trackId, zoom, scrollX, height }: AutomationLaneProps) {
   const svgRef = useRef<SVGSVGElement>(null)
   const trigger = isTriggerLane(lane)
+  // AA.2 — modulation lanes always render in the fixed MODULATION_LANE_COLOR
+  // (Ableton blue-vs-red convention) regardless of their stored `lane.color`,
+  // so they're visually distinct from the absolute lane they superimpose
+  // onto even when both happen to share a palette slot.
+  const renderColor = isModulationLane(lane) ? MODULATION_LANE_COLOR : lane.color
 
   // AA.4 — marquee-select drag state (kept even when the lane is hidden below
   // to preserve this component's existing hook-call order across renders).
@@ -295,7 +300,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
   return (
     <svg
       ref={svgRef}
-      className={`auto-lane${trigger ? ' auto-lane--trigger' : ''}`}
+      className={`auto-lane${trigger ? ' auto-lane--trigger' : ''}${isModulationLane(lane) ? ' auto-lane--modulation' : ''}`}
       width="100%"
       height={height}
       onClick={handleSvgClick}
@@ -310,7 +315,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
         /* Trigger lanes: colored rectangular blocks */
         <TriggerBlocks
           points={points}
-          color={lane.color}
+          color={renderColor}
           timeToX={timeToX}
           height={height}
         />
@@ -324,7 +329,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
                 key={`seg-${i}`}
                 from={pt}
                 to={points[i + 1]}
-                color={lane.color}
+                color={renderColor}
                 opacity={1}
                 timeToX={timeToX}
                 valueToY={valueToY}
@@ -339,7 +344,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
           key={`node-${i}`}
           point={pt}
           index={i}
-          color={lane.color}
+          color={renderColor}
           timeToX={timeToX}
           valueToY={valueToY}
           xToTime={xToTime}

@@ -227,3 +227,12 @@
 .auto-trigger-block:hover {
   opacity: 0.7 !important;
 }
+
+/* --- AA.2: Modulation Lane (Ableton blue-vs-red: absolute = user color
+   (green default), modulation = always blue via MODULATION_LANE_COLOR on the
+   curve/node fill; this outline is the additional lane-level cue) --- */
+
+.auto-lane--modulation {
+  outline: 1px dashed rgba(59, 130, 246, 0.35);
+  outline-offset: -1px;
+}

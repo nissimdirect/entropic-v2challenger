@@ -4,7 +4,7 @@
  * All mutations go through the undo system.
  */
 import { create } from 'zustand'
-import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode } from '../../shared/types'
+import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode, BlendOp } from '../../shared/types'
 import { isTriggerLane } from '../utils/automation-evaluate'
 import { validateLaneAxisBinding, type LaneAxisBinding, type Axis } from '../../shared/axis-binding'
 
@@ -263,6 +263,17 @@ interface AutomationState {
   // Lane CRUD
   addLane: (trackId: string, effectId: string, paramKey: string, color: string) => void
   addTriggerLane: (trackId: string, effectId: string, paramKey: string, color: string, triggerMode: TriggerMode, triggerADSR?: ADSREnvelope) => string | null
+  /**
+   * AA.2 — add a STANDALONE drawn modulation lane on `paramPath` (an
+   * existing param — usually one that already carries an absolute lane).
+   * Its own breakpoints (starts empty, like addLane) superimpose onto
+   * whatever absolute lane shares the same paramPath — see
+   * evaluateAutomationOverrides.ts's composition. NOT an operator reference
+   * (that's AA.3). Returns the new lane's id.
+   */
+  addModulationLane: (trackId: string, paramPath: string, color: string, blendOp?: BlendOp) => string
+  /** AA.2 — change an existing modulation lane's blend op ('add'/'multiply'/'max'). No-op on absolute lanes. */
+  setLaneBlendOp: (trackId: string, laneId: string, blendOp: BlendOp) => void
   removeLane: (trackId: string, laneId: string) => void
   clearLane: (trackId: string, laneId: string) => void
   setLaneVisible: (trackId: string, laneId: string, visible: boolean) => void
@@ -503,6 +514,64 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
     undoable(`Add trigger lane for ${paramKey}`, forward, inverse)
     return laneId
+  },
+
+  // AA.2 — modulation lane: a standalone drawn relative envelope (own
+  // breakpoints, starts empty like addLane) that superimposes onto whatever
+  // absolute lane shares `paramPath` — see evaluateAutomationOverrides.ts.
+  addModulationLane: (trackId, paramPath, color, blendOp = 'add') => {
+    const laneId = `mod-${Date.now()}-${nextLaneId++}`
+    const newLane: AutomationLane = {
+      id: laneId,
+      paramPath,
+      color,
+      isVisible: true,
+      points: [],
+      mode: 'smooth',
+      kind: 'modulation',
+      blendOp,
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = [...(current[trackId] ?? []), newLane]
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).filter((l) => l.id !== laneId)
+      if (current[trackId].length === 0) delete current[trackId]
+      set({ lanes: current })
+    }
+
+    undoable(`Add modulation lane for ${paramPath}`, forward, inverse)
+    return laneId
+  },
+
+  setLaneBlendOp: (trackId, laneId, blendOp) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || lane.kind !== 'modulation') return
+    const oldBlendOp = lane.blendOp ?? 'add'
+    if (oldBlendOp === blendOp) return
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, blendOp } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, blendOp: oldBlendOp } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Set modulation blend → ${blendOp}`, forward, inverse)
   },
 
   removeLane: (trackId, laneId) => {
@@ -1234,6 +1303,14 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         // (forward-compat: a file written by a future tier won't crash this one).
         axisBinding: lane.axisBinding && validateLaneAxisTier1(lane.axisBinding) === null
           ? lane.axisBinding
+          : undefined,
+        // AA.2: `kind` absent/invalid → treated as absolute (back-compat: a
+        // pre-AA.2 project file has no `kind` field at all). `blendOp`
+        // absent/invalid → 'add' default, but ONLY meaningful on modulation
+        // lanes (harmless to carry on an absolute lane; evaluator ignores it).
+        kind: lane.kind === 'modulation' ? ('modulation' as const) : undefined,
+        blendOp: (['add', 'multiply', 'max'] as const).includes(lane.blendOp as BlendOp)
+          ? lane.blendOp
           : undefined,
         // Filter out invalid points and sort by time for binary search
         points: lane.points

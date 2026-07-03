@@ -9,7 +9,7 @@ import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
-import type { TriggerMode } from '../../../shared/types'
+import type { TriggerMode, BlendOp } from '../../../shared/types'
 import type { Axis } from '../../../shared/axis-binding'
 import { FF } from '../../../shared/feature-flags'
 import {
@@ -17,7 +17,7 @@ import {
   TRANSFORM_FIELD_META,
   formatTransformLaneEffectId,
 } from '../../utils/transformLanes'
-import { isTriggerLane } from '../../utils/automation-evaluate'
+import { isTriggerLane, MODULATION_LANE_COLOR } from '../../utils/automation-evaluate'
 import {
   AUTOMATION_SHAPES,
   defaultShapePointCount,
@@ -45,6 +45,12 @@ const LANE_COLORS = ['#4ade80', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec
 function pickColor(existingCount: number): string {
   return LANE_COLORS[existingCount % LANE_COLORS.length]
 }
+
+const BLEND_OPS: { value: BlendOp; label: string }[] = [
+  { value: 'add', label: 'Add' },
+  { value: 'multiply', label: 'Multiply' },
+  { value: 'max', label: 'Max' },
+]
 
 interface ParamOption {
   effectId: string
@@ -83,8 +89,10 @@ export default function AutomationToolbar() {
   // so the picker refreshes when the selection changes.
   const selectedClipId = useTimelineStore((s) => s.selectedClipId)
   const armedTrack = tracks.find((t) => t.id === armedTrackId)
-  const [pickerMode, setPickerMode] = useState<'lane' | 'trigger' | null>(null)
+  const [pickerMode, setPickerMode] = useState<'lane' | 'trigger' | 'mod' | null>(null)
   const [pickDomain, setPickDomain] = useState<Axis>('t')
+  // AA.2 — blendOp chosen for the NEXT modulation lane created via the "+ Mod" picker.
+  const [modBlendOp, setModBlendOp] = useState<BlendOp>('add')
 
   // AA.3a — Insert Automation Shape: shape/cycles/amplitude config + the
   // open/closed state of the target-lane picker (mirrors pickerMode above).
@@ -99,6 +107,15 @@ export default function AutomationToolbar() {
   // 0/1 envelopes with their own gate/oneShot semantics (mirrors
   // AutomationTransformBox, which is also skipped for trigger lanes).
   const shapeTargetLanes = armedTrackLanes.filter((l) => !isTriggerLane(l))
+  // AA.2 — "+ Mod" targets: existing absolute (non-trigger, non-modulation)
+  // lanes on the armed track. A modulation lane superimposes onto an
+  // absolute lane sharing its paramPath (see evaluateAutomationOverrides.ts),
+  // so it always targets an ALREADY-mapped param rather than the "pick any
+  // unmapped effect param" flow that + Lane/+ Trigger use.
+  const modTargetLanes = armedTrackLanes.filter((l) => !isTriggerLane(l) && l.kind !== 'modulation')
+  // Existing modulation lanes on the armed track — listed with an inline
+  // blendOp selector so it's editable after creation, not just at add-time.
+  const armedModulationLanes = armedTrackLanes.filter((l) => l.kind === 'modulation')
 
   const handleModeChange = useCallback((newMode: AutomationMode) => {
     useAutomationStore.getState().setMode(newMode)
@@ -229,6 +246,30 @@ export default function AutomationToolbar() {
     setPickerMode((prev) => (prev === 'trigger' ? null : 'trigger'))
   }, [])
 
+  // AA.2 — toggle the "+ Mod" target-lane picker.
+  const handleAddMod = useCallback(() => {
+    setPickerMode((prev) => (prev === 'mod' ? null : 'mod'))
+  }, [])
+
+  // AA.2 — create a modulation lane on `targetLane.paramPath`, using the
+  // currently-selected modBlendOp and the fixed MODULATION_LANE_COLOR.
+  const handlePickModTarget = useCallback((targetLane: { paramPath: string }) => {
+    if (!armedTrackId) return
+    useAutomationStore.getState().addModulationLane(
+      armedTrackId,
+      targetLane.paramPath,
+      MODULATION_LANE_COLOR,
+      modBlendOp,
+    )
+    setPickerMode(null)
+  }, [armedTrackId, modBlendOp])
+
+  // AA.2 — change an existing modulation lane's blendOp inline.
+  const handleChangeModBlendOp = useCallback((laneId: string, blendOp: BlendOp) => {
+    if (!armedTrackId) return
+    useAutomationStore.getState().setLaneBlendOp(armedTrackId, laneId, blendOp)
+  }, [armedTrackId])
+
   const handlePickParam = useCallback((option: ParamOption) => {
     if (!armedTrackId) return
     const autoState = useAutomationStore.getState()
@@ -254,7 +295,7 @@ export default function AutomationToolbar() {
     setPickerMode(null)
   }, [armedTrackId, pickerMode, pickDomain])
 
-  const paramOptions = pickerMode ? getAvailableParams() : []
+  const paramOptions = pickerMode === 'lane' || pickerMode === 'trigger' ? getAvailableParams() : []
 
   return (
     <div className="auto-toolbar">
@@ -310,6 +351,23 @@ export default function AutomationToolbar() {
         data-testid="add-trigger-btn"
       >
         + Trigger
+      </button>
+      {/* AA.2 — modulation lane: a standalone drawn relative envelope that
+          superimposes onto an EXISTING absolute lane sharing its paramPath
+          (not an operator reference — see AutomationLane.kind doc comment).
+          Disabled when the armed track has no eligible target lane yet. */}
+      <button
+        className="auto-toolbar__btn"
+        onClick={handleAddMod}
+        title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          ? 'Arm a track first — click the R button on a track header'
+          : modTargetLanes.length === 0
+            ? 'Add an automation lane first — modulation superimposes onto an existing lane'
+            : 'Add a modulation lane superimposed on an existing lane\'s parameter'}
+        disabled={!armedTrackId || modTargetLanes.length === 0}
+        data-testid="add-mod-btn"
+      >
+        + Mod
       </button>
       {/* AA.4b — Flatten/Ramp: only meaningful with an active breakpoint
           selection (AA.4); the transform box (drag handles) is the primary
@@ -377,7 +435,7 @@ export default function AutomationToolbar() {
           Armed: {armedTrack.name}
         </span>
       )}
-      {pickerMode && armedTrackId && (
+      {(pickerMode === 'lane' || pickerMode === 'trigger') && armedTrackId && (
         <div className="auto-toolbar__picker" data-testid="param-picker">
           <div className="auto-toolbar__picker-title">
             {pickerMode === 'trigger' ? 'Add Trigger Lane' : 'Add Automation Lane'}
@@ -410,6 +468,62 @@ export default function AutomationToolbar() {
               </button>
             ))
           )}
+        </div>
+      )}
+      {pickerMode === 'mod' && armedTrackId && (
+        <div className="auto-toolbar__picker" data-testid="mod-picker">
+          <div className="auto-toolbar__picker-title">Add Modulation Lane</div>
+          <label title="How this modulation lane's evaluated value combines with the absolute lane it's layered onto.">
+            Blend:{' '}
+            <select
+              data-testid="mod-blendop-select"
+              value={modBlendOp}
+              onChange={(e) => setModBlendOp(e.target.value as BlendOp)}
+            >
+              {BLEND_OPS.map((b) => (
+                <option key={b.value} value={b.value}>{b.label}</option>
+              ))}
+            </select>
+          </label>
+          {modTargetLanes.length === 0 ? (
+            <div className="auto-toolbar__picker-empty">
+              No automation lanes to modulate — add a lane first
+            </div>
+          ) : (
+            modTargetLanes.map((lane) => (
+              <button
+                key={lane.id}
+                className="auto-toolbar__picker-item"
+                onClick={() => handlePickModTarget(lane)}
+                data-testid={`mod-target-${lane.id}`}
+                title={`Superimpose a ${modBlendOp} modulation lane onto ${lane.paramPath}`}
+              >
+                <span style={{ color: lane.color }}>&#9679;</span> {lane.paramPath}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+      {/* AA.2 — existing modulation lanes on the armed track, with an inline
+          blendOp selector so it's editable after creation too, not just at
+          add-time above. */}
+      {armedModulationLanes.length > 0 && (
+        <div className="auto-toolbar__mod-list" data-testid="mod-lane-list">
+          {armedModulationLanes.map((lane) => (
+            <label key={lane.id} className="auto-toolbar__mod-list-item" title={lane.paramPath}>
+              <span style={{ color: MODULATION_LANE_COLOR }}>&#9679;</span> {lane.paramPath}
+              {' '}
+              <select
+                data-testid={`mod-blendop-select-${lane.id}`}
+                value={lane.blendOp ?? 'add'}
+                onChange={(e) => handleChangeModBlendOp(lane.id, e.target.value as BlendOp)}
+              >
+                {BLEND_OPS.map((b) => (
+                  <option key={b.value} value={b.value}>{b.label}</option>
+                ))}
+              </select>
+            </label>
+          ))}
         </div>
       )}
       {shapePickerOpen && armedTrackId && (
