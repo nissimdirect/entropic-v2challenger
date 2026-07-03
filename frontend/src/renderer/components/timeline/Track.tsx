@@ -295,6 +295,65 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           onClick={handleClick}
           onContextMenu={handleContextMenu}
           onPointerDown={drag.onPointerDown}
+          // B2/P2.2b/P4.6: same drag-accept logic as the legacy header (ported,
+          // not refactored — see the identical block in the legacy header
+          // return below for the canonical version + comments).
+          onDragOver={(e) => {
+            if (dragHasOperatorChannel(e.dataTransfer)) {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'copy'
+              return
+            }
+            if (track.type === 'performance' && e.dataTransfer.types.includes(INSTRUMENT_DRAG_TYPE)) {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'copy'
+              return
+            }
+            if (
+              track.type !== 'performance' &&
+              track.type !== 'audio' &&
+              e.dataTransfer.types.includes(EFFECT_DRAG_TYPE)
+            ) {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = 'copy'
+            }
+          }}
+          onDrop={(e) => {
+            const opType = parseOperatorDrop(e.dataTransfer)
+            if (opType) {
+              e.preventDefault()
+              useTimelineStore.getState().selectTrack(track.id)
+              useOperatorStore.getState().addOperator(opType)
+              return
+            }
+            const effectId = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
+            if (effectId) {
+              if (effectId.length > 64) return
+              if (effectId !== COMPOSITE_EFFECT_ID) return
+              e.preventDefault()
+              if (track.type === 'performance') {
+                useToastStore.getState().addToast({ level: 'warning', message: 'Composite cannot be dropped on a MIDI track', source: 'composite-ui' })
+                return
+              }
+              useTimelineStore.getState().selectTrack(track.id)
+              handleAddComposite()
+              return
+            }
+            const id = e.dataTransfer.getData(INSTRUMENT_DRAG_TYPE)
+            if (!id) return
+            e.preventDefault()
+            if (track.type !== 'performance') {
+              useToastStore.getState().addToast({ level: 'warning', message: 'Instruments can only be dropped on a MIDI track', source: 'instruments' })
+              return
+            }
+            if (id === 'sampler') {
+              useInstrumentsStore.getState().addSampler(track.id)
+              useTimelineStore.getState().selectTrack(track.id)
+            } else if (id === 'drum-rack') {
+              useInstrumentsStore.getState().addRack(track.id)
+              useTimelineStore.getState().selectTrack(track.id)
+            }
+          }}
         >
           <div className="track-header__lean-row">
             <button
@@ -365,6 +424,26 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                 title="Solo"
               >
                 S
+              </button>
+              <button
+                className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
+                onClick={handleArmToggle}
+                title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+                aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
+              >
+                R
+              </button>
+              {/* T3: track lock toggle. Padlock glyph; --active when locked. Guards
+                  all clips on this track + rejects reorder/drops onto it. */}
+              <button
+                className={`track-header__btn${track.locked === true ? ' track-header__btn--active' : ''}`}
+                onClick={handleLockToggle}
+                data-testid="track-lock-btn"
+                title={track.locked === true ? 'Unlock track' : 'Lock track'}
+                aria-label={track.locked === true ? 'Unlock track' : 'Lock track'}
+                aria-pressed={track.locked === true}
+              >
+                {track.locked === true ? '\u{1F512}' : '\u{1F513}'}
               </button>
             </div>
           </div>
