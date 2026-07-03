@@ -307,3 +307,70 @@ regression on many-clip timelines.
 - **#26:** sg3-aborted lanes filtered in preview but not export bake (preview≠export on sg3-abort).
 - **#15:** e2e-full suite broadly red (test-infra debt, not app breakage — smoke is the merge gate).
 - **#27:** one timeline-ui component test quarantined (master-pinned-last, CI-flaky) — behavior is sound.
+
+---
+
+# COMPLETENESS PASS (/uat 2026-07-03) — negative, edge, chaos, composability
+
+Stages I/J/K above are happy-path. Per /uat, a plan that only tests golden paths is theater. The
+following MUST also be covered by the CU-UAT session. Report PASS/FAIL/BUG per row.
+
+## N — Negative & error paths (P1)
+| # | Action | Expected |
+|---|--------|----------|
+| N1 | Arm a track that has NO effects, try Add Lane | graceful (no lane / hint), no crash |
+| N2 | Draw an automation lane on an effect param, then DELETE that effect | lane is removed/orphan-cleaned, no dangling render |
+| N3 | Insert Shape with cycles=0 (or amplitude=0) | no-op or clamped, no crash / no NaN frame |
+| N4 | Add a "+ Mod" modulation lane on a param that has NO absolute lane | mod seeds from itself (documented) or clean guard — not a crash |
+| N5 | LFO operator lane with rate=0 / depth=0 | constant/no oscillation, deterministic, no divide-by-zero |
+| N6 | Drag an INSTRUMENT onto the Master device chain | rejected + toast "Instruments can't go on the Master" |
+| N7 | Try to delete / duplicate the Master track (menu, keyboard) | blocked + toast; Master persists |
+| N8 | "Export current frame as PNG" while the Master has effects (single clip) | bails to Export dialog (no silent master-less PNG) |
+| N9 | Automate a param, then set the effect Frozen | automation respects freeze semantics, no conflict crash |
+
+## E — Edge & boundary (P2)
+| # | Input | Expected |
+|---|-------|----------|
+| E1 | Lane with 0 points / 1 point | held value, no interpolation crash; preview==export |
+| E2 | Param automated at its exact MIN and MAX | clamps correctly; **probe #28: non-[0,1] param (Hue 0-360) must NOT clamp to [0,1]** |
+| E3 | Automation keyframe at frame 0 and at the last frame | both render; no off-by-one at clip end |
+| E4 | Quantize at finest and coarsest grid division | snapping correct at both extremes |
+| E5 | Master chain with 8+ effects, several automated | renders; no perf cliff; preview==export |
+| E6 | Insert Shape then Simplify to very few points | shape/tension preserved reasonably; no clobber |
+| E7 | Very long clip (1000+ frames) with an LFO operator lane | deterministic + performant across the whole clip |
+
+## X — State & sequence chaos (P1, human-error protocol)
+| # | Chaotic action | Expected |
+|---|----------------|----------|
+| X1 | Undo mid-draw / mid-transform-box drag | clean revert to pre-gesture state (one undo step) |
+| X2 | Rapidly arm/disarm a track many times | no stuck record state, no duplicate lanes |
+| X3 | Save the project WHILE an automation gesture is in progress | consistent saved state; reload matches |
+| X4 | Reload a project that has a MODULATION lane + an LFO operator lane active | both rehydrate + render identically (kill+relaunch) |
+| X5 | Move a CLIP that has clip-transform automation (AA.5) | the clip's OWN lane keyframes move WITH it; other lanes stay put |
+| X6 | Add a Master effect, then Undo, then Redo | Master chain + its automation restore correctly |
+| X7 | Two modulation lanes on ONE param (add + multiply) | both fold deterministically; consistent preview vs export |
+| X8 | Delete a clip whose effect has an automation lane | lane cleaned; no orphaned override on export |
+
+## C — COMPOSABILITY (P0 — the #1 real-world failure class)
+The features INTERACT. Test the combinations, all verified preview==export via decoded frames:
+| # | Combination | Expected |
+|---|-------------|----------|
+| C1 | Absolute lane + modulation lane on the SAME param | modulation superimposes on absolute (absolute not overwritten); clamped to real param range |
+| C2 | Modulation (drawn) lane + LFO operator lane on the SAME param | both compose deterministically; preview==export |
+| C3 | **Master automation on effect type X + a CLIP with the same effect type X** | the CLIP effect is UNTOUCHED by the master lane (the fixed HIGH contamination — CRITICAL regression) |
+| C4 | Clip-transform automation (pos/scale) + an effect-param modulation lane on the same clip | both apply; move the clip → transform lane rides it, effect lane behaves per its anchor |
+| C5 | Insert Shape → Transform Box skew → add a modulation lane, then export | edits + modulation all present in the exported file |
+| C6 | Master effect automated + per-clip effects automated, single-clip project | single-clip forced onto composite path; master + clip automation both correct in preview AND export |
+| C7 | Axis-domain: a drawn lane over Y (spatial) + a normal lane over T on related params | spatial + temporal coexist; the Y lane varies down-frame, T lane over time |
+
+## Acceptance-criteria checklist (binary GO/NO-GO per feature)
+- [ ] AUTOMATION EDITING: every gesture (curve/select/move/copy-paste/transform/flatten/ramp/insert-shape) produces the drawn result AND survives save→reload AND matches on export.
+- [ ] MODULATION: relative layer superimposes without overwriting absolute; blendOp add/mult/max correct; non-[0,1] params scale correctly (**#28 gate**).
+- [ ] LFO OPERATOR LANES: deterministic, all waveforms, preview==export (backend-evaluated both paths).
+- [ ] MASTER BUS: exists/undeletable/no-clips/no-instruments; effects apply to the SUM; empty chain = no change; master automation works AND does not contaminate same-type clip effects.
+- [ ] LAYOUT (default-on): B3 grid + LayerPanel + all 4 resize handles + lock/arm/drag on Master and normal tracks.
+- [ ] NO REGRESSION: smoke green; the known watchlist (#28/#26/#15/#27) reported, not re-filed.
+
+**Verdict gate:** GO only if all C-row composability tests pass (interactions are where it breaks) AND #28
+is either fixed or its blast-radius is bounded + documented. A green happy-path with a failing C3
+(contamination) or E2 (#28 clamp) is a NO-GO.
