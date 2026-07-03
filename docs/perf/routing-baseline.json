@@ -1,0 +1,238 @@
+{
+  "measured": "2026-07-03",
+  "machine": "arm64",
+  "python": "3.14.3",
+  "opencv": "4.13.0",
+  "frames_per_cell": 6,
+  "results": [
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": 0,
+      "mix": "scalar",
+      "ms": 9.43
+    },
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": 4,
+      "mix": "scalar",
+      "ms": 18.69
+    },
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": 8,
+      "mix": "scalar",
+      "ms": 28.1
+    },
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": 4,
+      "mix": "field",
+      "ms": 46.18
+    },
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": 8,
+      "mix": "field",
+      "ms": 82.52
+    },
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": 4,
+      "mix": "mixed",
+      "ms": 32.75
+    },
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": 8,
+      "mix": "mixed",
+      "ms": 56.1
+    },
+    {
+      "res": "720p",
+      "tracks": 2,
+      "routes": "unit_field",
+      "mix": "derived",
+      "ms": 9.14
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": 0,
+      "mix": "scalar",
+      "ms": 37.57
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": 4,
+      "mix": "scalar",
+      "ms": 46.94
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": 8,
+      "mix": "scalar",
+      "ms": 56.31
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": 4,
+      "mix": "field",
+      "ms": 74.19
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": 8,
+      "mix": "field",
+      "ms": 111.0
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": 4,
+      "mix": "mixed",
+      "ms": 61.08
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": 8,
+      "mix": "mixed",
+      "ms": 84.34
+    },
+    {
+      "res": "720p",
+      "tracks": 8,
+      "routes": "unit_field",
+      "mix": "derived",
+      "ms": 9.18
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": 0,
+      "mix": "scalar",
+      "ms": 21.24
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": 4,
+      "mix": "scalar",
+      "ms": 42.47
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": 8,
+      "mix": "scalar",
+      "ms": 64.2
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": 4,
+      "mix": "field",
+      "ms": 107.21
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": 8,
+      "mix": "field",
+      "ms": 189.43
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": 4,
+      "mix": "mixed",
+      "ms": 74.89
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": 8,
+      "mix": "mixed",
+      "ms": 129.04
+    },
+    {
+      "res": "1080p",
+      "tracks": 2,
+      "routes": "unit_field",
+      "mix": "derived",
+      "ms": 21.02
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": 0,
+      "mix": "scalar",
+      "ms": 85.67
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": 4,
+      "mix": "scalar",
+      "ms": 106.0
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": 8,
+      "mix": "scalar",
+      "ms": 126.69
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": 4,
+      "mix": "field",
+      "ms": 166.3
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": 8,
+      "mix": "field",
+      "ms": 249.06
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": 4,
+      "mix": "mixed",
+      "ms": 138.1
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": 8,
+      "mix": "mixed",
+      "ms": 189.65
+    },
+    {
+      "res": "1080p",
+      "tracks": 8,
+      "routes": "unit_field",
+      "mix": "derived",
+      "ms": 20.42
+    }
+  ],
+  "warn_model_ms": "6*fields + 5*masks + 7*feedback + 0.2*scalars",
+  "meter": {
+    "yellow_ms": 10,
+    "red_ms": 20
+  }
+}
