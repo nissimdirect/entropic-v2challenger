@@ -17,17 +17,17 @@ in ADDITION to Stages A–F below:
   P1-B is fixed (#323) so these should finally pass → **Stage C is the home for these (C2/C3).**
 - **PS1 — MK.CU J1–J5** (Stage F): build the suite for real. It was FABRICATED as "in rule-9
   rotation" (EXECUTION-PLAN:477, corrected by F8) — this is its first real run.
-- **PS3 — MK.13 mode-banner visual gate** (new Stage F.2): spec §14.9 (banner ≤120ms naming the
-  Escape level); a code sweep couldn't find the component — CONFIRM VISUALLY or file 🐛.
+- **PS3 — MK.13 mode-banner** (Stage F.2): DEFERRED — banner is UNSHIPPED (no component in code); a
+  build-backlog item, not a UAT gate.
 - **CU-confirm the parallel session's fresh merges** (new Stage A.7): #336 (no stray track on
   click), #337 (Color-Invert reads "100%" not "1.00%"), #338 (device editor scrolls, preview
-  never collapses — BOTH `F_CREATRIX_LAYOUT` states), #339 (razor/ripple/marker/loop/range cursor
-  tools work by click AND hotkey).
-- **B3 layout CU pass** (new Stage G) — gated on B3 build L2–L4 landing; if the flag layout isn't
-  built yet at run time, Stage G is ⏸ (blocker named: L2–L4 not merged).
-- **MK.12 subject-matte** (new Stage H) — gated on MK.12a (#342) landing; U1–U10 subject-driven
-  modulation incl. the honest v1 single-dominant-subject limitation (corrected by stacking a
-  lasso/wand node). ⏸ if MK.12a not merged at run time.
+  never collapses — BOTH `F_CREATRIX_LAYOUT` states), #339 (razor/ripple/marker/loop cursor
+  tools work by click AND hotkey; the RANGE-select cursor tool was cut in the T5 cull — rangeSelectClips
+  store action survives, but no tool binding — do NOT test a range cursor tool).
+- **B3 layout CU pass** (Stage G) — B3 is DEFAULT-ON (#398 merged); run against the default layout.
+- **MK.12 subject-matte** (Stage H) — SHIPPED (#342 merged, mask_ai_generate live); run U1–U10
+  subject-driven modulation incl. the honest v1 single-dominant-subject limitation (corrected by
+  stacking a lasso/wand node).
 
 **File-ownership boundary (do NOT fix in this lane — file as tasks/issues):** the parallel session
 owns `stores/{midi,layout,timeline}.ts`, `App.tsx`, `BoundingBoxOverlay.tsx`, `TransformPanel.tsx`,
@@ -64,7 +64,7 @@ owns `stores/{midi,layout,timeline}.ts`, `App.tsx`, `BoundingBoxOverlay.tsx`, `T
 | A6 | The 4 e2e-red journeys, manually: watchdog reconnect, effect move-down, full journey (import→effect→param→export), import-dialog hint | match e2e expectations |
 | A7a | **#337 confirm:** add Color Invert to a clip → param label reads **"100%"** at full, not "1.00%" | zoom on the label |
 | A7b | **#338 confirm:** open a tall instrument device editor with a clip selected → preview never collapses; device region scrolls internally — verify in BOTH `F_CREATRIX_LAYOUT` states | screenshot each state |
-| A7c | **#339 confirm:** razor/ripple/marker/loop/range cursor tools each work by CLICK and by HOTKEY | one screenshot per tool showing its effect |
+| A7c | **#339 confirm:** razor/ripple/marker/loop cursor tools each work by CLICK and by HOTKEY (range cursor tool was CUT in T5 — do not test it) | one screenshot per tool showing its effect |
 | A7d | **#336 confirm:** click-select clips near a lane's bottom edge ×10 → NO stray empty tracks appear (the June-17 gesture) | track count stable |
 
 ## Stage B — persistence & round-trip (the F2 class, ~45 min)
@@ -149,17 +149,16 @@ if the masked region doesn't visibly gate the effect, or export alpha ≠ previe
 - J4 key (chroma/luma matte, live-modulated key param)
 - J5 export (ProRes 4444 alpha round-trips; re-import honors alpha)
 
-## Stage F.2 — MK.13 mode-banner visual gate (PS3)
+## Stage F.2 — MK.13 mode-banner — DEFERRED (not in code, verified 2026-07-03)
 
-Spec §14.9: switching mask tool mode shows a banner **within ≤120ms naming the Escape level**.
-A code sweep couldn't locate the banner component — so this is verify-or-file: enter each mask
-tool mode, confirm the banner appears, is legible, names the right Escape level, and clears.
-If absent → 🐛 (spec'd hard gate unshipped), file as a task; do NOT fix here.
+The mode-banner (DESIGN-SPEC §10.2) is UNSHIPPED — grep confirms no banner component exists in
+frontend/src/renderer. This is NOT a runnable UAT gate; it is a build-backlog item. Do not spend CU
+time here; surfacing a banner on mask-mode change is a feature request, not a test failure.
 
-## Stage G — B3 layout CU pass (gated on B3 build L2–L4)
+## Stage G — B3 layout CU pass (B3 is DEFAULT-ON, #398 merged)
 
-⏸ if `F_CREATRIX_LAYOUT` layout (lean headers + LAYER panel) isn't built/merged at run time —
-name the blocker (L2–L4 not merged). When present:
+B3 (lean headers + LAYER panel) ships default-ON as of #398. Run against the DEFAULT layout (compare
+legacy via `localStorage.setItem('entropic-disable-creatrix-layout','1')` + relaunch):
 - G1 arrangement = layers: drag a track row to restack → composite z-order changes (top renders
   front); render-diff confirms front/back swap.
 - G2 lean header: name·eye·`blend·opacity` chip·M/S·twirl only; chip click focuses the LAYER panel.
@@ -168,9 +167,9 @@ name the blocker (L2–L4 not merged). When present:
 - G4 twirl nests the track's fx + automation lanes; edit a nested fx → preview updates.
 - G5 both flag states shippable (flag OFF = today's layout unchanged).
 
-## Stage H — MK.12 subject-driven modulation (gated on MK.12a #342)
+## Stage H — MK.12 subject-driven modulation (SHIPPED — mask_ai_generate live, #342 merged)
 
-⏸ if MK.12a not merged. When present, run the PRD's **U1–U10** (music-video shot → AI subject matte
+MK.12 AI subject matte is shipped and live. Run the PRD's **U1–U10** (music-video shot → AI subject matte
 → subject-driven modulation). Explicitly probe the **honest v1 limitation**: a scene with TWO
 prominent subjects → confirm it tracks the single dominant one, and that stacking a lasso/wand node
 corrects it (documented, not a silent failure). Verdict per U-step + the limitation behavior.
@@ -238,3 +237,237 @@ both present and rendered — tonight's headline merges are in the running build
   additive-vs-replace; `+ Lane` adds an automation lane, `+ Trigger` a trigger lane.
 - Export (Stage 11/C1/C6): Cmd+E → `.export-dialog` → codec select → `.export-dialog__export-btn`
   → `.export-progress__done` (encode can take >30s; wait to 90s).
+
+---
+
+# NEW FEATURES THIS SESSION (2026-07-03) — added to the CU-UAT scope
+
+Everything below shipped to main on 2026-07-03 and needs live CU coverage. Kill+relaunch the DEV
+app first (store-shape changed). All of it is Ableton-parity automation + a new Master bus.
+
+## Stage I — Automation EDITING suite (Ableton parity) (~60 min)
+Arm a track (R in the automation toolbar), add a lane on an effect param (context menu → Add Lane),
+then exercise each editing gesture and confirm the drawn shape SURVIVES save→reload AND matches on
+export (preview==export is the invariant).
+- **I1 Curves (AA.1):** Alt+DRAG a segment/node → continuous tension; Alt+double-click → straighten.
+  Confirm the eased ramp renders (not linear). Simplify preserves the curve shape.
+- **I2 Select + move (AA.4):** marquee-drag over breakpoints → they select (highlighted); drag to move
+  in time+value; **copy/paste**; quantize toggle (Cmd+U) snaps moved points to grid when on.
+- **I3 Transform box (AA.4b):** with a selection, an edge/corner box appears — drag an edge to scale,
+  **drag one side down to skew/tilt** (flat → ramp), corner to scale both. **Flatten** (→ constant line),
+  **Ramp** (interior → straight line). Each is ONE undo step.
+- **I4 Insert Shape (AA.3a):** the "Shape" picker on the toolbar → sine/tri/saw-up/saw-down/square/
+  ramp-up/ramp-down/random → bakes REAL editable breakpoints into the lane/selected range (then tweak
+  them with I1–I3). Honors quantize.
+- **I5 Is-automated LED (AA.6):** a small green dot on any effect knob (ParamPanel + DeviceChain rack)
+  that has an active lane; appears/disappears as lanes are added/removed.
+- **Oracle:** for at least one param, decode the exported frames (PIL) and confirm the automated value
+  matches preview at the same frame. **KNOWN BUG to probe — task #28:** modulation/automation on a param
+  whose range is NOT [0,1] (e.g. Hue Shift amount [0,360]) may clamp to [0,1] → value pins low. Test a
+  non-[0,1] param explicitly and report if it mis-scales.
+
+## Stage J — Modulation + LFO operator lanes (the differentiators) (~45 min)
+- **J1 Modulation lanes (AA.2):** on a param that already has an absolute lane, "+ Mod" adds a
+  RELATIVE (blue) modulation lane; blendOp add/multiply/max. Confirm the modulation SUPERIMPOSES on the
+  absolute (both coexist, absolute not overwritten). Draw it; confirm preview==export.
+- **J2 LFO operator lanes (AA.3-A):** set a lane's source to an operator (LFO) with rate/depth/phase/
+  waveform → the param oscillates each frame (generative, not baked). Confirm DETERMINISTIC (same project
+  → same output) and preview==export (the LFO runs backend-side in both). Try all waveforms.
+- **J3 Spatial axis (the moat):** where exposed, set a lane's domain to Y/X (not just T) → the value
+  varies DOWN/ACROSS the frame (spatial ripple), not over time. (AA.3-C spatial-operator is spiked-out —
+  don't expect operator-source over Y/X yet; drawn/absolute over Y/X should work.)
+
+## Stage K — Master-Out Bus (~45 min)
+A new permanent **Master track** (pinned bottom of the timeline, amber, no clips) processes the FINAL
+SUMMED video (all tracks composited).
+- **K1 Exists + guards:** every project has exactly one Master track; it can't be deleted, duplicated,
+  or hold clips; dragging an INSTRUMENT onto it is rejected with a toast; effects (fx/op/tool) are allowed.
+- **K2 Effects on the sum:** add e.g. an invert/color-grade to the Master → confirm it applies to the
+  COMPOSITED output (all tracks), not per-track. Empty Master chain = no visual change (byte-identical).
+- **K3 Preview==export:** the master effect looks identical in preview AND the exported file. Test the
+  single-clip case specifically (M.2b forced it onto the composite path; "Export current frame as PNG"
+  should bail to the Export dialog when the Master has effects).
+- **K4 Master automation (M.3):** arm the Master track, automate a master effect param → it varies over
+  time in preview AND export. **KNOWN-FIXED regression to spot-check:** a master lane on effect type X must
+  NOT change a per-CLIP effect of the same type X (contamination was fixed — verify a clip with the same
+  effect type as an automated master effect is untouched on export).
+
+## Stage G UPDATE — B3 layout is now DEFAULT-ON (no longer gated)
+F_CREATRIX_LAYOUT ships ON (PR #398). Run Stage G against the default layout. Escape hatch:
+localStorage 'entropic-disable-creatrix-layout'=1 to compare to legacy. Lock/arm/drag affordances were
+ported into the lean header (#395) — verify all three work on the Master + normal tracks.
+
+## Also new: clip thumbnails scale with zoom (#397)
+Zoom the timeline in/out → clip filmstrips show more/fewer poster frames (capped at 12). Verify no perf
+regression on many-clip timelines.
+
+## KNOWN-BUG WATCHLIST (report against these, don't re-file)
+- **#28 (HIGH, open):** automation/modulation clamps to [0,1] on non-[0,1]-range params (Stage I5 oracle).
+- **#26:** sg3-aborted lanes filtered in preview but not export bake (preview≠export on sg3-abort).
+- **#15:** e2e-full suite broadly red (test-infra debt, not app breakage — smoke is the merge gate).
+- **#27:** one timeline-ui component test quarantined (master-pinned-last, CI-flaky) — behavior is sound.
+- **#29 (P0, confirmed):** ripple-delete/ripple-trim/split do NOT rebase clip-transform automation (fix in flight).
+- **#30 (P0, confirmed):** loadProject dirty-check is a no-op stub — Welcome/open-recent bypass the unsaved-changes gate (fix in flight).
+- **#31:** full audit findings register — see docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md (silent no-ops, freeze-mutation gaps, C15 depth mismatch, E18 orphaned MIDImix, export-not-pressure-gated…).
+
+---
+
+# COMPLETENESS PASS (/uat 2026-07-03) — negative, edge, chaos, composability
+
+Stages I/J/K above are happy-path. Per /uat, a plan that only tests golden paths is theater. The
+following MUST also be covered by the CU-UAT session. Report PASS/FAIL/BUG per row.
+
+## N — Negative & error paths (P1)
+| # | Action | Expected |
+|---|--------|----------|
+| N1 | Arm a track that has NO effects, try Add Lane | graceful (no lane / hint), no crash |
+| N2 | Draw an automation lane on an effect param, then DELETE that effect | lane is removed/orphan-cleaned, no dangling render |
+| N3 | Insert Shape with cycles=0 (or amplitude=0) | no-op or clamped, no crash / no NaN frame |
+| N4 | Add a "+ Mod" modulation lane on a param that has NO absolute lane | mod seeds from itself (documented) or clean guard — not a crash |
+| N5 | LFO operator lane with rate=0 / depth=0 | constant/no oscillation, deterministic, no divide-by-zero |
+| N6 | Drag an INSTRUMENT onto the Master device chain | rejected + toast "Instruments can't go on the Master" |
+| N7 | Try to delete / duplicate the Master track (menu, keyboard) | blocked + toast; Master persists |
+| N8 | "Export current frame as PNG" while the Master has effects (single clip) | bails to Export dialog (no silent master-less PNG) |
+| N9 | Automate a param, then set the effect Frozen | automation respects freeze semantics, no conflict crash |
+
+## E — Edge & boundary (P2)
+| # | Input | Expected |
+|---|-------|----------|
+| E1 | Lane with 0 points / 1 point | held value, no interpolation crash; preview==export |
+| E2 | Param automated at its exact MIN and MAX | clamps correctly; **probe #28: non-[0,1] param (Hue 0-360) must NOT clamp to [0,1]** |
+| E3 | Automation keyframe at frame 0 and at the last frame | both render; no off-by-one at clip end |
+| E4 | Quantize at finest and coarsest grid division | snapping correct at both extremes |
+| E5 | Master chain with 8+ effects, several automated | renders; no perf cliff; preview==export |
+| E6 | Insert Shape then Simplify to very few points | shape/tension preserved reasonably; no clobber |
+| E7 | Very long clip (1000+ frames) with an LFO operator lane | deterministic + performant across the whole clip |
+
+## X — State & sequence chaos (P1, human-error protocol)
+| # | Chaotic action | Expected |
+|---|----------------|----------|
+| X1 | Undo mid-draw / mid-transform-box drag | clean revert to pre-gesture state (one undo step) |
+| X2 | Rapidly arm/disarm a track many times | no stuck record state, no duplicate lanes |
+| X3 | Save the project WHILE an automation gesture is in progress | consistent saved state; reload matches |
+| X4 | Reload a project that has a MODULATION lane + an LFO operator lane active | both rehydrate + render identically (kill+relaunch) |
+| X5 | Move a CLIP that has clip-transform automation (AA.5) | the clip's OWN lane keyframes move WITH it; other lanes stay put |
+| X6 | Add a Master effect, then Undo, then Redo | Master chain + its automation restore correctly |
+| X7 | Two modulation lanes on ONE param (add + multiply) | both fold deterministically; consistent preview vs export |
+| X8 | Delete a clip whose effect has an automation lane | lane cleaned; no orphaned override on export |
+
+## C — COMPOSABILITY (P0 — the #1 real-world failure class)
+The features INTERACT. Test the combinations, all verified preview==export via decoded frames:
+| # | Combination | Expected |
+|---|-------------|----------|
+| C1 | Absolute lane + modulation lane on the SAME param | modulation superimposes on absolute (absolute not overwritten); clamped to real param range |
+| C2 | Modulation (drawn) lane + LFO operator lane on the SAME param | both compose deterministically; preview==export |
+| C3 | **Master automation on effect type X + a CLIP with the same effect type X** | the CLIP effect is UNTOUCHED by the master lane (the fixed HIGH contamination — CRITICAL regression) |
+| C4 | Clip-transform automation (pos/scale) + an effect-param modulation lane on the same clip | both apply; move the clip → transform lane rides it, effect lane behaves per its anchor |
+| C5 | Insert Shape → Transform Box skew → add a modulation lane, then export | edits + modulation all present in the exported file |
+| C6 | Master effect automated + per-clip effects automated, single-clip project | single-clip forced onto composite path; master + clip automation both correct in preview AND export |
+| C7 | Axis-domain: a drawn lane over Y (spatial) + a normal lane over T on related params | spatial + temporal coexist; the Y lane varies down-frame, T lane over time |
+
+## Acceptance-criteria checklist (binary GO/NO-GO per feature)
+- [ ] AUTOMATION EDITING: every gesture (curve/select/move/copy-paste/transform/flatten/ramp/insert-shape) produces the drawn result AND survives save→reload AND matches on export.
+- [ ] MODULATION: relative layer superimposes without overwriting absolute; blendOp add/mult/max correct; non-[0,1] params scale correctly (**#28 gate**).
+- [ ] LFO OPERATOR LANES: deterministic, all waveforms, preview==export (backend-evaluated both paths).
+- [ ] MASTER BUS: exists/undeletable/no-clips/no-instruments; effects apply to the SUM; empty chain = no change; master automation works AND does not contaminate same-type clip effects.
+- [ ] LAYOUT (default-on): B3 grid + LayerPanel + all 4 resize handles + lock/arm/drag on Master and normal tracks.
+- [ ] NO REGRESSION: smoke green; the known watchlist (#28/#26/#15/#27) reported, not re-filed.
+
+**Verdict gate:** GO only if all C-row composability tests pass (interactions are where it breaks) AND #28
+is either fixed or its blast-radius is bounded + documented. A green happy-path with a failing C3
+(contamination) or E2 (#28 clamp) is a NO-GO.
+
+---
+
+# SALVAGED ADDENDUM (from PR #387, conflicted; folded 2026-07-03) — pre-run zero-trust review
+> STALENESS CORRECTIONS at fold time: (1) `F_CREATRIX_LAYOUT` is now **default ON** (#398 merged) —
+> invert the A5/G baseline notes below accordingly; the flag round-trip protocol still applies via the
+> DISABLE escape hatch. (2) main has moved past 404f3a3 — re-verify the CI-red classification at drive
+> time. (3) The export-e2e root cause below is now tracked in task #15 (fix: home-dir temp path).
+
+---
+
+## ADDENDUM — 2026-07-03 pre-run zero-trust review (READ FIRST when driving)
+
+Every reference in this plan was verified against main @ 404f3a3 before the first CU run.
+Corrections below OVERRIDE the stage text above where they conflict.
+
+### Shipped-bindings key map (journey specs diverge from code — use THESE keys)
+| Spec says | Shipped reality (frontend/src/renderer/utils/default-shortcuts.ts) |
+|---|---|
+| `g` lasso (J4) | **`w`** = lasso (freehand→polygon→off cycle); `g` is unbound |
+| `c` key tool (J2) | **no hotkey** — activate via browser `tool` tab chip (click-only) |
+| `v` cycles composite→matte→rubylith (J2 j2-03/j2-06) | **`v` = Tool: Select.** No view-cycle binding exists |
+| — | wand: **no hotkey** — `tool` tab chip only |
+| confirmed as spec'd | `q` marquee · `⌫`/`⌥⌫` delete inside/outside · `⌘⇧A` deselect · `⌘J`/`⌘⇧J` copy/cut region to track · `i`/`o` loop in/out · `⌘L` loop toggle · `⌘⇧I` routing canvas · `b` razor · `s` slip · `d` slide · `x` ripple · `⇧M` marker |
+
+### Known gaps — pre-classified (file as findings, do NOT burn CU time hunting)
+1. **Matte/rubylith preview view modes are UNSHIPPED** — zero code hits for rubylith/matteView.
+   J2 checkpoints j2-03, j2-06 and the `view: matte` statusbar chip WILL fail → expected 🐛
+   (spec'd in MASKING-INTERACTIONS §5/§8 + DESIGN-SPEC, never built). Judge the rest of J2 on
+   composite view only.
+2. **A7c correction:** the range-select cursor tool was REMOVED post-plan (T5 cull,
+   default-shortcuts.ts:64). A7c now = razor/ripple/marker/loop by click+hotkey, PLUS assert
+   range is gone, PLUS slip (`s`) / slide (`d`) from T2 #359.
+3. **T3 lock + T4 marker-rename ARE on main** — their commits rode inside the #359 (T2)
+   squash, which is why stacked PRs #355/#357 closed empty (adjudicated: `Lock track` in
+   Track.tsx via 3521c59; `renameMarker` in timeline.ts). TEST both: clip+track lock
+   (D5-adjacent: mutation guards) and marker double-click inline rename.
+4. **Stage F.2 citation fix:** the mode-banner spec is DESIGN-SPEC §10.2 (20px banner, ≤120ms,
+   MOD dot, esc keycap naming the NEXT escape level) — not "SELECTION-MASKING-SPEC §14.9"
+   (§14 is Open Decisions; no §14.9 exists).
+5. **Stage H gate:** MK.12 build = #350 MERGED (#342 was the PRD-only PR). Within H: U7 is ⏸
+   (coverage_tap.py absent — MK.12c unbuilt), U9 ⏸ (MK.12b), U10 unscheduled. Run U1–U6 + U8
+   limitation probe.
+6. **Report filename** = docs/UAT-RESULTS-2026-07-03.md (supersedes the 07-02 name above).
+
+### Red-team riders (2026-07-03, 8×P1 + 2×P2 confirmed; step wording below OVERRIDES stages)
+- **Pre-start:** relaunch the DEV Electron fresh (kill PID + `npm start`) before Stage A —
+  re-baselines uptime/state. (Original stale-#377-bundle claim REFUTED by reflog: the 00:34
+  launch used a tree pulled at 00:11 that already contained #377.)
+- **B4 runs on a THROWAWAY project** (the L40 throwaway rule now covers B4, not just D/C7),
+  and after verifying recovery, DELETE the autosave before B5 or it contaminates B5's verdict.
+- **B3 legacy load:** COPY the legacy .glitch to a throwaway path and load the copy — never
+  the original (auto-migrate/save could mutate it).
+- **C7:** quit the app AND confirm no other writer before the move-aside; use COPY-aside, and
+  restore only into a confirmed-absent target, else abort loudly (a naive `mv` restore nests
+  the backup inside a freshly-recreated ~/.creatrix).
+- **D1:** the "4-hour file" = a generated low-bitrate long-DURATION file (still-image src);
+  check free disk first; delete after.
+- **D3:** kill ONLY the UAT sidecar's child PID (from the app process tree / sidecar.log) —
+  never pkill-by-name (parallel sessions run python too). Defer sleep/wake and the dual-instance
+  check until the parallel session is idle; dual instance = throwaway project + expect the
+  single-instance/userData collision, don't force a second vite server on :5173.
+- **A6 oracle:** main CI is red on electron-e2e-full shards 2–4 + sidecar at review time —
+  classify each red journey app-bug vs test-flake BEFORE issuing a manual ✅/❌.
+- **D4/D5:** after the 64-op/500-clip boundary tests, New Project (or relaunch) before D5/D6/E
+  so boundary state doesn't poison later verdicts.
+- **Coordination:** the parallel build session must NOT `git pull` the canonical checkout while
+  the CU pass runs (source-file pulls trigger vite HMR mid-pass); docs-only merges are safe.
+
+### A6 pre-classification — export e2e cluster ROOT-CAUSED (2026-07-03, local repro)
+The 3 red `phase-11/export.spec.ts` tests are **TEST-ENV, not app bugs**: the spec exports to
+`os.tmpdir()` (= `/private/var/folders/…`), which `backend/src/security.py`
+BLOCKED_OUTPUT_PREFIXES rejects ("Export failed: Cannot write to system directory:
+/private/var" — visible in the failure snapshot). Exposed tonight when #378 switched the spec
+from the `__testExportPath` hook to the real `stubSaveDialog` flow. Fix belongs to the e2e
+lane: point the spec at a home-dir temp path (or allowlist `$TMPDIR`). **For CU: exports to
+~/Desktop are unaffected — do NOT down-verdict C1/C6/J5 on this cluster.** Mass edge-cases/
+chaos/security-gates failures still under local classification; B3 (#377) is flag-gated OFF
+by default, so it did NOT change the default DOM and is not the breaker.
+
+### Feature-flag matrix (PR #389 audit — ADOPTED into this pass)
+`docs/UAT-FEATURE-FLAG-AUDIT-2026-07-03.md` is now a first-class stage input:
+- **Stage A5/G baseline correction:** `F_CREATRIX_LAYOUT` is **default OFF** — the app's
+  default IS the legacy layout; the B3 grid shell + LayerPanel mount only when enabled
+  (`localStorage.setItem('entropic-enable-creatrix-layout','1')` + kill/relaunch). Their
+  wave-1 task #20 flips the default ON — if it merges mid-pass, relaunch and re-baseline;
+  name the flag state in EVERY layout-affected verdict (A5, A7b, E, G).
+- **New Stage FLAGS (run inside Stage A, after A7):** per-flag default-verify → flip →
+  verify old behavior → flip back → confirm clean round-trip, per the audit's protocol.
+  P0 first (`F_0512_14` space transport, `F_0512_29` reload rebind), then P1, then the three
+  CSS-disable flags (`F_0512_8/30/36` via body attr). A flag that can't round-trip = 🐛.
+- **Coordination traps:** task #19 (zoom thumbs) overlaps `F_0512_8_CLIP_THUMBS` — test
+  together; re-grep `frontend/src/shared/feature-flags.ts` at CU start (their wave-1 may add
+  flags: master-out #18, AA.4).
+||||||| 7890974

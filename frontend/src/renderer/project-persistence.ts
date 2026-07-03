@@ -1822,12 +1822,13 @@ export async function loadProject(
 ): Promise<boolean> {
   if (!window.entropic) return false
 
-  // Check if dirty and prompt
-  if (useUndoStore.getState().isDirty) {
-    // In a real app, show a confirmation dialog.
-    // For now, proceed — the plan says to prompt but
-    // that requires a custom dialog component (deferred).
-  }
+  // #30: the dirty-changes confirmation is NOT done here. This function is a
+  // standalone orchestrator with no dialog state of its own, so every caller
+  // (File menu, Cmd+O, WelcomeScreen new/open/open-recent) is required to
+  // check `useUndoStore.getState().isDirty` FIRST and route through App.tsx's
+  // pendingNav → UnsavedChangesDialog gate before calling loadProject —
+  // mirrors the existing Cmd+O / Cmd+N convention. loadProject() proceeds
+  // unconditionally on the assumption the caller has already gated it.
 
   let path: string | undefined = filePath
   if (!path) {
@@ -1879,7 +1880,17 @@ export async function loadProject(
 
     return true
   } catch (err) {
+    // B7: this catch covers JSON.parse failures (corrupt/truncated file) and
+    // readFile failures (permissions, missing file, disk error) — the two
+    // load-rejection paths that, unlike the structureCheck/validateProject
+    // rejections above, previously logged to console only. Prior project
+    // state is untouched here: hydrateStores() never ran.
     console.error('[Project] Failed to load project:', err)
+    useToastStore.getState().addToast({
+      level: 'error',
+      source: 'project-load',
+      message: `Failed to load project: ${err instanceof Error ? err.message : String(err)}`,
+    })
     return false
   }
 }

@@ -381,7 +381,12 @@ function AppInner() {
   const [showHistory, setShowHistory] = useState(false)
   // F-0514-17: discard-changes prompt before destructive nav (Cmd+O / Cmd+N).
   // Pre-fix, Cmd+O silently overwrote unsaved work — real data-loss risk.
-  const [pendingNav, setPendingNav] = useState<null | { kind: 'open' | 'new' }>(null)
+  // #30: `recentPath` carries a WelcomeScreen "open recent" target through the
+  // gate (loadProject(undefined,...) would otherwise pop the file picker
+  // instead of reopening the intended recent file). `fromWelcome` re-applies
+  // setWelcomeDismissed(true) once the deferred nav actually runs, since the
+  // WelcomeScreen entry points used to do that inline before this gate existed.
+  const [pendingNav, setPendingNav] = useState<null | { kind: 'open' | 'new'; recentPath?: string; fromWelcome?: boolean }>(null)
   // RT-1: tracks an in-flight Save-and-Continue. Pre-lock, a user clicking
   // Discard during the saveProject await could clobber the freshly-loaded
   // project's projectPath/projectName/isDirty with the OLD project's metadata
@@ -1194,6 +1199,10 @@ function AppInner() {
 
         // Phase 7: Evaluate automation overrides at current playhead time
         const currentTime = useTimelineStore.getState().playheadTime
+        // #28: tracks context threaded through so evaluateAutomationOverrides
+        // can resolve an INSTANCE-keyed paramPath's effect TYPE id (see that
+        // function's doc comment) instead of silently falling back to [0,1].
+        const tracksForAutomation = useTimelineStore.getState().tracks
         const rawLanes = useAutomationStore.getState().getAllLanes()
         // SG-3 clause-3 consumer (audit medium #1): when the sentinel has aborted
         // a lane (NaN/Inf in the render output), STOP re-sending automation lanes
@@ -1208,7 +1217,7 @@ function AppInner() {
           ? rawLanes.filter((l) => !sg3Aborted.has(l.id) && !sg3Aborted.has('unknown'))
           : rawLanes
         const autoOverrides = allLanes.length > 0
-          ? evaluateAutomationOverrides(allLanes, currentTime, registry)
+          ? evaluateAutomationOverrides(allLanes, currentTime, registry, tracksForAutomation)
           : undefined
 
         // AA.3-A: operator-sourced lane payloads — a synthetic, mapping-less
@@ -2903,6 +2912,10 @@ function AppInner() {
       const clipAutomationLanes = masterLaneIds.size > 0
         ? exportLanes.filter((l) => !masterLaneIds.has(l.id))
         : exportLanes
+      // #28: same tracks-context threading as preview (requestRenderFrame) —
+      // see evaluateAutomationOverrides's doc comment. Hoisted outside the
+      // per-frame loop below since tracks don't change during a single bake.
+      const exportTracksForAutomation = useTimelineStore.getState().tracks
       const exportSourceFps = activeFps > 0 ? activeFps : 30
       const exportStartFrame = settings.region === 'full'
         ? 0
@@ -2927,7 +2940,7 @@ function AppInner() {
       if (clipAutomationLanes.length > 0 || exportOperatorLaneSpecs.length > 0) {
         for (let f = exportStartFrame; f <= exportEndFrame; f++) {
           const t = f / exportSourceFps
-          const overrides = evaluateAutomationOverrides(clipAutomationLanes, t, registry)
+          const overrides = evaluateAutomationOverrides(clipAutomationLanes, t, registry, exportTracksForAutomation)
           // A2b: transform lanes share the automation_by_frame channel but need
           // their OWN evaluator — evaluateAutomationOverrides mis-scales the
           // `clipTransform.*` keys (no registry entry → raw 0..1). Overwrite them
@@ -2964,7 +2977,7 @@ function AppInner() {
       if (masterLanesOnly.length > 0) {
         for (let f = exportStartFrame; f <= exportEndFrame; f++) {
           const t = f / exportSourceFps
-          const overrides = evaluateAutomationOverrides(masterLanesOnly, t, registry)
+          const overrides = evaluateAutomationOverrides(masterLanesOnly, t, registry, exportTracksForAutomation)
           if (Object.keys(overrides).length > 0) {
             masterAutomationByFrame[f] = overrides
           }
@@ -4398,17 +4411,18 @@ function AppInner() {
         onCancel={() => setPendingNav(null)}
         onDiscard={() => {
           if (isNavSaving || !pendingNav) return
-          const kind = pendingNav.kind
+          const { kind, recentPath, fromWelcome } = pendingNav
           setPendingNav(null)
+          if (fromWelcome) setWelcomeDismissed(true)
           if (kind === 'open') {
-            loadProject(undefined, handleProjectHydrated)
+            loadProject(recentPath, handleProjectHydrated)
           } else {
             handleNewProject()
           }
         }}
         onSaveAndContinue={async () => {
           if (isNavSaving || !pendingNav) return
-          const kind = pendingNav.kind
+          const { kind, recentPath, fromWelcome } = pendingNav
           setIsNavSaving(true)
           try {
             const saved = await saveProject()
@@ -4416,8 +4430,9 @@ function AppInner() {
             // dialog — keep the prompt up so unsaved work doesn't vanish.
             if (!saved) return
             setPendingNav(null)
+            if (fromWelcome) setWelcomeDismissed(true)
             if (kind === 'open') {
-              loadProject(undefined, handleProjectHydrated)
+              loadProject(recentPath, handleProjectHydrated)
             } else {
               handleNewProject()
             }
@@ -4442,9 +4457,24 @@ function AppInner() {
       <WelcomeScreen
         isVisible={!hasAssets && !welcomeDismissed && !window.entropic?.isTestMode}
         recentProjects={recentProjects}
-        onNewProject={() => { handleNewProject(); setWelcomeDismissed(true) }}
-        onOpenProject={() => { setWelcomeDismissed(true); loadProject(undefined, handleProjectHydrated) }}
-        onOpenRecent={(path) => { setWelcomeDismissed(true); loadProject(path, handleProjectHydrated) }}
+        onNewProject={() => {
+          // #30: route through the same dirty-gate as the File menu / Cmd+N —
+          // WelcomeScreen used to call handleNewProject() directly, bypassing
+          // the UnsavedChangesDialog and silently discarding unsaved work.
+          if (useUndoStore.getState().isDirty) { setPendingNav({ kind: 'new', fromWelcome: true }); return }
+          handleNewProject()
+          setWelcomeDismissed(true)
+        }}
+        onOpenProject={() => {
+          if (useUndoStore.getState().isDirty) { setPendingNav({ kind: 'open', fromWelcome: true }); return }
+          setWelcomeDismissed(true)
+          loadProject(undefined, handleProjectHydrated)
+        }}
+        onOpenRecent={(path) => {
+          if (useUndoStore.getState().isDirty) { setPendingNav({ kind: 'open', recentPath: path, fromWelcome: true }); return }
+          setWelcomeDismissed(true)
+          loadProject(path, handleProjectHydrated)
+        }}
       />
 
       <Toast />

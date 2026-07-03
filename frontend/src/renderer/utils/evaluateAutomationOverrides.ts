@@ -15,7 +15,7 @@
  * visible modulation lane sharing that paramPath folds onto it in array
  * order via its blendOp (composeModulatedValue in automation-evaluate.ts).
  */
-import type { AutomationLane, BlendOp, EffectInfo, EffectInstance } from '../../shared/types'
+import type { AutomationLane, BlendOp, EffectInfo, EffectInstance, Track } from '../../shared/types'
 import type { Axis } from '../../shared/axis-binding'
 import { evaluateAutomation, denormalize, isModulationLane, composeModulatedValue } from './automation-evaluate'
 
@@ -33,13 +33,93 @@ interface ParamGroup {
   mods: Array<{ value: number; blendOp: BlendOp; domain: Axis }>
 }
 
+/**
+ * #28 fix — a `paramPath` is `"${effectId}.${paramKey}"`, but `effectId` can be
+ * EITHER of two distinct keying schemes in play across the codebase:
+ *   - INSTANCE-keyed: every current lane-creation UI path (Track.tsx,
+ *     DeviceCard.tsx, ParamPanel.tsx, AutomationToolbar.tsx, retro-capture.ts)
+ *     composes `${effect.id}.${key}` where `effect.id` is the EffectInstance's
+ *     instance uuid — NOT a registry key. The registry is keyed by TYPE
+ *     (EffectInfo.id, e.g. "fx.hue_shift"), so resolving these requires
+ *     walking the chain/track context to find the instance and read its
+ *     `.effectId` (the type id) back out.
+ *   - TYPE-keyed: the shared/axis-lanes.ts:136 convention — some paramPaths
+ *     address the registry TYPE id directly (type ids themselves contain
+ *     dots, e.g. "fx.hue_shift.amount"), so that scheme is only resolvable by
+ *     splitting on the LAST dot, not the first.
+ * Builds an instance-id -> effect-TYPE-id map from every track's effectChain
+ * (walked once per evaluateAutomationOverrides call, not per lane/group).
+ */
+function buildInstanceEffectTypeMap(tracks: Track[]): Map<string, string> {
+  const map = new Map<string, string>()
+  for (const track of tracks) {
+    for (const instance of track.effectChain) {
+      map.set(instance.id, instance.effectId)
+    }
+  }
+  return map
+}
+
+/**
+ * Resolve a paramPath's real [min,max] bounds from the registry, trying BOTH
+ * keying schemes (see buildInstanceEffectTypeMap's doc comment):
+ *   1. INSTANCE-keyed: first-dot split -> instance id -> tracks context ->
+ *      effect TYPE id -> registry.
+ *   2. TYPE-keyed: last-dot split -> effect TYPE id -> registry directly
+ *      (matches shared/axis-lanes.ts:136; also covers the common case where
+ *      the registry id itself has zero or one dot, e.g. tests' "fx-1", since
+ *      first-dot and last-dot coincide there).
+ * Returns `found: false` (and the caller falls back to [0,1]) only when
+ * NEITHER scheme resolves a real registry param — i.e. the param is
+ * genuinely absent from the registry (back-compat guarantee: unresolvable
+ * paramPaths, like `projectParam.bpm` or `clipTransform.<id>.<field>`, keep
+ * the exact pre-#28 [0,1] default behavior).
+ */
+function resolveParamBounds(
+  paramPath: string,
+  registry: EffectInfo[],
+  instanceEffectType: Map<string, string>,
+): { pMin: number; pMax: number; found: boolean } {
+  const firstDot = paramPath.indexOf('.')
+  const lastDot = paramPath.lastIndexOf('.')
+
+  // Scheme 1 — instance-keyed (first dot).
+  if (firstDot !== -1) {
+    const instanceId = paramPath.slice(0, firstDot)
+    const paramKey = paramPath.slice(firstDot + 1)
+    const effectTypeId = instanceEffectType.get(instanceId)
+    if (effectTypeId !== undefined) {
+      const effectInfo = registry.find((r) => r.id === effectTypeId)
+      const paramDef = effectInfo?.params[paramKey]
+      if (paramDef) {
+        return { pMin: paramDef.min ?? 0, pMax: paramDef.max ?? 1, found: true }
+      }
+    }
+  }
+
+  // Scheme 2 — type-keyed (last dot; also the single-dot common case).
+  if (lastDot !== -1) {
+    const effectTypeId = paramPath.slice(0, lastDot)
+    const paramKey = paramPath.slice(lastDot + 1)
+    const effectInfo = registry.find((r) => r.id === effectTypeId)
+    const paramDef = effectInfo?.params[paramKey]
+    if (paramDef) {
+      return { pMin: paramDef.min ?? 0, pMax: paramDef.max ?? 1, found: true }
+    }
+  }
+
+  return { pMin: 0, pMax: 1, found: false }
+}
+
 export function evaluateAutomationOverrides(
   lanes: AutomationLane[],
   time: number,
   registry: EffectInfo[],
+  tracks: Track[] = [],
 ): Record<string, number> {
   const overrides: Record<string, number> = {}
   const groups = new Map<string, ParamGroup>()
+  const instanceEffectType = buildInstanceEffectTypeMap(tracks)
 
   for (const lane of lanes) {
     if (!lane.isVisible) continue
@@ -94,17 +174,14 @@ export function evaluateAutomationOverrides(
     const composed = composeModulatedValue(group.absoluteValue, mods)
     if (composed === null) continue
 
-    // paramPath = "effectId.paramKey"
-    const dotIdx = group.paramPath.indexOf('.')
-    if (dotIdx === -1) continue
-    const effectId = group.paramPath.slice(0, dotIdx)
-    const paramKey = group.paramPath.slice(dotIdx + 1)
+    // paramPath = "effectId.paramKey" — malformed (no dot at all) paramPaths
+    // are dropped, unchanged from pre-#28 behavior.
+    if (group.paramPath.indexOf('.') === -1) continue
 
-    // Look up param bounds from registry
-    const effectInfo = registry.find((r) => r.id === effectId)
-    const paramDef = effectInfo?.params[paramKey]
-    const pMin = paramDef?.min ?? 0
-    const pMax = paramDef?.max ?? 1
+    // #28 — look up REAL param bounds, trying both the instance-keyed and
+    // type-keyed schemes (see resolveParamBounds's doc comment). Only falls
+    // back to [0,1] when the param is genuinely absent from the registry.
+    const { pMin, pMax } = resolveParamBounds(group.paramPath, registry, instanceEffectType)
 
     let value = denormalize(composed, pMin, pMax)
 

@@ -659,10 +659,18 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       min: 0,
       max: 1,
     }
+    // AA.3-B: switching `type` (lfo <-> audio_follower) starts params FRESH
+    // instead of merging over the previous generator's stale keys (e.g. an
+    // LFO's `waveform`/`rate_hz` lingering on an audio_follower operator) —
+    // mirrors operators.ts's own "changing an operator's type starts clean"
+    // behavior. A same-type update (e.g. just changing `sensitivity`) still
+    // merges onto the existing params, unaffected.
+    const paramsBase =
+      updates.type && updates.type !== baseOperator.type ? {} : baseOperator.params
     const newOperator: AutomationLaneOperator = {
       ...baseOperator,
       ...updates,
-      params: updates.params ? { ...baseOperator.params, ...updates.params } : baseOperator.params,
+      params: updates.params ? { ...paramsBase, ...updates.params } : baseOperator.params,
     }
 
     const forward = () => {

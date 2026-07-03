@@ -2815,6 +2815,16 @@ class ZMQServer:
                 operator_lanes=operator_lanes,
                 operator_lane_base_by_frame=operator_lane_base_by_frame,
                 audio_pcm_provider=self._get_audio_pcm_for_frame,
+                # AA.3-B (spec §3.1 fix): thread the SAME live sample rate the
+                # preview render path passes to evaluate_all
+                # (_render_frame_core: `audio_sr = audio_player._sample_rate if
+                # loaded else 44100`) so frequency_band/onset audio-follower
+                # values don't drift export vs preview at a non-44100 rate.
+                audio_sample_rate=(
+                    self.audio_player._sample_rate
+                    if self.audio_player.loaded
+                    else 44100
+                ),
                 mask_stack=mask_stack,
                 transform=transform,
                 transform_clip_id=transform_clip_id,

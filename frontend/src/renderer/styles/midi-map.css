@@ -73,6 +73,26 @@
   background: var(--cx-action-hover);
 }
 
+/* E18 — manual factory-mapping load. Secondary (outline) styling — distinct
+   from the primary "Done" close button since this is a destructive-ish bulk
+   overwrite, not the default confirm action. */
+.midi-map-overlay__load-factory {
+  background: transparent;
+  color: var(--cx-mod);
+  border: 1px solid var(--cx-mod);
+  border-radius: var(--cx-radius-control);
+  padding: 4px 12px;
+  font-size: var(--cx-text-label);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--cx-dur-feedback) var(--cx-ease), color var(--cx-dur-feedback) var(--cx-ease);
+}
+
+.midi-map-overlay__load-factory:hover {
+  background: var(--cx-mod);
+  color: var(--cx-action-on);
+}
+
 .midi-map-overlay__hint {
   margin: 0 0 12px;
   font-size: var(--cx-text-data);
