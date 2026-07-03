@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { evaluateAutomation, applyEasing, denormalize, isTriggerLane } from '../../renderer/utils/automation-evaluate'
+import { evaluateAutomation, applyEasing, denormalize, isTriggerLane, isParamAutomated } from '../../renderer/utils/automation-evaluate'
 import type { AutomationLane, InterpolationMode } from '../../shared/types'
 
 function makeLane(points: Array<{ time: number; value: number; curve?: number }>, mode: InterpolationMode = 'smooth'): AutomationLane {
@@ -139,6 +139,49 @@ describe('denormalize', () => {
 describe('applyEasing', () => {
   it('returns 0.5 for linear curve at midpoint', () => {
     expect(applyEasing(0.5, 0)).toBe(0.5)
+  })
+})
+
+// AA.6 — per-control "is-automated" indicator (Ableton parity §25.1).
+// isParamAutomated is the pure helper the LED/dot indicator subscribes to:
+// true iff some lane targets the given paramPath AND has >=1 point recorded.
+describe('isParamAutomated', () => {
+  it('returns true when a lane with matching paramPath has >=1 point', () => {
+    const lane = makeLane([{ time: 0, value: 0.5 }])
+    lane.paramPath = 'fx-1.amount'
+    expect(isParamAutomated('fx-1.amount', [lane])).toBe(true)
+  })
+
+  it('returns false when the matching lane has zero points (created but empty)', () => {
+    const lane = makeLane([])
+    lane.paramPath = 'fx-1.amount'
+    expect(isParamAutomated('fx-1.amount', [lane])).toBe(false)
+  })
+
+  it('returns false for an empty lanes array', () => {
+    expect(isParamAutomated('fx-1.amount', [])).toBe(false)
+  })
+
+  it('returns false when no lane matches the paramPath', () => {
+    const lane = makeLane([{ time: 0, value: 0.5 }])
+    lane.paramPath = 'fx-1.other-param'
+    expect(isParamAutomated('fx-1.amount', [lane])).toBe(false)
+  })
+
+  it('returns true when matching lane is among several non-matching lanes', () => {
+    const matching = makeLane([{ time: 0, value: 1 }])
+    matching.paramPath = 'fx-2.rate'
+    const nonMatching1 = makeLane([{ time: 0, value: 0 }])
+    nonMatching1.paramPath = 'fx-1.amount'
+    const nonMatchingEmpty = makeLane([])
+    nonMatchingEmpty.paramPath = 'fx-2.rate' // matches path but has no points
+    expect(isParamAutomated('fx-2.rate', [nonMatching1, matching, nonMatchingEmpty])).toBe(true)
+  })
+
+  it('is paramPath-exact — does not match on prefix/substring (e.g. different effect instance)', () => {
+    const lane = makeLane([{ time: 0, value: 0.5 }])
+    lane.paramPath = 'fx-10.amount'
+    expect(isParamAutomated('fx-1.amount', [lane])).toBe(false)
   })
 })
 

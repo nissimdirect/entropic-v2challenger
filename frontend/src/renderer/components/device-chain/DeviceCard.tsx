@@ -1,5 +1,5 @@
-import { useCallback, useState, useEffect, useRef } from 'react'
-import type { EffectInstance, EffectInfo, ParamDef, ParamValue, MatteNode, MatteRef } from '../../../shared/types'
+import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
+import type { EffectInstance, EffectInfo, ParamDef, ParamValue, MatteNode, MatteRef, AutomationLane } from '../../../shared/types'
 import { isFieldRef, makeFieldRef, clampGain, type FieldKind } from '../../../shared/field-param'
 import Knob from '../common/Knob'
 import ParamChoice from '../effects/ParamChoice'
@@ -11,6 +11,7 @@ import { useOperatorStore } from '../../stores/operators'
 import { useToastStore } from '../../stores/toast'
 import { LIMITS } from '../../../shared/limits'
 import { recordPointWithMode } from '../../utils/automation-record'
+import { isParamAutomated } from '../../utils/automation-evaluate'
 import { parseOperatorDrop, dragHasOperatorChannel } from '../effects/operator-drag'
 import ABSwitch from './ABSwitch'
 
@@ -264,6 +265,16 @@ export default function DeviceCard({
     onSetMaskRef?.(effect.id, { nodeId: effect.maskRef.nodeId, invert: !effect.maskRef.invert })
   }, [effect.id, effect.maskRef, onSetMaskRef])
 
+  // AA.6 — read-only subscription to automation lanes (Ableton parity §25.1).
+  // We only READ lane state here to drive the per-control automated-dot
+  // indicator; lane CRUD stays owned entirely by stores/automation.ts.
+  // Declared before the early return below to preserve hook ordering.
+  const lanesByTrack = useAutomationStore((s) => s.lanes)
+  const allLanes = useMemo<AutomationLane[]>(
+    () => Object.values(lanesByTrack).flat(),
+    [lanesByTrack],
+  )
+
   if (!effectInfo) {
     return (
       <div className="device-card device-card--error" data-testid="device-card" onClick={onSelect} onContextMenu={onContextMenu}>
@@ -372,6 +383,9 @@ export default function DeviceCard({
           const hasCCMapping = useMIDIStore.getState().ccMappings.some(
             (m) => m.effectId === effect.id && m.paramKey === key
           )
+          // AA.6 — is this param currently under an active automation lane
+          // (a lane with matching paramPath and >=1 recorded point)?
+          const isAutomated = isParamAutomated(`${effect.id}.${key}`, allLanes)
 
           return (
             <div
@@ -395,6 +409,13 @@ export default function DeviceCard({
                 onChange={(v) => handleKnobChange(key, def, v)}
               />
               {hasCCMapping && <span className="device-card__cc-badge">CC</span>}
+              {isAutomated && (
+                <span
+                  className="device-card__automated-dot"
+                  data-testid={`param-automated-dot-${effect.id}-${key}`}
+                  title="Parameter is automated"
+                />
+              )}
               {isFieldCapable && (
                 <select
                   className="device-card__field-assign"

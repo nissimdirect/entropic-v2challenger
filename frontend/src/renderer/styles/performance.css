@@ -210,6 +210,22 @@
   pointer-events: none;
 }
 
+/* --- AA.6: Automated-parameter dot (Ableton parity §25.1) ---
+   Small LED on a param control when it has an active automation lane
+   (a lane with matching paramPath and >=1 recorded point). Placed on the
+   opposite corner from the CC badge above so the two never overlap. */
+.param-panel__automated-dot {
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--cx-automation-active);
+  box-shadow: 0 0 3px rgba(74, 222, 128, 0.8);
+  pointer-events: none;
+}
+
 /* --- Capture Button --- */
 
 .performance-panel__capture-btn {

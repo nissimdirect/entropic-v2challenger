@@ -57,6 +57,9 @@
   --cx-probe-muted: #3A5A4D;
   --cx-probe-wash: rgba(95, 215, 168, 0.10);
 
+  /* --- AUTOMATION green (AA.6) — active automation-lane LED indicator --- */
+  --cx-automation-active: #4ade80;
+
   /* --- MOD violet (DESIGN-SPEC §2) — selection / routing / inspector --- */
   --cx-mod: #8F7DFF;
   --cx-mod-hover: #A693FF;
