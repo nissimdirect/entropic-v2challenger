@@ -7,6 +7,8 @@ import { useCallback, useState } from 'react'
 import { useAutomationStore, type AutomationMode } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
+import { useLayoutStore } from '../../stores/layout'
+import { useProjectStore } from '../../stores/project'
 import type { TriggerMode } from '../../../shared/types'
 import type { Axis } from '../../../shared/axis-binding'
 import { FF } from '../../../shared/feature-flags'
@@ -15,6 +17,12 @@ import {
   TRANSFORM_FIELD_META,
   formatTransformLaneEffectId,
 } from '../../utils/transformLanes'
+import { isTriggerLane } from '../../utils/automation-evaluate'
+import {
+  AUTOMATION_SHAPES,
+  defaultShapePointCount,
+  type AutomationShapeKind,
+} from '../../utils/automation-shapes'
 
 // PR-B Commit-2: Tier-1 selectable axis domains. P6.6 (C2/C3): Y/X now render
 // live — a Y/X-domain lane drives a per-band spatial gradient via the backend
@@ -78,6 +86,20 @@ export default function AutomationToolbar() {
   const [pickerMode, setPickerMode] = useState<'lane' | 'trigger' | null>(null)
   const [pickDomain, setPickDomain] = useState<Axis>('t')
 
+  // AA.3a — Insert Automation Shape: shape/cycles/amplitude config + the
+  // open/closed state of the target-lane picker (mirrors pickerMode above).
+  const [shapePickerOpen, setShapePickerOpen] = useState(false)
+  const [shapeKind, setShapeKind] = useState<AutomationShapeKind>('sine')
+  const [shapeCycles, setShapeCycles] = useState(4)
+  const [shapeAmplitude, setShapeAmplitude] = useState(1)
+  // Subscribe to lanes so the target-lane list refreshes as lanes are added/removed.
+  const lanesByTrack = useAutomationStore((s) => s.lanes)
+  const armedTrackLanes = (armedTrackId ? lanesByTrack[armedTrackId] : undefined) ?? []
+  // Shapes only make sense on continuous lanes — trigger lanes are square-wave
+  // 0/1 envelopes with their own gate/oneShot semantics (mirrors
+  // AutomationTransformBox, which is also skipped for trigger lanes).
+  const shapeTargetLanes = armedTrackLanes.filter((l) => !isTriggerLane(l))
+
   const handleModeChange = useCallback((newMode: AutomationMode) => {
     useAutomationStore.getState().setMode(newMode)
   }, [])
@@ -107,6 +129,31 @@ export default function AutomationToolbar() {
   const handleRamp = useCallback(() => {
     useAutomationStore.getState().rampSelectedPoints()
   }, [])
+
+  // AA.3a — Insert Automation Shape: toggle the target-lane picker panel.
+  const handleToggleShapePicker = useCallback(() => {
+    setShapePickerOpen((prev) => !prev)
+  }, [])
+
+  // AA.3a — bake the configured shape into `laneId` as ONE undo step. Honors
+  // the SAME quantize grid toggle as clip editing (Cmd+U) — same
+  // useLayoutStore/useProjectStore read pattern as AutomationLane.tsx's
+  // getQuantizeOptions()/handleMoveSelection.
+  const handleInsertShape = useCallback(
+    (laneId: string) => {
+      if (!armedTrackId) return
+      const { quantizeEnabled, quantizeDivision } = useLayoutStore.getState()
+      const { bpm } = useProjectStore.getState()
+      useAutomationStore.getState().insertShapeIntoLane(armedTrackId, laneId, shapeKind, {
+        cycles: shapeCycles,
+        amplitude: shapeAmplitude,
+        count: defaultShapePointCount(shapeCycles),
+        quantize: { enabled: quantizeEnabled, bpm, division: quantizeDivision },
+      })
+      setShapePickerOpen(false)
+    },
+    [armedTrackId, shapeKind, shapeCycles, shapeAmplitude],
+  )
 
   const handleClear = useCallback(() => {
     const state = useAutomationStore.getState()
@@ -285,6 +332,21 @@ export default function AutomationToolbar() {
       >
         Ramp
       </button>
+      {/* AA.3a — Insert Automation Shape: one-click bake sine/triangle/saw/
+          square/ramp/random breakpoints into a lane. Standalone of AA.4 —
+          doesn't require a selection (falls back to the lane's own span, or
+          a default span, when none is active). */}
+      <button
+        className="auto-toolbar__btn"
+        onClick={handleToggleShapePicker}
+        title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          ? 'Arm a track first — click the R button on a track header'
+          : 'Insert a generated shape (sine, triangle, saw, square, ramp, random) into a lane'}
+        disabled={!armedTrackId}
+        data-testid="insert-shape-btn"
+      >
+        Shape
+      </button>
       <button
         className="auto-toolbar__btn"
         onClick={handleSimplify}
@@ -345,6 +407,63 @@ export default function AutomationToolbar() {
                 data-testid={`param-option-${opt.paramKey}`}
               >
                 {opt.effectName} &rsaquo; {opt.paramLabel}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+      {shapePickerOpen && armedTrackId && (
+        <div className="auto-toolbar__picker" data-testid="shape-picker">
+          <div className="auto-toolbar__picker-title">Insert Automation Shape</div>
+          <label>
+            Shape:{' '}
+            <select
+              data-testid="shape-kind-select"
+              value={shapeKind}
+              onChange={(e) => setShapeKind(e.target.value as AutomationShapeKind)}
+            >
+              {AUTOMATION_SHAPES.map((s) => (
+                <option key={s.value} value={s.value}>{s.label}</option>
+              ))}
+            </select>
+          </label>
+          <label title="Number of periods across the target range (ignored by Ramp Up/Down; used as the number of hold-steps for Random).">
+            Cycles:{' '}
+            <input
+              data-testid="shape-cycles-input"
+              type="number"
+              min={0.25}
+              step={0.25}
+              value={shapeCycles}
+              onChange={(e) => setShapeCycles(Number(e.target.value))}
+            />
+          </label>
+          <label title="0 = flat line at the lane midpoint, 1 = full swing across the lane's value range.">
+            Amplitude:{' '}
+            <input
+              data-testid="shape-amplitude-input"
+              type="number"
+              min={0}
+              max={1}
+              step={0.05}
+              value={shapeAmplitude}
+              onChange={(e) => setShapeAmplitude(Number(e.target.value))}
+            />
+          </label>
+          {shapeTargetLanes.length === 0 ? (
+            <div className="auto-toolbar__picker-empty">
+              No automation lanes to insert into — add a lane first
+            </div>
+          ) : (
+            shapeTargetLanes.map((lane) => (
+              <button
+                key={lane.id}
+                className="auto-toolbar__picker-item"
+                onClick={() => handleInsertShape(lane.id)}
+                data-testid={`insert-shape-target-${lane.id}`}
+                title={`Insert ${shapeKind} into ${lane.paramPath}`}
+              >
+                <span style={{ color: lane.color }}>&#9679;</span> {lane.paramPath}
               </button>
             ))
           )}
