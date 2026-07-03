@@ -152,3 +152,96 @@ session memory slope vs pressure thresholds; timeline interaction at 64 tracks /
 ## Explicit OUT-OF-SCOPE declarations (so absence is a decision, not an oversight)
 Accessibility sweep (keyboard-only nav, screen-reader labels), multi-monitor/DPI-scaling behaviors,
 i18n/locale, OS-version matrix. Declared not covered by this audit; revisit post-v1.
+
+---
+
+# EXPERT PASS 1 — /don-norman (UX heuristics; the audit tested "does it work", this tests "can a human use it")
+
+These rows feed Stage E of the live plan. Most are MANUAL-REVIEW judgments for the CU session, scored
+per row: PASS / PAPERCUT (rank it) / FAIL (heuristic violation, file a bug).
+
+## DN1 — Signifiers & discoverability (Norman #2; Nielsen #6 recognition-over-recall)
+| # | Check | Why |
+|---|---|---|
+| DN1.1 | Every keyboard-only feature has a discoverable menu/UI equivalent: mask tools (`q`/`l`), Cmd+J/Shift+J region-copy, Alt+Backspace delete-outside, JKL shuttle, Cmd+Shift+I routing canvas | Cross-map all shortcuts ↔ the 61 menu items; shortcut-only = recall, not recognition |
+| DN1.2 | Icon-only buttons all have tooltips: M/S/lock, R/L/T/D automation modes, Overdub, MAP, transport, AB, bank slots | "R" means nothing to a first-time user |
+| DN1.3 | Drag affordances are signified: browser→chain drop zones highlight BEFORE drag starts (hover hint), operator→knob drop, transform-box handles visible on selection | Affordances exist (audit proved) but are they perceptible? |
+| DN1.4 | The Master track's PURPOSE is communicated (label/tooltip "processes the summed output"), not just an amber row | New concept this session; zero in-app explanation found in code read |
+| DN1.5 | Empty states teach: every one found (drag-media hint, "no routings yet", "No actions yet", "Hover an effect for details", welcome recents) reviewed for actionable next-step language | Nielsen #10 embedded in UI |
+
+## DN2 — Feedback & the Gulf of Evaluation (Norman #4/#7; Nielsen #1)
+| # | Check | Why |
+|---|---|---|
+| DN2.1 | THE SILENT NO-OP REGISTER = feedback failures, not polish: operator/mapping cap hits (C2/C3), CC-binding steal (E4), font fallback (row 86), corrupt-load (B7), eyedropper black fallback (A16), audio clip-cap advisory | The audit found these as bugs; Norman frames them: user acts → world doesn't respond → gulf of evaluation. ALL need visible feedback |
+| DN2.2 | Every action >100ms shows progress (ingest, AI matte, bake, export, freeze, thumbnail fetch) AND completion is announced, not just progress vanishing | Feedback must close the loop |
+| DN2.3 | Effect >500ms abort + 3-fail auto-disable: what does the user SEE? (audit row 61/62 + G18) — silent frame-passthrough is a textbook evaluation gulf | The frame just... doesn't change. Why? |
+| DN2.4 | Mode visibility: armed automation mode (R/L/T/D + Overdub), mask tool mode, MAP mode, razor tool — each has a persistent visible indicator while active (mode errors are Norman's #1 slip class) | DAWs are mode-heavy; caps-lock-style slips guaranteed without indicators |
+
+## DN3 — Conceptual models & mapping (Norman #3/#6; Nielsen #2)
+| # | Check | Why |
+|---|---|---|
+| DN3.1 | THREE different "freeze" concepts exist (effect-chain freeze, performance-track freeze/bake, matte freeze-frame class) — naming/iconography must distinguish them or users will form ONE wrong model | Knowledge-based mistake generator |
+| DN3.2 | Absolute vs modulation lanes: is the green-vs-blue distinction LEGENDED anywhere, or must users infer it? blendOp add/multiply/max exposed in plain terms? | AA.2 shipped the mechanics; the model needs communicating |
+| DN3.3 | Clip-anchored vs timeline-anchored automation (the #17/#29 class) — after the bug fixes, the MODEL must be visible: what moves with a clip vs what stays. A one-line inspector hint beats a wiki | #29's bug class is ALSO a mental-model gap |
+| DN3.4 | Master = post-composite ordering: does the UI communicate that master effects apply AFTER track compositing (e.g., chain header "OUTPUT")? | Users will expect per-track semantics |
+| DN3.5 | Modifier consistency sweep: Alt = curve-tension (nodes) but Alt = subtract (masks) but Alt+Backspace = delete-outside; Cmd = snap-bypass (clips) but Cmd+drag ≠ on nodes; double-click = rename (tracks) vs edit (text) vs enter-branch (pads) vs straighten (segments) | Nielsen #4: same gesture should mean the same thing — audit C15 was one instance; this is the systematic sweep |
+
+## DN4 — Error prevention > error messages (Norman error taxonomy; Nielsen #5/#9)
+| # | Check | Why |
+|---|---|---|
+| DN4.1 | Constraints shown BEFORE action where possible: disabled-with-reason (tooltip) beats toast-after-rejection for: instruments-on-master, 11th effect, 65th track, composite placement | Prevention over correction |
+| DN4.2 | Destructive actions inventory: delete track-with-content, remove effect-with-automation, unfreeze, Start Fresh (crash dialog), Clear (automation toolbar) — each is either confirmable OR cleanly undoable, and SAYS which | Norman: undo is the great forgiveness mechanism |
+| DN4.3 | Error message language sweep: "Internal processing error" (audit A10/A11/row 14) fails Nielsen #9 — every user-facing error names the problem + a next step | Errors are evil; vague errors are worse |
+| DN4.4 | Slips audit: capture errors (Cmd+K split vs Cmd+K browser-focus conventions from other apps), description errors (two Add-Track buttons — fixed #390; M/S adjacency), mode errors (drawing a marquee while razor armed) | Design against the taxonomy, not just crashes |
+
+## DN5 — Control & freedom (Nielsen #3) + ethics
+| # | Check | Why |
+|---|---|---|
+| DN5.1 | Undo coverage gaps the audit found are FREEDOM failures: freeze/bake not undoable (row 120), AB switching non-undoable (documented — but is it SIGNALED?), marker ops undoable? | "Can I get out of this?" must always be yes-or-told-why |
+| DN5.2 | Long operations are cancellable: export ✓, AI matte ✓, ingest ✗ (N20), bake ✗ — every >5s op needs an exit | Roach-motel prevention, in-app edition |
+| DN5.3 | Defaults ethics check: autosave-on, quantize default, overdub default OFF (replace locked-in per D2 decision) — defaults serve the user's data safety first | Norman's ethics checklist #4 |
+
+# EXPERT PASS 2 — /cdo (design-implementation craft gates; feeds Stage E + the papercut ranking)
+
+## CD1 — Component-state completeness (Gate 7.1: 8 states)
+Sweep the core interactive set — buttons (transport/toolbar/menu), knobs, sliders, clips, lane
+breakpoints, transform handles, bank slots, browser tiles — for default · hover · **:focus-visible** ·
+active · disabled · loading · error · success. Prediction from code read: **focus-visible is the
+systemic gap** (mouse-first DAW); keyboard-tab through each panel and score it.
+
+## CD2 — Contrast & color discipline (Gate 6; dark theme #1a1a1a)
+4.5:1 body / 3:1 large across: muted grays on panel backgrounds, disabled states, the MOD-violet mask
+outline on dark footage, amber Master row text, green automation dots at 6px (size × contrast), toast
+text, timecode. Verify ≤2 high-chroma colors per screen region (green accent + amber master + violet
+mask + blue modulation = already 4 semantic hues — check they never collide in one panel).
+
+## CD3 — Hit targets (desktop ≥24px, Fitts-critical surfaces)
+M/S/lock buttons, lane breakpoints (grab tolerance vs 6px dot), transform-box corner handles, the 4
+panel resize handles, marker grab zones, clip trim edges (edge vs body precedence), bank-slot cells,
+mask-node reorder arrows. Rank misses as papercuts with px measurements.
+
+## CD4 — Motion & performance craft
+prefers-reduced-motion respected by: marching ants, slot flash (450ms), toast slide, drawer, progress
+pulses. All animations compositor-only (transform/opacity — no layout-thrash animations on the
+timeline). Playback at 30fps+ while UI animates (ties G20).
+
+## CD5 — Token discipline (Gate 7.4 — hex-ratchet already enforces; verify the seams)
+New-feature colors are tokens (--cx-automation-active precedent held for AA.6; check Master amber,
+modulation blue, MOD-violet all named tokens, not hex); spacing/typography from the token scale in new
+panels (AutomationToolbar additions, MasterTrack row, shape picker).
+
+## CD6 — Layout integrity at extremes (Gate 7.6/7.7)
+Every dialog/overlay (export, preferences, routing canvas, MAP overlay, relink, crash-recovery,
+unsaved-changes) opened at MINIMUM panel sizes + focus-mode: nothing clipped/unreachable; no two-line
+buttons; overflow-x is clip-not-hidden (sticky elements survive); 4-handle resize can't wedge a panel
+into an unusable state (min-clamps verified in code — verify visually).
+
+## CD7 — Loading/empty/skeleton language consistency
+ONE loading vocabulary across ingest spinner, thumbnail fetch, AI-matte progress toast, export progress,
+freeze overlay — same shape/rhythm, not five ad-hoc spinners. Empty states (DN1.5) share typographic
+treatment.
+
+## CD8 — Stage E integration
+These CD rows + the DN rows ARE Stage E's checklist. Output: ranked papercut list (severity × frequency
+× effort), token-conformance diff vs docs/roadmap/DESIGN-SPEC.md, and the focus-visible score. Anything
+scoring FAIL on DN2 (silent no-ops) graduates from papercut to bug.
