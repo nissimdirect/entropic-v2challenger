@@ -1,6 +1,17 @@
 import type { AutomationPoint } from '../../shared/types'
 
 /**
+ * A4 — continuous-lane recording write mode (decision D2 + the toggle it
+ * promised): 'replace' is the LOCKED default (punch-replace / touch-overwrite —
+ * a point near the recorded time is overwritten, matching D2's "release
+ * resumes" behavior); 'overdub' is the additive toggle — the new point is
+ * layered on top of the existing lane WITHOUT removing any nearby point
+ * (mirrors recordTriggerPoint's trigger-lane overdub semantics below, now
+ * available for continuous/numeric lanes too).
+ */
+export type AutomationRecordMode = 'replace' | 'overdub'
+
+/**
  * Insert a single recorded point into a sorted automation array.
  * Replaces any existing point within timeThreshold; otherwise inserts in order.
  * Returns a new array (immutable).
@@ -33,6 +44,34 @@ export function recordPoint(
   }
 
   return result
+}
+
+/**
+ * A4 — mode-aware wrapper around `recordPoint`.
+ *
+ * `mode === 'replace'` (default): byte-identical to `recordPoint` — a nearby
+ * point (within `timeThreshold`) is overwritten (punch-replace, D2's locked
+ * default).
+ *
+ * `mode === 'overdub'`: additive layering — the new point is appended to the
+ * existing array (no removal of nearby points) and the array is re-sorted by
+ * time. Existing points are never dropped, matching recordTriggerPoint's
+ * overdub pattern used by trigger lanes.
+ */
+export function recordPointWithMode(
+  existingPoints: AutomationPoint[],
+  time: number,
+  value: number,
+  mode: AutomationRecordMode = 'replace',
+  timeThreshold: number = 0.033
+): AutomationPoint[] {
+  if (mode === 'overdub') {
+    const newPoint: AutomationPoint = { time, value, curve: 0 }
+    const result = [...existingPoints, newPoint]
+    result.sort((a, b) => a.time - b.time)
+    return result
+  }
+  return recordPoint(existingPoints, time, value, timeThreshold)
 }
 
 /**

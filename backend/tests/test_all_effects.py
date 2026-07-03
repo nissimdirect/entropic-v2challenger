@@ -103,6 +103,7 @@ class TestAllEffectsBasic:
             "fx.video_flanger",
             "fx.spatial_flanger",
             "fx.strange_attractor",
+            "fx.extrude_spin",  # generative: replaces frame with an opaque 3D render
         }
         eid, info = effect_entry
         if eid in ALPHA_EXEMPT:

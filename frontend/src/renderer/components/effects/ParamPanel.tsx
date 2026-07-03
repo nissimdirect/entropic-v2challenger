@@ -7,7 +7,7 @@ import ParamMix from './ParamMix'
 import { useAutomationStore } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
-import { recordPoint } from '../../utils/automation-record'
+import { recordPointWithMode } from '../../utils/automation-record'
 
 /**
  * P6.8 (I1) — drag MIME type for "drag a param onto the inspector track to
@@ -53,7 +53,7 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
       const pMin = def.min ?? 0
       const pMax = def.max ?? 1
       const normalized = pMax > pMin ? (value - pMin) / (pMax - pMin) : 0
-      const newPoints = recordPoint(lane.points, time, Math.max(0, Math.min(1, normalized)))
+      const newPoints = recordPointWithMode(lane.points, time, Math.max(0, Math.min(1, normalized)), autoStore.recordMode)
       autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
     },
     [onUpdateParam],

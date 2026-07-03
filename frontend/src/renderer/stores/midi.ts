@@ -16,6 +16,7 @@ import {
   MAX_CC_BANK_BINDINGS,
   MAX_BANK_ASSIGNMENT_CONTEXTS,
   MAX_CC_SLOT_MAPPINGS,
+  MAX_BANK_PAGES,
 } from '../../shared/bankTypes';
 import { usePerformanceStore } from './performance';
 import { handlePadTrigger, releasePadWithCapture } from '../components/performance/padActions';
@@ -89,6 +90,16 @@ interface MIDIState {
   ccBankBindings: CCBankBinding[];
   bankAssignments: Record<string, BankAssignment>;
 
+  // H7 — bank PAGING (bankTypes.ts MAX_BANK_PAGES doc). Which page of the
+  // bank-assignment grid is active for EVERY context (global, not
+  // per-contextKey — mirrors how a physical BANK L/R pair shifts the whole
+  // controller at once). 0-indexed, clamped to [0, MAX_BANK_PAGES - 1] by
+  // bankPageLeft/bankPageRight/setActiveBankIndex — never wraps. Session-only
+  // (NOT persisted via getMIDIPersistData/loadMIDIMappings): it is a live
+  // paging position, not saved project state, so every project load starts
+  // back at page 0.
+  activeBankIndex: number;
+
   // H5 — controller-identity persistence (master plan WS5). The fingerprint of
   // the currently active controller (name+manufacturer, sanitized — see
   // controllerIdentity.ts). Learns are persisted at APP level keyed by this
@@ -116,6 +127,10 @@ interface MIDIState {
   clearCCBankBindings: () => void;
   setBankAssignment: (contextKey: string, assignment: BankAssignment) => void;
   clearBankAssignment: (contextKey: string) => void;
+  // H7 bank paging — clamped (no wrap) at [0, MAX_BANK_PAGES - 1]
+  bankPageLeft: () => void;
+  bankPageRight: () => void;
+  setActiveBankIndex: (index: number) => void;
   // H5 controller-identity: apply the saved binding-set for a connected device
   // (or clear identity when device is null). See action impl for semantics.
   applyControllerIdentity: (device: { name: string; manufacturer: string } | null) => void;
@@ -141,6 +156,7 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
   isSupported: false,
   ccBankBindings: [],
   bankAssignments: {},
+  activeBankIndex: 0,
   ccSlotMappings: [],
   activeControllerFingerprint: null,
 
@@ -223,6 +239,23 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       delete next[contextKey];
       return { bankAssignments: next };
     });
+  },
+
+  // H7 — bank paging. CLAMPED, not wrapped (see bankTypes.ts MAX_BANK_PAGES
+  // doc): paging past either end is a no-op, so a HUD driven off
+  // activeBankIndex gets a stable "at the rail" value instead of silently
+  // jumping back to page 0.
+  bankPageLeft: () => {
+    set((s) => ({ activeBankIndex: Math.max(0, s.activeBankIndex - 1) }));
+  },
+
+  bankPageRight: () => {
+    set((s) => ({ activeBankIndex: Math.min(MAX_BANK_PAGES - 1, s.activeBankIndex + 1) }));
+  },
+
+  setActiveBankIndex: (index) => {
+    if (!Number.isInteger(index)) return;
+    set({ activeBankIndex: Math.max(0, Math.min(MAX_BANK_PAGES - 1, index)) });
   },
 
   // H5 — controller-identity auto-load. Called from useMIDI on device connect /
@@ -425,6 +458,7 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
       channelFilter: null,
       ccBankBindings: [],
       bankAssignments: {},
+      activeBankIndex: 0,
       ccSlotMappings: [],
       // H5 — clear the applied identity so the next device connect re-derives
       // and re-applies its app-level saved bindings. This does NOT touch the

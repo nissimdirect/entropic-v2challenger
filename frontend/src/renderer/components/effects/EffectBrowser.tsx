@@ -6,6 +6,8 @@ import { useBrowserStore, type BrowserTab, BROWSER_TABS } from '../../stores/bro
 import { useToastStore } from '../../stores/toast'
 import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
+import { FF } from '../../../shared/feature-flags'
+import ToolIcon, { type ToolName } from '../../assets/tool-icons'
 // P3.5: instruments tab now renders the real InstrumentsBrowser (INJ-4 fill).
 import InstrumentsBrowser from '../instruments/InstrumentsBrowser'
 // P4.6: op-tab operator entries (grouped) + drag-source handler.
@@ -136,6 +138,25 @@ export const MASK_TOOL_ENTRIES: Array<{
   { id: 'mask-wand',            label: 'Mask Wand',     previewMode: 'wand' },
   { id: 'mask-key-picker',      label: 'Key Picker',    previewMode: 'eyedropper' },
 ]
+
+/**
+ * B3 / L0: map each cursor tool to a Block ToolIcon (tool-icons.tsx). Rendered
+ * in the tool rail under F_CREATRIX_LAYOUT — currentColor only, the button
+ * supplies state color. Tools with no Block glyph fall back to their text label.
+ */
+const TOOL_ICON: Partial<Record<CursorTool, ToolName>> = {
+  select: 'transform',
+  razor: 'razor',
+  slip: 'slip',
+  slide: 'slide',
+  'ripple-delete': 'rippledel',
+  'mask-marquee-rect': 'marqrect',
+  'mask-marquee-ellipse': 'marqellipse',
+  'mask-lasso-freehand': 'lasso',
+  'mask-lasso-polygon': 'polylasso',
+  'mask-wand': 'wand',
+  'mask-key-picker': 'keypicker',
+}
 
 /**
  * isTextInputActive — verbatim from PLAN.md §3.7 (qa-redteam H5 + CTO C3).
@@ -625,6 +646,11 @@ export default function EffectBrowser({
                   title={`Switch to ${label} tool`}
                   data-testid={`tool-item-${id}`}
                 >
+                  {FF.F_CREATRIX_LAYOUT && TOOL_ICON[id] && (
+                    <span className="cx-tool-icon" data-testid={`tool-icon-${id}`}>
+                      <ToolIcon name={TOOL_ICON[id]!} size={18} />
+                    </span>
+                  )}
                   {label}
                   {cursorTool === id && (
                     <span className="effect-browser__tool-active-badge">●</span>
@@ -648,6 +674,11 @@ export default function EffectBrowser({
                   title={`Switch to ${label} mode`}
                   data-testid={`tool-item-${id}`}
                 >
+                  {FF.F_CREATRIX_LAYOUT && TOOL_ICON[id] && (
+                    <span className="cx-tool-icon" data-testid={`tool-icon-${id}`}>
+                      <ToolIcon name={TOOL_ICON[id]!} size={18} />
+                    </span>
+                  )}
                   {label}
                   {cursorTool === id && (
                     <span className="effect-browser__tool-active-badge">●</span>
