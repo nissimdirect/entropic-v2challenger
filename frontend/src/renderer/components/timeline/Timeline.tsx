@@ -183,10 +183,10 @@ export default function Timeline({
               ? <><kbd>Cmd</kbd>+<kbd>I</kbd></>
               : <kbd>&#8984;I</kbd>}, or use File &rarr; Import
           </div>
-          <button className="timeline__add-track-btn" onClick={handleAddTrack}>
+          <button className="timeline__add-track-btn timeline__add-track-btn--video" onClick={handleAddTrack}>
             + Add Track
           </button>
-          <button className="timeline__add-track-btn" onClick={handleAddMidiTrack}>
+          <button className="timeline__add-track-btn timeline__add-track-btn--midi" onClick={handleAddMidiTrack}>
             + MIDI Track
           </button>
         </div>
@@ -208,14 +208,14 @@ export default function Timeline({
         {/* Left: track headers */}
         <div className="timeline__headers">
           <div className="timeline__headers-spacer">
-            <button className="timeline__add-track-btn" onClick={handleAddTrack} title="Add video track">
+            <button className="timeline__add-track-btn timeline__add-track-btn--video" onClick={handleAddTrack} title="Add video track">
               +
             </button>
-            <button className="timeline__add-track-btn" onClick={handleAddMidiTrack} title="Add MIDI track">
+            <button className="timeline__add-track-btn timeline__add-track-btn--midi" onClick={handleAddMidiTrack} title="Add MIDI track">
               +M
             </button>
             <button
-              className="timeline__add-track-btn"
+              className="timeline__add-track-btn timeline__add-track-btn--inspector"
               onClick={handleAddInspectorTrack}
               disabled={tracks.some((t) => t.type === 'inspector')}
               title="Add inspector track"
