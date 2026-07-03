@@ -17,17 +17,17 @@ in ADDITION to Stages A–F below:
   P1-B is fixed (#323) so these should finally pass → **Stage C is the home for these (C2/C3).**
 - **PS1 — MK.CU J1–J5** (Stage F): build the suite for real. It was FABRICATED as "in rule-9
   rotation" (EXECUTION-PLAN:477, corrected by F8) — this is its first real run.
-- **PS3 — MK.13 mode-banner visual gate** (new Stage F.2): spec §14.9 (banner ≤120ms naming the
-  Escape level); a code sweep couldn't find the component — CONFIRM VISUALLY or file 🐛.
+- **PS3 — MK.13 mode-banner** (Stage F.2): DEFERRED — banner is UNSHIPPED (no component in code); a
+  build-backlog item, not a UAT gate.
 - **CU-confirm the parallel session's fresh merges** (new Stage A.7): #336 (no stray track on
   click), #337 (Color-Invert reads "100%" not "1.00%"), #338 (device editor scrolls, preview
-  never collapses — BOTH `F_CREATRIX_LAYOUT` states), #339 (razor/ripple/marker/loop/range cursor
-  tools work by click AND hotkey).
-- **B3 layout CU pass** (new Stage G) — gated on B3 build L2–L4 landing; if the flag layout isn't
-  built yet at run time, Stage G is ⏸ (blocker named: L2–L4 not merged).
-- **MK.12 subject-matte** (new Stage H) — gated on MK.12a (#342) landing; U1–U10 subject-driven
-  modulation incl. the honest v1 single-dominant-subject limitation (corrected by stacking a
-  lasso/wand node). ⏸ if MK.12a not merged at run time.
+  never collapses — BOTH `F_CREATRIX_LAYOUT` states), #339 (razor/ripple/marker/loop cursor
+  tools work by click AND hotkey; the RANGE-select cursor tool was cut in the T5 cull — rangeSelectClips
+  store action survives, but no tool binding — do NOT test a range cursor tool).
+- **B3 layout CU pass** (Stage G) — B3 is DEFAULT-ON (#398 merged); run against the default layout.
+- **MK.12 subject-matte** (Stage H) — SHIPPED (#342 merged, mask_ai_generate live); run U1–U10
+  subject-driven modulation incl. the honest v1 single-dominant-subject limitation (corrected by
+  stacking a lasso/wand node).
 
 **File-ownership boundary (do NOT fix in this lane — file as tasks/issues):** the parallel session
 owns `stores/{midi,layout,timeline}.ts`, `App.tsx`, `BoundingBoxOverlay.tsx`, `TransformPanel.tsx`,
@@ -64,7 +64,7 @@ owns `stores/{midi,layout,timeline}.ts`, `App.tsx`, `BoundingBoxOverlay.tsx`, `T
 | A6 | The 4 e2e-red journeys, manually: watchdog reconnect, effect move-down, full journey (import→effect→param→export), import-dialog hint | match e2e expectations |
 | A7a | **#337 confirm:** add Color Invert to a clip → param label reads **"100%"** at full, not "1.00%" | zoom on the label |
 | A7b | **#338 confirm:** open a tall instrument device editor with a clip selected → preview never collapses; device region scrolls internally — verify in BOTH `F_CREATRIX_LAYOUT` states | screenshot each state |
-| A7c | **#339 confirm:** razor/ripple/marker/loop/range cursor tools each work by CLICK and by HOTKEY | one screenshot per tool showing its effect |
+| A7c | **#339 confirm:** razor/ripple/marker/loop cursor tools each work by CLICK and by HOTKEY (range cursor tool was CUT in T5 — do not test it) | one screenshot per tool showing its effect |
 | A7d | **#336 confirm:** click-select clips near a lane's bottom edge ×10 → NO stray empty tracks appear (the June-17 gesture) | track count stable |
 
 ## Stage B — persistence & round-trip (the F2 class, ~45 min)
@@ -149,17 +149,16 @@ if the masked region doesn't visibly gate the effect, or export alpha ≠ previe
 - J4 key (chroma/luma matte, live-modulated key param)
 - J5 export (ProRes 4444 alpha round-trips; re-import honors alpha)
 
-## Stage F.2 — MK.13 mode-banner visual gate (PS3)
+## Stage F.2 — MK.13 mode-banner — DEFERRED (not in code, verified 2026-07-03)
 
-Spec §14.9: switching mask tool mode shows a banner **within ≤120ms naming the Escape level**.
-A code sweep couldn't locate the banner component — so this is verify-or-file: enter each mask
-tool mode, confirm the banner appears, is legible, names the right Escape level, and clears.
-If absent → 🐛 (spec'd hard gate unshipped), file as a task; do NOT fix here.
+The mode-banner (DESIGN-SPEC §10.2) is UNSHIPPED — grep confirms no banner component exists in
+frontend/src/renderer. This is NOT a runnable UAT gate; it is a build-backlog item. Do not spend CU
+time here; surfacing a banner on mask-mode change is a feature request, not a test failure.
 
-## Stage G — B3 layout CU pass (gated on B3 build L2–L4)
+## Stage G — B3 layout CU pass (B3 is DEFAULT-ON, #398 merged)
 
-⏸ if `F_CREATRIX_LAYOUT` layout (lean headers + LAYER panel) isn't built/merged at run time —
-name the blocker (L2–L4 not merged). When present:
+B3 (lean headers + LAYER panel) ships default-ON as of #398. Run against the DEFAULT layout (compare
+legacy via `localStorage.setItem('entropic-disable-creatrix-layout','1')` + relaunch):
 - G1 arrangement = layers: drag a track row to restack → composite z-order changes (top renders
   front); render-diff confirms front/back swap.
 - G2 lean header: name·eye·`blend·opacity` chip·M/S·twirl only; chip click focuses the LAYER panel.
@@ -168,9 +167,9 @@ name the blocker (L2–L4 not merged). When present:
 - G4 twirl nests the track's fx + automation lanes; edit a nested fx → preview updates.
 - G5 both flag states shippable (flag OFF = today's layout unchanged).
 
-## Stage H — MK.12 subject-driven modulation (gated on MK.12a #342)
+## Stage H — MK.12 subject-driven modulation (SHIPPED — mask_ai_generate live, #342 merged)
 
-⏸ if MK.12a not merged. When present, run the PRD's **U1–U10** (music-video shot → AI subject matte
+MK.12 AI subject matte is shipped and live. Run the PRD's **U1–U10** (music-video shot → AI subject matte
 → subject-driven modulation). Explicitly probe the **honest v1 limitation**: a scene with TWO
 prominent subjects → confirm it tracks the single dominant one, and that stacking a lasso/wand node
 corrects it (documented, not a silent failure). Verdict per U-step + the limitation behavior.
