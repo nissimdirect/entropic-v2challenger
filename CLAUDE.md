@@ -50,6 +50,7 @@ Always check these BEFORE asking the user to reproduce. The crash data is the re
 - Frontend unit: `cd frontend && npx --no vitest run` (MUST use `--no` to use project-local vitest; global `npx vitest` picks up E2E specs)
 - Frontend E2E: `cd frontend && npx playwright test`
 - Single backend file: `python -m pytest tests/test_<name>.py -x --tb=short`
+- Perf tier (opt-in, never per-PR): `cd backend && RUN_PERF=1 python -m pytest -m perf tests/perf/ -n 0 -s` — routing-budget harness + baselines in `docs/perf/`; nightly workflow `perf-nightly.yml`
 
 ## Visual UAT (Computer Use)
 
