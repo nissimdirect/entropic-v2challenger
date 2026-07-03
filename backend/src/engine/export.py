@@ -777,6 +777,18 @@ class ExportManager:
                 # sees the raw decode; transform is applied after — zmq_server:729
                 # vs :766).
                 frame_chain = modulate_chain_for_frame(chain, src_idx, base)
+                # M.3 (Master-Out Bus PRD): resolve THIS frame's automation
+                # overrides onto master_chain too — the SAME per-frame helper
+                # the track chain above uses (modulate_chain_for_frame reads
+                # automation_by_frame[src_idx], which already carries master-
+                # effect paramPath keys — evaluateAutomationOverrides on the
+                # frontend is param-path generic). No parallel mechanism.
+                # master_chain is None (default, no master effects) → skipped.
+                frame_master_chain = (
+                    modulate_chain_for_frame(master_chain, src_idx, base)
+                    if master_chain is not None
+                    else None
+                )
                 # A2b: apply the clip transform AFTER modulation eval, BEFORE the
                 # chain/mask — exactly as preview render_frame does (:766-768). For
                 # the composite branch this transforms the base layer (base_frame).
@@ -796,7 +808,7 @@ class ExportManager:
                         frame_bank_caches=frame_bank_caches,
                         granulator_state=granulator_state,
                         mask_stack=mask_stack,
-                        master_chain=master_chain,
+                        master_chain=frame_master_chain,
                     )
                 else:
                     # MK.10 — single-input export mask parity. Route the per-frame
@@ -836,9 +848,17 @@ class ExportManager:
                     # None (default, no master effects yet) → skipped, byte-
                     # identical. State discarded — master-chain state is not
                     # threaded across frames (M.1 contract, compositor.py).
-                    if master_chain is not None:
+                    # M.3: apply the PER-FRAME modulated chain (frame_master_chain)
+                    # so an automated master param varies over the export, not
+                    # just a single static snapshot.
+                    if frame_master_chain is not None:
                         out, _master_state = apply_chain(
-                            out, master_chain, project_seed, src_idx, resolution, None
+                            out,
+                            frame_master_chain,
+                            project_seed,
+                            src_idx,
+                            resolution,
+                            None,
                         )
                 if text_layers:
                     out = self._composite_text_layers(
@@ -920,6 +940,17 @@ class ExportManager:
                 # P2.3: per-frame operator + automation modulation (export==preview).
                 # Returns `chain` unchanged when no modulation is active.
                 frame_chain = modulate_chain_for_frame(chain, src_idx, frame)
+                # M.3 (Master-Out Bus PRD): same per-frame resolution for
+                # master_chain — reuses modulate_chain_for_frame (no parallel
+                # mechanism), which reads automation_by_frame[src_idx]. That map
+                # already carries master-effect paramPath keys since the
+                # frontend evaluator is param-path generic. None (no master
+                # effects) → skipped, byte-identical.
+                frame_master_chain = (
+                    modulate_chain_for_frame(master_chain, src_idx, frame)
+                    if master_chain is not None
+                    else None
+                )
 
                 # A2b: apply the clip transform (static + per-frame lanes) AFTER
                 # modulation eval, BEFORE the chain/mask — preview render_frame
@@ -945,7 +976,7 @@ class ExportManager:
                         frame_bank_caches=frame_bank_caches,
                         granulator_state=granulator_state,
                         mask_stack=mask_stack,
-                        master_chain=master_chain,
+                        master_chain=frame_master_chain,
                     )
                 else:
                     # MK.10 — single-input export mask parity (inline video loop).
@@ -975,9 +1006,15 @@ class ExportManager:
                     # render_export_frame's single-input branch — see that
                     # comment for full rationale. None (default) → skipped,
                     # byte-identical.
-                    if master_chain is not None:
+                    # M.3: apply the PER-FRAME modulated chain (frame_master_chain).
+                    if frame_master_chain is not None:
                         output, _master_state = apply_chain(
-                            output, master_chain, project_seed, src_idx, resolution, None
+                            output,
+                            frame_master_chain,
+                            project_seed,
+                            src_idx,
+                            resolution,
+                            None,
                         )
 
                 # Composite text layers on top of the processed frame

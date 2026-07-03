@@ -15,7 +15,7 @@
  * visible modulation lane sharing that paramPath folds onto it in array
  * order via its blendOp (composeModulatedValue in automation-evaluate.ts).
  */
-import type { AutomationLane, BlendOp, EffectInfo } from '../../shared/types'
+import type { AutomationLane, BlendOp, EffectInfo, EffectInstance } from '../../shared/types'
 import type { Axis } from '../../shared/axis-binding'
 import { evaluateAutomation, denormalize, isModulationLane, composeModulatedValue } from './automation-evaluate'
 
@@ -117,4 +117,62 @@ export function evaluateAutomationOverrides(
   }
 
   return overrides
+}
+
+/**
+ * M.3 (Master-Out Bus PRD) — apply resolved automation overrides directly
+ * onto a chain's effect params, pure/non-mutating (returns a new array; the
+ * input chain and its effect objects are untouched — same clone contract as
+ * applyPadModulations.ts).
+ *
+ * Why this exists: `master_chain` (App.tsx buildMasterChainPayload call
+ * sites) is serialized and sent as a STATIC snapshot of the Master track's
+ * effectChain — there is no backend `automation_overrides` handling on the
+ * render_composite seam the way render_frame has (Phase 7,
+ * zmq_server.py:750). Track effect automation in the composite/multi-layer
+ * path is a separate pre-existing gap (out of scope here — PRD is Master-only).
+ * For the MASTER chain specifically, baking the override values into the
+ * params BEFORE serialization reuses the exact same evaluator
+ * (evaluateAutomationOverrides) both preview and export already call through
+ * — no parallel override mechanism, no backend change needed for the preview
+ * seam. `overrides` is `undefined`/empty → the chain is returned unchanged
+ * (byte-identical to pre-M.3, same no-op contract as the rest of the render
+ * path).
+ *
+ * Key convention — deliberately `effect.effectId` (the effect TYPE, e.g.
+ * "fx.color_invert"), NOT `effect.id` (the per-instance uuid): the EXPORT
+ * side of this same override (automation_by_frame, resolved backend-side by
+ * modulation/engine.py's `apply_modulation`) matches chain entries by the
+ * serialized `effect_id` field, which is ALWAYS the type
+ * (ipc-serialize.ts's `serializeEffectInstance` never puts the instance id on
+ * the wire — see `SerializedEffectInstance`). Matching by `effect.id` here
+ * would make the value apply in preview (this function runs pre-serialization
+ * and could match on anything) but silently NOT apply in export (the backend
+ * has no instance id to match against) — a preview/export drift the PRD's
+ * hard oracle explicitly forbids. So paramPaths for MASTER automation lanes
+ * MUST be built as `${effect.effectId}.${paramKey}` (see MasterTrack.tsx),
+ * and this function matches the same way, keeping both sides on the one
+ * key convention the backend can actually resolve. (NOTE: this differs from
+ * Track.tsx's per-track "Add Lane" menu, which keys by `effect.id` — that is
+ * a separate, pre-existing convention for per-track lanes not touched by
+ * this packet; scoped strictly to master here.)
+ */
+export function applyAutomationOverridesToChain(
+  chain: EffectInstance[],
+  overrides: Record<string, number> | undefined,
+): EffectInstance[] {
+  if (!overrides || Object.keys(overrides).length === 0) return chain
+  return chain.map((effect) => {
+    let changed = false
+    const parameters = { ...effect.parameters }
+    for (const paramKey of Object.keys(parameters)) {
+      const overrideKey = `${effect.effectId}.${paramKey}`
+      if (!(overrideKey in overrides)) continue
+      const value = overrides[overrideKey]
+      if (typeof value !== 'number' || !Number.isFinite(value)) continue
+      parameters[paramKey] = value
+      changed = true
+    }
+    return changed ? { ...effect, parameters } : effect
+  })
 }

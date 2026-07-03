@@ -350,6 +350,8 @@ export default function Timeline({
                   key={masterTrack.id}
                   track={masterTrack}
                   isSelected={masterTrack.id === selectedTrackId}
+                  zoom={zoom}
+                  scrollX={scrollX}
                 />
               )}
               <Playhead time={playheadTime} zoom={zoom} scrollX={scrollX} onSeek={onSeek} />

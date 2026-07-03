@@ -99,7 +99,7 @@ import ModulationMatrix from './components/operators/ModulationMatrix'
 import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
 import { useAutomationStore } from './stores/automation'
-import { evaluateAutomationOverrides } from './utils/evaluateAutomationOverrides'
+import { evaluateAutomationOverrides, applyAutomationOverridesToChain } from './utils/evaluateAutomationOverrides'
 import { evaluateTransformOverrides, mergeTransformOverride, formatTransformLanePath, parseTransformLanePath, type TransformField } from './utils/transformLanes'
 import { recordChangedTransformFields } from './utils/transform-record'
 // H1 (2026-07-02 master-tuneup WS5): focused-mapping-context statusbar chip —
@@ -1435,8 +1435,18 @@ function AppInner() {
         // M.2b (Master-Out Bus wiring) — the Master track's effect chain, read
         // off timelineState (already captured this frame, same rationale as
         // perfTrackIds above: a coalesced render must not read a stale value).
+        // M.3 — fold this frame's automation overrides (autoOverrides, already
+        // evaluated above at `currentTime` — the SAME evaluator/values the
+        // single-clip render_frame path sends as `automation_overrides`) onto
+        // the master chain's params BEFORE it is serialized, so a master
+        // effect param under automation renders its time-varying value here
+        // too. No overrides → returned unchanged (byte-identical, M.1 no-op
+        // contract preserved).
         const masterTrack = timelineState.tracks.find((t) => t.type === 'master')
-        const masterChain = masterTrack?.effectChain ?? []
+        const masterChain = applyAutomationOverridesToChain(
+          masterTrack?.effectChain ?? [],
+          autoOverrides,
+        )
 
         // M.2b THE TRAP fix: render_frame (single-clip fast path, below) never
         // reads master_chain, so a non-empty Master chain must force the
@@ -3155,6 +3165,15 @@ function AppInner() {
       // M.2b (Master-Out Bus wiring) — export mirrors preview's master_chain
       // seam (M.2 already made export's single-input path apply master; this
       // wires the send side so export actually forwards the chain).
+      // M.3 — unlike preview (one render = one frame, so autoOverrides can be
+      // baked in client-side before sending), export sends ONE master_chain
+      // for the WHOLE job while automation varies per output frame. So the
+      // static chain is sent as-is here, and `automation_by_frame` below
+      // already carries master-effect paramPath keys (evaluateAutomationOverrides
+      // is param-path generic — it doesn't know or care which track an effect
+      // belongs to). The backend (engine/export.py) re-resolves master_chain
+      // per source frame via the SAME modulate_chain_for_frame() helper the
+      // per-clip chain already uses — no parallel per-frame mechanism.
       const masterTrack = useTimelineStore.getState().tracks.find((t) => t.type === 'master')
       const masterChain = masterTrack?.effectChain ?? []
 
