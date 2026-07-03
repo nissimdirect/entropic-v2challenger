@@ -207,6 +207,8 @@ class ExportManager:
         performance: dict | None = None,
         operators: list[dict] | None = None,
         automation_by_frame: dict | None = None,
+        operator_lanes: list[dict] | None = None,
+        operator_lane_base_by_frame: dict | None = None,
         audio_pcm_provider=None,
         mask_stack: list[dict] | None = None,
         transform: dict | None = None,
@@ -243,6 +245,18 @@ class ExportManager:
             evaluator preview uses, so the values are byte-identical to preview;
             the export applies them per frame via ``apply_modulation``'s
             automation-override path (replace, clamped to param bounds).
+        operator_lanes : list[dict], optional
+            AA.3-A export-parity payload — constant operator-lane descriptors
+            (``[{param_path, operator_id, blend_op, depth, min, max}]``) built
+            frontend-side (``buildOperatorLaneSpecs``). The synthetic lane
+            operators themselves travel inside ``operators`` (frontend appends
+            them via ``buildSyntheticLaneOperators``). Absent → legacy export,
+            byte-identical.
+        operator_lane_base_by_frame : dict, optional
+            AA.3-A export-parity payload — the per-SOURCE-frame normalized
+            [0,1] base map (``{source_frame_index: {param_path: float|None}}``),
+            the export analogue of ``operator_lane_base`` in the preview render
+            IPC. Looked up per frame the same way ``automation_by_frame`` is.
         audio_pcm_provider : callable, optional
             ``(frame_index: int, fps: float) -> np.ndarray | None``. Supplies the
             per-frame mono PCM window for the ``audio_follower`` operator so audio
@@ -286,6 +300,16 @@ class ExportManager:
         snap_operators = copy.deepcopy(operators) if operators else None
         snap_automation = (
             copy.deepcopy(automation_by_frame) if automation_by_frame else None
+        )
+        # AA.3-A: snapshot the operator-lane descriptors + per-frame base map
+        # the same way every other mutable modulation payload here is —
+        # post-start edits to the lane's operator params/blendOp cannot change
+        # already-exported frames. Absent → byte-identical legacy export.
+        snap_operator_lanes = copy.deepcopy(operator_lanes) if operator_lanes else None
+        snap_operator_lane_base_by_frame = (
+            copy.deepcopy(operator_lane_base_by_frame)
+            if operator_lane_base_by_frame
+            else None
         )
         # MK.10 — snapshot the active clip's matte stack so the export bakes the
         # SAME masked output preview shows (the headline preview/export parity).
@@ -343,6 +367,8 @@ class ExportManager:
             kwargs={
                 "operators": snap_operators,
                 "automation_by_frame": snap_automation,
+                "operator_lanes": snap_operator_lanes,
+                "operator_lane_base_by_frame": snap_operator_lane_base_by_frame,
                 "audio_pcm_provider": audio_pcm_provider,
                 "cycle_decision": snap_cycle_decision,
                 "mask_stack": snap_mask_stack,
@@ -579,6 +605,8 @@ class ExportManager:
         performance: dict | None = None,
         operators: list[dict] | None = None,
         automation_by_frame: dict | None = None,
+        operator_lanes: list[dict] | None = None,
+        operator_lane_base_by_frame: dict | None = None,
         audio_pcm_provider=None,
         cycle_decision=None,
         mask_stack: list[dict] | None = None,
@@ -661,7 +689,14 @@ class ExportManager:
             # `modulate_chain_for_frame` returns the chain unchanged (legacy
             # path byte-identical).
             mod_operators = operators if isinstance(operators, list) else []
-            mod_active = bool(mod_operators) or bool(automation_by_frame)
+            # AA.3-A: an operator-lane export also carries the synthetic lane
+            # operators inside `operators` (so `mod_operators` is already
+            # non-empty whenever `operator_lanes` is), but the OR is defensive —
+            # a lane-only payload (no other operators/automation) still activates
+            # the modulation engine instead of silently no-op'ing.
+            mod_active = (
+                bool(mod_operators) or bool(automation_by_frame) or bool(operator_lanes)
+            )
             signal_engine = SignalEngine() if mod_active else None
             signal_state: dict = {}
             # B3.2: the most recent per-frame operator values, captured so the
@@ -694,8 +729,18 @@ class ExportManager:
                         auto_overrides, dict
                     ):
                         auto_overrides = None
-                if not mod_operators and not auto_overrides:
+                if not mod_operators and not auto_overrides and not operator_lanes:
                     return base_chain
+                # AA.3-A: the per-source-frame normalized base map (mirrors the
+                # automation_by_frame lookup immediately above — same "int key,
+                # fall back to its JSON-stringified form" boundary handling).
+                op_lane_base = None
+                if operator_lanes and operator_lane_base_by_frame:
+                    op_lane_base = operator_lane_base_by_frame.get(
+                        src_idx
+                    ) or operator_lane_base_by_frame.get(str(src_idx))
+                    if op_lane_base is not None and not isinstance(op_lane_base, dict):
+                        op_lane_base = None
                 values: dict = {}
                 if mod_operators:
                     audio_pcm = None
@@ -723,6 +768,8 @@ class ExportManager:
                     base_chain,
                     registry.get,
                     automation_overrides=auto_overrides,
+                    operator_lane_specs=operator_lanes,
+                    operator_lane_base=op_lane_base,
                 )
 
             # A2b — clip transform for export (preview/export parity). Applies the
@@ -977,7 +1024,12 @@ class ExportManager:
                     # byte-identical.
                     if master_chain is not None:
                         output, _master_state = apply_chain(
-                            output, master_chain, project_seed, src_idx, resolution, None
+                            output,
+                            master_chain,
+                            project_seed,
+                            src_idx,
+                            resolution,
+                            None,
                         )
 
                 # Composite text layers on top of the processed frame

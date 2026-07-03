@@ -9,7 +9,7 @@ import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
-import type { TriggerMode, BlendOp } from '../../../shared/types'
+import type { TriggerMode, BlendOp, AutomationLaneSource } from '../../../shared/types'
 import type { Axis } from '../../../shared/axis-binding'
 import { FF } from '../../../shared/feature-flags'
 import {
@@ -93,6 +93,9 @@ export default function AutomationToolbar() {
   const [pickDomain, setPickDomain] = useState<Axis>('t')
   // AA.2 — blendOp chosen for the NEXT modulation lane created via the "+ Mod" picker.
   const [modBlendOp, setModBlendOp] = useState<BlendOp>('add')
+  // AA.3-A — value source chosen for the NEXT modulation lane: drawn
+  // breakpoints (AA.2 default) or a live LFO operator.
+  const [modSource, setModSource] = useState<AutomationLaneSource>('drawn')
 
   // AA.3a — Insert Automation Shape: shape/cycles/amplitude config + the
   // open/closed state of the target-lane picker (mirrors pickerMode above).
@@ -255,19 +258,52 @@ export default function AutomationToolbar() {
   // currently-selected modBlendOp and the fixed MODULATION_LANE_COLOR.
   const handlePickModTarget = useCallback((targetLane: { paramPath: string }) => {
     if (!armedTrackId) return
-    useAutomationStore.getState().addModulationLane(
+    const autoState = useAutomationStore.getState()
+    const laneId = autoState.addModulationLane(
       armedTrackId,
       targetLane.paramPath,
       MODULATION_LANE_COLOR,
       modBlendOp,
     )
+    // AA.3-A: when the picker's source is 'operator', immediately switch the
+    // just-created lane to a live LFO — setLaneSource seeds the default LFO
+    // config (waveform sine, 1Hz) on first switch.
+    if (modSource === 'operator') {
+      autoState.setLaneSource(armedTrackId, laneId, 'operator')
+    }
     setPickerMode(null)
-  }, [armedTrackId, modBlendOp])
+  }, [armedTrackId, modBlendOp, modSource])
 
   // AA.2 — change an existing modulation lane's blendOp inline.
   const handleChangeModBlendOp = useCallback((laneId: string, blendOp: BlendOp) => {
     if (!armedTrackId) return
     useAutomationStore.getState().setLaneBlendOp(armedTrackId, laneId, blendOp)
+  }, [armedTrackId])
+
+  // AA.3-A — toggle an existing modulation lane's value source inline.
+  const handleChangeLaneSource = useCallback((laneId: string, source: AutomationLaneSource) => {
+    if (!armedTrackId) return
+    useAutomationStore.getState().setLaneSource(armedTrackId, laneId, source)
+  }, [armedTrackId])
+
+  // AA.3-A — LFO param edits for an operator-sourced lane's generator panel.
+  const handleChangeLfoRate = useCallback((laneId: string, rateHz: number) => {
+    if (!armedTrackId || !Number.isFinite(rateHz)) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, {
+      params: { rate_hz: rateHz },
+    })
+  }, [armedTrackId])
+
+  const handleChangeLfoWaveform = useCallback((laneId: string, waveform: string) => {
+    if (!armedTrackId) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, {
+      params: { waveform },
+    })
+  }, [armedTrackId])
+
+  const handleChangeLaneOperatorDepth = useCallback((laneId: string, depth: number) => {
+    if (!armedTrackId || !Number.isFinite(depth)) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, { depth })
   }, [armedTrackId])
 
   const handlePickParam = useCallback((option: ParamOption) => {
@@ -485,6 +521,20 @@ export default function AutomationToolbar() {
               ))}
             </select>
           </label>
+          {/* AA.3-A — value source for the lane about to be created: drawn
+              breakpoints (paint it yourself, AA.2 default) or a live LFO
+              (backend-evaluated every frame, spec docs/plans/2026-07-03-aa3-live-generators-spec.md). */}
+          <label title="Drawn: paint breakpoints yourself. Operator (LFO): a live sine/tri/saw/square generator drives the value every frame.">
+            Source:{' '}
+            <select
+              data-testid="mod-source-select"
+              value={modSource}
+              onChange={(e) => setModSource(e.target.value as AutomationLaneSource)}
+            >
+              <option value="drawn">Drawn</option>
+              <option value="operator">Operator (LFO)</option>
+            </select>
+          </label>
           {modTargetLanes.length === 0 ? (
             <div className="auto-toolbar__picker-empty">
               No automation lanes to modulate — add a lane first
@@ -522,6 +572,54 @@ export default function AutomationToolbar() {
                   <option key={b.value} value={b.value}>{b.label}</option>
                 ))}
               </select>
+              {' '}
+              {/* AA.3-A — inline source toggle + LFO generator panel, shown
+                  when this lane is operator-sourced. */}
+              <select
+                data-testid={`mod-source-select-${lane.id}`}
+                value={lane.source ?? 'drawn'}
+                onChange={(e) => handleChangeLaneSource(lane.id, e.target.value as AutomationLaneSource)}
+              >
+                <option value="drawn">Drawn</option>
+                <option value="operator">LFO</option>
+              </select>
+              {lane.source === 'operator' && lane.operator && (
+                <span className="auto-toolbar__lfo-panel" data-testid={`lfo-panel-${lane.id}`}>
+                  {' '}
+                  <select
+                    data-testid={`lfo-waveform-select-${lane.id}`}
+                    value={String(lane.operator.params.waveform ?? 'sine')}
+                    onChange={(e) => handleChangeLfoWaveform(lane.id, e.target.value)}
+                  >
+                    <option value="sine">Sine</option>
+                    <option value="triangle">Triangle</option>
+                    <option value="saw">Saw</option>
+                    <option value="square">Square</option>
+                  </select>
+                  {' '}
+                  <input
+                    type="number"
+                    step={0.1}
+                    min={0}
+                    data-testid={`lfo-rate-input-${lane.id}`}
+                    title="LFO rate (Hz)"
+                    value={Number(lane.operator.params.rate_hz ?? 1)}
+                    onChange={(e) => handleChangeLfoRate(lane.id, e.target.valueAsNumber)}
+                  />
+                  {' Hz '}
+                  <input
+                    type="number"
+                    step={0.05}
+                    min={0}
+                    max={1}
+                    data-testid={`lfo-depth-input-${lane.id}`}
+                    title="Depth — scales the LFO's influence [0,1]"
+                    value={lane.operator.depth ?? 1}
+                    onChange={(e) => handleChangeLaneOperatorDepth(lane.id, e.target.valueAsNumber)}
+                  />
+                  {' depth'}
+                </span>
+              )}
             </label>
           ))}
         </div>
