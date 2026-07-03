@@ -221,7 +221,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #4ade80;
+  background: var(--cx-automation-active);
   box-shadow: 0 0 3px rgba(74, 222, 128, 0.8);
   pointer-events: none;
 }
