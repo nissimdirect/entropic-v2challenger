@@ -447,6 +447,20 @@ export type TriggerMode = 'toggle' | 'gate' | 'one-shot';
  */
 export type InterpolationMode = 'smooth' | 'step' | 'gate' | 'oneShot';
 
+// AA.2 — a lane's role in composition. Absent (undefined) === 'absolute', so
+// every pre-AA.2 project file (no `kind` field at all) keeps behaving exactly
+// as before (back-compat). 'modulation' lanes are STANDALONE drawn relative
+// envelopes (their own breakpoints — NOT an operator reference; operators are
+// AA.3's job) that superimpose onto the absolute lane sharing their paramPath
+// instead of overwriting it. See automation-evaluate.ts composeModulatedValue().
+export type AutomationLaneKind = 'absolute' | 'modulation';
+
+// How a modulation lane's evaluated value combines with the base (absolute
+// lane, or — when no absolute lane exists on the param — the first
+// modulation lane in lane order) value. Default 'add' when absent, mirroring
+// the backend operator-routing blend default (routing.py).
+export type BlendOp = 'add' | 'multiply' | 'max';
+
 export interface AutomationLane {
   id: string;
   paramPath: string;
@@ -460,6 +474,9 @@ export interface AutomationLane {
   // it controls between-keyframe interp ALONG the chosen axis, not lane behavior.
   // Tier-1 only renders broadcast/t; richer domains (y/x/...) land with C2/C3.
   axisBinding?: LaneAxisBinding;
+  // AA.2 — see AutomationLaneKind/BlendOp doc comments above.
+  kind?: AutomationLaneKind;
+  blendOp?: BlendOp;
 }
 
 export interface AutomationPoint {
