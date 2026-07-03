@@ -2123,7 +2123,13 @@ function AppInner() {
     // is a follow-up. Multi-clip composites (or when text/sampler layers are active) use
     // render_composite in preview — we cannot replicate that in export_frame without
     // backend composite support. Show a toast and skip rather than exporting a wrong frame.
-    if (activeVideoClips.length > 1) {
+    //
+    // M.2b parity (redteam MEDIUM; #344 silent-parity class): a non-empty Master chain
+    // also forces the composite path in preview (shouldUseCompositePath), which export_frame
+    // cannot replicate — so a single-clip project with a master effect would silently export
+    // a PNG WITHOUT the master fx while preview shows it. Bail to the Export dialog instead.
+    const masterChain = timeline.tracks.find((t) => t.type === 'master')?.effectChain ?? []
+    if (activeVideoClips.length > 1 || masterChain.length > 0) {
       useToastStore.getState().addToast({
         level: 'info',
         message: 'Composite frames: use Export dialog',
