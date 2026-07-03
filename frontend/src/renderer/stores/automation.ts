@@ -37,6 +37,11 @@ import { undoable } from './undo'
 import { useToastStore } from './toast'
 import { simplifyPoints } from '../utils/automation-simplify'
 import type { AutomationRecordMode } from '../utils/automation-record'
+import {
+  generateShapePoints,
+  defaultShapePointCount,
+  type AutomationShapeKind,
+} from '../utils/automation-shapes'
 
 export type AutomationMode = 'read' | 'latch' | 'touch' | 'draw'
 export type { AutomationRecordMode } from '../utils/automation-record'
@@ -155,6 +160,34 @@ export function rampParams(firstValue: number, lastValue: number): BoxTransformP
     valueShiftRight: lastValue,
     anchorValue: 0,
   }
+}
+
+// AA.3a — Insert Automation Shape: one-click bake a generated shape's
+// breakpoints into a lane. STANDALONE of AA.4/AA.4b, but reuses the AA.4
+// point selection (when it targets THIS lane with >= 2 points) to infer the
+// insert range, and the same quantize grid toggle as clip editing /
+// moveSelectedPoints.
+export interface InsertShapeOptions {
+  cycles: number
+  amplitude: number
+  phase?: number
+  min?: number
+  max?: number
+  /** Explicit range — takes priority over the selection/lane/default fallbacks below. */
+  startTime?: number
+  endTime?: number
+  /** Point count — defaults to `defaultShapePointCount(cycles)` when omitted. */
+  count?: number
+  quantize?: QuantizeGridOptions
+}
+
+/** Default time span (seconds), anchored at t=0, used when a lane has < 2
+ *  existing points and there's no explicit range or usable point selection
+ *  to infer one from. */
+const DEFAULT_SHAPE_SPAN_SEC = 4
+
+function isFiniteNum(v: unknown): v is number {
+  return typeof v === 'number' && Number.isFinite(v)
 }
 
 /**
@@ -319,6 +352,26 @@ interface AutomationState {
    * points. ONE undo step (delegates to transformSelectedPoints).
    */
   rampSelectedPoints: () => void
+
+  // AA.3a — Insert Automation Shape
+  /**
+   * One-click bake `shape`'s generated breakpoints into `laneId`, as ONE
+   * undoable step. Target range: `opts.startTime`/`opts.endTime` when given,
+   * else the AA.4 point selection's own [min,max] time span (only when that
+   * selection targets THIS exact trackId+laneId with >= 2 points), else the
+   * lane's own existing first->last point span, else a default span anchored
+   * at t=0 (DEFAULT_SHAPE_SPAN_SEC). Existing points strictly inside the
+   * resolved range are replaced; points outside it are left untouched.
+   * `opts.quantize` grid-snaps the generated point times (same toggle as
+   * clip editing / moveSelectedPoints).
+   */
+  insertShapeIntoLane: (
+    trackId: string,
+    laneId: string,
+    shape: AutomationShapeKind,
+    opts: InsertShapeOptions,
+  ) => void
+
   /**
    * Non-undoable raw point replace for a single lane — used ONLY for the
    * transform box's live drag preview (AutomationTransformBox.tsx), which
@@ -1026,6 +1079,97 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       undefined,
       'Ramp automation selection',
     )
+  },
+
+  // AA.3a — Insert Automation Shape
+
+  insertShapeIntoLane: (trackId, laneId, shape, opts) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane) return
+
+    // Resolve the target [startTime, endTime] span — see doc comment on the
+    // interface method above for the fallback order.
+    let startTime = opts.startTime
+    let endTime = opts.endTime
+
+    if (!(isFiniteNum(startTime) && isFiniteNum(endTime))) {
+      const selection = get().selectedPoints
+      if (
+        selection &&
+        selection.trackId === trackId &&
+        selection.laneId === laneId &&
+        selection.indices.length >= 2
+      ) {
+        const times = selection.indices
+          .map((i) => lane.points[i]?.time)
+          .filter(isFiniteNum)
+        if (times.length >= 2) {
+          startTime = Math.min(...times)
+          endTime = Math.max(...times)
+        }
+      }
+    }
+
+    if (!(isFiniteNum(startTime) && isFiniteNum(endTime)) && lane.points.length >= 2) {
+      startTime = lane.points[0].time
+      endTime = lane.points[lane.points.length - 1].time
+    }
+
+    if (!(isFiniteNum(startTime) && isFiniteNum(endTime))) {
+      startTime = 0
+      endTime = DEFAULT_SHAPE_SPAN_SEC
+    }
+
+    let lo = Math.min(startTime as number, endTime as number)
+    let hi = Math.max(startTime as number, endTime as number)
+    if (lo === hi) hi = lo + DEFAULT_SHAPE_SPAN_SEC // degenerate zero-width guard
+
+    const count = isFiniteNum(opts.count) && opts.count >= 1
+      ? Math.round(opts.count)
+      : defaultShapePointCount(opts.cycles)
+
+    const generated = generateShapePoints(shape, {
+      cycles: opts.cycles,
+      amplitude: opts.amplitude,
+      phase: opts.phase,
+      min: opts.min,
+      max: opts.max,
+      startTime: lo,
+      endTime: hi,
+      count,
+    })
+
+    // Grid-snap each generated point's time (same toggle as clip editing /
+    // moveSelectedPoints), then clamp to >= 0.
+    const quantized = generated.map((p) => ({
+      ...p,
+      time: Math.max(0, quantizeTime(p.time, opts.quantize)),
+    }))
+
+    // Replace any existing points inside [lo, hi] with the freshly
+    // generated shape; points outside the span are left untouched.
+    const oldPoints = lane.points
+    const outside = oldPoints.filter((p) => p.time < lo || p.time > hi)
+    const merged = [...outside, ...quantized].sort((a, b) => a.time - b.time)
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: merged } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Insert ${shape} shape`, forward, inverse)
   },
 
   setPointsRaw: (trackId, laneId, points) => {
