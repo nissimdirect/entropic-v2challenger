@@ -212,6 +212,7 @@ class ExportManager:
         transform: dict | None = None,
         transform_clip_id: str | None = None,
         master_chain: list[dict] | None = None,
+        master_automation_by_frame: dict | None = None,
     ) -> ExportJob:
         """Start a background export. Returns the job for status tracking.
 
@@ -243,6 +244,27 @@ class ExportManager:
             evaluator preview uses, so the values are byte-identical to preview;
             the export applies them per frame via ``apply_modulation``'s
             automation-override path (replace, clamped to param bounds).
+            HIGH silent-parity fix (PR #406): this map is CLIP/TRACK-lane
+            scoped only (the frontend excludes Master-track lanes from it) and
+            is applied EXCLUSIVELY to the per-clip/track ``chain`` — never to
+            ``master_chain``. Master lane overrides arrive separately via
+            ``master_automation_by_frame`` below. Before this fix both chains
+            were modulated from the SAME flat map; since ``apply_modulation``
+            matches chain entries by effect TYPE (not track/clip identity), a
+            Master lane on e.g. ``fx.color_invert.amount`` silently overrode
+            any CLIP effect of that same type too — invisible in preview
+            (whose composite path never calls ``apply_modulation`` for the
+            per-clip chain) but present in export.
+        master_automation_by_frame : dict, optional
+            HIGH silent-parity fix (PR #406) — the Master track's OWN
+            automation lanes, pre-resolved the SAME way as
+            ``automation_by_frame`` but scoped strictly to lanes that live on
+            the Master track. Applied EXCLUSIVELY to ``master_chain`` via the
+            SAME ``modulate_chain_for_frame`` helper the clip/track chain
+            uses (via its ``automation_source`` override), so it can never
+            reach a per-clip/track effect. ``None``/empty → ``master_chain``
+            gets no per-frame automation (still receives operator modulation
+            and its own static params unchanged, same as before this fix).
         audio_pcm_provider : callable, optional
             ``(frame_index: int, fps: float) -> np.ndarray | None``. Supplies the
             per-frame mono PCM window for the ``audio_follower`` operator so audio
@@ -305,6 +327,15 @@ class ExportManager:
         snap_master_chain = (
             copy.deepcopy(master_chain) if master_chain else master_chain
         )
+        # HIGH silent-parity fix (PR #406): snapshot the Master track's OWN
+        # automation map SEPARATELY from snap_automation (clip/track-only as
+        # of this fix) — see the `master_automation_by_frame` docstring above
+        # for why this must never be merged back into the clip/track map.
+        snap_master_automation = (
+            copy.deepcopy(master_automation_by_frame)
+            if master_automation_by_frame
+            else None
+        )
 
         # P5b.8 (SG-5 part B): compute the cycle-break decision ONCE at job start
         # so the same break applies to every frame of this export job. This snapshot
@@ -349,6 +380,7 @@ class ExportManager:
                 "transform": snap_transform,
                 "transform_clip_id": snap_transform_clip_id,
                 "master_chain": snap_master_chain,
+                "master_automation_by_frame": snap_master_automation,
             },
             daemon=True,
         )
@@ -585,6 +617,7 @@ class ExportManager:
         transform: dict | None = None,
         transform_clip_id: str | None = None,
         master_chain: list[dict] | None = None,
+        master_automation_by_frame: dict | None = None,
     ):
         reader = None
         writer = None
@@ -661,7 +694,11 @@ class ExportManager:
             # `modulate_chain_for_frame` returns the chain unchanged (legacy
             # path byte-identical).
             mod_operators = operators if isinstance(operators, list) else []
-            mod_active = bool(mod_operators) or bool(automation_by_frame)
+            mod_active = (
+                bool(mod_operators)
+                or bool(automation_by_frame)
+                or bool(master_automation_by_frame)
+            )
             signal_engine = SignalEngine() if mod_active else None
             signal_state: dict = {}
             # B3.2: the most recent per-frame operator values, captured so the
@@ -669,8 +706,21 @@ class ExportManager:
             # the SAME values used for chain routing this frame (preview parity).
             last_operator_values: dict = {}
 
+            # HIGH silent-parity fix (PR #406) sentinel — distinguishes
+            # "automation_source omitted" (fall back to automation_by_frame,
+            # the clip/track map) from "automation_source explicitly None"
+            # (the master call sites, when the Master has no automation at
+            # all — must NOT fall back to the clip/track map). See
+            # modulate_chain_for_frame's docstring below.
+            _UNSET_AUTOMATION_SOURCE = object()
+
             def modulate_chain_for_frame(
-                base_chain: list[dict], src_idx: int, video_frame
+                base_chain: list[dict],
+                src_idx: int,
+                video_frame,
+                # dict | None | <unset sentinel> — see the sentinel comment
+                # above for why this can't just default to None.
+                automation_source=_UNSET_AUTOMATION_SOURCE,
             ) -> list[dict]:
                 """Return the per-frame modulated chain (operators + automation).
 
@@ -678,18 +728,36 @@ class ExportManager:
                 evaluate_all → apply_modulation (operator routings first, then
                 automation overrides replace). Returns the chain unchanged when no
                 modulation is active so the legacy export stays byte-identical.
+
+                HIGH silent-parity fix (PR #406): `automation_source` selects
+                WHICH per-frame override map this call resolves against — when
+                OMITTED (the sentinel default), it falls back to the outer
+                `automation_by_frame` (clip/track-only as of this fix) for the
+                per-clip/track chain. The master_chain call sites pass
+                `automation_source=master_automation_by_frame` EXPLICITLY
+                (which may legitimately be `None` when the Master has no
+                automation) so a Master lane can NEVER resolve against a
+                clip/track chain's effects (and vice versa) — `apply_modulation`
+                matches by effect TYPE, not by which chain it was called with,
+                so the two maps must never be merged. The sentinel (rather than
+                a plain `None` default) is required so an explicit `None` from
+                the master call sites is NOT mistaken for "omitted" and
+                doesn't fall back to the clip/track map.
                 """
                 nonlocal signal_state, last_operator_values
                 if not mod_active:
                     last_operator_values = {}
                     return base_chain
+                source = (
+                    automation_by_frame
+                    if automation_source is _UNSET_AUTOMATION_SOURCE
+                    else automation_source
+                )
                 auto_overrides = None
-                if automation_by_frame:
+                if source:
                     # Frontend pre-resolved per source-frame override map (keyed by
                     # source frame index, stringified over the IPC/JSON boundary).
-                    auto_overrides = automation_by_frame.get(
-                        src_idx
-                    ) or automation_by_frame.get(str(src_idx))
+                    auto_overrides = source.get(src_idx) or source.get(str(src_idx))
                     if auto_overrides is not None and not isinstance(
                         auto_overrides, dict
                     ):
@@ -779,13 +847,19 @@ class ExportManager:
                 frame_chain = modulate_chain_for_frame(chain, src_idx, base)
                 # M.3 (Master-Out Bus PRD): resolve THIS frame's automation
                 # overrides onto master_chain too — the SAME per-frame helper
-                # the track chain above uses (modulate_chain_for_frame reads
-                # automation_by_frame[src_idx], which already carries master-
-                # effect paramPath keys — evaluateAutomationOverrides on the
-                # frontend is param-path generic). No parallel mechanism.
+                # the track chain above uses. HIGH silent-parity fix (PR #406):
+                # passes `automation_source=master_automation_by_frame`
+                # EXPLICITLY — the Master-only map — instead of falling back to
+                # `automation_by_frame` (now clip/track-only), so a Master lane
+                # can never resolve against a same-type CLIP effect here.
                 # master_chain is None (default, no master effects) → skipped.
                 frame_master_chain = (
-                    modulate_chain_for_frame(master_chain, src_idx, base)
+                    modulate_chain_for_frame(
+                        master_chain,
+                        src_idx,
+                        base,
+                        automation_source=master_automation_by_frame,
+                    )
                     if master_chain is not None
                     else None
                 )
@@ -942,12 +1016,18 @@ class ExportManager:
                 frame_chain = modulate_chain_for_frame(chain, src_idx, frame)
                 # M.3 (Master-Out Bus PRD): same per-frame resolution for
                 # master_chain — reuses modulate_chain_for_frame (no parallel
-                # mechanism), which reads automation_by_frame[src_idx]. That map
-                # already carries master-effect paramPath keys since the
-                # frontend evaluator is param-path generic. None (no master
-                # effects) → skipped, byte-identical.
+                # mechanism). HIGH silent-parity fix (PR #406): passes
+                # `automation_source=master_automation_by_frame` EXPLICITLY (the
+                # Master-only map) so a Master lane never resolves against a
+                # same-type CLIP effect via `automation_by_frame`. None (no
+                # master effects) → skipped, byte-identical.
                 frame_master_chain = (
-                    modulate_chain_for_frame(master_chain, src_idx, frame)
+                    modulate_chain_for_frame(
+                        master_chain,
+                        src_idx,
+                        frame,
+                        automation_source=master_automation_by_frame,
+                    )
                     if master_chain is not None
                     else None
                 )

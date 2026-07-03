@@ -65,6 +65,13 @@ def _automation_sweep(end_frame: int) -> dict:
 def _export(
     input_path, out_path, *, export_type, automation_by_frame=None, end_frame=6
 ):
+    """`automation_by_frame` here is the MASTER-track sweep (this whole file
+    isolates master_chain via an empty `chain=[]`). HIGH silent-parity fix
+    (PR #406): master lane overrides now travel via the dedicated
+    `master_automation_by_frame` param, NOT the (now clip/track-only)
+    `automation_by_frame` — see engine/export.py's docstring. Threading it
+    through as `master_automation_by_frame` here keeps this test's intent
+    (a Master automation sweep) correct under the fixed API."""
     mgr = ExportManager()
     job = mgr.start(
         input_path=input_path,
@@ -81,7 +88,7 @@ def _export(
             "include_audio": False,
         },
         master_chain=MASTER_INVERT,
-        automation_by_frame=automation_by_frame,
+        master_automation_by_frame=automation_by_frame,
     )
     return mgr, job
 
@@ -268,3 +275,150 @@ def test_image_sequence_master_static_amount_unaffected_by_m3_path(
             static_bgr = cv2.imread(os.path.join(d_static, sf), cv2.IMREAD_COLOR)
             expected = 255 - base_bgr.astype(np.int16)
             np.testing.assert_array_equal(static_bgr.astype(np.int16), expected)
+
+
+# ---------------------------------------------------------------------------
+# HIGH silent-parity regression (redteam-confirmed, PR #406): a Master lane's
+# automation must NEVER bleed onto a same-type CLIP effect on export.
+#
+# Root cause (pre-fix): export.py fed the SAME flat `automation_by_frame`
+# dict to `modulate_chain_for_frame` for BOTH the per-clip/track chain and
+# `master_chain`. Since `apply_modulation` (modulation/engine.py) matches
+# chain entries by effect TYPE (`effect_id`), not by which chain/track they
+# live on, a Master lane on "fx.color_invert.amount" silently ALSO overrode
+# any CLIP effect of that same type — invisible in preview (whose composite
+# path never calls `apply_modulation` for the per-clip chain) but present in
+# every export. Fix: master lane overrides now travel via the dedicated
+# `master_automation_by_frame` param, applied EXCLUSIVELY to `master_chain`.
+# ---------------------------------------------------------------------------
+
+CLIP_INVERT = [
+    {
+        "effect_id": "fx.color_invert",
+        "params": {"channel": "all", "amount": 0.0},
+        "enabled": True,
+    }
+]
+
+
+def test_master_automation_does_not_contaminate_same_type_clip_effect(
+    synthetic_video_path,
+):
+    """A CLIP `fx.color_invert` (static amount=0, never automated) plus a
+    MASTER `fx.color_invert` swept 0->1 via `master_automation_by_frame`:
+    the clip effect's own param must stay UNCHANGED by the master lane.
+
+    Oracle: `fx.color_invert` at amount=1 is self-cancelling when applied
+    TWICE (out = 255 - base, so invert(invert(x)) == x). If the bug were
+    present, the master override would ALSO force the clip's amount to 1
+    (same type key), so the clip pass would already invert the frame and the
+    master pass would invert it AGAIN — cancelling back to the ORIGINAL
+    uninverted pixels. The fixed behavior must show exactly ONE inversion
+    (from the master pass only) on the last (amount=1) frame.
+    """
+    end_frame = 6
+    auto = _automation_sweep(end_frame)
+    settings = {
+        "export_type": "image_sequence",
+        "image_format": "png",
+        "region": "custom",
+        "start_frame": 0,
+        "end_frame": end_frame,
+        "fps": "source",
+        "include_audio": False,
+    }
+    with tempfile.TemporaryDirectory() as base:
+        d_clip_only = os.path.join(base, "clip-only")
+        d_both = os.path.join(base, "clip-plus-automated-master")
+
+        job_clip_only = ExportManager().start(
+            input_path=synthetic_video_path,
+            output_path=d_clip_only,
+            chain=CLIP_INVERT,
+            project_seed=7,
+            settings=settings,
+        )
+        job_both = ExportManager().start(
+            input_path=synthetic_video_path,
+            output_path=d_both,
+            chain=CLIP_INVERT,
+            project_seed=7,
+            settings=settings,
+            master_chain=MASTER_INVERT,
+            master_automation_by_frame=auto,
+        )
+        assert _run_to_completion(job_clip_only) == ExportStatus.COMPLETE, (
+            job_clip_only.error
+        )
+        assert _run_to_completion(job_both) == ExportStatus.COMPLETE, job_both.error
+
+        import cv2
+
+        clip_only_frames = sorted(os.listdir(d_clip_only))
+        both_frames = sorted(os.listdir(d_both))
+        assert len(clip_only_frames) == len(both_frames) == end_frame + 1
+
+        # Frame 0: master amount=0 too (sweep starts at 0) -> both runs match
+        # (clip's own amount was never automated — stays at its static 0).
+        c0 = cv2.imread(
+            os.path.join(d_clip_only, clip_only_frames[0]), cv2.IMREAD_COLOR
+        )
+        b0 = cv2.imread(os.path.join(d_both, both_frames[0]), cv2.IMREAD_COLOR)
+        np.testing.assert_array_equal(c0, b0)
+
+        # Last frame: master amount=1 -> exactly ONE inversion of whatever
+        # the (untouched) clip pass produced.
+        c_last = cv2.imread(
+            os.path.join(d_clip_only, clip_only_frames[-1]), cv2.IMREAD_COLOR
+        )
+        b_last = cv2.imread(os.path.join(d_both, both_frames[-1]), cv2.IMREAD_COLOR)
+        expected_single_invert = 255 - c_last.astype(np.int16)
+        np.testing.assert_array_equal(b_last.astype(np.int16), expected_single_invert)
+        assert not np.array_equal(b_last, c_last), (
+            "CLIP effect was contaminated by the Master automation lane — "
+            "the clip's own amount was ALSO forced to 1, so the double "
+            "invert cancelled back to the uninverted baseline (the exact "
+            "PR #406 HIGH silent-parity bug)"
+        )
+
+
+def test_master_own_param_automation_still_works_after_scoping_fix(
+    synthetic_video_path,
+):
+    """Regression guard for the scoping fix itself: with NO clip chain at
+    all (chain=[]), the Master's OWN param automation via
+    `master_automation_by_frame` must still vary per frame end-to-end —
+    proving the fix didn't accidentally break M.3's headline feature while
+    closing the cross-chain leak."""
+    end_frame = 6
+    auto = _automation_sweep(end_frame)
+    with tempfile.TemporaryDirectory() as base:
+        d_auto = os.path.join(base, "master-auto-only")
+        job_auto = ExportManager().start(
+            input_path=synthetic_video_path,
+            output_path=d_auto,
+            chain=[],
+            project_seed=7,
+            settings={
+                "export_type": "image_sequence",
+                "image_format": "png",
+                "region": "custom",
+                "start_frame": 0,
+                "end_frame": end_frame,
+                "fps": "source",
+                "include_audio": False,
+            },
+            master_chain=MASTER_INVERT,
+            master_automation_by_frame=auto,
+        )
+        assert _run_to_completion(job_auto) == ExportStatus.COMPLETE, job_auto.error
+
+        import cv2
+
+        auto_frames = sorted(os.listdir(d_auto))
+        assert len(auto_frames) == end_frame + 1
+        f0 = cv2.imread(os.path.join(d_auto, auto_frames[0]), cv2.IMREAD_COLOR)
+        f_last = cv2.imread(os.path.join(d_auto, auto_frames[-1]), cv2.IMREAD_COLOR)
+        # amount=0 at frame 0 vs amount=1 at the last frame must differ —
+        # the master effect is genuinely time-varying, not a static bake.
+        assert not np.array_equal(f0, f_last)
