@@ -218,29 +218,39 @@ describe('store integration: applyControllerIdentity', () => {
     expect(after.ccBankBindings).toEqual(before); // not wiped
   });
 
+  // NOTE: these two generic-identity-persistence tests intentionally use a
+  // NON-MIDImix fixture ('Generic Pad'/'Generic Co') rather than 'MIDI
+  // Mix'/'AKAI'. E18 wires an auto-apply-the-built-in-factory-profile
+  // fallback for a MIDImix fingerprint with zero saved bindings (see the
+  // dedicated 'E18 — factory profile auto-apply' describe block below), which
+  // would otherwise make these two tests' "starts empty, only cc20 present"
+  // assertions collide with that new behavior. The guard logic under test
+  // here (persist-under-fingerprint, don't-blind-replace-an-unpersisted-learn)
+  // is identical for any controller identity, so a non-colliding fixture name
+  // preserves 100% of the original intent and assertions.
   it('persists a learn under the active fingerprint (reconnect = already mapped)', () => {
     const midi = useMIDIStore.getState();
     // Connect an (unknown) controller -> establishes the active identity.
-    midi.applyControllerIdentity({ name: 'MIDI Mix', manufacturer: 'AKAI' });
+    midi.applyControllerIdentity({ name: 'Generic Pad', manufacturer: 'Generic Co' });
     // Learn a binding.
     useMIDIStore.getState().setCCBankBinding(20, { row: 3, col: 2 });
 
-    const fp = deriveControllerFingerprint('MIDI Mix', 'AKAI');
+    const fp = deriveControllerFingerprint('Generic Pad', 'Generic Co');
     expect(getBindingsForFingerprint(fp)).toEqual([{ cc: 20, slot: { row: 3, col: 2 } }]);
 
     // Simulate a new session: reset in-memory store, reconnect same controller.
     useMIDIStore.getState().resetMIDI();
     expect(useMIDIStore.getState().ccBankBindings).toEqual([]);
-    useMIDIStore.getState().applyControllerIdentity({ name: 'MIDI Mix', manufacturer: 'AKAI' });
+    useMIDIStore.getState().applyControllerIdentity({ name: 'Generic Pad', manufacturer: 'Generic Co' });
     expect(useMIDIStore.getState().ccBankBindings).toEqual([{ cc: 20, slot: { row: 3, col: 2 } }]);
   });
 
   it('does not blind-replace a fresh unpersisted learn made after project load (redteam-confirmed data-loss regression)', () => {
     const midi = useMIDIStore.getState();
     // Session 1: connect, learn cc20 -> persists under the fingerprint.
-    midi.applyControllerIdentity({ name: 'MIDI Mix', manufacturer: 'AKAI' });
+    midi.applyControllerIdentity({ name: 'Generic Pad', manufacturer: 'Generic Co' });
     useMIDIStore.getState().setCCBankBinding(20, { row: 3, col: 2 });
-    const fp = deriveControllerFingerprint('MIDI Mix', 'AKAI');
+    const fp = deriveControllerFingerprint('Generic Pad', 'Generic Co');
     expect(getBindingsForFingerprint(fp)).toEqual([{ cc: 20, slot: { row: 3, col: 2 } }]);
 
     // Project open/new: resetMIDI() clears activeControllerFingerprint to null
@@ -261,7 +271,7 @@ describe('store integration: applyControllerIdentity', () => {
     // for the SAME still-connected controller. Before the fix, this called
     // applyControllerProfile(saved) unconditionally and blind-replaced
     // ccBankBindings with the stale [cc20] set, discarding cc30.
-    useMIDIStore.getState().applyControllerIdentity({ name: 'MIDI Mix', manufacturer: 'AKAI' });
+    useMIDIStore.getState().applyControllerIdentity({ name: 'Generic Pad', manufacturer: 'Generic Co' });
 
     expect(useMIDIStore.getState().ccBankBindings).toEqual([{ cc: 30, slot: { row: 1, col: 1 } }]);
   });
@@ -285,5 +295,55 @@ describe('store integration: applyControllerIdentity', () => {
     expect(useMIDIStore.getState().activeControllerFingerprint).not.toBeNull();
     useMIDIStore.getState().applyControllerIdentity(null);
     expect(useMIDIStore.getState().activeControllerFingerprint).toBeNull();
+  });
+});
+
+// ── E18 — MIDIMIX_FACTORY_PROFILE auto-apply wiring ─────────────────────────
+// The profile + applyControllerProfile action existed with zero call sites
+// (P0-gap). This covers the two wiring paths: auto-apply on connect (guarded
+// identically to the saved-profile auto-load) and the manual override.
+describe('E18 — MIDImix factory-profile auto-apply on connect', () => {
+  it('connecting a MIDImix with EMPTY bindings and no saved learn auto-applies the factory profile', () => {
+    const midi = useMIDIStore.getState();
+    expect(midi.ccBankBindings).toEqual([]); // fresh store, nothing saved for this fp either
+
+    midi.applyControllerIdentity({ name: 'MIDI Mix', manufacturer: 'AKAI' });
+
+    const after = useMIDIStore.getState();
+    expect(after.ccBankBindings).toHaveLength(32); // full MIDIMIX_FACTORY_PROFILE
+    expect(after.ccBankBindings).toEqual(expect.arrayContaining([{ cc: 20, slot: { row: 0, col: 1 } }]));
+  });
+
+  it('connecting a MIDImix with EXISTING (non-empty) bindings does NOT apply the factory profile (guard holds)', () => {
+    const midi = useMIDIStore.getState();
+    // Simulate a project that already has its own bank bindings loaded
+    // (e.g. from a project file) BEFORE the controller identity resolves —
+    // mirrors the exact data-loss guard applyControllerIdentity already uses
+    // for the saved-profile branch.
+    midi.setCCBankBinding(5, { row: 0, col: 0 });
+    const before = useMIDIStore.getState().ccBankBindings;
+    expect(before).toEqual([{ cc: 5, slot: { row: 0, col: 0 } }]);
+
+    useMIDIStore.getState().applyControllerIdentity({ name: 'MIDI Mix', manufacturer: 'AKAI' });
+
+    // Guard holds: existing binding is untouched, factory profile NOT applied.
+    expect(useMIDIStore.getState().ccBankBindings).toEqual(before);
+    expect(useMIDIStore.getState().ccBankBindings).toHaveLength(1);
+  });
+
+  it('a MIDImix with a SAVED (previously-learned) binding set loads the saved set, not the factory profile', () => {
+    const fp = deriveControllerFingerprint('MIDI Mix', 'AKAI');
+    saveControllerBindings(fp, bindingsA); // 2 hand-learned bindings, not the 32-binding factory set
+
+    useMIDIStore.getState().applyControllerIdentity({ name: 'MIDI Mix', manufacturer: 'AKAI' });
+
+    const after = useMIDIStore.getState();
+    expect(after.ccBankBindings).toHaveLength(bindingsA.length);
+    expect(after.ccBankBindings).toEqual(expect.arrayContaining(bindingsA));
+  });
+
+  it('an unknown (non-MIDImix) controller with empty bindings does NOT get any factory profile applied', () => {
+    useMIDIStore.getState().applyControllerIdentity({ name: 'Some Other Controller', manufacturer: 'Nobody' });
+    expect(useMIDIStore.getState().ccBankBindings).toEqual([]);
   });
 });

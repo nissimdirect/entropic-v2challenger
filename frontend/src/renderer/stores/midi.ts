@@ -26,6 +26,8 @@ import {
   getBindingsForFingerprint,
   saveControllerBindings,
 } from '../../shared/controllerIdentity';
+import { getFactoryProfileForFingerprint } from '../utils/controllerProfiles';
+import { useToastStore } from './toast';
 
 // Module-level singleton limiter — survives store resets (state reset ≠ device
 // reconnect; throttle context is cleared on resetMIDI via _resetCCLimiter()).
@@ -263,9 +265,12 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
   // when no device is active). Derives the stable fingerprint and, if it DIFFERS
   // from the currently applied identity, adopts it: a known fingerprint's saved
   // bindings are applied (auto-load, "already mapped"); an unknown fingerprint
-  // leaves the current bindings untouched (getBindingsForFingerprint → []), so a
-  // fresh controller inherits nothing and starts a clean LEARN that then
-  // persists under its own fingerprint.
+  // with no built-in factory profile leaves the current bindings untouched
+  // (getBindingsForFingerprint → []), so a fresh controller inherits nothing
+  // and starts a clean LEARN that then persists under its own fingerprint. A
+  // fingerprint with NO saved learn but a KNOWN built-in factory profile
+  // (E18 — e.g. Akai MIDImix) auto-applies that factory map instead — see
+  // getFactoryProfileForFingerprint below.
   //
   // The fingerprint-change guard makes this idempotent across the frequent
   // onstatechange bursts: once applied, in-session learns keep the store == the
@@ -294,6 +299,24 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
         // applyControllerProfile re-validates, de-dupes by cc, and caps —
         // second trust-boundary pass on the persisted payload.
         get().applyControllerProfile(saved);
+        return;
+      }
+      // E18 — no per-app saved learn for this controller yet. If the
+      // fingerprint matches a KNOWN built-in factory profile (e.g. Akai
+      // MIDImix), auto-apply that factory CC map as a convenience default so
+      // the bank isn't silently unmapped on first connect. Reuses the exact
+      // same guard as the saved-profile branch above (the ccBankBindings.length
+      // > 0 check already returned early) — this never clobbers an existing
+      // project's bindings or an in-progress learn, only fills a genuinely
+      // empty bank.
+      const factory = getFactoryProfileForFingerprint(fingerprint);
+      if (factory) {
+        get().applyControllerProfile(factory);
+        useToastStore.getState().addToast({
+          level: 'info',
+          message: 'MIDImix factory mapping loaded',
+          source: 'midi-controller-profile',
+        });
       }
     }
   },
