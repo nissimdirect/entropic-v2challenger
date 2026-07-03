@@ -52,6 +52,15 @@ const BLEND_OPS: { value: BlendOp; label: string }[] = [
   { value: 'max', label: 'Max' },
 ]
 
+// AA.3-B — default params per lane generator type, mirroring
+// operators.ts's createDefaultOperator param bag for each op type (lfo /
+// audio_follower) so the lane UI's reused param widgets show sane values
+// immediately on first switch, exactly as AA.3-A did for LFO.
+const LANE_GENERATOR_DEFAULTS: Record<'lfo' | 'audio_follower', Record<string, number | string>> = {
+  lfo: { waveform: 'sine', rate_hz: 1.0, phase_offset: 0.0 },
+  audio_follower: { method: 'rms', sensitivity: 1.4, window: 1024 },
+}
+
 interface ParamOption {
   effectId: string
   effectName: string
@@ -94,8 +103,12 @@ export default function AutomationToolbar() {
   // AA.2 — blendOp chosen for the NEXT modulation lane created via the "+ Mod" picker.
   const [modBlendOp, setModBlendOp] = useState<BlendOp>('add')
   // AA.3-A — value source chosen for the NEXT modulation lane: drawn
-  // breakpoints (AA.2 default) or a live LFO operator.
+  // breakpoints (AA.2 default) or a live operator generator.
   const [modSource, setModSource] = useState<AutomationLaneSource>('drawn')
+  // AA.3-B — which live generator (LFO or Audio Follower) the NEXT
+  // operator-sourced modulation lane uses. Only consulted when modSource
+  // === 'operator'.
+  const [modGeneratorType, setModGeneratorType] = useState<'lfo' | 'audio_follower'>('lfo')
 
   // AA.3a — Insert Automation Shape: shape/cycles/amplitude config + the
   // open/closed state of the target-lane picker (mirrors pickerMode above).
@@ -266,13 +279,23 @@ export default function AutomationToolbar() {
       modBlendOp,
     )
     // AA.3-A: when the picker's source is 'operator', immediately switch the
-    // just-created lane to a live LFO — setLaneSource seeds the default LFO
-    // config (waveform sine, 1Hz) on first switch.
+    // just-created lane to a live generator — setLaneSource seeds the
+    // default LFO config (waveform sine, 1Hz) on first switch.
     if (modSource === 'operator') {
       autoState.setLaneSource(armedTrackId, laneId, 'operator')
+      // AA.3-B: when Audio Follower was picked (not the setLaneSource
+      // default of LFO), switch the just-seeded operator to its own
+      // params — reuses updateLaneOperator, the same seam AA.3-A built
+      // (no new store action, no forked plumbing).
+      if (modGeneratorType === 'audio_follower') {
+        autoState.updateLaneOperator(armedTrackId, laneId, {
+          type: 'audio_follower',
+          params: LANE_GENERATOR_DEFAULTS.audio_follower,
+        })
+      }
     }
     setPickerMode(null)
-  }, [armedTrackId, modBlendOp, modSource])
+  }, [armedTrackId, modBlendOp, modSource, modGeneratorType])
 
   // AA.2 — change an existing modulation lane's blendOp inline.
   const handleChangeModBlendOp = useCallback((laneId: string, blendOp: BlendOp) => {
@@ -304,6 +327,48 @@ export default function AutomationToolbar() {
   const handleChangeLaneOperatorDepth = useCallback((laneId: string, depth: number) => {
     if (!armedTrackId || !Number.isFinite(depth)) return
     useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, { depth })
+  }, [armedTrackId])
+
+  // AA.3-B — switch an existing operator-sourced lane's generator TYPE
+  // (LFO <-> Audio Follower), reseeding that type's own default params
+  // (updateLaneOperator resets params on a type change — automation.ts).
+  const handleChangeLaneOperatorType = useCallback((laneId: string, type: 'lfo' | 'audio_follower') => {
+    if (!armedTrackId) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, {
+      type,
+      params: LANE_GENERATOR_DEFAULTS[type],
+    })
+  }, [armedTrackId])
+
+  // AA.3-B — Audio Follower param edits, mirroring AudioFollowerEditor.tsx's
+  // (operator-rack) field set: method, sensitivity, and the frequency-band
+  // low/high Hz shown only when method === 'frequency_band'.
+  const handleChangeAudioMethod = useCallback((laneId: string, method: string) => {
+    if (!armedTrackId) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, {
+      params: { method },
+    })
+  }, [armedTrackId])
+
+  const handleChangeAudioSensitivity = useCallback((laneId: string, sensitivity: number) => {
+    if (!armedTrackId || !Number.isFinite(sensitivity)) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, {
+      params: { sensitivity },
+    })
+  }, [armedTrackId])
+
+  const handleChangeAudioLowHz = useCallback((laneId: string, lowHz: number) => {
+    if (!armedTrackId || !Number.isFinite(lowHz)) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, {
+      params: { low_hz: lowHz },
+    })
+  }, [armedTrackId])
+
+  const handleChangeAudioHighHz = useCallback((laneId: string, highHz: number) => {
+    if (!armedTrackId || !Number.isFinite(highHz)) return
+    useAutomationStore.getState().updateLaneOperator(armedTrackId, laneId, {
+      params: { high_hz: highHz },
+    })
   }, [armedTrackId])
 
   const handlePickParam = useCallback((option: ParamOption) => {
@@ -521,10 +586,11 @@ export default function AutomationToolbar() {
               ))}
             </select>
           </label>
-          {/* AA.3-A — value source for the lane about to be created: drawn
-              breakpoints (paint it yourself, AA.2 default) or a live LFO
-              (backend-evaluated every frame, spec docs/plans/2026-07-03-aa3-live-generators-spec.md). */}
-          <label title="Drawn: paint breakpoints yourself. Operator (LFO): a live sine/tri/saw/square generator drives the value every frame.">
+          {/* AA.3-A/B — value source for the lane about to be created: drawn
+              breakpoints (paint it yourself, AA.2 default) or a live
+              generator — LFO or Audio Follower — evaluated backend-side
+              every frame (spec docs/plans/2026-07-03-aa3-live-generators-spec.md). */}
+          <label title="Drawn: paint breakpoints yourself. Operator: a live generator drives the value every frame.">
             Source:{' '}
             <select
               data-testid="mod-source-select"
@@ -532,9 +598,25 @@ export default function AutomationToolbar() {
               onChange={(e) => setModSource(e.target.value as AutomationLaneSource)}
             >
               <option value="drawn">Drawn</option>
-              <option value="operator">Operator (LFO)</option>
+              <option value="operator">Operator</option>
             </select>
           </label>
+          {/* AA.3-B — which generator the new operator-sourced lane uses.
+              Only shown once Source is 'operator'; LFO stays the default so
+              this is additive/back-compat with the AA.3-A picker. */}
+          {modSource === 'operator' && (
+            <label title="LFO: a live sine/tri/saw/square generator. Audio Follower: reacts to the loaded audio's envelope (RMS / frequency band / onset).">
+              Generator:{' '}
+              <select
+                data-testid="mod-generator-select"
+                value={modGeneratorType}
+                onChange={(e) => setModGeneratorType(e.target.value as 'lfo' | 'audio_follower')}
+              >
+                <option value="lfo">LFO</option>
+                <option value="audio_follower">Audio Follower</option>
+              </select>
+            </label>
+          )}
           {modTargetLanes.length === 0 ? (
             <div className="auto-toolbar__picker-empty">
               No automation lanes to modulate — add a lane first
@@ -573,47 +655,118 @@ export default function AutomationToolbar() {
                 ))}
               </select>
               {' '}
-              {/* AA.3-A — inline source toggle + LFO generator panel, shown
-                  when this lane is operator-sourced. */}
+              {/* AA.3-A — inline source toggle, shown when this lane is
+                  operator-sourced. */}
               <select
                 data-testid={`mod-source-select-${lane.id}`}
                 value={lane.source ?? 'drawn'}
                 onChange={(e) => handleChangeLaneSource(lane.id, e.target.value as AutomationLaneSource)}
               >
                 <option value="drawn">Drawn</option>
-                <option value="operator">LFO</option>
+                <option value="operator">Operator</option>
               </select>
               {lane.source === 'operator' && lane.operator && (
                 <span className="auto-toolbar__lfo-panel" data-testid={`lfo-panel-${lane.id}`}>
                   {' '}
+                  {/* AA.3-B — generator TYPE select: LFO vs Audio Follower.
+                      Switching resets params to that type's own defaults
+                      (updateLaneOperator, automation.ts). */}
                   <select
-                    data-testid={`lfo-waveform-select-${lane.id}`}
-                    value={String(lane.operator.params.waveform ?? 'sine')}
-                    onChange={(e) => handleChangeLfoWaveform(lane.id, e.target.value)}
+                    data-testid={`lane-generator-type-select-${lane.id}`}
+                    value={lane.operator.type}
+                    onChange={(e) => handleChangeLaneOperatorType(lane.id, e.target.value as 'lfo' | 'audio_follower')}
                   >
-                    <option value="sine">Sine</option>
-                    <option value="triangle">Triangle</option>
-                    <option value="saw">Saw</option>
-                    <option value="square">Square</option>
+                    <option value="lfo">LFO</option>
+                    <option value="audio_follower">Audio Follower</option>
                   </select>
                   {' '}
-                  <input
-                    type="number"
-                    step={0.1}
-                    min={0}
-                    data-testid={`lfo-rate-input-${lane.id}`}
-                    title="LFO rate (Hz)"
-                    value={Number(lane.operator.params.rate_hz ?? 1)}
-                    onChange={(e) => handleChangeLfoRate(lane.id, e.target.valueAsNumber)}
-                  />
-                  {' Hz '}
+                  {lane.operator.type === 'lfo' && (
+                    <>
+                      <select
+                        data-testid={`lfo-waveform-select-${lane.id}`}
+                        value={String(lane.operator.params.waveform ?? 'sine')}
+                        onChange={(e) => handleChangeLfoWaveform(lane.id, e.target.value)}
+                      >
+                        <option value="sine">Sine</option>
+                        <option value="triangle">Triangle</option>
+                        <option value="saw">Saw</option>
+                        <option value="square">Square</option>
+                      </select>
+                      {' '}
+                      <input
+                        type="number"
+                        step={0.1}
+                        min={0}
+                        data-testid={`lfo-rate-input-${lane.id}`}
+                        title="LFO rate (Hz)"
+                        value={Number(lane.operator.params.rate_hz ?? 1)}
+                        onChange={(e) => handleChangeLfoRate(lane.id, e.target.valueAsNumber)}
+                      />
+                      {' Hz '}
+                    </>
+                  )}
+                  {/* AA.3-B — Audio Follower generator panel: method,
+                      sensitivity, and (frequency_band only) the band's
+                      low/high Hz — mirrors AudioFollowerEditor.tsx (the
+                      operator-rack's own audio_follower editor). */}
+                  {lane.operator.type === 'audio_follower' && (
+                    <>
+                      <select
+                        data-testid={`audio-method-select-${lane.id}`}
+                        value={String(lane.operator.params.method ?? 'rms')}
+                        onChange={(e) => handleChangeAudioMethod(lane.id, e.target.value)}
+                      >
+                        <option value="rms">RMS</option>
+                        <option value="frequency_band">Freq Band</option>
+                        <option value="onset">Onset</option>
+                      </select>
+                      {' '}
+                      <input
+                        type="number"
+                        step={0.1}
+                        min={0.1}
+                        max={10}
+                        data-testid={`audio-sensitivity-input-${lane.id}`}
+                        title="Sensitivity"
+                        value={Number(lane.operator.params.sensitivity ?? 1.4)}
+                        onChange={(e) => handleChangeAudioSensitivity(lane.id, e.target.valueAsNumber)}
+                      />
+                      {' sens '}
+                      {lane.operator.params.method === 'frequency_band' && (
+                        <>
+                          <input
+                            type="number"
+                            step={10}
+                            min={20}
+                            max={20000}
+                            data-testid={`audio-low-hz-input-${lane.id}`}
+                            title="Low Hz"
+                            value={Number(lane.operator.params.low_hz ?? 20)}
+                            onChange={(e) => handleChangeAudioLowHz(lane.id, e.target.valueAsNumber)}
+                          />
+                          {' - '}
+                          <input
+                            type="number"
+                            step={10}
+                            min={20}
+                            max={20000}
+                            data-testid={`audio-high-hz-input-${lane.id}`}
+                            title="High Hz"
+                            value={Number(lane.operator.params.high_hz ?? 200)}
+                            onChange={(e) => handleChangeAudioHighHz(lane.id, e.target.valueAsNumber)}
+                          />
+                          {' Hz '}
+                        </>
+                      )}
+                    </>
+                  )}
                   <input
                     type="number"
                     step={0.05}
                     min={0}
                     max={1}
                     data-testid={`lfo-depth-input-${lane.id}`}
-                    title="Depth — scales the LFO's influence [0,1]"
+                    title="Depth — scales the generator's influence [0,1]"
                     value={lane.operator.depth ?? 1}
                     onChange={(e) => handleChangeLaneOperatorDepth(lane.id, e.target.valueAsNumber)}
                   />
