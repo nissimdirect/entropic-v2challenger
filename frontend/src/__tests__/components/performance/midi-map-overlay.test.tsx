@@ -140,6 +140,47 @@ describe('MIDIMapOverlay — click-to-assign', () => {
     expect(getByTestId('map-slot-0-0').getAttribute('data-slot-state')).toBe('overridden')
   })
 
+  it('threads activeBankIndex into both the read and the write (H7 paging integration, redteam-confirmed)', () => {
+    // Without this, the overlay reads/writes the bare contextKey while the
+    // live resolver (applyBankModulations) and cc-record.ts key off
+    // pagedContextKey(contextKey, activeBankIndex) once the user pages past
+    // bank 0 -- the overlay would show/edit stale page-0 targets with zero
+    // effect on live output.
+    const trackId = seedTrackContext()
+    useMIDIStore.setState({ activeBankIndex: 2 })
+    useMIDIMapModeStore.setState({ mapMode: true })
+    const { getByTestId, getByText } = render(<MIDIMapOverlay />)
+
+    act(() => {
+      fireEvent.click(getByTestId('map-slot-0-0'))
+    })
+    act(() => {
+      fireEvent.click(getByText('Chaos'))
+    })
+
+    const bankAssignments = useMIDIStore.getState().bankAssignments
+    // Written under the PAGED key (contextKey::bank2), not the bare key.
+    expect(bankAssignments[`track:${trackId}::bank2`]).toBeTruthy()
+    expect(bankAssignments[`track:${trackId}::bank2`].slots[0][0]).toEqual({
+      kind: 'macro',
+      trackId,
+      macroId: 'm1',
+    })
+    expect(bankAssignments[`track:${trackId}`]).toBeUndefined()
+
+    // Reading back at a DIFFERENT page must not see the page-2 override.
+    cleanup()
+    useMIDIStore.setState({ activeBankIndex: 0 })
+    const page0 = render(<MIDIMapOverlay />)
+    expect(page0.getByTestId('map-slot-0-0').getAttribute('data-slot-state')).toBe('empty')
+
+    // Reading back at the SAME page sees it.
+    cleanup()
+    useMIDIStore.setState({ activeBankIndex: 2 })
+    const page2 = render(<MIDIMapOverlay />)
+    expect(page2.getByTestId('map-slot-0-0').getAttribute('data-slot-state')).toBe('overridden')
+  })
+
   it('grid slots are disabled (not assignable) when nothing is focused', () => {
     // No track selected → context 'none' → no candidates.
     useMIDIMapModeStore.setState({ mapMode: true })

@@ -29,7 +29,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ParamDef } from '../../../shared/types'
 import type { BankAssignment, BankSlotAddress, SlotTarget } from '../../../shared/bankTypes'
-import { BANK_ROWS, BANK_COLS } from '../../../shared/bankTypes'
+import { BANK_ROWS, BANK_COLS, pagedContextKey } from '../../../shared/bankTypes'
 import type { RackMacro } from '../instruments/types'
 import { useMIDIStore } from '../../stores/midi'
 import { useMIDIMapModeStore } from '../../stores/midiMapMode'
@@ -70,6 +70,12 @@ function MIDIMapOverlayInner() {
 
   const ccBankBindings = useMIDIStore((s) => s.ccBankBindings)
   const bankAssignments = useMIDIStore((s) => s.bankAssignments)
+  // H7 (bank paging): the resolver keys bankAssignments by
+  // pagedContextKey(contextKey, activeBankIndex) so the same physical CC can
+  // target a different slot per bank page. The overlay must read/write the
+  // SAME paged key or it shows/edits page-0 targets while the live resolver
+  // (applyBankModulations) and cc-record.ts act on a different page entirely.
+  const activeBankIndex = useMIDIStore((s) => s.activeBankIndex)
 
   const context = useMappingContext()
   const tracks = useTimelineStore((s) => s.tracks)
@@ -101,7 +107,8 @@ function MIDIMapOverlayInner() {
     () => deriveDefaultAssignment(context, sources),
     [context, sources],
   )
-  const savedAssignment: BankAssignment | null = bankAssignments[context.contextKey] ?? null
+  const savedAssignment: BankAssignment | null =
+    bankAssignments[pagedContextKey(context.contextKey, activeBankIndex)] ?? null
 
   // The grid actually in effect = saved override if present, else the default.
   const resolvedGrid: (SlotTarget | null)[][] = savedAssignment?.slots ?? defaultAssignment.slots
@@ -181,7 +188,7 @@ function MIDIMapOverlayInner() {
     const slots = resolvedGrid.map((r) => r.slice())
     slots[slot.row][slot.col] = target
     const assignment: BankAssignment = { contextKey: context.contextKey, slots }
-    useMIDIStore.getState().setBankAssignment(context.contextKey, assignment)
+    useMIDIStore.getState().setBankAssignment(pagedContextKey(context.contextKey, activeBankIndex), assignment)
     setSelectedSlot(null)
   }
 
