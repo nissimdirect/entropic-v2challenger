@@ -238,3 +238,62 @@ both present and rendered — tonight's headline merges are in the running build
   additive-vs-replace; `+ Lane` adds an automation lane, `+ Trigger` a trigger lane.
 - Export (Stage 11/C1/C6): Cmd+E → `.export-dialog` → codec select → `.export-dialog__export-btn`
   → `.export-progress__done` (encode can take >30s; wait to 90s).
+
+---
+
+## ADDENDUM — 2026-07-03 pre-run zero-trust review (READ FIRST when driving)
+
+Every reference in this plan was verified against main @ 404f3a3 before the first CU run.
+Corrections below OVERRIDE the stage text above where they conflict.
+
+### Shipped-bindings key map (journey specs diverge from code — use THESE keys)
+| Spec says | Shipped reality (frontend/src/renderer/utils/default-shortcuts.ts) |
+|---|---|
+| `g` lasso (J4) | **`w`** = lasso (freehand→polygon→off cycle); `g` is unbound |
+| `c` key tool (J2) | **no hotkey** — activate via browser `tool` tab chip (click-only) |
+| `v` cycles composite→matte→rubylith (J2 j2-03/j2-06) | **`v` = Tool: Select.** No view-cycle binding exists |
+| — | wand: **no hotkey** — `tool` tab chip only |
+| confirmed as spec'd | `q` marquee · `⌫`/`⌥⌫` delete inside/outside · `⌘⇧A` deselect · `⌘J`/`⌘⇧J` copy/cut region to track · `i`/`o` loop in/out · `⌘L` loop toggle · `⌘⇧I` routing canvas · `b` razor · `s` slip · `d` slide · `x` ripple · `⇧M` marker |
+
+### Known gaps — pre-classified (file as findings, do NOT burn CU time hunting)
+1. **Matte/rubylith preview view modes are UNSHIPPED** — zero code hits for rubylith/matteView.
+   J2 checkpoints j2-03, j2-06 and the `view: matte` statusbar chip WILL fail → expected 🐛
+   (spec'd in MASKING-INTERACTIONS §5/§8 + DESIGN-SPEC, never built). Judge the rest of J2 on
+   composite view only.
+2. **A7c correction:** the range-select cursor tool was REMOVED post-plan (T5 cull,
+   default-shortcuts.ts:64). A7c now = razor/ripple/marker/loop by click+hotkey, PLUS assert
+   range is gone, PLUS slip (`s`) / slide (`d`) from T2 #359.
+3. **T3 clip/track lock (#355) and T4 marker-rename (#357) are CLOSED-UNMERGED** with no
+   successor PRs — lock and marker-rename remain ABSENT on main; don't test them, and the
+   tune-up ledger's "merge on green" for T3/T4 never happened (surfaced to user).
+4. **Stage F.2 citation fix:** the mode-banner spec is DESIGN-SPEC §10.2 (20px banner, ≤120ms,
+   MOD dot, esc keycap naming the NEXT escape level) — not "SELECTION-MASKING-SPEC §14.9"
+   (§14 is Open Decisions; no §14.9 exists).
+5. **Stage H gate:** MK.12 build = #350 MERGED (#342 was the PRD-only PR). Within H: U7 is ⏸
+   (coverage_tap.py absent — MK.12c unbuilt), U9 ⏸ (MK.12b), U10 unscheduled. Run U1–U6 + U8
+   limitation probe.
+6. **Report filename** = docs/UAT-RESULTS-2026-07-03.md (supersedes the 07-02 name above).
+
+### Red-team riders (2026-07-03, 8×P1 + 2×P2 confirmed; step wording below OVERRIDES stages)
+- **Pre-start:** relaunch the DEV Electron fresh (kill PID + `npm start`) before Stage A —
+  re-baselines uptime/state. (Original stale-#377-bundle claim REFUTED by reflog: the 00:34
+  launch used a tree pulled at 00:11 that already contained #377.)
+- **B4 runs on a THROWAWAY project** (the L40 throwaway rule now covers B4, not just D/C7),
+  and after verifying recovery, DELETE the autosave before B5 or it contaminates B5's verdict.
+- **B3 legacy load:** COPY the legacy .glitch to a throwaway path and load the copy — never
+  the original (auto-migrate/save could mutate it).
+- **C7:** quit the app AND confirm no other writer before the move-aside; use COPY-aside, and
+  restore only into a confirmed-absent target, else abort loudly (a naive `mv` restore nests
+  the backup inside a freshly-recreated ~/.creatrix).
+- **D1:** the "4-hour file" = a generated low-bitrate long-DURATION file (still-image src);
+  check free disk first; delete after.
+- **D3:** kill ONLY the UAT sidecar's child PID (from the app process tree / sidecar.log) —
+  never pkill-by-name (parallel sessions run python too). Defer sleep/wake and the dual-instance
+  check until the parallel session is idle; dual instance = throwaway project + expect the
+  single-instance/userData collision, don't force a second vite server on :5173.
+- **A6 oracle:** main CI is red on electron-e2e-full shards 2–4 + sidecar at review time —
+  classify each red journey app-bug vs test-flake BEFORE issuing a manual ✅/❌.
+- **D4/D5:** after the 64-op/500-clip boundary tests, New Project (or relaunch) before D5/D6/E
+  so boundary state doesn't poison later verdicts.
+- **Coordination:** the parallel build session must NOT `git pull` the canonical checkout while
+  the CU pass runs (source-file pulls trigger vite HMR mid-pass); docs-only merges are safe.
