@@ -1311,3 +1311,66 @@ body[data-disable-f-0512-8] .clip__thumb {
 .inspector-probe-row__remove:hover {
   color: var(--cx-danger-text);
 }
+
+/* ======================================================================
+   M.2 (Master-Out Bus PRD) — Master track: pinned bottom row, visually
+   distinct amber/gold "Ableton master" styling. No clip lane (locked
+   design #2 — "no clips, ever"); selecting shows its effectChain in the
+   same DeviceChain panel any track uses (no dedicated CSS needed there).
+   ====================================================================== */
+
+.master-track-header {
+  background: var(--cx-warn-wash);
+  border-top: 2px solid var(--cx-warn);
+  border-bottom: none;
+  cursor: pointer;
+}
+
+.master-track-header:hover {
+  background: rgba(217, 162, 60, 0.2);
+}
+
+.master-track-header.track-header--selected {
+  background: rgba(217, 162, 60, 0.28);
+}
+
+.master-track-header__color {
+  border-radius: 2px;
+}
+
+.master-track-header__name {
+  display: flex;
+  align-items: center;
+}
+
+.master-track-header__badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--cx-warn);
+}
+
+.master-track-lane {
+  height: 76px;
+  border-top: 2px solid var(--cx-warn);
+  border-bottom: none;
+  background: var(--cx-warn-wash);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.master-track-lane--selected {
+  background: rgba(217, 162, 60, 0.2);
+}
+
+.master-track-lane__label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.3px;
+  color: var(--cx-text-3);
+  pointer-events: none;
+}
+

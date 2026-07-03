@@ -1124,6 +1124,24 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
           missing: c.missing === true ? true : undefined,
         })
       }
+    } else if (isMaster || isInspector) {
+      // M.2 redteam guard #2 (persistence trust boundary): this else-branch
+      // previously only checked `isAudio`, so a hand-crafted or corrupted
+      // save file carrying clips[] on a 'master' or 'inspector' track would
+      // fall through to the video/text clip-hydrate path below and get
+      // addClip()'d — but both are structurally NO-CLIPS track types (PRD
+      // "no clips, ever" for master; the P6.8/I1 inspector precedent). Drop
+      // any clips at the hydrate trust boundary, same as every other
+      // malformed-input guard in this function (never crash, never silently
+      // trust disk). addClip has no type check of its own — this loop was
+      // the only gate.
+      if (track.clips.length > 0) {
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: `Track "${track.name}": clips are not allowed on a ${isMaster ? 'Master' : 'inspector'} track — dropped on load`,
+          source: 'project-load',
+        })
+      }
     } else {
       // P2.2a (slice 3c, Decision D1 clean break): track-level opacity/blendMode
       // are gone. Compositing is restored as the terminal CompositeEffect inside

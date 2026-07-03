@@ -1020,6 +1020,18 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   removeTrack: (id) => {
     const track = get().tracks.find((t) => t.id === id)
     if (!track) return
+    // Structural invariant: the Master (and Inspector) are singleton, bootstrap-
+    // injected tracks that must never be deleted. M.2 made the Master selectable,
+    // so the native "Delete Selected Track" menu can now target it — guard here
+    // (the trust boundary) rather than only in the UI. (redteam MEDIUM, M.2.)
+    if (track.type === 'master' || track.type === 'inspector') {
+      useToastStore.getState().addToast({
+        level: 'info',
+        message: `The ${track.type === 'master' ? 'Master' : 'Inspector'} track can't be deleted.`,
+        source: 'timeline-master-guard',
+      })
+      return
+    }
     // Capture full track for restoration
     const removedTrack = { ...track, clips: [...track.clips], effectChain: [...track.effectChain], automationLanes: [...track.automationLanes] }
     const prevId = (() => {

@@ -6,6 +6,7 @@ import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
 import { useLayoutStore } from '../../stores/layout'
+import { useToastStore } from '../../stores/toast'
 import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import ContextMenu from '../timeline/ContextMenu'
@@ -50,6 +51,13 @@ export default function DeviceChain({
   // per-track state. ALSO the scoping key for the pad target below — declared here
   // (above isPadTarget) so display + mutation share one active-track predicate.
   const activeTrackId = useActiveTrackId()
+  // M.2 (Master-Out Bus PRD): track type of the active track, used to guard
+  // the instruments/composite REJECT rule for the Master bus (locked design
+  // #3 — Master processes the summed output; instruments (generators) and
+  // the terminal `composite` effect are structurally invalid there, since
+  // there is no per-track/per-clip context post-composite for either to
+  // operate on).
+  const activeTrackType = useTimelineStore((s) => s.tracks.find((t) => t.id === activeTrackId)?.type)
   // Both hooks subscribe unconditionally (rules-of-hooks); only the relevant one
   // is read into `effectChain` below. The track chain is the render/freeze/export
   // source and stays decoupled from this editor retarget.
@@ -226,6 +234,30 @@ export default function DeviceChain({
           if (typeof parsed !== 'object' || parsed === null) return
           const { kind, id } = parsed as { kind: unknown; id: unknown }
           if (!['fx', 'op', 'composite', 'instruments'].includes(kind as string)) return
+          // M.2 instruments-reject guard: the Master track processes the
+          // summed composite output — instruments (generators) and the
+          // terminal `composite` effect (compositing plumbing, meaningless
+          // post-composite — the master frame IS already the composited
+          // frame) are structurally invalid on it (PRD locked design #3).
+          // Rejected BEFORE resolving effectId/registry so this can't be
+          // bypassed by an id that happens to also resolve to a real fx
+          // registry entry.
+          if (activeTrackType === 'master' && kind === 'instruments') {
+            useToastStore.getState().addToast({
+              level: 'warning',
+              message: "Instruments can't go on the Master — it processes the summed output",
+              source: 'master-bus-guard',
+            })
+            return
+          }
+          if (activeTrackType === 'master' && kind === 'composite') {
+            useToastStore.getState().addToast({
+              level: 'warning',
+              message: "Composite can't go on the Master — its output is already the composited frame",
+              source: 'master-bus-guard',
+            })
+            return
+          }
           if (typeof id !== 'string') return
           // Extract effectId from namespaced id: "builtin:<effectId>" or "user:<name>"
           const match = id.match(/^builtin:(.+)$/)
