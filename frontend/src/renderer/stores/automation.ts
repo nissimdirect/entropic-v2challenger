@@ -36,8 +36,10 @@ function triggerModeToInterp(mode: TriggerMode): InterpolationMode {
 import { undoable } from './undo'
 import { useToastStore } from './toast'
 import { simplifyPoints } from '../utils/automation-simplify'
+import type { AutomationRecordMode } from '../utils/automation-record'
 
 export type AutomationMode = 'read' | 'latch' | 'touch' | 'draw'
+export type { AutomationRecordMode } from '../utils/automation-record'
 
 interface AutomationClipboard {
   points: AutomationPoint[]
@@ -49,6 +51,14 @@ interface AutomationState {
   mode: AutomationMode
   armedTrackId: string | null
   clipboard: AutomationClipboard | null
+
+  // A4 — write mode for continuous-lane recording (D2 default 'replace' /
+  // punch-replace; 'overdub' additively layers new points on top of existing
+  // ones instead of overwriting a nearby point). Session-only, like `mode` and
+  // `armedTrackId` above — not persisted to the project file.
+  recordMode: AutomationRecordMode
+  /** Toggle between 'replace' (default, D2) and 'overdub' (additive) write mode. */
+  setRecordMode: (mode: AutomationRecordMode) => void
 
   // SG-3 clause-3: muted lane IDs from the sentinel's lane_aborted reply field.
   // lane_id in the backend reply is "unknown" (the output gate cannot identify
@@ -124,6 +134,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   mode: 'read',
   armedTrackId: null,
   clipboard: null,
+  recordMode: 'replace',
   sg3AbortedLaneIds: new Set<string>(),
 
   // SG-3 clause-3: mute state actions
@@ -462,6 +473,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
 
   setMode: (mode) => set({ mode }),
   armTrack: (trackId) => set({ armedTrackId: trackId }),
+  setRecordMode: (recordMode) => set({ recordMode }),
 
   recordTriggerEvent: (trackId, laneId, time, eventType) => {
     const trackLanes = get().lanes[trackId]
@@ -601,6 +613,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       mode: 'read',
       armedTrackId: null,
       clipboard: null,
+      recordMode: 'replace',
       sg3AbortedLaneIds: new Set<string>(),
     }),
 

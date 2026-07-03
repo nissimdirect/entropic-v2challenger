@@ -23,7 +23,7 @@
 import type { ClipTransform } from '../../shared/types'
 import { useAutomationStore } from '../stores/automation'
 import { useTimelineStore } from '../stores/timeline'
-import { recordPoint } from './automation-record'
+import { recordPointWithMode } from './automation-record'
 import { TRANSFORM_FIELD_META, TRANSFORM_FIELDS, formatTransformLanePath, type TransformField } from './transformLanes'
 
 /** Find the track that owns `clipId`, or null if the clip isn't on any track. */
@@ -79,7 +79,7 @@ export function recordTransformField(
   const meta = TRANSFORM_FIELD_META[field]
   const normalized = normalizeToLane(value, meta.displayMin, meta.displayMax)
 
-  const newPoints = recordPoint(lane.points, time, normalized)
+  const newPoints = recordPointWithMode(lane.points, time, normalized, autoStore.recordMode)
   autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
 }
 

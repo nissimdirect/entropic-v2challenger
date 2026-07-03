@@ -31,7 +31,7 @@ import { useMIDIStore } from '../stores/midi'
 import { useAutomationStore } from '../stores/automation'
 import { useTimelineStore } from '../stores/timeline'
 import type { SlotTarget } from '../../shared/bankTypes'
-import { recordPoint } from './automation-record'
+import { recordPointWithMode } from './automation-record'
 import { recordTransformField } from './transform-record'
 import { resolveBankSlotTargetForCC } from '../components/performance/applyBankModulations'
 import { snapshotMappingContext, defaultAssignmentSourcesFor } from './mappingSnapshot'
@@ -88,7 +88,7 @@ function recordEffectParam(armedTrackId: string, paramPath: string, value: numbe
   const lane = autoStore.getLanesForTrack(armedTrackId).find((l) => l.paramPath === paramPath)
   if (!lane) return
   const time = useTimelineStore.getState().playheadTime
-  const newPoints = recordPoint(lane.points, time, clamp01(value))
+  const newPoints = recordPointWithMode(lane.points, time, clamp01(value), autoStore.recordMode)
   autoStore.setPoints(armedTrackId, lane.id, newPoints)
 }
 
@@ -114,7 +114,7 @@ function recordMacro(armedTrackId: string, macroId: string, value: number): void
     return
   }
   const time = useTimelineStore.getState().playheadTime
-  const newPoints = recordPoint(lane.points, time, clamp01(value))
+  const newPoints = recordPointWithMode(lane.points, time, clamp01(value), autoStore.recordMode)
   autoStore.setPoints(armedTrackId, lane.id, newPoints)
 }
 
