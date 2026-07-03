@@ -538,3 +538,61 @@ def test_feedback_amount_in_schema():
     assert "feedback_amount" in copy_machine.PARAMS
     spec = copy_machine.PARAMS["feedback_amount"]
     assert spec["default"] == 0.88 and spec["max"] == 0.98
+
+
+def test_rewind_pulse_plays_ring_backward():
+    """rewind=true must emit the previously recorded frame (half-res roundtrip),
+    not a fresh pass — the binary pulse lane semantics (user spec 2026-07-03)."""
+    import cv2
+
+    frame = _subject_frame()
+    p = {"machine": "toner", "generation": 2, "feedback": True}
+    st = None
+    for fi in range(6):
+        out, st = _apply(frame, p, st, frame_index=fi)
+    assert st and len(st.get("ring", [])) >= 5
+    expected_half = st["ring"][-1].copy()
+    h, w = out.shape[:2]
+    expected = cv2.resize(expected_half, (w, h), interpolation=cv2.INTER_LINEAR)
+    n_before = len(st["ring"])
+    rev, st = _apply(frame, {**p, "rewind": True}, st, frame_index=6)
+    assert np.array_equal(rev[:, :, :3], expected), "rewind did not play the ring"
+    assert len(st["ring"]) == n_before - 1  # consumed one
+
+
+def test_ring_is_capped():
+    frame = _subject_frame()
+    p = {"machine": "toner", "generation": 1, "feedback": True}
+    st = None
+    for fi in range(50):
+        _, st = _apply(frame, p, st, frame_index=fi)
+    assert len(st["ring"]) <= 36
+
+
+def test_reverse_at_auto_fires_and_rearms():
+    frame = _subject_frame()
+    base = {"machine": "toner", "generation": 10, "feedback": True, "reverse_at": 50}
+    st = None
+    for fi in range(8):
+        _, st = _apply(frame, base, st, frame_index=fi)
+    ring_before = len(st["ring"])
+    # cross the threshold -> fires
+    _, st = _apply(frame, {**base, "generation": 60}, st, frame_index=8)
+    assert st.get("rewinding") or len(st["ring"]) == ring_before - 1, (
+        "reverse_at did not fire"
+    )
+    # drain fully
+    fi = 9
+    while st.get("ring"):
+        _, st = _apply(frame, {**base, "generation": 60}, st, frame_index=fi)
+        fi += 1
+    assert not st.get("rev_armed", True), "should disarm after drain"
+    # dropping below re-arms
+    _, st = _apply(frame, {**base, "generation": 10}, st, frame_index=fi)
+    assert st.get("rev_armed") is True
+
+
+def test_rewind_params_in_schema():
+    assert "rewind" in copy_machine.PARAMS
+    assert "reverse_at" in copy_machine.PARAMS
+    assert copy_machine.PARAMS["rewind"]["type"] == "bool"
