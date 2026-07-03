@@ -5,6 +5,7 @@
  * replaces the current ccBankBindings.
  */
 import type { CCBankBinding } from '../../shared/bankTypes'
+import { deriveControllerFingerprint } from '../../shared/controllerIdentity'
 
 /**
  * Akai MIDImix — factory-default CC map, mapped onto the 4x8 hardware bank
@@ -55,3 +56,24 @@ export const MIDIMIX_FACTORY_PROFILE: CCBankBinding[] = (() => {
   }
   return bindings
 })()
+
+/**
+ * E18 — fingerprint of the Akai MIDImix as Web MIDI reports it (input.name =
+ * "MIDI Mix", input.manufacturer = "AKAI"; deriveControllerFingerprint's
+ * sanitization makes this stable across case/whitespace variance). This is
+ * the single source of truth for "does a connected controller match the
+ * built-in MIDImix factory profile" — used both for the auto-apply-on-connect
+ * path (stores/midi.ts applyControllerIdentity) and the manual "Load factory
+ * mapping" affordance (MIDIMapOverlay.tsx).
+ */
+export const MIDIMIX_FINGERPRINT = deriveControllerFingerprint('MIDI Mix', 'AKAI')
+
+/**
+ * Look up the built-in factory profile for a controller fingerprint, or null
+ * if none is known. Single lookup point so future built-in profiles can be
+ * added here without touching call sites.
+ */
+export function getFactoryProfileForFingerprint(fingerprint: string | null): CCBankBinding[] | null {
+  if (fingerprint === MIDIMIX_FINGERPRINT) return MIDIMIX_FACTORY_PROFILE
+  return null
+}

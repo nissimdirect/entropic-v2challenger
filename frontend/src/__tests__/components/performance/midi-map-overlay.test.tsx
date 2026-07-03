@@ -33,6 +33,7 @@ import { useEffectsStore } from '../../../renderer/stores/effects'
 import { useInstrumentsStore } from '../../../renderer/stores/instruments'
 import MIDIMapOverlay from '../../../renderer/components/performance/MIDIMapOverlay'
 import type { RackNode } from '../../../renderer/components/instruments/types'
+import { MIDIMIX_FINGERPRINT } from '../../../renderer/utils/controllerProfiles'
 
 function macroRack(): RackNode {
   return {
@@ -210,6 +211,44 @@ describe('MIDIMapOverlay — flash on knob turn', () => {
     expect(getByTestId('map-slot-0-0').getAttribute('data-flashing')).toBe('true')
     // A slot with no binding for that CC does not flash.
     expect(getByTestId('map-slot-1-1').getAttribute('data-flashing')).toBe('false')
+  })
+})
+
+// ─── E18 — manual "Load factory mapping" affordance ────────────────────────
+
+describe('MIDIMapOverlay — manual factory-mapping load', () => {
+  it('does not render the button when no controller (or a non-factory-profile controller) is connected', () => {
+    seedTrackContext()
+    useMIDIMapModeStore.setState({ mapMode: true })
+    const { queryByTestId } = render(<MIDIMapOverlay />)
+    expect(queryByTestId('midi-map-load-factory')).toBeNull()
+  })
+
+  it('renders the button when the connected fingerprint has a known factory profile (MIDImix)', () => {
+    seedTrackContext()
+    useMIDIStore.setState({ activeControllerFingerprint: MIDIMIX_FINGERPRINT })
+    useMIDIMapModeStore.setState({ mapMode: true })
+    const { getByTestId } = render(<MIDIMapOverlay />)
+    expect(getByTestId('midi-map-load-factory')).toBeTruthy()
+  })
+
+  it('clicking the button overwrites existing ccBankBindings with the 32-binding factory profile (explicit user action, allowed to overwrite)', () => {
+    seedTrackContext()
+    // Simulate an existing (different) bank map already in place -- the
+    // auto-apply-on-connect guard would refuse to touch this, but the
+    // manual button is explicit user action and IS allowed to overwrite.
+    useMIDIStore.getState().setCCBankBinding(99, { row: 2, col: 6 })
+    useMIDIStore.setState({ activeControllerFingerprint: MIDIMIX_FINGERPRINT })
+    useMIDIMapModeStore.setState({ mapMode: true })
+    const { getByTestId } = render(<MIDIMapOverlay />)
+
+    act(() => {
+      fireEvent.click(getByTestId('midi-map-load-factory'))
+    })
+
+    const after = useMIDIStore.getState().ccBankBindings
+    expect(after).toHaveLength(32)
+    expect(after.find((b) => b.cc === 99)).toBeUndefined() // prior binding was overwritten
   })
 })
 

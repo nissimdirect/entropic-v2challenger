@@ -36,8 +36,10 @@ import { useMIDIMapModeStore } from '../../stores/midiMapMode'
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
+import { useToastStore } from '../../stores/toast'
 import { useMappingContext, type MappingContext } from '../../utils/focusContext'
 import { deriveDefaultAssignment, type DefaultAssignmentSources } from '../../utils/deriveDefaultAssignment'
+import { getFactoryProfileForFingerprint } from '../../utils/controllerProfiles'
 import {
   enumerateCandidateTargets,
   slotTargetLabel,
@@ -70,6 +72,15 @@ function MIDIMapOverlayInner() {
 
   const ccBankBindings = useMIDIStore((s) => s.ccBankBindings)
   const bankAssignments = useMIDIStore((s) => s.bankAssignments)
+  // E18 — manual "Load factory mapping" affordance: only offered when the
+  // currently connected controller's fingerprint has a known built-in
+  // factory profile (e.g. Akai MIDImix). null when no such profile exists
+  // (unknown/unconnected controller), which hides the button below.
+  const activeControllerFingerprint = useMIDIStore((s) => s.activeControllerFingerprint)
+  const factoryProfile = useMemo(
+    () => getFactoryProfileForFingerprint(activeControllerFingerprint),
+    [activeControllerFingerprint],
+  )
   // H7 (bank paging): the resolver keys bankAssignments by
   // pagedContextKey(contextKey, activeBankIndex) so the same physical CC can
   // target a different slot per bank page. The overlay must read/write the
@@ -195,6 +206,21 @@ function MIDIMapOverlayInner() {
   const contextLabel =
     context.kind === 'none' ? 'nothing focused' : `${context.kind} · ${context.contextKey}`
 
+  // E18 — manual factory-mapping load. Explicit user action, so (unlike the
+  // auto-apply-on-connect path in stores/midi.ts applyControllerIdentity)
+  // this is ALLOWED to overwrite an existing ccBankBindings set — the toast
+  // confirms what just happened so an accidental click is immediately
+  // legible/recoverable via re-learn.
+  const loadFactoryMapping = () => {
+    if (!factoryProfile) return
+    useMIDIStore.getState().applyControllerProfile(factoryProfile)
+    useToastStore.getState().addToast({
+      level: 'info',
+      message: 'MIDImix factory mapping loaded (overwrote current bank map)',
+      source: 'midi-controller-profile',
+    })
+  }
+
   return (
     <div
       className="midi-map-overlay"
@@ -212,6 +238,16 @@ function MIDIMapOverlayInner() {
           >
             {contextLabel}
           </span>
+          {factoryProfile && (
+            <button
+              className="midi-map-overlay__load-factory"
+              data-testid="midi-map-load-factory"
+              title="Overwrite the current bank map with the Akai MIDImix factory CC layout"
+              onClick={loadFactoryMapping}
+            >
+              Load factory mapping
+            </button>
+          )}
           <button
             className="midi-map-overlay__close"
             data-testid="midi-map-close"
