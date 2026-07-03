@@ -1145,5 +1145,18 @@ describe('TimelineStore', () => {
       expect(useTimelineStore.getState().tracks.length).toBe(LIMITS.MAX_TRACKS + 1)
       expect(useTimelineStore.getState().tracks.filter((t) => t.type === 'master')).toHaveLength(1)
     })
+
+    it('removeTrack cannot delete the Master track (undeletable invariant, redteam M.2)', () => {
+      const masterId = useTimelineStore.getState().addMasterTrack()!
+      useTimelineStore.getState().removeTrack(masterId)
+      expect(useTimelineStore.getState().tracks.filter((t) => t.type === 'master')).toHaveLength(1)
+      expect(useTimelineStore.getState().tracks.find((t) => t.id === masterId)).toBeTruthy()
+    })
+
+    it('removeTrack cannot delete the Inspector track', () => {
+      const inspId = useTimelineStore.getState().addInspectorTrack()!
+      useTimelineStore.getState().removeTrack(inspId)
+      expect(useTimelineStore.getState().tracks.find((t) => t.id === inspId)).toBeTruthy()
+    })
   })
 })
