@@ -210,6 +210,7 @@ class ExportManager:
         operator_lanes: list[dict] | None = None,
         operator_lane_base_by_frame: dict | None = None,
         audio_pcm_provider=None,
+        audio_sample_rate: int | None = None,
         mask_stack: list[dict] | None = None,
         transform: dict | None = None,
         transform_clip_id: str | None = None,
@@ -263,6 +264,16 @@ class ExportManager:
             modulation matches preview. Absent → audio followers read ``None``
             (no audio modulation), the same graceful degrade preview uses when no
             audio is loaded.
+        audio_sample_rate : int, optional
+            AA.3-B (spec §3.1) — the live audio's sample rate, exactly as preview
+            passes it (``zmq_server.py``'s ``audio_player._sample_rate`` when
+            loaded, else 44100). Threaded into ``evaluate_all`` alongside
+            ``audio_pcm_provider`` so ``frequency_band``/``onset`` audio-follower
+            math (which depends on sample rate for its FFT bin math) matches
+            preview exactly. ``rms`` is sample-rate-independent, so this only
+            matters for those two methods. Absent → 44100 (``SignalEngine``'s own
+            default — the pre-fix behavior, byte-identical when the live rate
+            already IS 44100).
         performance : dict, optional
             P5a.4 composite-replay payload ``{events, instruments, assets}``.
             When present (and non-empty ``events``), the export takes the
@@ -370,6 +381,7 @@ class ExportManager:
                 "operator_lanes": snap_operator_lanes,
                 "operator_lane_base_by_frame": snap_operator_lane_base_by_frame,
                 "audio_pcm_provider": audio_pcm_provider,
+                "audio_sample_rate": audio_sample_rate,
                 "cycle_decision": snap_cycle_decision,
                 "mask_stack": snap_mask_stack,
                 "transform": snap_transform,
@@ -608,6 +620,7 @@ class ExportManager:
         operator_lanes: list[dict] | None = None,
         operator_lane_base_by_frame: dict | None = None,
         audio_pcm_provider=None,
+        audio_sample_rate: int | None = None,
         cycle_decision=None,
         mask_stack: list[dict] | None = None,
         transform: dict | None = None,
@@ -752,11 +765,21 @@ class ExportManager:
                     # P5b.8: inject the precomputed cycle-break decision so the
                     # per-frame toposort skips recomputing cycles — same break for
                     # every frame, perf gate respected.
+                    # AA.3-B (spec §3.1): thread the SAME audio_sample_rate preview
+                    # passes (zmq_server.py's audio_player._sample_rate) instead of
+                    # letting evaluate_all silently default to 44100 — otherwise
+                    # frequency_band/onset audio-follower math (SR-dependent FFT
+                    # bin math) drifts preview vs export at any non-44100 rate.
                     values, signal_state = signal_engine.evaluate_all(
                         mod_operators,
                         src_idx,
                         source_fps,
                         audio_pcm=audio_pcm,
+                        audio_sample_rate=(
+                            audio_sample_rate
+                            if audio_sample_rate is not None
+                            else 44100
+                        ),
                         video_frame=video_frame,
                         state=signal_state,
                         precomputed_break=cycle_decision,
