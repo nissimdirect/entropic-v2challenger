@@ -22,7 +22,7 @@ test.describe('Phase 4 — Timeline UI', () => {
 
   test('empty timeline shows add-track button', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
-    const addBtn = window.locator('.timeline__add-track-btn')
+    const addBtn = window.locator('.timeline__add-track-btn').first()
     await expect(addBtn).toBeVisible()
     await expect(addBtn).toContainText('Add')
   })
@@ -31,7 +31,7 @@ test.describe('Phase 4 — Timeline UI', () => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
     // Click the add track button (in empty state it says "+ Add Track")
-    const addBtn = window.locator('.timeline__add-track-btn')
+    const addBtn = window.locator('.timeline__add-track-btn').first()
     await addBtn.click()
 
     // Track header and lane should appear
@@ -43,11 +43,13 @@ test.describe('Phase 4 — Timeline UI', () => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
     // Find and click the add-track button
-    const addBtn = window.locator('.timeline__add-track-btn')
+    const addBtn = window.locator('.timeline__add-track-btn').first()
     await addBtn.click()
 
-    // After first track is added, the button moves to the headers spacer
-    const headerAddBtn = window.locator('.timeline__headers-spacer .timeline__add-track-btn')
+    // After first track is added, the add-track buttons live in the headers spacer.
+    // That spacer holds THREE .timeline__add-track-btn buttons (video / MIDI / group),
+    // so scope to .first() (the video add-track) — see task #14 for the class-collision.
+    const headerAddBtn = window.locator('.timeline__headers-spacer .timeline__add-track-btn').first()
     await headerAddBtn.click()
     await headerAddBtn.click()
 
@@ -59,7 +61,7 @@ test.describe('Phase 4 — Timeline UI', () => {
   test('track header shows mute and solo buttons', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
-    const addBtn = window.locator('.timeline__add-track-btn')
+    const addBtn = window.locator('.timeline__add-track-btn').first()
     await addBtn.click()
 
     // Track header should have M and S buttons
@@ -69,16 +71,10 @@ test.describe('Phase 4 — Timeline UI', () => {
     await expect(soloBtn).toBeVisible()
   })
 
-  test('zoom controls are visible in footer', async ({ window }) => {
-    await expect(window.locator('.timeline__footer')).toBeVisible({ timeout: 10_000 })
-    await expect(window.locator('.zoom-scroll__slider')).toBeVisible()
-    await expect(window.locator('.zoom-scroll__label')).toBeVisible()
-  })
-
   test('time ruler is visible after adding a track', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
-    const addBtn = window.locator('.timeline__add-track-btn')
+    const addBtn = window.locator('.timeline__add-track-btn').first()
     await addBtn.click()
 
     await expect(window.locator('.time-ruler')).toBeVisible({ timeout: 5_000 })
@@ -91,63 +87,33 @@ test.describe('Phase 4 — Timeline UI', () => {
   })
 })
 
-test.describe('Phase 4 — History Panel', () => {
-  test('history panel is visible in sidebar', async ({ window }) => {
-    await expect(window.locator('.history-panel')).toBeVisible({ timeout: 10_000 })
-  })
-
-  test('empty history shows "No actions yet"', async ({ window }) => {
-    const empty = window.locator('.history-panel__empty')
-    await expect(empty).toBeVisible({ timeout: 10_000 })
-    await expect(empty).toContainText('No actions yet')
-  })
-})
+// NOTE: HistoryPanel was moved out of the sidebar (App.tsx: "Phase 13C — removed
+// from sidebar; F-0514-18 re-surfaced as a floating overlay via Edit → Undo History").
+// The two "history panel visible in sidebar on launch" tests were deleted — they
+// asserted a removed location. HistoryPanel component rendering is covered by vitest.
 
 test.describe('Phase 4 — Window Title', () => {
-  test('window title shows "Untitled — Creatrix" on launch', async ({ window }) => {
+  test('window title shows "Creatrix" on launch (no project loaded)', async ({ window }) => {
+    // App.tsx: with no project loaded the title is deliberately the plain "Creatrix"
+    // (not "Untitled — Creatrix"); once a project loads it becomes "<name> — Creatrix".
     const title = await window.title()
-    expect(title).toContain('Untitled')
     expect(title).toContain('Creatrix')
   })
 })
 
-test.describe('Phase 4 — Keyboard Shortcuts', () => {
-  test('Cmd+= zooms in (no crash)', async ({ window }) => {
-    await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
-
-    // Read initial zoom value
-    const initialZoom = await window.locator('.zoom-scroll__value').textContent()
-
-    // Press Cmd+=
-    await window.keyboard.press('Meta+=')
-
-    // Zoom value should change (or at least not crash)
-    // Give a brief moment for state to update
-    await window.waitForTimeout(200)
-    const newZoom = await window.locator('.zoom-scroll__value').textContent()
-
-    // Zoom should have increased (or stayed at max)
-    expect(newZoom).toBeDefined()
-  })
-
-  test('Cmd+- zooms out (no crash)', async ({ window }) => {
-    await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
-
-    await window.keyboard.press('Meta+-')
-    await window.waitForTimeout(200)
-
-    const zoomValue = await window.locator('.zoom-scroll__value').textContent()
-    expect(zoomValue).toBeDefined()
-  })
-})
+// NOTE: the .zoom-scroll footer widget was removed (commit 58647bb — ZoomScroll
+// orphaned; timeline zoom is now Cmd+scroll / pinch). The "zoom controls in footer"
+// and "Cmd+=/Cmd+- read .zoom-scroll__value" tests were deleted as dead-selector.
 
 test.describe('Phase 4 — Preload Bridge (E2E)', () => {
-  test('window.entropic has all 12 methods', async ({ window }) => {
+  test('window.entropic exposes the full preload API surface', async ({ window }) => {
     const methodCount = await window.evaluate(() => {
       const e = (window as any).entropic
       if (!e) return 0
       return Object.keys(e).filter(k => typeof e[k] === 'function').length
     })
-    expect(methodCount).toBe(12)
+    // Update this when the preload bridge (frontend/src/preload) changes its API.
+    // The bridge grew well past the original 12; assert the real current surface.
+    expect(methodCount).toBe(39)
   })
 })
