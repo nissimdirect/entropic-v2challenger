@@ -24,6 +24,33 @@ function rekeyPath(paramPath: string, idMap: Map<string, string>): string {
   return paramPath
 }
 
+/**
+ * T3 lock helpers. A clip is effectively locked when its own `locked` flag is
+ * set OR when its containing track is locked (track lock cascades to every
+ * clip). These read the passed `tracks` snapshot so callers can guard BEFORE
+ * entering an `undoable` transaction — a guarded no-op must never create an
+ * empty undo entry.
+ */
+function isClipEffectivelyLocked(tracks: Track[], clipId: string): boolean {
+  for (const t of tracks) {
+    if (t.clips.some((c) => c.id === clipId)) {
+      const c = t.clips.find((cc) => cc.id === clipId)!
+      return c.locked === true || t.locked === true
+    }
+  }
+  return false
+}
+
+function isTrackLocked(tracks: Track[], trackId: string): boolean {
+  const t = tracks.find((tt) => tt.id === trackId)
+  return t?.locked === true
+}
+
+/** Emit the standard "locked" no-op toast (rate-limited by shared source). */
+function emitLockedToast(message: string): void {
+  useToastStore.getState().addToast({ level: 'info', message, source: 'timeline-lock' })
+}
+
 interface TimelineState {
   // State
   tracks: Track[]
@@ -81,6 +108,32 @@ interface TimelineState {
   /** Ripple trim out: shorten a clip's out-point by delta and shift all later clips on the SAME track left.
    *  newOutPoint must be > clip.inPoint. One undo entry. */
   rippleTrimClipOut: (clipId: string, newOutPoint: number) => void
+  /**
+   * T2 SLIP: shift which part of the SOURCE plays without moving the clip's
+   * timeline position or duration. `sourceDelta` is in SOURCE seconds (same
+   * unit as inPoint/outPoint) and is added to BOTH inPoint and outPoint, so the
+   * source window slides while its width (outPoint - inPoint) — and therefore
+   * the clip's timeline duration — stays constant. The delta is clamped to the
+   * available source range: inPoint stays >= 0 and, when `sourceLength` is
+   * provided (source total seconds), outPoint stays <= sourceLength. Non-finite
+   * deltas are ignored. One undo entry per call; a clamped-to-zero delta is a
+   * no-op (no undo entry). Locked clips no-op with a toast. */
+  slipClip: (clipId: string, sourceDelta: number, sourceLength?: number) => void
+  /**
+   * T2 SLIDE: move a clip's timeline position by `positionDelta` (timeline
+   * seconds) while its two immediate neighbors on the SAME track auto-adjust to
+   * keep the arrangement gapless and the total track duration stable — the clip
+   * ending exactly at this clip's start (prev) has its out-point extended/
+   * shrunk, and the clip starting exactly at this clip's end (next) has its
+   * in-point + position shifted. The clip's own in/out and duration are
+   * unchanged. The delta is clamped so neither neighbor can invert (each keeps
+   * duration >= MIN_CLIP_SEC), next.inPoint stays >= 0, and — when
+   * `prevSourceLength` is provided — prev.outPoint stays <= prevSourceLength.
+   * A slide requires BOTH neighbors adjacent; if either is missing the call is a
+   * no-op (nothing to absorb the shift without a gap). Non-finite deltas are
+   * ignored. One undo entry per call; a clamped-to-zero delta is a no-op.
+   * Locked clips (or clips on a locked track) no-op with a toast. */
+  slideClip: (clipId: string, positionDelta: number, prevSourceLength?: number) => void
   setClipSpeed: (clipId: string, speed: number) => void
   openSpeedDialog: (clipId: string, anchor: { x: number; y: number }) => void
   closeSpeedDialog: () => void
@@ -124,6 +177,13 @@ interface TimelineState {
   renameClip: (clipId: string, name: string) => void
   /** UE.7: Set or clear clip body tint. Pass undefined to reset to default. */
   setClipColor: (clipId: string, color: string | undefined) => void
+  /** T3: Toggle a clip's lock. Undoable. A locked clip's mutation guards no-op
+   *  (no undo entry). No-op when the value is unchanged. */
+  setClipLock: (clipId: string, locked: boolean) => void
+  /** T3: Toggle a track's lock. Undoable. A locked track guards all its clips,
+   *  rejects reorder/drops onto it, and is skipped by shifting ripple ops.
+   *  No-op when the value is unchanged. */
+  setTrackLock: (trackId: string, locked: boolean) => void
 
   // Track actions
   duplicateTrack: (trackId: string) => void
@@ -136,6 +196,7 @@ interface TimelineState {
   addMarker: (time: number, label: string, color: string) => void
   removeMarker: (id: string) => void
   moveMarker: (id: string, newTime: number) => void
+  renameMarker: (id: string, label: string) => void
 
   // Loop
   setLoopRegion: (inTime: number, outTime: number) => void
@@ -936,6 +997,13 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     if (fromIdx < 0 || fromIdx >= tracks.length) return
     if (toIdx < 0 || toIdx >= tracks.length) return
     if (fromIdx === toIdx) return
+    // T3: a locked track cannot be reordered, and a locked track's slot rejects
+    // being displaced by a reorder onto it. Guard BEFORE the undoable (no-op, no
+    // empty undo entry).
+    if (tracks[fromIdx].locked === true || tracks[toIdx].locked === true) {
+      emitLockedToast('Track is locked')
+      return
+    }
     const oldOrder = tracks.map((t) => t.id)
 
     undoable(
@@ -1010,6 +1078,13 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   addClip: (trackId, clip) => {
     const track = get().tracks.find((t) => t.id === trackId)
+    // T3: a locked track rejects drops (new clips) onto it. Guard before the
+    // undoable. NOTE: persistence hydrate restores clips BEFORE re-applying the
+    // track lock, so loading a locked track's saved clips is never blocked.
+    if (track?.locked === true) {
+      emitLockedToast('Track is locked')
+      return
+    }
     if (track && track.clips.length >= LIMITS.MAX_CLIPS_PER_TRACK) {
       useToastStore.getState().addToast({ level: 'warning', message: `Clip limit (${LIMITS.MAX_CLIPS_PER_TRACK}) reached`, source: 'timeline' })
       return
@@ -1034,6 +1109,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   removeClip: (clipId) => {
+    // T3: locked clip (or clip on a locked track) cannot be deleted.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     // Find the clip and its track for restoration
     let removedClip: Clip | null = null
     let removedFromTrackId: string | null = null
@@ -1080,6 +1160,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       }
     }
     if (!oldClip) return
+    // T3: a locked clip (or clip on a locked track) cannot be moved, and a
+    // locked TARGET track rejects the drop. Guard before the undoable.
+    if (isClipEffectivelyLocked(get().tracks, clipId) || isTrackLocked(get().tracks, newTrackId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     const oldTrackId = oldClip.trackId
     const oldPosition = oldClip.position
 
@@ -1170,6 +1256,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   trimClipIn: (clipId, newInPoint) => {
+    // T3: locked clip (or clip on a locked track) cannot be trimmed.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     // Find old clip state
     let oldClip: Clip | null = null
     for (const track of get().tracks) {
@@ -1205,6 +1296,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   trimClipOut: (clipId, newOutPoint) => {
+    // T3: locked clip (or clip on a locked track) cannot be trimmed.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     let oldClip: Clip | null = null
     for (const track of get().tracks) {
       const clip = track.clips.find((c) => c.id === clipId)
@@ -1238,6 +1334,13 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   rippleRemoveClip: (clipId) => {
+    // T3: locked clip (or clip on a locked track) cannot be ripple-deleted. This
+    // also satisfies "ripple ops skip a locked track": a locked track cascades
+    // lock to all its clips, so the ripple never shifts a locked track's clips.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     // Find the clip to delete and its track
     let removedClip: Clip | null = null
     let removedTrackId: string | null = null
@@ -1296,6 +1399,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   },
 
   rippleTrimClipOut: (clipId, newOutPoint) => {
+    // T3: locked clip (or clip on a locked track) cannot be ripple-trimmed.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     let oldClip: Clip | null = null
     let clipTrackId: string | null = null
     for (const track of get().tracks) {
@@ -1351,7 +1459,176 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     )
   },
 
+  slipClip: (clipId, sourceDelta, sourceLength) => {
+    // T3: locked clip (or clip on a locked track) cannot be slipped.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
+    // Trust boundary: a non-finite gesture delta must never poison in/out.
+    if (!Number.isFinite(sourceDelta)) return
+
+    let oldClip: Clip | null = null
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { oldClip = { ...clip }; break }
+    }
+    if (!oldClip) return
+
+    // Clamp the shift to the available source range. The window width
+    // (outPoint - inPoint) is preserved, so we only bound the delta:
+    //   inPoint + delta >= 0                       → delta >= -inPoint
+    //   outPoint + delta <= sourceLength (if given) → delta <= sourceLength - outPoint
+    let delta = sourceDelta
+    const lower = -oldClip.inPoint
+    if (delta < lower) delta = lower
+    if (sourceLength !== undefined && Number.isFinite(sourceLength)) {
+      const upper = Math.max(0, sourceLength - oldClip.outPoint)
+      // `upper` is relative to the current out-point; clamp only when the
+      // source has a real ceiling (>= current out-point). If sourceLength is
+      // somehow < outPoint (stale metadata), upper is 0 → no forward slip.
+      if (delta > upper) delta = upper
+    }
+
+    // Clamped-to-zero slip → no-op, no undo entry.
+    if (Math.abs(delta) < 1e-9) return
+
+    const newIn = oldClip.inPoint + delta
+    const newOut = oldClip.outPoint + delta
+    const prevIn = oldClip.inPoint
+    const prevOut = oldClip.outPoint
+
+    undoable(
+      'Slip clip',
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, inPoint: newIn, outPoint: newOut } : c,
+          ),
+        }))
+        // position + duration are intentionally untouched; recalc is cheap and
+        // keeps the code uniform with the other edit primitives.
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) =>
+            c.id === clipId ? { ...c, inPoint: prevIn, outPoint: prevOut } : c,
+          ),
+        }))
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
+  slideClip: (clipId, positionDelta, prevSourceLength) => {
+    // T3: locked clip (or clip on a locked track) cannot be slid.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
+    if (!Number.isFinite(positionDelta)) return
+
+    // Locate the clip AND its track (slide only touches same-track neighbors).
+    let clip: Clip | null = null
+    let trackId: string | null = null
+    for (const t of get().tracks) {
+      const c = t.clips.find((cc) => cc.id === clipId)
+      if (c) { clip = { ...c }; trackId = t.id; break }
+    }
+    if (!clip || !trackId) return
+
+    const track = get().tracks.find((t) => t.id === trackId)!
+    const EPS = 1e-6
+    const clipStart = clip.position
+    const clipEnd = clip.position + clip.duration
+
+    // prev = the clip ending exactly at this clip's start.
+    // next = the clip starting exactly at this clip's end.
+    const prev = track.clips.find(
+      (c) => c.id !== clipId && Math.abs(c.position + c.duration - clipStart) < EPS,
+    )
+    const next = track.clips.find(
+      (c) => c.id !== clipId && Math.abs(c.position - clipEnd) < EPS,
+    )
+    // A slide needs BOTH neighbors to absorb the shift without opening a gap.
+    if (!prev || !next) return
+
+    // Snapshot originals for undo + clamp math.
+    const prevSnap = { ...prev }
+    const nextSnap = { ...next }
+    const clipSnap = { ...clip }
+
+    // Clamp so neither neighbor inverts and source bounds hold.
+    //  Δ > 0 (move right): prev EXTENDS (dur + Δ, out + Δ·prevSpeed ≤ src),
+    //                      next SHRINKS (dur − Δ ≥ MIN).
+    //  Δ < 0 (move left):  prev SHRINKS (dur + Δ ≥ MIN),
+    //                      next EXTENDS (dur − Δ, in + Δ·nextSpeed ≥ 0).
+    const MIN = AUDIO_LIMITS.MIN_CLIP_SEC
+    // Upper bound (most positive Δ):
+    let upper = nextSnap.duration - MIN            // next must keep MIN duration
+    if (prevSourceLength !== undefined && Number.isFinite(prevSourceLength)) {
+      const headroom = (prevSourceLength - prevSnap.outPoint) / (prevSnap.speed || 1)
+      upper = Math.min(upper, Math.max(0, headroom))
+    }
+    // Lower bound (most negative Δ):
+    let lower = -(prevSnap.duration - MIN)         // prev must keep MIN duration
+    // next retreats its in-point by Δ·speed when Δ<0; keep in-point >= 0.
+    const nextInFloor = -(nextSnap.inPoint) / (nextSnap.speed || 1)
+    lower = Math.max(lower, nextInFloor)
+
+    let delta = positionDelta
+    if (delta > upper) delta = upper
+    if (delta < lower) delta = lower
+    if (Math.abs(delta) < 1e-9) return
+
+    // Precompute new field values.
+    const prevNewDur = prevSnap.duration + delta
+    const prevNewOut = prevSnap.inPoint + prevNewDur * (prevSnap.speed || 1)
+    const nextNewPos = nextSnap.position + delta
+    const nextNewDur = nextSnap.duration - delta
+    const nextNewIn = nextSnap.inPoint + delta * (nextSnap.speed || 1)
+    const clipNewPos = clipSnap.position + delta
+
+    undoable(
+      'Slide clip',
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) return { ...c, position: clipNewPos }
+            if (c.id === prevSnap.id) return { ...c, duration: prevNewDur, outPoint: prevNewOut }
+            if (c.id === nextSnap.id) return { ...c, position: nextNewPos, duration: nextNewDur, inPoint: nextNewIn }
+            return c
+          })
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+      () => {
+        const tracks = get().tracks.map((t) => {
+          if (t.id !== trackId) return t
+          const clips = t.clips.map((c) => {
+            if (c.id === clipId) return { ...c, position: clipSnap.position }
+            if (c.id === prevSnap.id) return { ...c, duration: prevSnap.duration, outPoint: prevSnap.outPoint }
+            if (c.id === nextSnap.id) return { ...c, position: nextSnap.position, duration: nextSnap.duration, inPoint: nextSnap.inPoint }
+            return c
+          })
+          return { ...t, clips }
+        })
+        set({ tracks, duration: recalcDuration(tracks) })
+      },
+    )
+  },
+
   splitClip: (clipId, time) => {
+    // T3: locked clip (or clip on a locked track) cannot be split.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     // Find the clip and validate split is possible
     let originalClip: Clip | null = null
     let trackId: string | null = null
@@ -1448,6 +1725,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   closeSpeedDialog: () => set({ speedDialog: null }),
 
   setClipTransform: (clipId, transform) => {
+    // T3: transform is a spatial "move" — a locked clip (or clip on a locked
+    // track) cannot be transformed.
+    if (isClipEffectivelyLocked(get().tracks, clipId)) {
+      emitLockedToast('Clip is locked')
+      return
+    }
     let oldTransform: ClipTransform | undefined
     for (const track of get().tracks) {
       const clip = track.clips.find((c) => c.id === clipId)
@@ -1659,6 +1942,53 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     )
   },
 
+  // T3: lock toggles. Undoable so a lock/unlock can be reverted; the guarded
+  // no-ops on locked clips never enter `undoable`, so they cannot create empty
+  // undo entries. Both actions bail out (no undo entry) when the value is
+  // unchanged, and normalize the stored flag to `true | undefined` so an
+  // unlocked clip/track serializes byte-identically to today.
+  setClipLock: (clipId, locked) => {
+    let prev: boolean | undefined
+    let found = false
+    for (const track of get().tracks) {
+      const clip = track.clips.find((c) => c.id === clipId)
+      if (clip) { prev = clip.locked; found = true; break }
+    }
+    if (!found) return
+    const next = locked ? true : undefined
+    if ((prev === true) === (next === true)) return // no change → no undo entry
+
+    undoable(
+      locked ? 'Lock clip' : 'Unlock clip',
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, locked: next } : c)),
+        })),
+      }),
+      () => set({
+        tracks: get().tracks.map((t) => ({
+          ...t,
+          clips: t.clips.map((c) => (c.id === clipId ? { ...c, locked: prev } : c)),
+        })),
+      }),
+    )
+  },
+
+  setTrackLock: (trackId, locked) => {
+    const track = get().tracks.find((t) => t.id === trackId)
+    if (!track) return
+    const prev = track.locked
+    const next = locked ? true : undefined
+    if ((prev === true) === (next === true)) return // no change → no undo entry
+
+    undoable(
+      locked ? 'Lock track' : 'Unlock track',
+      () => set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, locked: next } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === trackId ? { ...t, locked: prev } : t)) }),
+    )
+  },
+
   duplicateTrack: (trackId) => {
     /**
      * D4 + D5: duplicateTrack copies the source track's automation lanes (canonical
@@ -1783,6 +2113,29 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     )
   },
 
+  renameMarker: (id, label) => {
+    const marker = get().markers.find((m) => m.id === id)
+    if (!marker) return
+    const oldLabel = marker.label
+
+    // T4: trust boundary — this is user text rendered into the DOM. React escapes
+    // it, but we still (a) strip control chars (incl. newlines/tabs that would
+    // corrupt a single-line flag label), (b) collapse to trimmed text, and
+    // (c) cap length. Empty/whitespace-only input falls back to the default
+    // 'Marker' label rather than leaving an invisible flag.
+    // eslint-disable-next-line no-control-regex
+    const sanitized = label.replace(/[\x00-\x1F\x7F]/g, '').trim().slice(0, LIMITS.MAX_MARKER_LABEL_LENGTH)
+    const newLabel = sanitized.length > 0 ? sanitized : 'Marker'
+
+    if (newLabel === oldLabel) return
+
+    undoable(
+      'Rename marker',
+      () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, label: newLabel } : m)) }),
+      () => set({ markers: get().markers.map((m) => (m.id === id ? { ...m, label: oldLabel } : m)) }),
+    )
+  },
+
   // --- Loop ---
 
   setLoopRegion: (inTime, outTime) => {
@@ -1854,16 +2207,26 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     if (state.selectedClipIds.length === 0) return
     const idsToRemove = new Set(state.selectedClipIds)
 
-    // Capture removed clips for undo
+    // Capture removed clips for undo. T3: locked clips (and every clip on a
+    // locked track) are skipped — only the unlocked members of the selection are
+    // deleted. If the entire selection is locked, this is a no-op (no undo entry).
     const removedClips: { trackId: string; clip: Clip }[] = []
+    let skippedLocked = false
     for (const track of state.tracks) {
       for (const clip of track.clips) {
         if (idsToRemove.has(clip.id)) {
+          if (clip.locked === true || track.locked === true) {
+            skippedLocked = true
+            continue
+          }
           removedClips.push({ trackId: track.id, clip: { ...clip } })
         }
       }
     }
-    if (removedClips.length === 0) return
+    if (removedClips.length === 0) {
+      if (skippedLocked) emitLockedToast('Clip is locked')
+      return
+    }
 
     undoable(
       `Delete ${removedClips.length} clip${removedClips.length > 1 ? 's' : ''}`,

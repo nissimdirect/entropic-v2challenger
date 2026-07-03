@@ -28,6 +28,9 @@ export const LIMITS = {
   MAX_EFFECTS_PER_CHAIN: 10,
   /** UE.7: Maximum clip label length; clamped at trust boundary in renameClip. */
   MAX_CLIP_NAME_LENGTH: 100,
+  /** T4: Maximum marker label length; clamped + control-char-stripped at the
+   * trust boundary in renameMarker (user text rendered into the DOM). */
+  MAX_MARKER_LABEL_LENGTH: 80,
   /**
    * MK.9: composite-layer cap. MIRRORS the backend security boundary
    * `backend/src/security.py:MAX_COMPOSITE_LAYERS` (= 50, INJ-3 OOM guard).

@@ -1122,6 +1122,11 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
         const base = {
           ...clipWithoutMaskStack,
           trackId: addedTrackId,
+          // T3: lock is a boolean at the persistence trust boundary — only `true`
+          // survives, any other value (string, number, object from a tampered
+          // file) is dropped to `undefined`. Mirrors the sampler-additive-field
+          // whitelist pattern (#315).
+          locked: rawClip.locked === true ? true : undefined,
           ...(clip.transform ? { transform: normalizeTransform(clip.transform as any) } : {}),
         }
         const migratedClip = maskStack.length > 0
@@ -1185,6 +1190,19 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
     }
     if (savedChain.length) {
       useTimelineStore.getState().updateTrackEffectChain(addedTrackId, () => savedChain)
+    }
+
+    // T3: restore the track lock LAST — after clips are hydrated (addClip rejects
+    // drops onto a locked track, so the lock must be applied only once the saved
+    // clips are in place) and after the effect chain. Direct setState (not
+    // setTrackLock) so hydration never pollutes the undo stack. Trust boundary:
+    // only a literal `true` locks; any other persisted value is ignored. This is
+    // the sampler-persistence hole pattern — the field is serialized inside the
+    // track object but must be explicitly re-applied on load.
+    if ((track as unknown as { locked?: unknown }).locked === true) {
+      useTimelineStore.setState((s) => ({
+        tracks: s.tracks.map((t) => (t.id === addedTrackId ? { ...t, locked: true } : t)),
+      }))
     }
   }
 

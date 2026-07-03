@@ -141,6 +141,7 @@ def _auto_register():
         emboss,
         torn_edges,
         extrude_spin,
+        copy_machine,
         median_filter,
         false_color,
         histogram_eq,
@@ -300,6 +301,7 @@ def _auto_register():
         emboss,
         torn_edges,
         extrude_spin,
+        copy_machine,
         median_filter,
         false_color,
         histogram_eq,
@@ -442,6 +444,16 @@ def _auto_register():
         temporal_dispersion,
     )
 
+    # --- Transitions content sprint v2 (ROADMAP §2.5 decision 2 / PD.13) ---
+    # First 3 of 53 designed transitions (docs/addendums/LAYER-TRANSITIONS.md,
+    # "Geometric Reveals" #1-3) — pattern-establishers for the remaining 50.
+    # See docs/plans/transitions-pattern.md for the registration template.
+    from effects.fx import (
+        transition_column_cascade,
+        transition_column_cascade_reverse,
+        transition_row_waterfall,
+    )
+
     phase12_mods = [
         subliminal,
         ascii_phantom,
@@ -452,6 +464,9 @@ def _auto_register():
         histogram_attractor,
         reaction_mosh,
         temporal_dispersion,
+        transition_column_cascade,
+        transition_column_cascade_reverse,
+        transition_row_waterfall,
     ]
 
     # Dev-only effects (UAT crash testing)
