@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { Track, Clip, Marker, TextClipConfig, ClipTransform, AudioClip, EffectInstance, MatteNode, ProbeBinding } from '../../shared/types'
+import type { Track, Clip, Marker, TextClipConfig, ClipTransform, AudioClip, EffectInstance, MatteNode, ProbeBinding, AutomationLane } from '../../shared/types'
 import { AUDIO_LIMITS, clampGainDb, clampNonNegSec } from '../../shared/types'
 import { LIMITS } from '../../shared/limits'
 import { randomUUID } from '../utils'
@@ -9,7 +9,7 @@ import { useAutomationStore } from './automation'
 import { pruneEffectDependents, restoreEffectDependents } from './crossStoreCleanup'
 import type { PruneSnapshot } from './crossStoreCleanup'
 import { useInstrumentsStore } from './instruments'
-import { parseTransformLanePath } from '../utils/transformLanes'
+import { parseTransformLanePath, formatTransformLanePath } from '../utils/transformLanes'
 
 /**
  * D4/D5 helper: swap a leading `${oldId}.` prefix with `${newId}.` for any
@@ -55,6 +55,70 @@ function shiftClipTransformLaneTimes(clipId: string, delta: number): void {
     }
   }
   if (changed) useAutomationStore.setState({ lanes: next })
+}
+
+/**
+ * splitClip helper: partition a clip's clip-transform lane keyframes at the
+ * cut time. Keyframes strictly before `cutTime` stay on clipA's (original
+ * clipId) lane; keyframes at/after `cutTime` move to a NEW lane keyed to
+ * clipB's id (paramPath rekeyed `clipTransform.<clipBId>.<field>` via
+ * formatTransformLanePath). Mirrors shiftClipTransformLaneTimes's
+ * scan-all-tracks approach since a clip-transform lane is keyed to the clip,
+ * not necessarily its current track.
+ *
+ * Returns an inverse closure that restores the PRE-split automation lanes
+ * state byte-for-byte (deep-cloned before mutation) — split/merge undo must
+ * be exact, not a re-derived merge of the partitioned points.
+ */
+function splitClipTransformLaneKeyframes(
+  clipId: string,
+  clipBId: string,
+  cutTime: number,
+): () => void {
+  const before = useAutomationStore.getState().lanes
+  const snapshot: Record<string, AutomationLane[]> = {}
+  for (const [trackId, trackLanes] of Object.entries(before)) {
+    snapshot[trackId] = trackLanes.map((l) => ({ ...l, points: l.points.map((p) => ({ ...p })) }))
+  }
+
+  let changed = false
+  const next: Record<string, AutomationLane[]> = { ...before }
+  for (const [trackId, trackLanes] of Object.entries(before)) {
+    const newLanes: AutomationLane[] = []
+    let laneListChanged = false
+    for (const lane of trackLanes) {
+      const parsed = parseTransformLanePath(lane.paramPath)
+      if (!parsed || parsed.clipId !== clipId) {
+        newLanes.push(lane)
+        continue
+      }
+      const beforePts = lane.points.filter((p) => p.time < cutTime)
+      const afterPts = lane.points.filter((p) => p.time >= cutTime)
+      if (afterPts.length === 0) {
+        // Nothing crosses the cut — lane stays on clipA untouched.
+        newLanes.push(lane)
+        continue
+      }
+      laneListChanged = true
+      changed = true
+      // clipA keeps the before-cut points (may be empty).
+      newLanes.push({ ...lane, points: beforePts })
+      // clipB gets a NEW lane (new id, rekeyed paramPath) with the after-cut points.
+      newLanes.push({
+        ...lane,
+        id: randomUUID(),
+        paramPath: formatTransformLanePath(clipBId, parsed.field),
+        points: afterPts,
+      })
+    }
+    if (laneListChanged) next[trackId] = newLanes
+  }
+
+  if (changed) useAutomationStore.setState({ lanes: next })
+
+  return () => {
+    useAutomationStore.setState({ lanes: snapshot })
+  }
 }
 
 /**
@@ -1447,6 +1511,25 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const deletedPosition = removedClip.position
     const trackId = removedTrackId
 
+    // Bugfix: clip-transform automation lanes are keyed to a clipId and store
+    // raw timeline-time points — every later same-track sibling clip whose
+    // position shifts must have its own clip-transform lane keyframes shift
+    // by the SAME per-clip delta (mirrors moveClip's shiftClipTransformLaneTimes
+    // pattern). Precompute per-sibling deltas up front so the actual position
+    // change (which clamps at 0) and the lane shift always agree, in both
+    // forward and undo.
+    const siblingDeltas = new Map<string, number>()
+    for (const t of get().tracks) {
+      if (t.id !== trackId) continue
+      for (const c of t.clips) {
+        if (c.id === clipId) continue
+        if (c.position > deletedPosition) {
+          const newPos = Math.max(0, c.position - deletedDuration)
+          siblingDeltas.set(c.id, newPos - c.position)
+        }
+      }
+    }
+
     undoable(
       'Ripple delete',
       () => {
@@ -1469,6 +1552,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         const selectedClipId = selectedClipIds[0] ?? null
         const speedDialog = state.speedDialog?.clipId === clipId ? null : state.speedDialog
         set({ tracks, selectedClipId, selectedClipIds, speedDialog, duration: recalcDuration(tracks) })
+        for (const [siblingId, delta] of siblingDeltas) {
+          shiftClipTransformLaneTimes(siblingId, delta)
+        }
       },
       () => {
         // Undo: restore original positions (shift later clips right, re-insert deleted clip)
@@ -1483,6 +1569,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           return { ...t, clips: [...clips, removedClip!] }
         })
         set({ tracks, duration: recalcDuration(tracks) })
+        for (const [siblingId, delta] of siblingDeltas) {
+          shiftClipTransformLaneTimes(siblingId, -delta)
+        }
       },
     )
   },
@@ -1509,6 +1598,18 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const oldOut = oldClip.outPoint
     const oldDuration = oldClip.duration
 
+    // Bugfix: same-track sibling clip-transform automation lanes must ride the
+    // ripple shift. Precompute per-sibling deltas (position clamps at 0) so the
+    // lane shift always agrees with the actual position change.
+    const siblingDeltas = new Map<string, number>()
+    for (const c of get().tracks.find((t) => t.id === trackId)?.clips ?? []) {
+      if (c.id === clipId) continue
+      if (c.position > clipPos) {
+        const newPos = Math.max(0, c.position - delta)
+        siblingDeltas.set(c.id, newPos - c.position)
+      }
+    }
+
     undoable(
       'Ripple trim',
       () => {
@@ -1528,6 +1629,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           return { ...t, clips }
         })
         set({ tracks, duration: recalcDuration(tracks) })
+        for (const [siblingId, siblingDelta] of siblingDeltas) {
+          shiftClipTransformLaneTimes(siblingId, siblingDelta)
+        }
       },
       () => {
         const tracks = get().tracks.map((t) => {
@@ -1544,6 +1648,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           return { ...t, clips }
         })
         set({ tracks, duration: recalcDuration(tracks) })
+        for (const [siblingId, siblingDelta] of siblingDeltas) {
+          shiftClipTransformLaneTimes(siblingId, -siblingDelta)
+        }
       },
     )
   },
@@ -1738,6 +1845,9 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const clipBId = randomUUID()
     const splitOffset = time - clipStart
     const splitInSource = originalClip.inPoint + splitOffset * originalClip.speed
+    // Captured across forward/inverse: forward sets it to the exact inverse
+    // closure (pre-split lanes snapshot) that undo must call.
+    let splitClipLaneUndo: (() => void) | null = null
 
     undoable(
       'Split clip',
@@ -1756,6 +1866,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           return { ...t, clips }
         })
         set({ tracks, duration: recalcDuration(tracks) })
+        // Bugfix: partition clip-transform automation keyframes at the cut —
+        // before-cut points stay on clipA's lane, at/after-cut points move to
+        // a new clipB-keyed lane. Runs AFTER the position/tracks update so a
+        // caller observing state mid-transaction never sees a lane pointing
+        // at a clipB that doesn't exist yet.
+        splitClipLaneUndo = splitClipTransformLaneKeyframes(clipId, clipBId, time)
       },
       () => {
         // Merge clipA and clipB back into original
@@ -1766,6 +1882,8 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
           return { ...t, clips }
         })
         set({ tracks, duration: recalcDuration(tracks) })
+        // Restore the pre-split automation lanes state byte-for-byte.
+        splitClipLaneUndo?.()
       },
     )
   },
