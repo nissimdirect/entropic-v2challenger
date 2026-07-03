@@ -5,6 +5,8 @@ import {
   serializeEffectChain,
   serializeMaskStack,
   serializeTextConfig,
+  buildMasterChainPayload,
+  shouldUseCompositePath,
   type SerializedEffectInstance,
 } from '../shared/ipc-serialize'
 
@@ -255,5 +257,106 @@ describe('serializeTextConfig', () => {
       'font_family', 'font_size', 'opacity', 'position',
       'shadow_color', 'shadow_offset', 'stroke_color', 'stroke_width', 'text',
     ])
+  })
+})
+
+/**
+ * M.2b (Master-Out Bus wiring) — the send-side wire that makes the ALREADY-
+ * BUILT backend master_chain seam (M.1/M.2) actually receive data from the
+ * frontend. These tests cover the two pure helpers extracted from App.tsx's
+ * render_composite / render_frame / export_start send sites so the wiring is
+ * unit-testable without the live Python sidecar.
+ *
+ * Backend contract (zmq_server.py _handle_render_composite / _handle_export_start):
+ *   message.get("master_chain", [])  — absent key defaults to [], a TRUE
+ *   no-op in engine/compositor.py render_composite. So the frontend must
+ *   OMIT the key entirely (not send `master_chain: []`) to stay byte-
+ *   identical for a project with no Master effects (back-compat).
+ */
+describe('buildMasterChainPayload', () => {
+  it('includes serialized master_chain when the chain is non-empty', () => {
+    const chain = [makeEffect({ effectId: 'fx.invert' })]
+    const payload = buildMasterChainPayload(chain)
+    expect(payload).toHaveProperty('master_chain')
+    expect((payload as { master_chain: SerializedEffectInstance[] }).master_chain).toEqual(
+      serializeEffectChain(chain),
+    )
+    expect((payload as { master_chain: SerializedEffectInstance[] }).master_chain[0]).toHaveProperty(
+      'effect_id',
+      'fx.invert',
+    )
+  })
+
+  it('omits master_chain entirely when the chain is empty (true no-op, back-compat)', () => {
+    const payload = buildMasterChainPayload([])
+    expect(payload).not.toHaveProperty('master_chain')
+    expect(payload).toEqual({})
+  })
+
+  it('omits master_chain entirely when the chain is undefined (no Master track found)', () => {
+    const payload = buildMasterChainPayload(undefined)
+    expect(payload).not.toHaveProperty('master_chain')
+    expect(payload).toEqual({})
+  })
+
+  it('spreading an empty payload into a base object changes nothing (regression-safe)', () => {
+    const base = { cmd: 'render_composite', layers: [], project_seed: 0 }
+    const spread = { ...base, ...buildMasterChainPayload([]) }
+    expect(spread).toEqual(base)
+  })
+
+  it('spreading a non-empty payload into a base object adds master_chain', () => {
+    const base = { cmd: 'export_start', input_path: '/a.mp4' }
+    const chain = [makeEffect({ effectId: 'fx.color_grade' })]
+    const spread = { ...base, ...buildMasterChainPayload(chain) }
+    expect(spread).toHaveProperty('master_chain')
+    expect(Object.keys(spread).sort()).toEqual(['cmd', 'input_path', 'master_chain'])
+  })
+})
+
+describe('shouldUseCompositePath (THE TRAP fix)', () => {
+  it('stays on the render_frame fast path for a single clip with an EMPTY master chain (byte-identical legacy behavior)', () => {
+    const useComposite = shouldUseCompositePath({
+      hasMultipleLayers: false,
+      activeVideoClipCount: 1,
+      masterChainLength: 0,
+    })
+    expect(useComposite).toBe(false)
+  })
+
+  it('forces the composite path for a single clip with a NON-EMPTY master chain (the trap fix)', () => {
+    const useComposite = shouldUseCompositePath({
+      hasMultipleLayers: false,
+      activeVideoClipCount: 1,
+      masterChainLength: 1,
+    })
+    expect(useComposite).toBe(true)
+  })
+
+  it('still uses the composite path when there are multiple layers, independent of master chain', () => {
+    expect(
+      shouldUseCompositePath({ hasMultipleLayers: true, activeVideoClipCount: 2, masterChainLength: 0 }),
+    ).toBe(true)
+  })
+
+  it('still uses the composite path when there are zero active video clips (pre-existing no-clip fallback), independent of master chain', () => {
+    expect(
+      shouldUseCompositePath({ hasMultipleLayers: false, activeVideoClipCount: 0, masterChainLength: 0 }),
+    ).toBe(true)
+  })
+
+  it('is additive: adding a non-empty master chain never flips an already-true decision to false', () => {
+    const withoutMaster = shouldUseCompositePath({
+      hasMultipleLayers: true,
+      activeVideoClipCount: 3,
+      masterChainLength: 0,
+    })
+    const withMaster = shouldUseCompositePath({
+      hasMultipleLayers: true,
+      activeVideoClipCount: 3,
+      masterChainLength: 2,
+    })
+    expect(withoutMaster).toBe(true)
+    expect(withMaster).toBe(true)
   })
 })

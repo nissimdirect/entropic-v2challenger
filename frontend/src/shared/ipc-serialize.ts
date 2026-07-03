@@ -81,6 +81,46 @@ export function serializeEffectChain(chain: EffectInstance[]): SerializedEffectI
 }
 
 /**
+ * M.2b (Master-Out Bus wiring) — build the `master_chain` field shared by the
+ * render_composite (preview) and export_start payloads. The backend
+ * (_handle_render_composite / _handle_export_start) already defaults an
+ * ABSENT `master_chain` key to `[]`, which render_composite treats as a true
+ * no-op — so an empty/undefined Master chain must omit the key entirely to
+ * stay byte-identical to the pre-M.2b payload (back-compat). Reused at both
+ * send sites (and uses the same serializeEffectChain shape per-track chains
+ * already use) so preview and export can never drift from each other.
+ */
+export function buildMasterChainPayload(
+  masterChain: EffectInstance[] | undefined,
+): { master_chain: SerializedEffectInstance[] } | Record<string, never> {
+  if (!masterChain || masterChain.length === 0) return {}
+  return { master_chain: serializeEffectChain(masterChain) }
+}
+
+/**
+ * M.2b — THE TRAP fix. Preview's single-clip fast path (`render_frame`)
+ * bypasses render_composite entirely, and render_frame's backend handler
+ * never reads `master_chain`. So a non-empty Master chain must force the
+ * render_composite path even for a single clip — same seam M.2 used to make
+ * export's single-input path apply master. This is the exact pre-existing
+ * `hasMultipleLayers || activeVideoClips.length === 0` decision from App.tsx,
+ * extracted as a pure function (so it's unit-testable without the live
+ * sidecar) with `masterChainLength > 0` folded in as a third reason to use
+ * the composite path.
+ */
+export function shouldUseCompositePath(params: {
+  hasMultipleLayers: boolean
+  activeVideoClipCount: number
+  masterChainLength: number
+}): boolean {
+  return (
+    params.hasMultipleLayers ||
+    params.activeVideoClipCount === 0 ||
+    params.masterChainLength > 0
+  )
+}
+
+/**
  * Serialize a TextClipConfig from frontend camelCase to backend snake_case.
  */
 export interface SerializedTextConfig {

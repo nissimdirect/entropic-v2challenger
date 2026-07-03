@@ -55,7 +55,13 @@ import { IDENTITY_TRANSFORM, getTrackCompositing } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
 import SnapGuides from './components/preview/SnapGuides'
 import type { WaveformPeaks } from './components/transport/useWaveform'
-import { serializeEffectChain, serializeMaskStack, serializeTextConfig } from '../shared/ipc-serialize'
+import {
+  serializeEffectChain,
+  serializeMaskStack,
+  serializeTextConfig,
+  buildMasterChainPayload,
+  shouldUseCompositePath,
+} from '../shared/ipc-serialize'
 import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
@@ -1426,7 +1432,23 @@ function AppInner() {
         const hasMultipleLayers =
           activeVideoClips.length > 1 || activeTextClips.length > 0 || samplerLayers.length > 0 || rackLayers.length > 0 || frozenLayers.length > 0 || hasFrameBanksPreview || hasGranulatorPreview
 
-        if (hasMultipleLayers || activeVideoClips.length === 0) {
+        // M.2b (Master-Out Bus wiring) — the Master track's effect chain, read
+        // off timelineState (already captured this frame, same rationale as
+        // perfTrackIds above: a coalesced render must not read a stale value).
+        const masterTrack = timelineState.tracks.find((t) => t.type === 'master')
+        const masterChain = masterTrack?.effectChain ?? []
+
+        // M.2b THE TRAP fix: render_frame (single-clip fast path, below) never
+        // reads master_chain, so a non-empty Master chain must force the
+        // render_composite path even for a single clip — the same seam M.2
+        // used to make export's single-input path apply master.
+        if (
+          shouldUseCompositePath({
+            hasMultipleLayers,
+            activeVideoClipCount: activeVideoClips.length,
+            masterChainLength: masterChain.length,
+          })
+        ) {
           // Use render_composite for multi-layer rendering
           const videoLayers: Record<string, unknown>[] = activeVideoClips.map(({ clip, track, assetPath }) => {
             const localTime = currentTime - clip.position
@@ -1558,6 +1580,9 @@ function AppInner() {
             resolution: [canvasW || frameWidth || 1920, canvasH || frameHeight || 1080],
             project_seed: projectSeed,
             ...fbPerformance,
+            // M.2b — omitted when the Master chain is empty (byte-identical
+            // back-compat; the backend already no-ops an absent master_chain).
+            ...buildMasterChainPayload(masterChain),
           })
         } else {
           // Single video clip — use fast render_frame path
@@ -2098,7 +2123,13 @@ function AppInner() {
     // is a follow-up. Multi-clip composites (or when text/sampler layers are active) use
     // render_composite in preview — we cannot replicate that in export_frame without
     // backend composite support. Show a toast and skip rather than exporting a wrong frame.
-    if (activeVideoClips.length > 1) {
+    //
+    // M.2b parity (redteam MEDIUM; #344 silent-parity class): a non-empty Master chain
+    // also forces the composite path in preview (shouldUseCompositePath), which export_frame
+    // cannot replicate — so a single-clip project with a master effect would silently export
+    // a PNG WITHOUT the master fx while preview shows it. Bail to the Export dialog instead.
+    const masterChain = timeline.tracks.find((t) => t.type === 'master')?.effectChain ?? []
+    if (activeVideoClips.length > 1 || masterChain.length > 0) {
       useToastStore.getState().addToast({
         level: 'info',
         message: 'Composite frames: use Export dialog',
@@ -3121,6 +3152,12 @@ function AppInner() {
       }
       const performancePayload = buildPerformancePayload()
 
+      // M.2b (Master-Out Bus wiring) — export mirrors preview's master_chain
+      // seam (M.2 already made export's single-input path apply master; this
+      // wires the send side so export actually forwards the chain).
+      const masterTrack = useTimelineStore.getState().tracks.find((t) => t.type === 'master')
+      const masterChain = masterTrack?.effectChain ?? []
+
       const res = await window.entropic.sendCommand({
         cmd: 'export_start',
         input_path: activeAssetPath.current,
@@ -3132,6 +3169,9 @@ function AppInner() {
         project_seed: projectSeed,
         ...(exportTextLayers.length > 0 ? { text_layers: exportTextLayers } : {}),
         ...(performancePayload ? { performance: performancePayload } : {}),
+        // M.2b — omitted when the Master chain is empty (byte-identical
+        // back-compat; the backend already no-ops an absent master_chain).
+        ...buildMasterChainPayload(masterChain),
         // MK.10 — the active clip's matte stack (device mask_refs in `chain`
         // resolve against it). Omitted when absent → byte-identical legacy export.
         ...(exportMaskStack ? { mask_stack: exportMaskStack } : {}),
