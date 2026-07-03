@@ -13,7 +13,6 @@ import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 
 import FileDialog from '../../renderer/components/upload/FileDialog'
-import DropZone from '../../renderer/components/upload/DropZone'
 import PreviewCanvas from '../../renderer/components/preview/PreviewCanvas'
 
 describe('Import Video — UI State', () => {
@@ -76,13 +75,6 @@ describe('Import Video — UI State', () => {
     // Wait a tick and verify onFileSelect was NOT called
     await new Promise((r) => setTimeout(r, 50))
     expect(onFileSelect).not.toHaveBeenCalled()
-  })
-
-  test('drop zone shows correct hint text', () => {
-    render(<DropZone onFileDrop={vi.fn()} />)
-
-    expect(screen.getByText('Drop video, image, or audio file here')).toBeInTheDocument()
-    expect(screen.getByText('MP4, MOV, PNG, WAV, MP3, FLAC, OGG, M4A …')).toBeInTheDocument()
   })
 
   test('preview shows "No video loaded" before import', () => {

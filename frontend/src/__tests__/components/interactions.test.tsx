@@ -22,7 +22,6 @@ import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropi
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
 import PreviewCanvas from '../../renderer/components/preview/PreviewCanvas'
 import ParamPanel from '../../renderer/components/effects/ParamPanel'
-import DropZone from '../../renderer/components/upload/DropZone'
 import FileDialog from '../../renderer/components/upload/FileDialog'
 import type { EffectInfo } from '../../shared/types'
 
@@ -255,31 +254,10 @@ describe('Interactions — Param Panel', () => {
 })
 
 // =============================================================================
-// Drop Zone — Structure & Validation
+// File Extension Validation
 // =============================================================================
 
-describe('Interactions — Drop Zone', () => {
-  it('drop zone shows content elements', () => {
-    render(<DropZone onFileDrop={vi.fn()} />)
-
-    expect(document.querySelector('.drop-zone__icon')).toBeTruthy()
-    expect(document.querySelector('.drop-zone__text')).toBeTruthy()
-    expect(document.querySelector('.drop-zone__hint')).toBeTruthy()
-
-    // No error initially
-    expect(document.querySelector('.drop-zone__error')).toBeNull()
-  })
-
-  it('drop zone shows correct hint text', () => {
-    render(<DropZone onFileDrop={vi.fn()} />)
-
-    const text = document.querySelector('.drop-zone__text')
-    expect(text!.textContent).toBe('Drop video, image, or audio file here')
-
-    const hint = document.querySelector('.drop-zone__hint')
-    expect(hint!.textContent).toBe('MP4, MOV, PNG, WAV, MP3, FLAC, OGG, M4A …')
-  })
-
+describe('Interactions — File Extension Validation', () => {
   it('file extension validation accepts video formats', () => {
     // Pure logic test — same assertions as E2E import-video 6/6b
     const ALLOWED = ['.mp4', '.mov', '.avi', '.webm', '.mkv']
@@ -333,10 +311,8 @@ describe('Interactions — Empty State Constraints', () => {
     // 1. No export button (render status bar without assets)
     // Already covered by ux-contracts test #10
 
-    // 2. Drop zone visible
-    const { unmount: u1 } = render(<DropZone onFileDrop={vi.fn()} />)
-    expect(document.querySelector('.drop-zone')).toBeTruthy()
-    u1()
+    // 2. Drop zone visible — REMOVED (DropZone component orphaned; drag-drop
+    //    moved to window-level handlers in App.tsx)
 
     // 3. Preview placeholder text
     const { unmount: u2 } = render(

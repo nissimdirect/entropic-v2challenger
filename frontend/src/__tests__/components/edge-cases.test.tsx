@@ -16,7 +16,6 @@ import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
 import EffectRack from '../../renderer/components/effects/EffectRack'
 import ParamPanel from '../../renderer/components/effects/ParamPanel'
 import PreviewCanvas from '../../renderer/components/preview/PreviewCanvas'
-import DropZone from '../../renderer/components/upload/DropZone'
 import type { EffectInfo, EffectInstance } from '../../shared/types'
 
 // --- Test Data ---
@@ -337,13 +336,6 @@ describe('Edge Cases — State Transitions', () => {
     )
 
     expect(screen.getByText('No video loaded')).toBeInTheDocument()
-  })
-
-  test('drop zone: visible with correct hint text', () => {
-    render(<DropZone onFileDrop={vi.fn()} />)
-
-    expect(screen.getByText('Drop video, image, or audio file here')).toBeInTheDocument()
-    expect(screen.getByText('MP4, MOV, PNG, WAV, MP3, FLAC, OGG, M4A …')).toBeInTheDocument()
   })
 
   test('effect rack: empty state message', () => {
