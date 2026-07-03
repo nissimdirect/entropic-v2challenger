@@ -139,3 +139,9 @@ Of the 6 cross-cutting gates, **Gate 1 (preview==export parity) = PASS** on the 
 UAT-2 is now CONFIRMED (un-triggered sampler occludes lower track) and must get a user design-decision before a full GO — it touches the composability gate. Gates 2–6 and the
 full journey/data-loss/composability matrix remain UNVERIFIED live → **overall verdict: INCOMPLETE, not
 yet GO** — the spine is proven, the breadth pass is outstanding.
+
+
+### Stage E — design audit (LIVE, user-flagged during pass)
+- 🐛 **E-1 (P1 layout):** B3 left column — LAYER panel "Fill" opacity slider renders OVER the EFFECTS/PRESETS/INSTRUMENTS tab row (z-order/overflow when LAYER panel + browser coexist in the cramped column). Zoom-confirmed. Same family as the June-17 device-editor cramping.
+- 🐛 **E-2 (P2):** a slider also bleeds across the INSTRUMENTS "Wavetable" rack row — same overflow bug.
+- ⚠️ **E-3 (P3):** transport = raw Unicode glyphs (▶ ■ ⟳), instrument racks text-only — DESIGN-SPEC §8 wants schematic line icons; "missing icons" = no custom iconography. device-chain.css also has sub-11px (7-8px) fonts, below the §9 floor.
