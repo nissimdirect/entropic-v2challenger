@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useUndoStore } from '../../stores/undo'
@@ -13,6 +13,7 @@ import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
 import { computeSnapPosition, collectClipEdges } from '../../utils/snap-candidates'
 import { generateAiMatte } from '../../stores/aiMatte'
+import { thumbnailCount, selectThumbnails } from '../../utils/thumbnail-density'
 
 /**
  * UE.7: 8-swatch equal-luminance palette (DESIGN-SPEC §8, ≈oklch 0.65 0.09).
@@ -281,6 +282,18 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
 
   const left = clip.position * zoom - scrollX
   const width = clip.duration * zoom
+
+  // Task #19: thumbnail density scales with the clip's rendered pixel width
+  // (which already scales with zoom) — more poster frames when the clip is
+  // wide on screen, fewer (min 1) when narrow. Subsamples the fixed pool
+  // fetched once on import (App.tsx `thumbnails` IPC call, count: 12) rather
+  // than decoding new frames, so zoom changes never trigger extra decode
+  // work. F-0512-8's flex-based even-distribution CSS still spaces whatever
+  // subset is picked evenly across the clip.
+  const displayThumbnails = useMemo(
+    () => (thumbnails ? selectThumbnails(thumbnails, thumbnailCount(width)) : thumbnails),
+    [thumbnails, width],
+  )
 
   // Document-level drag: when moveClip transfers the clip to a different
   // track, React unmounts this clip's component from the old track and mounts
@@ -681,9 +694,9 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
         onClick={handleClick}
         onContextMenu={handleContextMenu}
       >
-        {thumbnails && thumbnails.length > 0 && (
+        {displayThumbnails && displayThumbnails.length > 0 && (
           <div className="clip__thumbnails">
-            {thumbnails.map((thumb, i) => (
+            {displayThumbnails.map((thumb, i) => (
               <img
                 key={i}
                 src={`data:image/jpeg;base64,${thumb.data}`}
