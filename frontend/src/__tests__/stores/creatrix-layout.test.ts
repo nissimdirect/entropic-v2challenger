@@ -103,14 +103,23 @@ describe('Creatrix layout store — P3.1', () => {
     expect(expectedTestId).toMatch(/^cx-handle-left-col$/)
   })
 
-  // ── flag off renders legacy layout ────────────────────────────────────────
+  // ── default flipped ON (build task #20, 2026-07-03) ───────────────────────
 
-  it('flag off renders legacy layout: no creatrix state read when FF.F_CREATRIX_LAYOUT is false', () => {
-    // When the flag is OFF, the app does not apply .app--creatrix class.
-    // This test validates that the feature flag module produces false by default
-    // (the flag uses isEnabled which requires explicit opt-in).
-    // In test env, localStorage is empty and no env var is set → flag is false.
-    expect(FF.F_CREATRIX_LAYOUT).toBe(false)
+  it('flag ON by default: a fresh session (no localStorage/env override) gets FF.F_CREATRIX_LAYOUT true', () => {
+    // In test env, localStorage is empty and no env var is set. The module-level
+    // FF constant was already evaluated at file-import time under that empty
+    // state, so this reads the real default polarity directly.
+    expect(FF.F_CREATRIX_LAYOUT).toBe(true)
+  })
+
+  it('flag off renders legacy layout: the entropic-disable-creatrix-layout escape hatch still works', async () => {
+    // isFixEnabled('creatrix-layout') reads localStorage at module-evaluation
+    // time, so to observe the disabled state we must set the override BEFORE
+    // re-evaluating the module (vi.resetModules + dynamic re-import).
+    localStorageMock.setItem('entropic-disable-creatrix-layout', '1')
+    vi.resetModules()
+    const { FF: freshFF } = await import('../../shared/feature-flags')
+    expect(freshFF.F_CREATRIX_LAYOUT).toBe(false)
   })
 
   // ── corrupted localStorage values clamp to declared min/max ──────────────

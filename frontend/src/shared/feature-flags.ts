@@ -119,8 +119,20 @@ export const FF = {
   F_0512_12_PREVIEW_ASPECT: isFixEnabled('f-0512-12'),
 
   // ── Creatrix campaign ──────────────────────────────────────────────────
-  /** F_CREATRIX_LAYOUT: Creatrix CSS-grid app shell + 4 resize handles (P3.1). Off by default. */
-  F_CREATRIX_LAYOUT: isEnabled('creatrix-layout'),
+  /**
+   * F_CREATRIX_LAYOUT: Creatrix CSS-grid app shell + 4 resize handles (P3.1).
+   * ON by default (flipped 2026-07-03, build task #20) now that the lean-header
+   * lock/arm/drag regression (#395) is fixed. Uses isFixEnabled's disable-by-default
+   * polarity, so a fresh session (no localStorage/env) gets the Creatrix layout.
+   *
+   * To force it OFF at runtime (devtools console, no rebuild):
+   *   localStorage.setItem('entropic-disable-creatrix-layout', '1')
+   *   location.reload()
+   *
+   * To force it OFF at build time:
+   *   VITE_ENTROPIC_DISABLE_CREATRIX_LAYOUT=1 npm run build
+   */
+  F_CREATRIX_LAYOUT: isFixEnabled('creatrix-layout'),
 } as const
 
 /**
