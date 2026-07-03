@@ -1394,6 +1394,18 @@ class ZMQServer:
         raw_layers = message.get("layers", [])
         raw_res = message.get("resolution", [1920, 1080])
         project_seed = message.get("project_seed", 0)
+        # M.1 (Master-Out Bus PRD): the Master track's effect chain. Absent from
+        # the message (no frontend sends this yet — M.1 is backend/schema
+        # foundation only, wiring the actual UI serialization is M.2) → defaults
+        # to [] here, which render_composite treats as a true no-op (byte-
+        # identical). SEC-7 chain-depth validated the same way every other chain
+        # on this handler is, BEFORE the decode loop.
+        raw_master_chain = message.get("master_chain", [])
+        if not isinstance(raw_master_chain, list):
+            return {"id": msg_id, "ok": False, "error": "master_chain must be a list"}
+        master_chain_errors = validate_chain_depth(raw_master_chain)
+        if master_chain_errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(master_chain_errors)}
 
         if not isinstance(raw_layers, list):
             return {"id": msg_id, "ok": False, "error": "layers must be a list"}
@@ -2026,8 +2038,18 @@ class ZMQServer:
                 layers = expanded
 
             t0 = time.time()
+            # M.1 (Master-Out Bus PRD): master_frame_index reuses `anchor_frame`
+            # (computed above as the smallest frame_index across layers — the
+            # SAME monotonic per-request anchor the composite state cache keys
+            # against), so the master chain's own seeded/deterministic effects
+            # advance in lockstep with the rest of this composite render.
             output, new_layer_states = render_composite(
-                layers, resolution, project_seed, layer_states=layer_states
+                layers,
+                resolution,
+                project_seed,
+                layer_states=layer_states,
+                master_chain=raw_master_chain,
+                master_frame_index=anchor_frame,
             )
             # Fold the sub-frame / branch-chain states into the saved cache so
             # nested stateful effects persist across frames (B5.1).
@@ -2630,6 +2652,13 @@ class ZMQServer:
         transform_clip_id = message.get("transform_clip_id")
         if not isinstance(transform_clip_id, str) or not transform_clip_id:
             transform_clip_id = None
+        # M.1 (Master-Out Bus PRD): the Master track's effect chain. Absent from
+        # the message (no frontend sends this yet — M.1 is backend/schema
+        # foundation only) → [] → render_composite treats it as a true no-op,
+        # byte-identical legacy export.
+        master_chain = message.get("master_chain", [])
+        if not isinstance(master_chain, list):
+            master_chain = []
 
         if not input_path:
             return {"id": msg_id, "ok": False, "error": "missing input_path"}
@@ -2651,6 +2680,11 @@ class ZMQServer:
 
         # SEC-7: Validate chain depth
         errors = validate_chain_depth(chain)
+        if errors:
+            return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
+
+        # M.1 — SEC-7 on the master chain too (same cap, same boundary).
+        errors = validate_chain_depth(master_chain)
         if errors:
             return {"id": msg_id, "ok": False, "error": "; ".join(errors)}
 
@@ -2737,6 +2771,7 @@ class ZMQServer:
                 mask_stack=mask_stack,
                 transform=transform,
                 transform_clip_id=transform_clip_id,
+                master_chain=master_chain,
             )
             return {"id": msg_id, "ok": True}
         except Exception as e:

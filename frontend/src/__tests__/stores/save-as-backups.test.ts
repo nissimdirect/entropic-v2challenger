@@ -152,7 +152,23 @@ describe('UE.4 Save As', () => {
       delete o.modified
       return o
     }
-    expect(stripVolatile(serializeProject())).toEqual(stripVolatile(before))
+    const beforeParsed = stripVolatile(before)
+    const afterParsed = stripVolatile(serializeProject())
+    // M.1 (Master-Out Bus PRD): the saved snapshot ('before') has no Master
+    // track, so loadProject's hydrate injects one (migration, "absent ->
+    // create"). Assert that ONE extra track appeared, it's the Master, and
+    // everything else round-trips exactly as before.
+    expect(afterParsed.timeline.tracks.length).toBe(beforeParsed.timeline.tracks.length + 1)
+    const masters = afterParsed.timeline.tracks.filter((t: { type: string }) => t.type === 'master')
+    expect(masters).toHaveLength(1)
+    const afterNonMaster = {
+      ...afterParsed,
+      timeline: {
+        ...afterParsed.timeline,
+        tracks: afterParsed.timeline.tracks.filter((t: { type: string }) => t.type !== 'master'),
+      },
+    }
+    expect(afterNonMaster).toEqual(beforeParsed)
   })
 })
 

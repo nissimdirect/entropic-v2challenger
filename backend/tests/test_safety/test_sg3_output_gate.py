@@ -80,7 +80,8 @@ def _patch_composite_render(monkeypatch, frame: np.ndarray) -> None:
     """Force render_composite (as imported into zmq_server) to return `frame`."""
     import zmq_server as zs
 
-    def _fake_render(layers, resolution, project_seed, layer_states=None):
+    def _fake_render(layers, resolution, project_seed, layer_states=None, **_kwargs):
+        # **_kwargs swallows M.1's master_chain/master_frame_index.
         # Mirror the (frame, new_states) tuple contract when layer_states given.
         if layer_states is not None:
             return frame, {}

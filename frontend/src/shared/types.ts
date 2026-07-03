@@ -93,7 +93,14 @@ export interface Track {
   // (no clips). Adding it touches save/load — the persistence validator accepts
   // it and unknown future types are dropped (forward-tolerance) rather than
   // rejecting the whole project.
-  type: "video" | "performance" | "text" | "audio" | "inspector";
+  // M.1 (Master-Out Bus PRD, 2026-07-03): `"master"` is a first-class NO-CLIPS
+  // track type (same precedent as "inspector") — exactly ONE per project,
+  // bootstrap-created on New Project and migration-injected on load when
+  // absent (never rejected). Carries effects + automation only (never clips,
+  // never instruments — the instrument/composite REJECT guard is UI, M.2).
+  // Its effectChain runs on the FINAL COMPOSITED frame post-render (see
+  // engine/compositor.py::render_composite's `master_chain` param).
+  type: "video" | "performance" | "text" | "audio" | "inspector" | "master";
   name: string;
   color: string;
   isMuted: boolean;

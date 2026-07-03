@@ -140,7 +140,11 @@ def _capture_composite(monkeypatch) -> list[list[dict]]:
     """
     captured: list[list[dict]] = []
 
-    def fake_render_composite(layers, resolution, project_seed, voice_states):
+    def fake_render_composite(
+        layers, resolution, project_seed, voice_states, **_kwargs
+    ):
+        # **_kwargs swallows M.1's master_chain/master_frame_index (this stub
+        # doesn't exercise the master-bus seam — see test_engine/test_compositor.py).
         # Deep-ish copy of the fields we assert on (frame arrays are large; we
         # only need opacity/blend/layer_id and the decoded frame's R value).
         snapshot = []

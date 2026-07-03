@@ -165,7 +165,8 @@ def _capture_layers(monkeypatch) -> list[list[dict]]:
     """
     captured: list[list[dict]] = []
 
-    def fake_rc(layers, resolution, project_seed, voice_states):
+    def fake_rc(layers, resolution, project_seed, voice_states, **_kwargs):
+        # **_kwargs swallows M.1's master_chain/master_frame_index.
         snap = []
         for layer in layers:
             frame = layer.get("frame")

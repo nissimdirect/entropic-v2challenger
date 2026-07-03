@@ -190,9 +190,10 @@ describe('Project persistence — audio tracks', () => {
 
     hydrateStores(parsed)
 
-    // Verify restoration
+    // Verify restoration. M.1: no Master track in this serialized fixture ->
+    // hydrate injects one (appended after — the audio track stays index 0).
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     expect(tracks[0].type).toBe('audio')
     expect(tracks[0].gainDb).toBe(3)
     expect(tracks[0].audioClips).toHaveLength(1)

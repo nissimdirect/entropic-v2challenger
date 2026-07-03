@@ -105,6 +105,14 @@ interface TimelineState {
   /** P6.8 (I1): create the single inspector track (max 1 per project, v1). Returns
    * the new track id, or the existing inspector track's id if one already exists. */
   addInspectorTrack: (name?: string, color?: string) => string | undefined
+  /** M.1 (Master-Out Bus PRD): create the single permanent Master track (exactly
+   * 1 per project, ALWAYS — same "exactly one" idempotent contract as
+   * addInspectorTrack). Returns the new track id, or the existing Master
+   * track's id if one already exists. UNLIKE addTrack/addInspectorTrack, this
+   * is never blocked by LIMITS.MAX_TRACKS — the migration contract
+   * ("absent -> create") must never reject even when a loaded project is
+   * already at the track cap. */
+  addMasterTrack: (name?: string, color?: string) => string | undefined
   /** P6.8 (I1): add a probe binding to the inspector track (max 16 per track).
    * Returns the probeId on success, or undefined (with a toast) when at the cap,
    * the track is missing/not-inspector, or the same effect+param is already bound. */
@@ -841,6 +849,35 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         set({ tracks, duration: recalcDuration(tracks), selectedTrackId: prevSelectedTrackId })
       },
     )
+    return trackId
+  },
+
+  // --- Master track actions (M.1 — Master-Out Bus PRD) ---
+
+  addMasterTrack: (name, color) => {
+    // Exactly one Master track per project, ALWAYS — idempotent (mirrors
+    // addInspectorTrack's "exactly one" precedent). A second request is a
+    // no-op that returns the existing track's id. Deliberately NOT capped by
+    // LIMITS.MAX_TRACKS (unlike addTrack/addInspectorTrack): the migration
+    // contract is "absent -> create, NEVER reject" — a project already at the
+    // track cap must still get its Master track injected on load.
+    //
+    // UNLIKE addTrack/addInspectorTrack, this is a DIRECT `set()`, NOT wrapped
+    // in `undoable()`. Master is never user-created (no "Add Master" UI
+    // control exists — it's permanent/non-deletable, PRD design #1) and is
+    // ONLY ever called from bootstrap (newProject) or migration (hydrate).
+    // Both of those must leave the project in a CLEAN (not dirty, empty undo
+    // stack) state — mirrors the existing T3 track-lock hydrate precedent
+    // ("Direct setState ... so hydration never pollutes the undo stack").
+    // Going through `undoable()` here would mark a just-opened/just-created
+    // project as having unsaved changes purely from its own bootstrap.
+    const existing = get().tracks.find((t) => t.type === 'master')
+    if (existing) {
+      return existing.id
+    }
+    const trackId = randomUUID()
+    const track = makeEmptyTrack(name ?? 'Master', color ?? '#e8b923', trackId, 'master')
+    set({ tracks: [...get().tracks, track] })
     return trackId
   },
 

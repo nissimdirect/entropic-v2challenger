@@ -101,7 +101,9 @@ describe('inspector track — persistence validation', () => {
     expect(validateProjectStructure(data).valid).toBe(true)
     expect(() => hydrateStores(data as any)).not.toThrow()
     const types = useTimelineStore.getState().tracks.map((t) => t.type)
-    expect(types).toEqual(['video']) // hologram dropped
+    // M.1 (Master-Out Bus PRD): no Master track in this fixture -> hydrate
+    // injects one (appended last). hologram is still dropped.
+    expect(types).toEqual(['video', 'master'])
     const toasts = useToastStore.getState().toasts
     expect(toasts.some((t) => /unknown type/i.test(t.message))).toBe(true)
   })

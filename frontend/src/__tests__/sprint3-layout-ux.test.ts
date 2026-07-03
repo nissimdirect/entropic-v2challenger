@@ -73,7 +73,12 @@ describe('newProject resets all stores', () => {
 
     newProject()
 
-    expect(useTimelineStore.getState().tracks).toHaveLength(0)
+    // M.1 (Master-Out Bus PRD): newProject bootstraps exactly ONE Master
+    // track — "Track 1" is gone (reset), but the timeline isn't literally
+    // empty anymore.
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].type).toBe('master')
   })
 
   it('resets playhead to 0', () => {
@@ -94,8 +99,12 @@ describe('newProject resets all stores', () => {
 
     newProject()
 
-    // After newProject, timeline resets so V1_TRACK_ID track is gone — chain is empty
-    expect(useTimelineStore.getState().tracks).toHaveLength(0)
+    // After newProject, timeline resets so V1_TRACK_ID track is gone — chain
+    // is empty. M.1: newProject bootstraps exactly ONE Master track, so the
+    // timeline isn't literally empty — V1's id is simply not among the tracks.
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    expect(tracks.find((t) => t.id === V1_TRACK_ID)).toBeUndefined()
   })
 
   it('clears selected effect', () => {

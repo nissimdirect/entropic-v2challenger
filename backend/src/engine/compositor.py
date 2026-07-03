@@ -292,6 +292,8 @@ def render_composite(
     resolution: tuple[int, int],
     project_seed: int = 0,
     layer_states: dict[str, dict] | None = None,
+    master_chain: list[dict] | None = None,
+    master_frame_index: int = 0,
 ) -> np.ndarray | tuple[np.ndarray, dict[str, dict]]:
     """Composite multiple layers into a single output frame.
 
@@ -319,6 +321,42 @@ def render_composite(
             effects (datamosh, reaction_mosh, frame_drop, etc.) require this for
             correct preview output across consecutive frames. See zmq_server's
             `_get_composite_states` for the standard caching pattern.
+        master_chain: M.1 (Master-Out Bus PRD) — the Master track's effect chain,
+            run via `apply_chain` on the FINAL composited frame, AFTER every
+            layer has been blended (post-composite, pre-return). This is the
+            ONE seam shared by every caller of `render_composite` (preview's
+            `_handle_render_composite` and export's `_composite_export_frame`),
+            so preview==export parity is structural — both paths call the SAME
+            function with the SAME semantics, never two hand-maintained copies.
+            ABSENT (None, the default) → skipped entirely, byte-identical to
+            pre-M.1. This is what every RECURSIVE sub-composite call from
+            `composite_tree.expand_group_layer` gets (it never passes this arg)
+            — a branch sub-frame is NOT the final output, so it must never see
+            the master chain; only the TOP-LEVEL callers pass it.
+            An EMPTY list ([]) is what the top-level preview/export callers pass
+            for a project whose Master track has no effects yet — `apply_chain`
+            with an empty chain returns the input frame UNCHANGED (same object,
+            no copy), so this is a true no-op: the #1 regression guard from the
+            PRD ("empty master chain = TRUE no-op, byte-identical render").
+            Master effects see ONLY the composited RGBA frame — no per-track/
+            per-clip state exists post-composite, so `state_in` is always None
+            here (master-chain state is NOT threaded across frames in M.1; a
+            stateful master effect resets every frame — persisting it would mean
+            plumbing a new state cache through every call site's caching layer,
+            deferred to a follow-up packet, out of M.1's schema+render scope).
+            Finite-guard: deliberately NOT sanitized here. Every caller of
+            `render_composite` already gates its return value for NaN/Inf (SG-3
+            clause-2) — preview's `_apply_output_gate` (silent substitute) and
+            export's `detect_nan_in_frame` checks (loud fail, "never a silent
+            substitution inside a deterministic export"). Sanitizing here too
+            would silently swallow a master-effect NaN before export's
+            fail-loud gate ever saw it, breaking that existing contract. A
+            master effect that blows up is caught by the SAME gate that already
+            catches a misbehaving per-track effect — no new, redundant policy.
+        master_frame_index: Frame index passed to the master chain's
+            `apply_chain` call (for deterministic/seeded effects). Callers pass
+            their own per-request frame anchor (e.g. preview's `anchor_frame`,
+            export's per-output-frame `frame_index`).
 
     Returns:
         Composited RGBA frame as uint8 (H, W, 4) when `layer_states` is None
@@ -417,4 +455,16 @@ def render_composite(
 
     # Clip and convert back to uint8
     out = np.clip(canvas, 0, 255).astype(np.uint8)
+
+    # M.1 (Master-Out Bus PRD) — the ONE post-composite seam, shared by every
+    # top-level caller (preview + export). None (default, and what every
+    # recursive composite_tree sub-frame call gets) → skipped, byte-identical.
+    # An explicit [] (the top-level no-master-effects case) → apply_chain is a
+    # true no-op (returns `out` unchanged, same object). See the `master_chain`
+    # docstring above for why no finite-guard/state-cache is added here.
+    if master_chain is not None:
+        out, _master_state = apply_chain(
+            out, master_chain, project_seed, master_frame_index, resolution, None
+        )
+
     return (out, new_states) if propagate_state else out

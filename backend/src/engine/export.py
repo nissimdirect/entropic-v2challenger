@@ -211,6 +211,7 @@ class ExportManager:
         mask_stack: list[dict] | None = None,
         transform: dict | None = None,
         transform_clip_id: str | None = None,
+        master_chain: list[dict] | None = None,
     ) -> ExportJob:
         """Start a background export. Returns the job for status tracking.
 
@@ -297,6 +298,13 @@ class ExportManager:
         # over it. Absent → byte-identical legacy export (no transform applied).
         snap_transform = copy.deepcopy(transform) if transform else None
         snap_transform_clip_id = transform_clip_id
+        # M.1 (Master-Out Bus PRD): snapshot the Master track's effect chain the
+        # SAME way every other chain here is — a post-start edit to the master
+        # chain must not change frames already mid-export. Absent/empty →
+        # byte-identical legacy export (render_composite treats [] as a no-op).
+        snap_master_chain = (
+            copy.deepcopy(master_chain) if master_chain else master_chain
+        )
 
         # P5b.8 (SG-5 part B): compute the cycle-break decision ONCE at job start
         # so the same break applies to every frame of this export job. This snapshot
@@ -340,6 +348,7 @@ class ExportManager:
                 "mask_stack": snap_mask_stack,
                 "transform": snap_transform,
                 "transform_clip_id": snap_transform_clip_id,
+                "master_chain": snap_master_chain,
             },
             daemon=True,
         )
@@ -575,6 +584,7 @@ class ExportManager:
         mask_stack: list[dict] | None = None,
         transform: dict | None = None,
         transform_clip_id: str | None = None,
+        master_chain: list[dict] | None = None,
     ):
         reader = None
         writer = None
@@ -786,12 +796,19 @@ class ExportManager:
                         frame_bank_caches=frame_bank_caches,
                         granulator_state=granulator_state,
                         mask_stack=mask_stack,
+                        master_chain=master_chain,
                     )
                 else:
                     # MK.10 — single-input export mask parity. Route the per-frame
                     # chain through the SAME shared helper preview uses (incl. MK.8
                     # keying-as-performance, since export DOES have per-frame
                     # operator_values here). Absent mask_stack → byte-identical.
+                    # M.1: this legacy single-input branch (no performance overlay,
+                    # no render_composite call) does NOT apply master_chain — same
+                    # scoping as preview's single-clip render_frame fast path. Master
+                    # effects run at the render_composite seam; a project with any
+                    # master effect must take the composite branch to see them (a
+                    # known M.2-era wiring concern, not this packet's scope).
                     masked_chain, base_chain_mask = apply_masks_to_chain(
                         frame_chain,
                         mask_stack,
@@ -916,11 +933,15 @@ class ExportManager:
                         frame_bank_caches=frame_bank_caches,
                         granulator_state=granulator_state,
                         mask_stack=mask_stack,
+                        master_chain=master_chain,
                     )
                 else:
                     # MK.10 — single-input export mask parity (inline video loop).
                     # Same shared helper as preview; absent mask_stack →
                     # byte-identical legacy export.
+                    # M.1: legacy single-input branch — see the identical note in
+                    # render_export_frame's else-branch above (master_chain is not
+                    # applied here; it runs at the render_composite seam only).
                     masked_chain, base_chain_mask = apply_masks_to_chain(
                         frame_chain,
                         mask_stack,
@@ -1450,6 +1471,7 @@ class ExportManager:
         frame_bank_caches: dict | None = None,
         granulator_state: dict | None = None,
         mask_stack: list[dict] | None = None,
+        master_chain: list[dict] | None = None,
     ) -> tuple[np.ndarray, dict]:
         """Build the composited frame for one output frame (O1 composite branch).
 
@@ -2058,8 +2080,21 @@ class ExportManager:
         # ----------------------------------------------------------------------
 
         # Reuse the merged compositor verbatim, threading per-voice state.
+        # M.1 (Master-Out Bus PRD): master_chain flows through to the SAME
+        # post-composite seam preview uses (render_composite's master_chain
+        # param) — this is the "SAME call site" the PRD's render contract
+        # requires for preview==export parity. Absent (None, the default when
+        # no caller passes it) → skipped, byte-identical to pre-M.1. Every
+        # caller of THIS method already gates its return for NaN/Inf
+        # (detect_nan_in_frame, fail-loud) — see the master_chain docstring in
+        # compositor.py for why no redundant guard is added here either.
         out, new_states = render_composite(
-            layers, resolution, project_seed, voice_states
+            layers,
+            resolution,
+            project_seed,
+            voice_states,
+            master_chain=master_chain,
+            master_frame_index=frame_index,
         )
         if group_new_states:
             new_states = {**new_states, **group_new_states}
