@@ -46,6 +46,40 @@ interface AutomationClipboard {
   duration: number
 }
 
+// AA.4 — breakpoint selection (marquee-select, move, copy/paste).
+// Selection is scoped to a SINGLE (trackId, laneId) at a time — matches how
+// the marquee overlay is mounted per-lane (one SVG surface per automation
+// lane), mirroring the timeline's per-track clip marquee (MarqueeOverlay.tsx).
+// `indices` are indices into that lane's `points` array, always kept sorted
+// ascending + unique.
+export interface AutomationPointSelection {
+  trackId: string
+  laneId: string
+  indices: number[]
+}
+
+/** Quantize grid options — same math as Clip.tsx's `snapPosition` (Cmd+U). */
+export interface QuantizeGridOptions {
+  enabled: boolean
+  bpm: number
+  division: number
+}
+
+/**
+ * Snap a time value to the quantize grid using the SAME grid math as clip
+ * editing: gridInterval = (60/bpm) * (4/division). Returns `time` unchanged
+ * when quantize is disabled or bpm/division are invalid — mirrors the
+ * quantizeEnabled/quantizeDivision toggle in stores/layout.ts (Cmd+U).
+ */
+function quantizeTime(time: number, quantize?: QuantizeGridOptions): number {
+  if (!quantize || !quantize.enabled) return time
+  if (!Number.isFinite(quantize.bpm) || quantize.bpm <= 0) return time
+  if (!Number.isFinite(quantize.division) || quantize.division <= 0) return time
+  const gridInterval = (60 / quantize.bpm) * (4 / quantize.division)
+  if (!Number.isFinite(gridInterval) || gridInterval <= 0) return time
+  return Math.round(time / gridInterval) * gridInterval
+}
+
 interface AutomationState {
   lanes: Record<string, AutomationLane[]>
   mode: AutomationMode
@@ -104,6 +138,44 @@ interface AutomationState {
   copyRegion: (trackId: string, laneId: string, startTime: number, endTime: number) => void
   pasteAtPlayhead: (trackId: string, laneId: string, playheadTime: number) => void
 
+  // AA.4 — breakpoint selection
+  /** Active breakpoint selection (single lane at a time), or null. */
+  selectedPoints: AutomationPointSelection | null
+  /**
+   * Marquee-select: select every point in `laneId` whose (time, value) falls
+   * inside the given box (inclusive bounds). `additive` (shift-drag) unions
+   * with the prior selection when it's on the SAME lane; otherwise (or when
+   * not additive) replaces the selection outright — mirrors MarqueeOverlay's
+   * shift-union behavior for clips.
+   */
+  selectPointsInRect: (
+    trackId: string,
+    laneId: string,
+    minTime: number,
+    maxTime: number,
+    minValue: number,
+    maxValue: number,
+    additive?: boolean,
+  ) => void
+  /** Select a single point by index. `additive` (shift-click) unions. */
+  selectPoint: (trackId: string, laneId: string, index: number, additive?: boolean) => void
+  /** Clear the active selection. */
+  clearPointSelection: () => void
+  /**
+   * Move every selected point by (deltaTime, deltaValue), applied against the
+   * CURRENT point positions. Time is clamped to >=0, value to [0,1] (lane
+   * bounds). When `quantize.enabled`, the resulting time is snapped to the
+   * quantize grid (same toggle as clip editing — Cmd+U). Undoable.
+   */
+  moveSelectedPoints: (deltaTime: number, deltaValue: number, quantize?: QuantizeGridOptions) => void
+  /**
+   * Copy the selected points into the clipboard, time-shifted so the
+   * earliest selected point sits at time 0 — reuses the same clipboard shape
+   * as copyRegion(), so pasteAtPlayhead() round-trips selection-based copies
+   * exactly like region-based ones.
+   */
+  copySelectedPoints: () => void
+
   // Selectors
   getLanesForTrack: (trackId: string) => AutomationLane[]
   getLanesForEffect: (effectId: string) => AutomationLane[]
@@ -136,6 +208,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
   clipboard: null,
   recordMode: 'replace',
   sg3AbortedLaneIds: new Set<string>(),
+  selectedPoints: null,
 
   // SG-3 clause-3: mute state actions
   markSg3Aborted: (laneId) => {
@@ -585,6 +658,127 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     undoable(`Paste automation region`, forward, inverse)
   },
 
+  // AA.4 — breakpoint selection
+
+  selectPointsInRect: (trackId, laneId, minTime, maxTime, minValue, maxValue, additive = false) => {
+    const trackLanes = get().lanes[trackId]
+    const lane = trackLanes?.find((l) => l.id === laneId)
+    if (!lane) return
+
+    const lo = Math.min(minTime, maxTime)
+    const hi = Math.max(minTime, maxTime)
+    const vLo = Math.min(minValue, maxValue)
+    const vHi = Math.max(minValue, maxValue)
+
+    const hits = lane.points.reduce<number[]>((acc, p, i) => {
+      if (p.time >= lo && p.time <= hi && p.value >= vLo && p.value <= vHi) acc.push(i)
+      return acc
+    }, [])
+
+    const prior = get().selectedPoints
+    if (additive && prior && prior.trackId === trackId && prior.laneId === laneId) {
+      const merged = [...new Set([...prior.indices, ...hits])].sort((a, b) => a - b)
+      set({ selectedPoints: { trackId, laneId, indices: merged } })
+    } else {
+      set({ selectedPoints: { trackId, laneId, indices: hits } })
+    }
+  },
+
+  selectPoint: (trackId, laneId, index, additive = false) => {
+    const trackLanes = get().lanes[trackId]
+    const lane = trackLanes?.find((l) => l.id === laneId)
+    if (!lane || index < 0 || index >= lane.points.length) return
+
+    const prior = get().selectedPoints
+    if (additive && prior && prior.trackId === trackId && prior.laneId === laneId) {
+      if (prior.indices.includes(index)) return // already selected — no-op
+      const merged = [...prior.indices, index].sort((a, b) => a - b)
+      set({ selectedPoints: { trackId, laneId, indices: merged } })
+    } else {
+      set({ selectedPoints: { trackId, laneId, indices: [index] } })
+    }
+  },
+
+  clearPointSelection: () => {
+    if (get().selectedPoints === null) return
+    set({ selectedPoints: null })
+  },
+
+  moveSelectedPoints: (deltaTime, deltaValue, quantize) => {
+    const selection = get().selectedPoints
+    if (!selection || selection.indices.length === 0) return
+    const trackLanes = get().lanes[selection.trackId]
+    const lane = trackLanes?.find((l) => l.id === selection.laneId)
+    if (!lane) return
+
+    const oldPoints = lane.points
+    const oldSelection = selection
+
+    // Compute the moved points as NEW object references (keyed by their
+    // ORIGINAL index) so we can locate them again after re-sorting below —
+    // reference identity survives the sort even when two points land on the
+    // same time/value.
+    const movedRefs = new Map<number, AutomationPoint>()
+    for (const i of selection.indices) {
+      const p = oldPoints[i]
+      if (!p) continue
+      let newTime = Math.max(0, p.time + deltaTime)
+      newTime = Math.max(0, quantizeTime(newTime, quantize))
+      const newValue = Math.max(0, Math.min(1, p.value + deltaValue))
+      movedRefs.set(i, { ...p, time: newTime, value: newValue })
+    }
+    if (movedRefs.size === 0) return
+
+    const combined = oldPoints.map((p, i) => movedRefs.get(i) ?? p)
+    const sorted = [...combined].sort((a, b) => a.time - b.time)
+    const movedRefSet = new Set(movedRefs.values())
+    const newIndices = sorted.reduce<number[]>((acc, p, i) => {
+      if (movedRefSet.has(p)) acc.push(i)
+      return acc
+    }, [])
+    const newSelection: AutomationPointSelection = {
+      trackId: oldSelection.trackId,
+      laneId: oldSelection.laneId,
+      indices: newIndices,
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[oldSelection.trackId] = (current[oldSelection.trackId] ?? []).map((l) =>
+        l.id === oldSelection.laneId ? { ...l, points: sorted } : l,
+      )
+      set({ lanes: current, selectedPoints: newSelection })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[oldSelection.trackId] = (current[oldSelection.trackId] ?? []).map((l) =>
+        l.id === oldSelection.laneId ? { ...l, points: oldPoints } : l,
+      )
+      set({ lanes: current, selectedPoints: oldSelection })
+    }
+
+    undoable('Move automation points', forward, inverse)
+  },
+
+  copySelectedPoints: () => {
+    const selection = get().selectedPoints
+    if (!selection || selection.indices.length === 0) return
+    const trackLanes = get().lanes[selection.trackId]
+    const lane = trackLanes?.find((l) => l.id === selection.laneId)
+    if (!lane) return
+
+    const pts = selection.indices
+      .map((i) => lane.points[i])
+      .filter((p): p is AutomationPoint => !!p)
+    if (pts.length === 0) return
+
+    const minTime = Math.min(...pts.map((p) => p.time))
+    const maxTime = Math.max(...pts.map((p) => p.time))
+    const regionPoints = pts.map((p) => ({ ...p, time: p.time - minTime }))
+
+    set({ clipboard: { points: regionPoints, duration: maxTime - minTime } })
+  },
+
   getLanesForTrack: (trackId) => get().lanes[trackId] ?? [],
 
   getLanesForEffect: (effectId) => {
@@ -615,6 +809,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       clipboard: null,
       recordMode: 'replace',
       sg3AbortedLaneIds: new Set<string>(),
+      selectedPoints: null,
     }),
 
   loadAutomation: (lanes) => {

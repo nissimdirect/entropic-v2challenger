@@ -20,6 +20,17 @@
  * - Miss-penalty rationale (§2.6): missing the node triggers lane-click node
  *   CREATION — destructive. The hit ring is also the primary guard against
  *   accidental creation by stopping propagation on the svg click event.
+ *
+ * AA.4 — Breakpoint selection (all-optional additions, backward compatible):
+ * - `onSelect` fires on plain (non-alt) mousedown so a click marks this point
+ *   as the active selection (shift = additive union) — mirrors the timeline's
+ *   clip marquee shift-union convention (MarqueeOverlay.tsx).
+ * - Dragging a node that is ALREADY part of a >1-point selection moves the
+ *   WHOLE selection (`onMoveSelection`) instead of just this point. The
+ *   per-frame delta is computed directly from `xToTime`/`yToValue` (both are
+ *   affine in their pixel argument, so `f(a) - f(b)` cancels the scroll/zoom
+ *   offset and yields a pure delta) — no new coordinate plumbing needed.
+ * - Omitting the new props reproduces the exact pre-AA.4 single-point drag.
  */
 import { useCallback, useRef, useState } from 'react'
 import type { AutomationPoint } from '../../../shared/types'
@@ -34,6 +45,14 @@ interface AutomationNodeProps {
   yToValue: (y: number) => number
   onUpdate: (index: number, updates: Partial<AutomationPoint>) => void
   onRemove: (index: number) => void
+  /** AA.4: true when this point is part of the active breakpoint selection. */
+  isSelected?: boolean
+  /** AA.4: total number of points in the active selection (0/undefined = none). */
+  selectionSize?: number
+  /** AA.4: click-to-select. `additive` = shift-click (union with prior selection). */
+  onSelect?: (index: number, additive: boolean) => void
+  /** AA.4: group-drag — called with the INCREMENTAL delta since the previous move event. */
+  onMoveSelection?: (deltaTime: number, deltaValue: number) => void
 }
 
 const CURVE_MODES = [0, -1, 1, 0.5] // linear, ease-in, ease-out, S-curve-ish
@@ -48,6 +67,10 @@ export default function AutomationNode({
   yToValue,
   onUpdate,
   onRemove,
+  isSelected,
+  selectionSize,
+  onSelect,
+  onMoveSelection,
 }: AutomationNodeProps) {
   const [isDragging, setIsDragging] = useState(false)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -103,7 +126,49 @@ export default function AutomationNode({
         return
       }
 
+      // AA.4 — dragging a node that's ALREADY part of a multi-point selection
+      // moves the whole selection; otherwise this click (re)selects just this
+      // point and falls through to the original single-point drag below.
+      // Decided from the PRE-click props on purpose, so a drag started on an
+      // established multi-selection isn't collapsed by the click-to-select.
+      const isGroupDrag = !!isSelected && (selectionSize ?? 0) > 1 && !!onMoveSelection
+      if (!isGroupDrag) {
+        onSelect?.(index, e.shiftKey)
+      }
+
       setIsDragging(true)
+
+      if (isGroupDrag) {
+        const lastClient = { x: e.clientX, y: e.clientY }
+
+        const handleGroupMouseMove = (ev: MouseEvent) => {
+          const precision = ev.shiftKey ? 0.1 : 1
+          const dxClient = (ev.clientX - lastClient.x) * precision
+          const dyClient = (ev.clientY - lastClient.y) * precision
+          lastClient.x = ev.clientX
+          lastClient.y = ev.clientY
+          if (dxClient === 0 && dyClient === 0) return
+
+          // xToTime/yToValue are affine in their pixel argument, so
+          // f(delta) - f(0) cancels the scroll/zoom offset and yields a
+          // pure incremental delta — same trick documented at the top of
+          // this file.
+          const deltaTime = xToTime(dxClient) - xToTime(0)
+          const deltaValue = yToValue(dyClient) - yToValue(0)
+          onMoveSelection!(deltaTime, deltaValue)
+        }
+
+        const handleGroupMouseUp = () => {
+          setIsDragging(false)
+          window.removeEventListener('mousemove', handleGroupMouseMove)
+          window.removeEventListener('mouseup', handleGroupMouseUp)
+        }
+
+        window.addEventListener('mousemove', handleGroupMouseMove)
+        window.addEventListener('mouseup', handleGroupMouseUp)
+        return
+      }
+
       dragStartRef.current = { x: e.clientX, y: e.clientY, time: point.time, value: point.value }
 
       const handleMouseMove = (ev: MouseEvent) => {
@@ -127,7 +192,19 @@ export default function AutomationNode({
       window.addEventListener('mousemove', handleMouseMove)
       window.addEventListener('mouseup', handleMouseUp)
     },
-    [point, index, onUpdate, timeToX, valueToY, xToTime, yToValue],
+    [
+      point,
+      index,
+      onUpdate,
+      timeToX,
+      valueToY,
+      xToTime,
+      yToValue,
+      isSelected,
+      selectionSize,
+      onSelect,
+      onMoveSelection,
+    ],
   )
 
   const handleKeyDown = useCallback(
@@ -162,15 +239,20 @@ export default function AutomationNode({
 
   return (
     <g className="auto-node" tabIndex={0} onKeyDown={handleKeyDown}>
-      {/* Visual glyph — r=4 at rest, r=6 while dragging (unchanged from before PUX.5) */}
+      {/*
+       * Visual glyph — r=4 at rest, r=6 while dragging (unchanged from before PUX.5).
+       * AA.4: a white stroke also appears (without the size bump) when this
+       * point is part of the active breakpoint selection — reuses the same
+       * dragging-stroke color so selection reads as "about to move" at a glance.
+       */}
       <circle
         cx={cx}
         cy={cy}
         r={isDragging ? 6 : 4}
         fill={color}
-        stroke={isDragging ? '#fff' : 'transparent'}
+        stroke={isDragging || isSelected ? '#fff' : 'transparent'}
         strokeWidth={2}
-        className={`auto-node__circle${isDragging ? ' auto-node__circle--active' : ''}`}
+        className={`auto-node__circle${isDragging ? ' auto-node__circle--active' : ''}${isSelected ? ' auto-node__circle--selected' : ''}`}
         style={{ pointerEvents: 'none' }}
       />
       {showTooltip && (
