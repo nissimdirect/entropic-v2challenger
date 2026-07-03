@@ -20,7 +20,6 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'ripple_delete',     keys: 'shift+backspace', category: 'edit',     label: 'Ripple Delete',       context: 'normal' },
 
   // --- Timeline ---
-  { action: 'split_clip',        keys: 'meta+shift+k',   category: 'timeline',  label: 'Split Clip',          context: 'normal' },
   // F-0516-8: bare 'm' instead of meta+m — Cmd+M is reserved by macOS Window→Minimize and
   // doesn't reliably reach Electron. Matches DaVinci Resolve / Premiere / Final Cut convention.
   { action: 'add_marker',        keys: 'm',              category: 'timeline',  label: 'Add Marker',          context: 'normal' },
@@ -35,8 +34,11 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'zoom_out',          keys: 'meta+-',         category: 'view',      label: 'Zoom Out',            context: 'normal' },
   { action: 'zoom_fit',          keys: 'meta+0',         category: 'view',      label: 'Zoom to Fit',         context: 'normal' },
   { action: 'toggle_quantize',   keys: 'meta+u',         category: 'view',      label: 'Toggle Quantize',    context: 'normal' },
+  // T5: consolidated split-clip shortcut. Formerly THREE actions did this —
+  // 'split_clip' (meta+shift+k, legacy single-clip path via the @deprecated
+  // selectedClipId) and 'split_at_playhead_e' (bare 'e') were removed as
+  // duplicates of this one. See utils/split-clip-at-playhead.ts.
   { action: 'split_at_playhead', keys: 'meta+k',         category: 'timeline',  label: 'Split at Playhead',  context: 'normal' },
-  { action: 'split_at_playhead_e', keys: 'e',            category: 'timeline',  label: 'Split at Playhead (E)', context: 'normal' },
 
   // --- Automation ---
   { action: 'automation_copy',  keys: 'meta+shift+c', category: 'automation', label: 'Copy Automation Region',       context: 'normal' },
@@ -56,16 +58,18 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   { action: 'routing_canvas',    keys: 'meta+shift+i',   category: 'project',   label: 'Routing Canvas',      context: 'normal' },
 
   // --- P3.4: Tool mode (cursor mode) hotkeys — Ableton-parity, guarded against text inputs ---
-  // Conflict-checked: all 12 keys are unique in this table.
+  // Conflict-checked: all 11 keys are unique in this table.
   // Guard: shortcutRegistry.handleKeyEvent skips when target is INPUT/TEXTAREA/contenteditable.
   // See PLAN §3.7 (isTextInputActive guard) and the 12/12 conflict-check in the PR body.
+  // T5: 'tool_range_select' (was 'r') removed — the cursor tool was a no-op
+  // duplicate of 'select' (rubber-band marquee select already works un-gated
+  // in every tool mode; see MarqueeOverlay.tsx). Table is now 11 entries.
   { action: 'tool_select',           keys: 'v',              category: 'tool', label: 'Tool: Select',           context: 'normal' },
   { action: 'tool_razor',            keys: 'b',              category: 'tool', label: 'Tool: Razor (Blade)',     context: 'normal' },
   { action: 'tool_slip',             keys: 's',              category: 'tool', label: 'Tool: Slip',             context: 'normal' },
   { action: 'tool_slide',            keys: 'd',              category: 'tool', label: 'Tool: Slide',            context: 'normal' },
   { action: 'tool_ripple_delete',    keys: 'x',              category: 'tool', label: 'Tool: Ripple Delete',    context: 'normal' },
   { action: 'tool_marker',           keys: 'shift+m',        category: 'tool', label: 'Tool: Marker',           context: 'normal' },
-  { action: 'tool_range_select',     keys: 'r',              category: 'tool', label: 'Tool: Range Select',     context: 'normal' },
   { action: 'loop_toggle',           keys: 'meta+l',         category: 'timeline', label: 'Toggle Loop',        context: 'normal' },
   { action: 'grid_up',               keys: ']',              category: 'view', label: 'Grid: Finer Division',   context: 'normal' },
   { action: 'grid_down',             keys: '[',              category: 'view', label: 'Grid: Coarser Division', context: 'normal' },

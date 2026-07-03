@@ -300,9 +300,10 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
 
       // T1 (2026-07-02): razor/ripple-delete cursor tools short-circuit the
       // normal select+drag flow below. 'select' (and every other tool — marker,
-      // loop-in/out, range-select, mask tools, slip/slide) falls through
-      // unchanged, so clicking with tool 'select' behaves exactly as today
-      // (regression guard).
+      // loop-in/out, mask tools, slip/slide) falls through unchanged, so
+      // clicking with tool 'select' behaves exactly as today (regression
+      // guard). T5: 'range-select' removed from the tool set — see
+      // MarqueeOverlay.tsx.
       const activeTool = useLayoutStore.getState().cursorTool
       if (activeTool === 'razor') {
         e.preventDefault()

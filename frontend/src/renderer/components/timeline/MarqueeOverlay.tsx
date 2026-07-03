@@ -36,10 +36,15 @@
  * background already works in every tool mode, including the default 'select'
  * tool. Gating it behind cursorTool === 'range-select' would BREAK existing
  * multi-select UX (users currently rubber-band select without switching tools).
- * Per T1 packet decision: left un-gated. The 'range-select' tool button/hotkey
- * is wired to set cursorTool (useLayoutStore) for statusbar/chip display and
- * shortcut-parity, but does not change this overlay's behavior — it was
- * already-live. See docs/plans/2026-07-02-master-tuneup-plan.md WS1.
+ * Per T1 packet decision: left un-gated.
+ *
+ * T5 (2026-07-02) follow-up: since the above investigation proved the
+ * 'range-select' tool/hotkey never changed this overlay's (or anything else's)
+ * behavior, it was a pure no-op duplicate of 'select' and was removed
+ * entirely from CursorTool/TOOL_ENTRIES (EffectBrowser.tsx) and the
+ * 'tool_range_select' shortcut (default-shortcuts.ts). Drag-select keeps
+ * working exactly as before via this un-gated overlay. See
+ * docs/plans/2026-07-02-master-tuneup-plan.md WS1 (T1) / T5 packet.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
