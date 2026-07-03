@@ -1,7 +1,16 @@
 /**
  * Draggable circle on the automation line.
  * Drag = move time (X) and value (Y).
- * Shift+drag = 10x precision. Alt+click = cycle curve mode. Delete = remove.
+ * Shift+drag = 10x precision. Delete = remove.
+ *
+ * AA.1 — Curve tension gestures:
+ * - Alt+drag = continuously adjust curve tension, clamped to [-1, 1].
+ *   Vertical movement drives tension (drag up = +tension/ease-out,
+ *   drag down = -tension/ease-in); Shift+alt+drag = 4x finer precision.
+ * - Alt+click (mouseup with no meaningful movement) = fallback to the old
+ *   discrete CURVE_MODES cycle, so a quick alt-click still does something
+ *   useful without requiring a drag gesture.
+ * - Alt+double-click = reset curve to 0 (straighten the segment).
  *
  * PUX.5 — Hit targets & drag signifiers:
  * - Transparent hit ring r=12 behind the visual glyph gives a 24px effective
@@ -52,11 +61,45 @@ export default function AutomationNode({
       e.stopPropagation()
       e.preventDefault()
 
-      // Alt+click = cycle curve mode
+      // Alt+drag = continuous curve tension. Alt+click (no movement) falls
+      // back to the discrete CURVE_MODES cycle. Second mousedown of a
+      // double-click (detail >= 2) is left for handleDoubleClick to resolve
+      // (reset to 0) so we don't also fire a spurious cycle update here.
       if (e.altKey) {
-        const currentIdx = CURVE_MODES.indexOf(point.curve)
-        const nextIdx = (currentIdx + 1) % CURVE_MODES.length
-        onUpdate(index, { curve: CURVE_MODES[nextIdx] })
+        if (e.detail >= 2) return
+
+        const startX = e.clientX
+        const startY = e.clientY
+        const startCurve = point.curve
+        const DRAG_THRESHOLD = 3 // px — below this, treat as a click (cycle fallback)
+        let dragged = false
+
+        const handleAltMouseMove = (ev: MouseEvent) => {
+          const dx = ev.clientX - startX
+          const dy = ev.clientY - startY
+          if (!dragged && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+          dragged = true
+
+          // Drag up = increase tension (ease-out), drag down = decrease
+          // (ease-in). 100px covers the full [-1, 1] sweep at normal precision.
+          const precision = ev.shiftKey ? 0.25 : 1
+          const delta = (-dy / 100) * precision
+          const nextCurve = Math.max(-1, Math.min(1, startCurve + delta))
+          onUpdate(index, { curve: nextCurve })
+        }
+
+        const handleAltMouseUp = () => {
+          if (!dragged) {
+            const currentIdx = CURVE_MODES.indexOf(point.curve)
+            const nextIdx = (currentIdx + 1) % CURVE_MODES.length
+            onUpdate(index, { curve: CURVE_MODES[nextIdx] })
+          }
+          window.removeEventListener('mousemove', handleAltMouseMove)
+          window.removeEventListener('mouseup', handleAltMouseUp)
+        }
+
+        window.addEventListener('mousemove', handleAltMouseMove)
+        window.addEventListener('mouseup', handleAltMouseUp)
         return
       }
 
@@ -106,6 +149,17 @@ export default function AutomationNode({
     [index, onRemove],
   )
 
+  // Alt+double-click = reset curve to 0 (straighten the segment).
+  const handleDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!e.altKey) return
+      e.preventDefault()
+      e.stopPropagation()
+      onUpdate(index, { curve: 0 })
+    },
+    [index, onUpdate],
+  )
+
   return (
     <g className="auto-node" tabIndex={0} onKeyDown={handleKeyDown}>
       {/* Visual glyph — r=4 at rest, r=6 while dragging (unchanged from before PUX.5) */}
@@ -146,6 +200,7 @@ export default function AutomationNode({
         fill="transparent"
         className="auto-node__hit-ring"
         onMouseDown={handleMouseDown}
+        onDoubleClick={handleDoubleClick}
         onContextMenu={handleContextMenu}
         onMouseEnter={() => setShowTooltip(true)}
         onMouseLeave={() => setShowTooltip(false)}

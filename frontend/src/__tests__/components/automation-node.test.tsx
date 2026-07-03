@@ -66,25 +66,55 @@ describe('AutomationNode (Loop 47b)', () => {
     expect(visualCircle.getAttribute('cy')).toBe('25')
   })
 
-  it('alt-click cycles through the 4 CURVE_MODES (0 → -1 → 1 → 0.5 → 0)', () => {
+  // ── AA.1 — Alt+drag continuous tension, alt-click cycle fallback, alt+dblclick reset ──
+
+  it('alt-click (mousedown+mouseup, no movement) cycles through the 4 CURVE_MODES (0 → -1 → 1 → 0.5 → 0)', () => {
     const { hitRing, onUpdate } = renderNode({ point: makePoint({ curve: 0 }) })
-    fireEvent.mouseDown(hitRing, { altKey: true })
+    fireEvent.mouseDown(hitRing, { altKey: true, clientX: 100, clientY: 50 })
+    expect(onUpdate).not.toHaveBeenCalled() // cycle fires on mouseup, not mousedown
+    fireEvent.mouseUp(window, { clientX: 100, clientY: 50 })
     expect(onUpdate).toHaveBeenCalledWith(3, { curve: -1 })
   })
 
   it('alt-click wraps from the last curve back to the first', () => {
     const { hitRing, onUpdate } = renderNode({ point: makePoint({ curve: 0.5 }) })
-    fireEvent.mouseDown(hitRing, { altKey: true })
+    fireEvent.mouseDown(hitRing, { altKey: true, clientX: 100, clientY: 50 })
+    fireEvent.mouseUp(window, { clientX: 100, clientY: 50 })
     expect(onUpdate).toHaveBeenCalledWith(3, { curve: 0 })
   })
 
-  it('alt-click does NOT enter drag state (no follow-up mousemove handler)', () => {
-    const { hitRing, onUpdate } = renderNode()
-    fireEvent.mouseDown(hitRing, { altKey: true })
-    // Subsequent mousemove on window should NOT call onUpdate again with
-    // time/value coords — alt-click is a pure curve toggle and returns early.
-    fireEvent.mouseMove(window, { clientX: 999, clientY: 999 })
-    expect(onUpdate).toHaveBeenCalledTimes(1) // curve update from alt-click only
+  it('alt-drag past the threshold continuously adjusts curve tension instead of cycling', () => {
+    const { hitRing, onUpdate } = renderNode({ point: makePoint({ curve: 0 }) })
+    fireEvent.mouseDown(hitRing, { altKey: true, clientX: 100, clientY: 50 })
+    // Drag up (negative dy) 50px -> tension should increase toward +0.5, clamped to [-1,1].
+    fireEvent.mouseMove(window, { clientX: 100, clientY: 0 })
+    expect(onUpdate).toHaveBeenCalledTimes(1)
+    const [, updatePayload] = onUpdate.mock.calls[0]
+    expect(updatePayload.curve).toBeCloseTo(0.5)
+    expect(updatePayload.curve).toBeGreaterThanOrEqual(-1)
+    expect(updatePayload.curve).toBeLessThanOrEqual(1)
+    fireEvent.mouseUp(window, { clientX: 100, clientY: 0 })
+  })
+
+  it('alt-drag clamps tension to [-1, 1] on large movement', () => {
+    const { hitRing, onUpdate } = renderNode({ point: makePoint({ curve: 0 }) })
+    fireEvent.mouseDown(hitRing, { altKey: true, clientX: 100, clientY: 50 })
+    fireEvent.mouseMove(window, { clientX: 100, clientY: -500 }) // huge drag up
+    const last = onUpdate.mock.calls[onUpdate.mock.calls.length - 1][1]
+    expect(last.curve).toBe(1)
+    fireEvent.mouseUp(window, { clientX: 100, clientY: -500 })
+  })
+
+  it('alt-double-click resets curve to 0', () => {
+    const { hitRing, onUpdate } = renderNode({ point: makePoint({ curve: 1 }) })
+    fireEvent.doubleClick(hitRing, { altKey: true })
+    expect(onUpdate).toHaveBeenCalledWith(3, { curve: 0 })
+  })
+
+  it('double-click WITHOUT alt does not reset curve', () => {
+    const { hitRing, onUpdate } = renderNode({ point: makePoint({ curve: 1 }) })
+    fireEvent.doubleClick(hitRing, { altKey: false })
+    expect(onUpdate).not.toHaveBeenCalled()
   })
 
   it('mouseDown (no modifier) does NOT call onUpdate synchronously', () => {
