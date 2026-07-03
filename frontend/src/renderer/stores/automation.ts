@@ -4,7 +4,7 @@
  * All mutations go through the undo system.
  */
 import { create } from 'zustand'
-import type { AutomationLane, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode, BlendOp } from '../../shared/types'
+import type { AutomationLane, AutomationLaneOperator, AutomationLaneSource, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode, BlendOp } from '../../shared/types'
 import { isTriggerLane } from '../utils/automation-evaluate'
 import { validateLaneAxisBinding, type LaneAxisBinding, type Axis } from '../../shared/axis-binding'
 
@@ -274,6 +274,25 @@ interface AutomationState {
   addModulationLane: (trackId: string, paramPath: string, color: string, blendOp?: BlendOp) => string
   /** AA.2 — change an existing modulation lane's blend op ('add'/'multiply'/'max'). No-op on absolute lanes. */
   setLaneBlendOp: (trackId: string, laneId: string, blendOp: BlendOp) => void
+  /**
+   * AA.3 — toggle a modulation lane's value source between drawn breakpoints
+   * ('drawn', the AA.2 default) and a live operator ('operator'). No-op on
+   * absolute (kind !== 'modulation') lanes — an operator-sourced lane always
+   * superimposes onto an absolute lane via the same blendOp mechanism AA.2
+   * uses, so it must itself be a modulation lane. Switching TO 'operator'
+   * seeds a default LFO config when the lane has none yet (first switch);
+   * switching back to 'drawn' leaves any existing `operator` config in place
+   * (harmless — ignored whenever source !== 'operator', same convention as
+   * `blendOp` surviving on absolute lanes).
+   */
+  setLaneSource: (trackId: string, laneId: string, source: AutomationLaneSource) => void
+  /**
+   * AA.3 — update an operator-sourced lane's generator config (type/params/
+   * depth/min/max). Rejects non-finite depth/min/max (numeric trust boundary,
+   * mirrors operators.ts's validateMappingForSave) — the store stays
+   * unchanged and a toast warns instead of silently coercing.
+   */
+  updateLaneOperator: (trackId: string, laneId: string, updates: Partial<AutomationLaneOperator>) => void
   removeLane: (trackId: string, laneId: string) => void
   clearLane: (trackId: string, laneId: string) => void
   setLaneVisible: (trackId: string, laneId: string, visible: boolean) => void
@@ -572,6 +591,96 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     }
 
     undoable(`Set modulation blend → ${blendOp}`, forward, inverse)
+  },
+
+  // AA.3 — source toggle (drawn <-> operator) + operator config update.
+  setLaneSource: (trackId, laneId, source) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || lane.kind !== 'modulation') return
+    const oldSource = lane.source ?? 'drawn'
+    if (oldSource === source) return
+    const oldOperator = lane.operator
+
+    // Seed a default LFO config on first switch TO 'operator' (mirrors
+    // operators.ts's createDefaultOperator lfo defaults, so the lane UI's
+    // reused operator-rack param widgets show sane values immediately).
+    const newOperator: AutomationLaneOperator | undefined =
+      source === 'operator' && !lane.operator
+        ? { type: 'lfo', params: { waveform: 'sine', rate_hz: 1.0, phase_offset: 0.0 }, depth: 1, min: 0, max: 1 }
+        : lane.operator
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, source, operator: newOperator } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, source: oldSource, operator: oldOperator } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Set lane source → ${source}`, forward, inverse)
+  },
+
+  updateLaneOperator: (trackId, laneId, updates) => {
+    const trackLanes = get().lanes[trackId]
+    if (!trackLanes) return
+    const lane = trackLanes.find((l) => l.id === laneId)
+    if (!lane || lane.kind !== 'modulation') return
+
+    // Numeric trust boundary (mirrors operators.ts's validateMappingForSave):
+    // reject a non-finite depth/min/max outright — no silent coercion, no
+    // partial apply. `type`/`params` have no numeric-range concept here (the
+    // operator's own param widgets validate their own fields).
+    for (const key of ['depth', 'min', 'max'] as const) {
+      const v = updates[key]
+      if (v !== undefined && !Number.isFinite(v)) {
+        useToastStore.getState().addToast({
+          level: 'warning',
+          message: `Lane operator ${key} must be a finite number, got ${v}`,
+          source: 'automation',
+        })
+        return
+      }
+    }
+
+    const oldOperator = lane.operator
+    const baseOperator: AutomationLaneOperator = lane.operator ?? {
+      type: 'lfo',
+      params: { waveform: 'sine', rate_hz: 1.0, phase_offset: 0.0 },
+      depth: 1,
+      min: 0,
+      max: 1,
+    }
+    const newOperator: AutomationLaneOperator = {
+      ...baseOperator,
+      ...updates,
+      params: updates.params ? { ...baseOperator.params, ...updates.params } : baseOperator.params,
+    }
+
+    const forward = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, operator: newOperator } : l,
+      )
+      set({ lanes: current })
+    }
+    const inverse = () => {
+      const current = { ...get().lanes }
+      current[trackId] = (current[trackId] ?? []).map((l) =>
+        l.id === laneId ? { ...l, operator: oldOperator } : l,
+      )
+      set({ lanes: current })
+    }
+
+    undoable(`Update lane operator`, forward, inverse)
   },
 
   removeLane: (trackId, laneId) => {
@@ -1312,6 +1421,30 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
         blendOp: (['add', 'multiply', 'max'] as const).includes(lane.blendOp as BlendOp)
           ? lane.blendOp
           : undefined,
+        // AA.3: `source` absent/invalid -> 'drawn' (back-compat: a pre-AA.3
+        // file has no `source` field at all — mirrors `kind`'s contract).
+        // An `operator.type` outside {lfo, audio_follower}, or non-finite
+        // depth/min/max, degrades the WHOLE lane to a drawn no-op (drop the
+        // operator config, source falls back to 'drawn') with a console.warn
+        // — never crashes the load.
+        ...(() => {
+          if (lane.source !== 'operator' || !lane.operator || typeof lane.operator !== 'object') {
+            return { source: undefined, operator: undefined }
+          }
+          const op = lane.operator
+          const typeValid = op.type === 'lfo' || op.type === 'audio_follower'
+          const numericFieldsValid = (['depth', 'min', 'max'] as const).every(
+            (k) => op[k] === undefined || Number.isFinite(op[k]),
+          )
+          if (!typeValid || !numericFieldsValid || typeof op.params !== 'object' || op.params === null) {
+            console.warn(
+              `[automation] lane ${lane.id} has an invalid operator source config — ` +
+              `loading as a drawn (no-op) lane instead`,
+            )
+            return { source: undefined, operator: undefined }
+          }
+          return { source: 'operator' as const, operator: op }
+        })(),
         // Filter out invalid points and sort by time for binary search
         points: lane.points
           .filter((p) =>

@@ -629,18 +629,29 @@ class SignalEngine:
         chain: list[dict],
         effect_registry_fn=None,
         automation_overrides: dict[str, float] | None = None,
+        operator_lane_specs: list[dict] | None = None,
+        operator_lane_base: dict[str, float | None] | None = None,
     ) -> list[dict]:
         """Apply operator modulation values to an effect chain.
 
-        Signal order: Base → +OpMod → AutoReplace → Clamp.
+        Signal order: Base → +OpMod → AutoReplace → OperatorLaneReplace → Clamp.
         Delegates operator modulation to routing.resolve_routings,
-        then applies automation overrides (replace, not add).
+        then applies automation overrides (replace, not add), then AA.3-A
+        operator-sourced lanes (also replace, via routing.resolve_operator_lanes).
 
         Probe recording (P6.7):
           Probe IDs follow the convention  "<effect_id>:<param_key>:<kind>"
           where kind is one of param_input / param_postmod / mod_amount.
           record() is a guard-gated no-op when the inspector is not mounted
           or no probe is registered for that id — zero cost when inactive.
+
+        AA.3-A: ``operator_lane_specs``/``operator_lane_base`` are the two
+        payloads a caller (zmq_server._render_frame_core for preview,
+        engine/export.py's modulate_chain_for_frame for export) both pass
+        through from the SAME frontend-built descriptors — this is the shared
+        seam that makes preview and export structurally identical (see the AA.3
+        spec §2.3). Both default to None/absent → byte-identical legacy chain
+        (no operator-lane REPLACE applied).
         """
         # P6.7 probe recording — guarded by is_mounted() at the top level.
         # When inspector is not mounted: one attr check, then straight to
@@ -697,6 +708,24 @@ class SignalEngine:
                             eid, param_key, effect_registry_fn
                         )
                         params[param_key] = max(p_min, min(p_max, float(value)))
+
+        # AA.3-A: superimpose operator-sourced lane values onto their absolute
+        # base and REPLACE the target param — the SAME seam preview and export
+        # both call through (structural parity, spec §2.3). Runs AFTER the
+        # automation_overrides REPLACE above (drawn lanes), so an operator lane
+        # can compose onto a drawn lane's value via its blendOp without being
+        # clobbered by the drawn-lane REPLACE. No-op when specs are absent —
+        # byte-identical legacy chain for every pre-AA.3 project.
+        if operator_lane_specs:
+            from modulation.routing import resolve_operator_lanes
+
+            modulated = resolve_operator_lanes(
+                operator_lane_specs,
+                operator_values,
+                operator_lane_base,
+                modulated,
+                effect_registry_fn,
+            )
 
         # --- P6.7 probe site 2 (param_postmod) — after ALL modulation applied ---
         if _probing:

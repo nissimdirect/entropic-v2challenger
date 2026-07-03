@@ -43,6 +43,13 @@ export function evaluateAutomationOverrides(
 
   for (const lane of lanes) {
     if (!lane.isVisible) continue
+    // AA.3 — an operator-sourced lane's per-frame value is computed
+    // backend-side (resolve_operator_lanes reads it out of operator_values);
+    // it must NOT also emit a frontend-evaluated denormalized REPLACE here
+    // (lane.points is empty for an operator-source lane anyway, so this is
+    // belt-and-suspenders — the backend owns this paramPath's operator-lane
+    // contribution exclusively).
+    if (lane.source === 'operator') continue
 
     const normalized = evaluateAutomation(lane, time)
     if (normalized === null) continue

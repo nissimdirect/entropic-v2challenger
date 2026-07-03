@@ -461,6 +461,28 @@ export type AutomationLaneKind = 'absolute' | 'modulation';
 // the backend operator-routing blend default (routing.py).
 export type BlendOp = 'add' | 'multiply' | 'max';
 
+// AA.3 — a modulation lane whose per-frame value is produced by a live
+// operator (LFO / audio_follower) instead of drawn breakpoints. Absent
+// (undefined) === 'drawn', so every pre-AA.3 project file (no `source` field
+// at all) keeps behaving exactly as before (back-compat, mirrors
+// AutomationLaneKind's own absent-safe contract). AA.3-A ships `lfo` only —
+// `audio_follower` is accepted here so the type is forward-compatible with
+// the AA.3-B follow-on, but the UI/send-time guards (operatorLaneSpecs.ts)
+// only build synthetic ops for lanes the shipped generator panel can create.
+export type AutomationLaneSource = 'drawn' | 'operator';
+
+// The live-operator config for a `source: 'operator'` lane. `params` mirrors
+// the shape `operators.ts`'s `createDefaultOperator` produces for the same
+// `type` (e.g. lfo -> {waveform, rate_hz, phase_offset}) — the lane UI reuses
+// the existing operator-rack param widgets against this same param bag.
+export interface AutomationLaneOperator {
+  type: 'lfo' | 'audio_follower'; // the two AA.3 generator kinds
+  params: Record<string, number | string>; // mirrors operators.ts param shape
+  depth?: number; // [0,1] scales operator influence (default 1)
+  min?: number; // normalized remap lo (default 0)
+  max?: number; // normalized remap hi (default 1)
+}
+
 export interface AutomationLane {
   id: string;
   paramPath: string;
@@ -477,6 +499,10 @@ export interface AutomationLane {
   // AA.2 — see AutomationLaneKind/BlendOp doc comments above.
   kind?: AutomationLaneKind;
   blendOp?: BlendOp;
+  // AA.3 — see AutomationLaneSource/AutomationLaneOperator doc comments above.
+  // `operator` is present iff `source === 'operator'`.
+  source?: AutomationLaneSource;
+  operator?: AutomationLaneOperator;
 }
 
 export interface AutomationPoint {
