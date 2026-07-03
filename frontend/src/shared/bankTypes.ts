@@ -70,6 +70,48 @@ export const MAX_CC_BANK_BINDINGS = 64;
 /** Max distinct saved (non-default) bank assignments (one per contextKey). Evict-oldest on overflow. */
 export const MAX_BANK_ASSIGNMENT_CONTEXTS = 128;
 
+/**
+ * H7 (2026-07-02 master-tuneup) — bank PAGING. A physical controller with a
+ * hardware BANK L/R pair (e.g. Akai MIDImix) pages through multiple 4x8
+ * grids for the SAME focused context, rather than being limited to the one
+ * grid H2 modeled per contextKey. `activeBankIndex` (stores/midi.ts) is the
+ * live page number, clamped to [0, MAX_BANK_PAGES - 1] — CLAMPED, NOT
+ * WRAPPED: paging right at the last page (or left at page 0) is a no-op,
+ * matching how most hardware bank-pagers behave at the rail ends and giving
+ * the HUD a stable "you're at the end" signal instead of silently cycling
+ * back to page 0.
+ *
+ * NOTE ON THE PHYSICAL MIDImix BANK L/R BUTTONS: per Akai's own support
+ * article ("Why Aren't The Bank Buttons Sending Any MIDI Data?",
+ * support.akaipro.com), those buttons do NOT transmit MIDI — they shift
+ * what CC numbers the controller's OWN knobs/faders send, entirely inside
+ * the hardware. There is no note/CC byte this app can listen for. Paging is
+ * therefore a software-side control (BankPagingHUD's L/R buttons,
+ * components/layout/BankPagingHUD.tsx) rather than something wired to a
+ * physical-button MIDI message — the concept (page the active bank) is the
+ * same either way, but the trigger is a UI click, not `handleMIDIMessage`.
+ *
+ * 8 pages mirrors BANK_COLS (a reasonable upper bound on how many banks a
+ * user will realistically page through) — not a hardware spec, just a sane
+ * trust-boundary cap like the other MAX_* constants in this file.
+ */
+export const MAX_BANK_PAGES = 8;
+
+/**
+ * Effective bankAssignments lookup key for a given (contextKey, bankIndex)
+ * pair. Page 0 maps to the BARE contextKey — unchanged from pre-H7 behavior,
+ * so projects/tests saved before bank paging existed keep resolving exactly
+ * as they did (H2/H5 wrote bankAssignments keyed by bare contextKey only).
+ * Pages 1+ get a suffix so they occupy distinct slots in the same
+ * `Record<string, BankAssignment>` map — no new store field needed.
+ * 'none' (nothing focused) is left untouched: callers already short-circuit
+ * before resolving an assignment when context.kind === 'none'.
+ */
+export function pagedContextKey(contextKey: string, bankIndex: number): string {
+  if (contextKey === 'none' || bankIndex === 0) return contextKey;
+  return `${contextKey}::bank${bankIndex}`;
+}
+
 const SLOT_TARGET_KINDS = new Set(['effectParam', 'macro', 'transform', 'mask', 'instrument']);
 
 /** Coerce-check: integer in [min, max]. */

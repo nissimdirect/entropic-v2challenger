@@ -144,6 +144,17 @@ class TestParameterSweep:
         ("fx.grid_moire", "b_scroll_y"),
         ("fx.grid_moire", "a_liquify_speed"),
         ("fx.grid_moire", "b_liquify_speed"),
+        # Transitions (v2, 2026-07-02): progress = frame_index/duration_frames, so
+        # at frame_index=0 progress is 0 for ALL durations → duration_frames inert.
+        # columns/rows set reveal granularity; at progress=0 (nothing revealed yet)
+        # the column/row count changes nothing. Both are exercised at mid-progress
+        # by each transition's own test_transition_*.py oracle.
+        ("fx.transition_column_cascade", "duration_frames"),
+        ("fx.transition_column_cascade", "columns"),
+        ("fx.transition_column_cascade_reverse", "duration_frames"),
+        ("fx.transition_column_cascade_reverse", "columns"),
+        ("fx.transition_row_waterfall", "duration_frames"),
+        ("fx.transition_row_waterfall", "rows"),
     }
 
     # Stateful physics effects that accumulate displacement over time.

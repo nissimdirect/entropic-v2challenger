@@ -65,6 +65,9 @@ const PROJECT_PARAM_OPTIONS: ParamOption[] = [
 export default function AutomationToolbar() {
   const mode = useAutomationStore((s) => s.mode)
   const armedTrackId = useAutomationStore((s) => s.armedTrackId)
+  // A4 — continuous-lane overdub toggle (D2: 'replace'/punch-replace is the
+  // locked default; 'overdub' additively layers new points instead).
+  const recordMode = useAutomationStore((s) => s.recordMode)
   const tracks = useTimelineStore((s) => s.tracks)
   // A1+A2: transform lanes target the SELECTED clip on the armed track. Subscribe
   // so the picker refreshes when the selection changes.
@@ -75,6 +78,11 @@ export default function AutomationToolbar() {
 
   const handleModeChange = useCallback((newMode: AutomationMode) => {
     useAutomationStore.getState().setMode(newMode)
+  }, [])
+
+  const handleToggleRecordMode = useCallback(() => {
+    const state = useAutomationStore.getState()
+    state.setRecordMode(state.recordMode === 'overdub' ? 'replace' : 'overdub')
   }, [])
 
   const handleSimplify = useCallback(() => {
@@ -203,6 +211,21 @@ export default function AutomationToolbar() {
           </button>
         ))}
       </div>
+      {/* A4 — overdub toggle: 'replace' (default, D2 punch-replace) overwrites a
+          nearby point when recording; 'overdub' additively layers new points
+          on top of the existing lane instead. Not gated on armedTrackId — it's
+          a write-mode preference, consulted the next time a point is recorded. */}
+      <button
+        className={`auto-toolbar__btn${recordMode === 'overdub' ? ' auto-toolbar__btn--active' : ''}`}
+        onClick={handleToggleRecordMode}
+        title={recordMode === 'overdub'
+          ? 'Overdub — new points layer on top of existing automation (click for Replace)'
+          : 'Replace — recording overwrites nearby points (click for Overdub)'}
+        data-testid="overdub-toggle-btn"
+        aria-pressed={recordMode === 'overdub'}
+      >
+        Overdub
+      </button>
       {/* F-0512-34: when no track is armed, the tooltips tell users HOW to
           arm — previously they only mentioned the precondition and the user
           had no way to discover the "R" button on the track header

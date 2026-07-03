@@ -10,7 +10,7 @@ import { useMIDIStore } from '../../stores/midi'
 import { useOperatorStore } from '../../stores/operators'
 import { useToastStore } from '../../stores/toast'
 import { LIMITS } from '../../../shared/limits'
-import { recordPoint } from '../../utils/automation-record'
+import { recordPointWithMode } from '../../utils/automation-record'
 import { parseOperatorDrop, dragHasOperatorChannel } from '../effects/operator-drag'
 import ABSwitch from './ABSwitch'
 
@@ -141,7 +141,7 @@ export default function DeviceCard({
       const pMin = def.min ?? 0
       const pMax = def.max ?? 1
       const normalized = pMax > pMin ? (value - pMin) / (pMax - pMin) : 0
-      const newPoints = recordPoint(lane.points, time, Math.max(0, Math.min(1, normalized)))
+      const newPoints = recordPointWithMode(lane.points, time, Math.max(0, Math.min(1, normalized)), autoStore.recordMode)
       autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
     },
     [effect.id, onUpdateParam],

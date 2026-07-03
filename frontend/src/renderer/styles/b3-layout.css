@@ -1,0 +1,291 @@
+/*
+ * b3-layout.css — Creatrix B3 "arrangement-is-the-layers" chrome.
+ *
+ * Scoped to F_CREATRIX_LAYOUT surfaces:
+ *   - L2 lean track header (.track-header--lean and children)
+ *   - L3 LAYER inspector panel (.b3-layer)
+ *   - Block tool-rail icon sizing (.cx-tool-icon)
+ *
+ * Tokens only — no raw hex (hex-ratchet CI). Every color is a --cx-* var.
+ */
+
+/* ── L2 — lean track header ─────────────────────────────────────────────── */
+.track-header--lean {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px;
+  background: var(--cx-surface-2);
+  border-right: 1px solid var(--cx-line-1);
+  /* B3 v2: ~214px lean header (deep controls moved to the LAYER panel). */
+  min-width: 0;
+}
+
+.track-header--lean .track-header__lean-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.track-header__twirl,
+.track-header__eye {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--cx-text-2);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.track-header__twirl:hover,
+.track-header__eye:hover {
+  color: var(--cx-text-1);
+}
+
+.track-header__eye--off {
+  color: var(--cx-text-disabled);
+}
+
+.track-header--lean .track-header__cc {
+  flex: none;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+
+.track-header__info--lean {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.track-header__info--lean .track-header__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--cx-text-1);
+  font-size: 11.5px;
+}
+
+/* Compact blend·opacity readout chip — glanceable, click opens LAYER panel */
+.track-header__bchip {
+  flex: none;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px;
+  border-radius: var(--cx-radius-control);
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-1);
+  color: var(--cx-text-2);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.track-header__bchip:hover {
+  border-color: var(--cx-mod);
+  color: var(--cx-text-1);
+}
+
+.track-header--selected .track-header__bchip {
+  border-color: var(--cx-mod);
+  color: var(--cx-mod);
+}
+
+.track-header__bchip-o {
+  color: var(--cx-text-3);
+}
+
+.track-header__controls--lean {
+  flex: none;
+  display: flex;
+  gap: 3px;
+}
+
+/* Nested fx + automation rows revealed by the twirl */
+.track-header__nested {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0 2px 22px;
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.track-header__nested-empty {
+  font-size: 9.5px;
+  color: var(--cx-text-3);
+  font-style: italic;
+}
+
+.track-header__nested-fx {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--cx-text-2);
+}
+
+.track-header__nested-fx--off {
+  color: var(--cx-text-disabled);
+}
+
+.track-header__nested-pwr {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--cx-acid);
+  flex: none;
+}
+
+.track-header__nested-fx--off .track-header__nested-pwr {
+  background: transparent;
+  border: 1px solid var(--cx-line-2);
+}
+
+.track-header__nested-auto {
+  font-size: 9.5px;
+  color: var(--cx-mod);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── L3 — LAYER inspector panel ─────────────────────────────────────────── */
+.b3-layer {
+  border-bottom: 1px solid var(--cx-line-1);
+  background: var(--cx-surface-2);
+  font-family: var(--cx-font-ui);
+}
+
+.b3-layer__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px 8px;
+  border-bottom: 1px solid var(--cx-line-1);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--cx-text-1);
+}
+
+.b3-layer__cc {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: none;
+}
+
+.b3-layer__link {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--cx-mod);
+  border: 1px solid var(--cx-mod);
+  border-radius: var(--cx-radius-control);
+  padding: 1px 6px;
+}
+
+.b3-layer__hint {
+  margin-left: auto;
+  font-size: 9.5px;
+  color: var(--cx-text-3);
+}
+
+.b3-layer__body {
+  padding: 10px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.b3-layer__sub {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: var(--cx-text-3);
+  margin: 2px 0 -2px;
+}
+
+.b3-layer__blends {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+}
+
+.b3-layer__blend {
+  font-size: 9.5px;
+  text-align: center;
+  padding: 4px 0;
+  border: 1px solid var(--cx-line-1);
+  border-radius: var(--cx-radius-control);
+  color: var(--cx-text-2);
+  background: transparent;
+  cursor: pointer;
+}
+
+.b3-layer__blend:hover {
+  color: var(--cx-text-1);
+  border-color: var(--cx-line-2);
+}
+
+.b3-layer__blend--on {
+  background: var(--cx-mod-wash);
+  border-color: var(--cx-mod);
+  color: var(--cx-mod);
+}
+
+.b3-layer__row {
+  display: grid;
+  grid-template-columns: 64px 1fr 44px;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--cx-text-2);
+}
+
+.b3-layer__row input[type='range'] {
+  width: 100%;
+}
+
+.b3-layer__v {
+  text-align: right;
+  color: var(--cx-text-1);
+  font-variant-numeric: tabular-nums;
+  font-size: 10.5px;
+}
+
+.b3-layer__opt {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.b3-layer__chip {
+  font-size: 9.5px;
+  padding: 2px 6px;
+  border-radius: var(--cx-radius-control);
+  background: var(--cx-surface-3);
+  border: 1px solid var(--cx-line-1);
+  color: var(--cx-text-2);
+}
+
+.b3-layer__chip--mod {
+  border-color: var(--cx-mod);
+  color: var(--cx-mod);
+  background: var(--cx-mod-wash);
+}
+
+/* ── Block tool-rail icon sizing ────────────────────────────────────────── */
+.cx-tool-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: currentColor;
+}

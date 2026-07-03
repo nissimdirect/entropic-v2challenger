@@ -27,6 +27,9 @@ import TransformPanel from './components/timeline/TransformPanel'
 import HelpPanel from './components/effects/HelpPanel'
 // P3.3: Polymorphic inspector (8 states, info-only)
 import Inspector from './components/inspector/Inspector'
+// B3 / L3: LAYER inspector panel (right-dock, above EFFECTS) — bound to the
+// selected track. Mounted flag-gated (F_CREATRIX_LAYOUT) in the sidebar.
+import LayerPanel from './components/timeline/LayerPanel'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
 // P5a.3: buildVoiceLayers replaces buildSamplerLayer in the render path (multi-voice FSM).
 //        buildSamplerLayer kept for legacy callers outside the voice path.
@@ -46,6 +49,7 @@ import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
 import './styles/creatrix-layout.css'
+import './styles/b3-layout.css'
 import type { Asset, EffectInstance } from '../shared/types'
 import { IDENTITY_TRANSFORM, getTrackCompositing } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
@@ -99,6 +103,7 @@ import MappingContextChip from './components/layout/MappingContextChip'
 // overlay ("MIDI Map mode") — the view/hand-edit layer over the H1–H5 engine.
 import MIDIMapOverlay from './components/performance/MIDIMapOverlay'
 import { useMIDIMapModeStore } from './stores/midiMapMode'
+import BankPagingHUD from './components/layout/BankPagingHUD'
 import { buildAxisLanes } from '../shared/axis-lanes'
 import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
@@ -172,6 +177,8 @@ function modulateChain(chain: EffectInstance[], frame: number): EffectInstance[]
       midi.bankAssignments,
       context,
       defaultAssignmentSourcesFor(context),
+      undefined,
+      midi.activeBankIndex, // H7 — page the bank-assignment lookup, not just focus
     )
   }
   return out
@@ -1349,6 +1356,7 @@ function AppInner() {
                 midiForMacros.bankAssignments,
                 macroContext,
                 defaultAssignmentSourcesFor(macroContext),
+                midiForMacros.activeBankIndex, // H7 — page the bank-assignment lookup
               )
             })()
           : undefined
@@ -3563,6 +3571,9 @@ function AppInner() {
             }}
           />
         )}
+        {/* B3 / L3: LAYER inspector — above EFFECTS, contextual to the selected
+            track. Flag-gated so the legacy sidebar is untouched when off. */}
+        {FF.F_CREATRIX_LAYOUT && <LayerPanel />}
         <div className="sidebar-tabs">
           <button
             className={`sidebar-tabs__btn ${sidebarTab === 'effects' ? 'sidebar-tabs__btn--active' : ''}`}
@@ -4121,6 +4132,8 @@ function AppInner() {
           <MappingContextChip />
           {/* H-UI: MIDI Map mode toggle — opens the visual hardware-mapping overlay */}
           <MapModeToggle />
+          {/* H7: bank-paging HUD — pages the bank-assignment grid (bankTypes.ts MAX_BANK_PAGES) */}
+          <BankPagingHUD />
           {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>

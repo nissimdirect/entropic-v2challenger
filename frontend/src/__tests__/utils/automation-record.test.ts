@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { recordPoint, recordDrawStroke } from '../../renderer/utils/automation-record'
+import { recordPoint, recordDrawStroke, recordPointWithMode } from '../../renderer/utils/automation-record'
 import type { AutomationPoint } from '../../shared/types'
 
 function pt(time: number, value: number, curve = 0): AutomationPoint {
@@ -28,6 +28,48 @@ describe('recordPoint', () => {
     expect(result[0].time).toBe(0)
     expect(result[1].time).toBe(1)
     expect(result[2].time).toBe(2)
+  })
+})
+
+// A4 — continuous-lane overdub toggle.
+describe('recordPointWithMode', () => {
+  it('replace mode (default) is byte-identical to recordPoint — clears-then-writes the nearby point', () => {
+    const existing = [pt(0, 0), pt(1.0, 0.3), pt(2, 1)]
+    const viaMode = recordPointWithMode(existing, 1.02, 0.8, 'replace', 0.033)
+    const viaPlain = recordPoint(existing, 1.02, 0.8, 0.033)
+    expect(viaMode).toEqual(viaPlain)
+    expect(viaMode).toHaveLength(3)
+    expect(viaMode[1]).toEqual(pt(1.02, 0.8))
+  })
+
+  it('replace mode is also the default when mode is omitted', () => {
+    const existing = [pt(0, 0), pt(1.0, 0.3), pt(2, 1)]
+    const result = recordPointWithMode(existing, 1.02, 0.8)
+    expect(result).toHaveLength(3)
+    expect(result[1]).toEqual(pt(1.02, 0.8))
+  })
+
+  it('overdub mode keeps all existing points and adds the new one (no replacement)', () => {
+    const existing = [pt(0, 0), pt(1.0, 0.3), pt(2, 1)]
+    const result = recordPointWithMode(existing, 1.02, 0.8, 'overdub')
+    expect(result).toHaveLength(4)
+    // Original near-neighbor point at t=1.0 must survive untouched.
+    expect(result.find((p) => p.time === 1.0)).toEqual(pt(1.0, 0.3))
+    // New point is present too.
+    expect(result.find((p) => p.time === 1.02)).toEqual(pt(1.02, 0.8))
+  })
+
+  it('overdub mode result is sorted by time', () => {
+    const existing = [pt(0, 0), pt(2, 1)]
+    const result = recordPointWithMode(existing, 1, 0.5, 'overdub')
+    expect(result.map((p) => p.time)).toEqual([0, 1, 2])
+  })
+
+  it('overdub mode does not mutate the input array', () => {
+    const existing = [pt(0, 0), pt(1, 0.5)]
+    const snapshot = [...existing]
+    recordPointWithMode(existing, 0.5, 0.9, 'overdub')
+    expect(existing).toEqual(snapshot)
   })
 })
 

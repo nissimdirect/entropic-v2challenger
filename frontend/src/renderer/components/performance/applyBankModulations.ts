@@ -25,9 +25,17 @@
  * bank binding IS matched, so its legacy-collision precedence still applies)
  * but produce no chain/macro change — H4 wires the live overlay. Warned once
  * per distinct target (not per frame).
+ *
+ * H7 — every entry point here now takes an optional trailing `bankIndex`
+ * (default 0, matching pre-H7 behavior byte-for-byte): the assignment lookup
+ * key becomes `pagedContextKey(context.contextKey, bankIndex)` instead of the
+ * bare contextKey, so the SAME physical CC resolves to a DIFFERENT target as
+ * the active bank page changes, exactly like it already does as focus
+ * changes. See bankTypes.ts MAX_BANK_PAGES doc for the paging model.
  */
 import type { EffectInstance, CCMapping, ParamDef } from '../../../shared/types'
 import type { BankAssignment, CCBankBinding, SlotTarget } from '../../../shared/bankTypes'
+import { pagedContextKey } from '../../../shared/bankTypes'
 import type { MappingContext } from '../../utils/focusContext'
 import {
   deriveDefaultAssignment,
@@ -49,8 +57,10 @@ function resolveAssignment(
   bankAssignments: Record<string, BankAssignment>,
   context: MappingContext,
   sources: DefaultAssignmentSources,
+  bankIndex: number,
 ): BankAssignment {
-  return bankAssignments[context.contextKey] ?? deriveDefaultAssignment(context, sources)
+  const key = pagedContextKey(context.contextKey, bankIndex)
+  return bankAssignments[key] ?? deriveDefaultAssignment(context, sources)
 }
 
 function getSlot(assignment: BankAssignment, row: number, col: number): SlotTarget | null {
@@ -71,6 +81,7 @@ function resolveBankTargets(
   bankAssignments: Record<string, BankAssignment>,
   context: MappingContext,
   sources: DefaultAssignmentSources,
+  bankIndex: number,
 ): ResolvedBankTargets {
   const effectParamMappings: CCMapping[] = []
   const macroOverrides = new Map<string, number>()
@@ -80,7 +91,7 @@ function resolveBankTargets(
     return { effectParamMappings, macroOverrides, usedBankCcs }
   }
 
-  const assignment = resolveAssignment(bankAssignments, context, sources)
+  const assignment = resolveAssignment(bankAssignments, context, sources, bankIndex)
 
   for (const binding of ccBankBindings) {
     const value = ccValues[binding.cc]
@@ -146,6 +157,7 @@ export function applyBankModulations(
   context: MappingContext,
   sources: DefaultAssignmentSources,
   effectRegistry?: Map<string, Record<string, ParamDef>>,
+  bankIndex = 0,
 ): EffectInstance[] {
   const { effectParamMappings, usedBankCcs } = resolveBankTargets(
     ccBankBindings,
@@ -153,6 +165,7 @@ export function applyBankModulations(
     bankAssignments,
     context,
     sources,
+    bankIndex,
   )
 
   let legacyMappings = ccMappings
@@ -190,8 +203,9 @@ export function resolveBankMacroOverrides(
   bankAssignments: Record<string, BankAssignment>,
   context: MappingContext,
   sources: DefaultAssignmentSources,
+  bankIndex = 0,
 ): Map<string, number> {
-  return resolveBankTargets(ccBankBindings, ccValues, bankAssignments, context, sources).macroOverrides
+  return resolveBankTargets(ccBankBindings, ccValues, bankAssignments, context, sources, bankIndex).macroOverrides
 }
 
 /**
@@ -216,11 +230,12 @@ export function resolveBankSlotTargetForCC(
   bankAssignments: Record<string, BankAssignment>,
   context: MappingContext,
   sources: DefaultAssignmentSources,
+  bankIndex = 0,
 ): SlotTarget | null {
   if (context.kind === 'none') return null
   const binding = ccBankBindings.find((b) => b.cc === cc)
   if (!binding) return null
-  const assignment = resolveAssignment(bankAssignments, context, sources)
+  const assignment = resolveAssignment(bankAssignments, context, sources, bankIndex)
   return getSlot(assignment, binding.slot.row, binding.slot.col)
 }
 
