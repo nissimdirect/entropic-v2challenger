@@ -241,6 +241,145 @@ both present and rendered — tonight's headline merges are in the running build
 
 ---
 
+# NEW FEATURES THIS SESSION (2026-07-03) — added to the CU-UAT scope
+
+Everything below shipped to main on 2026-07-03 and needs live CU coverage. Kill+relaunch the DEV
+app first (store-shape changed). All of it is Ableton-parity automation + a new Master bus.
+
+## Stage I — Automation EDITING suite (Ableton parity) (~60 min)
+Arm a track (R in the automation toolbar), add a lane on an effect param (context menu → Add Lane),
+then exercise each editing gesture and confirm the drawn shape SURVIVES save→reload AND matches on
+export (preview==export is the invariant).
+- **I1 Curves (AA.1):** Alt+DRAG a segment/node → continuous tension; Alt+double-click → straighten.
+  Confirm the eased ramp renders (not linear). Simplify preserves the curve shape.
+- **I2 Select + move (AA.4):** marquee-drag over breakpoints → they select (highlighted); drag to move
+  in time+value; **copy/paste**; quantize toggle (Cmd+U) snaps moved points to grid when on.
+- **I3 Transform box (AA.4b):** with a selection, an edge/corner box appears — drag an edge to scale,
+  **drag one side down to skew/tilt** (flat → ramp), corner to scale both. **Flatten** (→ constant line),
+  **Ramp** (interior → straight line). Each is ONE undo step.
+- **I4 Insert Shape (AA.3a):** the "Shape" picker on the toolbar → sine/tri/saw-up/saw-down/square/
+  ramp-up/ramp-down/random → bakes REAL editable breakpoints into the lane/selected range (then tweak
+  them with I1–I3). Honors quantize.
+- **I5 Is-automated LED (AA.6):** a small green dot on any effect knob (ParamPanel + DeviceChain rack)
+  that has an active lane; appears/disappears as lanes are added/removed.
+- **Oracle:** for at least one param, decode the exported frames (PIL) and confirm the automated value
+  matches preview at the same frame. **KNOWN BUG to probe — task #28:** modulation/automation on a param
+  whose range is NOT [0,1] (e.g. Hue Shift amount [0,360]) may clamp to [0,1] → value pins low. Test a
+  non-[0,1] param explicitly and report if it mis-scales.
+
+## Stage J — Modulation + LFO operator lanes (the differentiators) (~45 min)
+- **J1 Modulation lanes (AA.2):** on a param that already has an absolute lane, "+ Mod" adds a
+  RELATIVE (blue) modulation lane; blendOp add/multiply/max. Confirm the modulation SUPERIMPOSES on the
+  absolute (both coexist, absolute not overwritten). Draw it; confirm preview==export.
+- **J2 LFO operator lanes (AA.3-A):** set a lane's source to an operator (LFO) with rate/depth/phase/
+  waveform → the param oscillates each frame (generative, not baked). Confirm DETERMINISTIC (same project
+  → same output) and preview==export (the LFO runs backend-side in both). Try all waveforms.
+- **J3 Spatial axis (the moat):** where exposed, set a lane's domain to Y/X (not just T) → the value
+  varies DOWN/ACROSS the frame (spatial ripple), not over time. (AA.3-C spatial-operator is spiked-out —
+  don't expect operator-source over Y/X yet; drawn/absolute over Y/X should work.)
+
+## Stage K — Master-Out Bus (~45 min)
+A new permanent **Master track** (pinned bottom of the timeline, amber, no clips) processes the FINAL
+SUMMED video (all tracks composited).
+- **K1 Exists + guards:** every project has exactly one Master track; it can't be deleted, duplicated,
+  or hold clips; dragging an INSTRUMENT onto it is rejected with a toast; effects (fx/op/tool) are allowed.
+- **K2 Effects on the sum:** add e.g. an invert/color-grade to the Master → confirm it applies to the
+  COMPOSITED output (all tracks), not per-track. Empty Master chain = no visual change (byte-identical).
+- **K3 Preview==export:** the master effect looks identical in preview AND the exported file. Test the
+  single-clip case specifically (M.2b forced it onto the composite path; "Export current frame as PNG"
+  should bail to the Export dialog when the Master has effects).
+- **K4 Master automation (M.3):** arm the Master track, automate a master effect param → it varies over
+  time in preview AND export. **KNOWN-FIXED regression to spot-check:** a master lane on effect type X must
+  NOT change a per-CLIP effect of the same type X (contamination was fixed — verify a clip with the same
+  effect type as an automated master effect is untouched on export).
+
+## Stage G UPDATE — B3 layout is now DEFAULT-ON (no longer gated)
+F_CREATRIX_LAYOUT ships ON (PR #398). Run Stage G against the default layout. Escape hatch:
+localStorage 'entropic-disable-creatrix-layout'=1 to compare to legacy. Lock/arm/drag affordances were
+ported into the lean header (#395) — verify all three work on the Master + normal tracks.
+
+## Also new: clip thumbnails scale with zoom (#397)
+Zoom the timeline in/out → clip filmstrips show more/fewer poster frames (capped at 12). Verify no perf
+regression on many-clip timelines.
+
+## KNOWN-BUG WATCHLIST (report against these, don't re-file)
+- **#28 (HIGH, open):** automation/modulation clamps to [0,1] on non-[0,1]-range params (Stage I5 oracle).
+- **#26:** sg3-aborted lanes filtered in preview but not export bake (preview≠export on sg3-abort).
+- **#15:** e2e-full suite broadly red (test-infra debt, not app breakage — smoke is the merge gate).
+- **#27:** one timeline-ui component test quarantined (master-pinned-last, CI-flaky) — behavior is sound.
+- **#29 (P0, confirmed):** ripple-delete/ripple-trim/split do NOT rebase clip-transform automation (fix in flight).
+- **#30 (P0, confirmed):** loadProject dirty-check is a no-op stub — Welcome/open-recent bypass the unsaved-changes gate (fix in flight).
+- **#31:** full audit findings register — see docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md (silent no-ops, freeze-mutation gaps, C15 depth mismatch, E18 orphaned MIDImix, export-not-pressure-gated…).
+
+---
+
+# COMPLETENESS PASS (/uat 2026-07-03) — negative, edge, chaos, composability
+
+Stages I/J/K above are happy-path. Per /uat, a plan that only tests golden paths is theater. The
+following MUST also be covered by the CU-UAT session. Report PASS/FAIL/BUG per row.
+
+## N — Negative & error paths (P1)
+| # | Action | Expected |
+|---|--------|----------|
+| N1 | Arm a track that has NO effects, try Add Lane | graceful (no lane / hint), no crash |
+| N2 | Draw an automation lane on an effect param, then DELETE that effect | lane is removed/orphan-cleaned, no dangling render |
+| N3 | Insert Shape with cycles=0 (or amplitude=0) | no-op or clamped, no crash / no NaN frame |
+| N4 | Add a "+ Mod" modulation lane on a param that has NO absolute lane | mod seeds from itself (documented) or clean guard — not a crash |
+| N5 | LFO operator lane with rate=0 / depth=0 | constant/no oscillation, deterministic, no divide-by-zero |
+| N6 | Drag an INSTRUMENT onto the Master device chain | rejected + toast "Instruments can't go on the Master" |
+| N7 | Try to delete / duplicate the Master track (menu, keyboard) | blocked + toast; Master persists |
+| N8 | "Export current frame as PNG" while the Master has effects (single clip) | bails to Export dialog (no silent master-less PNG) |
+| N9 | Automate a param, then set the effect Frozen | automation respects freeze semantics, no conflict crash |
+
+## E — Edge & boundary (P2)
+| # | Input | Expected |
+|---|-------|----------|
+| E1 | Lane with 0 points / 1 point | held value, no interpolation crash; preview==export |
+| E2 | Param automated at its exact MIN and MAX | clamps correctly; **probe #28: non-[0,1] param (Hue 0-360) must NOT clamp to [0,1]** |
+| E3 | Automation keyframe at frame 0 and at the last frame | both render; no off-by-one at clip end |
+| E4 | Quantize at finest and coarsest grid division | snapping correct at both extremes |
+| E5 | Master chain with 8+ effects, several automated | renders; no perf cliff; preview==export |
+| E6 | Insert Shape then Simplify to very few points | shape/tension preserved reasonably; no clobber |
+| E7 | Very long clip (1000+ frames) with an LFO operator lane | deterministic + performant across the whole clip |
+
+## X — State & sequence chaos (P1, human-error protocol)
+| # | Chaotic action | Expected |
+|---|----------------|----------|
+| X1 | Undo mid-draw / mid-transform-box drag | clean revert to pre-gesture state (one undo step) |
+| X2 | Rapidly arm/disarm a track many times | no stuck record state, no duplicate lanes |
+| X3 | Save the project WHILE an automation gesture is in progress | consistent saved state; reload matches |
+| X4 | Reload a project that has a MODULATION lane + an LFO operator lane active | both rehydrate + render identically (kill+relaunch) |
+| X5 | Move a CLIP that has clip-transform automation (AA.5) | the clip's OWN lane keyframes move WITH it; other lanes stay put |
+| X6 | Add a Master effect, then Undo, then Redo | Master chain + its automation restore correctly |
+| X7 | Two modulation lanes on ONE param (add + multiply) | both fold deterministically; consistent preview vs export |
+| X8 | Delete a clip whose effect has an automation lane | lane cleaned; no orphaned override on export |
+
+## C — COMPOSABILITY (P0 — the #1 real-world failure class)
+The features INTERACT. Test the combinations, all verified preview==export via decoded frames:
+| # | Combination | Expected |
+|---|-------------|----------|
+| C1 | Absolute lane + modulation lane on the SAME param | modulation superimposes on absolute (absolute not overwritten); clamped to real param range |
+| C2 | Modulation (drawn) lane + LFO operator lane on the SAME param | both compose deterministically; preview==export |
+| C3 | **Master automation on effect type X + a CLIP with the same effect type X** | the CLIP effect is UNTOUCHED by the master lane (the fixed HIGH contamination — CRITICAL regression) |
+| C4 | Clip-transform automation (pos/scale) + an effect-param modulation lane on the same clip | both apply; move the clip → transform lane rides it, effect lane behaves per its anchor |
+| C5 | Insert Shape → Transform Box skew → add a modulation lane, then export | edits + modulation all present in the exported file |
+| C6 | Master effect automated + per-clip effects automated, single-clip project | single-clip forced onto composite path; master + clip automation both correct in preview AND export |
+| C7 | Axis-domain: a drawn lane over Y (spatial) + a normal lane over T on related params | spatial + temporal coexist; the Y lane varies down-frame, T lane over time |
+
+## Acceptance-criteria checklist (binary GO/NO-GO per feature)
+- [ ] AUTOMATION EDITING: every gesture (curve/select/move/copy-paste/transform/flatten/ramp/insert-shape) produces the drawn result AND survives save→reload AND matches on export.
+- [ ] MODULATION: relative layer superimposes without overwriting absolute; blendOp add/mult/max correct; non-[0,1] params scale correctly (**#28 gate**).
+- [ ] LFO OPERATOR LANES: deterministic, all waveforms, preview==export (backend-evaluated both paths).
+- [ ] MASTER BUS: exists/undeletable/no-clips/no-instruments; effects apply to the SUM; empty chain = no change; master automation works AND does not contaminate same-type clip effects.
+- [ ] LAYOUT (default-on): B3 grid + LayerPanel + all 4 resize handles + lock/arm/drag on Master and normal tracks.
+- [ ] NO REGRESSION: smoke green; the known watchlist (#28/#26/#15/#27) reported, not re-filed.
+
+**Verdict gate:** GO only if all C-row composability tests pass (interactions are where it breaks) AND #28
+is either fixed or its blast-radius is bounded + documented. A green happy-path with a failing C3
+(contamination) or E2 (#28 clamp) is a NO-GO.
+
+---
+
 # SALVAGED ADDENDUM (from PR #387, conflicted; folded 2026-07-03) — pre-run zero-trust review
 > STALENESS CORRECTIONS at fold time: (1) `F_CREATRIX_LAYOUT` is now **default ON** (#398 merged) —
 > invert the A5/G baseline notes below accordingly; the flag round-trip protocol still applies via the
@@ -332,3 +471,4 @@ by default, so it did NOT change the default DOM and is not the breaker.
 - **Coordination traps:** task #19 (zoom thumbs) overlaps `F_0512_8_CLIP_THUMBS` — test
   together; re-grep `frontend/src/shared/feature-flags.ts` at CU start (their wave-1 may add
   flags: master-out #18, AA.4).
+||||||| 7890974
