@@ -149,10 +149,11 @@ describe('mask stack survives save and load round trip', () => {
     // Hydrate into stores
     hydrateStores(projectData as any)
 
-    // Read back from store
+    // Read back from store. M.1: no Master track in this fixture -> hydrate
+    // injects one (appended after — the clip's track stays index 0).
     const tl = useTimelineStore.getState()
     const tracks = tl.tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     const clip = tracks[0].clips[0]
     expect(clip).toBeDefined()
     expect(clip.maskStack).toBeDefined()

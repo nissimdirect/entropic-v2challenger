@@ -138,8 +138,10 @@ describe('UE.7 — Clip rename + clip color', () => {
 
     expect(() => hydrateStores(project as any)).not.toThrow()
 
+    // M.1 (Master-Out Bus PRD): no Master track in this fixture -> hydrate
+    // injects one (appended after — the legacy track stays index 0).
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     const clip = tracks[0].clips.find((c) => c.id === 'leg-clip')!
     expect(clip).toBeDefined()
     expect(clip.name).toBeUndefined()

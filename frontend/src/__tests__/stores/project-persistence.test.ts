@@ -28,6 +28,7 @@ import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useUndoStore } from '../../renderer/stores/undo'
 import { useOperatorStore } from '../../renderer/stores/operators'
 import { useAutomationStore } from '../../renderer/stores/automation'
+import { useToastStore } from '../../renderer/stores/toast'
 import { getTrackCompositing } from '../../shared/types'
 import {
   serializeProject,
@@ -333,7 +334,15 @@ describe('hydrateStores', () => {
 
     hydrateStores(makeValidProject() as any)
 
-    expect(useTimelineStore.getState().tracks).toHaveLength(0)
+    // M.1 (Master-Out Bus PRD): a project with no tracks (makeValidProject's
+    // default) hydrates to exactly ONE track — the migration-injected Master
+    // (absent -> create). The pre-M.1 "old track gone, nothing new" story is
+    // still intact: it's a FRESH master, not the "Old Track" from before, and
+    // addMasterTrack is a direct (non-undoable) write, so it does NOT push
+    // onto the undo stack or dirty the project (see timeline.ts addMasterTrack).
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].type).toBe('master')
     expect(useUndoStore.getState().past).toHaveLength(0)
     expect(useUndoStore.getState().isDirty).toBe(false)
   })
@@ -376,8 +385,10 @@ describe('hydrateStores', () => {
 
     hydrateStores(project as any)
 
+    // M.1: the saved project has no Master track, so hydrate injects one
+    // (migration) — 1 video track + 1 injected Master = 2.
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     expect(tracks[0].name).toBe('Video 1')
     expect(tracks[0].color).toBe('#ef4444')
     const compositing = getTrackCompositing(tracks[0].effectChain)
@@ -486,8 +497,9 @@ describe('hydrateStores', () => {
 
     hydrateStores(project as any)
 
+    // M.1: no Master track in this fixture → hydrate injects one.
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     const chain = tracks[0].effectChain
     expect(chain).toHaveLength(1)
     expect(chain[0].effectId).toBe('datamosh')
@@ -839,7 +851,9 @@ describe('loadProject', () => {
     const result = await loadProject()
 
     expect(result).toBe(true)
-    expect(useTimelineStore.getState().tracks).toHaveLength(1)
+    // M.1: no Master track in this fixture → hydrate injects one (index 1;
+    // the loaded video track stays index 0 — appended after the track loop).
+    expect(useTimelineStore.getState().tracks).toHaveLength(2)
     expect(useTimelineStore.getState().tracks[0].name).toBe('Loaded Track')
     expect(useProjectStore.getState().projectPath).toBe('/test/loaded.glitch')
     expect(useProjectStore.getState().projectName).toBe('loaded')
@@ -957,7 +971,13 @@ describe('newProject', () => {
 
     expect(useProjectStore.getState().projectPath).toBeNull()
     expect(useProjectStore.getState().projectName).toBe('Untitled')
-    expect(useTimelineStore.getState().tracks).toHaveLength(0)
+    // M.1 (Master-Out Bus PRD): every new project bootstraps exactly ONE
+    // Master track (addMasterTrack is a direct, non-undoable write — see
+    // timeline.ts — so it does not resurrect the undo stack or dirty flag
+    // newProject just cleared).
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].type).toBe('master')
     expect(useUndoStore.getState().past).toHaveLength(0)
     expect(useUndoStore.getState().isDirty).toBe(false)
   })
@@ -1078,8 +1098,10 @@ describe('Epic 05: per-track effect chain round-trip (persistence spec)', () => 
     useUndoStore.getState().clear()
     hydrateStores(serialized)
 
+    // M.1: no Master track in this serialized fixture → hydrate injects one
+    // (V1 + V2 + injected Master = 3). Lookups below are by name, unaffected.
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(2)
+    expect(tracks).toHaveLength(3)
 
     const restoredV1 = tracks.find((t) => t.name === 'V1')
     const restoredV2 = tracks.find((t) => t.name === 'V2')
@@ -1112,8 +1134,10 @@ describe('Epic 05: per-track effect chain round-trip (persistence spec)', () => 
     useUndoStore.getState().clear()
     hydrateStores(serialized)
 
+    // M.1: no Master track in this serialized fixture → hydrate injects one
+    // (appended after — EmptyTrack stays index 0).
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     expect(tracks[0].effectChain).toHaveLength(0)
   })
 
@@ -1150,8 +1174,10 @@ describe('Epic 05: per-track effect chain round-trip (persistence spec)', () => 
     // Should not throw
     expect(() => hydrateStores(validProject as any)).not.toThrow()
 
+    // M.1: no Master track in this fixture → hydrate injects one (appended
+    // after — TrackWithBadChain stays index 0).
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     // Malformed entry dropped, only the valid one survives
     expect(tracks[0].effectChain).toHaveLength(1)
     expect(tracks[0].effectChain[0].effectId).toBe('blur')
@@ -1160,5 +1186,159 @@ describe('Epic 05: per-track effect chain round-trip (persistence spec)', () => 
   it('Scenario: Global effectChain field no longer exists on project store (persistence spec)', () => {
     const state = useProjectStore.getState()
     expect((state as any).effectChain).toBeUndefined()
+  })
+})
+
+// ---------------------------------------------------------------------------
+// M.1 (Master-Out Bus PRD, docs/plans/2026-07-03-master-out-bus-prd.md) —
+// bootstrap + migration for the permanent Master track. Mirrors the
+// addInspectorTrack precedent test style (frontend/src/__tests__/inspector/
+// inspector-track-type.test.ts) but for the "absent -> create, NEVER reject"
+// migration contract that inspector does NOT have (inspector is optional;
+// Master is mandatory, exactly one, always).
+// ---------------------------------------------------------------------------
+describe('Master track — bootstrap + migration (M.1)', () => {
+  beforeEach(() => {
+    useProjectStore.getState().resetProject()
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    useToastStore.setState({ toasts: [] })
+    resetMocks()
+  })
+
+  it('newProject() bootstraps exactly ONE Master track at empty state', () => {
+    newProject()
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].type).toBe('master')
+    expect(tracks[0].clips).toEqual([])
+    expect(tracks[0].effectChain).toEqual([])
+    expect(tracks[0].automationLanes).toEqual([])
+  })
+
+  it('validateProject accepts a track with type "master"', () => {
+    const project = makeValidProject({
+      timeline: {
+        duration: 0,
+        tracks: [
+          { id: 'm1', type: 'master', name: 'Master', color: '#e8b923', isMuted: false, isSoloed: false, clips: [], effectChain: [], automationLanes: [] },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(validateProject(project)).toBe(true)
+  })
+
+  it('MIGRATION: a pre-feature project (no Master track) loads and gets one injected, unrejected', () => {
+    // A project saved before M.1 shipped — one ordinary video track, no
+    // 'master' type anywhere. Must NOT be rejected (validates fine) and must
+    // NOT crash on hydrate.
+    const preFeatureProject = makeValidProject({
+      timeline: {
+        duration: 10,
+        tracks: [
+          { id: 't1', type: 'video', name: 'Video 1', color: '#3b82f6', isMuted: false, isSoloed: false, clips: [], effectChain: [], automationLanes: [] },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(validateProject(preFeatureProject)).toBe(true)
+    expect(() => hydrateStores(preFeatureProject as any)).not.toThrow()
+
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(2)
+    expect(tracks[0].type).toBe('video') // pre-existing track unchanged, still first
+    const master = tracks.find((t) => t.type === 'master')
+    expect(master).toBeDefined()
+    expect(master!.clips).toEqual([])
+    expect(master!.effectChain).toEqual([])
+  })
+
+  it('a project that ALREADY has a Master track hydrates it as-is (no double-inject)', () => {
+    const project = makeValidProject({
+      timeline: {
+        duration: 0,
+        tracks: [
+          {
+            id: 'm1', type: 'master', name: 'Master', color: '#e8b923', isMuted: false, isSoloed: false,
+            clips: [], automationLanes: [],
+            effectChain: [
+              { id: 'fx-1', effectId: 'fx.invert', isEnabled: true, isFrozen: false, parameters: {}, modulations: {}, mix: 1.0, mask: null },
+            ],
+          },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    hydrateStores(project as any)
+
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks.filter((t) => t.type === 'master')).toHaveLength(1)
+    expect(tracks).toHaveLength(1)
+    // The SAVED chain survived — hydrate did not inject a fresh empty one on
+    // top of / instead of the real saved Master.
+    expect(tracks[0].effectChain).toHaveLength(1)
+    expect(tracks[0].effectChain[0].effectId).toBe('fx.invert')
+  })
+
+  it('CORRUPTION GUARD: 2+ Master tracks in a saved project keep the first, drop the rest', () => {
+    const project = makeValidProject({
+      timeline: {
+        duration: 0,
+        tracks: [
+          {
+            id: 'm1', type: 'master', name: 'Master A (first)', color: '#e8b923', isMuted: false, isSoloed: false,
+            clips: [], automationLanes: [],
+            effectChain: [
+              { id: 'fx-first', effectId: 'fx.invert', isEnabled: true, isFrozen: false, parameters: {}, modulations: {}, mix: 1.0, mask: null },
+            ],
+          },
+          {
+            id: 'm2', type: 'master', name: 'Master B (duplicate)', color: '#ff0000', isMuted: false, isSoloed: false,
+            clips: [], automationLanes: [],
+            effectChain: [
+              { id: 'fx-second', effectId: 'fx.pixel_sort', isEnabled: true, isFrozen: false, parameters: {}, modulations: {}, mix: 1.0, mask: null },
+            ],
+          },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(() => hydrateStores(project as any)).not.toThrow()
+
+    const tracks = useTimelineStore.getState().tracks
+    const masters = tracks.filter((t) => t.type === 'master')
+    expect(masters).toHaveLength(1)
+    // The FIRST one's data survived — not the second's.
+    expect(masters[0].name).toBe('Master A (first)')
+    expect(masters[0].effectChain).toHaveLength(1)
+    expect(masters[0].effectChain[0].effectId).toBe('fx.invert')
+    // A toast warned about the drop.
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => /multiple master/i.test(t.message))).toBe(true)
+  })
+
+  it('a legacy project with an EXPLICIT unknown track type still gets a Master injected', () => {
+    // Belt-and-suspenders: the unknown-type-drop path and the master-injection
+    // path are independent — an unrelated forward-tolerance drop must not
+    // suppress the migration.
+    const project = makeValidProject({
+      timeline: {
+        duration: 0,
+        tracks: [
+          { id: 'x1', type: 'hologram', name: 'FromFuture', color: '#fff', isMuted: false, isSoloed: false, clips: [] },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(() => hydrateStores(project as any)).not.toThrow()
+    const tracks = useTimelineStore.getState().tracks
+    expect(tracks).toHaveLength(1)
+    expect(tracks[0].type).toBe('master')
   })
 })

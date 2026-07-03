@@ -512,7 +512,10 @@ def _build_server(monkeypatch):
     rdr = _FakeReader()
     server._get_reader = lambda path: rdr  # type: ignore[assignment]
 
-    def fake_render_composite(layers, resolution, project_seed, layer_states=None):
+    def fake_render_composite(
+        layers, resolution, project_seed, layer_states=None, **_kwargs
+    ):
+        # **_kwargs swallows M.1's master_chain/master_frame_index.
         w, h = resolution
         return np.zeros((h, w, 4), dtype=np.uint8), {}
 

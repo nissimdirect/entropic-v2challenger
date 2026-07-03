@@ -113,7 +113,10 @@ def _build_server(monkeypatch, reader: FakeReader | None = None):
 
     captured: list[list[dict]] = []
 
-    def fake_render_composite(layers, resolution, project_seed, layer_states=None):
+    def fake_render_composite(
+        layers, resolution, project_seed, layer_states=None, **_kwargs
+    ):
+        # **_kwargs swallows M.1's master_chain/master_frame_index.
         snapshot = []
         for layer in layers:
             frame = layer.get("frame")
@@ -174,7 +177,8 @@ def _export_framebank_r(position: float, interp: str = "nearest") -> int:
 
     orig = export_mod.render_composite
 
-    def cap(layers, resolution, project_seed, voice_states):
+    def cap(layers, resolution, project_seed, voice_states, **_kwargs):
+        # **_kwargs swallows M.1's master_chain/master_frame_index.
         snap = []
         for layer in layers:
             frame = layer.get("frame")

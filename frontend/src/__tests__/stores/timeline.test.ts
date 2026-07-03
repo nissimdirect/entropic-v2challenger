@@ -1104,4 +1104,46 @@ describe('TimelineStore', () => {
       expect(useTimelineStore.getState().markers[0].label).toBe('Marker')
     })
   })
+
+  // --- Master track tests (M.1 — Master-Out Bus PRD) ---
+  // Mirrors the addInspectorTrack precedent (frontend/src/__tests__/inspector/
+  // inspector-track-type.test.ts): "exactly one" idempotent track type.
+  describe('Master track (M.1)', () => {
+    it('addMasterTrack creates exactly one master track at empty state', () => {
+      const id = useTimelineStore.getState().addMasterTrack()
+      expect(id).toBeTruthy()
+      const tracks = useTimelineStore.getState().tracks
+      const masters = tracks.filter((t) => t.type === 'master')
+      expect(masters).toHaveLength(1)
+      expect(masters[0].id).toBe(id)
+      expect(masters[0].clips).toEqual([])
+      expect(masters[0].effectChain).toEqual([])
+      expect(masters[0].automationLanes).toEqual([])
+    })
+
+    it('a second addMasterTrack is a no-op returning the existing id (max 1)', () => {
+      const id1 = useTimelineStore.getState().addMasterTrack()
+      const id2 = useTimelineStore.getState().addMasterTrack()
+      expect(id2).toBe(id1)
+      expect(useTimelineStore.getState().tracks.filter((t) => t.type === 'master')).toHaveLength(1)
+    })
+
+    it('addMasterTrack is NEVER blocked by LIMITS.MAX_TRACKS (migration must never reject)', () => {
+      // Fill the timeline to the track cap with ordinary video tracks.
+      for (let i = 0; i < LIMITS.MAX_TRACKS; i++) {
+        useTimelineStore.getState().addTrack(`Video ${i}`, '#888888')
+      }
+      expect(useTimelineStore.getState().tracks.length).toBe(LIMITS.MAX_TRACKS)
+      // A normal addTrack at the cap is rejected (existing behavior, unchanged).
+      const rejected = useTimelineStore.getState().addTrack('One Too Many', '#888888')
+      expect(rejected).toBeUndefined()
+      expect(useTimelineStore.getState().tracks.length).toBe(LIMITS.MAX_TRACKS)
+      // addMasterTrack still succeeds — the migration/bootstrap contract
+      // ("absent -> create, NEVER reject") is exempt from the track cap.
+      const masterId = useTimelineStore.getState().addMasterTrack()
+      expect(masterId).toBeTruthy()
+      expect(useTimelineStore.getState().tracks.length).toBe(LIMITS.MAX_TRACKS + 1)
+      expect(useTimelineStore.getState().tracks.filter((t) => t.type === 'master')).toHaveLength(1)
+    })
+  })
 })

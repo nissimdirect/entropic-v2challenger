@@ -360,8 +360,10 @@ describe('lock survives persistence and is guarded at the trust boundary', () =>
     const data = makeProject({ locked: true }, { locked: true })
     expect(validateProject(data)).toBe(true)
     hydrateStores(data as any)
+    // M.1 (Master-Out Bus PRD): no Master track in this fixture -> hydrate
+    // injects one (appended after — the locked video track stays index 0).
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     expect(tracks[0].locked).toBe(true)
     expect(tracks[0].clips[0].locked).toBe(true)
   })

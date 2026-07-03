@@ -80,6 +80,9 @@ describe('B3 arrangement restack — row order = z-order', () => {
     reset()
     hydrateStores(data)
 
-    expect(orderNames()).toEqual(expected)
+    // M.1 (Master-Out Bus PRD): no Master track in this fixture -> hydrate
+    // injects one, appended AFTER the restored z-order (never reorders the
+    // restacked tracks that came before it).
+    expect(orderNames()).toEqual([...expected, 'Master'])
   })
 })

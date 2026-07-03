@@ -1031,8 +1031,18 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   // P6.8 (I1) forward-tolerance: the set of track types THIS build understands.
   // A type outside this set (newer/reverted build) is dropped with a toast so a
   // project saved elsewhere still opens. This is the rollback-safety guarantee.
-  const KNOWN_TRACK_TYPES = new Set(['video', 'performance', 'text', 'audio', 'inspector'])
+  // M.1 (Master-Out Bus PRD): 'master' joins the KNOWN set the same way
+  // 'inspector' did — an older/reverted build that doesn't know 'master' yet
+  // drops it via the unknown-type path above, never a hard reject.
+  const KNOWN_TRACK_TYPES = new Set(['video', 'performance', 'text', 'audio', 'inspector', 'master'])
   let unknownTrackTypeDropped = false
+  // M.1: exactly one Master track survives hydrate. Corruption guard — if a
+  // loaded project somehow has 2+ 'master' tracks, keep the FIRST and drop
+  // every subsequent one ENTIRELY (clips/chain/automation never hydrated for
+  // the dropped duplicates, so a later duplicate can never clobber the first
+  // one's restored effectChain).
+  let masterTrackHydrated = false
+  let duplicateMasterTrackDropped = false
 
   // Hydrate timeline tracks
   for (const track of project.timeline.tracks) {
@@ -1043,13 +1053,23 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
       unknownTrackTypeDropped = true
       continue
     }
+    if (track.type === 'master') {
+      if (masterTrackHydrated) {
+        duplicateMasterTrackDropped = true
+        continue
+      }
+      masterTrackHydrated = true
+    }
     const isAudio = track.type === 'audio'
     const isInspector = track.type === 'inspector'
+    const isMaster = track.type === 'master'
     let addedTrackId: string | undefined
     if (isAudio) {
       addedTrackId = tls.addAudioTrack(track.name, track.color)
     } else if (isInspector) {
       addedTrackId = tls.addInspectorTrack(track.name, track.color)
+    } else if (isMaster) {
+      addedTrackId = tls.addMasterTrack(track.name, track.color)
     } else {
       // B2: preserve performance/text type on reload (was collapsing → video).
       const addType = track.type === 'text' ? 'text' : track.type === 'performance' ? 'performance' : undefined
@@ -1214,6 +1234,29 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
       message: 'Some tracks use an unknown type from a newer version and were skipped on load',
       source: 'project-load',
     })
+  }
+
+  // M.1 (Master-Out Bus PRD): a duplicate 'master' track (corruption) was
+  // dropped — the first one survived, later ones (and their clips/chain/
+  // automation) were never hydrated.
+  if (duplicateMasterTrackDropped) {
+    useToastStore.getState().addToast({
+      level: 'warning',
+      message: 'Project had multiple Master tracks — kept the first, dropped the rest',
+      source: 'project-load',
+    })
+  }
+
+  // M.1 (Master-Out Bus PRD): migration — a project saved before this feature
+  // (or one whose single Master track was dropped as an unknown type by an
+  // older build reading a newer file) has NO 'master' track. INJECT one,
+  // empty, rather than rejecting the load ("absent -> create, NEVER reject").
+  // A project that already has a Master track (the common case after M.1
+  // ships) is untouched here — addMasterTrack's own idempotency guard makes
+  // this call a no-op when masterTrackHydrated is already true, but skipping
+  // it outright when true keeps this read as the literal migration contract.
+  if (!masterTrackHydrated) {
+    useTimelineStore.getState().addMasterTrack()
   }
 
   // Hydrate markers
@@ -1839,6 +1882,12 @@ export function newProject(): void {
   useInstrumentsStore.setState({ instruments: {}, racks: {}, frameBanks: {}, granulators: {} })
   // B10-persist: clear the retro buffer so recorded events don't bleed into new projects.
   clearRetroBuffer()
+  // M.1 (Master-Out Bus PRD): every new project ships with exactly ONE Master
+  // track at empty state (clips:[], effectChain:[], automationLanes:[]) —
+  // bootstrap-created here, after the timeline reset above so it is the only
+  // track present. addMasterTrack is idempotent, but reset() just emptied
+  // tracks so this always creates fresh.
+  useTimelineStore.getState().addMasterTrack()
 }
 
 export function startAutosave(): void {

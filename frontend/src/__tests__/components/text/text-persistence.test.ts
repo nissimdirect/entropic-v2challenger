@@ -243,9 +243,11 @@ describe('Text Track Round-Trip', () => {
     // Hydrate stores from project data
     hydrateStores(project as any)
 
-    // Check that the text track type was preserved
+    // Check that the text track type was preserved. M.1 (Master-Out Bus
+    // PRD): no Master track in this fixture -> hydrate injects one (appended
+    // after — the text track stays index 0).
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(1)
+    expect(tracks).toHaveLength(2)
     expect(tracks[0].type).toBe('text')
     expect(tracks[0].name).toBe('My Text')
 
@@ -296,9 +298,12 @@ describe('Text Track Round-Trip', () => {
     }
 
     hydrateStores(project as any)
+    // M.1: no Master track in this fixture -> hydrate injects one (appended
+    // last — video/text order is unaffected).
     const tracks = useTimelineStore.getState().tracks
-    expect(tracks).toHaveLength(2)
+    expect(tracks).toHaveLength(3)
     expect(tracks[0].type).toBe('video')
     expect(tracks[1].type).toBe('text')
+    expect(tracks[2].type).toBe('master')
   })
 })
