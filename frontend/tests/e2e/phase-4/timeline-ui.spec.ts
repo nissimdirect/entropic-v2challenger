@@ -47,9 +47,9 @@ test.describe('Phase 4 — Timeline UI', () => {
     await addBtn.click()
 
     // After first track is added, the add-track buttons live in the headers spacer.
-    // That spacer holds THREE .timeline__add-track-btn buttons (video / MIDI / group),
-    // so scope to .first() (the video add-track) — see task #14 for the class-collision.
-    const headerAddBtn = window.locator('.timeline__headers-spacer .timeline__add-track-btn').first()
+    // That spacer holds THREE add-track buttons (video / MIDI / inspector), each with
+    // its own distinct modifier class — target the video add-track directly.
+    const headerAddBtn = window.locator('.timeline__headers-spacer .timeline__add-track-btn--video')
     await headerAddBtn.click()
     await headerAddBtn.click()
 
