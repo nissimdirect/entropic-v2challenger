@@ -30,8 +30,14 @@ interface EdgeInspectorProps {
   onDelete: (edge: RoutingEdge) => void
 }
 
-/** Clamp to [-1, 1], NaN/Inf → 0. */
-function clampAmount(value: number): number {
+/**
+ * Clamp to [-1, 1], NaN/Inf → 0.
+ * C15: exported so ModulationMatrix.tsx's depth slider (OperatorMapping.depth,
+ * the SAME underlying field this edge's `amount` round-trips through) shares
+ * the exact same clamp semantics — negative depth must display + edit
+ * identically in both UIs.
+ */
+export function clampAmount(value: number): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return 0
   if (value < -1) return -1
   if (value > 1) return 1

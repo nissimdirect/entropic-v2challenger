@@ -1194,6 +1194,10 @@ function AppInner() {
 
         // Phase 7: Evaluate automation overrides at current playhead time
         const currentTime = useTimelineStore.getState().playheadTime
+        // #28: tracks context threaded through so evaluateAutomationOverrides
+        // can resolve an INSTANCE-keyed paramPath's effect TYPE id (see that
+        // function's doc comment) instead of silently falling back to [0,1].
+        const tracksForAutomation = useTimelineStore.getState().tracks
         const rawLanes = useAutomationStore.getState().getAllLanes()
         // SG-3 clause-3 consumer (audit medium #1): when the sentinel has aborted
         // a lane (NaN/Inf in the render output), STOP re-sending automation lanes
@@ -1208,7 +1212,7 @@ function AppInner() {
           ? rawLanes.filter((l) => !sg3Aborted.has(l.id) && !sg3Aborted.has('unknown'))
           : rawLanes
         const autoOverrides = allLanes.length > 0
-          ? evaluateAutomationOverrides(allLanes, currentTime, registry)
+          ? evaluateAutomationOverrides(allLanes, currentTime, registry, tracksForAutomation)
           : undefined
 
         // AA.3-A: operator-sourced lane payloads — a synthetic, mapping-less
@@ -2869,6 +2873,10 @@ function AppInner() {
       // backend keys the map by source frame index (src_idx) and looks it up per
       // frame; automation is time-based, so frame f's time = f / activeFps.
       const exportLanes = useAutomationStore.getState().getAllLanes()
+      // #28: same tracks-context threading as preview (requestRenderFrame) —
+      // see evaluateAutomationOverrides's doc comment. Hoisted outside the
+      // per-frame loop below since tracks don't change during a single bake.
+      const exportTracksForAutomation = useTimelineStore.getState().tracks
       const exportSourceFps = activeFps > 0 ? activeFps : 30
       const exportStartFrame = settings.region === 'full'
         ? 0
@@ -2889,7 +2897,7 @@ function AppInner() {
       if (exportLanes.length > 0) {
         for (let f = exportStartFrame; f <= exportEndFrame; f++) {
           const t = f / exportSourceFps
-          const overrides = evaluateAutomationOverrides(exportLanes, t, registry)
+          const overrides = evaluateAutomationOverrides(exportLanes, t, registry, exportTracksForAutomation)
           // A2b: transform lanes share the automation_by_frame channel but need
           // their OWN evaluator — evaluateAutomationOverrides mis-scales the
           // `clipTransform.*` keys (no registry entry → raw 0..1). Overwrite them

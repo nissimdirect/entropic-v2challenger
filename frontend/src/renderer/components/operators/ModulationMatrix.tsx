@@ -1,6 +1,12 @@
 import { useOperatorStore } from '../../stores/operators'
 import type { EffectInfo, MatteNode } from '../../../shared/types'
 import type { SamplerInstrumentV1 } from '../instruments/types'
+// C15: OperatorMapping.depth is the SAME field routing-canvas/EdgeInspector.tsx
+// edits as `amount` — that UI ranges/clamps it to [-1, 1]. This matrix's depth
+// slider previously clamped to [0, 1], silently discarding negative depth (and
+// visually misrepresenting it) whenever the two UIs edited the same mapping.
+// Sharing clampAmount keeps both UIs' semantics identical.
+import { clampAmount } from '../routing-canvas/EdgeInspector'
 
 interface ModulationMatrixProps {
   effectChain: { id: string; effectId: string }[]
@@ -184,18 +190,18 @@ export default function ModulationMatrix({
                             <input
                               type="range"
                               className="mod-matrix__depth-slider"
-                              min={0}
+                              min={-1}
                               max={1}
                               step={0.01}
-                              value={mapping.depth}
+                              value={clampAmount(mapping.depth)}
                               onChange={(e) =>
                                 updateMapping(op.id, mappingIndex, {
-                                  depth: parseFloat(e.target.value),
+                                  depth: clampAmount(parseFloat(e.target.value)),
                                 })
                               }
                             />
                             <span className="mod-matrix__depth-value">
-                              {Math.round(mapping.depth * 100)}%
+                              {Math.round(clampAmount(mapping.depth) * 100)}%
                             </span>
                             {/* P4.4: read-only sub-source suffix for cluster ops.
                                 Absent sourceKey (master routing) renders nothing. */}
