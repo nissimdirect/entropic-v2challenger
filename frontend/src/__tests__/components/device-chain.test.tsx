@@ -7,8 +7,10 @@ import { useProjectStore } from '../../renderer/stores/project'
 import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useEffectsStore } from '../../renderer/stores/effects'
 import { useEngineStore } from '../../renderer/stores/engine'
+import { useToastStore } from '../../renderer/stores/toast'
 import DeviceChain from '../../renderer/components/device-chain/DeviceChain'
 import DeviceCard from '../../renderer/components/device-chain/DeviceCard'
+import { SESSION_NONCE } from '../../renderer/components/effects/EffectBrowser'
 import type { EffectInstance, EffectInfo } from '../../shared/types'
 
 // D2 (Epic 02): V1_TRACK_ID is the active track that DeviceChain displays.
@@ -227,6 +229,91 @@ describe('DeviceChain', () => {
       expect(chain).toHaveLength(0)
       unmount()
     })
+  })
+})
+
+// M.2 (Master-Out Bus PRD) — instruments-reject guard on the Master track.
+describe('DeviceChain — Master bus instruments/composite reject guard (M.2)', () => {
+  // jsdom doesn't implement DataTransfer; spy on getData / types (mirrors the
+  // drag-add drop target tests above).
+  function mockDataTransfer(payload: Record<string, string>): DataTransfer {
+    return {
+      types: Object.keys(payload),
+      getData: (type: string) => payload[type] ?? '',
+      setData: () => {},
+      dropEffect: 'copy',
+      effectAllowed: 'copy',
+    } as unknown as DataTransfer
+  }
+
+  let MASTER_TRACK_ID: string
+
+  beforeEach(() => {
+    resetStores()
+    MASTER_TRACK_ID = useTimelineStore.getState().addMasterTrack()!
+    useTimelineStore.getState().selectTrack(MASTER_TRACK_ID)
+    useToastStore.setState({ toasts: [] })
+  })
+
+  it('rejects an instruments-kind drop on the Master with a guard toast', () => {
+    const { container, unmount } = render(<DeviceChain />)
+    const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+    const dt = mockDataTransfer({
+      'application/x-entropic-effect-id': JSON.stringify({ kind: 'instruments', id: 'builtin:sampler' }),
+      'application/x-creatrix-nonce': SESSION_NONCE,
+    })
+    fireEvent.drop(root, { dataTransfer: dt })
+
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === MASTER_TRACK_ID)?.effectChain ?? []
+    expect(chain).toHaveLength(0)
+
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.message.includes("Instruments can't go on the Master"))).toBe(true)
+    unmount()
+  })
+
+  it('rejects a composite-kind drop on the Master (terminal composite is meaningless post-composite)', () => {
+    const { container, unmount } = render(<DeviceChain />)
+    const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+    const dt = mockDataTransfer({
+      'application/x-entropic-effect-id': JSON.stringify({ kind: 'composite', id: 'builtin:composite' }),
+      'application/x-creatrix-nonce': SESSION_NONCE,
+    })
+    fireEvent.drop(root, { dataTransfer: dt })
+
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === MASTER_TRACK_ID)?.effectChain ?? []
+    expect(chain).toHaveLength(0)
+    unmount()
+  })
+
+  it('still allows a plain fx-kind drop on the Master (fx/op/tool are allowed per PRD)', () => {
+    const { container, unmount } = render(<DeviceChain />)
+    const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+    const dt = mockDataTransfer({
+      'application/x-entropic-effect-id': JSON.stringify({ kind: 'fx', id: 'builtin:pixelsort' }),
+      'application/x-creatrix-nonce': SESSION_NONCE,
+    })
+    fireEvent.drop(root, { dataTransfer: dt })
+
+    const chain = useTimelineStore.getState().tracks.find((t) => t.id === MASTER_TRACK_ID)?.effectChain ?? []
+    expect(chain).toHaveLength(1)
+    expect(chain[0].effectId).toBe('pixelsort')
+    unmount()
+  })
+
+  it('a non-master track still accepts an instruments-kind drop attempt without the Master toast (registry-miss no-op, pre-existing behavior)', () => {
+    // V1_TRACK_ID (video track) is auto-selected by resetStores(); switch back to it.
+    useTimelineStore.getState().selectTrack(V1_TRACK_ID)
+    const { container, unmount } = render(<DeviceChain />)
+    const root = container.querySelector('[data-testid="device-chain"]') as HTMLElement
+    const dt = mockDataTransfer({
+      'application/x-entropic-effect-id': JSON.stringify({ kind: 'instruments', id: 'builtin:sampler' }),
+      'application/x-creatrix-nonce': SESSION_NONCE,
+    })
+    fireEvent.drop(root, { dataTransfer: dt })
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => t.message.includes("Instruments can't go on the Master"))).toBe(false)
+    unmount()
   })
 })
 

@@ -1341,4 +1341,62 @@ describe('Master track — bootstrap + migration (M.1)', () => {
     expect(tracks).toHaveLength(1)
     expect(tracks[0].type).toBe('master')
   })
+
+  // M.2 redteam guard #2 (persistence trust boundary, docs/plans/2026-07-03-
+  // master-out-bus-prd.md): the hydrate clip loop only branched on `isAudio`
+  // (project-persistence.ts ~1127), so a hand-crafted or corrupted save file
+  // carrying clips[] on a 'master' or 'inspector' track would fall through to
+  // the video/text clip-hydrate path and get addClip()'d — but both are
+  // structurally NO-CLIPS track types. Verifies the dedicated guard drops
+  // them instead.
+  it('REDTEAM GUARD: a hand-loaded project with clips on the Master track hydrates with them DROPPED', () => {
+    const project = makeValidProject({
+      timeline: {
+        duration: 5,
+        tracks: [
+          {
+            id: 'm1', type: 'master', name: 'Master', color: '#e8b923', isMuted: false, isSoloed: false,
+            automationLanes: [], effectChain: [],
+            clips: [{ id: 'c1', assetId: 'a1', trackId: 'm1', position: 0, duration: 5, inPoint: 0, outPoint: 5, speed: 1 }],
+          },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(() => hydrateStores(project as any)).not.toThrow()
+
+    const tracks = useTimelineStore.getState().tracks
+    const master = tracks.find((t) => t.type === 'master')
+    expect(master).toBeDefined()
+    expect(master!.clips).toEqual([])
+    // A toast warned about the drop.
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => /clips are not allowed on a Master track/i.test(t.message))).toBe(true)
+  })
+
+  it('REDTEAM GUARD: a hand-loaded project with clips on the Inspector track hydrates with them DROPPED', () => {
+    const project = makeValidProject({
+      timeline: {
+        duration: 5,
+        tracks: [
+          {
+            id: 'i1', type: 'inspector', name: 'Inspector', color: '#5fd7a8', isMuted: false, isSoloed: false,
+            automationLanes: [], effectChain: [], probeBindings: [],
+            clips: [{ id: 'c1', assetId: 'a1', trackId: 'i1', position: 0, duration: 5, inPoint: 0, outPoint: 5, speed: 1 }],
+          },
+        ],
+        markers: [],
+        loopRegion: null,
+      },
+    })
+    expect(() => hydrateStores(project as any)).not.toThrow()
+
+    const tracks = useTimelineStore.getState().tracks
+    const inspector = tracks.find((t) => t.type === 'inspector')
+    expect(inspector).toBeDefined()
+    expect(inspector!.clips).toEqual([])
+    const toasts = useToastStore.getState().toasts
+    expect(toasts.some((t) => /clips are not allowed on a inspector track/i.test(t.message))).toBe(true)
+  })
 })

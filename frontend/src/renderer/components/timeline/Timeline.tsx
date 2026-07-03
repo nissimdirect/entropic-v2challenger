@@ -6,6 +6,7 @@ import Playhead from './Playhead'
 import { TrackHeader, TrackLane } from './Track'
 import { AudioTrackHeader, AudioTrackLane } from './AudioTrack'
 import { InspectorTrackHeader, InspectorTrackLane } from './InspectorTrack'
+import { MasterTrackHeader, MasterTrackLane } from './MasterTrack'
 import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
 import { FF } from '../../../shared/feature-flags'
@@ -44,6 +45,14 @@ export default function Timeline({
   clipThumbnails,
 }: TimelineProps) {
   const tracks = useTimelineStore((s) => s.tracks)
+  // M.2 (Master-Out Bus PRD): the Master track is PINNED at the bottom of the
+  // timeline regardless of its position in the store's `tracks` array (array
+  // position doesn't matter for render/export — pipeline.py/compositor.py
+  // locate it by `type === 'master'`, not index). Split it out of the ordered
+  // list here so both the headers and lanes columns render every other track
+  // in store order, then the Master row last, in both columns.
+  const orderedTracks = tracks.filter((t) => t.type !== 'master')
+  const masterTrack = tracks.find((t) => t.type === 'master')
   const playheadTime = useTimelineStore((s) => s.playheadTime)
   const duration = useTimelineStore((s) => s.duration)
   const zoom = useTimelineStore((s) => s.zoom)
@@ -235,7 +244,7 @@ export default function Timeline({
               }
             }}
           >
-            {tracks.map((track) =>
+            {orderedTracks.map((track) =>
               track.type === 'audio' ? (
                 <AudioTrackHeader
                   key={track.id}
@@ -255,6 +264,13 @@ export default function Timeline({
                   isSelected={track.id === selectedTrackId}
                 />
               ),
+            )}
+            {masterTrack && (
+              <MasterTrackHeader
+                key={masterTrack.id}
+                track={masterTrack}
+                isSelected={masterTrack.id === selectedTrackId}
+              />
             )}
           </div>
         </div>
@@ -299,7 +315,7 @@ export default function Timeline({
                   onRename={handleRenameMarker}
                 />
               ))}
-              {tracks.map((track) =>
+              {orderedTracks.map((track) =>
                 track.type === 'audio' ? (
                   <AudioTrackLane
                     key={track.id}
@@ -328,6 +344,13 @@ export default function Timeline({
                     onSeek={onSeek}
                   />
                 ),
+              )}
+              {masterTrack && (
+                <MasterTrackLane
+                  key={masterTrack.id}
+                  track={masterTrack}
+                  isSelected={masterTrack.id === selectedTrackId}
+                />
               )}
               <Playhead time={playheadTime} zoom={zoom} scrollX={scrollX} onSeek={onSeek} />
               {/* New-track drop zone: shown via CSS only while body.clip-dragging.

@@ -803,12 +803,6 @@ class ExportManager:
                     # chain through the SAME shared helper preview uses (incl. MK.8
                     # keying-as-performance, since export DOES have per-frame
                     # operator_values here). Absent mask_stack → byte-identical.
-                    # M.1: this legacy single-input branch (no performance overlay,
-                    # no render_composite call) does NOT apply master_chain — same
-                    # scoping as preview's single-clip render_frame fast path. Master
-                    # effects run at the render_composite seam; a project with any
-                    # master effect must take the composite branch to see them (a
-                    # known M.2-era wiring concern, not this packet's scope).
                     masked_chain, base_chain_mask = apply_masks_to_chain(
                         frame_chain,
                         mask_stack,
@@ -828,6 +822,24 @@ class ExportManager:
                         states,
                         chain_mask=base_chain_mask,
                     )
+                    # M.2 redteam guard #1 (export parity): this legacy single-
+                    # input branch (no performance overlay, no render_composite
+                    # call) previously skipped master_chain entirely, so a
+                    # single-input project with master effects would drop them
+                    # on export while preview (which always routes through
+                    # render_composite's post-composite seam) applied them —
+                    # preview/export drift. Route master_chain through the SAME
+                    # apply_chain seam here, on the final single-input frame,
+                    # BEFORE text-layer compositing — mirrors the composite
+                    # branch's ordering (render_composite applies master_chain,
+                    # THEN _composite_text_layers runs on its result, above).
+                    # None (default, no master effects yet) → skipped, byte-
+                    # identical. State discarded — master-chain state is not
+                    # threaded across frames (M.1 contract, compositor.py).
+                    if master_chain is not None:
+                        out, _master_state = apply_chain(
+                            out, master_chain, project_seed, src_idx, resolution, None
+                        )
                 if text_layers:
                     out = self._composite_text_layers(
                         out, text_layers, resolution, src_idx, source_fps
@@ -939,9 +951,6 @@ class ExportManager:
                     # MK.10 — single-input export mask parity (inline video loop).
                     # Same shared helper as preview; absent mask_stack →
                     # byte-identical legacy export.
-                    # M.1: legacy single-input branch — see the identical note in
-                    # render_export_frame's else-branch above (master_chain is not
-                    # applied here; it runs at the render_composite seam only).
                     masked_chain, base_chain_mask = apply_masks_to_chain(
                         frame_chain,
                         mask_stack,
@@ -961,6 +970,15 @@ class ExportManager:
                         states,
                         chain_mask=base_chain_mask,
                     )
+                    # M.2 redteam guard #1 (export parity): same master_chain
+                    # seam as the composite branch above and
+                    # render_export_frame's single-input branch — see that
+                    # comment for full rationale. None (default) → skipped,
+                    # byte-identical.
+                    if master_chain is not None:
+                        output, _master_state = apply_chain(
+                            output, master_chain, project_seed, src_idx, resolution, None
+                        )
 
                 # Composite text layers on top of the processed frame
                 if text_layers:

@@ -218,3 +218,55 @@ describe('Timeline UI — History Panel', () => {
     expect(empty?.textContent).toContain('No actions yet')
   })
 })
+
+// M.2 (Master-Out Bus PRD) — Master track row: pinned bottom, visually
+// distinct, NO clip lane, selectable → same DeviceChain panel any track uses.
+describe('Timeline UI — Master track (M.2)', () => {
+  beforeEach(() => {
+    setupMockEntropic()
+    useTimelineStore.getState().reset()
+  })
+
+  afterEach(() => {
+    cleanup()
+    teardownMockEntropic()
+  })
+
+  test('master track renders a header + lane row', () => {
+    useTimelineStore.getState().addMasterTrack()
+    render(<Timeline onSeek={() => {}} />)
+    expect(document.querySelector('[data-testid="master-track-header"]')).toBeTruthy()
+    expect(document.querySelector('[data-testid="master-track-lane"]')).toBeTruthy()
+  })
+
+  test('master track lane has NO clip content (no .clip nodes, no marquee overlay)', () => {
+    useTimelineStore.getState().addMasterTrack()
+    render(<Timeline onSeek={() => {}} />)
+    const masterLane = document.querySelector('[data-testid="master-track-lane"]')!
+    expect(masterLane.querySelector('.clip')).toBeNull()
+    expect(masterLane.querySelector('.marquee-overlay')).toBeNull()
+  })
+
+  test('master track is pinned LAST regardless of its position in the tracks array', () => {
+    // Master created FIRST, then two ordinary video tracks — the store's
+    // array order does not determine the master's row position (Timeline.tsx
+    // always renders it last; render/export locate it by type, not index).
+    useTimelineStore.getState().addMasterTrack()
+    useTimelineStore.getState().addTrack('V1', '#ff0000')
+    useTimelineStore.getState().addTrack('V2', '#00ff00')
+    render(<Timeline onSeek={() => {}} />)
+    const container = document.querySelector('.timeline__track-headers')!
+    const headers = container.querySelectorAll('[data-testid="master-track-header"], .track-header--video')
+    expect(headers.length).toBe(3)
+    // Last rendered header in document order is the master row (pinned
+    // bottom), even though it was added FIRST in the store's array.
+    expect(headers[headers.length - 1].getAttribute('data-testid')).toBe('master-track-header')
+  })
+
+  test('selecting the master track shows its effectChain in the DeviceChain panel', () => {
+    const masterId = useTimelineStore.getState().addMasterTrack()!
+    render(<Timeline onSeek={() => {}} />)
+    fireEvent.click(document.querySelector('[data-testid="master-track-header"]')!)
+    expect(useTimelineStore.getState().selectedTrackId).toBe(masterId)
+  })
+})
