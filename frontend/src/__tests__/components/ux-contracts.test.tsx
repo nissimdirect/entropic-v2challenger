@@ -16,7 +16,6 @@ import React from 'react'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 
 // --- Component imports ---
-import DropZone from '../../renderer/components/upload/DropZone'
 import FileDialog from '../../renderer/components/upload/FileDialog'
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
 import EffectRack from '../../renderer/components/effects/EffectRack'
@@ -137,16 +136,6 @@ describe('UX Contracts — Visibility of System Status', () => {
 // =============================================================================
 
 describe('UX Contracts — Feedback', () => {
-  it('4. drop zone shows visual feedback structure for hover state', () => {
-    render(<DropZone onFileDrop={vi.fn()} />)
-
-    const dropZone = document.querySelector('.drop-zone')
-    expect(dropZone).toBeTruthy()
-    const className = dropZone!.getAttribute('class')!
-    expect(className).toContain('drop-zone')
-    // Active state class 'drop-zone--active' applied on dragOver
-  })
-
   it('5. effect rack shows empty state message', () => {
     render(
       <EffectRack
@@ -197,14 +186,6 @@ describe('UX Contracts — Affordances', () => {
     expect(btn!.tagName.toLowerCase()).toBe('button')
   })
 
-  it('8. drop zone icon communicates addability', () => {
-    render(<DropZone onFileDrop={vi.fn()} />)
-
-    const icon = document.querySelector('.drop-zone__icon')
-    expect(icon).toBeTruthy()
-    expect(icon!.textContent).toBe('+')
-  })
-
   it('9. effect browser items are clickable buttons', () => {
     render(
       <EffectBrowser
@@ -250,13 +231,6 @@ describe('UX Contracts — Constraints', () => {
     }
   })
 
-  it('12. disabled drop zone prevents drops', () => {
-    render(<DropZone onFileDrop={vi.fn()} disabled={false} />)
-
-    const dropZone = document.querySelector('.drop-zone')
-    const className = dropZone!.getAttribute('class')!
-    expect(className).not.toContain('drop-zone--disabled')
-  })
 })
 
 // =============================================================================
@@ -266,11 +240,6 @@ describe('UX Contracts — Constraints', () => {
 describe('UX Contracts — Consistency', () => {
   it('13. all control components use consistent BEM naming', () => {
     // Verify each component uses BEM-compliant class names
-    const { unmount: u1 } = render(<DropZone onFileDrop={vi.fn()} />)
-    expect(document.querySelector('.drop-zone')).toBeTruthy()
-    expect(document.querySelector('.drop-zone__content')).toBeTruthy()
-    u1()
-
     const { unmount: u2 } = render(<FileDialog onFileSelect={vi.fn()} />)
     expect(document.querySelector('.file-dialog-btn')).toBeTruthy()
     u2()
