@@ -34,8 +34,54 @@ export function simplifyPoints(
     return left.slice(0, -1).concat(right)
   }
 
-  // All intermediate points are within tolerance — keep only endpoints
-  return [first, last]
+  // All intermediate points are within tolerance — keep only endpoints, but
+  // re-fit the kept segment's curve tension so the eased shape approximates
+  // where the removed points actually sat, instead of blindly inheriting
+  // first.curve verbatim.
+  const fittedCurve = fitCurveForSegment(points)
+  return [{ ...first, curve: fittedCurve }, last]
+}
+
+/**
+ * AA.1 gap 2 — derive a curve tension for a collapsed RDP segment.
+ *
+ * Heuristic (not an exact fit — "reasonable heuristic" per spec):
+ * automation-evaluate's applyEasing bows the value curve above the
+ * straight first->last line when sign(curve) === sign(deltaValue), and
+ * below it otherwise. So:
+ *   1. Compute each removed point's signed deviation from the straight
+ *      first->last line (in value space, at that point's normalized time).
+ *   2. Average the signed deviations to get the dominant bow direction.
+ *   3. Pick curve's sign so applyEasing bows the same direction.
+ *   4. Scale magnitude against ~0.375*|deltaValue|, the approximate max
+ *      deviation applyEasing produces at curve=1 (t=0.5), and clamp to
+ *      [-1, 1].
+ */
+function fitCurveForSegment(points: AutomationPoint[]): number {
+  const first = points[0]
+  const last = points[points.length - 1]
+  if (points.length <= 2) return first.curve
+
+  const deltaTime = last.time - first.time
+  const deltaValue = last.value - first.value
+  if (deltaTime === 0 || deltaValue === 0) return 0
+
+  let sumDev = 0
+  let maxAbsDev = 0
+  for (let i = 1; i < points.length - 1; i++) {
+    const t = (points[i].time - first.time) / deltaTime
+    const linVal = first.value + deltaValue * t
+    const dev = points[i].value - linVal
+    sumDev += dev
+    maxAbsDev = Math.max(maxAbsDev, Math.abs(dev))
+  }
+
+  const avgDev = sumDev / (points.length - 2)
+  if (avgDev === 0) return 0
+
+  const curveSign = Math.sign(avgDev) === Math.sign(deltaValue) ? 1 : -1
+  const magnitude = Math.min(1, maxAbsDev / (Math.abs(deltaValue) * 0.375))
+  return curveSign * magnitude
 }
 
 /** Perpendicular distance from point p to the line defined by a and b. */

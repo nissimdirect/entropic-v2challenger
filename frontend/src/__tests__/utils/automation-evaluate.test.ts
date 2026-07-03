@@ -141,3 +141,69 @@ describe('applyEasing', () => {
     expect(applyEasing(0.5, 0)).toBe(0.5)
   })
 })
+
+// AA.1 — regression guard: curve=0 everywhere must stay byte-identical to
+// plain linear interpolation, proving the curve-tension work in this pass
+// (AutomationNode alt-drag, automation-simplify re-fit) didn't perturb the
+// no-curve playback path.
+describe('AA.1 regression: curve=0 is byte-identical to linear interpolation', () => {
+  function linearInterp(points: Array<{ time: number; value: number }>, time: number): number | null {
+    if (points.length === 0) return null
+    if (points.length === 1) return points[0].value
+    if (time <= points[0].time) return points[0].value
+    if (time >= points[points.length - 1].time) return points[points.length - 1].value
+    for (let i = 0; i < points.length - 1; i++) {
+      const a = points[i]
+      const b = points[i + 1]
+      if (time >= a.time && time <= b.time) {
+        const duration = b.time - a.time
+        if (duration === 0) return a.value
+        const t = (time - a.time) / duration
+        return a.value + (b.value - a.value) * t
+      }
+    }
+    return null
+  }
+
+  it('matches a hand-rolled linear interpolation at many sample times (all curve=0)', () => {
+    const rawPoints = [
+      { time: 0, value: 0 },
+      { time: 3, value: 0.25 },
+      { time: 5, value: 0.9 },
+      { time: 8, value: 0.1 },
+      { time: 12, value: 0.6 },
+    ]
+    const lane = makeLane(rawPoints) // curve defaults to 0 via makeLane's ?? 0
+    const boundaryTimes = new Set(rawPoints.map(p => p.time))
+
+    // Use i * 0.25 (exact in binary, 0.25 = 2^-2) instead of accumulating
+    // `time += 0.25`, which drifts by ~1e-16 per step and can nudge a sample
+    // time to sit just off an exact point boundary — genuinely ambiguous
+    // segment selection (a+(b-a) !== b is a known FP identity, not something
+    // this pass changed), which is a false-positive regression signal, not
+    // a real one. Boundary times themselves are skipped for the same reason.
+    for (let i = -4; i <= 52; i++) {
+      const time = i * 0.25
+      if (boundaryTimes.has(time)) continue
+      const actual = evaluateAutomation(lane, time)
+      const expected = linearInterp(rawPoints, time)
+      expect(actual).toBe(expected)
+    }
+  })
+
+  it('applyEasing(t, 0) is the identity function for all t (byte-identical, not just close)', () => {
+    for (let t = 0; t <= 1; t += 0.05) {
+      expect(applyEasing(t, 0)).toBe(t)
+    }
+  })
+
+  it('a two-point curve=0 lane matches the linear-interpolation smoke test above', () => {
+    const lane = makeLane([
+      { time: 0, value: 0 },
+      { time: 10, value: 1 },
+    ])
+    expect(evaluateAutomation(lane, 5)).toBe(0.5)
+    expect(evaluateAutomation(lane, 2.5)).toBe(0.25)
+    expect(evaluateAutomation(lane, 7.5)).toBe(0.75)
+  })
+})
