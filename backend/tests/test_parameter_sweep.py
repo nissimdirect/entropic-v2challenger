@@ -155,6 +155,33 @@ class TestParameterSweep:
         ("fx.transition_column_cascade_reverse", "columns"),
         ("fx.transition_row_waterfall", "duration_frames"),
         ("fx.transition_row_waterfall", "rows"),
+        # Copy Machine (2026-07-02): verified via direct apply() calls at
+        # frame_index 0/5/10 with default co-params, then again with the
+        # dependency satisfied — diffs quoted are mean abs RGB diff at 64x64.
+        # cell_size/glyph_set only feed the "ascii" machine's grid/glyph-table
+        # (copy_machine.py _m_ascii); default machine="toner" never reads them
+        # (diff=0.0 at any frame_index). With machine="ascii" they produce real
+        # diffs (cell_size 2->48: 26.35, glyph_set classic->dense: 74.59 at frame 0).
+        ("fx.copy_machine", "cell_size"),
+        ("fx.copy_machine", "glyph_set"),
+        # feedback_amount only blends against `state["prev"]` (copy_machine.py
+        # apply(), feedback branch); with state_in=None (the sweep's single-shot
+        # call) there is no prev frame to blend, so the amount is unused at ANY
+        # frame_index (diff=0.0 at 0/5/10). Driving 6 sequential frames with
+        # feedback=True and carried state shows real impact (diff=56.0 by frame 5).
+        ("fx.copy_machine", "feedback_amount"),
+        # freeze captures `held = rgb.copy()` on the frame it first sees; with a
+        # single-shot call (state_in=None) `held` always equals the current input,
+        # so freeze=True and freeze=False are pixel-identical at any frame_index
+        # (diff=0.0). Across sequential frames with changing input and carried
+        # state, freeze correctly holds the first frame (diff=6.03 by frame 5).
+        ("fx.copy_machine", "freeze"),
+        # invert_auto only changes behavior when the source's mean luminance is
+        # below _INVERT_LUM_THRESHOLD (110.0). The sweep's fixed seed=42 test
+        # frame has mean luma ~125.9 (above threshold), so do_invert is False
+        # either way (diff=0.0). On a synthetic dark frame (mean luma ~37.9) the
+        # toggle produces a real diff of 62.4 — the param is correctly wired.
+        ("fx.copy_machine", "invert_auto"),
     }
 
     # Stateful physics effects that accumulate displacement over time.
