@@ -263,9 +263,10 @@ Corrections below OVERRIDE the stage text above where they conflict.
 2. **A7c correction:** the range-select cursor tool was REMOVED post-plan (T5 cull,
    default-shortcuts.ts:64). A7c now = razor/ripple/marker/loop by click+hotkey, PLUS assert
    range is gone, PLUS slip (`s`) / slide (`d`) from T2 #359.
-3. **T3 clip/track lock (#355) and T4 marker-rename (#357) are CLOSED-UNMERGED** with no
-   successor PRs — lock and marker-rename remain ABSENT on main; don't test them, and the
-   tune-up ledger's "merge on green" for T3/T4 never happened (surfaced to user).
+3. **T3 lock + T4 marker-rename ARE on main** — their commits rode inside the #359 (T2)
+   squash, which is why stacked PRs #355/#357 closed empty (adjudicated: `Lock track` in
+   Track.tsx via 3521c59; `renameMarker` in timeline.ts). TEST both: clip+track lock
+   (D5-adjacent: mutation guards) and marker double-click inline rename.
 4. **Stage F.2 citation fix:** the mode-banner spec is DESIGN-SPEC §10.2 (20px banner, ≤120ms,
    MOD dot, esc keycap naming the NEXT escape level) — not "SELECTION-MASKING-SPEC §14.9"
    (§14 is Open Decisions; no §14.9 exists).
@@ -297,3 +298,29 @@ Corrections below OVERRIDE the stage text above where they conflict.
   so boundary state doesn't poison later verdicts.
 - **Coordination:** the parallel build session must NOT `git pull` the canonical checkout while
   the CU pass runs (source-file pulls trigger vite HMR mid-pass); docs-only merges are safe.
+
+### A6 pre-classification — export e2e cluster ROOT-CAUSED (2026-07-03, local repro)
+The 3 red `phase-11/export.spec.ts` tests are **TEST-ENV, not app bugs**: the spec exports to
+`os.tmpdir()` (= `/private/var/folders/…`), which `backend/src/security.py`
+BLOCKED_OUTPUT_PREFIXES rejects ("Export failed: Cannot write to system directory:
+/private/var" — visible in the failure snapshot). Exposed tonight when #378 switched the spec
+from the `__testExportPath` hook to the real `stubSaveDialog` flow. Fix belongs to the e2e
+lane: point the spec at a home-dir temp path (or allowlist `$TMPDIR`). **For CU: exports to
+~/Desktop are unaffected — do NOT down-verdict C1/C6/J5 on this cluster.** Mass edge-cases/
+chaos/security-gates failures still under local classification; B3 (#377) is flag-gated OFF
+by default, so it did NOT change the default DOM and is not the breaker.
+
+### Feature-flag matrix (PR #389 audit — ADOPTED into this pass)
+`docs/UAT-FEATURE-FLAG-AUDIT-2026-07-03.md` is now a first-class stage input:
+- **Stage A5/G baseline correction:** `F_CREATRIX_LAYOUT` is **default OFF** — the app's
+  default IS the legacy layout; the B3 grid shell + LayerPanel mount only when enabled
+  (`localStorage.setItem('entropic-enable-creatrix-layout','1')` + kill/relaunch). Their
+  wave-1 task #20 flips the default ON — if it merges mid-pass, relaunch and re-baseline;
+  name the flag state in EVERY layout-affected verdict (A5, A7b, E, G).
+- **New Stage FLAGS (run inside Stage A, after A7):** per-flag default-verify → flip →
+  verify old behavior → flip back → confirm clean round-trip, per the audit's protocol.
+  P0 first (`F_0512_14` space transport, `F_0512_29` reload rebind), then P1, then the three
+  CSS-disable flags (`F_0512_8/30/36` via body attr). A flag that can't round-trip = 🐛.
+- **Coordination traps:** task #19 (zoom thumbs) overlaps `F_0512_8_CLIP_THUMBS` — test
+  together; re-grep `frontend/src/shared/feature-flags.ts` at CU start (their wave-1 may add
+  flags: master-out #18, AA.4).
