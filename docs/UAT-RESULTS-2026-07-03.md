@@ -85,3 +85,57 @@ Export-verify tooling (`verify_export.py`: PIL pixel/diff/ProRes-4444-alpha prob
 
 **Still requires CU (nothing below can be done headless):** every ✅/🐛 verdict in Stages A3–H —
 all need the running screen driven and screenshotted. This pass de-risked them; it did not replace them.
+
+
+---
+
+## LIVE CU PASS — Session 2 (2026-07-03 PM, dev build af9ba3b, computer-use)
+
+Runtime: dev Electron relaunched fresh from `frontend` (npm start :5173), confirmed dev build via
+DevTools `./index.tsx` + `--cx-bg-app`/`--cx-text-1` Live Signal tokens. Engine Connected throughout.
+Verdict key: ✅ pass · 🐛 bug · ⚠️ observation-to-investigate · ⏸ not-run.
+
+### Stage A — regression + spine (PASS)
+| # | Check | Verdict | Evidence |
+|---|-------|---------|----------|
+| A1 | Clean launch → New Project → DAW | ✅ | Welcome (CREATRIX v3.0.0), no crash |
+| A2 | Import renders | ✅ | test-video.mp4 1280x720 color bars; scrub 0→2.0s renders clean (30fps 19ms) |
+| A5/G | F_CREATRIX_LAYOUT default-ON | ✅ | LAYER panel present by default (B3 shipped, #398) |
+| — | Master bus + automation-editing toolbar live | ✅ | MASTER row; Overdub + Flatten/Ramp/Shape/+Mod buttons; MAP button all present |
+| A7a | %-label fix (#337) | ✅ | device reads "30px"/"MIX 100%", not "1.00%" |
+
+### Core pipeline (the spine) — end-to-end PASS
+| Step | Verdict | Evidence |
+|------|---------|----------|
+| Add effect → preview | ✅ | fx.chromatic_aberration renders (fringing visible); Offset knob drag 5→30px works |
+| Export H.264 MP4 | ✅ | full-timeline 150fr → ~/Desktop/uat-parity-ca.mp4 (185KB), "Export complete!" |
+| Export path guard | ✅ | ~/Desktop export works → confirms export-e2e red = TEST-ENV (only os.tmpdir blocked), NOT app bug |
+| **GATE 1: preview==export parity** | ✅ | export vs source mean_abs_diff **24.24** (effect baked in); export RENDERED (mean125/std124, not black) |
+
+### Stage A3 / P1-B — instrument preview unblock (PASS on the bug's surface)
+| Check | Verdict | Evidence |
+|-------|---------|----------|
+| MIDI track add (+I) | ✅ | "MIDI 1" track + PERFORM/CAPTURE control |
+| Sampler add (double-click on selected MIDI track) | ✅ | param panel Source/Start/Speed/Opacity/Blend |
+| Source bind → test-video.mp4 | ✅ | dropdown selectable+bound |
+| **P1-B: no "v2 unsupported" rejection** | ✅ | NO rejection toast, NO compositing-error on mount+bind (the exact #323 surface); render 18→75ms (compositor processing instrument track) |
+| INSTRUMENTS present | ✅ | Sampler / Sample Rack / Wavetable / Granulator |
+> Full note-triggered voice-render into preview NOT exercised (needs MIDI-note-entry UI) — the rejection-guard that the bug broke is clean.
+
+### Findings
+- 🐛 **UAT-1 (P2 papercut, NEW):** on every cold import, frame-0 render fires during the sidecar socket handshake → user sees a "Frame render failed" toast + console `[Render] frame 0 error: Engine error: Socket is closed` (App.tsx:1741). Recovers fully (all later frames render). Not in the known register. Fix: gate frame-0 render on socket-ready, or suppress the toast during startup.
+- ⚠️ **UAT-2 (investigate — possible parity/precedence bug):** after adding a Sampler (MIDI 1, source=test-video, opacity 1.0, no triggered note), the preview stopped showing Track 2's chromatic aberration — the clean sampler source appears to composite OVER the effected track. Either correct top-layer-wins semantics OR (a) an instrument rendering its source with no note trigger, or (b) a layer-precedence bug hiding a lower track's effect. Needs: confirm layer order intent + whether an un-triggered sampler should paint. Render time stayed 68-75ms (work happening).
+- ⚠️ **UAT-3 (inconclusive):** marquee tool did not activate via `q` with a video track selected (2 attempts; status bar stayed "select"/"effect", no marching ants). May require preview focus or the `tool`-tab chip (addendum notes the chip path). MK.CU J1–J5 remain ⏸ UNRUN — needs a clean retry next session.
+- Console noise: `useTrackDragReorder.ts:199/67` "UP armed=false moves=0 swaps=0 / DETACH listeners removed" fire on drag-onto-track gestures — harmless, no reorder committed.
+
+### NOT RUN this session (budget-bounded — for a continued CU pass)
+Stage B persistence round-trip · C2–C7 full journeys (freeze FSM, rack macros/choke, granulator 6-axis) ·
+D chaos/antipatterns · E design audit · **F masking J1–J5 (retry marquee activation)** · G B3 restack ·
+H MK.12 U1–U10 · I automation-editing suite · J modulation/LFO lanes · K master-bus isolation.
+
+### GO/NO-GO (partial — Session 2 scope only)
+Of the 6 cross-cutting gates, **Gate 1 (preview==export parity) = PASS** on the effect category on a
+1-effect project. The P1-B instrument unblock holds. No NO-GO condition tripped in what was exercised.
+UAT-2 must be resolved before a full GO (it touches the parity/composability gates). Gates 2–6 and the
+full journey/data-loss/composability matrix remain UNVERIFIED live → **overall verdict: INCOMPLETE, not
+yet GO** — the spine is proven, the breadth pass is outstanding.
