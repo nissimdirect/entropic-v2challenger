@@ -99,6 +99,7 @@ import { recordChangedTransformFields } from './utils/transform-record'
 // the foundation the hardware-bank system (H2+) keys off. See
 // utils/focusContext.ts (derivation) + components/layout/MappingContextChip.tsx.
 import MappingContextChip from './components/layout/MappingContextChip'
+import BankPagingHUD from './components/layout/BankPagingHUD'
 import { buildAxisLanes } from '../shared/axis-lanes'
 import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
@@ -171,6 +172,8 @@ function modulateChain(chain: EffectInstance[], frame: number): EffectInstance[]
       midi.bankAssignments,
       context,
       defaultAssignmentSourcesFor(context),
+      undefined,
+      midi.activeBankIndex, // H7 — page the bank-assignment lookup, not just focus
     )
   }
   return out
@@ -1328,6 +1331,7 @@ function AppInner() {
                 midiForMacros.bankAssignments,
                 macroContext,
                 defaultAssignmentSourcesFor(macroContext),
+                midiForMacros.activeBankIndex, // H7 — page the bank-assignment lookup
               )
             })()
           : undefined
@@ -4101,6 +4105,8 @@ function AppInner() {
           <CursorToolChip />
           {/* H1: focused-mapping-context chip — foundation for hardware-bank (H2+) targeting */}
           <MappingContextChip />
+          {/* H7: bank-paging HUD — pages the bank-assignment grid (bankTypes.ts MAX_BANK_PAGES) */}
+          <BankPagingHUD />
           {/* Export accessible via File > Export (Cmd+E) — no visible button needed */}
         </div>
       </div>
