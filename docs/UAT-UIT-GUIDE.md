@@ -1,3 +1,8 @@
+> **⚠️ SCOPE NOTE (2026-07-03):** v4.3 covers phases 0A–11.5 + sprints 1–3 ONLY. It does NOT cover the
+> automation suite (AA.*), Master-Out Bus (M.*), B3 layout (now DEFAULT ON), MK-series masking, H-UI hardware
+> mapping, or T-series editing tools. For those, use `UAT-PLAN-2026-07-02-live-cu.md` (Stages I/J/K) +
+> `UAT-COMPREHENSIVE-AUDIT-2026-07-03.md`. Tier/doc-map: see the audit's COHESION PASS section.
+
 # Entropic v2 Challenger — UAT & UIT Testing Guide
 
 > **Version:** 4.3
