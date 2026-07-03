@@ -245,6 +245,17 @@ export const useMIDIStore = create<MIDIState>((set, get) => ({
     if (fingerprint === get().activeControllerFingerprint) return;
     set({ activeControllerFingerprint: fingerprint });
     if (fingerprint) {
+      // Data-loss guard (redteam-confirmed): resetMIDI() (project open/new)
+      // clears activeControllerFingerprint to null WITHOUT clearing
+      // ccBankBindings from the newly-loaded project — and a learn made while
+      // fingerprint is null lands in ccBankBindings too, just unpersisted (see
+      // _persistBindingsForActiveController's null-fingerprint no-op above).
+      // Either way, a NON-EMPTY ccBankBindings here means something the user
+      // already has — the project's own saved bindings, or an in-session
+      // learn — that must never be silently blown away by a stale app-level
+      // "known controller" profile. The saved-profile auto-load is only a
+      // convenience for an EMPTY session; once bindings exist, skip it.
+      if (get().ccBankBindings.length > 0) return;
       const saved = getBindingsForFingerprint(fingerprint); // validated + capped
       if (saved.length > 0) {
         // applyControllerProfile re-validates, de-dupes by cc, and caps —

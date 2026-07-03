@@ -49,6 +49,13 @@ export type ControllerBindingStore = Record<string, CCBankBinding[]>;
  *
  * The SAME (name, manufacturer) pair always yields the SAME fingerprint — this
  * is the property the identity persistence relies on.
+ *
+ * KNOWN LIMITATION: sanitizeField maps any non-string / unreported field to
+ * '' (see below), so a nameless controller and a manufacturer-less one that
+ * both report nothing sanitizable (e.g. non-Latin labels the [a-z0-9 ._-]
+ * allowlist strips to empty) all collide on the single fingerprint '::'.
+ * Their saved bindings share one slot — last-learned wins, not a crash or
+ * corruption risk, just a known coarse-grained identity for that edge case.
  */
 export function deriveControllerFingerprint(
   name: string | null | undefined,
@@ -115,6 +122,12 @@ export function loadControllerBindingStore(): ControllerBindingStore {
   for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
     if (count >= MAX_STORED_CONTROLLERS) break;
     if (typeof key !== 'string' || key.length === 0) continue;
+    // Trust boundary: a crafted localStorage payload with a "__proto__" (or
+    // "constructor"/"prototype") key would reparent `out` via the bracket
+    // assignment below (`out[key] = ...` triggers Object.prototype's
+    // __proto__ accessor on a plain-literal object) — reject those keys
+    // outright rather than treating them as a controller fingerprint.
+    if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
     const bindings = sanitizeBindings(value);
     // Retain even empty binding arrays? No — an empty set carries no info and
     // would waste a controller slot. Skip fingerprints with no valid bindings.

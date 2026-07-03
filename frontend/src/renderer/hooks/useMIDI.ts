@@ -135,6 +135,21 @@ export function useMIDI(): void {
             // H5 — switching the active controller re-derives its identity and
             // auto-loads that controller's saved bindings.
             applyActiveControllerIdentity();
+            return;
+          }
+          // H5 data-loss fix (redteam-confirmed): resetMIDI() (project open/new,
+          // project-persistence.ts) clears activeControllerFingerprint to null
+          // WITHOUT touching activeDeviceId, so the branch above never fires on
+          // project load. Left alone, the store sits with fingerprint=null until
+          // the next hardware onstatechange — during which every learn silently
+          // skips app-level persistence (applyControllerIdentity/store no-ops on
+          // null fingerprint). Re-deriving immediately here re-establishes the
+          // fingerprint so learns persist right away; the store's own
+          // non-empty-ccBankBindings guard (see applyControllerIdentity) protects
+          // the project's just-hydrated bindings, or any learn made in the gap,
+          // from being clobbered by this re-derive.
+          if (state.activeControllerFingerprint === null && prev.activeControllerFingerprint !== null) {
+            applyActiveControllerIdentity();
           }
         },
       );
