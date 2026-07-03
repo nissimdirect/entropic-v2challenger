@@ -254,8 +254,10 @@ describe('Timeline UI — Master track (M.2)', () => {
     useTimelineStore.getState().addMasterTrack()
     useTimelineStore.getState().addTrack('V1', '#ff0000')
     useTimelineStore.getState().addTrack('V2', '#00ff00')
-    render(<Timeline onSeek={() => {}} />)
-    const container = document.querySelector('.timeline__track-headers')!
+    // Scope queries to THIS render's container (not whole-document) to avoid any
+    // cross-render ambiguity that made this flake under CI timing.
+    const { container: root } = render(<Timeline onSeek={() => {}} />)
+    const container = root.querySelector('.timeline__track-headers')!
     const headers = container.querySelectorAll('[data-testid="master-track-header"], .track-header--video')
     expect(headers.length).toBe(3)
     // Last rendered header in document order is the master row (pinned
@@ -265,8 +267,8 @@ describe('Timeline UI — Master track (M.2)', () => {
 
   test('selecting the master track shows its effectChain in the DeviceChain panel', () => {
     const masterId = useTimelineStore.getState().addMasterTrack()!
-    render(<Timeline onSeek={() => {}} />)
-    fireEvent.click(document.querySelector('[data-testid="master-track-header"]')!)
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    fireEvent.click(container.querySelector('[data-testid="master-track-header"]')!)
     expect(useTimelineStore.getState().selectedTrackId).toBe(masterId)
   })
 })
