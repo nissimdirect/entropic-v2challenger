@@ -12,7 +12,11 @@ import type { Pad, PadRuntimeState } from '../../../shared/types';
 import { pushEvent } from '../../utils/retro-capture';
 
 interface PerfStoreActions {
-  triggerPad: (padId: string, frameIndex: number) => void;
+  // H6: `velocity` (MIDI note-on velocity, 0-127) is optional — matches
+  // usePerformanceStore.triggerPad's signature. Callers that have no
+  // velocity source (keyboard, mouse) simply omit it; the store defaults
+  // to 127 (full intensity), so this is byte-identical for those sources.
+  triggerPad: (padId: string, frameIndex: number, trackId?: string, velocity?: number) => void;
   releasePad: (padId: string, frameIndex: number) => void;
   padStates: Record<string, PadRuntimeState>;
 }
@@ -25,8 +29,9 @@ export function triggerPadWithCapture(
   perfStore: PerfStoreActions,
   frameIndex: number,
   source: 'keyboard' | 'midi',
+  velocity?: number,
 ): void {
-  perfStore.triggerPad(pad.id, frameIndex);
+  perfStore.triggerPad(pad.id, frameIndex, undefined, velocity);
   pushEvent({
     // timestamp is performance.now() for buffer-trim hygiene ONLY — never a replay input.
     timestamp: performance.now(),
@@ -70,15 +75,16 @@ export function handlePadTrigger(
   perfStore: PerfStoreActions,
   frameIndex: number,
   source: 'keyboard' | 'midi',
+  velocity?: number,
 ): void {
   if (pad.mode === 'toggle') {
     const state = perfStore.padStates[pad.id];
     if (state && state.phase !== 'idle' && state.phase !== 'release') {
       releasePadWithCapture(pad, perfStore, frameIndex, source);
     } else {
-      triggerPadWithCapture(pad, perfStore, frameIndex, source);
+      triggerPadWithCapture(pad, perfStore, frameIndex, source, velocity);
     }
   } else {
-    triggerPadWithCapture(pad, perfStore, frameIndex, source);
+    triggerPadWithCapture(pad, perfStore, frameIndex, source, velocity);
   }
 }
