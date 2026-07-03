@@ -183,6 +183,8 @@ PARAMS: dict = {
         "max": 0.98,
         "default": 0.88,
         "label": "Feedback Amount",
+        "curve": "linear",
+        "unit": "",
         "description": (
             "How much of the previous OUTPUT re-enters the machine each frame "
             "(feedback mode only). High = damage compounds hard; the remainder "
@@ -206,6 +208,8 @@ PARAMS: dict = {
         "max": 120.0,
         "default": 0.0,
         "label": "Auto-Reverse At",
+        "curve": "linear",
+        "unit": "",
         "description": (
             "When generation crosses this value (and the ring has frames), fire "
             "a rewind until the ring drains; re-arms once generation drops back "

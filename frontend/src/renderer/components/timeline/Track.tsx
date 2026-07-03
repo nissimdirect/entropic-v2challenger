@@ -107,14 +107,18 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         const info = registry.find((r) => r.id === effect.effectId)
         if (!info) continue
         for (const [key, def] of Object.entries(info.params)) {
-          if (def.type !== 'float' && def.type !== 'int') continue
+          // bool params are TRIGGER-only automation targets (binary pulses, F-0703)
+          const isBool = def.type === 'bool'
+          if (def.type !== 'float' && def.type !== 'int' && !isBool) continue
           const paramPath = `${effect.id}.${key}`
           if (existingPaths.has(paramPath)) continue
           const color = laneColors[existingLanes.length % laneColors.length]
-          autoItems.push({
-            label: `Add Lane: ${info.name} > ${def.label}`,
-            action: () => autoState.addLane(track.id, effect.id, key, color),
-          })
+          if (!isBool) {
+            autoItems.push({
+              label: `Add Lane: ${info.name} > ${def.label}`,
+              action: () => autoState.addLane(track.id, effect.id, key, color),
+            })
+          }
           autoItems.push({
             label: `Add Trigger: ${info.name} > ${def.label}`,
             action: () => {
