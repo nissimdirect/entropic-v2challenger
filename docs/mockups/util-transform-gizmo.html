@@ -1,0 +1,764 @@
+<title>util.transform — Gizmo &amp; Device Card</title>
+<style>
+:root{
+  /* Tier-1 primitives copied verbatim from frontend/src/renderer/styles/tokens.css
+     ("Live Signal" v1.1) — hardcoded here since this doc has zero external requests. */
+  --cx-surface-0:#0B0B10; --cx-surface-1:#121218; --cx-surface-2:#18181F;
+  --cx-surface-3:#20202A; --cx-surface-4:#282834;
+  --cx-line-1:#2E2E3A; --cx-line-2:#3C3C4C;
+  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#80808E; --cx-text-disabled:#62626E;
+  --cx-acid:#C8F321; --cx-acid-hover:#D9FF4D; --cx-acid-wash:rgba(200,243,33,.10); --cx-acid-on:#0B0B10;
+  --cx-mod:#8F7DFF; --cx-mod-hover:#A693FF; --cx-mod-wash:rgba(143,125,255,.12); --cx-mod-on:#0B0B10;
+  --cx-red-text:#E5484D; --cx-red-fill:#C13B40; --cx-red-wash:rgba(229,72,77,.12);
+  --cx-amber:#D9A23C; --cx-amber-wash:rgba(217,162,60,.12); --cx-amber-on:#0B0B10;
+  --cx-bg-app:var(--cx-surface-1); --cx-bg-panel:var(--cx-surface-2);
+  --cx-bg-raised:var(--cx-surface-3); --cx-bg-hover:var(--cx-surface-4);
+  --cx-action:var(--cx-acid); --cx-action-hover:var(--cx-acid-hover); --cx-action-on:var(--cx-acid-on);
+  --cx-danger-text:var(--cx-red-text); --cx-warn:var(--cx-amber); --cx-focus-ring:var(--cx-acid);
+  --cx-font-ui:'JetBrains Mono','Courier New',monospace;
+  --cx-radius-control:2px; --cx-radius-card:4px; --cx-radius-dialog:6px;
+  /* Gizmo-specific colors: EXISTING (verified live in BoundingBoxOverlay.tsx —
+     hardcoded #4ade80 / #ef4444, NOT tokens.css aliases) vs NEW (this mock's guess). */
+  --gz-existing:#4ade80;      /* real code: box outline / scale+rotate handles */
+  --gz-anchor:#ef4444;        /* real code: anchor crosshair */
+  --gz-skew-new:#8F7DFF;      /* NEW — this mock's guess (--cx-mod), unlocked, see open Qs */
+  --gz-reset-new:#D9A23C;     /* NEW — double-click-reset affordance tint (--cx-amber) */
+}
+*{box-sizing:border-box}
+body{background:var(--cx-bg-app);color:var(--cx-text-1);font-family:var(--cx-font-ui);font-size:12.5px;line-height:1.55;margin:0;padding:0 0 90px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+header{border-bottom:1px solid var(--cx-line-1);padding:30px 0 20px;margin-bottom:26px}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--cx-text-3)}
+h1{font-size:19px;font-weight:500;letter-spacing:.02em;margin:8px 0 10px;text-wrap:balance}
+h1 b{color:var(--cx-acid);font-weight:500}
+.thesis{max-width:78ch;color:var(--cx-text-2);font-size:12px}
+.thesis b{color:var(--cx-text-1);font-weight:500}
+.thesis code{background:var(--cx-surface-3);border-radius:3px;padding:1px 5px;color:var(--cx-text-1);font-size:11px}
+h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-text-3);font-weight:500;
+  border-top:1px solid var(--cx-line-1);padding-top:16px;margin:38px 0 6px}
+h2 .k{color:var(--cx-text-1)}
+.sub{font-size:11.5px;color:var(--cx-text-2);max-width:82ch;margin:0 0 16px}
+.panelbox{background:var(--cx-bg-panel);border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-card);padding:16px;position:relative}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+@media(max-width:980px){.grid2{grid-template-columns:1fr}}
+
+/* ---------- numbered callout chip ---------- */
+.callout-list{display:flex;flex-direction:column;gap:7px;margin-top:12px}
+.callout{display:flex;gap:9px;align-items:flex-start;padding:6px 8px;border-radius:5px;border:1px solid transparent;cursor:default;transition:background .12s,border-color .12s}
+.callout:hover,.callout.hot{background:var(--cx-surface-3);border-color:var(--cx-line-2)}
+.callout .num{flex:none;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:9.5px;font-weight:600;background:var(--cx-surface-4);color:var(--cx-text-1);border:1px solid var(--cx-line-2);margin-top:1px}
+.callout .num.dot-existing{border-color:var(--gz-existing);color:var(--gz-existing)}
+.callout .num.dot-new{border-color:var(--gz-skew-new);color:var(--gz-skew-new)}
+.callout .num.dot-anchor{border-color:var(--gz-anchor);color:var(--gz-anchor)}
+.callout .num.dot-reset{border-color:var(--gz-reset-new);color:var(--gz-reset-new)}
+.callout .body{font-size:11px;color:var(--cx-text-2)}
+.callout .body b{color:var(--cx-text-1);font-weight:500}
+.callout .pk{font-size:9px;letter-spacing:.06em;color:var(--cx-mod);background:var(--cx-mod-wash);border-radius:3px;padding:1px 5px;margin-left:5px;white-space:nowrap}
+
+/* ---------- inspector strip (routing-mock convention: hover writes here, never occludes) ---------- */
+.inspector{border-top:1px solid var(--cx-line-1);margin-top:10px;padding-top:8px;font-size:10.5px;color:var(--cx-text-3);
+  font-variant-numeric:tabular-nums;min-height:16px}
+.inspector.live{color:var(--cx-text-1)}
+
+/* ---------- canvas / gizmo stage ---------- */
+.stage-wrap{background:var(--cx-surface-0);border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-card);padding:14px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative}
+canvas#gizmoCv{border-radius:6px;border:1px solid var(--cx-line-2);cursor:default;touch-action:none;
+  background-image:linear-gradient(45deg,#26262e 25%,transparent 25%),linear-gradient(-45deg,#26262e 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#26262e 75%),linear-gradient(-45deg,transparent 75%,#26262e 75%);
+  background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#151519}
+.stage-hint{font-size:9.5px;color:var(--cx-text-3);max-width:520px;text-align:center}
+.stage-hint b{color:var(--cx-text-1)}
+.matrix-readout{font-size:9.5px;color:var(--cx-text-3);font-variant-numeric:tabular-nums;text-align:center}
+
+/* ---------- mid-drag skew snapshot inset (2-state comparison, see stateCoverage fix) ---------- */
+.mini-inset{position:absolute;top:24px;right:24px;background:var(--cx-surface-1);border:1px solid var(--gz-skew-new);
+  border-radius:6px;padding:6px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:2}
+.mini-inset canvas{border-radius:4px;border:1px solid var(--cx-line-2);display:block}
+.mini-inset .lbl{font-size:8px;color:var(--gz-skew-new);letter-spacing:.03em;text-align:center;max-width:150px}
+.mini-inset .rd{font-size:9px;color:var(--cx-text-1);font-variant-numeric:tabular-nums}
+
+/* ---------- modifier cheat strip ---------- */
+.cheat-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.cheat{display:flex;align-items:center;gap:8px;background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:6px;padding:6px 10px;font-size:10.5px;transition:border-color .1s,background .1s}
+.cheat.on{border-color:var(--cx-acid);background:var(--cx-acid-wash)}
+.cheat .led{width:6px;height:6px;border-radius:50%;background:var(--cx-line-2);flex:none}
+.cheat.on .led{background:var(--cx-acid);box-shadow:0 0 6px var(--cx-acid)}
+.cheat.nongoal{opacity:.55}
+.cheat.nongoal .led{background:var(--cx-red-text);opacity:.6}
+kbd{background:var(--cx-surface-4);border:1px solid var(--cx-line-2);border-radius:4px;padding:1px 6px;font-size:10px;color:var(--cx-text-1)}
+.cheat .txt{color:var(--cx-text-2)}
+.cheat .txt b{color:var(--cx-text-1);font-weight:500}
+.cheat .tag{font-size:8.5px;letter-spacing:.06em;color:var(--cx-text-3);border:1px dashed var(--cx-line-2);border-radius:99px;padding:1px 6px}
+
+/* ---------- edge-policy picker ---------- */
+.ep-row{display:flex;gap:10px;flex-wrap:wrap}
+.ep-card{flex:1;min-width:120px;background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:6px;padding:8px;cursor:pointer;transition:border-color .12s,background .12s}
+.ep-card:hover{border-color:var(--cx-line-2)}
+.ep-card.sel{border-color:var(--cx-acid);background:var(--cx-acid-wash)}
+.ep-card canvas{width:100%;height:64px;border-radius:4px;display:block;background:#151519}
+.ep-card .nm{font-size:10.5px;margin-top:6px;color:var(--cx-text-1);display:flex;justify-content:space-between;align-items:center}
+.ep-card .nm .cv2{font-size:8.5px;color:var(--cx-text-3);font-weight:400}
+.ep-card .alias{font-size:9px;color:var(--cx-text-3);margin-top:2px}
+.ep-levels{display:none;gap:6px;margin-top:12px;padding-top:10px;border-top:1px dashed var(--cx-line-1);flex-wrap:wrap;align-items:center}
+.ep-levels.show{display:flex}
+.ep-levels .lab{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--cx-text-3);margin-right:2px}
+.lvl-btn{font-family:var(--cx-font-ui);font-size:9.5px;padding:4px 10px;border-radius:99px;background:none;color:var(--cx-text-1);border:1px solid var(--cx-line-2);cursor:pointer;display:flex;align-items:center;gap:5px}
+.lvl-btn[aria-pressed="true"]{background:var(--cx-acid);border-color:var(--cx-acid);color:var(--cx-acid-on)}
+.lvl-swatch{width:9px;height:9px;border-radius:2px;display:inline-block;border:1px solid rgba(255,255,255,.25)}
+.lvl-swatch.checker{background-image:linear-gradient(45deg,#888 25%,transparent 25%),linear-gradient(-45deg,#888 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#888 75%),linear-gradient(-45deg,transparent 75%,#888 75%);background-size:4px 4px;background-position:0 0,0 2px,2px -2px,-2px 0;background-color:#333}
+#customColorInput{width:22px;height:20px;padding:0;border:1px solid var(--cx-line-2);border-radius:3px;background:none;cursor:pointer}
+
+/* ---------- device param panel ---------- */
+.device{background:var(--cx-surface-2);border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-card);overflow:clip}
+.dhead{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--cx-line-1);background:var(--cx-surface-2)}
+.dhead .dname{font-size:11.5px;letter-spacing:.03em;color:var(--cx-text-1)}
+.dhead .cat-tick{width:3px;height:14px;background:var(--cx-cat-modulation,#AFCB52);border-radius:1px}
+.dhead .id{margin-left:auto;font-size:9.5px;color:var(--cx-text-3)}
+.dbody{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.pgroup-lbl{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--cx-text-3);margin:8px 0 2px}
+.pgroup-lbl:first-child{margin-top:0}
+.prow{display:grid;grid-template-columns:64px 1fr 52px;align-items:center;gap:10px;font-size:11px;color:var(--cx-text-2)}
+.prow__label{white-space:nowrap}
+.prow__track{position:relative;height:6px;background:var(--cx-bg-hover);border-radius:3px;cursor:pointer;outline:none}
+.prow__track:focus-visible{outline:2px solid var(--cx-focus-ring);outline-offset:1px}
+.prow__fill{position:absolute;top:0;left:0;height:100%;border-radius:3px;background:var(--cx-action);pointer-events:none}
+.prow__fill.skew{background:var(--gz-skew-new)}
+.prow__thumb{position:absolute;top:50%;width:11px;height:11px;background:var(--cx-text-1);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;transition:background .12s}
+.prow__track:hover .prow__thumb{background:var(--cx-action)}
+.prow__value{text-align:right;color:var(--cx-text-1);font-size:10.5px;font-variant-numeric:tabular-nums;cursor:text}
+.prow__value:hover{color:var(--cx-acid)}
+.link-toggle{font-size:9px;letter-spacing:.04em;padding:2px 7px;border-radius:99px;border:1px solid var(--cx-line-2);color:var(--cx-text-3);background:none;cursor:pointer;margin-left:6px}
+.link-toggle[aria-pressed="true"]{border-color:var(--cx-mod);color:var(--cx-mod);background:var(--cx-mod-wash)}
+.ep-picked-row{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--cx-text-2);padding:8px 0 0;border-top:1px solid var(--cx-line-1);margin-top:4px}
+.ep-picked-row b{color:var(--cx-text-1)}
+.reset-hint{font-size:9px;color:var(--cx-text-3);margin-top:2px}
+
+/* ---------- decisions / open items footer ---------- */
+.rules{font-size:10.5px;color:var(--cx-text-2);display:grid;gap:8px;margin-top:6px;max-width:90ch}
+.rules b{color:var(--cx-text-1);font-weight:500}
+.tag-new{font-size:8.5px;letter-spacing:.06em;color:var(--cx-mod);border:1px dashed var(--cx-mod);border-radius:99px;padding:1px 6px;margin-left:6px}
+.tag-locked{font-size:8.5px;letter-spacing:.06em;color:var(--cx-acid);border:1px solid var(--cx-acid);border-radius:99px;padding:1px 6px;margin-left:6px}
+.tag-open{font-size:8.5px;letter-spacing:.06em;color:var(--cx-amber);border:1px dashed var(--cx-amber);border-radius:99px;padding:1px 6px;margin-left:6px}
+table.alias{border-collapse:collapse;font-size:10.5px;margin-top:8px}
+table.alias th,table.alias td{border:1px solid var(--cx-line-1);padding:5px 10px;text-align:left;color:var(--cx-text-2)}
+table.alias th{color:var(--cx-text-3);font-weight:500;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;background:var(--cx-surface-3)}
+table.alias td b{color:var(--cx-text-1);font-weight:500}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">creatrix · util-transform · gizmo &amp; device card mock · packets PK.1–PK.4</div>
+  <h1>The Photoshop free-transform grammar, built once as <b>util.transform</b> — reused by every future tap-transform.</h1>
+  <p class="thesis">Extends <code>BoundingBoxOverlay.tsx</code> (today: move/scale/rotate for clip transforms only) with a
+  <b>skew</b> drag-mode and the full Photoshop modifier grammar (decision ㊳, banked). The box outline / scale &amp; rotate
+  handles keep their real, shipped color (<code>#4ade80</code>) — nothing about existing behavior changes in appearance.
+  Skew is the one genuinely new affordance, so it gets a genuinely new color. Backend: one <code>cv2.warpAffine</code> call,
+  RGBA travels together, edge policy decides what fills the vacated area.</p>
+</header>
+
+<h2><span class="k">On-canvas gizmo</span> — drag it. Hold ⌘/Ctrl on an edge handle. Try Shift, Option, double-click.</h2>
+<p class="sub">Live affine demo — this canvas is doing the actual inverse-transform + edge-policy sampling math, not a
+canned animation. The checkerboard is real alpha (Rule 1: RGBA travels together — nothing here is ever silently opaque).</p>
+<div class="panelbox">
+  <div class="grid2">
+    <div class="stage-wrap">
+      <canvas id="gizmoCv" width="420" height="280"></canvas>
+      <div class="mini-inset">
+        <canvas id="skewSnapshotCv" width="150" height="100"></canvas>
+        <span class="lbl">⌘+drag edge — mid-skew (frozen 2nd state)</span>
+        <span class="rd">skew_x -18°</span>
+      </div>
+      <div class="stage-hint">
+        <span id="modBadges"><b>no modifier held</b></span> ·
+        drag a corner = scale (aspect via <kbd>⇧</kbd>) · drag an edge = scale one axis, or <kbd>⌘</kbd>+drag = skew ·
+        drag the top handle = rotate (<kbd>⇧</kbd> snaps 15°) · hold <kbd>⌥</kbd> while dragging any handle = pivot
+        from the anchor instead of the opposite handle · double-click any handle = reset
+      </div>
+      <div class="matrix-readout" id="matrixReadout">matrix: B00=1.00 B01=0.00 B10=0.00 B11=1.00 · det=1.00</div>
+      <div class="inspector" id="inspector">hover a handle or a callout below — details land here, never over the canvas</div>
+    </div>
+    <div>
+      <div class="callout-list" id="calloutList">
+        <div class="callout" data-target="scale">
+          <span class="num dot-existing">1</span>
+          <span class="body"><b>Corner &amp; edge scale handles</b> — pre-existing, must regression-pass unchanged before any skew code lands (regression block runs first).<span class="pk">PK.3 regression</span></span>
+        </div>
+        <div class="callout" data-target="skew">
+          <span class="num dot-new">2</span>
+          <span class="body"><b>NEW — hold ⌘/Ctrl, drag an edge handle</b> → <code>skew-t/b/l/r</code>. Top/bottom edge shears <code>skew_x</code>; left/right edge shears <code>skew_y</code>. Cmd+<i>corner</i> = free-distort is explicitly out of scope (that's <code>util.corner_pin</code>'s homography, a separate future device).<span class="pk">PK.3 · OD-2</span></span>
+        </div>
+        <div class="callout" data-target="rotate">
+          <span class="num dot-existing">3</span>
+          <span class="body"><b>Rotate handle</b> — pre-existing, above top-center. Shift snaps to 15° increments.<span class="pk">PK.3 regression</span></span>
+        </div>
+        <div class="callout" data-target="anchor">
+          <span class="num dot-anchor">4</span>
+          <span class="body"><b>Anchor</b> (<code>anchor_x</code>/<code>anchor_y</code>) — pixel offset from frame center. Option-drag on any handle pivots scale/skew from this point instead of the opposite handle (Photoshop's "scale/skew from center").<span class="pk">PK.3</span></span>
+        </div>
+        <div class="callout" data-target="reset">
+          <span class="num dot-reset">5</span>
+          <span class="body"><b>Double-click any handle or field</b> → resets that param to its device default (house convention — not a hardcoded identity, since <code>util.transform</code>'s defaults differ from <code>ClipTransform</code>'s).<span class="pk">PK.3</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2><span class="k">Modifier-grammar cheat strip</span> — Photoshop-verbatim, decision ㊳</h2>
+<p class="sub">Quoted verbatim from <code>creatrix-layertap-routing-prd.md:269-271</code> /
+<code>creatrix-transform-suite-spec.md:25-33</code>. LEDs light live as you hold the real keys (try it — this reads actual
+keydown/keyup, not a mock toggle).</p>
+<div class="panelbox">
+  <div class="cheat-strip" id="cheatStrip">
+    <div class="cheat" data-mod="shift-corner"><span class="led"></span><span class="txt"><kbd>⇧</kbd>-drag corner → <b>proportional scale</b> (aspect locked)</span></div>
+    <div class="cheat" data-mod="shift-rotate"><span class="led"></span><span class="txt"><kbd>⇧</kbd>-drag rotate → <b>snap 15°</b></span></div>
+    <div class="cheat" data-mod="shift-move"><span class="led"></span><span class="txt"><kbd>⇧</kbd>-drag move → <b>constrain to axis</b></span></div>
+    <div class="cheat" data-mod="option"><span class="led"></span><span class="txt"><kbd>⌥</kbd>-drag → <b>scale/skew from anchor</b> (center-mirrored)</span></div>
+    <div class="cheat on" data-mod="cmd"><span class="led"></span><span class="txt"><kbd>⌘</kbd>-drag edge → <b>skew</b></span></div>
+    <div class="cheat nongoal" data-mod="cmd-corner"><span class="led"></span><span class="txt"><kbd>⌘</kbd>-drag corner → free distort <span class="tag">non-goal v1 — corner_pin</span></span></div>
+    <div class="cheat" data-mod="dblclick"><span class="led"></span><span class="txt">double-click value/handle → <b>reset</b> (house convention)</span></div>
+  </div>
+  <div class="callout-list">
+    <div class="callout">
+      <span class="num dot-new">6</span>
+      <span class="body">The strip itself: a persistent cheat sheet next to the gizmo so the modifier grammar isn't tribal knowledge. Only the last row (free-distort) is dimmed — real, banked table language, but explicitly non-goal for <code>util.transform</code> v1.<span class="pk">PK.3</span></span>
+    </div>
+  </div>
+</div>
+
+<h2><span class="k">Edge-policy picker</span> — what fills the vacated area</h2>
+<p class="sub">Same 260×200 test frame (colored quadrants + orientation dot, top-left) run through each policy's exact sampling
+math at a fixed demo transform (rotate 14° · scale 0.62 · skew 8°) so all four vacated corners are visible at once.
+Click a card to drive the live gizmo above.</p>
+<div class="panelbox">
+  <div class="ep-row" id="epRow">
+    <div class="ep-card" data-ep="constant"><canvas width="120" height="76"></canvas>
+      <div class="nm">constant <span class="cv2">BORDER_CONSTANT</span></div>
+      <div class="alias">↔ Displace family's <code>black</code> (this is a strict superset: transparent/black/white/custom)</div></div>
+    <div class="ep-card" data-ep="extend"><canvas width="120" height="76"></canvas>
+      <div class="nm">extend <span class="cv2">BORDER_REPLICATE</span></div>
+      <div class="alias">↔ Displace family's <code>clamp</code></div></div>
+    <div class="ep-card" data-ep="tile"><canvas width="120" height="76"></canvas>
+      <div class="nm">tile <span class="cv2">BORDER_WRAP*</span></div>
+      <div class="alias">↔ Displace family's <code>wrap</code> · *OD-1 risk, see below</div></div>
+    <div class="ep-card sel" data-ep="mirror"><canvas width="120" height="76"></canvas>
+      <div class="nm">mirror <span class="cv2">BORDER_REFLECT_101</span></div>
+      <div class="alias">↔ Displace family's <code>mirror</code> · <b style="color:var(--cx-acid)">default</b></div></div>
+  </div>
+  <div class="ep-levels" id="epLevels">
+    <span class="lab">constant level</span>
+    <button class="lvl-btn" data-lvl="transparent" aria-pressed="false"><span class="lvl-swatch checker"></span>transparent</button>
+    <button class="lvl-btn" data-lvl="black" aria-pressed="true"><span class="lvl-swatch" style="background:#000"></span>black</button>
+    <button class="lvl-btn" data-lvl="white" aria-pressed="false"><span class="lvl-swatch" style="background:#fff"></span>white</button>
+    <button class="lvl-btn" data-lvl="custom" aria-pressed="false"><span class="lvl-swatch" id="customSwatch" style="background:#8F7DFF"></span>custom</button>
+    <input type="color" id="customColorInput" value="#8f7dff" title="pick custom edge_level color">
+    <span style="font-size:9px;color:var(--cx-text-3)">only meaningful when <code>edge_policy = constant</code> — disabled otherwise</span>
+  </div>
+  <div class="callout-list">
+    <div class="callout" data-target="epcard">
+      <span class="num dot-new">7</span>
+      <span class="body"><b>Edge-policy picker with vacated-area swatch</b> — one <code>cv2.warpAffine</code> call for constant/extend/mirror; <code>tile</code> is the one OD-1 risk case (BORDER_WRAP is inconsistently supported) — if the tile-identity probe test fails, backend falls back to manual <code>cv2.remap</code> for that case only, same pattern as <code>displacement.py</code>'s existing <code>wrap</code>.<span class="pk">PK.1 · PK.2 · OD-1</span></span>
+    </div>
+  </div>
+  <table class="alias">
+    <tr><th>util.transform edge_policy</th><th>Displace-family boundary_mode</th><th>cv2 warpAffine borderMode</th></tr>
+    <tr><td><b>constant</b> (+ level)</td><td>black (subset)</td><td>BORDER_CONSTANT + borderValue</td></tr>
+    <tr><td><b>extend</b></td><td>clamp</td><td>BORDER_REPLICATE</td></tr>
+    <tr><td><b>tile</b></td><td>wrap</td><td>BORDER_WRAP (risk — remap fallback if probe fails)</td></tr>
+    <tr><td><b>mirror</b></td><td>mirror</td><td>BORDER_REFLECT_101</td></tr>
+  </table>
+</div>
+
+<h2><span class="k">Device card</span> — param panel</h2>
+<p class="sub">Every numeric param declares <code>curve</code> + <code>unit</code> (CI-enforced, <code>test_calibration.py</code>).
+Values sync live with the gizmo above — drag either one.</p>
+<div class="panelbox">
+  <div class="grid2" style="grid-template-columns:1fr 1fr">
+    <div class="device">
+      <div class="dhead"><span class="cat-tick"></span><span class="dname">util.transform</span><span class="id">EFFECT_CATEGORY = "util"</span></div>
+      <div class="dbody">
+        <div class="pgroup-lbl">position &amp; scale</div>
+        <div class="prow" data-param="x" data-min="-100" data-max="100" data-default="0" data-unit="px">
+          <span class="prow__label">x</span>
+          <div class="prow__track"><div class="prow__fill"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">0 px</span>
+        </div>
+        <div class="prow" data-param="y" data-min="-100" data-max="100" data-default="0" data-unit="px">
+          <span class="prow__label">y</span>
+          <div class="prow__track"><div class="prow__fill"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">0 px</span>
+        </div>
+        <div class="prow" data-param="scale_x" data-min="0.1" data-max="3" data-default="1" data-unit="">
+          <span class="prow__label">scale_x<button class="link-toggle" id="linkScale" aria-pressed="true" title="frontend-only linked-scale UI toggle — not a backend param">🔗</button></span>
+          <div class="prow__track"><div class="prow__fill"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">1.00</span>
+        </div>
+        <div class="prow" data-param="scale_y" data-min="0.1" data-max="3" data-default="1" data-unit="">
+          <span class="prow__label">scale_y</span>
+          <div class="prow__track"><div class="prow__fill"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">1.00</span>
+        </div>
+        <div class="prow" data-param="rotation" data-min="-180" data-max="180" data-default="0" data-unit="deg">
+          <span class="prow__label">rotation</span>
+          <div class="prow__track"><div class="prow__fill"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">0°</span>
+        </div>
+        <div class="pgroup-lbl">anchor</div>
+        <div class="prow" data-param="anchor_x" data-min="-100" data-max="100" data-default="0" data-unit="px">
+          <span class="prow__label">anchor_x</span>
+          <div class="prow__track"><div class="prow__fill"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">0 px</span>
+        </div>
+        <div class="prow" data-param="anchor_y" data-min="-100" data-max="100" data-default="0" data-unit="px">
+          <span class="prow__label">anchor_y</span>
+          <div class="prow__track"><div class="prow__fill"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">0 px</span>
+        </div>
+        <div class="pgroup-lbl">skew <span class="tag-new" style="margin-left:4px">new</span></div>
+        <div class="prow" data-param="skew_x" data-min="-60" data-max="60" data-default="0" data-unit="deg" data-skew="1">
+          <span class="prow__label">skew_x</span>
+          <div class="prow__track"><div class="prow__fill skew"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">0°</span>
+        </div>
+        <div class="prow" data-param="skew_y" data-min="-60" data-max="60" data-default="0" data-unit="deg" data-skew="1">
+          <span class="prow__label">skew_y</span>
+          <div class="prow__track"><div class="prow__fill skew"></div><div class="prow__thumb"></div></div>
+          <span class="prow__value">0°</span>
+        </div>
+        <div class="ep-picked-row">edge_policy → <b id="epPickedLabel">mirror</b></div>
+        <div class="reset-hint">double-click any value or track → reset to default</div>
+      </div>
+    </div>
+    <div>
+      <div class="callout-list">
+        <div class="callout" data-target="panel">
+          <span class="num dot-existing">8</span>
+          <span class="body"><b>Device param panel</b> — <code>x, y, scale_x, scale_y, rotation, anchor_x, anchor_y, skew_x, skew_y, edge_policy, edge_level</code> exactly as specified in <code>plan.md</code>. <code>scale_x</code>/<code>scale_y</code> link toggle is frontend-only UI state, never sent as a backend param. Mounted in <code>App.tsx</code> only when the selected device in the active chain is <code>util.transform</code> — a second, conditional <code>BoundingBoxOverlay</code> instance alongside the existing clip-transform one.<span class="pk">PK.1 · PK.4</span></span>
+        </div>
+      </div>
+      <div class="panelbox" style="margin-top:10px">
+        <div style="font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--cx-text-3);margin-bottom:8px">not locked — this mock's guesses, flagged per Open Decisions</div>
+        <div class="rules">
+          <span><b>Skew handle color</b> (<code style="color:var(--gz-skew-new)">#8F7DFF</code> / <code>--cx-mod</code>) — no color is banked for the new skew affordance anywhere in plan.md/proposal.md. This mock borrows the existing "modulation" token family (same one <code>BoundingBoxOverlay</code>'s sibling components already use for routing/selection accents) so it reads as "new capability," not a random color.<span class="tag-open">open</span></span>
+          <span><b>Custom edge_level swatch</b> — a native color input is this mock's guess for how a user sets the "custom" constant level; no UI is specified in the source spec beyond the vocabulary itself.<span class="tag-open">open</span></span>
+          <span><b>Shared prop type name</b> — plan.md/OD-2 explicitly names <code>AffineTransformLike</code> as a placeholder, not a banked decision, for widening <code>BoundingBoxOverlay</code>'s prop beyond <code>ClipTransform</code>.<span class="tag-open">open</span></span>
+          <span><b>edge_policy default = mirror</b>, <b>skew range ±60°</b> — these ARE locked (plan.md:20-21,36; T1 verdicts accepted all 33 defaults 2026-07-03).<span class="tag-locked">locked</span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2><span class="k">Non-goals — visible so nobody builds them by accident</span></h2>
+<div class="panelbox">
+  <div class="rules">
+    <span><b>util.corner_pin</b> (4-point homography / free-distort) — separate device, separate future change. The dimmed "⌘-drag corner" row above is its territory, not this gizmo's.</span>
+    <span><b>util.mesh_warp</b> (N×M grid warp, pose-keyframes) — v2, separate device.</span>
+    <span><b>Gesture-group lane collapsing</b> and <b>pose-morph A/B</b> — real, banked ideas in the source spec (§2) but out of scope for this surface mock; they live in PK.5, not the gizmo/param-panel/edge-policy surfaces shown here.</span>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+const gz=document.getElementById('gizmoCv'), gctx=gz.getContext('2d');
+const W=gz.width, H=gz.height, CX=W/2, CY=H/2, HW=110, HH=76;
+const HANDLE=14, HALF=HANDLE/2, ROT_OFF=26;
+
+let state={x:0,y:0,sx:1,sy:1,rot:0,skx:0,sky:0,ax:0,ay:0};
+let mods={shift:false,alt:false,meta:false};
+let edgePolicy='mirror', edgeLevel='black', customColor=[143,125,255];
+let scaleLinked=true;
+
+/* ---------- source test-pattern: quadrants + orientation dot (top-left) ---------- */
+function sampleSrc(lx,ly){
+  // lx,ly in [-HW,HW]x[-HH,HH]
+  const left=lx<0, top=ly<0;
+  let r,g,b;
+  if(top&&left){r=35;g=50;b=55;}         // teal, ~50% blended toward --cx-surface-0 — TL (orientation quadrant)
+  else if(top&&!left){r=45;g=55;b=35;}   // acid, blended toward --cx-surface-0 — TR
+  else if(!top&&left){r=45;g=40;b=60;}   // mod violet, blended toward --cx-surface-0 — BL
+  else {r=50;g=45;b=30;}                 // amber, blended toward --cx-surface-0 — BR
+  // orientation dot near top-left corner, inset
+  const ddx=lx-(-HW+22), ddy=ly-(-HH+18);
+  if(ddx*ddx+ddy*ddy<10*10){r=231;g=231;b=236;}
+  // thin border
+  const edge=6;
+  if(Math.abs(lx+HW)<edge||Math.abs(lx-HW)<edge||Math.abs(ly+HH)<edge||Math.abs(ly-HH)<edge){r=g=b=18;}
+  return [r,g,b,255];
+}
+function wrap(v,mn,mx){const rg=mx-mn;return mn+(((v-mn)%rg)+rg)%rg;}
+function reflect(v,mn,mx){const rg=mx-mn;let v2=(((v-mn)%(2*rg))+2*rg)%(2*rg);return v2>rg? mn+(2*rg-v2): mn+v2;}
+function clamp(v,mn,mx){return Math.max(mn,Math.min(mx,v));}
+function constColor(){
+  if(edgeLevel==='transparent')return [0,0,0,0];
+  if(edgeLevel==='black')return [0,0,0,255];
+  if(edgeLevel==='white')return [255,255,255,255];
+  return [customColor[0],customColor[1],customColor[2],255];
+}
+
+/* forward affine: screen = R(rot) * Shear(skx,sky) * Scale(sx,sy) * local + (center+T) */
+function buildMatrix(sx,sy,skx,sky,rot){
+  const tkx=Math.tan(skx*Math.PI/180), tky=Math.tan(sky*Math.PI/180);
+  const A00=sx, A01=sy*tkx, A10=sx*tky, A11=sy;
+  const rad=rot*Math.PI/180, cos=Math.cos(rad), sin=Math.sin(rad);
+  return {
+    B00:cos*A00-sin*A10, B01:cos*A01-sin*A11,
+    B10:sin*A00+cos*A10, B11:sin*A01+cos*A11
+  };
+}
+function fwd(M,lx,ly,tx,ty){ return [M.B00*lx+M.B01*ly+tx, M.B10*lx+M.B11*ly+ty]; }
+
+function renderFrame(ctx,w,h,cx,cy,hw,hh,st,policy,level,custom){
+  const img=ctx.createImageData(w,h), data=img.data;
+  const M=buildMatrix(st.sx,st.sy,st.skx,st.sky,st.rot);
+  const det=M.B00*M.B11-M.B01*M.B10;
+  const iB00=M.B11/det, iB01=-M.B01/det, iB10=-M.B10/det, iB11=M.B00/det;
+  const Tx=cx+st.x, Ty=cy+st.y;
+  const savedLevel=edgeLevel, savedCustom=customColor;
+  edgeLevel=level; customColor=custom;
+  for(let Y=0;Y<h;Y++){
+    for(let X=0;X<w;X++){
+      const dx=X-Tx, dy=Y-Ty;
+      let lx=iB00*dx+iB01*dy, ly=iB10*dx+iB11*dy;
+      const outside=(lx<-hw||lx>hw||ly<-hh||ly>hh);
+      let c;
+      if(outside){
+        if(policy==='constant'){ c=constColor(); }
+        else {
+          let sxo=lx, syo=ly;
+          if(policy==='extend'){ sxo=clamp(lx,-hw,hw); syo=clamp(ly,-hh,hh); }
+          else if(policy==='tile'){ sxo=wrap(lx,-hw,hw); syo=wrap(ly,-hh,hh); }
+          else { sxo=reflect(lx,-hw,hw); syo=reflect(ly,-hh,hh); }
+          c=sampleSrc(sxo,syo);
+        }
+      } else { c=sampleSrc(lx,ly); }
+      const i=(Y*w+X)*4;
+      data[i]=c[0]; data[i+1]=c[1]; data[i+2]=c[2]; data[i+3]=c[3];
+    }
+  }
+  edgeLevel=savedLevel; customColor=savedCustom;
+  ctx.putImageData(img,0,0);
+}
+
+/* ---------- corner/edge handle geometry via same affine, local coords ---------- */
+function localToScreen(lx,ly){
+  const M=buildMatrix(state.sx,state.sy,state.skx,state.sky,state.rot);
+  const [X,Y]=fwd(M,lx,ly,CX+state.x,CY+state.y);
+  return {x:X,y:Y};
+}
+function corners(){
+  return {
+    tl:localToScreen(-HW,-HH), tr:localToScreen(HW,-HH),
+    bl:localToScreen(-HW,HH),  br:localToScreen(HW,HH),
+    t:localToScreen(0,-HH), b:localToScreen(0,HH),
+    l:localToScreen(-HW,0), r:localToScreen(HW,0),
+    rotHandle:localToScreen(0,-HH-ROT_OFF)
+  };
+}
+function anchorScreen(){ return {x:CX+state.x+state.ax, y:CY+state.y+state.ay}; }
+
+let hoverHandle=null, dragHandle=null, dragStart=null, stateStart=null;
+
+function draw(){
+  renderFrame(gctx,W,H,CX,CY,HW,HH,state,edgePolicy,edgeLevel,customColor);
+  const c=corners();
+  gctx.save();
+  gctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--gz-existing').trim()||'#4ade80';
+  gctx.setLineDash([5,3]); gctx.lineWidth=1.5;
+  gctx.beginPath();
+  gctx.moveTo(c.tl.x,c.tl.y); gctx.lineTo(c.tr.x,c.tr.y); gctx.lineTo(c.br.x,c.br.y); gctx.lineTo(c.bl.x,c.bl.y); gctx.closePath();
+  gctx.stroke();
+  gctx.setLineDash([]);
+  // rotate handle stalk
+  gctx.beginPath(); gctx.moveTo(c.t.x,c.t.y); gctx.lineTo(c.rotHandle.x,c.rotHandle.y); gctx.stroke();
+  gctx.beginPath(); gctx.arc(c.rotHandle.x,c.rotHandle.y,6,0,7);
+  gctx.fillStyle='#1a1a1a'; gctx.fill(); gctx.lineWidth=1.5; gctx.stroke();
+
+  // corner + edge handles
+  const skewCapable={t:1,b:1,l:1,r:1};
+  ['tl','tr','bl','br','t','b','l','r'].forEach(id=>{
+    const p=c[id];
+    const isEdge=!!skewCapable[id];
+    const showSkewColor=isEdge&&(mods.meta||dragHandle===id&&mods.meta)&&(hoverHandle===id||dragHandle===id);
+    gctx.fillStyle= (dragHandle===id||hoverHandle===id) && isEdge && mods.meta ? '#8F7DFF' : '#4ade80';
+    gctx.strokeStyle='#1a1a1a'; gctx.lineWidth=1;
+    gctx.fillRect(p.x-HALF,p.y-HALF,HANDLE,HANDLE);
+    gctx.strokeRect(p.x-HALF,p.y-HALF,HANDLE,HANDLE);
+  });
+
+  // anchor crosshair (only when nonzero, matches real component)
+  if(state.ax!==0||state.ay!==0){
+    const a=anchorScreen();
+    gctx.strokeStyle='#ef4444'; gctx.lineWidth=1.5;
+    gctx.beginPath(); gctx.moveTo(a.x-8,a.y); gctx.lineTo(a.x+8,a.y); gctx.moveTo(a.x,a.y-8); gctx.lineTo(a.x,a.y+8); gctx.stroke();
+  } else {
+    gctx.strokeStyle='rgba(74,222,128,.5)'; gctx.lineWidth=1;
+    gctx.beginPath(); gctx.moveTo(CX+state.x-6,CY+state.y); gctx.lineTo(CX+state.x+6,CY+state.y);
+    gctx.moveTo(CX+state.x,CY+state.y-6); gctx.lineTo(CX+state.x,CY+state.y+6); gctx.stroke();
+  }
+  gctx.restore();
+  syncPanel();
+  updateMatrixReadout();
+}
+
+function updateMatrixReadout(){
+  const M=buildMatrix(state.sx,state.sy,state.skx,state.sky,state.rot);
+  const det=M.B00*M.B11-M.B01*M.B10;
+  const el=document.getElementById('matrixReadout');
+  if(el) el.textContent='matrix: B00='+M.B00.toFixed(2)+' B01='+M.B01.toFixed(2)+' B10='+M.B10.toFixed(2)+' B11='+M.B11.toFixed(2)+' · det='+det.toFixed(2);
+}
+
+/* ---------- mid-skew-drag snapshot inset: frozen 2nd state, ⌘-held + violet handle ---------- */
+(function drawSkewSnapshot(){
+  const snapCv=document.getElementById('skewSnapshotCv');
+  if(!snapCv) return;
+  const sctx=snapCv.getContext('2d');
+  const SW=snapCv.width, SH=snapCv.height, SCX=SW/2, SCY=SH/2, SHW=42, SHH=30;
+  const snapState={x:0,y:0,sx:1,sy:1,rot:0,skx:-18,sky:0,ax:0,ay:0};
+  renderFrame(sctx,SW,SH,SCX,SCY,SHW,SHH,snapState,'mirror','black',[143,125,255]);
+  function snapLocalToScreen(lx,ly){
+    const M=buildMatrix(snapState.sx,snapState.sy,snapState.skx,snapState.sky,snapState.rot);
+    const [X,Y]=fwd(M,lx,ly,SCX+snapState.x,SCY+snapState.y);
+    return {x:X,y:Y};
+  }
+  const sc={tl:snapLocalToScreen(-SHW,-SHH),tr:snapLocalToScreen(SHW,-SHH),bl:snapLocalToScreen(-SHW,SHH),br:snapLocalToScreen(SHW,SHH),
+    t:snapLocalToScreen(0,-SHH),b:snapLocalToScreen(0,SHH),l:snapLocalToScreen(-SHW,0),r:snapLocalToScreen(SHW,0)};
+  sctx.save();
+  sctx.strokeStyle='#4ade80'; sctx.setLineDash([4,2]); sctx.lineWidth=1.2;
+  sctx.beginPath();
+  sctx.moveTo(sc.tl.x,sc.tl.y); sctx.lineTo(sc.tr.x,sc.tr.y); sctx.lineTo(sc.br.x,sc.br.y); sctx.lineTo(sc.bl.x,sc.bl.y); sctx.closePath();
+  sctx.stroke();
+  sctx.setLineDash([]);
+  const SHANDLE=9, SHALF=SHANDLE/2;
+  ['tl','tr','bl','br','t','b','l'].forEach(id=>{
+    const p=sc[id];
+    sctx.fillStyle='#4ade80'; sctx.strokeStyle='#1a1a1a'; sctx.lineWidth=1;
+    sctx.fillRect(p.x-SHALF,p.y-SHALF,SHANDLE,SHANDLE);
+    sctx.strokeRect(p.x-SHALF,p.y-SHALF,SHANDLE,SHANDLE);
+  });
+  // right edge handle = the one mid ⌘-drag → violet, matching --gz-skew-new
+  const rp=sc.r;
+  sctx.fillStyle='#8F7DFF';
+  sctx.fillRect(rp.x-SHALF,rp.y-SHALF,SHANDLE,SHANDLE);
+  sctx.strokeRect(rp.x-SHALF,rp.y-SHALF,SHANDLE,SHANDLE);
+  sctx.restore();
+})();
+
+function hitTest(mx,my){
+  const c=corners();
+  const order=['rotHandle','tl','tr','bl','br','t','b','l','r'];
+  for(const id of order){
+    const p=c[id];
+    if(Math.abs(mx-p.x)<=HALF+3 && Math.abs(my-p.y)<=HALF+3) return id==='rotHandle'?'rotate':id;
+  }
+  // inside box (move zone) — approximate with bounding rect of corners
+  const xs=[c.tl.x,c.tr.x,c.bl.x,c.br.x], ys=[c.tl.y,c.tr.y,c.bl.y,c.br.y];
+  if(mx>=Math.min(...xs)&&mx<=Math.max(...xs)&&my>=Math.min(...ys)&&my<=Math.max(...ys)) return 'move';
+  return null;
+}
+
+function cvPos(ev){
+  const r=gz.getBoundingClientRect();
+  return { x:(ev.clientX-r.left)*(W/r.width), y:(ev.clientY-r.top)*(H/r.height) };
+}
+
+const CORNER_SIGN={tl:[-1,-1],tr:[1,-1],bl:[-1,1],br:[1,1]};
+const EDGE_AXIS={t:'y',b:'y',l:'x',r:'x'};
+const EDGE_SIGN={t:-1,b:1,l:-1,r:1};
+
+gz.addEventListener('mousemove',(ev)=>{
+  const p=cvPos(ev);
+  if(dragHandle){
+    const dx=p.x-dragStart.x, dy=p.y-dragStart.y;
+    applyDrag(dragHandle,dx,dy,ev);
+    draw();
+    return;
+  }
+  const h=hitTest(p.x,p.y);
+  if(h!==hoverHandle){ hoverHandle=h; draw(); }
+  gz.style.cursor = h==='move'?'move': h==='rotate'?'grab' : h? (mods.meta && EDGE_AXIS[h] ? 'crosshair' : (h==='t'||h==='b'?'ns-resize':h==='l'||h==='r'?'ew-resize':'nwse-resize')) : 'default';
+  updateInspector(h);
+});
+gz.addEventListener('mouseleave',()=>{ if(!dragHandle){hoverHandle=null; draw(); updateInspector(null);} });
+
+gz.addEventListener('mousedown',(ev)=>{
+  const p=cvPos(ev);
+  const h=hitTest(p.x,p.y);
+  if(!h) return;
+  dragHandle = (EDGE_AXIS[h] && mods.meta) ? 'skew-'+h : h;
+  dragStart=p; stateStart={...state};
+});
+window.addEventListener('mouseup',()=>{ dragHandle=null; });
+
+gz.addEventListener('dblclick',(ev)=>{
+  const p=cvPos(ev);
+  const h=hitTest(p.x,p.y);
+  if(!h) return;
+  if(h==='rotate'){ state.rot=0; }
+  else if(h==='move'){ state.x=0; state.y=0; }
+  else if(CORNER_SIGN[h]){ state.sx=1; state.sy=1; }
+  else if(EDGE_AXIS[h]){
+    if(EDGE_AXIS[h]==='x'){ state.sx=1; state.skx=0; } else { state.sy=1; state.sky=0; }
+  }
+  draw();
+});
+
+function applyDrag(handle,dx,dy,ev){
+  const skew=handle.indexOf('skew-')===0;
+  const id=skew?handle.slice(5):handle;
+  if(id==='move'){
+    if(ev.shiftKey){ if(Math.abs(dx)>Math.abs(dy)) state.x=stateStart.x+dx; else state.y=stateStart.y+dy; }
+    else { state.x=stateStart.x+dx; state.y=stateStart.y+dy; }
+    return;
+  }
+  if(id==='rotate'){
+    const start=Math.atan2(dragStart.y-(CY+stateStart.y), dragStart.x-(CX+stateStart.x));
+    const cur=Math.atan2(dragStart.y+dy-(CY+stateStart.y), dragStart.x+dx-(CX+stateStart.x));
+    let deg=((cur-start)*180/Math.PI);
+    let rot=stateStart.rot+deg;
+    if(ev.shiftKey) rot=Math.round(rot/15)*15;
+    state.rot=rot;
+    return;
+  }
+  if(CORNER_SIGN[id]){
+    const [sgX,sgY]=CORNER_SIGN[id];
+    let newSx=Math.max(0.15, stateStart.sx + sgX*dx/HW);
+    let newSy=Math.max(0.15, stateStart.sy + sgY*dy/HH);
+    if(ev.shiftKey){ const u=Math.max(newSx,newSy); newSx=u; newSy=u; }
+    state.sx=newSx; state.sy=newSy;
+    if(scaleLinked && !ev.shiftKey){ const u=(newSx+newSy)/2; state.sx=u; state.sy=u; }
+    return;
+  }
+  if(EDGE_AXIS[id]){
+    if(skew){
+      if(id==='t'||id==='b'){ state.skx=clamp(stateStart.skx + dx*0.4, -60,60); }
+      else { state.sky=clamp(stateStart.sky + dy*0.4, -60,60); }
+    } else {
+      const sg=EDGE_SIGN[id];
+      if(EDGE_AXIS[id]==='x'){ state.sx=Math.max(0.15, stateStart.sx + sg*dx/HW); if(scaleLinked) state.sy=state.sx; }
+      else { state.sy=Math.max(0.15, stateStart.sy + sg*dy/HH); if(scaleLinked) state.sx=state.sy; }
+    }
+  }
+}
+
+function updateInspector(h){
+  const insp=document.getElementById('inspector');
+  if(!h){ insp.textContent='hover a handle or a callout below — details land here, never over the canvas'; insp.classList.remove('live'); return; }
+  const labels={move:'move zone — drag to translate x/y (⇧ constrains to dominant axis)',
+    rotate:'rotate handle — drag to rotate (⇧ snaps 15°)',
+    tl:'corner — scale x+y (⇧ aspect lock, ⌥ pivot from anchor)', tr:'corner — scale x+y (⇧ aspect lock, ⌥ pivot from anchor)',
+    bl:'corner — scale x+y (⇧ aspect lock, ⌥ pivot from anchor)', br:'corner — scale x+y (⇧ aspect lock, ⌥ pivot from anchor)',
+    t:mods.meta?'⌘ held → drag = skew_x':'edge — scale_y (⌘+drag = skew_x)',
+    b:mods.meta?'⌘ held → drag = skew_x':'edge — scale_y (⌘+drag = skew_x)',
+    l:mods.meta?'⌘ held → drag = skew_y':'edge — scale_x (⌘+drag = skew_y)',
+    r:mods.meta?'⌘ held → drag = skew_y':'edge — scale_x (⌘+drag = skew_y)'};
+  insp.textContent=labels[h]||h; insp.classList.add('live');
+}
+
+/* ---------- modifier keys ---------- */
+function setMods(ev){
+  mods.shift=ev.shiftKey; mods.alt=ev.altKey; mods.meta=ev.metaKey||ev.ctrlKey;
+  const badge=document.getElementById('modBadges');
+  const held=[]; if(mods.shift)held.push('⇧ Shift'); if(mods.alt)held.push('⌥ Option'); if(mods.meta)held.push('⌘ Cmd');
+  badge.innerHTML = held.length? '<b>'+held.join(' + ')+' held</b>' : '<b>no modifier held</b>';
+  document.querySelectorAll('.cheat').forEach(c=>{
+    const m=c.dataset.mod;
+    let on=false;
+    if(m==='shift-corner'||m==='shift-rotate'||m==='shift-move') on=mods.shift;
+    else if(m==='option') on=mods.alt;
+    else if(m==='cmd') on=mods.meta;
+    c.classList.toggle('on', on && !c.classList.contains('nongoal'));
+  });
+  draw();
+}
+window.addEventListener('keydown',setMods);
+window.addEventListener('keyup',setMods);
+window.addEventListener('blur',()=>{ mods={shift:false,alt:false,meta:false}; setMods({shiftKey:false,altKey:false,ctrlKey:false,metaKey:false}); });
+
+/* ---------- edge-policy picker ---------- */
+document.querySelectorAll('.ep-card').forEach(card=>{
+  const cv=card.querySelector('canvas'), cctx=cv.getContext('2d');
+  const demoState={x:8,y:-6,sx:0.62,sy:0.62,rot:14,skx:8,sky:0,ax:0,ay:0};
+  renderFrame(cctx,cv.width,cv.height,cv.width/2,cv.height/2,cv.width*0.32,cv.height*0.32,demoState,card.dataset.ep,edgeLevel,customColor);
+  card.addEventListener('click',()=>{
+    document.querySelectorAll('.ep-card').forEach(x=>x.classList.remove('sel'));
+    card.classList.add('sel');
+    edgePolicy=card.dataset.ep;
+    document.getElementById('epLevels').classList.toggle('show', edgePolicy==='constant');
+    document.getElementById('epPickedLabel').textContent=edgePolicy;
+    draw();
+  });
+});
+document.querySelectorAll('.lvl-btn').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.lvl-btn').forEach(x=>x.setAttribute('aria-pressed','false'));
+  b.setAttribute('aria-pressed','true');
+  edgeLevel=b.dataset.lvl;
+  draw();
+}));
+document.getElementById('customColorInput').addEventListener('input',(e)=>{
+  const hex=e.target.value;
+  customColor=[parseInt(hex.slice(1,3),16),parseInt(hex.slice(3,5),16),parseInt(hex.slice(5,7),16)];
+  document.getElementById('customSwatch').style.background=hex;
+  document.querySelectorAll('.lvl-btn').forEach(x=>x.setAttribute('aria-pressed', x.dataset.lvl==='custom'?'true':'false'));
+  edgeLevel='custom';
+  draw();
+});
+
+/* ---------- device param panel rows (bidirectional w/ gizmo state) ---------- */
+const rows={};
+document.querySelectorAll('.prow[data-param]').forEach(row=>{
+  const key=row.dataset.param;
+  const min=parseFloat(row.dataset.min), max=parseFloat(row.dataset.max), def=parseFloat(row.dataset.default);
+  const unit=row.dataset.unit;
+  rows[key]={row,min,max,def,unit,track:row.querySelector('.prow__track'),fill:row.querySelector('.prow__fill'),thumb:row.querySelector('.prow__thumb'),val:row.querySelector('.prow__value')};
+  function setFromClientX(clientX){
+    const r=rows[key].track.getBoundingClientRect();
+    const f=clamp((clientX-r.left)/r.width,0,1);
+    const v=min+f*(max-min);
+    writeState(key,v);
+    draw();
+  }
+  row.querySelector('.prow__track').addEventListener('mousedown',(e)=>{
+    setFromClientX(e.clientX);
+    const move=(ev)=>setFromClientX(ev.clientX);
+    const up=()=>{ window.removeEventListener('mousemove',move); window.removeEventListener('mouseup',up); };
+    window.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+  });
+  row.querySelector('.prow__track').addEventListener('dblclick',()=>{ writeState(key,def); draw(); });
+  row.querySelector('.prow__value').addEventListener('dblclick',()=>{ writeState(key,def); draw(); });
+});
+const KEYMAP={x:'x',y:'y',scale_x:'sx',scale_y:'sy',rotation:'rot',anchor_x:'ax',anchor_y:'ay',skew_x:'skx',skew_y:'sky'};
+function writeState(key,v){
+  state[KEYMAP[key]]=v;
+  if(scaleLinked && (key==='scale_x')) state.sy=v;
+  if(scaleLinked && (key==='scale_y')) state.sx=v;
+}
+document.getElementById('linkScale').addEventListener('click',(e)=>{
+  scaleLinked=!scaleLinked;
+  e.target.setAttribute('aria-pressed',String(scaleLinked));
+  if(scaleLinked){ state.sy=state.sx; draw(); }
+});
+function syncPanel(){
+  const map={x:state.x,y:state.y,scale_x:state.sx,scale_y:state.sy,rotation:state.rot,anchor_x:state.ax,anchor_y:state.ay,skew_x:state.skx,skew_y:state.sky};
+  Object.keys(map).forEach(key=>{
+    const r=rows[key]; if(!r) return;
+    const v=map[key];
+    const f=clamp((v-r.min)/(r.max-r.min),0,1);
+    r.fill.style.width=(f*100)+'%';
+    r.thumb.style.left=(f*100)+'%';
+    let display = (r.unit==='deg')? Math.round(v)+'°' : (r.unit==='px')? Math.round(v)+' px' : v.toFixed(2);
+    r.val.textContent=display;
+  });
+}
+
+/* ---------- callout ↔ canvas cross-highlight ---------- */
+document.querySelectorAll('.callout[data-target]').forEach(c=>{
+  c.addEventListener('mouseenter',()=>{ c.classList.add('hot'); });
+  c.addEventListener('mouseleave',()=>{ c.classList.remove('hot'); });
+});
+
+draw();
+})();
+</script>

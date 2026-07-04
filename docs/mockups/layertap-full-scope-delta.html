@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>layertap-matte-v1 — full-scope delta</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:var(--cx-bg-app,#1a1a1a);--panel:var(--cx-bg-panel,#1E1E21);--panel2:var(--cx-bg-raised,#242428);
+  --panel3:var(--cx-bg-hover,#2b2b30);
+  --line:var(--cx-line-1,rgba(235,235,230,.12));--line2:var(--cx-line-2,rgba(235,235,230,.24));
+  --fg:var(--cx-text-1,#D9D6CE);--dim:var(--cx-text-2,rgba(217,214,206,.55));--dim3:var(--cx-text-3,rgba(217,214,206,.38));
+  --mask:var(--cx-automation-active,#4ade80);--field:var(--cx-mod,#9b7bb5);--scalar:var(--cx-warn,#f59e0b);
+  --feed:var(--cx-danger-text,#ef4444);--accent:var(--cx-action,#4ade80);
+  --mono:var(--cx-font-mono,'JetBrains Mono','SF Mono',Menlo,monospace);
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:13px;line-height:1.55;margin:0;padding:0 0 90px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 22px}
+header{border-bottom:1px solid var(--line);padding:34px 0 22px;margin-bottom:30px}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim)}
+h1{font-size:19px;font-weight:500;letter-spacing:.02em;margin:8px 0 10px;text-wrap:balance}
+h1 b{color:var(--mask);font-weight:500}
+.thesis{max-width:70ch;color:var(--dim);font-size:12px}
+.thesis b{color:var(--fg);font-weight:500}
+.deltatag{display:inline-flex;align-items:center;gap:6px;font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  padding:4px 10px;border:1px dashed var(--field);color:var(--field);border-radius:99px;margin-top:12px}
+h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim);font-weight:500;
+  border-top:1px solid var(--line);padding-top:18px;margin:44px 0 6px;display:flex;align-items:center;gap:10px}
+h2 .k{color:var(--fg)}
+.sub{font-size:11.5px;color:var(--dim);max-width:76ch;margin:0 0 16px}
+.sub b{color:var(--fg);font-weight:500}
+.sub code{background:var(--panel2);border-radius:3px;padding:0 4px;color:var(--field)}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:10.5px;margin:10px 0 4px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dotc{width:9px;height:9px;border-radius:2px;display:inline-block}
+.panelbox{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;position:relative;overflow:clip}
+.panelbox h3{font-size:10px;letter-spacing:.18em;text-transform:uppercase;margin:0 0 3px;font-weight:500}
+.panelbox .where{font-size:9.5px;color:var(--dim);margin-bottom:12px}
+.hint{font-size:9.5px;color:var(--dim);margin-top:10px;border-top:1px solid var(--line);padding-top:8px}
+kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:10px}
+
+/* ---------- callout badge (numbered, tied to packet id) ---------- */
+.co{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;
+  background:var(--field);color:#141416;font-size:9px;font-weight:700;flex:none;cursor:default;
+  box-shadow:0 0 0 2px rgba(0,0,0,.25)}
+.conote{display:flex;align-items:flex-start;gap:8px;font-size:9.5px;color:var(--dim);margin-top:8px;max-width:64ch}
+.conote b{color:var(--fg);font-weight:500}
+.conote .pk{color:var(--field)}
+
+/* ---------- chip (idiom copied verbatim from routing mock v3) ---------- */
+.chip{display:inline-flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);
+  border-radius:6px;padding:4px 9px 4px 5px;cursor:pointer;user-select:none;position:relative;vertical-align:middle;
+  transition:border-color .15s,box-shadow .15s}
+.chip:hover{border-color:var(--line2)}
+.chip.mask{border-color:rgba(74,222,128,.4)}
+.chip:focus-visible{outline:2px solid var(--mask);outline-offset:2px}
+.chip canvas{width:22px;height:22px;border-radius:3px;background:#000 url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%224%22 height=%224%22><rect width=%224%22 height=%224%22 fill=%22%23151515%22/><rect width=%222%22 height=%222%22 fill=%22%231e1e1e%22/><rect x=%222%22 y=%222%22 width=%222%22 height=%222%22 fill=%22%231e1e1e%22/></svg>') repeat;background-size:4px 4px;display:block;image-rendering:pixelated}
+.chip .cname{font-size:11px;letter-spacing:.03em}
+.chip .ext{font-size:9px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+/* stage dot: THE core visual of this delta — hollow=pre, filled=post */
+.stagedot{width:8px;height:8px;border-radius:50%;flex:none;border:1.5px solid var(--mask);background:transparent;
+  transition:background .12s}
+.stagedot.post{background:var(--mask)}
+.chip.error{border:1px dashed var(--feed)}
+.chip.error .cname{color:var(--feed)}
+.chip.error canvas{opacity:.35;filter:grayscale(1)}
+
+/* ---------- device/tray idiom (copied from routing mock) ---------- */
+.device{background:var(--panel2);border:1px solid var(--line);border-radius:8px;overflow:clip}
+.dhead{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.dhead .dname{font-size:11.5px;letter-spacing:.04em}
+.dhead .pill{font-size:9px;padding:2px 8px;border-radius:99px;background:rgba(74,222,128,.14);color:var(--mask)}
+.mspanel-hd{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--line);background:var(--panel3)}
+.mspanel-hd .t{font-size:10px;letter-spacing:.16em;text-transform:uppercase}
+.mspanel-hd .clip{font-size:10px;color:var(--dim)}
+.addlayer{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--field);background:none;
+  border:1px dashed var(--field);border-radius:6px;padding:5px 10px;cursor:pointer;display:flex;align-items:center;gap:6px}
+.addlayer:hover{background:rgba(155,123,181,.1)}
+.nodecard{border-bottom:1px solid var(--line);padding:10px 12px}
+.nodecard:last-child{border-bottom:none}
+.nodecard.dim{opacity:.42}
+.nc-row1{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.nc-row1 .kind{font-size:9px;color:var(--dim);letter-spacing:.08em;text-transform:uppercase;width:52px;flex:none}
+.stagebtns{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:clip;margin-left:2px}
+.stagebtns button{font-family:var(--mono);font-size:9px;padding:4px 8px;background:none;color:var(--dim);
+  border:none;cursor:pointer;letter-spacing:.04em}
+.stagebtns button[aria-pressed="true"]{background:var(--mask);color:#111}
+.readtrig{font-family:var(--mono);font-size:9.5px;background:var(--panel3);color:var(--fg);border:1px solid var(--line);
+  border-radius:6px;padding:5px 10px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.readtrig:hover{border-color:var(--line2)}
+.readtrig .car{color:var(--dim);font-size:8px}
+.errtoggle{margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--dim);background:none;
+  border:1px dashed var(--line);border-radius:5px;padding:3px 8px;cursor:pointer}
+.errtoggle:hover{color:var(--feed);border-color:var(--feed)}
+.errtoggle[aria-pressed="true"]{color:var(--feed);border-color:var(--feed);background:rgba(239,68,68,.08)}
+.ministrip{display:flex;gap:14px;align-items:center;margin-top:9px;font-size:9.5px;color:var(--dim);flex-wrap:wrap}
+.ministrip label{display:flex;align-items:center;gap:5px}
+.ministrip input[type=range]{width:56px;accent-color:var(--mask);height:12px}
+
+/* ---------- error banner ---------- */
+.errbanner{display:none;margin-top:9px;font-size:9.5px;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.4);
+  color:var(--feed);border-radius:6px;padding:8px 10px;align-items:center;gap:8px}
+.errbanner.show{display:flex}
+.errbanner .fill5{font-family:var(--mono);background:rgba(0,0,0,.3);padding:1px 6px;border-radius:3px;color:var(--fg)}
+
+/* ---------- read dropdown: full 9-value grid ---------- */
+.readpop{display:none;margin-top:10px;background:var(--panel3);border:1px solid var(--line2);border-radius:8px;padding:12px}
+.readpop.open{display:block}
+.readgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+@media(max-width:760px){.readgrid{grid-template-columns:repeat(2,1fr)}}
+.readopt{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;
+  padding:6px 8px;cursor:pointer;text-align:left;font-family:var(--mono);color:var(--fg)}
+.readopt:hover{border-color:var(--line2)}
+.readopt[aria-pressed="true"]{border-color:var(--mask);background:rgba(74,222,128,.1)}
+.readopt canvas{width:26px;height:26px;border-radius:4px;background:#000 url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%224%22 height=%224%22><rect width=%224%22 height=%224%22 fill=%22%23151515%22/><rect width=%222%22 height=%222%22 fill=%22%231e1e1e%22/><rect x=%222%22 y=%222%22 width=%222%22 height=%222%22 fill=%22%231e1e1e%22/></svg>') repeat;background-size:4px 4px;flex:none;image-rendering:pixelated}
+.readopt .rn{font-size:10px}
+.readopt .rd{font-size:8.5px;color:var(--dim);display:block}
+.subctl{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
+.subctl .lbl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:7px}
+.huerow{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:10px}
+.huerow input[type=range]{flex:1;accent-color:var(--field)}
+.aibtn{font-family:var(--mono);font-size:10px;background:var(--panel2);color:var(--fg);border:1px solid var(--field);
+  border-radius:6px;padding:7px 12px;cursor:pointer}
+.aibtn:hover{background:rgba(155,123,181,.12)}
+.aibtn[data-state="loading"]{color:var(--dim);border-color:var(--line);cursor:wait}
+.aibtn[data-state="done"]{border-color:var(--mask);color:var(--mask)}
+
+/* ---------- hover-audition picker ---------- */
+.picker{margin-top:12px;background:var(--panel3);border:1px solid var(--line2);border-radius:8px;padding:12px;display:none}
+.picker.open{display:block}
+.picker .lbl{font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+.picklist{display:grid;gap:4px}
+.pickrow{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+.pickrow:hover,.pickrow.hoverActive{background:var(--panel2);border-color:var(--line)}
+.pickrow .tn{font-size:10.5px;flex:1}
+.pickrow .deb{font-size:8.5px;color:var(--field);opacity:0;transition:opacity .1s}
+.pickrow.hoverActive .deb{opacity:1}
+.selftap{opacity:.35;cursor:not-allowed;position:relative}
+.selftap .tn{text-decoration:line-through}
+.selftap .excl{font-size:8.5px;color:var(--dim);margin-left:auto}
+.previewslot{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
+.previewslot canvas{width:44px;height:44px;border-radius:6px;background:#000 url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%224%22 height=%224%22><rect width=%224%22 height=%224%22 fill=%22%23151515%22/><rect width=%222%22 height=%222%22 fill=%22%231e1e1e%22/><rect x=%222%22 y=%222%22 width=%222%22 height=%222%22 fill=%22%231e1e1e%22/></svg>') repeat;background-size:4px 4px;image-rendering:pixelated}
+.previewslot .pv-txt{font-size:9.5px;color:var(--dim)}
+.previewslot .pv-txt b{color:var(--fg);font-weight:500;display:block;font-size:10.5px;margin-bottom:2px}
+.debounce-led{width:6px;height:6px;border-radius:50%;background:var(--line2);display:inline-block;transition:background .1s}
+.debounce-led.live{background:var(--field);box-shadow:0 0 6px var(--field)}
+
+.rules{font-size:10.5px;color:var(--dim);display:grid;gap:8px;margin-top:14px;max-width:78ch}
+.rules b{color:var(--fg);font-weight:500}
+.rules .pk{color:var(--field);font-size:9px;letter-spacing:.06em}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+
+/* page is intentionally locked to the dark theme regardless of OS setting (color-scheme:dark on :root,
+   plus no light override below) — v12 parity: body copy never has to survive a light background swap. */
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Creatrix · layertap-matte-v1 · DELTA sheet · full-scope T1 override · 2026-07-04</div>
+  <h1>Same chip idiom. Two real stages, nine real reads. <b>Nothing about the tray changes shape.</b></h1>
+  <p class="thesis">This sheet extends <b>the v12 routing mock</b> (creatrix-routing-mock.html) for the T1 scope
+    override: OD-1/OD-3's "smallest slice" defaults are overridden — v1 ships <b>stage: pre AND post</b> (both real,
+    not display-only) and the <b>full 9-value read taxonomy</b>. It does not redesign the chip, the tray, or the
+    mask-stack panel — it shows what those idioms render once the stage dot is a real toggle and the read tag opens
+    onto nine options instead of five. Every numbered callout <span class="co" style="background:var(--field)">#</span>
+    below cites the packet that ships it.</p>
+  <span class="deltatag">◆ delta — extends v12, not a redesign</span>
+  <div class="legend">
+    <span><i class="dotc" style="background:var(--mask)"></i>mask (this node's type)</span>
+    <span><i class="dotc" style="background:var(--field)"></i>callout / new-surface accent</span>
+    <span><i class="dotc" style="background:var(--feed);border-radius:50%"></i>error / source-missing</span>
+    <span><span class="stagedot" style="margin:0 2px"></span>pre (hollow)</span>
+    <span><span class="stagedot post" style="margin:0 2px"></span>post (filled)</span>
+  </div>
+</header>
+
+<h2><span class="co">1</span><span class="k">Stage dot</span> — one dot, two real meanings</h2>
+<p class="sub">§9.2, quoted verbatim in plan.md: <b>pre</b> = the source's decoded frame BEFORE its device chain.
+  <b>post</b> = the source's frame AFTER <code>apply_chain</code> including its own mask stack — the track's
+  finished contribution as it would enter the compositor. Under the original OD-1 default this dot was
+  <b>display-only</b> (v1 only ever read pre). Under the T1 override it is a <b>real, clickable toggle</b> — flipping
+  it changes what PK.2/PK.3's evaluator actually reads, not just a label.</p>
+<div class="panelbox">
+  <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start">
+    <div>
+      <span class="chip mask" id="stageDemoChip" tabindex="0" role="button" aria-label="toggle stage">
+        <canvas class="thumb" width="22" height="22"></canvas>
+        <span class="stagedot" id="stageDemoDot"></span>
+        <span class="cname">A2 · drums-cam</span><span class="ext" id="stageDemoExt">pre · luma</span>
+      </span>
+      <div class="conote"><span class="co">1</span><span><b>click the chip</b> to flip stage — hollow dot = pre
+        (thumbnail = raw decode), filled dot = post (thumbnail visibly shifts, simulating "after A2's own device
+        chain ran"). <span class="pk">PK.8</span> — real stage TOGGLE replacing the old display-only dot.</span></div>
+    </div>
+    <div style="max-width:340px;font-size:10px;color:var(--dim)">
+      <b style="color:var(--fg)">why this matters:</b> a tap on A2 in <b style="color:var(--fg)">post</b> mode sees
+      A2 <i>after</i> its own invert/datamosh/whatever ran — genuinely different pixels than <b style="color:var(--fg)">pre</b>.
+      This is why post needed its own packet (PK.3, VERY HIGH risk): resolving it means running part of A2's
+      device chain <i>early</i>, in dependency order, sharing A2's own state slot so a stateful device never
+      fires twice in one frame.
+    </div>
+  </div>
+</div>
+
+<h2><span class="co">2</span><span class="k">The From-layer node, in its tray</span> — mask stack panel, in context</h2>
+<p class="sub">Rooted in <code>MaskStackPanel.tsx</code>'s real layout (code ground truth #10): the panel lists
+  existing nodes top to bottom, header carries the "+ From layer…" entry point. Below is a clip's mask stack
+  with one ordinary node (dimmed, for context) and one <code>'layer'</code> tap node — the subject of every
+  section that follows.</p>
+<div class="panelbox" style="padding:0;overflow:visible">
+  <div class="mspanel-hd">
+    <span class="t">mask stack</span><span class="clip">— clip: B2 · grain</span>
+    <button class="addlayer" id="addLayerBtn"><span class="co" style="background:var(--field)">5</span>+ from layer…</button>
+  </div>
+  <div class="nodecard dim">
+    <div class="nc-row1">
+      <span class="kind">rect</span>
+      <span class="chip"><canvas width="22" height="22" style="background:#1a1a1a"></canvas><span class="cname">rect_1</span><span class="ext">add · feather 8</span></span>
+      <span style="font-size:9px;color:var(--dim);margin-left:6px">existing static node — unaffected by this change, shown for context</span>
+    </div>
+  </div>
+  <div class="nodecard" id="layerNode">
+    <div class="nc-row1">
+      <span class="kind">layer</span>
+      <span class="chip mask" id="mainChip">
+        <canvas class="thumb" width="22" height="22"></canvas>
+        <span class="stagedot" id="mainDot"></span>
+        <span class="cname" id="mainName">A2 · drums-cam</span>
+        <span class="ext" id="mainExt">pre · luma</span>
+      </span>
+      <span class="stagebtns" id="mainStageBtns">
+        <button aria-pressed="true" data-s="pre">PRE</button>
+        <button aria-pressed="false" data-s="post">POST</button>
+      </span>
+      <button class="readtrig" id="readTrig">read: <b id="readTrigLabel">luma</b><span class="car">▾</span></button>
+      <button class="errtoggle" id="errToggle" aria-pressed="false">simulate: delete source</button>
+    </div>
+    <div class="ministrip">
+      <label>gain <input type="range" min="-4" max="4" step="0.1" value="1" id="gainR"><output id="gainO">1.0</output></label>
+      <label>gamma <input type="range" min="0.2" max="4" step="0.1" value="1" id="gammaR"><output id="gammaO">1.0</output></label>
+      <label><input type="checkbox" id="invertCk">invert</label>
+      <span style="color:var(--dim3)">op: add · feather 0 — MK.1 node fields, unchanged by this change</span>
+    </div>
+    <div class="errbanner" id="errBanner">
+      ⚠ layer tap source unavailable — degraded to <span class="fill5">flat 0.5</span>, no crash · toast fires once
+      (rate-limited, source-keyed per this repo's Toast Conventions)
+    </div>
+
+    <!-- ============ READ DROPDOWN: full 9-value grid ============ -->
+    <div class="readpop open" id="readPop">
+      <div class="conote" style="margin-top:0;margin-bottom:10px"><span class="co">2</span><span>
+        <b>full 9-value taxonomy</b> replaces OD-3's 5-value narrowing. <span class="pk">PK.4</span> luma/R/G/B/alpha ·
+        <span class="pk">PK.5</span> motion/edges · <span class="pk">PK.6</span> colorkey · <span class="pk">PK.7</span> ai_person.</span></div>
+      <div class="readgrid" id="readGrid"></div>
+      <div class="hint" style="margin-top:8px">grid shown pre-opened above — all 9 real values, one <code>&lt;canvas&gt;</code> preview
+        each, driven by the same procedural signal the chip thumbnails use. Both sub-controls below are pinned open
+        <i>simultaneously</i> as a reference (in-product only the selected read's sub-control shows).</div>
+
+      <div class="subctl" id="colorkeyCtl">
+        <div class="conote" style="margin-top:0;margin-bottom:8px"><span class="co">3</span><span>
+          <b>colorkey mini-params</b> — Δhue / softness, default <b>60°</b> (T1-specified, verbatim).
+          <span class="pk">PK.6</span> — reuses <code>key_kernels._hue_distance_deg</code>, not reimplemented.</span></div>
+        <div class="huerow"><span style="width:56px;color:var(--dim)">hue</span><input type="range" min="0" max="360" value="120" id="hueR"><output id="hueO" style="width:34px">120°</output></div>
+        <div class="huerow"><span style="width:56px;color:var(--dim)">softness</span><input type="range" min="1" max="180" value="60" id="softR"><output id="softO" style="width:34px">60°</output></div>
+      </div>
+
+      <div class="subctl" id="aiCtl">
+        <div class="conote" style="margin-top:0;margin-bottom:8px"><span class="co">4</span><span>
+          <b>ai_person</b> — delegates VERBATIM to the <code>ai_matte</code> bake/cache pathway, generalized to an
+          arbitrary tapped track. <span class="pk">PK.7</span> — <code>generateAiMattePreviewForTrack(sourceTrackId)</code>,
+          zero duplication of the jail-check/reader-cache logic.</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="aibtn" id="aiGenBtn" data-state="idle">generate matte from A2…</button>
+          <button class="aibtn" data-state="loading" disabled style="pointer-events:none">baking matte…</button>
+          <button class="aibtn" data-state="done" disabled style="pointer-events:none">✓ matte generated from A2</button>
+        </div>
+        <div class="hint" style="border-top:none;padding-top:4px;margin-top:6px">left button is live (click it) —
+          the two beside it are static idle/loading/done snapshots so all three button states render at once.</div>
+        <span style="font-size:9px;color:var(--dim);margin-left:8px" id="aiStatus"></span>
+      </div>
+    </div>
+
+    <!-- ============ HOVER-AUDITION PICKER ============ -->
+    <div class="picker open" id="picker">
+      <div class="conote" style="margin-top:0;margin-bottom:10px;max-width:none"><b style="color:var(--fg)">shown pre-opened for this sheet</b>
+        — in-product this panel only appears after clicking "+ from layer…"; it is expanded here (and one
+        candidate row is pinned in its hovered/previewing state below) purely so callouts <span class="co">5</span>
+        and <span class="co">6</span> have a real rendered target instead of pointing at a collapsed button.</div>
+      <div class="previewslot">
+        <canvas id="pvCanvas" width="44" height="44"></canvas>
+        <div class="pv-txt"><b id="pvTrack">A2 · drums-cam</b><span id="pvSub">audition: luma · pre · ~150ms debounced decode</span></div>
+        <span class="debounce-led live" id="debLed" style="margin-left:auto" title="debounce indicator"></span>
+      </div>
+      <div class="conote" style="margin-top:0;margin-bottom:10px"><span class="co">6</span><span>
+        <b>own track excluded</b> — B2 (this clip's track) never appears as a candidate. <span class="pk">OD-5</span>,
+        UI-level restriction only; a hand-edited self-tap still degrades gracefully at eval time (no crash).</span></div>
+      <div class="lbl">+ from layer… — pick a source track</div>
+      <div class="picklist" id="pickList"></div>
+      <div class="conote"><span class="co">5</span><span>
+        <b>hover-audition</b> — debounced ~150ms fresh decode of the candidate at the current playhead frame, downscaled
+        to thumbnail res. Not a continuous background cache (that's v1.5's job once FieldKind needs live per-pixel
+        reads every frame anyway). <span class="pk">OD-4 · PK.8</span></span></div>
+    </div>
+  </div>
+  <div class="nodecard" id="layerNodePost" style="border-top:1px dashed var(--line2)">
+    <div class="nc-row1">
+      <span class="kind">layer</span>
+      <span class="chip mask">
+        <canvas class="thumb postThumb" width="22" height="22"></canvas>
+        <span class="stagedot post"></span>
+        <span class="cname">A2 · drums-cam</span><span class="ext">post · luma</span>
+      </span>
+      <span class="stagebtns"><button aria-pressed="false">PRE</button><button aria-pressed="true">POST</button></span>
+      <span style="font-size:9px;color:var(--dim)">static second render — same node, stage flipped</span>
+    </div>
+    <div class="conote" style="margin-top:8px"><span class="co">1</span><span>
+      <b>second snapshot of the same row, dot filled</b> — pinned here (not just hover-toggleable above) so the
+      pre/post <i>pixel</i> difference is visible side by side in one screenshot: the thumbnail is drawn from a
+      shifted sample of the same procedural signal to stand in for "after A2's own device chain ran."
+      <span class="pk">§9.2 · PK.8</span></span></div>
+  </div>
+</div>
+
+<h2><span class="co">7</span><span class="k">Error state</span> — source deleted, flat-0.5, never a crash</h2>
+<p class="sub">§9.1's trust-boundary rule, quoted verbatim in plan.md: <b>missing track_id → flat-0.5 rule</b>.
+  Click <b>"simulate: delete source"</b> in the tray above — the chip flips to a red-dashed border, the thumbnail
+  desaturates, and a rate-limited toast-shaped banner explains the degrade. This is a <b>derived check</b>
+  (<code>!tracks.some(t =&gt; t.id === node.params.track_id)</code>), never a stored flag — undo restores instantly
+  because there's no state to roll back, only a lookup that starts succeeding again.</p>
+<div class="panelbox">
+  <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center">
+    <span class="chip" style="border:1px dashed var(--feed)">
+      <canvas class="thumb errsample" width="22" height="22" style="opacity:.35;filter:grayscale(1)"></canvas>
+      <span class="stagedot" style="border-color:var(--feed)"></span>
+      <span class="cname" style="color:var(--feed)">A2 — track missing</span>
+      <span class="ext" style="color:var(--feed)">flat 0.5</span>
+    </span>
+    <div style="font-size:10px;color:var(--dim);max-width:420px">
+      backend: <code>evaluate_layer_tap</code> resolves an unknown <code>track_id</code> to a uniform 0.5 field —
+      <span class="pk" style="color:var(--field)">PK.1</span> schema accepts the node even with a missing id,
+      <span class="pk" style="color:var(--field)">PK.2/PK.3</span> own the flat-0.5 evaluator behavior for pre/post
+      alike. frontend: the chip's error styling and the toast are both <span class="pk" style="color:var(--field)">PK.8</span>.
+    </div>
+  </div>
+</div>
+
+<h2><span class="k">Duplicate-source confirmation</span> — tapping a track already tapped elsewhere in the stack</h2>
+<p class="sub">Per this repo's <code>Toast Conventions</code> (rate-limited, source-keyed): picking a track that another
+  node in the <i>same</i> mask stack already taps doesn't block the action — it confirms it, once, then proceeds.
+  Not a new packet; this is <span class="pk">PK.8</span> reusing the existing toast store's <code>warning</code>
+  tier (6s auto-dismiss) with a source key of <code>duplicate_layer_tap:&lt;track_id&gt;</code> so re-tapping the
+  same track twice in a row doesn't spam two toasts.</p>
+<div class="panelbox">
+  <div class="errbanner show" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.4);color:var(--scalar)">
+    ⚠ <b style="color:var(--scalar)">A2 · drums-cam</b> is already tapped by <span class="fill5" style="color:var(--fg)">rect_1</span>
+    in this stack — added anyway (duplicate taps are allowed, just flagged) · toast fires once per source, rate-limited
+  </div>
+  <div class="hint">this is a <code>warning</code>-tier toast (auto-dismiss 6s), not an <code>error</code> — duplicate
+    taps are a legal, if unusual, authoring choice (e.g. reading luma from A2 in one node and colorkey from A2 in
+    another), so the UI informs rather than confirms/blocks.</div>
+</div>
+
+<h2><span class="k">Callout index</span> — every numbered chip above, tied to its packet</h2>
+<div class="panelbox" style="font-size:11px">
+  <div class="rules">
+    <span><span class="co">1</span> <b>Stage dot is a real toggle</b> — hollow=pre / filled=post, both meaningfully
+      acted on by the evaluator (not display-only). <span class="pk">§9.2 · PK.8</span></span>
+    <span><span class="co">2</span> <b>Read dropdown carries the full 9-value taxonomy</b> — luma·R·G·B·alpha·
+      motion·edges·colorkey·ai_person, up from OD-3's 5-value narrowing. <span class="pk">§9.4 · PK.4/PK.5/PK.6/PK.7</span></span>
+    <span><span class="co">3</span> <b>colorkey</b> shows its own mini-params (hue dial, softness slider,
+      default 60°) inline under the dropdown — no separate dialog. <span class="pk">PK.6</span></span>
+    <span><span class="co">4</span> <b>ai_person</b> shows a "generate matte" trigger, not a live field — this read
+      needs an offline bake against the SOURCE track's asset before it has anything to show.
+      <span class="pk">PK.7</span></span>
+    <span><span class="co">5</span> <b>"+ From layer…" opens a hover-audition picker</b> — hovering a candidate
+      previews the resulting matte via a debounced (~150ms) fresh decode, before any node is committed.
+      <span class="pk">OD-4 · PK.8</span></span>
+    <span><span class="co">6</span> <b>Self-tap excluded</b> — the clip's own track never appears in the picker's
+      candidate list (UI-level only; a hand-edited self-tap still degrades gracefully, never crashes).
+      <span class="pk">OD-5 · PK.8</span></span>
+    <span><span class="co">7</span> <b>Source-deleted → red-dashed chip + flat-0.5</b> — a derived check, not a
+      stored flag; undo needs no special-case because there's nothing to roll back. <span class="pk">§9.1 · PK.2/PK.3/PK.8</span></span>
+  </div>
+</div>
+
+<h2><span class="k">Explicitly out of scope</span> — this delta does not draw these</h2>
+<div class="panelbox" style="font-size:10.5px;color:var(--dim)">
+  <div class="rules" style="font-size:10.5px">
+    <span>Route inspector / on-canvas transform gizmo / edge-policy UI — <code>transform</code>/<code>edge_policy</code>
+      ship at identity/<code>"black"</code> defaults, not user-editable in v1 (proposal.md non-goals, untouched by T1).</span>
+    <span><code>FieldKind: 'layer'</code> (live per-pixel param drive) and the matrix <code>'layer_tap'</code> operator —
+      v1.5/v2, not this change.</span>
+    <span><code>paint</code> source — v2, not reopened by T1.</span>
+  </div>
+</div>
+
+</div>
+
+<script>
+(function(){
+const rm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+let T=0;
+
+/* ---------- shared procedural "signal" (same blob concept as v12) ---------- */
+function blob(t,phase){phase=phase||0;return{bx:.5+Math.sin(t*.05+phase)*.24,by:.5+Math.cos(t*.037+phase)*.2,r:.28+Math.sin(t*.09+phase)*.06}}
+
+const READS=[
+ {k:'luma',n:'luma',d:'BT.601 weighted'},
+ {k:'r',n:'R',d:'red channel'},
+ {k:'g',n:'G',d:'green channel'},
+ {k:'b',n:'B',d:'blue channel'},
+ {k:'alpha',n:'alpha',d:'1.0 if none'},
+ {k:'motion',n:'motion',d:'Δ vs prev, half-res'},
+ {k:'edges',n:'edges',d:'Sobel magnitude'},
+ {k:'colorkey',n:'colorkey',d:'Δhue / softness'},
+ {k:'ai_person',n:'ai_person',d:'ai_matte pathway'},
+];
+
+function drawRead(ctx,w,h,kind,t){
+  const{bx,by,r}=blob(t);
+  const im=ctx.createImageData(w,h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=(y*w+x)*4;
+    const d=Math.hypot(x/w-bx,y/h-by),n=(Math.sin(x*1.7+t*.2)+Math.cos(y*2.1-t*.13))*r*.14;
+    const inside=(d+n<r);
+    let R=0,G=0,B=0,A=255;
+    if(kind==='luma'){const v=inside?235:14;R=G=B=v}
+    else if(kind==='r'){R=inside?235:8;G=B=inside?40:8}
+    else if(kind==='g'){G=inside?235:8;R=B=inside?40:8}
+    else if(kind==='b'){B=inside?235:8;R=G=inside?40:8}
+    else if(kind==='alpha'){
+      const chk=((Math.floor(x/4)+Math.floor(y/4))%2===0)?60:30;R=G=B=chk}
+    else if(kind==='motion'){
+      const d2=Math.hypot(x/w-(bx+.06*Math.sin(t*.1)),y/h-(by+.04*Math.cos(t*.08)))-r;
+      const v=Math.abs(d2)<.05?220:20;R=G=B=v}
+    else if(kind==='edges'){
+      const band=Math.abs(d-r);const v=band<.025?235:10;R=G=B=v}
+    else if(kind==='colorkey'){
+      const falloff=Math.max(0,1-d*2.2);R=40+falloff*40;G=160+falloff*75;B=60}
+    else if(kind==='ai_person'){
+      const v=inside?230:6;R=v*0.55;G=v*0.7;B=v}
+    else{R=G=B=inside?235:12}
+    im.data[i]=R;im.data[i+1]=G;im.data[i+2]=B;im.data[i+3]=A}
+  ctx.putImageData(im,0,0)}
+
+function drawErr(ctx,w,h){
+  ctx.fillStyle='#151515';ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle='#4a1f1f';ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(4,4);ctx.lineTo(w-4,h-4);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(w-4,4);ctx.lineTo(4,h-4);ctx.stroke();}
+
+/* ============ Section 1: stage demo chip ============ */
+let s1post=false;
+const stageDemoChip=document.getElementById('stageDemoChip'),stageDemoDot=document.getElementById('stageDemoDot'),stageDemoExt=document.getElementById('stageDemoExt');
+function toggleS1(){s1post=!s1post;stageDemoDot.classList.toggle('post',s1post);stageDemoExt.textContent=(s1post?'post':'pre')+' · luma'}
+stageDemoChip.addEventListener('click',toggleS1);
+stageDemoChip.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleS1()}});
+
+/* ============ Section 2: the mask-stack node ============ */
+let mainPost=false,mainRead='luma',mainErr=false;
+const mainDot=document.getElementById('mainDot'),mainExt=document.getElementById('mainExt'),mainName=document.getElementById('mainName');
+const mainChip=document.getElementById('mainChip'),mainStageBtns=document.getElementById('mainStageBtns');
+function syncMain(){
+  mainDot.classList.toggle('post',mainPost);
+  mainExt.textContent=(mainPost?'post':'pre')+' · '+mainRead;
+  mainStageBtns.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', (b.dataset.s==='post')===mainPost));
+  mainChip.classList.toggle('error',mainErr);
+  document.getElementById('errBanner').classList.toggle('show',mainErr);
+  mainName.textContent = mainErr ? 'A2 — track missing' : 'A2 · drums-cam';
+}
+mainStageBtns.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  mainPost=(b.dataset.s==='post');syncMain();
+});
+document.getElementById('errToggle').addEventListener('click',function(){
+  mainErr=!mainErr;this.setAttribute('aria-pressed',mainErr);syncMain();
+});
+
+/* ---------- read dropdown ---------- */
+const readTrig=document.getElementById('readTrig'),readPop=document.getElementById('readPop'),readGrid=document.getElementById('readGrid');
+const colorkeyCtl=document.getElementById('colorkeyCtl'),aiCtl=document.getElementById('aiCtl');
+READS.forEach(r=>{
+  const b=document.createElement('button');
+  b.className='readopt';b.type='button';b.dataset.k=r.k;b.setAttribute('aria-pressed',r.k===mainRead);
+  b.innerHTML=`<canvas width="26" height="26"></canvas><span><span class="rn">${r.n}</span><span class="rd">${r.d}</span></span>`;
+  b.addEventListener('click',()=>{
+    mainRead=r.k;
+    readGrid.querySelectorAll('.readopt').forEach(x=>x.setAttribute('aria-pressed', x===b));
+    document.getElementById('readTrigLabel').textContent=r.n;
+    colorkeyCtl.style.display=(r.k==='colorkey')?'block':'none';
+    aiCtl.style.display=(r.k==='ai_person')?'block':'none';
+    syncMain();
+  });
+  readGrid.appendChild(b);
+});
+readTrig.addEventListener('click',()=>readPop.classList.toggle('open'));
+
+/* colorkey mini-params */
+const hueR=document.getElementById('hueR'),hueO=document.getElementById('hueO'),softR=document.getElementById('softR'),softO=document.getElementById('softO');
+hueR.addEventListener('input',()=>hueO.textContent=hueR.value+'°');
+softR.addEventListener('input',()=>softO.textContent=softR.value+'°');
+
+/* ai_person generate button */
+const aiGenBtn=document.getElementById('aiGenBtn'),aiStatus=document.getElementById('aiStatus');
+aiGenBtn.addEventListener('click',function(){
+  if(this.dataset.state==='loading')return;
+  this.dataset.state='loading';this.textContent='baking matte…';aiStatus.textContent='mask_ai_generate → mask_ai_status (polling)';
+  setTimeout(()=>{
+    this.dataset.state='done';this.textContent='✓ matte generated from A2';
+    aiStatus.textContent='updateMatteNode(read_params.matte_path) — not addAiMatteNode';
+  },1400);
+});
+
+/* gain/gamma sliders */
+document.getElementById('gainR').addEventListener('input',e=>document.getElementById('gainO').textContent=(+e.target.value).toFixed(1));
+document.getElementById('gammaR').addEventListener('input',e=>document.getElementById('gammaO').textContent=(+e.target.value).toFixed(1));
+
+/* ---------- hover-audition picker ---------- */
+const addLayerBtn=document.getElementById('addLayerBtn'),picker=document.getElementById('picker');
+const pickList=document.getElementById('pickList');
+const TRACKS=[
+  {id:'A1',n:'A1 · vhs-noise'},
+  {id:'A2',n:'A2 · drums-cam'},
+  {id:'C1',n:'C1 · crowd'},
+  {id:'D1',n:'D1 · text-overlay'},
+  {id:'B2',n:'B2 · grain', self:true},
+];
+TRACKS.forEach(tr=>{
+  const row=document.createElement('div');
+  const pinned=(tr.id==='A2'); // pinned as the illustrative "already hovered" candidate — see picker conote above
+  row.className='pickrow'+(tr.self?' selftap':'')+(pinned?' hoverActive':'');
+  if(tr.self){
+    row.innerHTML=`<span class="tn">${tr.n}</span><span class="excl">excluded — this is B2's own track</span>`;
+  }else{
+    row.innerHTML=`<span class="tn">${tr.n}</span><span class="deb">${pinned?'previewing':'debouncing…'}</span>`;
+    let deb=null;
+    row.addEventListener('mouseenter',()=>{
+      row.classList.add('hoverActive');
+      const led=document.getElementById('debLed');led.classList.remove('live');
+      clearTimeout(deb);
+      deb=setTimeout(()=>{
+        led.classList.add('live');
+        document.getElementById('pvTrack').textContent=tr.n;
+        document.getElementById('pvSub').textContent='audition: '+mainRead+' · pre · ~150ms debounced decode';
+        row.querySelector('.deb').textContent='previewing';
+      },150);
+    });
+    row.addEventListener('mouseleave',()=>{
+      row.classList.remove('hoverActive');clearTimeout(deb);
+      document.getElementById('debLed').classList.remove('live');
+      row.querySelector('.deb').textContent='debouncing…';
+    });
+  }
+  pickList.appendChild(row);
+});
+addLayerBtn.addEventListener('click',()=>{
+  picker.classList.toggle('open');
+  if(picker.classList.contains('open'))readPop.classList.remove('open');
+});
+readTrig.addEventListener('click',()=>picker.classList.remove('open'));
+
+syncMain();
+
+/* ---------- animation loop: all live thumbnails ---------- */
+function frame(){
+  T++;
+  document.querySelectorAll('.chip.mask .thumb, .chip .thumb:not(.errsample)').forEach(c=>{
+    if(c.classList.contains('errsample'))return;
+    // postThumb gets a time-shifted sample of the same signal, standing in for "after A2's own chain ran"
+    drawRead(c.getContext('2d'),c.width,c.height,'luma',c.classList.contains('postThumb')?T+40:T);
+  });
+  readGrid.querySelectorAll('.readopt').forEach(b=>{
+    const c=b.querySelector('canvas');drawRead(c.getContext('2d'),c.width,c.height,b.dataset.k,T);
+  });
+  document.querySelectorAll('.errsample').forEach(c=>drawErr(c.getContext('2d'),c.width,c.height));
+  const pv=document.getElementById('pvCanvas');if(pv)drawRead(pv.getContext('2d'),pv.width,pv.height,mainRead,T);
+  if(!rm)requestAnimationFrame(frame);
+}
+/* synchronous first paint (before the rAF loop schedules subsequent frames) so every thumb
+   canvas has real pixel content on the very first render pass, never an empty/broken square */
+frame();if(rm)setInterval(frame,400);
+})();
+</script>
+</body>
+</html>
