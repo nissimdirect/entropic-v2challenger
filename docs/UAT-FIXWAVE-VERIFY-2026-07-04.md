@@ -49,3 +49,13 @@ real click on a video-track R also fails to arm, the drag-zone is stealing the R
 arm-R/lock reachable · ✅ E-1 overlap gone · ✅ X272-1 Field control present. #439 mask-draw fix
 e2e-validated (not synthetic-CU-observable). #437 transport icons present. The fix-wave is solid;
 the two P1s the user prioritized (rail + render stability) work live.
+
+## New-effects gap (#427) — live render CONFIRMED
+- **Copy Machine (#368)** searchable ("copy") + adds to chain + **RENDERS live**: preview transforms
+  to photocopy-degradation (high-contrast B/W, ASCII-cell texture). Params exposed: ASCII Cell 6px,
+  Generation 12, Feedback 0.88, Machine (dropdown), Color Mode. Effects count 1→2. Not
+  invisible-at-defaults (clearly visible). Closes the "does it render" half of #427 for the family
+  (the #442 PR adds the automated render+parity oracles).
+- **BONUS #431 stress-confirm:** Copy Machine renders at ~443ms/frame (heavy) with **zero timeout /
+  empty-chain / socket-busy errors** in console. This is exactly the scenario that flooded 114 errors
+  pre-fix — #431 holds even under a slow effect. Strong confirmation.
