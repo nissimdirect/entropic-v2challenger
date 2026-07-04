@@ -48,7 +48,7 @@
 }
 
 .device-chain__title {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--cx-text-3);
   text-transform: uppercase;
@@ -61,7 +61,7 @@
 .device-chain__context {
   margin-left: 8px;
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--cx-mod);
   background: var(--cx-mod-wash);
@@ -77,12 +77,12 @@
 }
 
 .device-chain__depth {
-  font-size: 10px;
+  font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
 
 .device-chain__timing {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -121,7 +121,7 @@
   border: 1px solid var(--cx-line-1);
   border-radius: 2px;
   color: var(--cx-text-3);
-  font-size: 8px;
+  font-size: 11px;
   font-weight: 600;
   font-family: 'JetBrains Mono', monospace;
   cursor: pointer;
@@ -214,7 +214,7 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__name {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--cx-text-1);
   flex: 1;
@@ -227,13 +227,15 @@ body[data-disable-f-0512-30] .device-card {
  * ::before padding hit-extender (gap = 5px top/bottom, 1px sides). */
 .device-card__toggle {
   position: relative;
-  width: 22px;
-  height: 14px;
+  /* Widened 22->24 / 14->16 to fit "OFF" at the 11px readability floor
+     (was 7px) without clipping. */
+  width: 24px;
+  height: 16px;
   background: var(--cx-action);
   border: none;
   border-radius: 2px;
   color: var(--cx-surface-0);
-  font-size: 7px;
+  font-size: 11px;
   font-weight: 700;
   font-family: 'JetBrains Mono', monospace;
   cursor: pointer;
@@ -283,15 +285,17 @@ body[data-disable-f-0512-30] .device-card {
 
 .device-card__cc-badge {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  font-size: 7px;
+  top: -3px;
+  right: -3px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--cx-action);
   background: rgba(74, 222, 128, 0.15);
   border: 1px solid rgba(74, 222, 128, 0.3);
   border-radius: 2px;
-  padding: 0 2px;
+  /* Padding bumped 0/2px->1px/3px alongside the 11px floor bump (was 7px)
+     so the "CC" text isn't flush against the badge edge. */
+  padding: 1px 3px;
   line-height: 1.2;
 }
 
@@ -322,7 +326,7 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__mix-label {
-  font-size: 8px;
+  font-size: 11px;
   color: var(--cx-text-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -357,10 +361,11 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__mix-value {
-  font-size: 9px;
+  font-size: 11px;
   color: var(--cx-text-3);
   font-variant-numeric: tabular-nums;
-  min-width: 24px;
+  /* Widened 24->30 alongside the 11px floor bump (was 9px) so "100%" doesn't clip. */
+  min-width: 30px;
   text-align: right;
   flex-shrink: 0;
 }
@@ -376,7 +381,7 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__mask-label {
-  font-size: 8px;
+  font-size: 11px;
   color: var(--cx-text-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -386,7 +391,7 @@ body[data-disable-f-0512-30] .device-card {
 .device-card__mask-select {
   flex: 1;
   min-width: 0;
-  font-size: 9px;
+  font-size: 11px;
   background: var(--cx-bg-raised);
   color: var(--cx-text-2);
   border: 1px solid var(--cx-bg-hover);
@@ -401,7 +406,7 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__mask-invert {
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.5px;
   background: var(--cx-bg-raised);
   color: var(--cx-text-3);
@@ -427,7 +432,7 @@ body[data-disable-f-0512-30] .device-card {
 .device-card__field-assign {
   margin-top: 2px;
   width: 100%;
-  font-size: 8px;
+  font-size: 11px;
   background: var(--cx-bg-raised);
   color: var(--cx-text-3);
   border: 1px solid var(--cx-bg-hover);
@@ -450,14 +455,14 @@ body[data-disable-f-0512-30] .device-card {
 }
 
 .device-card__param-label {
-  font-size: 8px;
+  font-size: 11px;
   color: var(--cx-text-3);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .device-card__field-badge {
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.5px;
   background: var(--cx-selection);
   color: var(--cx-bg);
@@ -473,7 +478,7 @@ body[data-disable-f-0512-30] .device-card {
 
 .device-card__field-invert,
 .device-card__field-clear {
-  font-size: 8px;
+  font-size: 11px;
   letter-spacing: 0.5px;
   background: var(--cx-bg-raised);
   color: var(--cx-text-3);
