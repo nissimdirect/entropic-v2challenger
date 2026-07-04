@@ -224,11 +224,15 @@ async function doExchange(command: Record<string, unknown>): Promise<Record<stri
     })
     return result
   } catch (err) {
-    // Discard the socket so the next exchange creates a fresh one. Safe here
-    // because the serialization lock guarantees no other exchange is mid-flight
-    // — a timed-out REQ recv leaves the socket in an unrecoverable state, so a
-    // clean recreate is the only way to keep the relay usable for the NEXT
-    // request (#429).
+    // Discard the socket so the next exchange creates a fresh one — a timed-out
+    // REQ recv leaves the socket in an unrecoverable state, and recreating it is
+    // the only way to keep the relay usable for the NEXT request (#429). The
+    // serialization lock guarantees no other EXCHANGE is mid-flight at this
+    // point, so this close cannot race a concurrent send/recv. It does NOT stop
+    // lifecycle callers (reconnectRelay, closeRelay, setRelayPort) from calling
+    // closePersistentSocket() OUTSIDE the lock — but that is not a data race
+    // either: an in-flight exchange simply observes the socket vanish and
+    // self-heals by recreating it on the next call.
     closePersistentSocket()
     return {
       id: command.id as string,
