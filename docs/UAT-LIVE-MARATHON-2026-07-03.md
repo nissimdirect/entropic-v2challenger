@@ -85,3 +85,32 @@ effect is enough to trigger it — not a heavy-load edge case. The 10.6h-uptime 
 (reproduces at 155s uptime). Root-cause area: the playback render-request loop (App.tsx:1741/1749)
 needs send-serialization / in-flight-request gating on the ZMQ socket. This likely also explains
 the frame-0 "Socket is closed" (UAT-1) — same single-socket concurrency seam.
+
+## SYSTEMIC METHOD FINDING (2026-07-04) — synthetic CU pointer events don't trigger drag-drop/canvas-draw
+Across 4 independent attempts, computer-use SYNTHETIC pointer events failed to trigger this app's
+drag-drop and canvas-draw handlers:
+1. Instrument placement — `left_click_drag` onto a track did nothing; the app's own hint said
+   "double-click to add" (double-click worked). Drag path did not.
+2. Mask draw (F-2) — marquee-rect tool active, but neither synthetic drag nor manual
+   down/move/up produced marching-ants.
+3. Automation breakpoint drag (#393) — couldn't reach the marquee-select-then-drag surface.
+4. K1 Master guard — dragging Sampler onto MASTER produced no instrument AND no rejection toast
+   (inconclusive: correct silent-reject, OR the drag simply didn't register — can't distinguish).
+
+**Implication for the CU-UAT method (important):** any UAT row whose interaction is drag-drop,
+freehand draw, or canvas marquee CANNOT be reliably verdicted via computer-use synthetic events —
+a PASS/FAIL there is confounded by "did the synthetic event even fire the handler." These rows
+need EITHER a real human pointer OR a test-hook / Playwright `_electron` drag (which dispatches
+real DOM pointer sequences). CU IS reliable for: clicks, menus, typing, single-frame visual
+inspection, param knobs via click-drag-on-slider (which worked — the Offset knob dragged fine),
+and reading state.
+
+**Reclassify the combined doc's rows by interaction type:** click/menu/type/inspect → CU-verifiable;
+drag-drop/freehand-draw/marquee → needs-human-or-hook. This is why the masking (Stage F) and
+drag-based automation (parts of Stage I) rows kept coming back inconclusive — not app bugs
+necessarily, a method limit. Playback-dependent rows are separately blocked by #429.
+
+### K1 (Master instrument-drop guard) — INCONCLUSIVE
+Sampler drag onto MASTER: no instrument added (correct if guard fired) but no rejection toast
+observed. Cannot distinguish "silent-reject (toast missing = UX gap)" from "drag didn't register"
+per the systemic finding above. Needs human-pointer or Playwright drag to verdict.
