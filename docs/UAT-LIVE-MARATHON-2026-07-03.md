@@ -70,3 +70,18 @@ journeys (Stage F masking, Stage I automation) become testable.
   on a fresh sidecar, it's a real per-frame budget/perf bug; if only after long uptime, it's a
   sidecar leak. Either is a P1 (silent wrong-output fallback). Needs a clean-relaunch repro.
 - Note: further CU verdicts on THIS instance are unreliable until relaunch (engine degraded).
+
+### LIVE-M3 — CONFIRMED on FRESH sidecar (uptime 155s) — NOT uptime degradation
+Repro ran: fresh relaunch → New Project → import test-video.mp4 → add Chromatic Aberration →
+press Play. Result: console floods (114 err / 86 warn) with, during playback:
+- `[Render] frame N error: Engine took too long to respond. Try removing the last effect or reducing chain length.`
+- `[Render] retrying frame N with empty chain`  ← silently drops the effect → wrong output
+- `[Render] frame N error: Engine error: Socket is busy writing; only one send operation may be in progress at any time`  ← **concurrency bug**
+- `[Render] frame N error: Engine error: Operation cannot be accomplished in current state`
+**Verdict: confirmed P1 render-stability bug.** During playback the frontend fires OVERLAPPING
+render sends on the single ZMQ socket (the "Socket is busy writing" error), the engine misses the
+per-frame timeout budget, and the fallback renders an EMPTY chain (effect silently dropped). One
+effect is enough to trigger it — not a heavy-load edge case. The 10.6h-uptime confound is REFUTED
+(reproduces at 155s uptime). Root-cause area: the playback render-request loop (App.tsx:1741/1749)
+needs send-serialization / in-flight-request gating on the ZMQ socket. This likely also explains
+the frame-0 "Socket is closed" (UAT-1) — same single-socket concurrency seam.
