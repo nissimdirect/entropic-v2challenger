@@ -102,9 +102,12 @@ code{font-family:var(--cx-font-mono);font-size:10px;background:var(--cx-bg-raise
 
 /* ---------- docked panel mockup ---------- */
 .dock-row{display:grid;grid-template-columns:1fr auto;gap:0;align-items:stretch}
-.dock-rest{background:var(--cx-surface-1);border:1px dashed var(--cx-line-2);border-radius:var(--cx-radius-card) 0 0 var(--cx-radius-card);
-  display:flex;align-items:center;justify-content:center;color:var(--cx-text-3);font-size:10px;
-  letter-spacing:.1em;text-transform:uppercase;min-height:520px}
+.dock-rest{background:
+    repeating-linear-gradient(135deg, var(--cx-surface-1) 0 8px, var(--cx-surface-2) 8px 16px);
+  border:1px dashed var(--cx-line-2);border-radius:var(--cx-radius-card) 0 0 var(--cx-radius-card);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;color:var(--cx-text-3);font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;height:180px;align-self:start}
+.dock-rest svg{opacity:.35;flex:none}
 .dock-resizer{width:6px;cursor:ew-resize;background:var(--cx-surface-2);border-top:1px solid var(--cx-line-1);
   border-bottom:1px solid var(--cx-line-1);position:relative}
 .dock-resizer::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
@@ -320,7 +323,15 @@ code{font-family:var(--cx-font-mono);font-size:10px;background:var(--cx-bg-raise
   distinct rows, never merged into one. Default sort is "% of budget" descending, offenders on top.</p>
 <div class="panelbox">
   <div class="dock-row">
-    <div class="dock-rest">rest of Creatrix workspace (canvas / timeline / inspector)</div>
+    <div class="dock-rest">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <rect x="2" y="4" width="20" height="12" rx="1.5"/>
+        <path d="M2 17h6M9 17h6M16 17h6"/>
+        <circle cx="7" cy="9" r="1.6" fill="currentColor" stroke="none"/>
+        <path d="M4 13l4-3 3 2 5-5 4 4" />
+      </svg>
+      rest of Creatrix workspace — canvas / timeline / inspector, out of scope for PK.3/PK.5
+    </div>
     <div class="dock-resizer" id="dockResizer"></div>
     <div class="mon-panel" id="monitorPanel" data-export="false">
       <div class="reconnect-banner">⟳ reconnecting to sidecar — poll paused, values shown are last-known (dimmed), never stale-live</div>
@@ -438,24 +449,26 @@ code{font-family:var(--cx-font-mono);font-size:10px;background:var(--cx-bg-raise
 <p class="sub">Menu-entry-only. No accelerator field is wired in this packet — the hotkey is a separate,
   later decision (T1 Verdicts global override). Real items above the separator are the existing
   <code>menu.ts</code> View submenu, reproduced verbatim; the highlighted row is new.</p>
-<div class="panelbox" style="max-width:280px">
-  <div class="menubar"><span>File</span><span>Edit</span><span class="open">View</span><span>Clip</span><span>Help</span></div>
-  <div class="viewmenu">
-    <div class="mi">Toggle Sidebar <span class="acc">⌘B</span></div>
-    <div class="mi">Toggle Focus Mode <span class="acc">F</span></div>
-    <div class="mi">Toggle Automation <span class="acc">A</span></div>
-    <div class="mi sep"></div>
-    <div class="mi">Zoom In <span class="acc">⌘=</span></div>
-    <div class="mi">Zoom Out <span class="acc">⌘-</span></div>
-    <div class="mi">Zoom to Fit <span class="acc">⌘0</span></div>
-    <div class="mi sep"></div>
-    <div class="mi">Toggle Quantize <span class="acc">⌘U</span></div>
-    <div class="mi sep"></div>
-    <div class="mi new">System Monitor <span class="acc" style="position:relative">
-      <span class="pin" style="position:static;display:inline-flex;margin-right:4px" title="no accelerator">⑲</span>
-    </span></div>
+<div class="panelbox">
+  <div style="max-width:280px">
+    <div class="menubar"><span>File</span><span>Edit</span><span class="open">View</span><span>Clip</span><span>Help</span></div>
+    <div class="viewmenu">
+      <div class="mi">Toggle Sidebar <span class="acc">⌘B</span></div>
+      <div class="mi">Toggle Focus Mode <span class="acc">F</span></div>
+      <div class="mi">Toggle Automation <span class="acc">A</span></div>
+      <div class="mi sep"></div>
+      <div class="mi">Zoom In <span class="acc">⌘=</span></div>
+      <div class="mi">Zoom Out <span class="acc">⌘-</span></div>
+      <div class="mi">Zoom to Fit <span class="acc">⌘0</span></div>
+      <div class="mi sep"></div>
+      <div class="mi">Toggle Quantize <span class="acc">⌘U</span></div>
+      <div class="mi sep"></div>
+      <div class="mi new">System Monitor <span class="acc" style="position:relative">
+        <span class="pin" style="position:static;display:inline-flex;margin-right:4px" title="no accelerator">⑲</span>
+      </span></div>
+    </div>
   </div>
-  <div class="anno-list">
+  <div class="anno-list" style="max-width:900px">
     <div class="anno"><b class="n">⑲</b> "System Monitor" — no <code>accelerator</code> field, matches this file's own convention ("renderer owns all keyboard dispatch"); no shortcut hint shown because none exists yet. <span class="pkid">PK.5 · T1 verdict override</span></div>
   </div>
 </div>

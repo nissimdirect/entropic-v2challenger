@@ -22,6 +22,11 @@
   /* ---- routing-type colors (locked, shared with routing-design-suite mock) ----
      mask == --cx-automation-active (same green, same token family already in tokens.css) */
   --route-mask:#4ade80; --route-field:#9b7bb5; --route-scalar:#f59e0b; --route-feedback:#ef4444;
+
+  /* ---- callout-pin color: deliberately NOT in the 4-hue routing palette above, and
+     deliberately NOT --cx-selection (purple) since that reads as the same family as
+     --route-field's purple — pins are annotation chrome, independent of wire-type color ---- */
+  --callout:#5b8dee; --callout-wash:rgba(91,141,238,.14);
 }
 *{box-sizing:border-box}
 body{background:var(--cx-surface-1);color:var(--cx-text-1);font-family:var(--cx-font-mono);
@@ -50,14 +55,15 @@ kbd{background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radi
 
 /* ---- numbered callout pin ---- */
 .pin{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;flex:none;
-  border-radius:50%;background:var(--cx-selection);color:#0B0B10;font-size:8.5px;font-weight:700;
-  line-height:1;cursor:help;position:relative;vertical-align:middle}
+  border-radius:50%;background:var(--callout);color:#0B0B10;font-size:8.5px;font-weight:700;
+  line-height:1;cursor:help;position:relative;vertical-align:middle;transition:background .12s,box-shadow .12s}
+.pin:hover,.pin:focus-visible{background:#78a3f5;box-shadow:0 0 0 4px var(--callout-wash)}
 .pin:hover .pintip,.pin:focus-visible .pintip{display:block}
 .pintip{display:none;position:absolute;left:50%;bottom:130%;transform:translateX(-50%);
-  background:#0B0B10;border:1px solid var(--cx-selection);color:var(--cx-text-1);
+  background:#0B0B10;border:1px solid var(--callout);color:var(--cx-text-1);
   padding:6px 9px;border-radius:5px;font-size:10px;white-space:nowrap;z-index:40;
   box-shadow:0 8px 24px rgba(0,0,0,.5)}
-.pintip b{color:var(--cx-selection)}
+.pintip b{color:var(--callout)}
 
 /* ---- mini app-frame context strip ---- */
 .frame-ctx{display:flex;border:1px solid var(--cx-line-1);border-radius:8px;overflow:hidden;height:150px}
@@ -72,11 +78,16 @@ kbd{background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radi
   flex-direction:column;gap:6px}
 .frame-ctx .sbfill .stub{background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:4px;
   padding:5px 7px;color:var(--cx-text-2)}
-.frame-ctx .main{flex:1;display:flex;align-items:center;justify-content:center;color:var(--cx-text-3);
-  font-size:11px;background:
-    radial-gradient(ellipse 30% 45% at 30% 55%, rgba(200,243,33,.08), transparent 70%),
-    radial-gradient(ellipse 22% 34% at 68% 38%, rgba(143,125,255,.10), transparent 70%),
-    var(--cx-surface-0)}
+.frame-ctx .main{flex:1;display:flex;flex-direction:column;justify-content:flex-end;color:var(--cx-text-3);
+  font-size:9px;background:
+    linear-gradient(var(--cx-line-1) 1px, transparent 1px) 0 0/100% 20px,
+    linear-gradient(90deg, var(--cx-line-1) 1px, transparent 1px) 0 0/20px 100%,
+    var(--cx-surface-0);position:relative;overflow:hidden}
+.frame-ctx .main .fauxchips{display:flex;gap:6px;padding:8px 10px;align-items:flex-end;flex:1}
+.frame-ctx .main .fauxchip{background:var(--cx-surface-3);border:1px solid var(--cx-line-2);border-radius:4px;
+  height:34px;flex:1;max-width:64px;opacity:.85}
+.frame-ctx .main .fauxruler{height:16px;border-top:1px solid var(--cx-line-1);background:var(--cx-surface-1);
+  display:flex;align-items:center;padding:0 8px;letter-spacing:.06em;color:var(--cx-text-3)}
 
 /* ---- library panel ---- */
 .libpanel{display:flex;gap:0;border:1px solid var(--cx-line-1);border-radius:8px;overflow:hidden;
@@ -246,6 +257,19 @@ table.calltable tr:last-child td{border-bottom:none}
 .oqlist li{margin-left:16px}
 .oqlist b{color:var(--cx-warn)}
 
+/* ---- edge-case rule list ---- */
+.edgecases{display:grid;gap:9px;font-size:10.5px;color:var(--cx-text-2)}
+.edgecases .ec-row{display:flex;gap:8px;align-items:flex-start}
+.edgecases b{color:var(--cx-text-1);font-weight:500}
+.edgecases code{color:var(--cx-text-1)}
+
+/* ---- hover-state crop ---- */
+.hovercrop{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:10px 0 4px}
+.hovercrop .cropframe{background:var(--cx-surface-3);border:1px solid var(--cx-line-2);border-radius:6px;
+  padding:14px 18px;display:flex;align-items:center;gap:10px}
+.hovercrop .cropframe .pin{background:var(--cx-selection);box-shadow:0 0 0 4px var(--cx-selection-wash)}
+.hovercrop .croplabel{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--cx-text-3)}
+
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -287,7 +311,13 @@ table.calltable tr:last-child td{border-bottom:none}
           is shown at 400px for legibility — real layout is single-column at 280px, same content.</span>
       </div>
     </div>
-    <div class="main">preview canvas · device chain · timeline (unchanged by this mock)</div>
+    <div class="main">
+      <div class="fauxchips">
+        <div class="fauxchip"></div><div class="fauxchip"></div><div class="fauxchip"></div>
+        <div class="fauxchip" style="max-width:40px"></div>
+      </div>
+      <div class="fauxruler">00:00 · 00:05 · 00:10 · 00:15 — preview canvas · device chain · timeline (unchanged by this mock)</div>
+    </div>
   </div>
   <div class="hint">No new window, no new modal, no new top-level tab — <b style="color:var(--route-mask)">UD-2</b> is a hard constraint, not a suggestion. If a future pass needs more room than 280px, that's a Lane-2/browser-tree decision, not this change's.</div>
 </div>
@@ -448,6 +478,17 @@ table.calltable tr:last-child td{border-bottom:none}
 
 <h2>Callout legend</h2>
 <div class="panelbox">
+  <p class="sub" style="margin:0 0 8px">Hover (or focus) any numbered pin and it lightens, gains a soft
+    ring, and opens a tooltip bubble with the packet id — the crop below is that exact
+    <code>:hover</code>/<code>:focus-visible</code> state, not just a caption describing it.</p>
+  <div class="hovercrop">
+    <div class="cropframe">
+      <span class="pin" style="background:#78a3f5;box-shadow:0 0 0 4px var(--callout-wash);position:relative">1
+        <span class="pintip" style="display:block;position:static;transform:none;margin-left:10px;white-space:nowrap">Pack folders = subfolders of &lt;Documents&gt;/Creatrix/Presets — <b>PK.2 · PK.3 · UD-4</b></span>
+      </span>
+    </div>
+    <span class="croplabel">← rendered <code>:hover</code> state (lightened fill · ring · tooltip open)</span>
+  </div>
   <table class="calltable">
     <tr><th></th><th>Affordance</th><th>Packet</th></tr>
     <tr><td><span class="pin">1</span></td><td>Pack folders = literal subfolders of <code>&lt;Documents&gt;/Creatrix/Presets/</code></td><td class="pk">PK.2 · PK.3 · UD-4</td></tr>
@@ -466,7 +507,50 @@ table.calltable tr:last-child td{border-bottom:none}
     <tr><td><span class="pin">14</span></td><td>Macros materialize on apply (today: captured on save, silently dropped)</td><td class="pk">PK.1</td></tr>
     <tr><td><span class="pin">15</span></td><td><code>_mix</code> wet/dry knob, title bar, existing <code>Knob.tsx</code> arc (not Knob-v3)</td><td class="pk">PK.4</td></tr>
     <tr><td><span class="pin">16</span></td><td>Edge-curve 5-option enum picker (linear default, byte-identical)</td><td class="pk">PK.5 (UD-5)</td></tr>
+    <tr><td><span class="pin">17</span></td><td>Empty search/tag results → "no matches" row, folder stays expanded (never auto-collapses to hide the empty state)</td><td class="pk">PK.2</td></tr>
+    <tr><td><span class="pin">18</span></td><td>Corrupted/unparseable <code>.glitchpreset</code> file → card renders greyed with a warning glyph, click is a no-op toast, never a silent skip</td><td class="pk">PK.2 · PK.3</td></tr>
+    <tr><td><span class="pin">19</span></td><td>Apply fails mid-transaction (device or route write throws) → the ONE undo transaction (see pin 13) rolls back atomically, chain returns to pre-apply state, error toast names the preset</td><td class="pk">PK.1 · PK.0a</td></tr>
+    <tr><td><span class="pin">20</span></td><td>Duplicate preset name on save/import → suffix <code>" (2)"</code> auto-appended, never silently overwrites an existing pack file</td><td class="pk">PK.2 · PK.3 <span class="tag q">open Q</span></td></tr>
+    <tr><td><span class="pin">21</span></td><td>Preset references a device type no longer registered (deleted/renamed effect) → device card renders as a disabled stub with "unknown effect" label, rest of the chain still applies</td><td class="pk">PK.1 <span class="tag q">open Q</span></td></tr>
+    <tr><td><span class="pin">22</span></td><td>Preset pack folder deleted/renamed on disk while app is open → library re-scans on next focus, missing folder's cards disappear (no orphaned/dangling references in the rack)</td><td class="pk">PK.2 · UD-4 <span class="tag q">open Q</span></td></tr>
   </table>
+</div>
+
+<h2>Preset library edge cases</h2>
+<div class="panelbox">
+  <div class="edgecases">
+    <div class="ec-row"><span class="pin" tabindex="0">17<span class="pintip">See legend — empty search/tag results</span></span>
+      <span><b>Rule 1 — empty search/filter:</b> if the search text + active tag chips match zero presets
+        across every folder, each affected folder shows a <code>no matches</code> row in place of its
+        card list and stays expanded (it never auto-collapses, so the user isn't left wondering whether
+        the folder disappeared or is just empty right now).</span></div>
+    <div class="ec-row"><span class="pin" tabindex="0">18<span class="pintip">See legend — corrupted preset file</span></span>
+      <span><b>Rule 2 — corrupted preset file:</b> a <code>.glitchpreset</code> that fails to parse (bad
+        JSON, missing required fields) still gets a card — greyed, with a small warning glyph in place of
+        the thumbnail — so the pack's file count stays honest. Clicking or dragging it is a no-op that
+        raises an error toast naming the file; it never silently vanishes from the list or crashes the
+        library scan for sibling presets.</span></div>
+    <div class="ec-row"><span class="pin" tabindex="0">19<span class="pintip">See legend — apply fails mid-transaction</span></span>
+      <span><b>Rule 3 — apply fails mid-transaction:</b> if any device or route write inside the single
+        undo transaction (pin 13) throws, the whole transaction rolls back — the rack returns exactly to
+        its pre-apply frame, byte-identical, and an error toast names the preset that failed. There is no
+        partial-apply state where some devices materialized and others didn't.</span></div>
+    <div class="ec-row"><span class="pin" tabindex="0">20<span class="pintip">See legend — duplicate-name collision</span></span>
+      <span><b>Rule 4 — duplicate-name collision:</b> saving or importing a preset whose name collides
+        with one already in that pack folder auto-appends <code>" (2)"</code>, <code>" (3)"</code>, etc.
+        — it never silently overwrites the existing file on disk <span class="tag q">open question</span>.</span></div>
+    <div class="ec-row"><span class="pin" tabindex="0">21<span class="pintip">See legend — unknown/deleted effect type</span></span>
+      <span><b>Rule 5 — preset references an unregistered effect:</b> if an effect type in the preset's
+        chain no longer exists (renamed or removed since the preset was authored), that device renders as
+        a disabled "unknown effect" stub instead of aborting the whole apply — every other device and
+        route in the chain still materializes normally <span class="tag q">open question</span>.</span></div>
+    <div class="ec-row"><span class="pin" tabindex="0">22<span class="pintip">See legend — pack folder removed on disk</span></span>
+      <span><b>Rule 6 — pack folder deleted/renamed on disk mid-session:</b> the library re-scans
+        <code>&lt;Documents&gt;/Creatrix/Presets/</code> on next window focus; a folder that's gone just
+        drops out of the tree. Any already-applied chain from that preset is unaffected (apply already
+        materialized ordinary devices — pin 10 — so it has no live dependency back on the source file)
+        <span class="tag q">open question</span>.</span></div>
+  </div>
 </div>
 
 <h2>Decisions this mock renders (verbatim, locked)</h2>

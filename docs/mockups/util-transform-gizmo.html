@@ -62,12 +62,20 @@ h2 .k{color:var(--cx-text-1)}
 .inspector.live{color:var(--cx-text-1)}
 
 /* ---------- canvas / gizmo stage ---------- */
-.stage-wrap{background:var(--cx-surface-0);border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-card);padding:14px;display:flex;flex-direction:column;align-items:center;gap:10px}
+.stage-wrap{background:var(--cx-surface-0);border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-card);padding:14px;display:flex;flex-direction:column;align-items:center;gap:10px;position:relative}
 canvas#gizmoCv{border-radius:6px;border:1px solid var(--cx-line-2);cursor:default;touch-action:none;
   background-image:linear-gradient(45deg,#26262e 25%,transparent 25%),linear-gradient(-45deg,#26262e 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#26262e 75%),linear-gradient(-45deg,transparent 75%,#26262e 75%);
   background-size:16px 16px;background-position:0 0,0 8px,8px -8px,-8px 0;background-color:#151519}
 .stage-hint{font-size:9.5px;color:var(--cx-text-3);max-width:520px;text-align:center}
 .stage-hint b{color:var(--cx-text-1)}
+.matrix-readout{font-size:9.5px;color:var(--cx-text-3);font-variant-numeric:tabular-nums;text-align:center}
+
+/* ---------- mid-drag skew snapshot inset (2-state comparison, see stateCoverage fix) ---------- */
+.mini-inset{position:absolute;top:24px;right:24px;background:var(--cx-surface-1);border:1px solid var(--gz-skew-new);
+  border-radius:6px;padding:6px;display:flex;flex-direction:column;align-items:center;gap:4px;box-shadow:0 4px 14px rgba(0,0,0,.5);z-index:2}
+.mini-inset canvas{border-radius:4px;border:1px solid var(--cx-line-2);display:block}
+.mini-inset .lbl{font-size:8px;color:var(--gz-skew-new);letter-spacing:.03em;text-align:center;max-width:150px}
+.mini-inset .rd{font-size:9px;color:var(--cx-text-1);font-variant-numeric:tabular-nums}
 
 /* ---------- modifier cheat strip ---------- */
 .cheat-strip{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
@@ -155,13 +163,19 @@ canned animation. The checkerboard is real alpha (Rule 1: RGBA travels together 
 <div class="panelbox">
   <div class="grid2">
     <div class="stage-wrap">
-      <canvas id="gizmoCv" width="640" height="420"></canvas>
+      <canvas id="gizmoCv" width="420" height="280"></canvas>
+      <div class="mini-inset">
+        <canvas id="skewSnapshotCv" width="150" height="100"></canvas>
+        <span class="lbl">⌘+drag edge — mid-skew (frozen 2nd state)</span>
+        <span class="rd">skew_x -18°</span>
+      </div>
       <div class="stage-hint">
         <span id="modBadges"><b>no modifier held</b></span> ·
         drag a corner = scale (aspect via <kbd>⇧</kbd>) · drag an edge = scale one axis, or <kbd>⌘</kbd>+drag = skew ·
         drag the top handle = rotate (<kbd>⇧</kbd> snaps 15°) · hold <kbd>⌥</kbd> while dragging any handle = pivot
         from the anchor instead of the opposite handle · double-click any handle = reset
       </div>
+      <div class="matrix-readout" id="matrixReadout">matrix: B00=1.00 B01=0.00 B10=0.00 B11=1.00 · det=1.00</div>
       <div class="inspector" id="inspector">hover a handle or a callout below — details land here, never over the canvas</div>
     </div>
     <div>
@@ -201,7 +215,7 @@ keydown/keyup, not a mock toggle).</p>
     <div class="cheat" data-mod="shift-rotate"><span class="led"></span><span class="txt"><kbd>⇧</kbd>-drag rotate → <b>snap 15°</b></span></div>
     <div class="cheat" data-mod="shift-move"><span class="led"></span><span class="txt"><kbd>⇧</kbd>-drag move → <b>constrain to axis</b></span></div>
     <div class="cheat" data-mod="option"><span class="led"></span><span class="txt"><kbd>⌥</kbd>-drag → <b>scale/skew from anchor</b> (center-mirrored)</span></div>
-    <div class="cheat" data-mod="cmd"><span class="led"></span><span class="txt"><kbd>⌘</kbd>-drag edge → <b>skew</b></span></div>
+    <div class="cheat on" data-mod="cmd"><span class="led"></span><span class="txt"><kbd>⌘</kbd>-drag edge → <b>skew</b></span></div>
     <div class="cheat nongoal" data-mod="cmd-corner"><span class="led"></span><span class="txt"><kbd>⌘</kbd>-drag corner → free distort <span class="tag">non-goal v1 — corner_pin</span></span></div>
     <div class="cheat" data-mod="dblclick"><span class="led"></span><span class="txt">double-click value/handle → <b>reset</b> (house convention)</span></div>
   </div>
@@ -362,10 +376,10 @@ function sampleSrc(lx,ly){
   // lx,ly in [-HW,HW]x[-HH,HH]
   const left=lx<0, top=ly<0;
   let r,g,b;
-  if(top&&left){r=90;g=150;b=170;}       // teal — TL (orientation quadrant)
-  else if(top&&!left){r=200;g=243;b=33;} // acid — TR
-  else if(!top&&left){r=143;g=125;b=255;}// mod violet — BL
-  else {r=217;g=162;b=60;}               // amber — BR
+  if(top&&left){r=35;g=50;b=55;}         // teal, ~50% blended toward --cx-surface-0 — TL (orientation quadrant)
+  else if(top&&!left){r=45;g=55;b=35;}   // acid, blended toward --cx-surface-0 — TR
+  else if(!top&&left){r=45;g=40;b=60;}   // mod violet, blended toward --cx-surface-0 — BL
+  else {r=50;g=45;b=30;}                 // amber, blended toward --cx-surface-0 — BR
   // orientation dot near top-left corner, inset
   const ddx=lx-(-HW+22), ddy=ly-(-HH+18);
   if(ddx*ddx+ddy*ddy<10*10){r=231;g=231;b=236;}
@@ -486,7 +500,51 @@ function draw(){
   }
   gctx.restore();
   syncPanel();
+  updateMatrixReadout();
 }
+
+function updateMatrixReadout(){
+  const M=buildMatrix(state.sx,state.sy,state.skx,state.sky,state.rot);
+  const det=M.B00*M.B11-M.B01*M.B10;
+  const el=document.getElementById('matrixReadout');
+  if(el) el.textContent='matrix: B00='+M.B00.toFixed(2)+' B01='+M.B01.toFixed(2)+' B10='+M.B10.toFixed(2)+' B11='+M.B11.toFixed(2)+' · det='+det.toFixed(2);
+}
+
+/* ---------- mid-skew-drag snapshot inset: frozen 2nd state, ⌘-held + violet handle ---------- */
+(function drawSkewSnapshot(){
+  const snapCv=document.getElementById('skewSnapshotCv');
+  if(!snapCv) return;
+  const sctx=snapCv.getContext('2d');
+  const SW=snapCv.width, SH=snapCv.height, SCX=SW/2, SCY=SH/2, SHW=42, SHH=30;
+  const snapState={x:0,y:0,sx:1,sy:1,rot:0,skx:-18,sky:0,ax:0,ay:0};
+  renderFrame(sctx,SW,SH,SCX,SCY,SHW,SHH,snapState,'mirror','black',[143,125,255]);
+  function snapLocalToScreen(lx,ly){
+    const M=buildMatrix(snapState.sx,snapState.sy,snapState.skx,snapState.sky,snapState.rot);
+    const [X,Y]=fwd(M,lx,ly,SCX+snapState.x,SCY+snapState.y);
+    return {x:X,y:Y};
+  }
+  const sc={tl:snapLocalToScreen(-SHW,-SHH),tr:snapLocalToScreen(SHW,-SHH),bl:snapLocalToScreen(-SHW,SHH),br:snapLocalToScreen(SHW,SHH),
+    t:snapLocalToScreen(0,-SHH),b:snapLocalToScreen(0,SHH),l:snapLocalToScreen(-SHW,0),r:snapLocalToScreen(SHW,0)};
+  sctx.save();
+  sctx.strokeStyle='#4ade80'; sctx.setLineDash([4,2]); sctx.lineWidth=1.2;
+  sctx.beginPath();
+  sctx.moveTo(sc.tl.x,sc.tl.y); sctx.lineTo(sc.tr.x,sc.tr.y); sctx.lineTo(sc.br.x,sc.br.y); sctx.lineTo(sc.bl.x,sc.bl.y); sctx.closePath();
+  sctx.stroke();
+  sctx.setLineDash([]);
+  const SHANDLE=9, SHALF=SHANDLE/2;
+  ['tl','tr','bl','br','t','b','l'].forEach(id=>{
+    const p=sc[id];
+    sctx.fillStyle='#4ade80'; sctx.strokeStyle='#1a1a1a'; sctx.lineWidth=1;
+    sctx.fillRect(p.x-SHALF,p.y-SHALF,SHANDLE,SHANDLE);
+    sctx.strokeRect(p.x-SHALF,p.y-SHALF,SHANDLE,SHANDLE);
+  });
+  // right edge handle = the one mid ⌘-drag → violet, matching --gz-skew-new
+  const rp=sc.r;
+  sctx.fillStyle='#8F7DFF';
+  sctx.fillRect(rp.x-SHALF,rp.y-SHALF,SHANDLE,SHANDLE);
+  sctx.strokeRect(rp.x-SHALF,rp.y-SHALF,SHANDLE,SHANDLE);
+  sctx.restore();
+})();
 
 function hitTest(mx,my){
   const c=corners();

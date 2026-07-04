@@ -188,6 +188,21 @@ h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-te
 
 .rules{font-size:10.5px;color:var(--cx-text-2);display:grid;gap:7px;margin-top:6px;max-width:80ch}
 .rules b{color:var(--cx-text-1);font-weight:500}
+
+/* ---------- inline callout glyph (replaces boxed pill for single-line callouts) ---------- */
+.callout-num{color:var(--cx-action);font-weight:700;margin-right:2px;cursor:default}
+.callout-num.p4{color:var(--cx-mod)}
+.callout-num.p1{color:var(--cx-warn)}
+.anatomy-note{display:flex;flex-direction:column;gap:7px;margin:10px 0 16px;max-width:82ch}
+
+/* ---------- mini-frame evidence row ---------- */
+.mini-row{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0 4px}
+.mini-frame{border:1px solid var(--cx-line-2);border-radius:6px;padding:8px;background:#0e0e10;
+  width:212px;flex:none}
+.mini-frame__stage{position:relative;background:var(--cx-bg-panel);border-radius:4px;
+  padding:8px;min-height:56px;display:flex;flex-direction:column;justify-content:center}
+.mini-frame__caption{font-size:9px;color:var(--cx-text-3);margin-top:7px;text-align:center;
+  line-height:1.4}
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
 </style>
 
@@ -227,7 +242,7 @@ h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-te
 <h2>Panel chrome + row anatomy</h2>
 <p class="sub">The full frame below: menu bar, sidebar rail, dimmed main canvas (out of scope), the
   History panel floating at its existing position, and the status bar carrying the new breadcrumb.
-  Everything with a numbered pill ties back to a packet.</p>
+  Everything with a numbered glyph below ties back to a packet.</p>
 
 <div class="panelbox" style="padding:0">
   <div class="stage" id="stage">
@@ -272,17 +287,59 @@ h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-te
       </div>
     </div>
   </div>
+
+  <div class="mini-row">
+    <div class="mini-frame">
+      <div class="mini-frame__stage">
+        <div class="hentry">
+          <div class="hentry__row" style="background:var(--cx-bg-hover)">
+            <span class="hentry__toggle"></span>
+            <span class="hentry__icon">✎</span>
+            <span class="hentry__desc">Simplify lane (−212 pts)</span>
+            <span class="hentry__time" style="opacity:1">14:32:07</span>
+          </div>
+        </div>
+      </div>
+      <div class="mini-frame__caption"><span class="callout-num">⑤</span> hover state — timestamp fades in at the right edge</div>
+    </div>
+    <div class="mini-frame">
+      <div class="mini-frame__stage">
+        <button class="breadcrumb-chip" style="pointer-events:none">
+          <span class="ic">✎</span><span>Simplify lane (−212 pts)</span>
+        </button>
+      </div>
+      <div class="mini-frame__caption"><span class="callout-num">②</span> HistoryBreadcrumbChip standalone — mirrors CursorToolChip's pattern</div>
+    </div>
+    <div class="mini-frame">
+      <div class="mini-frame__stage" style="display:block">
+        <div class="hentry">
+          <div class="hentry__row">
+            <button class="hentry__toggle" style="pointer-events:none">▾</button>
+            <span class="hentry__icon">✎</span>
+            <span class="hentry__desc">Record gesture (skew, rot)</span>
+            <span class="hentry__time" style="opacity:1">14:29:07</span>
+          </div>
+          <div class="hentry__children open">
+            <div class="hentry__child">Transform drag (skew 8°)</div>
+            <div class="hentry__child">Transform drag (rotate 4°)</div>
+            <div class="hentry__child">Paint stroke (G2)</div>
+          </div>
+        </div>
+      </div>
+      <div class="mini-frame__caption"><span class="callout-num">⑤</span> expanded transaction — indented, read-only child rows</div>
+    </div>
+  </div>
 </div>
 
-<div class="callout-row">
-  <span class="callout"><b>2</b><span class="pk">P2</span> statusbar breadcrumb — reads the raw <code>past[past.length-1].description</code> string only (no ⌘-hint appended, no truncation logic invented — see open question below); click is open-only, not a toggle</span>
-  <span class="callout"><b>3</b><span class="pk">P3</span> interim floating-panel chrome (dashed outline) — flush-left, open/closed persisted to <code>localStorage</code>; no drag, no multi-slot dock (that's Stage B)</span>
-  <span class="callout"><b>5</b><span class="pk">P5</span> op-class icon per row: ✎ edit · ⧉ routing · ❄ freeze · ✦ paint · ⌗ transform — classifier keyed on the Ledger keyword vocabulary, default → edit</span>
-  <span class="callout"><b>5</b><span class="pk">P5</span> transaction rows collapse with ▸ / expand to ▾, indented children — clicking the row still jumps to the whole transaction, expansion never changes the jump target</span>
-  <span class="callout"><b>5</b><span class="pk">P5</span> current-index row highlighted (green wash + left rule); rows past the cursor are greyed (future/redo territory)</span>
-  <span class="callout"><b>5</b><span class="pk">P5</span> hover any row → timestamp fades in at the right edge (<code>title</code> also carries the full locale string)</span>
-  <span class="callout"><b>5</b><span class="pk">P5</span> footer reads position, not combined count — "N of 500 steps" against the exported <code>MAX_UNDO_ENTRIES</code></span>
-</div>
+<p class="sub anatomy-note">
+  <span><span class="callout-num">②</span> The statusbar breadcrumb reads the raw <code>past[past.length-1].description</code> string only (no ⌘-hint appended, no truncation logic invented — see open question below); click is open-only, not a toggle.</span>
+  <span><span class="callout-num">③</span> The floating panel is interim chrome (dashed outline) — flush-left, open/closed persisted to <code>localStorage</code>; no drag, no multi-slot dock (that's Stage B).</span>
+  <span><span class="callout-num">⑤</span> Each row carries an op-class icon: ✎ edit · ⧉ routing · ❄ freeze · ✦ paint · ⌗ transform — classifier keyed on the Ledger keyword vocabulary, default → edit.</span>
+  <span><span class="callout-num">⑤</span> Transaction rows collapse with ▸ / expand to ▾, indented children (see mini-frame above) — clicking the row still jumps to the whole transaction, expansion never changes the jump target.</span>
+  <span><span class="callout-num">⑤</span> The current-index row is highlighted (green wash + left rule); rows past the cursor are greyed (future/redo territory).</span>
+  <span><span class="callout-num">⑤</span> Hover any row and the timestamp fades in at the right edge, per the mini-frame above (<code>title</code> also carries the full locale string).</span>
+  <span><span class="callout-num">⑤</span> The footer reads position, not combined count — "N of 500 steps" against the exported <code>MAX_UNDO_ENTRIES</code>.</span>
+</p>
 
 <h2>Interactive — multi-step jump + failing-inverse stop</h2>
 <p class="sub">Two demos below drive the same panel above. <b>Demo A</b> jumps 4 steps backward
@@ -298,11 +355,44 @@ h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-te
   <div class="demonote">Both demos are click-driven against the live panel above — watch the
     violet "jumping" highlight sweep the rows, the progress cursor move under the footer, and (for
     Demo B) the toast + red row where the simulated failure occurs. Buttons disable mid-animation
-    to avoid double-fire.</div>
+    to avoid double-fire. <span class="callout-num">⑤</span> <code>handleJump</code> checks each
+    step's return value and breaks on <code>false</code> — panel highlight stops at the last
+    successful step, never desyncs from the real stack.</div>
+
+  <div class="mini-row">
+    <div class="mini-frame" style="width:230px">
+      <div class="mini-frame__stage" style="display:block">
+        <div class="hentry hentry--poison">
+          <div class="hentry__row">
+            <span class="hentry__toggle"></span>
+            <span class="hentry__icon">❄</span>
+            <span class="hentry__desc">Freeze C1</span>
+            <span class="hentry__time" style="opacity:1">14:26:07</span>
+          </div>
+        </div>
+        <div class="toast error show" style="position:static;margin-top:8px;width:100%;min-width:0;box-shadow:none">
+          <b>⚠ Undo failed</b>
+          <div>stopped after 2/5 steps — inverse threw at "Freeze C1"</div>
+          <div class="src">level: error · source: undo</div>
+        </div>
+      </div>
+      <div class="mini-frame__caption"><span class="callout-num p4">④</span> Demo B failure state — red row + error toast, anchored above the footer</div>
+    </div>
+    <div class="mini-frame">
+      <div class="mini-frame__stage">
+        <div class="toast error show" style="position:static;box-shadow:none">
+          <b>⚠ Undo failed</b>
+          <div>inverse threw mid-jump</div>
+          <div class="src">level: error · source: undo</div>
+        </div>
+      </div>
+      <div class="mini-frame__caption"><span class="callout-num p4">④</span> toast component, standalone — fires exactly once per failed jump</div>
+    </div>
+  </div>
+
   <div class="callout-row">
     <span class="callout p4"><b>4</b><span class="pk">P4</span> <code>undo()</code>/<code>redo()</code> now return a boolean; a throwing inverse leaves <code>past</code>/<code>future</code> untouched at that step instead of corrupting the stack</span>
     <span class="callout p4"><b>4</b><span class="pk">P4</span> failure path: toast <code>level: 'error', source: 'undo'</code>, fired exactly once per failed jump</span>
-    <span class="callout"><b>5</b><span class="pk">P5</span> <code>handleJump</code> checks each step's return value and breaks on <code>false</code> — panel highlight stops at the last successful step, never desyncs from the real stack</span>
   </div>
 </div>
 

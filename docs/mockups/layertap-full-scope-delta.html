@@ -5,6 +5,7 @@
 <title>layertap-matte-v1 — full-scope delta</title>
 <style>
 :root{
+  color-scheme:dark;
   --bg:var(--cx-bg-app,#1a1a1a);--panel:var(--cx-bg-panel,#1E1E21);--panel2:var(--cx-bg-raised,#242428);
   --panel3:var(--cx-bg-hover,#2b2b30);
   --line:var(--cx-line-1,rgba(235,235,230,.12));--line2:var(--cx-line-2,rgba(235,235,230,.24));
@@ -54,7 +55,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
 .chip:hover{border-color:var(--line2)}
 .chip.mask{border-color:rgba(74,222,128,.4)}
 .chip:focus-visible{outline:2px solid var(--mask);outline-offset:2px}
-.chip canvas{width:22px;height:22px;border-radius:3px;background:#000;display:block;image-rendering:pixelated}
+.chip canvas{width:22px;height:22px;border-radius:3px;background:#000 url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%224%22 height=%224%22><rect width=%224%22 height=%224%22 fill=%22%23151515%22/><rect width=%222%22 height=%222%22 fill=%22%231e1e1e%22/><rect x=%222%22 y=%222%22 width=%222%22 height=%222%22 fill=%22%231e1e1e%22/></svg>') repeat;background-size:4px 4px;display:block;image-rendering:pixelated}
 .chip .cname{font-size:11px;letter-spacing:.03em}
 .chip .ext{font-size:9px;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
 /* stage dot: THE core visual of this delta — hollow=pre, filled=post */
@@ -112,7 +113,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
   padding:6px 8px;cursor:pointer;text-align:left;font-family:var(--mono);color:var(--fg)}
 .readopt:hover{border-color:var(--line2)}
 .readopt[aria-pressed="true"]{border-color:var(--mask);background:rgba(74,222,128,.1)}
-.readopt canvas{width:26px;height:26px;border-radius:4px;background:#000;flex:none;image-rendering:pixelated}
+.readopt canvas{width:26px;height:26px;border-radius:4px;background:#000 url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%224%22 height=%224%22><rect width=%224%22 height=%224%22 fill=%22%23151515%22/><rect width=%222%22 height=%222%22 fill=%22%231e1e1e%22/><rect x=%222%22 y=%222%22 width=%222%22 height=%222%22 fill=%22%231e1e1e%22/></svg>') repeat;background-size:4px 4px;flex:none;image-rendering:pixelated}
 .readopt .rn{font-size:10px}
 .readopt .rd{font-size:8.5px;color:var(--dim);display:block}
 .subctl{margin-top:10px;padding-top:10px;border-top:1px solid var(--line)}
@@ -139,7 +140,7 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
 .selftap .tn{text-decoration:line-through}
 .selftap .excl{font-size:8.5px;color:var(--dim);margin-left:auto}
 .previewslot{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line)}
-.previewslot canvas{width:44px;height:44px;border-radius:6px;background:#000;image-rendering:pixelated}
+.previewslot canvas{width:44px;height:44px;border-radius:6px;background:#000 url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%224%22 height=%224%22><rect width=%224%22 height=%224%22 fill=%22%23151515%22/><rect width=%222%22 height=%222%22 fill=%22%231e1e1e%22/><rect x=%222%22 y=%222%22 width=%222%22 height=%222%22 fill=%22%231e1e1e%22/></svg>') repeat;background-size:4px 4px;image-rendering:pixelated}
 .previewslot .pv-txt{font-size:9.5px;color:var(--dim)}
 .previewslot .pv-txt b{color:var(--fg);font-weight:500;display:block;font-size:10.5px;margin-bottom:2px}
 .debounce-led{width:6px;height:6px;border-radius:50%;background:var(--line2);display:inline-block;transition:background .1s}
@@ -150,9 +151,8 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
 .rules .pk{color:var(--field);font-size:9px;letter-spacing:.06em}
 @media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
 
-@media (prefers-color-scheme: light){
-  body{background:#f3f3f0;color:#1c1c1c}
-}
+/* page is intentionally locked to the dark theme regardless of OS setting (color-scheme:dark on :root,
+   plus no light override below) — v12 parity: body copy never has to survive a light background swap. */
 </style>
 </head>
 <body>
@@ -249,13 +249,16 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
     </div>
 
     <!-- ============ READ DROPDOWN: full 9-value grid ============ -->
-    <div class="readpop" id="readPop">
+    <div class="readpop open" id="readPop">
       <div class="conote" style="margin-top:0;margin-bottom:10px"><span class="co">2</span><span>
         <b>full 9-value taxonomy</b> replaces OD-3's 5-value narrowing. <span class="pk">PK.4</span> luma/R/G/B/alpha ·
         <span class="pk">PK.5</span> motion/edges · <span class="pk">PK.6</span> colorkey · <span class="pk">PK.7</span> ai_person.</span></div>
       <div class="readgrid" id="readGrid"></div>
+      <div class="hint" style="margin-top:8px">grid shown pre-opened above — all 9 real values, one <code>&lt;canvas&gt;</code> preview
+        each, driven by the same procedural signal the chip thumbnails use. Both sub-controls below are pinned open
+        <i>simultaneously</i> as a reference (in-product only the selected read's sub-control shows).</div>
 
-      <div class="subctl" id="colorkeyCtl" style="display:none">
+      <div class="subctl" id="colorkeyCtl">
         <div class="conote" style="margin-top:0;margin-bottom:8px"><span class="co">3</span><span>
           <b>colorkey mini-params</b> — Δhue / softness, default <b>60°</b> (T1-specified, verbatim).
           <span class="pk">PK.6</span> — reuses <code>key_kernels._hue_distance_deg</code>, not reimplemented.</span></div>
@@ -263,22 +266,32 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
         <div class="huerow"><span style="width:56px;color:var(--dim)">softness</span><input type="range" min="1" max="180" value="60" id="softR"><output id="softO" style="width:34px">60°</output></div>
       </div>
 
-      <div class="subctl" id="aiCtl" style="display:none">
+      <div class="subctl" id="aiCtl">
         <div class="conote" style="margin-top:0;margin-bottom:8px"><span class="co">4</span><span>
           <b>ai_person</b> — delegates VERBATIM to the <code>ai_matte</code> bake/cache pathway, generalized to an
           arbitrary tapped track. <span class="pk">PK.7</span> — <code>generateAiMattePreviewForTrack(sourceTrackId)</code>,
           zero duplication of the jail-check/reader-cache logic.</span></div>
-        <button class="aibtn" id="aiGenBtn" data-state="idle">generate matte from A2…</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="aibtn" id="aiGenBtn" data-state="idle">generate matte from A2…</button>
+          <button class="aibtn" data-state="loading" disabled style="pointer-events:none">baking matte…</button>
+          <button class="aibtn" data-state="done" disabled style="pointer-events:none">✓ matte generated from A2</button>
+        </div>
+        <div class="hint" style="border-top:none;padding-top:4px;margin-top:6px">left button is live (click it) —
+          the two beside it are static idle/loading/done snapshots so all three button states render at once.</div>
         <span style="font-size:9px;color:var(--dim);margin-left:8px" id="aiStatus"></span>
       </div>
     </div>
 
     <!-- ============ HOVER-AUDITION PICKER ============ -->
-    <div class="picker" id="picker">
+    <div class="picker open" id="picker">
+      <div class="conote" style="margin-top:0;margin-bottom:10px;max-width:none"><b style="color:var(--fg)">shown pre-opened for this sheet</b>
+        — in-product this panel only appears after clicking "+ from layer…"; it is expanded here (and one
+        candidate row is pinned in its hovered/previewing state below) purely so callouts <span class="co">5</span>
+        and <span class="co">6</span> have a real rendered target instead of pointing at a collapsed button.</div>
       <div class="previewslot">
         <canvas id="pvCanvas" width="44" height="44"></canvas>
-        <div class="pv-txt"><b id="pvTrack">hover a track to audition</b><span id="pvSub">no candidate selected yet</span></div>
-        <span class="debounce-led" id="debLed" style="margin-left:auto" title="debounce indicator"></span>
+        <div class="pv-txt"><b id="pvTrack">A2 · drums-cam</b><span id="pvSub">audition: luma · pre · ~150ms debounced decode</span></div>
+        <span class="debounce-led live" id="debLed" style="margin-left:auto" title="debounce indicator"></span>
       </div>
       <div class="conote" style="margin-top:0;margin-bottom:10px"><span class="co">6</span><span>
         <b>own track excluded</b> — B2 (this clip's track) never appears as a candidate. <span class="pk">OD-5</span>,
@@ -290,6 +303,23 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
         to thumbnail res. Not a continuous background cache (that's v1.5's job once FieldKind needs live per-pixel
         reads every frame anyway). <span class="pk">OD-4 · PK.8</span></span></div>
     </div>
+  </div>
+  <div class="nodecard" id="layerNodePost" style="border-top:1px dashed var(--line2)">
+    <div class="nc-row1">
+      <span class="kind">layer</span>
+      <span class="chip mask">
+        <canvas class="thumb postThumb" width="22" height="22"></canvas>
+        <span class="stagedot post"></span>
+        <span class="cname">A2 · drums-cam</span><span class="ext">post · luma</span>
+      </span>
+      <span class="stagebtns"><button aria-pressed="false">PRE</button><button aria-pressed="true">POST</button></span>
+      <span style="font-size:9px;color:var(--dim)">static second render — same node, stage flipped</span>
+    </div>
+    <div class="conote" style="margin-top:8px"><span class="co">1</span><span>
+      <b>second snapshot of the same row, dot filled</b> — pinned here (not just hover-toggleable above) so the
+      pre/post <i>pixel</i> difference is visible side by side in one screenshot: the thumbnail is drawn from a
+      shifted sample of the same procedural signal to stand in for "after A2's own device chain ran."
+      <span class="pk">§9.2 · PK.8</span></span></div>
   </div>
 </div>
 
@@ -314,6 +344,22 @@ kbd{background:var(--panel2);border:1px solid var(--line);border-radius:4px;padd
       alike. frontend: the chip's error styling and the toast are both <span class="pk" style="color:var(--field)">PK.8</span>.
     </div>
   </div>
+</div>
+
+<h2><span class="k">Duplicate-source confirmation</span> — tapping a track already tapped elsewhere in the stack</h2>
+<p class="sub">Per this repo's <code>Toast Conventions</code> (rate-limited, source-keyed): picking a track that another
+  node in the <i>same</i> mask stack already taps doesn't block the action — it confirms it, once, then proceeds.
+  Not a new packet; this is <span class="pk">PK.8</span> reusing the existing toast store's <code>warning</code>
+  tier (6s auto-dismiss) with a source key of <code>duplicate_layer_tap:&lt;track_id&gt;</code> so re-tapping the
+  same track twice in a row doesn't spam two toasts.</p>
+<div class="panelbox">
+  <div class="errbanner show" style="background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.4);color:var(--scalar)">
+    ⚠ <b style="color:var(--scalar)">A2 · drums-cam</b> is already tapped by <span class="fill5" style="color:var(--fg)">rect_1</span>
+    in this stack — added anyway (duplicate taps are allowed, just flagged) · toast fires once per source, rate-limited
+  </div>
+  <div class="hint">this is a <code>warning</code>-tier toast (auto-dismiss 6s), not an <code>error</code> — duplicate
+    taps are a legal, if unusual, authoring choice (e.g. reading luma from A2 in one node and colorkey from A2 in
+    another), so the UI informs rather than confirms/blocks.</div>
 </div>
 
 <h2><span class="k">Callout index</span> — every numbered chip above, tied to its packet</h2>
@@ -482,11 +528,12 @@ const TRACKS=[
 ];
 TRACKS.forEach(tr=>{
   const row=document.createElement('div');
-  row.className='pickrow'+(tr.self?' selftap':'');
+  const pinned=(tr.id==='A2'); // pinned as the illustrative "already hovered" candidate — see picker conote above
+  row.className='pickrow'+(tr.self?' selftap':'')+(pinned?' hoverActive':'');
   if(tr.self){
     row.innerHTML=`<span class="tn">${tr.n}</span><span class="excl">excluded — this is B2's own track</span>`;
   }else{
-    row.innerHTML=`<span class="tn">${tr.n}</span><span class="deb">debouncing…</span>`;
+    row.innerHTML=`<span class="tn">${tr.n}</span><span class="deb">${pinned?'previewing':'debouncing…'}</span>`;
     let deb=null;
     row.addEventListener('mouseenter',()=>{
       row.classList.add('hoverActive');
@@ -520,7 +567,8 @@ function frame(){
   T++;
   document.querySelectorAll('.chip.mask .thumb, .chip .thumb:not(.errsample)').forEach(c=>{
     if(c.classList.contains('errsample'))return;
-    drawRead(c.getContext('2d'),c.width,c.height,'luma',T);
+    // postThumb gets a time-shifted sample of the same signal, standing in for "after A2's own chain ran"
+    drawRead(c.getContext('2d'),c.width,c.height,'luma',c.classList.contains('postThumb')?T+40:T);
   });
   readGrid.querySelectorAll('.readopt').forEach(b=>{
     const c=b.querySelector('canvas');drawRead(c.getContext('2d'),c.width,c.height,b.dataset.k,T);
@@ -529,6 +577,8 @@ function frame(){
   const pv=document.getElementById('pvCanvas');if(pv)drawRead(pv.getContext('2d'),pv.width,pv.height,mainRead,T);
   if(!rm)requestAnimationFrame(frame);
 }
+/* synchronous first paint (before the rAF loop schedules subsequent frames) so every thumb
+   canvas has real pixel content on the very first render pass, never an empty/broken square */
 frame();if(rm)setInterval(frame,400);
 })();
 </script>
