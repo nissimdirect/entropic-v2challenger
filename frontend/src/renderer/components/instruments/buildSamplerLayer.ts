@@ -16,8 +16,8 @@
  * single-layer path (back-compat for callers that don't yet use the FSM).
  */
 import { computeSamplerVoice } from './computeSamplerVoice'
-import { envelopeValue } from './voiceFSM'
-import type { Voice } from './voiceFSM'
+import { envelopeValue, evaluateVoices } from './voiceFSM'
+import type { Voice, TriggerEvent } from './voiceFSM'
 import type { SamplerInstrumentV1, SamplerVoiceLayer } from './types'
 import type { Asset, ADSREnvelope } from '../../../shared/types'
 import { clampFinite } from '../../../shared/numeric'
@@ -111,4 +111,31 @@ export function buildVoiceLayers(
       voice_id: voiceId,
     }
   })
+}
+
+/**
+ * #423 (LOCKED decision) — resolve ONE performance track's sampler voice
+ * layers for the current frame. An instrument with no active note renders
+ * NOTHING (transparent): there is no single-layer fallback for a silent
+ * track. Replaces the old App.tsx inline fallback that called
+ * `buildSamplerLayer` unconditionally whenever `evaluateVoices` returned zero
+ * voices — that fallback painted the bound clip's clean source over the
+ * track below even though no note was firing (issue #423).
+ *
+ * Pure + deterministic; this is the single seam App.tsx delegates to so the
+ * no-note-means-no-layer contract lives in one tested place.
+ */
+export function resolveTrackSamplerLayers(
+  inst: SamplerInstrumentV1 | null,
+  events: TriggerEvent[],
+  frame: number,
+  assets: Record<string, Asset>,
+  defaultFps: number,
+  adsr: ADSREnvelope,
+  voiceCap = 4,
+): SamplerVoiceLayer[] {
+  if (!inst) return []
+  const voices = evaluateVoices(events, frame, { voiceCap, adsr })
+  if (voices.length === 0) return []
+  return buildVoiceLayers(inst, voices, assets, frame, defaultFps, adsr)
 }
