@@ -70,6 +70,7 @@ import { randomUUID } from './utils'
 import { shortcutRegistry } from './utils/shortcuts'
 import { transportForward, transportReverse, transportStop, getTransportDirection, resetTransportSpeed } from './utils/transport-speed'
 import { shouldClearLoopOnStop } from './utils/transport-stop'
+import { shouldRetryWithEmptyChain, shouldEscalateStall } from './utils/renderRetryPolicy'
 import { DEFAULT_SHORTCUTS } from './utils/default-shortcuts'
 import { splitSelectedClipsAtPlayhead } from './utils/split-clip-at-playhead'
 import { saveProject, saveProjectAs, loadProject, newProject, startAutosave, stopAutosave, restoreAutosave, probeForMissingAssets, relinkAsset, markAssetMissing } from './project-persistence'
@@ -471,6 +472,10 @@ function AppInner() {
   const [aspectLocked, setAspectLocked] = useState(true)
   const isRenderingRef = useRef(false)
   const pendingFrameRef = useRef<number | null>(null)
+  // #429: count consecutive frames that failed-and-held during playback so a
+  // persistent engine fault escalates to a stall toast instead of freezing the
+  // preview silently (the empty-chain retry is suppressed during playback).
+  const consecutiveHeldFramesRef = useRef(0)
   const playbackRafRef = useRef<number | null>(null)
   const clockSyncRafRef = useRef<number | null>(null)
   const handlePlayPauseRef = useRef<() => void>(() => {})
@@ -1663,6 +1668,8 @@ function AppInner() {
         }
 
         if (res.ok && res.frame_data) {
+          // #429: a good frame ends any playback stall run.
+          consecutiveHeldFramesRef.current = 0
           const dataUrl = `data:image/jpeg;base64,${res.frame_data as string}`
           setFrameDataUrl(dataUrl)
           // Relay every frame unconditionally — main process drops if pop-out closed.
@@ -1744,27 +1751,59 @@ function AppInner() {
         } else if (!res.ok) {
           console.error('[Render] frame', frame, 'error:', res.error)
 
-          // F-0514-1: Auto-retry with empty chain handles the common
-          // import-race case where the sidecar isn't ready for the chain
-          // yet. Toast on EVERY first failure was producing a transient
-          // "Frame render failed" banner during normal import. Only toast
-          // when the auto-retry path is unavailable (already empty chain).
-          if (chain.length > 0) {
-            console.warn('[Render] retrying frame', frame, 'with empty chain')
+          // #429: gate the F-0514-1 empty-chain auto-retry. It is valid ONLY
+          // for the import-race (sidecar not yet ready for the chain, while
+          // paused). During playback, or on a timeout, retrying with an empty
+          // chain silently drops the user's effects and renders the WRONG
+          // frame — the P1. shouldRetryWithEmptyChain encodes that policy.
+          const isPlayingNow = hasAudioRef.current
+            ? useAudioStore.getState().isPlaying
+            : isTimerPlayingRef.current
+          if (
+            shouldRetryWithEmptyChain({
+              chainLength: chain.length,
+              isPlaying: isPlayingNow,
+              error: res.error as string | undefined,
+            })
+          ) {
+            console.warn('[Render] retrying frame', frame, 'with empty chain (import-race)')
             isRenderingRef.current = false
             requestRenderFrame(frame, [])
             return
           }
 
-          // Empty chain also failed — show error state AND toast (real failure).
-          useToastStore.getState().addToast({
-            level: 'error',
-            message: 'Frame render failed',
-            source: 'render',
-            details: res.error as string,
-          })
-          setRenderError((res.error as string) ?? 'Render failed')
-          setPreviewState('error')
+          if (isPlayingNow) {
+            // #429: HOLD the last good frame rather than flash an error or a
+            // wrong (effect-free) frame every tick. The transient overload
+            // clears on the next frame; a one-frame stall beats silently
+            // dropping effects. Leave previewState untouched and fall through
+            // to pending-frame processing so playback keeps advancing.
+            console.warn('[Render] frame', frame, 'failed during playback — holding last frame')
+            // #429: but a PERSISTENT fault must not freeze the preview
+            // silently. Escalate to a rate-limited toast once the held run
+            // crosses the threshold (source-keyed so the toast store dedups it
+            // to ~once per 2s while the stall lasts). Counter resets on the
+            // next good frame (above).
+            consecutiveHeldFramesRef.current += 1
+            if (shouldEscalateStall(consecutiveHeldFramesRef.current)) {
+              useToastStore.getState().addToast({
+                level: 'warning',
+                message: 'Preview stalled — engine errors during playback',
+                source: 'render-stall',
+                details: res.error as string,
+              })
+            }
+          } else {
+            // Paused and not an import-race retry — surface the real failure.
+            useToastStore.getState().addToast({
+              level: 'error',
+              message: 'Frame render failed',
+              source: 'render',
+              details: res.error as string,
+            })
+            setRenderError((res.error as string) ?? 'Render failed')
+            setPreviewState('error')
+          }
         }
       } catch (err) {
         console.error('[Render] frame', frame, 'exception:', err)

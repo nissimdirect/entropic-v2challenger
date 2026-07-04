@@ -166,20 +166,50 @@ function getOrCreateSocket(): InstanceType<typeof Request> {
   return persistentSocket
 }
 
-async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<string, unknown>> {
-  if (currentPort === 0 || !currentToken) {
-    return { id: command.id as string, ok: false, error: 'Engine not connected' }
-  }
+/**
+ * Serialization gate for the single persistent REQ socket (#429).
+ *
+ * ROOT-CAUSE CHAIN: playback tick → App.tsx requestRenderFrame → preload
+ * `ipcRenderer.invoke('send-command')` → ipcMain 'send-command' handler →
+ * sendZmqCommand → ONE shared `persistentSocket` (getOrCreateSocket) →
+ * backend zmq_server.py. The renderer's `isRenderingRef` only serializes
+ * render calls against each OTHER — it does nothing about the interval-driven
+ * pollers (audio meter useAudioMeterPoll, memory-pressure useMemoryPressurePoll,
+ * aiMatte, timeline probe-ipc) that also call `send-command` on the SAME socket.
+ * A zeromq.js REQ socket permits exactly one send→recv exchange at a time;
+ * concurrent callers produce "Socket is busy writing; only one send operation
+ * may be in progress" and, once REQ send/recv alternation is broken,
+ * "Operation cannot be accomplished in current state". A recv that times out
+ * while another caller has already sent leaves the socket unusable and the old
+ * error path closed it out from under the in-flight caller ("Socket is closed").
+ *
+ * FIX: chain every socket exchange onto a single tail promise so exchanges run
+ * strictly FIFO — never more than one in flight. Because a timed-out/errored
+ * exchange holds the lock while it discards + recreates the socket, no other
+ * caller can be mid-flight when that happens, which is what makes
+ * close-on-error safe.
+ */
+let sendChain: Promise<unknown> = Promise.resolve()
 
-  const isRender = RENDER_COMMANDS.has(command.cmd as string)
-  if (isRender) {
-    setRenderInFlight(true)
-  }
+function enqueueExchange<T>(fn: () => Promise<T>): Promise<T> {
+  // Run `fn` after whatever is currently queued, regardless of that prior
+  // exchange's outcome (success OR failure), so one bad exchange never wedges
+  // the queue.
+  const run = sendChain.then(fn, fn)
+  // Keep the tail from carrying a rejection forward; swallow so the next link
+  // always fires. Callers still receive `run`'s real resolution/rejection.
+  sendChain = run.then(
+    () => undefined,
+    () => undefined,
+  )
+  return run
+}
 
+/** Perform ONE send→recv exchange. Only ever called while holding the
+ *  serialization lock (via enqueueExchange), so the socket is exclusive. */
+async function doExchange(command: Record<string, unknown>): Promise<Record<string, unknown>> {
   const sock = getOrCreateSocket()
-
   const tsSend = Date.now()
-
   try {
     command._token = currentToken
     command._ts_send = tsSend
@@ -194,13 +224,36 @@ async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<
     })
     return result
   } catch (err) {
-    // On error, destroy the socket so the next call creates a fresh one
+    // Discard the socket so the next exchange creates a fresh one — a timed-out
+    // REQ recv leaves the socket in an unrecoverable state, and recreating it is
+    // the only way to keep the relay usable for the NEXT request (#429). The
+    // serialization lock guarantees no other EXCHANGE is mid-flight at this
+    // point, so this close cannot race a concurrent send/recv. It does NOT stop
+    // lifecycle callers (reconnectRelay, closeRelay, setRelayPort) from calling
+    // closePersistentSocket() OUTSIDE the lock — but that is not a data race
+    // either: an in-flight exchange simply observes the socket vanish and
+    // self-heals by recreating it on the next call.
     closePersistentSocket()
     return {
       id: command.id as string,
       ok: false,
       error: humanizeError(err),
     }
+  }
+}
+
+async function sendZmqCommand(command: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (currentPort === 0 || !currentToken) {
+    return { id: command.id as string, ok: false, error: 'Engine not connected' }
+  }
+
+  const isRender = RENDER_COMMANDS.has(command.cmd as string)
+  if (isRender) {
+    setRenderInFlight(true)
+  }
+
+  try {
+    return await enqueueExchange(() => doExchange(command))
   } finally {
     if (isRender) {
       setRenderInFlight(false)
