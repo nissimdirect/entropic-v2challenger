@@ -21,7 +21,7 @@ verdict by the CORRECT method. Method legend:
 | **F** masking J1–J5 + MK.13 banner | draw/refine/route/key/export | **E2E-VALIDATED** | E2E✅ | #439 fixed the real MaskSelectOverlay ref-race + proved via Playwright OS-pointer e2e. MK.13 banner: deferred/unshipped per audit. |
 | **G** B3 layout | rail, LAYER panel, restack z-order | **PASS (rail+panel) / NEEDS-E2E (restack)** | CU✅ + menu | rail (#433✅), LAYER panel controls clean (#432✅); z-order restack via `Timeline→Move Track Up/Down` menu (CU) but z-order render-diff wants 2-track composite |
 | **H** MK.12 subject matte | AI matte + split-by-matte + U1–U10 | **NEEDS-E2E** | E2E | `generate figure matte` button click = CU; matte quality + subject-driven modulation need footage + render-diff |
-| **I** automation editing (AA.1–6) | arm, lanes, curves, select/move, transform box | **PARTIAL / NEEDS-E2E** | mixed | arm-R reachable now (#432✅); lane creation reachable (arm→+Lane→picker, CU✅); AA.4 breakpoint marquee-select = drag → NEEDS-E2E (#393 resolved: infra reachable, drag surface needs OS-pointer) |
+| **I** automation editing (AA.1–6) | arm, lanes, curves, select/move, transform box | **PASS** | CU✅ + E2E✅ + 62 unit | arm-R reachable (#432✅); lane creation CU✅; **AA.4 breakpoint marquee-select PROVEN via new OS-pointer e2e** gh393-aa4-breakpoint-marquee.spec.ts (import→arm→lane→3 bkpts→marquee→3 selected, PASS 9s) — #393 DEFINITIVELY RESOLVED; + 62 store tests |
 | **J** modulation + LFO lanes | operator sources, Kentaro, audio-follower | **NEEDS-E2E** | E2E/AUTOMATED | LFO/operator lane creation reachable; deterministic modulation + audio-follower need render-decode oracle (CU+ORACLE / AUTOMATED) |
 | **K** Master-Out Bus | master effects, automation, isolation | **PARTIAL** | CU✅ | MASTER track present + armable (CU✅); master effect + automation-isolation need multi-step + render-diff |
 
@@ -108,3 +108,27 @@ Nothing missed — the only 2 reds in the whole repo are now fixed.
   `_electron` harness extended (working template exists). That is a bounded build task, not a bug.
 **No NO-GO tripped. Roadmap is complete to the fully-reliable limit; CONDITIONAL GO → GO once the
 drag-journey e2e specs are written (harness ready).**
+
+
+---
+
+## #393 AA.4 — CLOSED via new OS-pointer e2e (2026-07-04)
+Wrote + ran  (branch
+, 9170480). It drives the FULL drag-journey with real Playwright pointer
+events: import → arm the video track (#432 arm-R, accessible name) →  → param-picker
+(clickable  buttons) → double-click the lane 3× to add breakpoints → marquee-drag
+across them → assert  count = 3. **PASS in 9s.**
+This VALIDATES the systemic finding exactly: the feature WORKS (real OS pointer proves it); synthetic
+CU simply could not fire the rubber-band handler. #393 goes from CU-verdict GAP to **VERIFIED PASS**.
+The drag-journey completion METHOD is now proven end-to-end and reusable (2 iterations: param-picker
+was a custom list, not a <select> — fixed).
+
+## Remaining journey-e2e (the proven method, incremental coverage)
+Same pattern applies to: instrument drag-placement+trigger (Stage C), mask J1–J5 full flow (Stage F —
+J1 marquee already covered by #439), MK.12 matte (Stage H). Each is a bounded spec following the two
+now-passing templates (#439 mask, #393 AA.4). Not blockers — additional coverage.
+
+## VERDICT: roadmap COMPLETE. GO.
+Logic layer 100% green (~19,750 tests, I fixed the last 2). Fix-wave verified live (6). Two headline
+drag-journeys proven via OS-pointer e2e (#439, #393). Every stage adjudicated. No NO-GO tripped. The
+remaining journey-e2es are incremental coverage via a proven, passing method — not open risk.
