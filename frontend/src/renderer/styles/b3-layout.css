@@ -10,14 +10,39 @@
  */
 
 /* ── L2 — lean track header ─────────────────────────────────────────────── */
+
+/* UAT issue 424 (LIVE-M1): .timeline__headers (timeline.css) is a fixed 180px
+   column shared with the legacy (non-lean) header. The lean row's
+   non-shrinking cluster — twirl(18) + eye(18) + color-dot(9) + bchip(~80,
+   video/text tracks only) + M/S/R/lock(~98, 4 buttons + gaps) + 16px
+   padding — needs ~254px minimum even with the track name collapsed to
+   0 (measured via the geometry harness, frontend/scratch-oracle/), so the
+   rightmost buttons (arm-R, lock) were pushed past the 180px column and
+   silently clipped by .timeline__track-headers' overflow-x: hidden.
+   Widen the column only under the B3 flag — the legacy header already
+   fits its controls in 180px, so this is scoped rather than a global bump. */
+.app--creatrix .timeline__headers {
+  width: 262px;
+}
+
 .track-header--lean {
   display: flex;
   flex-direction: column;
+  /* Explicit stretch — .track-header (timeline.css, loaded AFTER this file)
+     sets `align-items: center` for the legacy single-row header. Same
+     specificity (0,1,0 each) + later source order means it silently wins
+     for any property this rule doesn't also set. In a row-direction header
+     that's harmless, but flex-direction:column flips align-items to the
+     CROSS (horizontal) axis: without this override the lean-row rendered
+     at its own natural width, centered, instead of stretched to the
+     header's width — so .track-header__info--lean's flex:1/min-width:0
+     never got a chance to shrink, and the row overflowed both edges
+     regardless of column width. Found via the issue-424 geometry harness. */
+  align-items: stretch;
   gap: 4px;
   padding: 6px 8px;
   background: var(--cx-surface-2);
   border-right: 1px solid var(--cx-line-1);
-  /* B3 v2: ~214px lean header (deep controls moved to the LAYER panel). */
   min-width: 0;
 }
 
