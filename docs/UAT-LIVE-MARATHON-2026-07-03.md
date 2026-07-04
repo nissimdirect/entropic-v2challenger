@@ -150,3 +150,15 @@ History). This lane is reliable and productive. The remaining un-verdicted rows 
 blocked lanes already documented: drag/draw (synthetic-CU can't fire the handler) and playback
 (#429 render-concurrency degrades the engine). So "complete via CU" ≈ the click/menu/inspect subset;
 the rest needs the #429 fix + a human/Playwright pointer for drag-draw.
+
+### Menu sweep (CU-reliable) + a drag-workaround for G1
+- **Help:** Keyboard Shortcuts · Send Feedback (⌘⇧F) · Generate Support Bundle (⌘⇧D).
+- **Edit:** Undo (⌘Z) · Redo (⌘⇧Z) · Undo History · Cut/Copy/Paste/Paste-Match/Delete · (macOS std).
+- **Timeline:** Add Video Track · Add Text Track (⌘T) · Delete Selected Track · **Move Track Up** ·
+  **Move Track Down**.
+- **Insight:** the arrangement-as-layers restack (Stage G1) that couldn't be verified by DRAG (synthetic
+  CU can't fire drag-drop) HAS a menu path — `Timeline → Move Track Up/Down`. So G1's z-order reorder
+  is CU-drivable via menu clicks. Caveat: *verifying* the composite z-order actually changed still
+  needs a render-diff, which #429 degrades during playback — so single-frame render-diff (scrub, not
+  play) is the way to verdict it once #429 is addressed. General lesson: for drag-based features,
+  check for a menu/keyboard equivalent before marking "not CU-verifiable."
