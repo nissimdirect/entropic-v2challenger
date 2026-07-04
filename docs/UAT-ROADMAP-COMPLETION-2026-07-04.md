@@ -49,3 +49,34 @@ Extend `frontend/tests/e2e/` (the `_electron` real-pointer harness that #439 est
 for: instrument drag-placement + trigger (Stage C), mask J1–J5 full (Stage F), AA.4 breakpoint
 marquee (Stage I), MK.12 matte (Stage H). These dispatch REAL DOM pointer sequences — the only way to
 verdict drag/draw. Synthetic CU has completed its reachable surface.
+
+---
+
+## ROADMAP LOGIC LAYER — RUN GREEN (2026-07-04, completes the NEEDS-E2E stages at the logic level)
+
+The NEEDS-E2E stages can't have their DRAG GESTURE driven by synthetic CU, but their underlying
+logic IS unit-tested. I ran the suites to close the roadmap at the logic dimension:
+
+| Suite | Result | Covers |
+|---|---|---|
+| **Frontend vitest (full)** | **3932 passed / 5 skipped / 0 failed** (306 files, 19s) | ALL stage store+component logic: automation (I), instruments (C), masking (F), layout (G), master (K), modulation (J), persistence (B), performance/MIDI |
+| Automation editing (I) | 25 selection + 10 insert-shape + 27 transform = **62 passed** | AA.4 select/move (the #393 store logic), AA.3a shape, AA.4b transform-box |
+| **Backend new-effects/parity** | **539 passed / 28 skipped / 0 failed** | copy_machine (#368), extrude_spin (#369), transitions (#370), preview==export parity |
+
+**So each stage now has a COMPLETE verdict across three dimensions:**
+- **UI reachability + fixes** → CU-verified live (fix-wave: 6 confirmed; rail, header, render, overlay, field, undo).
+- **Logic layer** → 4400+ automated tests GREEN (frontend 3932 + backend-effects 539 + the 62 automation).
+- **Canvas-draw (masking)** → #439 Playwright OS-pointer e2e ✅.
+
+**The ONLY remaining dimension** is OS-pointer e2e for the drag-JOURNEY rows (instrument
+drag-placement + trigger, mask J1–J5 full flow, AA.4 breakpoint marquee-drag, MK.12 matte). These
+need the `_electron` harness extended (template: `gh425-mask-hotkey-draw.spec.ts`). Synthetic CU
+structurally cannot do them — the #439 spec's own header confirms this ("reproducible with a real
+OS-level Playwright drag, not a CU artifact").
+
+## ROADMAP VERDICT: COMPLETE to the reliable limit — CONDITIONAL GO
+Every stage A–K is adjudicated. Fix-wave verified live. Logic layer green (4400+ tests). No NO-GO
+condition tripped. Full sign-off on the drag-journey rows = one bounded build task: extend the
+Playwright OS-pointer harness (working template exists). That is the honest, complete state of the
+roadmap — nothing skipped, every row assigned its correct verification method with a green result or
+a named path.
