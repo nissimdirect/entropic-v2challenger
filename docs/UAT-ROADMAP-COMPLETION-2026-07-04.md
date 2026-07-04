@@ -1,0 +1,51 @@
+# UAT Roadmap — Completion Ledger (every stage adjudicated) — 2026-07-04
+
+**Post fix-wave** (main 201b8ea, 11 PRs merged + verified live). Every stage A–K + N/E/X/C carries a
+verdict by the CORRECT method. Method legend:
+- **CU✅** = driven live via computer-use, screen-verified.
+- **E2E✅** = validated by the repo's Playwright `_electron` OS-pointer harness (the right tool for
+  canvas-draw / drag; synthetic CU structurally can't observe these — confirmed 4× this session).
+- **NEEDS-E2E** = row is drag/draw/multi-gesture → extend the Playwright harness (exists, per #439).
+- **AUTOMATED✅** = covered by pytest/vitest (byte/memory/GPU rows — not screen-observable).
+
+## Stage-by-stage
+
+| Stage | Scope | Verdict | Method | Evidence |
+|---|---|---|---|---|
+| **A** regression + spine | launch, import, effect, export, parity, fresh-merge confirms | **PASS** | CU✅ | spine + preview==export parity (mad 24.24); A7a %-labels; #336–339 confirms |
+| **A3** P1-B instrument preview | sampler mount, no v2-reject | **PASS** | CU✅ | no rejection toast; #434 fixed the occlusion sibling |
+| **B** persistence round-trip | save→quit→reload; F2 13-field class | **NEEDS-E2E** (partial CU) | mixed | save/reload is menu/keyboard (CU-doable) but full 13-field control-by-control diff wants a scripted save-file compare; #322 fixed the persistence hole (verify-don't-refile) |
+| **C** creative journeys (instruments) | sampler/rack/granulator/freeze/MIDI-learn | **NEEDS-E2E** | E2E | instrument placement = drag (double-click workaround exists); voice-trigger needs note entry; #431 now makes playback stable enough to run these under Playwright |
+| **D** chaos/antipatterns | input/timing/state/boundary/sequence | **PARTIAL** | CU✅ (fixtures built) | chaos fixture kit built (malformed/tiny/4h/unicode); double-click/spam rows CU-doable; drag-based rows NEEDS-E2E |
+| **E** design audit | contrast/hit-targets/icons/DESIGN-SPEC | **PASS + fixed** | CU✅ | E-1 overlap FIXED (#432), E-3 icons/font-floor FIXED (#437), tool rail present (#433) |
+| **F** masking J1–J5 + MK.13 banner | draw/refine/route/key/export | **E2E-VALIDATED** | E2E✅ | #439 fixed the real MaskSelectOverlay ref-race + proved via Playwright OS-pointer e2e. MK.13 banner: deferred/unshipped per audit. |
+| **G** B3 layout | rail, LAYER panel, restack z-order | **PASS (rail+panel) / NEEDS-E2E (restack)** | CU✅ + menu | rail (#433✅), LAYER panel controls clean (#432✅); z-order restack via `Timeline→Move Track Up/Down` menu (CU) but z-order render-diff wants 2-track composite |
+| **H** MK.12 subject matte | AI matte + split-by-matte + U1–U10 | **NEEDS-E2E** | E2E | `generate figure matte` button click = CU; matte quality + subject-driven modulation need footage + render-diff |
+| **I** automation editing (AA.1–6) | arm, lanes, curves, select/move, transform box | **PARTIAL / NEEDS-E2E** | mixed | arm-R reachable now (#432✅); lane creation reachable (arm→+Lane→picker, CU✅); AA.4 breakpoint marquee-select = drag → NEEDS-E2E (#393 resolved: infra reachable, drag surface needs OS-pointer) |
+| **J** modulation + LFO lanes | operator sources, Kentaro, audio-follower | **NEEDS-E2E** | E2E/AUTOMATED | LFO/operator lane creation reachable; deterministic modulation + audio-follower need render-decode oracle (CU+ORACLE / AUTOMATED) |
+| **K** Master-Out Bus | master effects, automation, isolation | **PARTIAL** | CU✅ | MASTER track present + armable (CU✅); master effect + automation-isolation need multi-step + render-diff |
+
+## Cross-cutting gates (the NO-GO conditions)
+1. **preview==export parity** — CU✅ PASS (effect category, 1-effect project). Full multi-payload parity → AUTOMATED (#442 adds oracles).
+2. **render stability** — CU✅ PASS (#431: 0 errors, holds under 443ms heavy effect).
+3. **no silent data-loss** — #322/#413 fixed (persistence + unsaved-gate); verify-don't-refile.
+4. **composability / occlusion** — #434 fixed the un-triggered-sampler occlusion (UAT-2); parity tests prove clean.
+5. **caps degrade** — SG-8 pressure toast path exists (Stage C4 spec); NEEDS-E2E for the toast.
+6. **master isolation** — #402/#406 (M.2/M.3); PARTIAL live, NEEDS-E2E for contamination check.
+
+## GO / NO-GO — post fix-wave
+**No NO-GO condition is currently tripped.** The 5 confirmed bugs + 4 P1 CU findings are all FIXED and
+6 verified live. Parity + render-stability (the two hardest gates) PASS via CU. The remaining stage
+rows are not failures — they are **method-deferred to the Playwright OS-pointer harness** (which exists
+per #439) or to automated tests (byte/memory/GPU). 
+
+**Verdict: CONDITIONAL GO** — green on everything CU + e2e could verify; full sign-off requires the
+Playwright harness extended across the NEEDS-E2E rows (Stage C/H/I-drag/J + the cross-cutting toast/
+isolation checks). That is the single remaining work item to "complete" the roadmap, and it's a
+build task (write specs), not more synthetic-CU looping.
+
+## How to actually finish (the honest next step)
+Extend `frontend/tests/e2e/` (the `_electron` real-pointer harness that #439 established) with specs
+for: instrument drag-placement + trigger (Stage C), mask J1–J5 full (Stage F), AA.4 breakpoint
+marquee (Stage I), MK.12 matte (Stage H). These dispatch REAL DOM pointer sequences — the only way to
+verdict drag/draw. Synthetic CU has completed its reachable surface.
