@@ -114,3 +114,26 @@ necessarily, a method limit. Playback-dependent rows are separately blocked by #
 Sampler drag onto MASTER: no instrument added (correct if guard fired) but no rejection toast
 observed. Cannot distinguish "silent-reject (toast missing = UX gap)" from "drag didn't register"
 per the systemic finding above. Needs human-pointer or Playwright drag to verdict.
+
+## CU-VERIFIABLE clean PASSES (2026-07-04, click/menu/inspect — reliable via CU)
+
+### F_0512_37 — Help → Keyboard Shortcuts opens Prefs Shortcuts tab — ✅ PASS
+Help menu → "Keyboard Shortcuts" opens Preferences with the **Shortcuts** tab active. Confirmed.
+
+### G4 — Preferences dialog — ✅ PASS (works, 4 tabs)
+Tabs: General · Shortcuts · Performance · Paths. All reachable via click.
+- **Shortcuts tab:** full binding table matching code — TRANSPORT (Play/Pause space, Forward l,
+  Stop k, Reverse j), EDIT (Undo meta+z, Redo shift+meta+z, Duplicate meta+d, Delete backspace,
+  Ripple shift+backspace), TIMELINE (Marker m, Loop In i, Loop Out o, Split meta+k, Toggle Loop
+  meta+l), VIEW (Toggle Automation a). Bindings match `default-shortcuts.ts`.
+- **Performance tab:** Auto-freeze threshold (effects) = 50 · Max chain length = 20 · Render
+  quality = Medium (dropdown). **Relevant to #429:** the render-timeout/empty-chain fallback fires
+  at ONE effect — far below Max chain length 20 and Auto-freeze 50 — confirming #429 is a real
+  per-frame/concurrency bug, not a chain-length-limit behavior. (Render quality is a user knob but
+  shouldn't be needed to render 1 effect.)
+- Partially addresses audit G20 "no perf rows": perf *settings* exist in Preferences; there's still
+  no live perf telemetry/HUD surfaced during playback.
+
+Menu sweep so far (native menu, CU-reliable): Help menu = Keyboard Shortcuts / Send Feedback
+(⌘⇧F) / Generate Support Bundle (⌘⇧D). Menus are click-verifiable — a good CU-reliable lane vs the
+drag/draw/playback lanes that are blocked.
