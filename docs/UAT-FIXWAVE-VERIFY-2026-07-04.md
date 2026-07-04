@@ -12,3 +12,21 @@ The 2026-07-04 fix-wave (11 PRs) verified live on the running dev build after re
 
 **Two P1s the user cared most about — the tool rail (#433) and the render-stability bug (#431) — are
 both confirmed working live.** No timeout flood; effect renders through full playback.
+
+## #439 mask draw (F-1/F-2) — fix VALIDATED by e2e; not synthetic-CU-verifiable
+- Rail's MASK-rect tool activates fine ("tool: mask-marquee-rect" — CU-clickable ✅). But drawing on
+  the preview via synthetic CU (both `left_click_drag` AND manual down/move/up) still produces no
+  marching-ants — consistent with the systemic finding: synthetic CU pointer events don't fire this
+  app's canvas-draw handler.
+- **This does NOT contradict the fix.** #439 fixed a REAL MaskSelectOverlay ref race (mask draw
+  silently no-op'd at 1920×1080 with REAL pointers) and proved it with a Playwright `_electron`
+  OS-pointer e2e — the correct verification for a canvas-draw feature. My synthetic-CU method can't
+  observe it. My original F-2 "needs human/real-pointer retry" flag was correct; the fix was
+  validated the right way.
+
+## Fix-wave verification summary
+Confirmed live via CU: **#433 tool rail ✅**, **#431 render-timeout ✅ (0 errs vs 114)**, **UAT-1 ✅**,
+**#432/E-1 overlap ✅**, **X272-1 Field control ✅ present**. #439 mask-draw fix e2e-validated (not
+synthetic-CU-observable). The two P1s the user cared most about (rail + render stability) work live.
+Remaining CU re-checks: #432 header arm-R reachability, #434 sampler-occlusion (needs 2-track
+composite), CU-MANUAL rows in the new hardware/effects UAT stages.
