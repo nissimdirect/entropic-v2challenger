@@ -33,6 +33,8 @@ import LayerPanel from './components/timeline/LayerPanel'
 // L-block (GH issue 422): Photoshop-style left tool rail, mounted flag-gated
 // (F_CREATRIX_LAYOUT) to the left of the preview canvas.
 import ToolRail from './components/layout/ToolRail'
+// GH #436: transport SVG icons replacing bare Unicode glyphs (▶ ⏸ ⏹ ⟳).
+import TransportIcon from './assets/transport-icons'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
 // P5a.3: buildVoiceLayers replaces buildSamplerLayer in the render path (multi-voice FSM).
 // #423: the legacy buildSamplerLayer single-layer fallback (no-voice → still
@@ -3626,17 +3628,17 @@ function AppInner() {
             onClick={handlePlayPause}
             title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
           >
-            {isPlaying ? '⏸' : '▶'}
+            <TransportIcon name={isPlaying ? 'pause' : 'play'} />
           </button>
           <button className="app__transport-btn" onClick={handleStop} title="Stop">
-            ⏹
+            <TransportIcon name="stop" />
           </button>
           <button
             className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
             onClick={() => useTimelineStore.getState().toggleLooping()}
             title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
           >
-            ⟳
+            <TransportIcon name="loop" />
           </button>
         </div>
         <span className="app__transport-timecode">

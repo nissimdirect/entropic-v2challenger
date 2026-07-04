@@ -52,6 +52,9 @@ body {
 }
 
 .app__transport-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-1);
