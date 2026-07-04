@@ -880,28 +880,44 @@ function AppInner() {
     })
 
     // MK.4: q → toggle marquee tool (rect/ellipse via repeat-press; §1 hotkeys)
+    // GH #425 (F-1): also write useLayoutStore.cursorTool at each step, mirroring
+    // what the click path (EffectBrowser.tsx/ToolRail.tsx -> selectCursorTool())
+    // already does. Without this, cursorTool never left 'select', so every
+    // indicator keyed off it (the "tool: {cursorTool}" statusbar chip and
+    // ToolRail's active-icon highlight) looked like the hotkey did nothing —
+    // even though previewToolMode (the field MaskSelectOverlay actually reads
+    // to accept pointer input) was already toggling correctly.
     shortcutRegistry.register('tool_marquee', () => {
       const ts = useTimelineStore.getState()
+      const ls = useLayoutStore.getState()
       const current = ts.previewToolMode
       if (current === 'marquee-rect') {
         ts.setPreviewToolMode('marquee-ellipse')
+        ls.setCursorTool('mask-marquee-ellipse')
       } else if (current === 'marquee-ellipse') {
         ts.setPreviewToolMode(null)
+        ls.setCursorTool('select')
       } else {
         ts.setPreviewToolMode('marquee-rect')
+        ls.setCursorTool('mask-marquee-rect')
       }
     })
 
     // MK.5: l → toggle lasso tool (freehand → polygon → off via repeat-press)
+    // GH #425 (F-1): same cursorTool sync fix as tool_marquee above.
     shortcutRegistry.register('tool_lasso', () => {
       const ts = useTimelineStore.getState()
+      const ls = useLayoutStore.getState()
       const current = ts.previewToolMode
       if (current === 'lasso-freehand') {
         ts.setPreviewToolMode('lasso-polygon')
+        ls.setCursorTool('mask-lasso-polygon')
       } else if (current === 'lasso-polygon') {
         ts.setPreviewToolMode(null)
+        ls.setCursorTool('select')
       } else {
         ts.setPreviewToolMode('lasso-freehand')
+        ls.setCursorTool('mask-lasso-freehand')
       }
     })
 

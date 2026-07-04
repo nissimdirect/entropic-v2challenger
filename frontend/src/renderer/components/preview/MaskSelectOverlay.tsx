@@ -197,16 +197,42 @@ export default function MaskSelectOverlay({
   // // letterbox mapping from BoundingBoxOverlay.tsx:53 (computeCanvasLayout + ResizeObserver)
   const [layout, setLayout] = useState<CanvasLayout | null>(null)
 
+  // GH #425 (F-2): MaskSelectOverlay mounts unconditionally at app startup
+  // (App.tsx always renders it, well before any clip is selected), so this
+  // effect's first pass can land before `containerRef.current` (the shared
+  // previewContainerRef div, owned by App.tsx) is attached. Because
+  // `canvasWidth`/`canvasHeight` fall back to 1920x1080 (App.tsx:
+  // `frameWidth || 1920`) — the most common video resolution — importing a
+  // 1920x1080 clip doesn't change either dependency's numeric value, so the
+  // effect never re-runs to pick up the by-then-valid ref, and `layout` stays
+  // permanently null: every pointer handler below early-returns on
+  // `!layout`, silently no-op'ing every mask draw. (BoundingBoxOverlay.tsx
+  // has the identical structural pattern but isn't exposed by it: it only
+  // mounts once a clip is already selected, well after the container has
+  // stabilized.) Retry via rAF until the ref resolves, then observe normally.
   useLayoutEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-    const update = () => {
-      setLayout(computeCanvasLayout(el, canvasWidth, canvasHeight, canvasWidth, canvasHeight))
+    let ro: ResizeObserver | null = null
+    let rafId: number | null = null
+
+    const attach = () => {
+      const el = containerRef.current
+      if (!el) {
+        rafId = requestAnimationFrame(attach)
+        return
+      }
+      const update = () => {
+        setLayout(computeCanvasLayout(el, canvasWidth, canvasHeight, canvasWidth, canvasHeight))
+      }
+      update()
+      ro = new ResizeObserver(update)
+      ro.observe(el)
     }
-    update()
-    const ro = new ResizeObserver(update)
-    ro.observe(el)
-    return () => ro.disconnect()
+    attach()
+
+    return () => {
+      if (rafId !== null) cancelAnimationFrame(rafId)
+      ro?.disconnect()
+    }
   }, [containerRef, canvasWidth, canvasHeight])
 
   const toolMode = useTimelineStore((s) => s.previewToolMode)
