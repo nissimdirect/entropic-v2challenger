@@ -113,11 +113,11 @@ drag-journey e2e specs are written (harness ready).**
 ---
 
 ## #393 AA.4 — CLOSED via new OS-pointer e2e (2026-07-04)
-Wrote + ran  (branch
-, 9170480). It drives the FULL drag-journey with real Playwright pointer
-events: import → arm the video track (#432 arm-R, accessible name) →  → param-picker
-(clickable  buttons) → double-click the lane 3× to add breakpoints → marquee-drag
-across them → assert  count = 3. **PASS in 9s.**
+Wrote + ran `frontend/tests/e2e/regression/gh393-aa4-breakpoint-marquee.spec.ts` (branch
+`fix/zmq-export-start-test`, commit 9170480). It drives the FULL drag-journey with real Playwright
+pointer events: import → arm the video track (#432 arm-R, accessible name) → `+ Lane` → param-picker
+(clickable `param-option-*` buttons) → double-click the lane 3× to add breakpoints → marquee-drag
+across them → assert `.auto-node__circle--selected` count = 3. **PASS in 9s.**
 This VALIDATES the systemic finding exactly: the feature WORKS (real OS pointer proves it); synthetic
 CU simply could not fire the rubber-band handler. #393 goes from CU-verdict GAP to **VERIFIED PASS**.
 The drag-journey completion METHOD is now proven end-to-end and reusable (2 iterations: param-picker
