@@ -411,7 +411,7 @@
 | #293 | feature | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-06-17-full-coverage.md Area 6 'Tensor Rou… |
 | #294 | test | EXEMPT | n/a | n/a |
 | #295 | perf | OK_WIRED | yes | no |
-| #296 | feature | OK_WIRED | yes | no |
+| #296 | feature | OK_WIRED | yes | yes — docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 13-15 (H4 CC-records-automation, rate-limit/echo-suppression feed); automated via frontend/src/__tests__/utils/cc-record.test.ts + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts |
 | #297 | fix | OK_WIRED | yes | no |
 | #298 | fix | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md line 98: 'recovery (#298… |
 | #299 | fix | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-06-17-full-coverage.md Area 5 (lines 65-7… |
@@ -458,35 +458,35 @@
 | #342 | docs | EXEMPT | n/a | n/a |
 | #343 | docs | EXEMPT | n/a | n/a |
 | #344 | feature | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md row X5 ('Move a CLIP tha… |
-| #345 | feature | OK_WIRED | yes | no |
+| #345 | feature | OK_WIRED | yes | yes — docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 1-3 (H1 focus-context selector); automated via frontend/src/__tests__/utils/focusContext.test.ts + frontend/src/__tests__/components/mapping-context-chip.test.tsx + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts |
 | #346 | docs | EXEMPT | n/a | n/a |
 | #347 | feature | OK_WIRED | yes | no |
 | #348 | ci | EXEMPT | n/a | n/a |
 | #349 | test | EXEMPT | n/a | n/a |
 | #350 | feature | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md:28 'MK.12 subject-matte … |
-| #351 | feature | GAP_UNWIRED | yes | no |
+| #351 | feature | GAP_UNWIRED | yes | yes — docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 4-9 (H2 bank-relative resolve); automated via frontend/src/__tests__/renderer/bank-resolver.test.ts + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts. Checkpoint 7 (bank-slot LEARN for non-MIDImix hardware) is BLOCKED-BY-BUG #440 -- setCCBankBinding has no UI call site outside the MIDImix factory-profile path |
 | #352 | test | EXEMPT | n/a | n/a |
 | #353 | feature | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md:351 'X5 | Move a CLIP th… |
 | #354 | fix | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md:363 'C4 | Clip-transform… |
-| #356 | feature | OK_WIRED | yes | yes — docs/UAT-UIT-GUIDE.md:1276 'MIDI learn (pad) | Right-click p… |
+| #356 | feature | OK_WIRED | yes | yes — docs/UAT-UIT-GUIDE.md:1276 'MIDI learn (pad) | Right-click p…' AND docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 10-12 (H3 widened learn surface); automated via frontend/src/__tests__/components/performance/h3-learn-surface.test.tsx + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts |
 | #358 | docs | EXEMPT | n/a | n/a |
 | #359 | feature | OK_WIRED | yes | yes — docs/UAT-RESULTS-2026-07-03.md:43-44 ('slip(`s`)/slide(`d`) … |
 | #360 | test | EXEMPT | n/a | n/a |
-| #361 | feature | OK_WIRED | yes | yes — docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md:33 (F2, P0-verify… |
+| #361 | feature | OK_WIRED | yes | yes — docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md:33 (F2, P0-verify…) AND docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 13-15 (H4 CC-records-automation); automated via frontend/src/__tests__/utils/cc-record.test.ts + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts |
 | #362 | test | EXEMPT | n/a | n/a |
 | #363 | fix | OK_WIRED | yes | no |
 | #364 | test | EXEMPT | n/a | n/a |
-| #365 | feature | OK_WIRED | yes | no |
+| #365 | feature | OK_WIRED | yes | yes — docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 16-19 (H5 controller-identity persistence); automated via frontend/src/__tests__/stores/controller-identity.test.ts + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts |
 | #366 | docs | EXEMPT | n/a | n/a |
 | #368 | feature | OK_WIRED | yes | partial — docs/UAT-RESULTS-2026-07-03.md:59-60 'Sidecar red = fx.copy_… |
 | #369 | feature | OK_WIRED | yes | partial — docs/UAT-RESULTS-2026-07-03.md:62 'Same class as the fx.extr… |
 | #370 | feature | OK_WIRED | yes | no |
 | #371 | test | EXEMPT | n/a | n/a |
 | #372 | feature | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md:217-218 'Automation tool… |
-| #373 | fix | OK_WIRED | yes | partial — docs/UAT-UIT-GUIDE.md:518 row 6 'MIDI-reactive mod | Map MID… |
+| #373 | fix | OK_WIRED | yes | partial — docs/UAT-UIT-GUIDE.md:518 row 6 'MIDI-reactive mod | Map MID…' AND docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 20-22 (H6 velocity); automated via frontend/src/__tests__/h6-velocity-plumbing.test.ts + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts |
 | #374 | refactor | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md:409 'A7c correction: the… |
 | #375 | feature | OK_WIRED | yes | yes — docs/UAT-PLAN-2026-07-02-live-cu.md:232-233 'Hardware-map UI… |
-| #376 | feature | OK_WIRED | yes | no |
+| #376 | feature | OK_WIRED | yes | yes — docs/uat/UAT-STAGE-HARDWARE-MAPPING.md checkpoints 23-26 (H7 bank paging + HUD); automated via frontend/src/__tests__/renderer/bank-paging.test.ts + frontend/src/__tests__/components/bank-paging-hud.test.tsx + frontend/src/__tests__/integration/hardware-mapping-uat.test.ts |
 | #377 | feature | OK_WIRED | yes | partial — docs/UAT-FEATURE-FLAG-AUDIT-2026-07-03.md and docs/UAT-RESUL… |
 | #378 | test | EXEMPT | n/a | n/a |
 | #379 | test | EXEMPT | n/a | n/a |
