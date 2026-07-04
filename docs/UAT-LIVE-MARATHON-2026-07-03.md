@@ -137,3 +137,16 @@ Tabs: General · Shortcuts · Performance · Paths. All reachable via click.
 Menu sweep so far (native menu, CU-reliable): Help menu = Keyboard Shortcuts / Send Feedback
 (⌘⇧F) / Generate Support Bundle (⌘⇧D). Menus are click-verifiable — a good CU-reliable lane vs the
 drag/draw/playback lanes that are blocked.
+
+### G3 — Edit → Undo History overlay — ✅ PASS
+Edit menu shows "Undo History" (+ standard Undo ⌘Z / Redo ⌘⇧Z / Cut/Copy/Paste/Delete). Clicking it
+opens the UNDO HISTORY panel (top-left) with a HISTORY section ("No actions yet" on empty project).
+Prefs General tab: Theme=Dark (Light "Coming soon"), Language=English.
+
+### CU-reliable lane status
+Confirmed PASSES via click/menu/inspect: spine (import→effect→preview→export→parity), P1-B (instrument
+mount no v2-reject), A7a %-labels, F_0512_37 (shortcuts tab), G4 (Preferences 4 tabs), G3 (Undo
+History). This lane is reliable and productive. The remaining un-verdicted rows split into the two
+blocked lanes already documented: drag/draw (synthetic-CU can't fire the handler) and playback
+(#429 render-concurrency degrades the engine). So "complete via CU" ≈ the click/menu/inspect subset;
+the rest needs the #429 fix + a human/Playwright pointer for drag-draw.
