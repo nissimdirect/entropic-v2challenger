@@ -35,3 +35,24 @@ actually reach in the UI, not what exists in code. Each row: driven live, screen
 ## Confirmed-again this session
 - UAT-1 (P3): cold-import frame-0 `Engine error: Socket is closed` toast — reproduced on this launch.
 - Arm + lane-create infra works on MASTER (positive: the toolbar flow is real).
+
+## Continued (2026-07-04)
+
+### X272-1 field-param control — no "Field…" affordance (consistent with audit ⚠GAP)
+- Live: the Chromatic Aberration device param rows (Offset knob, Direction dropdown, MIX)
+  show NO "Field…" option / field-source binding control. Matches the audit's code-verified
+  claim that `registry.field_capable` defaults to `set()` and is never populated → no effect
+  surfaces a Field control. (Full confirmation on a FIELD_TOP25 effect deferred — same
+  expected result per the empty registry.) Another "engine-present, control-absent" instance.
+
+### THEME CONSOLIDATION — the session's load-bearing finding
+Multiple independent items reduce to ONE root pattern: **suites shipped their engine but the
+UI control is clipped, unmounted, or missing** — so the feature is in-code but not usable:
+- Tool rail: 14 Block icons built (#347), no rail component mounted → tools only in browser tab.
+- B3 lean track header: clips the automation arm-R + lock on video tracks (LIVE-M1).
+- Effect params: no right-click "automate" (LIVE-M2); no "Field…" control (X272-1).
+- Masking: marquee tool activates but draw doesn't register (F-2).
+- #393 AA.4: lane infra reachable, breakpoint-select surface not.
+**Recommendation:** the highest-leverage fix wave is CONTROL-SURFACE, not engine — mount the
+rail, un-clip the header cluster, add the missing param affordances. Then the blocked CU
+journeys (Stage F masking, Stage I automation) become testable.
