@@ -743,6 +743,17 @@ def _p5a4_server(monkeypatch):
     server.export_manager = RecordingExportManager()
     server.token = "test-token"
 
+    # The export-start handler reads self.audio_player._sample_rate/.loaded to
+    # pin the audio-follower sample rate (AA.3-B). The bare __new__ server has
+    # no audio_player, so valid payloads that pass validation would raise
+    # AttributeError before reaching export_manager.start. Provide a minimal
+    # stub (mirrors the FakeAudioPlayer used elsewhere in this file).
+    class _StubAudioPlayer:
+        loaded = False
+        _sample_rate = 44100
+
+    server.audio_player = _StubAudioPlayer()
+
     # Stub the path/chain/settings validators that zmq_server bound at import.
     monkeypatch.setattr(zs, "validate_upload", lambda p: [])
     monkeypatch.setattr(zs, "validate_output_path", lambda p: [])
@@ -774,8 +785,14 @@ def test_export_start_rejects_malformed_performance_payload(monkeypatch):
     server = _p5a4_server(monkeypatch)
     bad_perf = {
         "events": [
-            {"frameIndex": -1, "eventIndex": 0, "note": 60, "velocity": 100,
-             "kind": "trigger", "instrumentId": "sampler-1"},
+            {
+                "frameIndex": -1,
+                "eventIndex": 0,
+                "note": 60,
+                "velocity": 100,
+                "kind": "trigger",
+                "instrumentId": "sampler-1",
+            },
         ]
     }
     resp = server.handle_message(_export_msg(performance=bad_perf))
@@ -790,8 +807,14 @@ def test_export_start_rejects_forged_voice_id_via_unknown_kind(monkeypatch):
     server = _p5a4_server(monkeypatch)
     bad_perf = {
         "events": [
-            {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100,
-             "kind": "forged", "instrumentId": "sampler-1"},
+            {
+                "frameIndex": 0,
+                "eventIndex": 0,
+                "note": 60,
+                "velocity": 100,
+                "kind": "forged",
+                "instrumentId": "sampler-1",
+            },
         ]
     }
     resp = server.handle_message(_export_msg(performance=bad_perf))
@@ -813,10 +836,21 @@ def test_export_start_passes_valid_performance_payload(monkeypatch):
     server = _p5a4_server(monkeypatch)
     good_perf = {
         "events": [
-            {"frameIndex": 0, "eventIndex": 0, "note": 60, "velocity": 100,
-             "kind": "trigger", "instrumentId": "sampler-1"},
+            {
+                "frameIndex": 0,
+                "eventIndex": 0,
+                "note": 60,
+                "velocity": 100,
+                "kind": "trigger",
+                "instrumentId": "sampler-1",
+            },
         ],
-        "instruments": {"sampler-1": {"clipId": "c", "adsr": {"attack": 0, "decay": 0, "sustain": 1, "release": 0}}},
+        "instruments": {
+            "sampler-1": {
+                "clipId": "c",
+                "adsr": {"attack": 0, "decay": 0, "sustain": 1, "release": 0},
+            }
+        },
         "assets": {"c": {"path": "/fake/clip.mp4", "frameCount": 10}},
     }
     resp = server.handle_message(_export_msg(performance=good_perf))
@@ -837,14 +871,17 @@ def test_export_start_without_performance_is_legacy(monkeypatch):
 
 # ── P5a.4 red-team regression (RT-1 asset path, HT-2 instrument chain depth) ──
 
+
 def test_export_start_rejects_hostile_asset_path(monkeypatch):
     """RT-1: every performance asset path is decoded + composited into the
     export output — it MUST pass validate_upload, else a hostile payload
     exfiltrates any user-readable file into the artifact."""
     server = _p5a4_server(monkeypatch)
     import zmq_server as zs
+
     monkeypatch.setattr(
-        zs, "validate_upload",
+        zs,
+        "validate_upload",
         lambda p: ["path traversal"] if "hostile" in str(p) else [],
     )
     perf = {
@@ -863,9 +900,14 @@ def test_export_start_rejects_overdeep_instrument_chain(monkeypatch):
     server = _p5a4_server(monkeypatch)
     import zmq_server as zs
     from security import validate_chain_depth as real_vcd
+
     monkeypatch.setattr(zs, "validate_chain_depth", real_vcd)
     deep = [{"effectId": f"fx{i}", "params": {}} for i in range(11)]
-    perf = {"events": [], "instruments": {"i1": {"clipId": "c", "chain": deep}}, "assets": {}}
+    perf = {
+        "events": [],
+        "instruments": {"i1": {"clipId": "c", "chain": deep}},
+        "assets": {},
+    }
     resp = server.handle_message(_export_msg(performance=perf))
     assert resp["ok"] is False
     assert "SEC-7" in resp["error"] or "depth" in resp["error"].lower()
