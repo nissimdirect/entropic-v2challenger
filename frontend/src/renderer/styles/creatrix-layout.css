@@ -30,11 +30,30 @@
   right: 0;
 }
 
+/* UAT issue 424 (E-1/E-2): this was `display: grid; grid-template-rows: 1fr
+   var(--cx-inspector-h, 150px)` — only 2 explicit row tracks for what is
+   actually 5-9 DOM children (conditional upload/error/asset-info banners,
+   TransformPanel, LayerPanel, sidebar-tabs, effect-browser, the inspector
+   resize handle, Inspector), none of which carried an explicit grid-row.
+   Grid auto-placement assigned each child to the next row line in DOM
+   order, so whichever child happened to land on row 2 (nominally the
+   Inspector's 150px slot) had ITS OWN box clamped to 150px — but that
+   child has no overflow:hidden of its own, so its content (e.g. LayerPanel's
+   Rotate/Scale sliders) kept its natural ~350px height and painted straight
+   through the clamped box onto the following siblings (sidebar-tabs,
+   effect-browser). Which child landed on row 2 depended on which banners
+   were conditionally rendered, making the overlap DOM-order-fragile.
+   Fixed by switching to flex-column (matches the legacy .app__sidebar
+   behavior in global.css): children stack in natural document order with
+   no placement guesswork, .effect-browser (already flex:1 + min-height:0
+   in global.css) absorbs/yields leftover space, and .cx-inspector below
+   gets an explicit flex-basis instead of relying on a grid row. */
 .app--creatrix .cx-left-col {
   grid-row: 2;
   grid-column: 1;
-  display: grid;
-  grid-template-rows: 1fr var(--cx-inspector-h, 150px);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   overflow: hidden;
   background: var(--cx-bg-panel);
 }
@@ -116,13 +135,18 @@
 
 /* ============================================================
    Inspector content (P3.3) — Live Signal info panel.
-   Container sits in cx-left-col row 2 (height var(--cx-inspector-h)).
+   cx-left-col is flex-column now (UAT issue 424 fix above), so this panel's
+   height is no longer given for free by a grid row — flex-basis pins it to
+   the same resizable height the drag handle already writes to
+   --cx-inspector-h, with flex-shrink:0 so a tall LayerPanel/browser above
+   it can never squeeze it (that's .effect-browser's job via flex:1).
    Replaces the unstyled raw markup the polymorphic states shipped with.
    ============================================================ */
 .app--creatrix .cx-inspector {
   position: relative;
   display: flex;
   flex-direction: column;
+  flex: 0 0 var(--cx-inspector-h, 150px);
   min-height: 0;
   overflow: hidden;
   background: var(--cx-bg-panel);
