@@ -30,6 +30,9 @@ import Inspector from './components/inspector/Inspector'
 // B3 / L3: LAYER inspector panel (right-dock, above EFFECTS) — bound to the
 // selected track. Mounted flag-gated (F_CREATRIX_LAYOUT) in the sidebar.
 import LayerPanel from './components/timeline/LayerPanel'
+// L-block (GH issue 422): Photoshop-style left tool rail, mounted flag-gated
+// (F_CREATRIX_LAYOUT) to the left of the preview canvas.
+import ToolRail from './components/layout/ToolRail'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
 // P5a.3: buildVoiceLayers replaces buildSamplerLayer in the render path (multi-voice FSM).
 //        buildSamplerLayer kept for legacy callers outside the voice path.
@@ -50,6 +53,7 @@ import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
 import './styles/creatrix-layout.css'
 import './styles/b3-layout.css'
+import './styles/tool-rail.css'
 import type { Asset, EffectInstance } from '../shared/types'
 import { IDENTITY_TRANSFORM, getTrackCompositing } from '../shared/types'
 import BoundingBoxOverlay from './components/preview/BoundingBoxOverlay'
@@ -3849,6 +3853,14 @@ function AppInner() {
         style={FF.F_CREATRIX_LAYOUT ? undefined : { display: 'contents' }}
       >
       <div className="app__main">
+        {/* L-block (GH issue 422): rail sits LEFT of the preview canvas. display:contents
+            when the flag is off keeps app__preview a direct child of app__main,
+            i.e. identical DOM/layout to before this change. */}
+        <div
+          className={FF.F_CREATRIX_LAYOUT ? 'cx-preview-row' : undefined}
+          style={FF.F_CREATRIX_LAYOUT ? undefined : { display: 'contents' }}
+        >
+        {FF.F_CREATRIX_LAYOUT && <ToolRail />}
         <div className="app__preview">
           <div
             ref={previewContainerRef}
@@ -3959,6 +3971,7 @@ function AppInner() {
             onVolumeChange={(v) => audioStore.setVolume(v)}
             onToggleMute={() => audioStore.toggleMute()}
           />
+        </div>
         </div>
         {/* Phase 13C: ParamPanel removed — replaced by inline params in DeviceChain */}
         {selectedTextClip?.textConfig && (

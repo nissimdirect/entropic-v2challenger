@@ -112,7 +112,9 @@ export type CursorTool =
   | 'mask-wand'
   | 'mask-key-picker'
 
-const TOOL_ENTRIES: Array<{ id: CursorTool; label: string }> = [
+// L-block (GH issue 422): exported so ToolRail.tsx reuses this exact list (single
+// source of truth for the [tool] tab AND the left tool rail — no drift).
+export const TOOL_ENTRIES: Array<{ id: CursorTool; label: string }> = [
   { id: 'select', label: 'Select' },
   { id: 'razor', label: 'Razor' },
   { id: 'slip', label: 'Slip' },
@@ -147,8 +149,10 @@ export const MASK_TOOL_ENTRIES: Array<{
  * B3 / L0: map each cursor tool to a Block ToolIcon (tool-icons.tsx). Rendered
  * in the tool rail under F_CREATRIX_LAYOUT — currentColor only, the button
  * supplies state color. Tools with no Block glyph fall back to their text label.
+ *
+ * Exported (GH issue 422) so ToolRail.tsx renders the identical icon per tool id.
  */
-const TOOL_ICON: Partial<Record<CursorTool, ToolName>> = {
+export const TOOL_ICON: Partial<Record<CursorTool, ToolName>> = {
   select: 'transform',
   razor: 'razor',
   slip: 'slip',
