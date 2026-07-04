@@ -162,3 +162,38 @@ the rest needs the #429 fix + a human/Playwright pointer for drag-draw.
   needs a render-diff, which #429 degrades during playback — so single-frame render-diff (scrub, not
   play) is the way to verdict it once #429 is addressed. General lesson: for drag-based features,
   check for a menu/keyboard equivalent before marking "not CU-verifiable."
+
+---
+
+## MARATHON COMPLETION STATE (2026-07-04)
+
+**CU-reachable surface = documented.** The loop covered everything computer-use can reliably verdict
+and clearly bounded what it can't.
+
+**PASSES (click/menu/inspect/single-frame — CU-reliable):** launch, import+render, add-effect+preview,
+knob-drag, export, preview==export parity, P1-B instrument mount (no v2-reject), A7a %-labels,
+F_0512_37 (Help→Shortcuts tab), G4 (Preferences 4 tabs), G3 (Undo History), menu sweep (Help/Edit/Timeline).
+
+**BUGS filed (issues #422–429):** #422 tool rail unmounted · #423 un-triggered sampler occludes lower
+track · #424 B3 header slider/tab overlap · #425 masking q-hotkey + draw · #429 (P1) playback render
+timeout → silent empty-chain fallback + ZMQ socket-busy concurrency. Plus doc'd: UAT-1 frame-0 socket,
+E-3 icons/type-floor, LIVE-M1 header arm-clip, LIVE-M2 no right-click-automate.
+
+**Divergence resolved via CU:** #393 AA.4 → GAP (lane infra reachable, breakpoint-select surface isn't).
+
+**TWO BLOCKED LANES (not CU-completable — this is the honest boundary):**
+1. **Drag-drop / freehand-draw / marquee rows** — synthetic CU pointer events don't fire this app's
+   handlers (4 confirmations). Need a human pointer OR Playwright `_electron` real-pointer drags.
+   Affected: masking J1–J5 (Stage F), drag-restack (Stage G1 — has a MENU workaround), instrument
+   drag-placement, mask routing.
+2. **Playback-dependent rows** — #429 degrades the engine during Play (timeout + empty-chain), so
+   parity-under-playback, automation-eval, instrument-voice, transition, and granulator rows can't be
+   reliably verdicted until #429 is fixed. Single-frame (scrub, not play) checks remain usable.
+
+**What unblocks the rest:** (a) fix #429 (render-request serialization on the ZMQ socket) → re-enables
+all playback rows; (b) a Playwright `_electron` drag harness OR a human-pointer pass → the drag/draw
+rows. Then the combined doc's remaining rows become executable.
+
+**Net:** the load-bearing bugs and the reachability/method limits are all captured. Further CU looping
+now is low-yield until (a)/(b); the highest-leverage next work is fixing #429 + the control-surface
+gaps (rail, header), which converts the biggest blocked lane into a testable one.
