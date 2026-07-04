@@ -112,7 +112,9 @@ export type CursorTool =
   | 'mask-wand'
   | 'mask-key-picker'
 
-const TOOL_ENTRIES: Array<{ id: CursorTool; label: string }> = [
+// L-block (GH issue 422): exported so ToolRail.tsx reuses this exact list (single
+// source of truth for the [tool] tab AND the left tool rail — no drift).
+export const TOOL_ENTRIES: Array<{ id: CursorTool; label: string }> = [
   { id: 'select', label: 'Select' },
   { id: 'razor', label: 'Razor' },
   { id: 'slip', label: 'Slip' },
@@ -147,8 +149,10 @@ export const MASK_TOOL_ENTRIES: Array<{
  * B3 / L0: map each cursor tool to a Block ToolIcon (tool-icons.tsx). Rendered
  * in the tool rail under F_CREATRIX_LAYOUT — currentColor only, the button
  * supplies state color. Tools with no Block glyph fall back to their text label.
+ *
+ * Exported (GH issue 422) so ToolRail.tsx renders the identical icon per tool id.
  */
-const TOOL_ICON: Partial<Record<CursorTool, ToolName>> = {
+export const TOOL_ICON: Partial<Record<CursorTool, ToolName>> = {
   select: 'transform',
   razor: 'razor',
   slip: 'slip',
@@ -160,6 +164,28 @@ const TOOL_ICON: Partial<Record<CursorTool, ToolName>> = {
   'mask-lasso-polygon': 'polylasso',
   'mask-wand': 'wand',
   'mask-key-picker': 'keypicker',
+}
+
+/**
+ * L-block (GH issue 422): shared cursor-tool selection logic, extracted so
+ * EffectBrowser's [tool] tab AND ToolRail.tsx call ONE implementation instead
+ * of two copies that can silently drift. Guards against text-input focus
+ * (qa-redteam H5 / MK.13 bare-letter guard), then wires mask tools to the
+ * timeline's previewToolMode exactly like non-rail selection always has.
+ *
+ * Does NOT include EffectBrowser's `cursorStackRef` push (that stack backs
+ * `restoreCursorTool`, which has zero callers anywhere in the codebase today
+ * — see the `void restoreCursorTool` comment below). EffectBrowser keeps that
+ * push in its own wrapper around this function; ToolRail calls this directly.
+ */
+export function selectCursorTool(
+  tool: CursorTool,
+  setCursorTool: (tool: CursorTool) => void,
+): void {
+  if (isTextInputActive()) return
+  setCursorTool(tool)
+  const maskEntry = MASK_TOOL_ENTRIES.find((e) => e.id === tool)
+  useTimelineStore.getState().setPreviewToolMode(maskEntry ? maskEntry.previewMode : null)
 }
 
 /**
@@ -269,20 +295,14 @@ export default function EffectBrowser({
   }, [cursorTool])
 
   const handleToolSelect = useCallback((tool: CursorTool) => {
-    // Guard: do not fire if a text input is focused (qa-redteam H5 + MK.13 bare-letter guard)
-    // This guard is inherited verbatim from P3.2 §3.7 — isTextInputActive() definition above.
+    // Guard: do not fire if a text input is focused (qa-redteam H5 + MK.13 bare-letter guard).
+    // Checked here (not only inside selectCursorTool) so the cursorStackRef push below is
+    // also skipped when guarded — selectCursorTool's own guard only skips its own work.
     if (isTextInputActive()) return
     cursorStackRef.current = [...cursorStackRef.current, cursorTool]
-    setCursorTool(tool)
-
-    // MK.13: wire mask tools → timeline previewToolMode.
-    // Non-mask tools clear the mode so MaskSelectOverlay deactivates.
-    const maskEntry = MASK_TOOL_ENTRIES.find((e) => e.id === tool)
-    if (maskEntry) {
-      useTimelineStore.getState().setPreviewToolMode(maskEntry.previewMode)
-    } else {
-      useTimelineStore.getState().setPreviewToolMode(null)
-    }
+    // L-block (GH issue 422): setCursorTool + mask→previewToolMode wiring now lives in
+    // the shared selectCursorTool() (above), also called by ToolRail.tsx.
+    selectCursorTool(tool, setCursorTool)
   }, [cursorTool])
 
   // Restore prior cursor mode (for modal close — PLAN §3.7)

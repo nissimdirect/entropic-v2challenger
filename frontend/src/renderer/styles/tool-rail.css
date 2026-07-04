@@ -1,0 +1,99 @@
+/*
+ * tool-rail.css — Photoshop-style left tool rail (GH issue 422 / B3 L0)
+ *
+ * Groups mirror docs/roadmap/layout-session/challengers/challenger-b3-arrangement.html
+ * `.rail` block (TRNS / EDIT / MASK / MISC). Tokens only (tokens.css) — no raw
+ * hex: frontend/scripts/hex-ratchet.sh CI gate fails on new hex in styles/.
+ */
+
+/* Row wrapper hosting the rail + app__preview, left of the canvas.
+   Mounted only under F_CREATRIX_LAYOUT (App.tsx uses display:contents when off). */
+.cx-preview-row {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.tool-rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  width: 44px;
+  flex-shrink: 0;
+  padding: 8px 0;
+  background: var(--cx-bg-panel);
+  border-right: 1px solid var(--cx-line-1);
+  overflow-y: auto;
+}
+
+.tool-rail__group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.tool-rail__group + .tool-rail__group {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--cx-line-1);
+}
+
+.tool-rail__group-label {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: var(--cx-text-3);
+  margin: 2px 0 1px;
+}
+
+.tool-rail__tool {
+  width: 32px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--cx-radius-card);
+  background: transparent;
+  color: var(--cx-text-2);
+  cursor: pointer;
+  position: relative;
+  padding: 0;
+}
+
+.tool-rail__tool:hover {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
+}
+
+.tool-rail__tool:focus-visible {
+  outline: 1px solid var(--cx-focus-ring);
+  outline-offset: -1px;
+}
+
+.tool-rail__tool--active {
+  background: var(--cx-acid-wash);
+  color: var(--cx-acid);
+  outline: 1px solid var(--cx-acid);
+}
+
+.tool-rail__fallback-label {
+  font-size: 9px;
+  font-family: var(--cx-font-mono);
+  letter-spacing: 0.02em;
+}
+
+.tool-rail__hotkey {
+  position: absolute;
+  right: 2px;
+  bottom: 1px;
+  font-size: 7px;
+  color: var(--cx-text-3);
+}
+
+.tool-rail__tool--active .tool-rail__hotkey {
+  color: var(--cx-acid);
+}
