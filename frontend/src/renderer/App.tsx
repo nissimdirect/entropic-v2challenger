@@ -32,20 +32,20 @@ import Inspector from './components/inspector/Inspector'
 import LayerPanel from './components/timeline/LayerPanel'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
 // P5a.3: buildVoiceLayers replaces buildSamplerLayer in the render path (multi-voice FSM).
-//        buildSamplerLayer kept for legacy callers outside the voice path.
+// #423: the legacy buildSamplerLayer single-layer fallback (no-voice → still
+// composite) was removed — no active note now renders nothing (transparent).
 import InstrumentsBrowser from './components/instruments/InstrumentsBrowser'
 import SamplerDevice from './components/instruments/SamplerDevice'
 import RackDevice from './components/instruments/RackDevice'
 import FrameBankDevice from './components/instruments/FrameBankDevice'
 import GranulatorDevice from './components/instruments/GranulatorDevice'
-import { buildSamplerLayer, buildVoiceLayers } from './components/instruments/buildSamplerLayer'
+import { resolveTrackSamplerLayers } from './components/instruments/buildSamplerLayer'
 import { buildRackLayers } from './components/instruments/buildRackLayers'
 import { resolveRackMacros } from './components/instruments/resolveRackMacros'
 import { serializeFrameBanks } from './components/instruments/serializeFrameBanks'
 import { buildGranulatorLayer } from './components/instruments/buildGranulatorLayer'
 import type { SamplerInstrumentV1, RackPad } from './components/instruments/types'
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
-import { evaluateVoices } from './components/instruments/voiceFSM'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
 import './styles/creatrix-layout.css'
@@ -1279,7 +1279,8 @@ function AppInner() {
 
         let res
         // P5a.3: resolve each performance-track Sampler into multi-voice composite layers.
-        // Uses evaluateVoices (voiceFSM) + buildVoiceLayers for voice-keyed rendering.
+        // Uses resolveTrackSamplerLayers (evaluateVoices + buildVoiceLayers, #423: no
+        // active note → no layer) for voice-keyed rendering.
         // Only render samplers whose track still exists, is a performance track, and isn't
         // muted (drops orphans left by a deleted track). Imperative getState() read is
         // deliberate: requestRenderFrame's deps are [effectChain], so a coalesced/queued
@@ -1330,15 +1331,13 @@ function AppInner() {
           // B10.1b — FROZEN track plays its baked clip (frozenLayers), not live voices.
           if (freezeState.isFrozen(trackId)) return []
           const inst = modulatedInstruments[trackId]
-          if (!inst) return []
           const events = perfState.trackEvents[trackId] ?? []
-          const voices = evaluateVoices(events, frame, { voiceCap: 4, adsr: rackAdsr })
-          if (voices.length > 0) {
-            return buildVoiceLayers(inst, voices, projectAssets, frame, activeFps, rackAdsr)
-          }
-          // Fall back to single-layer B1 path when no voices are active (silent track)
-          const legacy = buildSamplerLayer(inst, projectAssets, frame, activeFps)
-          return legacy ? [legacy] : []
+          // #423 (LOCKED decision): an instrument with no active note renders
+          // NOTHING — resolveTrackSamplerLayers has no legacy single-layer
+          // fallback. Emitting a layer regardless of note state used to
+          // composite the sampler's clean source over the track below even
+          // when silent.
+          return resolveTrackSamplerLayers(inst, events, frame, projectAssets, activeFps, rackAdsr)
         })
         // B4.1: Sample Rack channel summing. A performance track that hosts a rack
         // emits its per-pad channels (summed into the rack output via the SAME
