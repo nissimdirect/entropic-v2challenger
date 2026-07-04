@@ -8,6 +8,8 @@ import { useTimelineStore } from '../../renderer/stores/timeline'
 import { useEffectsStore } from '../../renderer/stores/effects'
 import { useEngineStore } from '../../renderer/stores/engine'
 import { useToastStore } from '../../renderer/stores/toast'
+import { useAutomationStore } from '../../renderer/stores/automation'
+import { useUndoStore } from '../../renderer/stores/undo'
 import DeviceChain from '../../renderer/components/device-chain/DeviceChain'
 import DeviceCard from '../../renderer/components/device-chain/DeviceCard'
 import { SESSION_NONCE } from '../../renderer/components/effects/EffectBrowser'
@@ -151,6 +153,87 @@ describe('DeviceChain', () => {
       expect(onFreezeUpTo).toHaveBeenCalledWith(1)
       unmount()
     })
+  })
+
+  // LIVE-M2 (#435): right-click a param knob → "Automate" creates/reveals +
+  // arms the automation lane for that exact param (Ableton-style parity).
+  describe('Automate context menu (LIVE-M2 #435)', () => {
+    beforeEach(() => {
+      useAutomationStore.getState().resetAutomation()
+      useUndoStore.getState().clear()
+    })
+
+    function clickAutomate(container: HTMLElement) {
+      const btn = Array.from(container.querySelectorAll('button')).find(
+        (b) => b.textContent === 'Automate',
+      )
+      expect(btn).toBeTruthy()
+      fireEvent.click(btn!)
+    }
+
+    it('shows "Automate" on right-click of a param knob, without also opening the device-level menu', () => {
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT])
+      const { container, unmount } = render(<DeviceChain onSaveAsPreset={vi.fn()} />)
+      const knob = container.querySelector('[data-testid="param-knob-fx-1-threshold"]') as HTMLElement
+      fireEvent.contextMenu(knob, { clientX: 20, clientY: 20 })
+      expect(container.textContent).toContain('Automate')
+      // Bubbling would also show the device-level "Save as Preset…" entry —
+      // the knob wrapper must stop propagation so only ONE menu opens.
+      expect(container.textContent ?? '').not.toContain('Save as Preset')
+      unmount()
+    })
+
+    it('creates a lane addressed effectId.paramKey and arms the track when no lane exists yet', () => {
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT])
+      expect(useAutomationStore.getState().getLanesForTrack(V1_TRACK_ID)).toHaveLength(0) // fail-before
+
+      const { container, unmount } = render(<DeviceChain />)
+      const knob = container.querySelector('[data-testid="param-knob-fx-1-threshold"]') as HTMLElement
+      fireEvent.contextMenu(knob, { clientX: 20, clientY: 20 })
+      clickAutomate(container)
+
+      const lanes = useAutomationStore.getState().getLanesForTrack(V1_TRACK_ID) // pass-after
+      expect(lanes).toHaveLength(1)
+      expect(lanes[0].paramPath).toBe('fx-1.threshold')
+      expect(lanes[0].isVisible).toBe(true)
+      expect(useAutomationStore.getState().armedTrackId).toBe(V1_TRACK_ID)
+      unmount()
+    })
+
+    it('reveals + arms the existing lane instead of duplicating it when one already exists', () => {
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT])
+      useAutomationStore.getState().addLane(V1_TRACK_ID, 'fx-1', 'threshold', '#4ade80')
+      const existingLane = useAutomationStore.getState().getLanesForTrack(V1_TRACK_ID)[0]
+      useAutomationStore.getState().setLaneVisible(V1_TRACK_ID, existingLane.id, false) // hidden
+      useAutomationStore.getState().armTrack(null) // not armed
+
+      const { container, unmount } = render(<DeviceChain />)
+      const knob = container.querySelector('[data-testid="param-knob-fx-1-threshold"]') as HTMLElement
+      fireEvent.contextMenu(knob, { clientX: 20, clientY: 20 })
+      clickAutomate(container)
+
+      const lanes = useAutomationStore.getState().getLanesForTrack(V1_TRACK_ID)
+      expect(lanes).toHaveLength(1) // no duplicate
+      expect(lanes[0].id).toBe(existingLane.id)
+      expect(lanes[0].isVisible).toBe(true) // revealed
+      expect(useAutomationStore.getState().armedTrackId).toBe(V1_TRACK_ID) // armed
+      unmount()
+    })
+
+    it('cleans up the lane created via Automate when the effect is deleted (delete-effect is a distributed transaction, PLAY-004)', () => {
+      useTimelineStore.getState().updateTrackEffectChain(V1_TRACK_ID, () => [MOCK_EFFECT])
+      const { container, unmount } = render(<DeviceChain />)
+      const knob = container.querySelector('[data-testid="param-knob-fx-1-threshold"]') as HTMLElement
+      fireEvent.contextMenu(knob, { clientX: 20, clientY: 20 })
+      clickAutomate(container)
+      expect(useAutomationStore.getState().getLanesForTrack(V1_TRACK_ID)).toHaveLength(1) // fail-before (pre-delete)
+
+      useProjectStore.getState().removeEffect(V1_TRACK_ID, 'fx-1')
+
+      expect(useAutomationStore.getState().getLanesForTrack(V1_TRACK_ID)).toHaveLength(0) // pass-after (post-delete)
+      unmount()
+    })
+
   })
 
   // F-0514-7: drag-add from EffectBrowser → DeviceChain.

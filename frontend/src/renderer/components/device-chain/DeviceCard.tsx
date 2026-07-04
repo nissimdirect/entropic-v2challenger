@@ -45,6 +45,14 @@ interface DeviceCardProps {
    */
   maskAssignable?: boolean
   onContextMenu?: (e: React.MouseEvent) => void
+  /**
+   * LIVE-M2 (#435): right-click on a single param's knob/slider — reports the
+   * param's key so the caller can offer an "Automate" entry scoped to THAT
+   * param, distinct from the whole-device `onContextMenu` (Freeze/Save-Preset).
+   * When provided, the knob wrapper stops propagation so only the per-param
+   * menu opens (no double menu from bubbling to the device row).
+   */
+  onParamContextMenu?: (e: React.MouseEvent, paramKey: string) => void
 }
 
 export default function DeviceCard({
@@ -63,6 +71,7 @@ export default function DeviceCard({
   onSetMaskRef,
   maskAssignable = true,
   onContextMenu,
+  onParamContextMenu,
 }: DeviceCardProps) {
   // P6.6: remember the last scalar value per param so "Clear field" can restore
   // it (the field assignment replaces the scalar in the store, so we stash it
@@ -394,6 +403,18 @@ export default function DeviceCard({
               data-testid={`param-knob-${effect.id}-${key}`}
               onDragOver={handleParamDragOver}
               onDrop={(e) => handleParamDrop(key, e)}
+              onContextMenu={
+                onParamContextMenu
+                  ? (e) => {
+                      e.preventDefault()
+                      // Stop propagation so the device-level menu (Freeze /
+                      // Save-Preset) doesn't ALSO open from bubbling — this
+                      // param's menu is the only one that should appear.
+                      e.stopPropagation()
+                      onParamContextMenu(e, key)
+                    }
+                  : undefined
+              }
             >
               <Knob
                 value={value as number}

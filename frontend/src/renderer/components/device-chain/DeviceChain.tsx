@@ -5,6 +5,7 @@ import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import { useEngineStore } from '../../stores/engine'
 import { useFreezeStore } from '../../stores/freeze'
+import { useAutomationStore } from '../../stores/automation'
 import { useLayoutStore } from '../../stores/layout'
 import { useToastStore } from '../../stores/toast'
 import { LIMITS } from '../../../shared/limits'
@@ -19,6 +20,11 @@ import type { EffectInstance, MatteNode, MatteRef, ParamValue } from '../../../s
 
 // Stable empty array for the no-mask-nodes case (avoid re-render churn).
 const EMPTY_MASK_NODES: MatteNode[] = []
+
+// LIVE-M2 (#435): same palette used by the "+ Lane" flows (AutomationToolbar,
+// Track.tsx track-header menu) so a lane created via right-click "Automate"
+// gets a color consistent with lanes created via those other entry points.
+const AUTOMATE_LANE_COLORS = ['#4ade80', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899']
 
 interface DeviceChainProps {
   modulatedValues?: Record<string, Record<string, number>>
@@ -103,6 +109,9 @@ export default function DeviceChain({
   const isFrozenAt = useFreezeStore((s) => s.isFrozen)
   const freezeOpState = useFreezeStore((s) => s.operationState)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; effectId: string; index: number } | null>(null)
+  // LIVE-M2 (#435): separate menu state for the per-PARAM "Automate" entry,
+  // distinct from the whole-device `contextMenu` above (Freeze/Save-Preset).
+  const [paramContextMenu, setParamContextMenu] = useState<{ x: number; y: number; effectId: string; paramKey: string } | null>(null)
 
   const handleSelect = useCallback((id: string) => {
     useProjectStore.getState().selectEffect(id)
@@ -349,6 +358,18 @@ export default function DeviceChain({
     setContextMenu(null)
   }, [])
 
+  // LIVE-M2 (#435): right-click on a param's knob → per-param menu (not the
+  // device-level Freeze/Save-Preset one). DeviceCard already stopped
+  // propagation before calling this, so `contextMenu` (device menu) never
+  // opens alongside it.
+  const handleParamContextMenu = useCallback((e: React.MouseEvent, effectId: string, paramKey: string) => {
+    setParamContextMenu({ x: e.clientX, y: e.clientY, effectId, paramKey })
+  }, [])
+
+  const closeParamContextMenu = useCallback(() => {
+    setParamContextMenu(null)
+  }, [])
+
   /** Find the group this effect belongs to, if any */
   const findGroupForEffect = useCallback((effectId: string): string | null => {
     for (const [groupId, group] of Object.entries(deviceGroups)) {
@@ -449,6 +470,40 @@ export default function DeviceChain({
 
     return items
   }, [effectChain, findGroupForEffect, onFreezeUpTo, onUnfreeze, onFlatten, onSaveAsPreset, onSaveChainAsPreset, isFrozenAt, freezeOpState, activeTrackId])
+
+  /**
+   * LIVE-M2 (#435): "Automate" — creates (or reveals, if one already exists)
+   * the automation lane addressed at `effectId.paramKey` and arms its track.
+   * Reuses the SAME `addLane` the "+ Lane" picker (AutomationToolbar) and the
+   * track-header "Add Lane: …" menu (Track.tsx) call, so a lane created here
+   * is byte-identical in shape/addressing and is covered by the existing
+   * effect-delete cleanup (crossStoreCleanup.ts prunes by paramPath prefix —
+   * it doesn't care which UI path created the lane).
+   */
+  const buildParamMenuItems = useCallback((effectId: string, paramKey: string): MenuItem[] => {
+    const trackId = activeTrackId
+    return [
+      {
+        label: 'Automate',
+        disabled: !trackId,
+        action: () => {
+          if (!trackId) return
+          const autoState = useAutomationStore.getState()
+          const paramPath = `${effectId}.${paramKey}`
+          let lane = autoState.getLanesForTrack(trackId).find((l) => l.paramPath === paramPath)
+          if (!lane) {
+            const existingCount = autoState.getLanesForTrack(trackId).length
+            const color = AUTOMATE_LANE_COLORS[existingCount % AUTOMATE_LANE_COLORS.length]
+            autoState.addLane(trackId, effectId, paramKey, color)
+            lane = autoState.getLanesForTrack(trackId).find((l) => l.paramPath === paramPath)
+          } else if (!lane.isVisible) {
+            autoState.setLaneVisible(trackId, lane.id, true)
+          }
+          autoState.armTrack(trackId)
+        },
+      },
+    ]
+  }, [activeTrackId])
 
   const chainTimeColor = lastFrameMs < 50 ? '#4ade80' : lastFrameMs < 100 ? '#f59e0b' : '#ef4444'
 
@@ -552,6 +607,16 @@ export default function DeviceChain({
                 // plumbing pad/branch effect-id resolution is a larger change.
                 maskAssignable={!isPadTarget}
                 onContextMenu={(e) => handleContextMenu(e, effect.id, index)}
+                // LIVE-M2 (#435): Automate is track-scoped (addLane/armTrack
+                // both take a trackId). Omitted for rack-pad chains (no
+                // trackId maps to a pad's own effect chain) — same "hide
+                // rather than silently no-op" rule MK.3 uses for mask
+                // assignment on pad effects.
+                onParamContextMenu={
+                  !isPadTarget && activeTrackId
+                    ? (e, paramKey) => handleParamContextMenu(e, effect.id, paramKey)
+                    : undefined
+                }
               />
             </div>
           )
@@ -567,6 +632,19 @@ export default function DeviceChain({
             y={contextMenu.y}
             items={items}
             onClose={closeContextMenu}
+          />
+        )
+      })()}
+
+      {paramContextMenu && (() => {
+        const items = buildParamMenuItems(paramContextMenu.effectId, paramContextMenu.paramKey)
+        if (items.length === 0) return null
+        return (
+          <ContextMenu
+            x={paramContextMenu.x}
+            y={paramContextMenu.y}
+            items={items}
+            onClose={closeParamContextMenu}
           />
         )
       })()}
