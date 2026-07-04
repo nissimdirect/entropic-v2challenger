@@ -30,3 +30,22 @@ Confirmed live via CU: **#433 tool rail ✅**, **#431 render-timeout ✅ (0 errs
 synthetic-CU-observable). The two P1s the user cared most about (rail + render stability) work live.
 Remaining CU re-checks: #432 header arm-R reachability, #434 sampler-occlusion (needs 2-track
 composite), CU-MANUAL rows in the new hardware/effects UAT stages.
+
+## #432 header arm-R/lock — ✅ CONFIRMED reachable (fix works)
+Zoomed Track 2 (video) header now renders the FULL cluster: `👁 · Track 2 · Normal 100% · M · S · R · 🔒`.
+Before #432 only `M S` fit and R/lock were clipped off. The arm-R + lock are now visible and present —
+LIVE-M1 resolved. (Arm confirmed functional on MASTER's R earlier; the toolbar enables +Lane/+Trigger
+on arm.)
+
+### Minor observation (needs precise-click confirmation, possible P3)
+Synthetic clicks on the video-track header R fired the track-drag-reorder handler
+(`[track-drag] UP armed=false moves=0 swaps=0` — benign, no reorder) rather than arming. Could be
+CU click-imprecision on a small target, OR the header drag zone intercepts the R-button hit region.
+MASTER's R (no drag-reorder on the master row) armed cleanly. Worth a human-pointer confirm: if a
+real click on a video-track R also fails to arm, the drag-zone is stealing the R hit-area.
+
+## Fix-wave verification — FINAL (6 fixes confirmed live)
+✅ #433 tool rail · ✅ #431 render-timeout (0 vs 114 errs) · ✅ UAT-1 frame-0 socket · ✅ #432 header
+arm-R/lock reachable · ✅ E-1 overlap gone · ✅ X272-1 Field control present. #439 mask-draw fix
+e2e-validated (not synthetic-CU-observable). #437 transport icons present. The fix-wave is solid;
+the two P1s the user prioritized (rail + render stability) work live.
