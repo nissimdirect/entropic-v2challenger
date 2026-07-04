@@ -1,0 +1,650 @@
+<title>fx-temporal-pair — Device Card Mocks</title>
+<style>
+:root{
+  /* Tier-1 fallbacks mirror frontend/src/renderer/styles/tokens.css "Live Signal v1.1"
+     so this mock renders identically with or without the app's real stylesheet loaded. */
+  --cx-surface-0:#0B0B10; --cx-surface-1:#121218; --cx-surface-2:#18181F;
+  --cx-surface-3:#20202A; --cx-surface-4:#282834;
+  --cx-line-1:#2E2E3A; --cx-line-2:#3C3C4C;
+  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#80808E; --cx-text-disabled:#62626E;
+  --cx-acid:#C8F321; --cx-acid-hover:#D9FF4D; --cx-acid-pressed:#A4C916;
+  --cx-acid-wash:rgba(200,243,33,.10); --cx-acid-on:#0B0B10;
+  --cx-mod:#8F7DFF; --cx-mod-hover:#A693FF; --cx-mod-wash:rgba(143,125,255,.12); --cx-mod-on:#0B0B10;
+  --cx-red-text:#E5484D; --cx-red-fill:#C13B40; --cx-red-wash:rgba(229,72,77,.12); --cx-red-on:#fff;
+  --cx-amber:#D9A23C; --cx-amber-hover:#E8B453; --cx-amber-wash:rgba(217,162,60,.12); --cx-amber-on:#0B0B10;
+  --cx-automation-active:#4ade80;
+  --cx-cat-temporal:#D4A865; --cx-cat-destruction:#C77DC0; --cx-cat-modulation:#AFCB52;
+  --cx-action:var(--cx-acid); --cx-action-hover:var(--cx-acid-hover); --cx-action-on:var(--cx-acid-on);
+  --cx-selection:var(--cx-mod); --cx-selection-wash:var(--cx-mod-wash);
+  --cx-danger-text:var(--cx-red-text); --cx-danger-wash:var(--cx-red-wash);
+  --cx-warn:var(--cx-amber); --cx-warn-wash:var(--cx-amber-wash);
+  --cx-bg-app:var(--cx-surface-1); --cx-bg-panel:var(--cx-surface-2);
+  --cx-bg-raised:var(--cx-surface-3); --cx-bg-hover:var(--cx-surface-4);
+  --cx-focus-ring:var(--cx-acid);
+  --cx-mono:'JetBrains Mono','SF Mono',Menlo,monospace;
+  /* Routing-type colors, per brief */
+  --rt-mask:#4ade80; --rt-field:#9b7bb5; --rt-scalar:#f59e0b; --rt-feed:#ef4444;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--cx-bg-app,#1a1a1a); color:var(--cx-text-1);
+  font-family:var(--cx-mono); font-size:12.5px; line-height:1.55; margin:0; padding:0 0 90px;
+}
+.wrap{max-width:1360px;margin:0 auto;padding:0 22px}
+header{border-bottom:1px solid var(--cx-line-1);padding:32px 0 20px;margin-bottom:26px}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--cx-text-3)}
+h1{font-size:19px;font-weight:500;letter-spacing:.02em;margin:8px 0 10px;text-wrap:balance}
+h1 b{color:var(--cx-action);font-weight:500}
+.thesis{max-width:78ch;color:var(--cx-text-2);font-size:12px}
+.thesis b{color:var(--cx-text-1);font-weight:500}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:10.5px;margin:12px 0 2px}
+.legend span{display:inline-flex;align-items:center;gap:6px;color:var(--cx-text-2)}
+.dotc{width:9px;height:9px;border-radius:2px;display:inline-block}
+
+h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-text-3);font-weight:500;
+  border-top:1px solid var(--cx-line-1);padding-top:16px;margin:38px 0 6px}
+h2 .k{color:var(--cx-text-1)}
+.sub{font-size:11.5px;color:var(--cx-text-2);max-width:90ch;margin:0 0 14px}
+
+.panelbox{background:var(--cx-bg-panel);border:1px solid var(--cx-line-1);border-radius:8px;padding:16px}
+
+/* ---------- decision banner ---------- */
+.decision-banner{
+  background:var(--cx-mod-wash);border:1px solid var(--cx-selection);border-radius:8px;
+  padding:12px 16px;font-size:11.5px;color:var(--cx-text-1);margin-bottom:8px;
+}
+.decision-banner b{color:var(--cx-selection)}
+.decision-banner .pk{
+  font-size:9.5px;letter-spacing:.06em;padding:1px 7px;border-radius:99px;
+  background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);color:var(--cx-text-2);
+  white-space:nowrap;
+}
+
+/* ---------- callout badge ---------- */
+.co{
+  display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+  border-radius:50%;background:var(--cx-selection);color:var(--cx-mod-on,#0B0B10);
+  font-size:9.5px;font-weight:700;flex:none;vertical-align:middle;cursor:default;
+}
+.co-line{display:flex;align-items:flex-start;gap:7px;font-size:10.5px;color:var(--cx-text-2);margin:4px 0}
+.co-line b{color:var(--cx-text-1);font-weight:500}
+.co-line .pk{color:var(--cx-text-3);font-size:9.5px}
+
+/* ---------- device grid ---------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+@media(max-width:1080px){.grid2{grid-template-columns:1fr}}
+
+/* Real app idiom: .device-card / .device-chain__header, scaled up to full panel width */
+.device{background:var(--cx-surface-3);border:1px solid var(--cx-bg-hover);border-radius:6px;overflow:clip}
+.dhead{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;
+  border-bottom:1px solid var(--cx-bg-hover);background:var(--cx-bg-raised);position:relative;
+}
+.dhead .tick{width:3px;align-self:stretch;border-radius:2px;flex:none;margin:-2px 0}
+.dhead .dname{font-size:12px;font-weight:600;color:var(--cx-text-1)}
+.dhead .dcat{
+  font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--cx-text-3);
+  padding:2px 7px;border:1px solid var(--cx-line-2);border-radius:99px;margin-left:2px;
+}
+.dhead .dnote{margin-left:auto;font-size:9.5px;color:var(--cx-text-3)}
+.dbody{padding:14px 14px 4px}
+
+.row{display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap}
+.rowlab{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cx-text-3);min-width:74px;flex:none}
+
+/* segmented switch (style, stop_mode) */
+.seg{display:inline-flex;border:1px solid var(--cx-line-2);border-radius:5px;overflow:clip}
+.seg button{
+  font-family:var(--cx-mono);font-size:10.5px;padding:5px 11px;background:var(--cx-bg-raised);
+  color:var(--cx-text-2);border:none;border-right:1px solid var(--cx-line-2);cursor:pointer;
+}
+.seg button:last-child{border-right:none}
+.seg button:hover{color:var(--cx-text-1)}
+.seg button[aria-pressed="true"]{background:var(--cx-selection);color:var(--cx-mod-on,#0B0B10)}
+.seg.stopmode button[aria-pressed="true"]{background:var(--cx-amber);color:var(--cx-amber-on)}
+
+/* preset chip row */
+.chiprow{display:flex;gap:6px;flex-wrap:wrap}
+.chip{
+  font-family:var(--cx-mono);font-size:10px;padding:4px 10px;border-radius:99px;
+  background:var(--cx-bg-raised);color:var(--cx-text-2);border:1px solid var(--cx-line-2);cursor:pointer;
+  transition:border-color .12s,color .12s;
+}
+.chip:hover{color:var(--cx-text-1)}
+.chip[aria-pressed="true"]{background:var(--cx-action-wash,rgba(200,243,33,.12));border-color:var(--cx-action);color:var(--cx-action)}
+.chip.custom[aria-pressed="true"]{background:var(--cx-warn-wash);border-color:var(--cx-warn);color:var(--cx-warn)}
+.chiprow.dim{opacity:.32;pointer-events:none}
+
+/* param groups that grey via DEPENDENT_PARAMS */
+.paramgroup{
+  border:1px solid var(--cx-line-1);border-radius:6px;padding:10px 12px 12px;margin-bottom:12px;
+  transition:opacity .15s;position:relative;
+}
+.paramgroup .pg-title{
+  font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cx-text-3);
+  margin-bottom:9px;display:flex;align-items:center;gap:7px;
+}
+.paramgroup .pg-title .pg-badge{
+  font-size:9px;padding:1px 6px;border-radius:99px;letter-spacing:.04em;text-transform:none;
+}
+.pg-badge.live{background:rgba(74,222,128,.14);color:var(--cx-automation-active)}
+.pg-badge.inert{background:none;border:1px dashed var(--cx-line-2);color:var(--cx-text-3)}
+.paramgroup.inert{opacity:.32;filter:grayscale(.5)}
+.paramgroup.inert .knob2, .paramgroup.inert .seg button, .paramgroup.inert input{pointer-events:none}
+
+.knobs-row{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:10px}
+.knobwrap{text-align:center;user-select:none}
+.knob2{width:56px;height:56px;position:relative;cursor:ns-resize}
+.klabel{font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--cx-text-3);margin-top:5px}
+.kval{font-size:10.5px;color:var(--cx-text-1);font-variant-numeric:tabular-nums}
+
+.smallparams{display:grid;gap:9px}
+.sp-row{display:flex;align-items:center;gap:8px}
+.sp-row .lab{font-size:10px;color:var(--cx-text-3);width:112px;flex:none}
+.sp-row input[type=range]{flex:1;accent-color:var(--cx-action);height:14px}
+.sp-row .val{font-size:10px;color:var(--cx-text-1);width:44px;text-align:right;font-variant-numeric:tabular-nums}
+.sp-row.bipolar input[type=range]{accent-color:var(--cx-selection)}
+
+.hint{font-size:9.5px;color:var(--cx-text-3);margin-top:9px;border-top:1px solid var(--cx-line-1);padding-top:8px}
+.hint b{color:var(--cx-text-2);font-weight:500}
+
+/* stop-mode inline variant panel */
+.mode-variant{
+  background:var(--cx-surface-2);border:1px solid var(--cx-line-1);border-radius:6px;
+  padding:10px 12px;margin-bottom:12px;min-height:64px;
+}
+.mode-variant .mv-panel{display:none}
+.mode-variant .mv-panel.active{display:block}
+.framestrip{display:flex;gap:2px;margin-top:8px}
+.framestrip .fcell{
+  flex:1;height:20px;background:var(--cx-bg-raised);border:1px solid var(--cx-line-1);border-radius:2px;
+  cursor:pointer;
+}
+.framestrip .fcell.on{background:var(--cx-amber);border-color:var(--cx-amber)}
+.gatepreview{
+  height:26px;border:1px solid var(--cx-line-1);border-radius:3px;background:var(--cx-surface-1);
+  display:flex;align-items:center;padding:0 6px;gap:3px;margin-top:8px;
+}
+.gatepreview .g{height:14px;border-radius:1px}
+.gatepreview .g.hi{flex:1.4;background:var(--cx-automation-active)}
+.gatepreview .g.lo{flex:1;background:var(--cx-line-2)}
+.linkout{font-size:9.5px;color:var(--cx-selection);text-decoration:underline dotted;cursor:pointer;background:none;border:none;font-family:var(--cx-mono);padding:0}
+
+/* ADSR curve preview */
+.adsr-wrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+.adsr-curve{background:var(--cx-surface-1);border:1px solid var(--cx-line-1);border-radius:5px}
+.adsr-phases{display:flex;font-size:8px;color:var(--cx-text-3);letter-spacing:.08em;text-transform:uppercase;
+  justify-content:space-between;padding:2px 6px 0;max-width:180px}
+
+.trigger-badges{display:flex;gap:8px;margin-top:2px}
+.tbadge{
+  font-size:9.5px;padding:4px 9px;border-radius:5px;background:var(--cx-surface-2);
+  border:1px dashed var(--cx-line-2);color:var(--cx-text-3);display:flex;align-items:center;gap:5px;
+}
+.tbadge .dot{width:6px;height:6px;border-radius:50%;background:var(--cx-text-disabled)}
+
+.footrow{display:flex;gap:14px;align-items:center;padding:10px 14px;border-top:1px solid var(--cx-bg-hover)}
+
+.oq{
+  font-size:9.5px;color:var(--cx-warn);background:var(--cx-warn-wash);border:1px dashed var(--cx-warn);
+  border-radius:4px;padding:5px 8px;margin-top:8px;display:flex;gap:6px;align-items:flex-start;
+}
+.oq b{color:var(--cx-warn)}
+
+.callout-legend{margin-top:16px}
+.callout-legend .co-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px 28px}
+@media(max-width:900px){.callout-legend .co-grid{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Creatrix · change: fx-temporal-pair · device mock · 2026-07-04</div>
+  <h1>Two effects, one id-vs-engine trick and one four-way stop-point switch — <b>fx.afterimage</b> (echo↔ghost combo) and <b>fx.backspin</b> (Decision 18's stop-point + ADSR platter curve).</h1>
+  <p class="thesis">Both device cards render through the <b>existing generic ParamPanel → Knob/ParamChoice/ParamSlider</b> path — no bespoke component is being proposed for either effect (confirmed zero <code>Afterimage*.tsx</code> / <code>Backspin*.tsx</code> in the repo). What's new here is <b>which params are live at once</b>: a `style` discriminator that greys an entire sibling param block (afterimage), and a `stop_mode` discriminator that swaps one inline control variant for another (backspin) — both DEPENDENT_PARAMS-gated, same grammar as `fx.copy_machine`'s `machine` switch.</p>
+  <div class="legend">
+    <span><i class="dotc" style="background:var(--rt-mask)"></i>mask</span>
+    <span><i class="dotc" style="background:var(--rt-field)"></i>field</span>
+    <span><i class="dotc" style="background:var(--rt-scalar)"></i>scalar</span>
+    <span><i class="dotc" style="background:var(--rt-feed)"></i>feedback</span>
+    <span style="margin-left:10px"><i class="dotc" style="background:var(--cx-automation-active)"></i>live / active param group</span>
+    <span><i class="dotc" style="background:var(--cx-text-disabled)"></i>inert (DEPENDENT_PARAMS, greyed)</span>
+    <span><i class="dotc" style="background:var(--cx-warn)"></i>custom (preset diverged)</span>
+  </div>
+</header>
+
+<div class="decision-banner">
+  <b>T1 COMBO verdict (locked 2026-07-03, fx-afterimage OD-1):</b> <code>fx.afterimage</code> ships as ONE effect id with TWO engines behind a
+  <code>style</code> choice param — <code>echo</code> (default, new banked model) | <code>ghost</code> (existing opponent-process model, preserved byte-verbatim). Old projects with no <code>style</code> key default to <code>echo</code> (documented clean-break).
+  <span class="pk" style="float:right">PK.1 · fx-afterimage</span>
+</div>
+<div class="decision-banner">
+  <b>Routing PRD Decision 18 (LAW, fx-backspin proposal.md):</b> the spin's end is pickable — (a) a clip-frame selector, (b) a duration, (c) tempo-sync divisions, or (d) a drawn binary gate in the automation lane. Spin velocity gets an ADSR-style curve with a preset bank. <b>OD-2 recommended default:</b> preset-bank + 4 numeric knobs, NOT a draggable curve editor (no such component exists anywhere in the repo to reuse/fork — Gate 15 out of scope for this packet).
+  <span class="pk" style="float:right">P1 · P4 · fx-backspin</span>
+</div>
+
+<h2><span class="k">Device cards</span> — side by side</h2>
+<p class="sub">Both cards use the real <code>.device-card</code> header idiom (name · category tick · bypass) scaled to a full-width panel. Knob faces are the app's single-ring style (SVG track + <code>--cx-action</code> value arc + indicator) — draggable vertically in this mock, same interaction model as <code>Knob.tsx</code>.</p>
+
+<div class="grid2">
+
+<!-- ================= AFTERIMAGE ================= -->
+<section class="device" id="afterimage-card">
+  <div class="dhead">
+    <span class="tick" style="background:var(--cx-cat-temporal)"></span>
+    <span class="dname">fx.afterimage</span>
+    <span class="dcat">temporal</span>
+    <span class="dnote">was <code>misc</code> · category moved per PK.1</span>
+  </div>
+  <div class="dbody">
+
+    <div class="row">
+      <span class="rowlab">style <span class="co" title="Style switch — T1 combo verdict">1</span></span>
+      <div class="seg" id="ai-style-seg">
+        <button data-v="echo" aria-pressed="true">echo</button>
+        <button data-v="ghost" aria-pressed="false">ghost</button>
+      </div>
+      <span style="font-size:9.5px;color:var(--cx-text-3)" id="ai-style-note">default · new banked echo-line model</span>
+    </div>
+
+    <!-- ECHO param group -->
+    <div class="paramgroup" id="ai-group-echo" data-style="echo">
+      <div class="pg-title">ECHO PARAMS <span class="pg-badge live" id="ai-echo-badge">live · style=echo</span>
+        <span class="co" title="DEPENDENT_PARAMS: greys out when style=ghost" style="margin-left:auto">2</span></div>
+
+      <div class="knobs-row">
+        <div class="knobwrap"><div class="knob2" data-knob data-min="1" data-max="30" data-step="1" data-val="1" data-id="delay_frames"></div>
+          <div class="klabel">delay_frames</div><div class="kval">1 <span style="color:var(--cx-text-3)">frames</span></div></div>
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="0.98" data-val="0.75" data-id="feedback"></div>
+          <div class="klabel">feedback</div><div class="kval">75%</div></div>
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="1" data-val="0.9" data-id="opacity"></div>
+          <div class="klabel">opacity</div><div class="kval">90%</div></div>
+      </div>
+
+      <div class="smallparams">
+        <div class="sp-row"><span class="lab">mode</span>
+          <div class="seg" data-choice="ai-mode" style="flex:1">
+            <button data-v="max" aria-pressed="true">max</button><button data-v="screen">screen</button>
+            <button data-v="lighten">lighten</button><button data-v="min">min</button><button data-v="average">avg</button>
+          </div></div>
+        <div class="sp-row"><span class="lab">echo_transform</span>
+          <div class="seg" data-choice="ai-xform" style="flex:1">
+            <button data-v="none" aria-pressed="true">none</button><button data-v="hue_shift">hue_shift</button>
+            <button data-v="blur">blur</button><button data-v="pixelate">pixelate</button><button data-v="posterize">posterize</button>
+          </div></div>
+        <div class="sp-row"><span class="lab">transform_amount</span><input type="range" min="0" max="1" step="0.01" value="0.3" data-out="ai-ta"><span class="val" id="ai-ta">30%</span></div>
+        <div class="sp-row bipolar"><span class="lab">color_drift</span><input type="range" min="-60" max="60" step="1" value="0" data-out="ai-cd" data-suffix="°"><span class="val" id="ai-cd">0°</span></div>
+        <div class="sp-row"><span class="lab">tint</span>
+          <div class="seg" data-choice="ai-tint" style="flex:1">
+            <button data-v="none" aria-pressed="true">none</button><button data-v="warm">warm</button>
+            <button data-v="cool">cool</button><button data-v="violet">violet</button>
+          </div></div>
+        <div class="sp-row"><span class="lab">threshold</span><input type="range" min="0" max="1" step="0.01" value="0" data-out="ai-th"><span class="val" id="ai-th">0%</span></div>
+        <div class="sp-row"><span class="lab">mix</span><input type="range" min="0" max="1" step="0.01" value="1" data-out="ai-mix"><span class="val" id="ai-mix">100%</span></div>
+      </div>
+
+      <div class="hint"><b>tint</b> is a static color cast on the echo line only — the current-frame region is never tinted (oracle 8). <b>color_drift</b> rotates hue PER recursion — the vaporwave knob. Both can stack.</div>
+    </div>
+
+    <!-- GHOST param group -->
+    <div class="paramgroup inert" id="ai-group-ghost" data-style="ghost">
+      <div class="pg-title">GHOST PARAMS (legacy, verbatim) <span class="pg-badge inert" id="ai-ghost-badge">inert · style=echo</span></div>
+      <div class="knobs-row">
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0.01" data-max="0.2" data-val="0.05" data-id="adaptation_rate"></div>
+          <div class="klabel">adaptation_rate</div><div class="kval">0.05</div></div>
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="1" data-val="0.5" data-id="strength"></div>
+          <div class="klabel">strength</div><div class="kval">50%</div></div>
+      </div>
+      <div class="hint">Moved byte-for-byte from <code>afterimage.py:10-29</code> — same field values, same curve/unit, no reformatting. This IS the pre-refactor opponent-process model (<code>backend/tests/test_afterimage.py</code> oracle 12 pins it bit-for-bit).</div>
+    </div>
+
+    <div class="row" style="margin-top:2px">
+      <span class="rowlab">presets <span class="co" title="Preset chips — echo-style only, ship verbatim">3</span></span>
+      <div class="chiprow" id="ai-presets">
+        <button class="chip" data-preset="vaporwave">vaporwave</button>
+        <button class="chip" data-preset="smear">smear</button>
+        <button class="chip" data-preset="stutter">stutter</button>
+        <button class="chip" data-preset="ink_ghost">ink_ghost</button>
+      </div>
+    </div>
+    <div class="oq" id="ai-preset-oq" style="display:none">
+      <span>⚠</span><span><b>Open question:</b> plan.md leaves it unresolved whether preset chips should visually disable when <code>style=ghost</code> (presets only ever write echo params) — shown here as dimmed + inert; not confirmed by any source doc.</span>
+    </div>
+
+  </div>
+</section>
+
+<!-- ================= BACKSPIN ================= -->
+<section class="device" id="backspin-card">
+  <div class="dhead">
+    <span class="tick" style="background:var(--cx-cat-destruction)"></span>
+    <span class="dname">fx.backspin</span>
+    <span class="dcat">codec_archaeology</span>
+    <span class="dnote">beside fx.copy_machine</span>
+  </div>
+  <div class="dbody">
+
+    <div class="trigger-badges">
+      <span class="tbadge"><span class="dot"></span>spin — bool, pulse lane (trigger-only)</span>
+      <span class="tbadge"><span class="dot"></span>gate — bool, lane (trigger-only)</span>
+    </div>
+    <div class="hint" style="margin-top:6px;margin-bottom:2px">No bespoke pulse-button UI — both render as generic trigger-lane targets via <code>AutomationToolbar.tsx</code>'s existing <code>boolOnly</code> filter (same mechanism <code>fx.copy_machine</code>'s <code>freeze</code>/<code>rewind</code> already use). Automation lane assignment happens in the Automation panel, not on this card.</div>
+
+    <div class="row" style="margin-top:10px">
+      <span class="rowlab">stop_mode <span class="co" title="Decision 18 — 4-way stop-point switch">5</span></span>
+      <div class="seg stopmode" id="bs-mode-seg">
+        <button data-v="frame" aria-pressed="false">frame</button>
+        <button data-v="duration" aria-pressed="true">duration</button>
+        <button data-v="tempo" aria-pressed="false">tempo</button>
+        <button data-v="gate" aria-pressed="false">gate</button>
+      </div>
+    </div>
+
+    <div class="mode-variant" id="bs-mode-variant">
+      <span class="co" title="Inline control variant per stop_mode" style="float:right">6</span>
+      <div class="mv-panel" data-mode="frame">
+        <div class="row" style="margin-bottom:0">
+          <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="45" data-step="1" data-val="0" data-id="stop_frame"></div>
+            <div class="klabel">stop_frame</div><div class="kval">0 <span style="color:var(--cx-text-3)">(full ring)</span></div></div>
+          <span style="font-size:9.5px;color:var(--cx-text-3);max-width:280px">0 = play the whole ring; clamps to <code>ring_frames</code>. Empty selector falls back to <code>duration</code> (validator clamp).</span>
+        </div>
+        <div class="framestrip" title="clip-frame scrubber — illustrative only, exact widget shape not pinned by any source doc">
+          <div class="fcell" onclick="fcellPick(this)"></div><div class="fcell" onclick="fcellPick(this)"></div>
+          <div class="fcell on" onclick="fcellPick(this)"></div><div class="fcell" onclick="fcellPick(this)"></div>
+          <div class="fcell" onclick="fcellPick(this)"></div><div class="fcell" onclick="fcellPick(this)"></div>
+          <div class="fcell" onclick="fcellPick(this)"></div><div class="fcell" onclick="fcellPick(this)"></div>
+        </div>
+        <div class="oq"><span>⚠</span><span><b>Open question:</b> the plan only pins <code>stop_frame</code> as an int 0–ring_frames; the frame-strip scrubber above is a design guess for "clip-frame selector when frames are available" — no widget shape is normative in plan.md/proposal.md.</span></div>
+      </div>
+      <div class="mv-panel active" data-mode="duration">
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0.1" data-max="4" data-val="0.8" data-id="duration_s"></div>
+          <div class="klabel">duration_s</div><div class="kval">0.80 <span style="color:var(--cx-text-3)">s</span></div></div>
+      </div>
+      <div class="mv-panel" data-mode="tempo">
+        <div class="sp-row"><span class="lab">tempo_div</span>
+          <div class="seg" data-choice="bs-tempo" style="flex:1">
+            <button data-v="1/4">1/4</button><button data-v="1/2">1/2</button>
+            <button data-v="1" aria-pressed="true">1</button><button data-v="2">2</button><button data-v="4">4</button>
+          </div><span style="font-size:9.5px;color:var(--cx-text-3)">bars</span></div>
+        <div class="hint">Uses project BPM; cycles-per-frame conversion happens at the automation layer (CPF rule — never Hz inside the effect). Getting real BPM/FPS into <code>apply()</code> is backend plumbing (OD-1, <code>_fps</code>/<code>_bpm</code> synthetic keys) — no UI surface beyond this chip row.</div>
+      </div>
+      <div class="mv-panel" data-mode="gate">
+        <div class="gatepreview">
+          <div class="g lo"></div><div class="g hi"></div><div class="g lo"></div><div class="g hi"></div><div class="g lo"></div>
+        </div>
+        <div class="hint">spin runs while the drawn binary lane is HIGH; falling edge = resume. This is the SAME <code>gate</code> trigger-mode the Automation panel already renders (<code>AutomationToolbar.tsx</code>'s <code>TriggerMode:'gate'</code>) — drawing happens there, not on this card. <button class="linkout" onclick="alert('Mock only — this would jump to the Automation panel, out of scope for this card.')">→ open automation lane</button></div>
+        <div class="oq"><span>⚠</span><span><b>Open question:</b> proposal.md explicitly rules out a bespoke gate-drawing widget on the device card (existing generic lane mechanism handles it) — whether the card should show ANY inline preview (as above) vs. zero surface at all is not settled by any source doc.</span></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="rowlab">spin curve <span class="co" title="ADSR platter-velocity curve — OD-2 v1: preset bank + 4 knobs, no draggable editor">7</span></span>
+      <div class="chiprow" id="bs-presets">
+        <span class="co custom-co" style="visibility:hidden">8</span>
+        <button class="chip" data-preset="hard_cut">hard_cut</button>
+        <button class="chip" data-preset="long_brake" aria-pressed="true">long_brake</button>
+        <button class="chip" data-preset="rubber_band">rubber_band</button>
+        <button class="chip" data-preset="tape_stop">tape_stop</button>
+        <button class="chip custom" data-preset="custom">custom</button>
+      </div>
+    </div>
+
+    <div class="adsr-wrap">
+      <div class="knobs-row" style="margin-bottom:0">
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="1" data-val="0.05" data-id="curve_a" data-adsr></div>
+          <div class="klabel">curve_a</div><div class="kval">0.05</div></div>
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="1" data-val="0.3" data-id="curve_d" data-adsr></div>
+          <div class="klabel">curve_d</div><div class="kval">0.30</div></div>
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="1" data-val="0.6" data-id="curve_s" data-adsr></div>
+          <div class="klabel">curve_s</div><div class="kval">0.60</div></div>
+        <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="1" data-val="0.6" data-id="curve_r" data-adsr></div>
+          <div class="klabel">curve_r</div><div class="kval">0.60</div></div>
+      </div>
+      <div>
+        <canvas class="adsr-curve" id="bs-curve" width="180" height="64"></canvas>
+        <div class="adsr-phases"><span>A</span><span>D</span><span>S</span><span>R</span></div>
+      </div>
+    </div>
+    <div class="oq"><span>⚠</span><span><b>Open question:</b> OD-2 explicitly rejects a draggable/visual curve editor for v1 (4 plain knobs only, per the House Landmine reuse-not-fork fallback). The passive read-only curve preview above is a NEW small SVG/canvas element not covered by that verdict — flagging whether even a non-interactive preview oversteps "preset-bank + knobs only, no new component."</span></div>
+    <div class="hint">Dragging any <code>curve_*</code> knob flips the preset chip to <b style="color:var(--cx-warn)">custom</b> in the same gesture (OD-3 cascade — one Ledger row for a preset apply OR a manual-edit-that-diverges, via the transaction API). Picking a named preset writes all 4 curves + resets <code>preset</code> atomically.</div>
+
+    <div class="row" style="margin-top:14px">
+      <div class="knobwrap"><div class="knob2" data-knob data-min="12" data-max="90" data-step="1" data-val="45" data-id="ring_frames"></div>
+        <div class="klabel">ring_frames</div><div class="kval">45</div></div>
+      <div class="knobwrap"><div class="knob2" data-knob data-min="0" data-max="1" data-val="1" data-id="mix"></div>
+        <div class="klabel">mix</div><div class="kval">100%</div></div>
+      <span style="font-size:9.5px;color:var(--cx-text-3);max-width:260px">standard params, always live regardless of <code>stop_mode</code>/preset — half-res ring storage, local hard cap (SG-8 registration deferred, OD-5/Non-Goals).</span>
+    </div>
+
+  </div>
+</section>
+
+</div>
+
+<h2><span class="k">Callouts</span> — packet map</h2>
+<div class="panelbox callout-legend">
+  <div class="co-grid">
+    <div class="co-line"><span class="co">1</span><span><b>Style switch</b> (echo | ghost) — T1 combo verdict supersedes OD-1's "replace vs fork"; missing <code>style</code> key on old project data defaults to <code>echo</code>. <div class="pk">PK.1 · fx-afterimage</div></span></div>
+    <div class="co-line"><span class="co">2</span><span><b>DEPENDENT_PARAMS greying</b> — whichever style isn't selected shows inert (echo params no-op under <code>style=ghost</code> and vice versa; both directions registered). <div class="pk">PK.3 · fx-afterimage</div></span></div>
+    <div class="co-line"><span class="co">3</span><span><b>Preset chips</b> — <code>vaporwave</code>/<code>smear</code>/<code>stutter</code>/<code>ink_ghost</code>, ship verbatim, echo-style only; no <code>ghost</code>-style preset shipped absent a request. <div class="pk">PK.4 · fx-afterimage</div></span></div>
+    <div class="co-line"><span class="co">5</span><span><b>stop_mode 4-way switch</b> — frame / duration / tempo / gate, the pickable spin-end per Decision 18 (LAW). <div class="pk">P1 · fx-backspin</div></span></div>
+    <div class="co-line"><span class="co">6</span><span><b>Inline control variant</b> swaps per <code>stop_mode</code> — same device card, one live region at a time. <div class="pk">P1 · P2(tempo) · fx-backspin</div></span></div>
+    <div class="co-line"><span class="co">7</span><span><b>ADSR spin-curve</b> — 4 numeric knobs (A/D/S/R), no draggable curve component exists in the repo to reuse/fork (Gate 15 out of scope this packet). <div class="pk">OD-2 · fx-backspin</div></span></div>
+    <div class="co-line"><span class="co">8</span><span><b>Preset bank + custom-flip</b> — picking a named preset writes all 4 curves atomically; hand-editing any curve while a preset is active flips to <code>custom</code>, same undo transaction. <div class="pk">P4 · OD-3 · fx-backspin</div></span></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* ---------- generic single-ring knob (visual grammar borrowed from
+   popchaos-site/challengers/round4/creatrix-routing-mock.html's k3 knob:
+   one circumference = value track, drag vertically to set) ---------- */
+function ringArc(f0,f1){
+  const a=f=>Math.PI*.75+Math.PI*1.5*Math.max(0,Math.min(1,f));
+  const a0=a(f0),a1=a(Math.max(f1,f0+.001));
+  const x0=28+22*Math.cos(a0),y0=28+22*Math.sin(a0),x1=28+22*Math.cos(a1),y1=28+22*Math.sin(a1);
+  return `M ${x0} ${y0} A 22 22 0 ${(a1-a0)>Math.PI?1:0} 1 ${x1} ${y1}`;
+}
+function fmtVal(el,v){
+  const id=el.dataset.id;
+  const pct=['feedback','opacity','strength','transform_amount','threshold','mix'];
+  if(id==='delay_frames'||id==='stop_frame'||id==='ring_frames') return Math.round(v).toString()+(id==='stop_frame'&&v===0?' (full ring)':'');
+  if(pct.includes(id)) return Math.round(v*100)+'%';
+  if(id==='duration_s') return v.toFixed(2);
+  if(id==='adaptation_rate') return v.toFixed(2);
+  return v.toFixed(2);
+}
+function unitSuffix(id){
+  if(id==='delay_frames'||id==='stop_frame'||id==='ring_frames') return ' frames';
+  if(id==='duration_s') return ' s';
+  return '';
+}
+function drawKnob(el){
+  const min=+el.dataset.min,max=+el.dataset.max,val=+el.dataset.val;
+  const f=(val-min)/(max-min);
+  el.innerHTML=`<svg viewBox="0 0 56 56" width="56" height="56">
+    <circle cx="28" cy="28" r="21" fill="var(--cx-surface-2)"/>
+    <circle cx="28" cy="28" r="21" fill="none" stroke="var(--cx-surface-0)" stroke-width="1"/>
+    <path d="${ringArc(0,1)}" fill="none" stroke="var(--cx-line-2)" stroke-width="4" stroke-linecap="round"/>
+    <path d="${ringArc(0,f)}" fill="none" stroke="var(--cx-action)" stroke-width="4" stroke-linecap="round"/>
+    <line x1="28" y1="28" x2="28" y2="10" stroke="var(--cx-text-1)" stroke-width="2" stroke-linecap="round"
+      transform="rotate(${-135+f*270} 28 28)"/>
+  </svg>`;
+  const kv=el.parentElement.querySelector('.kval');
+  if(kv){
+    const id=el.dataset.id;
+    if(id==='delay_frames') kv.innerHTML=Math.round(val)+' <span style="color:var(--cx-text-3)">frames</span>';
+    else if(id==='stop_frame') kv.innerHTML=Math.round(val)+' <span style="color:var(--cx-text-3)">'+(val===0?'(full ring)':'')+'</span>';
+    else if(id==='ring_frames') kv.textContent=Math.round(val);
+    else if(id==='duration_s') kv.innerHTML=val.toFixed(2)+' <span style="color:var(--cx-text-3)">s</span>';
+    else if(['feedback','opacity','strength','transform_amount','threshold','mix'].includes(id)) kv.textContent=Math.round(val*100)+'%';
+    else kv.textContent=val.toFixed(2);
+  }
+}
+function attachKnobDrag(el,onChange){
+  let dragging=false,startY=0,startVal=0;
+  el.addEventListener('pointerdown',e=>{
+    dragging=true;startY=e.clientY;startVal=+el.dataset.val;el.setPointerCapture(e.pointerId);
+  });
+  el.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    const min=+el.dataset.min,max=+el.dataset.max,step=+(el.dataset.step||0);
+    const range=max-min;
+    let v=startVal+ (startY-e.clientY)/120*range;
+    v=Math.max(min,Math.min(max,v));
+    if(step) v=Math.round(v/step)*step;
+    el.dataset.val=v;
+    drawKnob(el);
+    if(onChange) onChange(el.dataset.id,v);
+  });
+  el.addEventListener('pointerup',e=>{dragging=false});
+  el.addEventListener('pointercancel',()=>dragging=false);
+}
+document.querySelectorAll('[data-knob]').forEach(el=>{drawKnob(el);});
+
+/* ---------- afterimage: style switch greys the sibling group ---------- */
+const aiSeg=document.getElementById('ai-style-seg');
+const aiEcho=document.getElementById('ai-group-echo'), aiGhost=document.getElementById('ai-group-ghost');
+const aiEchoBadge=document.getElementById('ai-echo-badge'), aiGhostBadge=document.getElementById('ai-ghost-badge');
+const aiNote=document.getElementById('ai-style-note');
+const aiPresetRow=document.getElementById('ai-presets').parentElement;
+const aiPresetOQ=document.getElementById('ai-preset-oq');
+function setAiStyle(v){
+  aiSeg.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===v));
+  const echoOn=v==='echo';
+  aiEcho.classList.toggle('inert',!echoOn);
+  aiGhost.classList.toggle('inert',echoOn);
+  aiEchoBadge.className='pg-badge '+(echoOn?'live':'inert');
+  aiEchoBadge.textContent=(echoOn?'live':'inert')+' · style='+v;
+  aiGhostBadge.className='pg-badge '+(echoOn?'inert':'live');
+  aiGhostBadge.textContent=(echoOn?'inert':'live')+' · style='+v;
+  aiNote.textContent=echoOn?'default · new banked echo-line model':'legacy opponent-process model, preserved verbatim';
+  aiPresetRow.querySelector('.chiprow').classList.toggle('dim',!echoOn);
+  aiPresetOQ.style.display=echoOn?'none':'flex';
+}
+aiSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>setAiStyle(b.dataset.v)));
+
+/* ---------- generic segmented choice (mode/echo_transform/tint/tempo_div) ---------- */
+document.querySelectorAll('[data-choice]').forEach(seg=>{
+  seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+    seg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  }));
+});
+
+/* ---------- generic sliders ---------- */
+document.querySelectorAll('input[type=range][data-out]').forEach(inp=>{
+  const out=document.getElementById(inp.dataset.out);
+  const suffix=inp.dataset.suffix||'%';
+  const upd=()=>{
+    const v=+inp.value;
+    out.textContent = (suffix==='°') ? (v>0?'+':'')+v+'°' : Math.round(v*100)+'%';
+  };
+  inp.addEventListener('input',upd); upd();
+});
+
+/* ---------- afterimage presets (visual only — sets knob/choice display) ---------- */
+const AI_PRESETS={
+  vaporwave:{delay_frames:6,feedback:0.85,opacity:0.8,mode:'screen',color_drift:14,echo_transform:'blur',transform_amount:0.2},
+  smear:{delay_frames:1,feedback:0.9,opacity:0.9,mode:'max',color_drift:0,echo_transform:'none',transform_amount:0.3},
+  stutter:{delay_frames:12,feedback:0.7,opacity:1,mode:'lighten',color_drift:0,echo_transform:'none',transform_amount:0.3},
+  ink_ghost:{delay_frames:2,feedback:0.8,opacity:0.7,mode:'min',color_drift:0,echo_transform:'none',transform_amount:0.3},
+};
+document.getElementById('ai-presets').querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    if(chip.parentElement.classList.contains('dim'))return;
+    document.getElementById('ai-presets').querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===chip));
+    const p=AI_PRESETS[chip.dataset.preset];
+    if(!p)return;
+    ['delay_frames','feedback','opacity'].forEach(id=>{
+      const k=document.querySelector(`#ai-group-echo [data-id="${id}"]`);
+      if(k){k.dataset.val=p[id];drawKnob(k);}
+    });
+    document.querySelectorAll('[data-choice="ai-mode"] button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===p.mode));
+    document.querySelectorAll('[data-choice="ai-xform"] button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===p.echo_transform));
+    const cd=document.querySelector('input[data-out="ai-cd"]'); cd.value=p.color_drift; cd.dispatchEvent(new Event('input'));
+    const ta=document.querySelector('input[data-out="ai-ta"]'); ta.value=p.transform_amount; ta.dispatchEvent(new Event('input'));
+  });
+});
+
+/* ---------- backspin: stop_mode swaps inline variant ---------- */
+const bsSeg=document.getElementById('bs-mode-seg');
+bsSeg.querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{
+  bsSeg.querySelectorAll('button').forEach(x=>x.setAttribute('aria-pressed',x===b));
+  document.querySelectorAll('#bs-mode-variant .mv-panel').forEach(p=>p.classList.toggle('active',p.dataset.mode===b.dataset.v));
+}));
+function fcellPick(cell){
+  cell.parentElement.querySelectorAll('.fcell').forEach(c=>c.classList.remove('on'));
+  cell.classList.add('on');
+}
+
+/* ---------- backspin ADSR: presets + custom-flip + curve preview ---------- */
+const BS_PRESETS={
+  hard_cut:{a:0,d:0,s:1,r:0},
+  long_brake:{a:0.05,d:0.3,s:0.6,r:0.6},
+  rubber_band:{a:0.1,d:0.2,s:0.8,r:0.3},
+  tape_stop:{a:0,d:0.8,s:0.2,r:0.9},
+};
+const adsrKnobs={
+  a:document.querySelector('[data-id="curve_a"]'),
+  d:document.querySelector('[data-id="curve_d"]'),
+  s:document.querySelector('[data-id="curve_s"]'),
+  r:document.querySelector('[data-id="curve_r"]'),
+};
+function drawADSR(){
+  const cv=document.getElementById('bs-curve'), ctx=cv.getContext('2d');
+  const a=+adsrKnobs.a.dataset.val,d=+adsrKnobs.d.dataset.val,s=+adsrKnobs.s.dataset.val,r=+adsrKnobs.r.dataset.val;
+  const w=cv.width,h=cv.height,pad=6;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='getComputedStyle'; // placeholder, real colors below
+  const line1=getComputedStyle(document.body).getPropertyValue('--cx-line-1').trim()||'#2E2E3A';
+  const acid=getComputedStyle(document.body).getPropertyValue('--cx-action').trim()||'#C8F321';
+  ctx.strokeStyle=line1; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad,h-pad); ctx.lineTo(w-pad,h-pad); ctx.stroke();
+  const segW=(w-2*pad)/4;
+  const y=v=>h-pad-v*(h-2*pad);
+  const isRB=adsrPreset==='rubber_band';
+  let x0=pad, y0=y(0);
+  ctx.strokeStyle=acid; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(x0,y0);
+  // A: rises 0 -> 1 over a-weighted portion of segment 1
+  let x1=pad+segW*Math.max(0.15,a); ctx.lineTo(x1,y(1));
+  // D: falls 1 -> s over d-weighted portion of segment 2
+  let x2=pad+segW+segW*Math.max(0.15,d); ctx.lineTo(x2,y(s));
+  // S: flat at s across segment 3
+  let x3=pad+2*segW+segW*0.9; ctx.lineTo(x3,y(s));
+  // R: falls s -> 0 (rubber_band: damped half-cycle overshoot below 0 then settle)
+  let x4=w-pad;
+  if(isRB){
+    const xm=x3+(x4-x3)*0.55;
+    ctx.lineTo(xm, y(-0.12*r*4));
+    ctx.lineTo(x4, y(0));
+  } else {
+    ctx.lineTo(x4, y(Math.max(0,0- (1-r)*0)));
+    ctx.lineTo(x4,y(0));
+  }
+  ctx.stroke();
+}
+let adsrPreset='long_brake';
+function setBsCustom(){
+  adsrPreset='custom';
+  document.querySelectorAll('#bs-presets .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.preset==='custom'));
+}
+Object.entries(adsrKnobs).forEach(([k,el])=>{
+  attachKnobDrag(el,()=>{ setBsCustom(); drawADSR(); });
+});
+document.getElementById('bs-presets').querySelectorAll('.chip').forEach(chip=>{
+  chip.addEventListener('click',()=>{
+    document.getElementById('bs-presets').querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',c===chip));
+    const name=chip.dataset.preset;
+    if(name==='custom'){ adsrPreset='custom'; drawADSR(); return; }
+    const p=BS_PRESETS[name]; if(!p)return;
+    adsrPreset=name;
+    adsrKnobs.a.dataset.val=p.a; adsrKnobs.d.dataset.val=p.d; adsrKnobs.s.dataset.val=p.s; adsrKnobs.r.dataset.val=p.r;
+    Object.values(adsrKnobs).forEach(drawKnob);
+    drawADSR();
+  });
+});
+drawADSR();
+
+/* attach generic drag to all other (non-ADSR) knobs too, for consistency/feel */
+document.querySelectorAll('[data-knob]:not([data-adsr])').forEach(el=>attachKnobDrag(el));
+</script>

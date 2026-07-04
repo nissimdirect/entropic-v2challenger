@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Creatrix — Presets Library mock (wave0-prerouted-presets)</title>
+<style>
+:root{
+  /* ---- real --cx-* tokens (Live Signal v1.1, tokens.css) — chrome/UI ---- */
+  --cx-surface-0:#0B0B10; --cx-surface-1:#121218; --cx-surface-2:#18181F;
+  --cx-surface-3:#20202A; --cx-surface-4:#282834;
+  --cx-line-1:#2E2E3A; --cx-line-2:#3C3C4C;
+  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#80808E; --cx-text-disabled:#62626E;
+  --cx-action:#C8F321; --cx-action-hover:#D9FF4D; --cx-action-on:#0B0B10; --cx-action-wash:rgba(200,243,33,.10);
+  --cx-selection:#8F7DFF; --cx-selection-wash:rgba(143,125,255,.12);
+  --cx-danger-text:#E5484D; --cx-danger-fill:#C13B40; --cx-danger-wash:rgba(229,72,77,.12);
+  --cx-warn:#D9A23C; --cx-warn-wash:rgba(217,162,60,.12);
+  --cx-automation-active:#4ade80;
+  --cx-font-mono:'JetBrains Mono','Courier New',monospace;
+  --cx-radius-control:2px; --cx-radius-card:4px; --cx-radius-dialog:6px;
+  --cx-ease:cubic-bezier(.2,0,0,1);
+
+  /* ---- routing-type colors (locked, shared with routing-design-suite mock) ----
+     mask == --cx-automation-active (same green, same token family already in tokens.css) */
+  --route-mask:#4ade80; --route-field:#9b7bb5; --route-scalar:#f59e0b; --route-feedback:#ef4444;
+}
+*{box-sizing:border-box}
+body{background:var(--cx-surface-1);color:var(--cx-text-1);font-family:var(--cx-font-mono);
+  font-size:12.5px;line-height:1.55;margin:0;padding:0 0 90px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--cx-line-1);padding:34px 0 22px;margin-bottom:30px}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--cx-text-3)}
+h1{font-size:20px;font-weight:500;letter-spacing:.02em;margin:8px 0 10px}
+h1 b{color:var(--cx-automation-active);font-weight:500}
+.thesis{max-width:74ch;color:var(--cx-text-2);font-size:12px}
+.thesis b{color:var(--cx-text-1);font-weight:500}
+h2{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--cx-text-2);font-weight:500;
+  border-top:1px solid var(--cx-line-1);padding-top:18px;margin:44px 0 6px;display:flex;align-items:center;gap:10px}
+.sub{font-size:11.5px;color:var(--cx-text-2);max-width:82ch;margin:0 0 16px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:10.5px;margin:12px 0 4px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.dotc{width:9px;height:9px;border-radius:2px;display:inline-block}
+.tag{font-size:9px;padding:2px 8px;border-radius:99px;letter-spacing:.08em;font-weight:500}
+.tag.new{border:1px dashed var(--cx-selection);color:var(--cx-selection)}
+.tag.locked{background:rgba(74,222,128,.14);color:var(--route-mask)}
+.tag.q{border:1px dashed var(--cx-warn);color:var(--cx-warn)}
+.panelbox{background:var(--cx-surface-2);border:1px solid var(--cx-line-1);border-radius:8px;
+  padding:16px;position:relative;overflow:visible}
+.hint{font-size:9.5px;color:var(--cx-text-3);margin-top:9px;border-top:1px solid var(--cx-line-1);padding-top:8px}
+kbd{background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:4px;padding:1px 6px;font-size:10px}
+
+/* ---- numbered callout pin ---- */
+.pin{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;flex:none;
+  border-radius:50%;background:var(--cx-selection);color:#0B0B10;font-size:8.5px;font-weight:700;
+  line-height:1;cursor:help;position:relative;vertical-align:middle}
+.pin:hover .pintip,.pin:focus-visible .pintip{display:block}
+.pintip{display:none;position:absolute;left:50%;bottom:130%;transform:translateX(-50%);
+  background:#0B0B10;border:1px solid var(--cx-selection);color:var(--cx-text-1);
+  padding:6px 9px;border-radius:5px;font-size:10px;white-space:nowrap;z-index:40;
+  box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.pintip b{color:var(--cx-selection)}
+
+/* ---- mini app-frame context strip ---- */
+.frame-ctx{display:flex;border:1px solid var(--cx-line-1);border-radius:8px;overflow:hidden;height:150px}
+.frame-ctx .sb{width:230px;background:var(--cx-surface-2);border-right:1px solid var(--cx-line-1);
+  display:flex;flex-direction:column}
+.frame-ctx .tabs{display:flex;border-bottom:1px solid var(--cx-line-1)}
+.frame-ctx .tabs span{flex:1;text-align:center;padding:8px 4px;font-size:9.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cx-text-3)}
+.frame-ctx .tabs span.on{color:var(--cx-action);background:var(--cx-surface-3);font-weight:600;
+  border-bottom:2px solid var(--cx-action)}
+.frame-ctx .sbfill{flex:1;padding:10px;font-size:9.5px;color:var(--cx-text-3);display:flex;
+  flex-direction:column;gap:6px}
+.frame-ctx .sbfill .stub{background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:4px;
+  padding:5px 7px;color:var(--cx-text-2)}
+.frame-ctx .main{flex:1;display:flex;align-items:center;justify-content:center;color:var(--cx-text-3);
+  font-size:11px;background:
+    radial-gradient(ellipse 30% 45% at 30% 55%, rgba(200,243,33,.08), transparent 70%),
+    radial-gradient(ellipse 22% 34% at 68% 38%, rgba(143,125,255,.10), transparent 70%),
+    var(--cx-surface-0)}
+
+/* ---- library panel ---- */
+.libpanel{display:flex;gap:0;border:1px solid var(--cx-line-1);border-radius:8px;overflow:hidden;
+  max-width:400px;background:var(--cx-surface-2)}
+.libpanel__inner{display:flex;flex-direction:column;width:100%}
+.lib__head{padding:9px 12px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--cx-text-2);border-bottom:1px solid var(--cx-line-1);display:flex;align-items:center;gap:6px}
+.lib__search{padding:9px 10px;border-bottom:1px solid var(--cx-line-1)}
+.lib__search input{width:100%;font-family:var(--cx-font-mono);font-size:11px;
+  background:var(--cx-surface-3);color:var(--cx-text-1);border:1px solid var(--cx-line-2);
+  border-radius:4px;padding:6px 9px;outline:none}
+.lib__search input:focus{border-color:var(--cx-action)}
+.lib__tags{display:flex;gap:5px;flex-wrap:wrap;padding:8px 10px;border-bottom:1px solid var(--cx-line-1)}
+.tagchip{font-family:var(--cx-font-mono);font-size:9.5px;padding:3px 9px;border-radius:99px;
+  background:var(--cx-surface-3);color:var(--cx-text-2);border:1px solid var(--cx-line-2);cursor:pointer}
+.tagchip[aria-pressed="true"]{background:var(--cx-selection-wash);border-color:var(--cx-selection);color:#CBBEFF}
+.lib__body{max-height:520px;overflow-y:auto;padding:6px 8px 10px}
+.folder{margin-bottom:3px}
+.folder__hd{display:flex;align-items:center;gap:7px;padding:7px 6px;border-radius:4px;cursor:pointer;
+  font-size:11px;color:var(--cx-text-1);user-select:none}
+.folder__hd:hover{background:var(--cx-surface-3)}
+.folder__caret{width:10px;font-size:9px;color:var(--cx-text-3);transition:transform .12s;flex:none}
+.folder__caret.open{transform:rotate(90deg)}
+.folder__name{flex:1}
+.folder__count{font-size:9px;color:var(--cx-text-3)}
+.folder__list{display:none;flex-direction:column;gap:6px;padding:6px 4px 10px 22px}
+.folder__list.open{display:flex}
+
+.pcard{background:var(--cx-surface-3);border:1px solid var(--cx-line-2);border-radius:6px;
+  padding:8px 9px;cursor:grab;transition:border-color .12s,background .12s}
+.pcard:hover{border-color:var(--cx-selection);background:var(--cx-surface-4)}
+.pcard.dup-demo{outline:1px dashed var(--cx-selection);outline-offset:2px}
+.pcard__row{display:flex;gap:9px}
+.pcard__thumb{width:52px;height:52px;border-radius:4px;background:#000;flex:none;
+  image-rendering:pixelated;display:block}
+.pcard__meta{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.pcard__top{display:flex;align-items:center;gap:6px}
+.pcard__name{font-size:11.5px;color:var(--cx-text-1);font-weight:500;flex:1;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.pcard__cat{font-size:8.5px;padding:1px 6px;border-radius:99px;background:var(--cx-surface-4);
+  color:var(--cx-text-2);letter-spacing:.06em;text-transform:uppercase;flex:none}
+.pcard__desc{font-size:9.5px;color:var(--cx-text-3);line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pcard__counts{font-size:9px;color:var(--cx-text-2);font-variant-numeric:tabular-nums;
+  display:flex;gap:8px;margin-top:1px}
+.pcard__counts b{color:var(--cx-text-1);font-weight:500}
+.pcard .fav{margin-left:auto;background:none;border:none;color:var(--cx-text-3);cursor:pointer;font-size:11px}
+
+/* ---- toast / undo strip ---- */
+.toaststrip{display:flex;align-items:center;gap:10px;background:var(--cx-surface-3);
+  border:1px solid var(--cx-automation-active);border-radius:6px;padding:8px 12px;margin-bottom:14px;
+  font-size:10.5px;color:var(--cx-text-1);min-height:36px}
+.toaststrip.empty{border-color:var(--cx-line-2);color:var(--cx-text-3)}
+.toaststrip b{color:var(--route-mask)}
+.toaststrip button{margin-left:auto;font-family:var(--cx-font-mono);font-size:9.5px;
+  background:none;border:1px solid var(--cx-line-2);color:var(--cx-text-2);border-radius:4px;
+  padding:3px 10px;cursor:pointer}
+.toaststrip button:hover{color:var(--cx-text-1);border-color:var(--cx-selection)}
+
+/* ---- device rack ---- */
+.rack{display:flex;flex-direction:column;gap:8px}
+.rack__drop{border:2px dashed var(--cx-line-2);border-radius:8px;padding:10px 14px;font-size:10px;
+  color:var(--cx-text-3);text-align:center;transition:border-color .15s,background .15s}
+.rack__drop.hot{border-color:var(--cx-action);background:var(--cx-action-wash);color:var(--cx-text-1)}
+.device{background:var(--cx-surface-3);border:1px solid var(--cx-line-2);border-radius:6px;overflow:visible}
+.device.unrouted{opacity:.82}
+.dhead{display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid var(--cx-line-1)}
+.dhead .dname{font-size:11px;letter-spacing:.02em;color:var(--cx-text-1)}
+.dhead .dtype{font-size:8.5px;color:var(--cx-text-3)}
+.dhead .pill{margin-left:auto;font-size:8.5px;padding:2px 7px;border-radius:99px;
+  background:rgba(74,222,128,.14);color:var(--route-mask);cursor:pointer;border:none;font-family:var(--cx-font-mono)}
+.dhead .pill.off{background:none;border:1px dashed var(--cx-line-2);color:var(--cx-text-3)}
+.dhead .disc{font-size:9.5px;color:var(--cx-text-3);cursor:pointer;background:none;border:none;
+  font-family:var(--cx-font-mono);padding:2px 4px}
+.dhead .disc:hover{color:var(--cx-text-1)}
+
+/* U0 — compact mix knob in the title bar (Knob.tsx arc convention, scaled down; NOT Knob-v3) */
+.mixknob{display:flex;align-items:center;gap:4px;cursor:pointer;position:relative}
+.mixknob svg{display:block}
+.mixknob .mlabel{font-size:7.5px;letter-spacing:.08em;color:var(--cx-text-3);text-transform:uppercase}
+.mixknob:hover .mixtip,.mixknob:focus-visible .mixtip{display:block}
+.mixtip{display:none;position:absolute;left:50%;top:120%;transform:translateX(-50%);z-index:30;
+  background:#0B0B10;border:1px solid var(--cx-selection);border-radius:5px;padding:6px 9px;
+  font-size:9.5px;color:var(--cx-text-1);white-space:nowrap;box-shadow:0 8px 24px rgba(0,0,0,.5)}
+
+.tray{display:none;padding:9px 10px;border-bottom:1px solid var(--cx-line-1);background:var(--cx-surface-2)}
+.tray.on{display:block}
+.tray .trow{display:flex;align-items:center;gap:9px;margin:5px 0;font-size:10px}
+.tray .lab{width:64px;color:var(--cx-text-3);font-size:9px;letter-spacing:.06em;text-transform:uppercase;flex:none}
+.chip{display:inline-flex;align-items:center;gap:6px;background:var(--cx-surface-3);
+  border:1px solid var(--cx-line-2);border-radius:6px;padding:3px 8px 3px 4px;font-size:10px;
+  color:var(--cx-text-1)}
+.chip canvas{width:18px;height:18px;border-radius:3px;background:#000;display:block;image-rendering:pixelated}
+.chip.field{border-color:var(--route-field);color:#CBB8DE}
+.chip.scalar{border-color:var(--route-scalar);color:#F3C77E}
+.chip.feed{border-style:dashed;border-color:var(--route-feedback);color:#F3A5A5}
+.dbody{display:flex;gap:10px;padding:9px 10px;flex-wrap:wrap;font-size:9.5px;color:var(--cx-text-3)}
+.dbody .pv{background:var(--cx-surface-2);border:1px solid var(--cx-line-1);border-radius:4px;
+  padding:4px 8px;color:var(--cx-text-2)}
+
+/* ---- mini wires gutter ---- */
+.wiresmini{position:relative;background:var(--cx-surface-2);border:1px solid var(--cx-line-1);
+  border-radius:6px;padding:8px;margin-top:6px;font-size:9.5px;color:var(--cx-text-3)}
+.wiresmini .wrow{display:flex;align-items:center;gap:8px;margin:3px 0}
+.wiresmini .wl{width:3px;height:11px;border-radius:1px;flex:none}
+.wiresmini .wl.feed{background:repeating-linear-gradient(180deg,var(--route-feedback) 0 3px,transparent 3px 6px)}
+
+/* ---- matrix rows (editable, "just a normal matrix") ---- */
+.matrix{border:1px solid var(--cx-line-1);border-radius:6px;overflow:hidden;margin-top:10px}
+.matrix__hd{display:grid;grid-template-columns:1.3fr 1.3fr 90px 110px 30px;gap:8px;
+  padding:6px 10px;background:var(--cx-surface-2);font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--cx-text-3);border-bottom:1px solid var(--cx-line-1)}
+.matrix__row{display:grid;grid-template-columns:1.3fr 1.3fr 90px 110px 30px;gap:8px;align-items:center;
+  padding:6px 10px;font-size:10.5px;border-bottom:1px solid var(--cx-line-1);background:var(--cx-surface-3)}
+.matrix__row:last-child{border-bottom:none}
+.matrix__row .src,.matrix__row .dst{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.matrix__row .src.mask{color:var(--route-mask)}
+.matrix__row .src.field{color:var(--route-field)}
+.matrix__row .src.scalar{color:var(--route-scalar)}
+.matrix__row .depthbar{height:4px;background:var(--cx-line-2);border-radius:2px;position:relative}
+.matrix__row .depthbar::after{content:'';position:absolute;left:0;top:0;bottom:0;width:var(--v,50%);
+  background:var(--cx-selection);border-radius:2px}
+.matrix__row .curvechip{font-size:9px;padding:2px 7px;border-radius:99px;background:var(--cx-surface-2);
+  border:1px solid var(--cx-line-2);color:var(--cx-text-2);text-align:center}
+.matrix__row .del{background:none;border:none;color:var(--cx-text-3);cursor:pointer;font-size:11px;text-align:center}
+.matrix__row .del:hover{color:var(--cx-danger-text)}
+
+/* ---- edge inspector (B9) zoom, with curve picker inset ---- */
+.edgeinsp{max-width:340px;background:var(--cx-surface-3);border:1px solid var(--cx-line-2);
+  border-radius:8px;padding:12px}
+.edgeinsp__hd{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--cx-text-2);
+  margin-bottom:10px;display:flex;align-items:center;gap:8px}
+.edgeinsp__row{display:flex;align-items:center;gap:10px;margin:9px 0;font-size:10.5px}
+.edgeinsp__row .lab{width:64px;color:var(--cx-text-3);font-size:9px;letter-spacing:.06em;text-transform:uppercase;flex:none}
+.axispick,.rulepick{font-family:var(--cx-font-mono);font-size:10px;background:var(--cx-surface-2);
+  color:var(--cx-text-1);border:1px solid var(--cx-line-2);border-radius:4px;padding:4px 6px}
+.curveseg{display:flex;gap:2px;border:1px solid var(--cx-line-2);border-radius:6px;overflow:hidden;
+  background:var(--cx-surface-2)}
+.curveseg button{flex:1;background:none;border:none;border-right:1px solid var(--cx-line-2);
+  padding:6px 3px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.curveseg button:last-child{border-right:none}
+.curveseg button svg{display:block}
+.curveseg button span{font-size:7.5px;color:var(--cx-text-3);letter-spacing:.02em}
+.curveseg button[aria-pressed="true"]{background:var(--cx-selection-wash)}
+.curveseg button[aria-pressed="true"] span{color:var(--cx-selection)}
+.curveseg button[aria-pressed="true"] svg path{stroke:var(--cx-selection)!important}
+.curveseg button:hover{background:var(--cx-surface-4)}
+.curve-identity-note{font-size:9.5px;color:var(--cx-text-3);margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--cx-line-1)}
+.curve-identity-note b{color:var(--route-mask)}
+
+/* ---- callout legend table ---- */
+table.calltable{width:100%;border-collapse:collapse;font-size:10.5px}
+table.calltable th{text-align:left;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--cx-text-3);padding:6px 8px;border-bottom:1px solid var(--cx-line-1)}
+table.calltable td{padding:6px 8px;border-bottom:1px solid var(--cx-line-1);color:var(--cx-text-2);
+  vertical-align:top}
+table.calltable td:first-child{width:26px}
+table.calltable td.pk{color:var(--cx-text-1);white-space:nowrap;font-size:9.5px}
+table.calltable tr:last-child td{border-bottom:none}
+
+.decisions{display:grid;gap:9px;font-size:10.5px;color:var(--cx-text-2)}
+.decisions b{color:var(--cx-text-1);font-weight:500}
+.decisions .dud{color:var(--cx-selection);font-weight:600}
+
+.oqlist{display:grid;gap:8px;font-size:10.5px;color:var(--cx-text-2)}
+.oqlist li{margin-left:16px}
+.oqlist b{color:var(--cx-warn)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Creatrix · wave0-prerouted-presets · design mock · 2026-07-04</div>
+  <h1>Apply a preset and get <b>a normal, editable chain</b> — not a black box.</h1>
+  <p class="thesis">Scope: the Presets Library inside <code>PresetBrowser</code> (embeddable, <b>UD-2</b> —
+    no new top-level chrome), plus two U0 insets that ride alongside it: the <code>_mix</code> wet/dry
+    knob on a device card's title bar (existing <code>Knob.tsx</code> convention, <b>not</b> Knob-v3),
+    and the edge-curve <b>enum picker</b> (linear / exponential / logarithmic / s-curve / smoothstep —
+    <b>UD-5</b>, explicitly not a points editor). Every routed preset resolves, on apply, into ordinary
+    devices and ordinary edges — same colors, same matrix, same undo model as anything you'd wire by
+    hand. That transparency guarantee is <b>PK.1</b>'s whole point.</p>
+  <div class="legend">
+    <span><i class="dotc" style="background:var(--route-mask)"></i>mask</span>
+    <span><i class="dotc" style="background:var(--route-field)"></i>field (per-pixel)</span>
+    <span><i class="dotc" style="background:var(--route-scalar)"></i>scalar</span>
+    <span><i class="dotc" style="background:var(--route-feedback)"></i>feedback (dashed)</span>
+    <span style="margin-left:8px;color:var(--cx-text-3)">hover any <span class="pin" tabindex="0">i<span class="pintip">numbered callouts map to packet ids — see the legend table near the bottom</span></span> pin for its packet id</span>
+  </div>
+</header>
+
+<h2>Where this panel lives <span class="tag locked">UD-2 locked</span></h2>
+<p class="sub">The Presets Library is one of three sibling tabs on the existing sidebar
+  (<code>Effects · Presets · Instruments</code>, <code>App.tsx</code>'s <code>sidebarTab</code>) — this
+  change adds folders/search/tags <b>inside</b> that tab, not a new panel, window, or top-level nav
+  item. The routing-design-suite's future browser tree re-hosts this same component later as its
+  <code>PRESETS</code> node; nothing here should assume it owns the whole sidebar.</p>
+<div class="panelbox">
+  <div class="frame-ctx">
+    <div class="sb">
+      <div class="tabs"><span>Effects</span><span class="on">Presets</span><span>Instruments</span></div>
+      <div class="sbfill">
+        <div class="stub">⟨ Presets Library panel — detailed below ⟩</div>
+        <span style="color:var(--cx-text-3)">280px sidebar width in the shipping app; the panel below
+          is shown at 400px for legibility — real layout is single-column at 280px, same content.</span>
+      </div>
+    </div>
+    <div class="main">preview canvas · device chain · timeline (unchanged by this mock)</div>
+  </div>
+  <div class="hint">No new window, no new modal, no new top-level tab — <b style="color:var(--route-mask)">UD-2</b> is a hard constraint, not a suggestion. If a future pass needs more room than 280px, that's a Lane-2/browser-tree decision, not this change's.</div>
+</div>
+
+<h2>Presets Library panel <span class="pin" tabindex="0">1<span class="pintip">Pack folders = subfolders of &lt;Documents&gt;/Creatrix/Presets — <b>PK.2 · PK.3 · UD-4</b></span></span> <span class="tag locked">PK.2</span></h2>
+<p class="sub">One search box across everything (<b>B's one-search rule</b> — no separate per-folder
+  search), tag chips filter on top of it, folders are literal subfolders on disk so a user who drops a
+  <code>.glitchpreset</code> file into <code>Documents/Creatrix/Presets/My Pack/</code> sees it appear
+  here with zero extra config. Click a card to apply; drag it onto the device rack (or the chain) to
+  apply the same way — same code path either way, so an agent driving the click affordance gets
+  identical results to a human dragging.</p>
+<div class="panelbox">
+  <div class="libpanel">
+    <div class="libpanel__inner">
+      <div class="lib__head">
+        Presets
+        <span class="pin" tabindex="0" style="margin-left:auto">7<span class="pintip">Click card body → apply (same code path as drag) — <b>PK.2</b></span></span>
+        <span class="pin" tabindex="0">8<span class="pintip">Drag card → chain, keeps the existing <code>application/entropic-preset</code> DnD channel — <b>PK.2</b></span></span>
+      </div>
+      <div class="lib__search" style="display:flex;align-items:center;gap:8px">
+        <input id="pSearch" type="text" placeholder="search name, tag, or what-it-does…"
+          aria-label="search all presets" style="flex:1">
+        <span class="pin" tabindex="0">2<span class="pintip">One search across every pack — no per-folder search box — <b>PK.2 (B rule)</b></span></span>
+      </div>
+      <div class="lib__tags" id="pTags">
+        <span class="pin" tabindex="0" style="margin-right:2px">3<span class="pintip">Tag filter chips (AND with search) — style not yet locked, best guess — <b>PK.2</b> <span style="color:var(--cx-warn)">· open question</span></span></span>
+        <button class="tagchip" data-tag="glitch" aria-pressed="false">glitch</button>
+        <button class="tagchip" data-tag="color" aria-pressed="false">color</button>
+        <button class="tagchip" data-tag="temporal" aria-pressed="false">temporal</button>
+        <button class="tagchip" data-tag="audio-driven" aria-pressed="false">audio-driven</button>
+        <button class="tagchip" data-tag="has-macro" aria-pressed="false">has macro</button>
+      </div>
+      <div class="lib__body" id="libBody"><!-- folders injected by JS --></div>
+    </div>
+  </div>
+  <div class="hint">Folder names shown (VHS Archive / Cyanotype Series / Long Brake / Chroma Textures)
+    are placeholders — the 24-pack roster and pack grouping (PK.3) isn't finalized; rendering my best
+    token-consistent guess rather than inventing final names silently
+    <span class="tag q" style="margin-left:4px">open question</span>.</div>
+</div>
+
+<h2>Apply → transparency: a normal, editable chain <span class="tag locked">PK.1 · UD-1</span></h2>
+<p class="sub">Click <b>"Duplicate Mosh x2"</b> above (pre-selected below) to see the headline UD-1 test
+  made visible: two <code>fx.datamosh</code> instances, one route, and it lands on exactly one of
+  them — impossible under the old TYPE-only addressing, where the last-writer would win on both. Every
+  device below is a fully ordinary device card; every edge is a fully ordinary edge. Nothing here is
+  preset-only chrome — that's the transparency invariant PK.1's hard oracle checks
+  (apply → remove-all-devices → byte-identical to the pre-apply baseline frame).</p>
+<div class="panelbox">
+  <div id="toastRow" class="toaststrip empty">no preset applied yet — click a card above</div>
+  <div class="rack__drop" id="dropZone">drop a preset card here to apply
+    <span class="pin" tabindex="0">9<span class="pintip">Drag-drop target = the device rack itself; same apply function as click — <b>PK.2</b></span></span>
+  </div>
+  <div class="rack" id="rack"><!-- device cards injected by JS --></div>
+  <div class="wiresmini" id="wiresMini"><!-- edge summary injected by JS --></div>
+
+  <div style="margin-top:14px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--cx-text-2);display:flex;align-items:center;gap:8px">
+    Modulation Matrix — same rows a hand-built route would produce
+    <span class="pin" tabindex="0">10<span class="pintip">Apply materializes NORMAL, editable devices + edges — no "preset mode" flag anywhere — <b>PK.1</b> (transparency invariant)</span></span>
+  </div>
+  <div class="matrix" id="matrixBox"><!-- rows injected by JS --></div>
+  <div class="hint">
+    <span class="pin" tabindex="0">11<span class="pintip">Route wires use the same 4-type palette as the routing-design-suite mock — mask / field / scalar / feedback (dashed) — <b>PK.1</b></span></span>
+    Wires reuse the routing-design-suite's exact 4-type palette (this doc's legend). ·
+    <span class="pin" tabindex="0">14<span class="pintip">Macros materialize on apply too — today they're captured on save and silently dropped; PK.1 closes that gap — <b>PK.1</b></span></span>
+    Macros (bottom row of the matrix) apply along with routes — today they're saved but silently
+    dropped on load; this is the exact gap PK.1 closes.
+  </div>
+</div>
+
+<h2>U0 inset — <code>_mix</code> wet/dry knob <span class="tag locked">PK.4</span> <span class="pin" tabindex="0">15<span class="pintip">Existing <code>Knob.tsx</code> arc convention (270° sweep, gap at bottom) — explicitly NOT the routing-suite's unbuilt Knob-v3 single-ring — <b>PK.4</b></span></span></h2>
+<p class="sub">Every device card's title bar grows one small knob: the arc geometry is copied from the
+  live <code>Knob.tsx</code> (<code>SIZE 40 · START_ANGLE 135° · SWEEP 270°</code>, gap at the bottom —
+  see <code>frontend/src/renderer/components/common/Knob.tsx:24-29</code>), scaled down for the title
+  bar. It is <b>not</b> the routing-design-suite's proposed Knob-v3 "one circumference" ring — that
+  spec is unbuilt and this packet must not implement or contradict it. At <code>_mix → 0</code> the
+  device is byte-identical to fully bypassed (this is Packet 4's morph-bypass oracle).</p>
+<div class="panelbox">
+  <div style="display:flex;gap:26px;flex-wrap:wrap;align-items:center">
+    <div style="text-align:center">
+      <div class="dhead" style="border:1px solid var(--cx-line-2);border-radius:6px;width:220px">
+        <span class="dname">fx.grain_field</span>
+        <span class="mixknob" id="mixKnobDemo" tabindex="0" data-v="0.8" style="margin-left:auto">
+          <svg viewBox="0 0 32 32" width="26" height="26">
+            <path id="mkTrack" fill="none" stroke="var(--cx-line-2)" stroke-width="2.4" stroke-linecap="round"/>
+            <path id="mkVal" fill="none" stroke="var(--cx-automation-active)" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+          <span class="mlabel">mix</span>
+          <span class="mixtip" id="mkTip">_mix = 0.80 · wet</span>
+        </span>
+      </div>
+      <div style="font-size:9px;color:var(--cx-text-3);margin-top:6px">click to cycle 1.0 → 0.5 → 0.0 (bypass)</div>
+    </div>
+    <div style="max-width:420px;font-size:10.5px;color:var(--cx-text-2)">
+      <b style="color:var(--cx-text-1)">Why the title bar, not the param panel:</b> <code>_mix</code> is
+      the one control every device shares (it's synthesized by <code>routing.py</code>'s
+      <code>_mix</code> injection, not a per-effect param), so it gets a fixed slot next to the name
+      instead of competing for space in the effect-specific param list below.
+      <div class="curve-identity-note">Default <b>1.0</b> renders byte-identical to today (no
+        <code>_mix</code> control existed before this packet) — the knob is additive UI over an
+        already-live backend value.</div>
+    </div>
+  </div>
+</div>
+
+<h2>U0 inset — edge-curve enum picker <span class="tag locked">PK.5 · UD-5</span> <span class="pin" tabindex="0">16<span class="pintip">5-option segmented control — linear default, byte-identical when linear — NOT a draggable-points editor (deferred to K1) — <b>PK.5</b></span></span></h2>
+<p class="sub">Lives in <code>B9EdgeInspector</code> (the live per-edge inspector, mounted at
+  <code>OperatorRack.tsx:323</code>) alongside the existing depth arc / axis pickers / binding-rule
+  picker. Five shapes, one selected at a time — <b>not</b> a points/Bezier editor (that's explicitly
+  K1 scope). <code>linear</code> is the default and must render byte-identical to today for every
+  existing mapping; that's the packet's whole correctness bar.</p>
+<div class="panelbox">
+  <div class="edgeinsp">
+    <div class="edgeinsp__hd">EDGE · audio.rms → datamosh #2.intensity</div>
+    <div class="edgeinsp__row">
+      <span class="lab">src axis</span>
+      <select class="axispick"><option>t — time</option><option>c — color channel</option></select>
+    </div>
+    <div class="edgeinsp__row">
+      <span class="lab">binding</span>
+      <select class="rulepick"><option>broadcast — scalar → all</option><option>sampleAt — scalar at coord</option></select>
+    </div>
+    <div class="edgeinsp__row" style="align-items:flex-start">
+      <span class="lab">curve</span>
+      <div class="curveseg" id="curveSeg" role="radiogroup" aria-label="edge curve shape">
+        <button data-c="linear" aria-pressed="true" title="linear (default)">
+          <svg width="26" height="26" viewBox="0 0 26 26"><path d="M4 22 L22 4" fill="none" stroke="var(--cx-text-3)" stroke-width="1.6"/></svg>
+          <span>linear</span>
+        </button>
+        <button data-c="exponential" aria-pressed="false" title="exponential">
+          <svg width="26" height="26" viewBox="0 0 26 26"><path d="M4 22 C 10 22, 14 20, 22 4" fill="none" stroke="var(--cx-text-3)" stroke-width="1.6"/></svg>
+          <span>expo</span>
+        </button>
+        <button data-c="logarithmic" aria-pressed="false" title="logarithmic">
+          <svg width="26" height="26" viewBox="0 0 26 26"><path d="M4 22 C 12 4, 16 4, 22 4" fill="none" stroke="var(--cx-text-3)" stroke-width="1.6"/></svg>
+          <span>log</span>
+        </button>
+        <button data-c="s-curve" aria-pressed="false" title="s-curve">
+          <svg width="26" height="26" viewBox="0 0 26 26"><path d="M4 22 C 12 22, 10 4, 22 4" fill="none" stroke="var(--cx-text-3)" stroke-width="1.6"/></svg>
+          <span>s-curve</span>
+        </button>
+        <button data-c="smoothstep" aria-pressed="false" title="smoothstep (new, additive)">
+          <svg width="26" height="26" viewBox="0 0 26 26"><path d="M4 22 C 8 22, 10 18, 13 13 C 16 8, 18 4, 22 4" fill="none" stroke="var(--cx-text-3)" stroke-width="1.6"/></svg>
+          <span>smooth<br>step</span>
+        </button>
+      </div>
+    </div>
+    <div class="curve-identity-note"><b>linear = today's behavior, exactly.</b> Every existing preset
+      and live mapping either carries <code>curve: "linear"</code> or omits the field — this packet's
+      hard gate is that turning curve-application ON must be a no-op for both of those, and change
+      output only for the 4 non-linear shapes.</div>
+  </div>
+  <div class="hint">Icon glyphs (the little curve sketches) are my best-guess visual language for the 5
+    enum values — no icon spec exists yet in the PRDs
+    <span class="tag q" style="margin-left:4px">open question</span>. Text labels are the load-bearing
+    part; icons are a legibility aid on top.</div>
+</div>
+
+<h2>Callout legend</h2>
+<div class="panelbox">
+  <table class="calltable">
+    <tr><th></th><th>Affordance</th><th>Packet</th></tr>
+    <tr><td><span class="pin">1</span></td><td>Pack folders = literal subfolders of <code>&lt;Documents&gt;/Creatrix/Presets/</code></td><td class="pk">PK.2 · PK.3 · UD-4</td></tr>
+    <tr><td><span class="pin">2</span></td><td>One search box across every pack (no per-folder search)</td><td class="pk">PK.2 (B rule)</td></tr>
+    <tr><td><span class="pin">3</span></td><td>Tag filter chips, AND'd with search text</td><td class="pk">PK.2 <span class="tag q">open Q</span></td></tr>
+    <tr><td><span class="pin">4</span></td><td>Rendered preset thumbnail (real frame, not a placeholder icon)</td><td class="pk">PK.2 · PK.3</td></tr>
+    <tr><td><span class="pin">5</span></td><td>Preset name + category tag</td><td class="pk">PK.2</td></tr>
+    <tr><td><span class="pin">6</span></td><td>"What it does" one-liner (plain-language summary)</td><td class="pk">PK.2 · PK.3 <span class="tag q">open Q</span></td></tr>
+    <tr><td><span class="pin">7</span></td><td>Click card body → apply</td><td class="pk">PK.2</td></tr>
+    <tr><td><span class="pin">8</span></td><td>Drag card → chain (<code>application/entropic-preset</code> channel, unchanged)</td><td class="pk">PK.2</td></tr>
+    <tr><td><span class="pin">9</span></td><td>Drop target on the device rack — same apply fn as click</td><td class="pk">PK.2</td></tr>
+    <tr><td><span class="pin">10</span></td><td>Applied preset = normal, editable devices + edges (no preset-mode flag)</td><td class="pk">PK.1 (transparency)</td></tr>
+    <tr><td><span class="pin">11</span></td><td>Wires colored by routing type — mask/field/scalar/feedback (dashed)</td><td class="pk">PK.1</td></tr>
+    <tr><td><span class="pin">12</span></td><td>Duplicate-effect-type routing: 2× <code>fx.datamosh</code>, route resolves to exactly one</td><td class="pk">PK.1 (UD-1 headline test)</td></tr>
+    <tr><td><span class="pin">13</span></td><td>Apply = ONE undo entry, <code>"Apply preset: &lt;name&gt;"</code></td><td class="pk">PK.1 · PK.0a</td></tr>
+    <tr><td><span class="pin">14</span></td><td>Macros materialize on apply (today: captured on save, silently dropped)</td><td class="pk">PK.1</td></tr>
+    <tr><td><span class="pin">15</span></td><td><code>_mix</code> wet/dry knob, title bar, existing <code>Knob.tsx</code> arc (not Knob-v3)</td><td class="pk">PK.4</td></tr>
+    <tr><td><span class="pin">16</span></td><td>Edge-curve 5-option enum picker (linear default, byte-identical)</td><td class="pk">PK.5 (UD-5)</td></tr>
+  </table>
+</div>
+
+<h2>Decisions this mock renders (verbatim, locked)</h2>
+<div class="panelbox">
+  <div class="decisions">
+    <span><span class="dud">UD-1</span> Addressing = instance-UUID end-to-end, TYPE fallback for legacy mappings. Renders as: preset #3's two <b>fx.datamosh</b> instances, one routed, one not.</span>
+    <span><span class="dud">UD-2</span> Wave 0 builds folders/search inside <b>PresetBrowser</b>, embeddable, no new top-level chrome — B's future browser tree re-hosts it later.</span>
+    <span><span class="dud">UD-3</span> Full-suite merge gate (not rendered visually — a CI/process decision, not a UI surface).</span>
+    <span><span class="dud">UD-4</span> Factory packs = subfolders of <code>&lt;Documents&gt;/Creatrix/Presets/</code>; <code>~/.creatrix/user-library/</code> stays with B's browser epic.</span>
+    <span><span class="dud">UD-5</span> Edge-curve v1 = enum picker (existing 4-value <code>CurveType</code> + additive <code>smoothstep</code>); draggable-points editor deferred to K1.</span>
+  </div>
+</div>
+
+<h2>Open design questions <span class="tag q">flagged, not invented silently</span></h2>
+<div class="panelbox">
+  <ul class="oqlist">
+    <li><b>Tag filter UI</b> — no PRD locks chip-vs-dropdown-vs-inline-text for tag filtering; this mock
+      guesses multi-select toggle chips AND'd with the search box.</li>
+    <li><b>"What it does" copy</b> — length, tone, and authorship (hand-written vs. generated from the
+      effect chain) aren't specified; this mock guesses a single ~70-character plain-language sentence
+      per preset.</li>
+    <li><b>Pack names/roster grouping</b> — the 24 seed presets (PK.3) are named in
+      <code>PRESET-TOP50.md</code> but their grouping into named packs/subfolders isn't decided; the
+      four folder names here (VHS Archive / Cyanotype Series / Long Brake / Chroma Textures) are
+      placeholders for visual variety, not a locked taxonomy.</li>
+    <li><b>Curve-picker icon glyphs</b> — the 5 little curve sketches are this mock's invention for
+      scannability; only the text labels (linear/exponential/logarithmic/s-curve/smoothstep) are
+      load-bearing per UD-5.</li>
+    <li><b>Device/route count format</b> — shown as "<code>N devices · N routes</code>" on the card;
+      no PRD specifies the exact string.</li>
+  </ul>
+</div>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------------- thumbnail canvases (cheap procedural renders, one draw each) ---------------- */
+function paintThumb(cv, seed){
+  const ctx = cv.getContext('2d'), w = cv.width, h = cv.height;
+  const hue = (seed * 47) % 360;
+  const g = ctx.createLinearGradient(0,0,w,h);
+  g.addColorStop(0, `hsl(${hue},55%,22%)`);
+  g.addColorStop(1, `hsl(${(hue+70)%360},50%,14%)`);
+  ctx.fillStyle = g; ctx.fillRect(0,0,w,h);
+  ctx.strokeStyle = `hsla(${(hue+180)%360},70%,70%,.55)`;
+  ctx.lineWidth = 1;
+  for(let i=0;i<4;i++){
+    ctx.beginPath();
+    const yy = (h/5)*(i+1) + Math.sin(seed+i)*4;
+    ctx.moveTo(0,yy); ctx.lineTo(w,yy+Math.cos(seed*2+i)*6);
+    ctx.stroke();
+  }
+}
+
+/* ---------------- data: packs + presets ---------------- */
+const PACKS = [
+  { id:'vhs', name:'VHS Archive', open:true, presets:[
+    { id:'longbrake', name:'Long Brake', cat:'temporal', tags:['temporal','audio-driven'],
+      desc:'Backspins the last 400ms into a grinding halt, audio RMS feathers into blur depth.',
+      devices:6, routes:3, macro:true },
+    { id:'dupmosh', name:'Duplicate Mosh x2', cat:'glitch', tags:['glitch'],
+      desc:'Two independent datamosh instances chained — the route hits only the second.',
+      devices:4, routes:2, macro:false, dupDemo:true },
+    { id:'chromableed', name:'VHS Chroma Bleed', cat:'color', tags:['color','audio-driven'],
+      desc:'Chroma-shift + scanlines + tracking jitter, audio-RMS drives the noise floor.',
+      devices:7, routes:4, macro:true },
+  ]},
+  { id:'cyan', name:'Cyanotype Series', open:false, presets:[
+    { id:'cyanwash', name:'Cyanotype Wash', cat:'color', tags:['color'],
+      desc:'Blueprints the frame: cyan/white two-tone with a paper-grain overlay.',
+      devices:3, routes:1, macro:false },
+  ]},
+  { id:'brake', name:'Long Brake', open:false, presets:[] },
+  { id:'chroma', name:'Chroma Textures', open:false, presets:[] },
+];
+PACKS[2].count = 4; PACKS[3].count = 6; PACKS[1].count = 6; PACKS[0].count = 8;
+
+/* ---------------- device-chain fixtures per preset (what "apply" materializes) ---------------- */
+const CHAINS = {
+  longbrake: {
+    toast:'Long Brake', undoName:'Apply preset: Long Brake',
+    devices:[
+      { name:'fx.freeze_frame', type:'temporal', routed:false, mix:1.0 },
+      { name:'fx.backspin', type:'temporal', routed:true, mix:1.0,
+        tray:[ {lab:'depth ←', kind:'scalar', label:'audio.rms'} ] },
+      { name:'fx.blur_gauss', type:'texture', routed:true, mix:0.6,
+        tray:[ {lab:'radius ←', kind:'scalar', label:'audio.rms → env'} ] },
+    ],
+    wires:[ {t:'scalar', label:'audio.rms → backspin.depth'}, {t:'scalar', label:'audio.rms(env) → blur.radius'}, {t:'field', label:'A1 post → grain.field'} ],
+    matrix:[
+      { src:'audio.rms', srcType:'scalar', dst:'backspin.depth', depth:70, curve:'linear' },
+      { src:'audio.rms (env)', srcType:'scalar', dst:'blur_gauss.radius', depth:45, curve:'smoothstep' },
+      { src:'MACRO: INTENSITY', srcType:'mask', dst:'3 params', depth:60, curve:'linear', macro:true },
+    ],
+  },
+  dupmosh: {
+    toast:'Duplicate Mosh x2', undoName:'Apply preset: Duplicate Mosh x2',
+    devices:[
+      { name:'fx.chroma_key', type:'color', routed:false, mix:1.0 },
+      { name:'fx.datamosh #1', type:'glitch', routed:false, mix:1.0, note:'not routed — proves the route did not fan out to both instances' },
+      { name:'fx.datamosh #2', type:'glitch', routed:true, mix:1.0,
+        tray:[ {lab:'mask ←', kind:'mask', label:'A2 · layer tap'}, {lab:'intensity ←', kind:'scalar', label:'audio.rms'}, {lab:'feedback ←', kind:'feed', label:'this ↩1f'} ] },
+      { name:'fx.grain_field', type:'texture', routed:false, mix:0.8 },
+    ],
+    wires:[ {t:'mask', label:'A2 layer → datamosh#2.mask'}, {t:'scalar', label:'audio.rms → datamosh#2.intensity'}, {t:'feedback', label:'datamosh#2 ↩1f self-loop'} ],
+    matrix:[
+      { src:'A2 · layer tap', srcType:'mask', dst:'datamosh #2 · mask', depth:100, curve:'linear' },
+      { src:'audio.rms', srcType:'scalar', dst:'datamosh #2 · intensity', depth:55, curve:'linear' },
+      { src:'datamosh #2 ↩1f', srcType:'feedback', dst:'datamosh #2 · feedback', depth:30, curve:'linear' },
+    ],
+    dupNote:true,
+  },
+  chromableed: {
+    toast:'VHS Chroma Bleed', undoName:'Apply preset: VHS Chroma Bleed',
+    devices:[
+      { name:'fx.channelshift', type:'color', routed:true, mix:1.0,
+        tray:[ {lab:'shift ←', kind:'scalar', label:'audio.rms'} ] },
+      { name:'fx.scanlines', type:'texture', routed:false, mix:0.7 },
+      { name:'fx.tracking_jitter', type:'destruction', routed:true, mix:1.0,
+        tray:[ {lab:'amount ←', kind:'scalar', label:'audio.rms → env'} ] },
+      { name:'fx.grain_field', type:'texture', routed:true, mix:0.65,
+        tray:[ {lab:'_mix ←', kind:'scalar', label:'audio.env (U0)'} ] },
+    ],
+    wires:[ {t:'scalar', label:'audio.rms → channelshift.shift'}, {t:'scalar', label:'audio.rms(env) → jitter.amount'}, {t:'scalar', label:'audio.env → grain_field._mix'} ],
+    matrix:[
+      { src:'audio.rms', srcType:'scalar', dst:'channelshift.shift', depth:65, curve:'exponential' },
+      { src:'audio.rms (env)', srcType:'scalar', dst:'tracking_jitter.amount', depth:40, curve:'linear' },
+      { src:'audio.env', srcType:'scalar', dst:'grain_field._mix', depth:50, curve:'linear' },
+      { src:'MACRO: NOISE FLOOR', srcType:'mask', dst:'2 params', depth:55, curve:'linear', macro:true },
+    ],
+  },
+  cyanwash: {
+    toast:'Cyanotype Wash', undoName:'Apply preset: Cyanotype Wash',
+    devices:[
+      { name:'fx.duotone', type:'color', routed:false, mix:1.0 },
+      { name:'fx.paper_grain', type:'texture', routed:true, mix:0.4,
+        tray:[ {lab:'mask ←', kind:'mask', label:'self · edges'} ] },
+      { name:'fx.vignette', type:'enhance', routed:false, mix:1.0 },
+    ],
+    wires:[ {t:'mask', label:'self · edges → paper_grain.mask'} ],
+    matrix:[
+      { src:'self · edges', srcType:'mask', dst:'paper_grain · mask', depth:80, curve:'linear' },
+    ],
+  },
+};
+
+const CURVE_LABEL = { linear:'linear', exponential:'exp', logarithmic:'log', 's-curve':'s-curve', smoothstep:'smoothstep' };
+
+/* ---------------- render: folders + cards ---------------- */
+function renderLib(filterText, activeTags){
+  const body = document.getElementById('libBody');
+  body.innerHTML = '';
+  const q = (filterText||'').trim().toLowerCase();
+  PACKS.forEach(pack=>{
+    const folderEl = document.createElement('div');
+    folderEl.className = 'folder';
+    const matches = pack.presets.filter(p=>{
+      const hitQ = !q || p.name.toLowerCase().includes(q) || p.desc.toLowerCase().includes(q) || p.tags.some(t=>t.includes(q));
+      const hitTags = activeTags.length===0 || activeTags.every(t=>p.tags.includes(t));
+      return hitQ && hitTags;
+    });
+    const forceOpen = q.length>0 || activeTags.length>0 ? matches.length>0 : pack.open;
+    folderEl.innerHTML = `
+      <div class="folder__hd" data-pack="${pack.id}">
+        <span class="folder__caret${forceOpen?' open':''}">▸</span>
+        <span class="folder__name">${pack.name}</span>
+        <span class="folder__count">${pack.count!=null?pack.count:pack.presets.length} presets</span>
+      </div>
+      <div class="folder__list${forceOpen?' open':''}" id="flist-${pack.id}"></div>`;
+    body.appendChild(folderEl);
+    const list = folderEl.querySelector('.folder__list');
+    if(pack.presets.length===0){
+      list.innerHTML = `<div style="font-size:9.5px;color:var(--cx-text-3);padding:4px 2px">— seeded in PK.3, not shown in this mock —</div>`;
+    } else if(matches.length===0){
+      list.innerHTML = `<div style="font-size:9.5px;color:var(--cx-text-3);padding:4px 2px">no matches</div>`;
+    } else {
+      matches.forEach((p,idx)=>{
+        const card = document.createElement('div');
+        card.className = 'pcard' + (p.dupDemo?' dup-demo':'');
+        card.draggable = true;
+        card.tabIndex = 0;
+        card.innerHTML = `
+          <div class="pcard__row">
+            <canvas class="pcard__thumb" width="52" height="52"></canvas>
+            <div class="pcard__meta">
+              <div class="pcard__top">
+                <span class="pcard__name">${p.name}</span>
+                <span class="pcard__cat">${p.cat}</span>
+                <button class="fav" title="favorite">☆</button>
+              </div>
+              <div class="pcard__desc">${p.desc}</div>
+              <div class="pcard__counts"><b>${p.devices}</b> devices · <b>${p.routes}</b> routes${p.macro?' · <b>1</b> macro':''}</div>
+            </div>
+          </div>`;
+        card.addEventListener('click', ()=>applyPreset(p.id));
+        card.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); applyPreset(p.id); }});
+        card.addEventListener('dragstart', e=>{
+          e.dataTransfer.setData('application/entropic-preset', JSON.stringify({id:p.id,name:p.name}));
+          e.dataTransfer.effectAllowed = 'copy';
+        });
+        list.appendChild(card);
+        paintThumb(card.querySelector('canvas'), (pack.id.length*7)+idx*3+1);
+      });
+    }
+  });
+  body.querySelectorAll('.folder__hd').forEach(hd=>{
+    hd.addEventListener('click', ()=>{
+      const id = hd.dataset.pack;
+      const listEl = document.getElementById('flist-'+id);
+      const caret = hd.querySelector('.folder__caret');
+      const pack = PACKS.find(x=>x.id===id);
+      pack.open = !listEl.classList.contains('open');
+      listEl.classList.toggle('open', pack.open);
+      caret.classList.toggle('open', pack.open);
+    });
+  });
+}
+
+let activeTags = [];
+document.getElementById('pSearch').addEventListener('input', e=>renderLib(e.target.value, activeTags));
+document.getElementById('pTags').querySelectorAll('.tagchip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    const on = chip.getAttribute('aria-pressed')==='true';
+    chip.setAttribute('aria-pressed', String(!on));
+    const t = chip.dataset.tag;
+    activeTags = on ? activeTags.filter(x=>x!==t) : [...activeTags, t];
+    renderLib(document.getElementById('pSearch').value, activeTags);
+  });
+});
+
+/* ---------------- device rack render ---------------- */
+function routeChipHtml(item){
+  const kindClass = item.kind==='mask' ? '' : (item.kind==='field' ? 'field' : (item.kind==='scalar' ? 'scalar' : 'feed'));
+  return `<span class="chip ${kindClass}"><canvas width="18" height="18"></canvas>${item.label}</span>`;
+}
+
+function renderRack(presetId){
+  const chain = CHAINS[presetId];
+  const rack = document.getElementById('rack');
+  rack.innerHTML = '';
+  chain.devices.forEach((d, i)=>{
+    const dev = document.createElement('div');
+    dev.className = 'device' + (d.routed ? '' : ' unrouted');
+    const trayId = 'tray-'+presetId+'-'+i;
+    dev.innerHTML = `
+      <div class="dhead">
+        <span class="dname">${d.name}</span>
+        <span class="dtype">· ${d.type}</span>
+        ${d.routed ? `<button class="pill" data-tray="${trayId}">⧉ ${d.tray.length} routed</button>` : `<span class="pill off">not routed</span>`}
+        <span class="mixknob" tabindex="0" data-v="${d.mix}">
+          <svg viewBox="0 0 32 32" width="20" height="20">
+            <path class="mkTrackSvg" fill="none" stroke="var(--cx-line-2)" stroke-width="2.4" stroke-linecap="round"/>
+            <path class="mkValSvg" fill="none" stroke="var(--cx-automation-active)" stroke-width="2.4" stroke-linecap="round"/>
+          </svg>
+          <span class="mixtip">_mix = ${d.mix.toFixed(2)}</span>
+        </span>
+        ${d.tray ? `<button class="dhead-disc disc" data-tray-toggle="${trayId}">▾</button>` : ''}
+      </div>
+      ${d.tray ? `<div class="tray" id="${trayId}">
+        ${d.tray.map(t=>`<div class="trow"><span class="lab">${t.lab}</span>${routeChipHtml(t)}</div>`).join('')}
+      </div>` : ''}
+      <div class="dbody">
+        ${d.note ? `<span class="pv" style="color:var(--cx-selection)">${d.note} <span class="pin" tabindex="0" style="margin-left:4px">12<span class="pintip">Duplicate-effect-type: route targets exactly one instance — <b>PK.1 (UD-1 headline test)</b></span></span></span>` : `<span class="pv">preview stub — actual effect params render here</span>`}
+      </div>`;
+    rack.appendChild(dev);
+    // paint mix knob arcs
+    dev.querySelectorAll('.mixknob').forEach(mk=>drawMixKnob(mk, parseFloat(mk.dataset.v)));
+  });
+  rack.querySelectorAll('[data-tray]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = document.getElementById(btn.dataset.tray);
+      t.classList.toggle('on');
+    });
+  });
+  rack.querySelectorAll('[data-tray-toggle]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const t = document.getElementById(btn.dataset.trayToggle);
+      t.classList.toggle('on');
+      btn.textContent = t.classList.contains('on') ? '▾' : '▸';
+    });
+  });
+  // default: open first routed tray so the mock isn't all-collapsed
+  const firstTray = rack.querySelector('.tray');
+  if(firstTray) firstTray.classList.add('on');
+}
+
+/* Arc geometry copied from Knob.tsx's polarToXY/arcPath (SIZE 40, START_ANGLE 135, SWEEP 270),
+   scaled to a 32x32 viewBox, r=13, center (16,16). Value 0..1 maps across the 270deg sweep. */
+function polarToXY(angleDeg, r, cx, cy){
+  const rad = (angleDeg - 90) * Math.PI / 180;
+  return [cx + r*Math.cos(rad), cy + r*Math.sin(rad)];
+}
+function arcPath(a0, a1, r, cx, cy){
+  if (Math.abs(a1-a0) < 0.1) return '';
+  const [sx,sy] = polarToXY(a0,r,cx,cy), [ex,ey] = polarToXY(a1,r,cx,cy);
+  const large = (a1-a0) > 180 ? 1 : 0;
+  return `M ${sx} ${sy} A ${r} ${r} 0 ${large} 1 ${ex} ${ey}`;
+}
+function drawMixKnob(el, v){
+  const START = 135, SWEEP = 270, R = 13, C = 16;
+  const track = el.querySelector('.mkTrackSvg, #mkTrack');
+  const val = el.querySelector('.mkValSvg, #mkVal');
+  if(track) track.setAttribute('d', arcPath(START, START+SWEEP, R, C, C));
+  if(val) val.setAttribute('d', arcPath(START, START + SWEEP*Math.max(0,Math.min(1,v)), R, C, C));
+}
+
+/* ---------------- wires mini + matrix render ---------------- */
+const ROUTE_COLOR = { mask:'var(--route-mask)', field:'var(--route-field)', scalar:'var(--route-scalar)', feedback:'var(--route-feedback)' };
+function renderWiresAndMatrix(presetId){
+  const chain = CHAINS[presetId];
+  const wm = document.getElementById('wiresMini');
+  wm.innerHTML = `<div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--cx-text-3);margin-bottom:6px">edges in this chain</div>` +
+    chain.wires.map(w=>`<div class="wrow"><span class="wl${w.t==='feedback'?' feed':''}" style="background:${w.t==='feedback'?'none':ROUTE_COLOR[w.t]}"></span>${w.label}</div>`).join('');
+
+  const mb = document.getElementById('matrixBox');
+  mb.innerHTML = `<div class="matrix__hd"><span>source</span><span>target</span><span>depth</span><span>curve</span><span></span></div>` +
+    chain.matrix.map(r=>`
+      <div class="matrix__row">
+        <span class="src ${r.srcType}">${r.src}</span>
+        <span class="dst">${r.dst}</span>
+        <span class="depthbar" style="--v:${r.depth}%"></span>
+        <span class="curvechip">${CURVE_LABEL[r.curve]}</span>
+        <button class="del" title="delete edge (undoable)">×</button>
+      </div>`).join('');
+}
+
+/* ---------------- apply / undo / drop ---------------- */
+let currentPreset = null;
+function applyPreset(id){
+  const chain = CHAINS[id];
+  if(!chain) return;
+  currentPreset = id;
+  renderRack(id);
+  renderWiresAndMatrix(id);
+  const toast = document.getElementById('toastRow');
+  toast.classList.remove('empty');
+  toast.innerHTML = `<b>↺</b> <b>${chain.undoName}</b> — one undo entry
+    <span class="pin" tabindex="0">13<span class="pintip">Apply wraps every device+route+macro write in ONE undo transaction — <b>PK.1 · PK.0a</b></span></span>
+    <button id="undoBtn">Undo</button>`;
+  document.getElementById('undoBtn').addEventListener('click', clearChain);
+}
+function clearChain(){
+  currentPreset = null;
+  document.getElementById('rack').innerHTML = `<div style="font-size:10px;color:var(--cx-text-3);padding:10px;text-align:center">empty chain — baseline (this is what "apply → remove-all → byte-identical" compares against)</div>`;
+  document.getElementById('wiresMini').innerHTML = `<div style="font-size:9.5px;color:var(--cx-text-3)">no edges — nothing applied</div>`;
+  document.getElementById('matrixBox').innerHTML = `<div style="padding:14px;text-align:center;font-size:10px;color:var(--cx-text-3)">matrix is empty</div>`;
+  const toast = document.getElementById('toastRow');
+  toast.classList.add('empty');
+  toast.textContent = 'no preset applied yet — click a card above';
+}
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('hot'); });
+dz.addEventListener('dragleave', ()=>dz.classList.remove('hot'));
+dz.addEventListener('drop', e=>{
+  e.preventDefault(); dz.classList.remove('hot');
+  try{
+    const data = JSON.parse(e.dataTransfer.getData('application/entropic-preset'));
+    if(data && data.id) applyPreset(data.id);
+  }catch(_){}
+});
+
+/* ---------------- U0 mix knob demo (standalone section) ---------------- */
+const demo = document.getElementById('mixKnobDemo');
+const demoVals = [0.8, 0.5, 0.0];
+let demoIdx = 0;
+function paintDemo(){
+  const v = demoVals[demoIdx];
+  const START = 135, SWEEP = 270, R = 13, C = 16;
+  document.getElementById('mkTrack').setAttribute('d', arcPath(START, START+SWEEP, R, C, C));
+  document.getElementById('mkVal').setAttribute('d', arcPath(START, START + SWEEP*v, R, C, C));
+  document.getElementById('mkTip').textContent = `_mix = ${v.toFixed(2)}` + (v===0?' · bypassed (byte-identical to off)':' · wet');
+  demo.dataset.v = v;
+}
+demo.addEventListener('click', ()=>{ demoIdx = (demoIdx+1)%demoVals.length; paintDemo(); });
+demo.addEventListener('keydown', e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); demoIdx=(demoIdx+1)%demoVals.length; paintDemo(); }});
+paintDemo();
+
+/* ---------------- curve segmented picker ---------------- */
+document.getElementById('curveSeg').querySelectorAll('button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.getElementById('curveSeg').querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed', String(b===btn)));
+  });
+});
+
+/* ---------------- init ---------------- */
+renderLib('', []);
+applyPreset('dupmosh'); // default: the UD-1 headline test, visible on load
+})();
+</script>
+</body>
+</html>

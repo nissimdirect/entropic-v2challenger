@@ -1,0 +1,728 @@
+<title>System Monitor — Design Mock (system-monitor-v1)</title>
+<style>
+:root{
+  /* ---- Tier 1 primitives, copied verbatim from frontend/src/renderer/styles/tokens.css ---- */
+  --cx-surface-0:#0B0B10; --cx-surface-1:#121218; --cx-surface-2:#18181F;
+  --cx-surface-3:#20202A; --cx-surface-4:#282834;
+  --cx-line-1:#2E2E3A; --cx-line-2:#3C3C4C;
+  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#80808E; --cx-text-disabled:#62626E;
+  --cx-acid:#C8F321; --cx-acid-hover:#D9FF4D; --cx-acid-pressed:#A4C916;
+  --cx-acid-wash:rgba(200,243,33,.10); --cx-acid-on:#0B0B10;
+  --cx-mod:#8F7DFF; --cx-mod-hover:#A693FF; --cx-mod-wash:rgba(143,125,255,.12); --cx-mod-on:#0B0B10;
+  --cx-red-text:#E5484D; --cx-red-fill:#C13B40; --cx-red-wash:rgba(229,72,77,.12); --cx-red-on:#FFFFFF;
+  --cx-amber:#D9A23C; --cx-amber-hover:#E8B453; --cx-amber-wash:rgba(217,162,60,.12); --cx-amber-on:#0B0B10;
+  --cx-font-ui:'JetBrains Mono','Courier New',monospace;
+  --cx-font-mono:'JetBrains Mono','Courier New',monospace;
+  --cx-radius-control:2px; --cx-radius-card:4px; --cx-radius-dialog:6px;
+  --cx-row-h:24px; --cx-panel-header:28px;
+  --cx-ease:cubic-bezier(.2,0,0,1); --cx-dur-feedback:120ms; --cx-dur-entry:180ms;
+  /* ---- Tier 2 semantic aliases (fallbacks per task brief: dark bg / green accent / red danger) ---- */
+  --cx-bg-app:var(--cx-surface-1, #1a1a1a);
+  --cx-bg-panel:var(--cx-surface-2, #1a1a1a);
+  --cx-bg-raised:var(--cx-surface-3, #1a1a1a);
+  --cx-bg-hover:var(--cx-surface-4, #1a1a1a);
+  --cx-action:var(--cx-acid, #4ade80);
+  --cx-meter:var(--cx-acid, #4ade80);
+  --cx-warn:var(--cx-amber, #f59e0b);
+  --cx-danger-text:var(--cx-red-text, #ef4444);
+  --cx-danger-fill:var(--cx-red-fill, #ef4444);
+  --cx-selection:var(--cx-mod, #9b7bb5);
+  --cx-focus-ring:var(--cx-acid, #4ade80);
+}
+*{box-sizing:border-box}
+body{
+  background:var(--cx-bg-app, #1a1a1a); color:var(--cx-text-1, #E7E7EC);
+  font-family:var(--cx-font-ui); font-size:12.5px; line-height:1.55; margin:0; padding:0 0 90px;
+}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+header{border-bottom:1px solid var(--cx-line-1);padding:34px 0 22px;margin-bottom:30px}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--cx-text-3)}
+h1{font-size:19px;font-weight:500;letter-spacing:.02em;margin:8px 0 10px;text-wrap:balance}
+h1 b{color:var(--cx-acid);font-weight:500}
+.thesis{max-width:78ch;color:var(--cx-text-2);font-size:12px}
+.thesis b{color:var(--cx-text-1);font-weight:500}
+h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-text-2);font-weight:500;
+  border-top:1px solid var(--cx-line-1);padding-top:18px;margin:44px 0 6px}
+h2 .k{color:var(--cx-text-1)}
+h2 .pk{font-size:9px;letter-spacing:.08em;color:var(--cx-mod);border:1px dashed var(--cx-mod);
+  border-radius:99px;padding:2px 8px;margin-left:10px;vertical-align:2px;text-transform:none}
+.sub{font-size:11.5px;color:var(--cx-text-2);max-width:82ch;margin:0 0 16px}
+.panelbox{background:var(--cx-bg-panel);border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-card);
+  padding:18px;position:relative;overflow:visible}
+.hint{font-size:9.5px;color:var(--cx-text-3);margin-top:10px;border-top:1px solid var(--cx-line-1);padding-top:8px}
+code{font-family:var(--cx-font-mono);font-size:10px;background:var(--cx-bg-raised);padding:1px 5px;
+  border-radius:var(--cx-radius-control);color:var(--cx-text-2)}
+
+/* ---------- numbered callout chip (every key affordance gets one) ---------- */
+.anno-list{display:grid;gap:6px;margin-top:12px;padding-top:10px;border-top:1px solid var(--cx-line-1)}
+.anno{font-size:10.5px;color:var(--cx-text-2);display:flex;gap:8px;align-items:baseline}
+.anno b.n{
+  display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;
+  border-radius:50%;background:var(--cx-mod-wash);border:1px solid var(--cx-mod);color:var(--cx-mod);
+  font-size:10px;font-weight:600;flex:none;
+}
+.anno .pkid{color:var(--cx-text-3)}
+.pin{
+  position:absolute;display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
+  border-radius:50%;background:var(--cx-surface-0);border:1.5px solid var(--cx-mod);color:var(--cx-mod);
+  font-size:9px;font-weight:700;z-index:5;cursor:default;
+}
+
+/* ---------- device chrome / app-frame excerpt ---------- */
+.appframe{background:var(--cx-surface-0);border:1px solid var(--cx-line-2);border-radius:var(--cx-radius-card);
+  overflow:clip}
+.transport{
+  height:36px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--cx-bg-raised);
+  border-bottom:1px solid var(--cx-line-1);position:relative;
+}
+.transport .brand{font-size:10px;letter-spacing:.16em;color:var(--cx-text-3)}
+.transport .spacer{flex:1}
+.workspace-ph{
+  height:120px;background:
+    repeating-linear-gradient(135deg, var(--cx-surface-1) 0 8px, var(--cx-surface-2) 8px 16px);
+  display:flex;align-items:center;justify-content:center;color:var(--cx-text-3);font-size:10px;
+  letter-spacing:.08em;text-transform:uppercase;
+}
+
+/* ---------- meter chip (Ableton-verbatim: % rendered ON the fill) ---------- */
+.meter-cluster{display:flex;align-items:center;gap:10px;position:relative}
+.meterbox{position:relative;width:58px;height:20px;border-radius:var(--cx-radius-control);
+  background:var(--cx-surface-1);border:1px solid var(--cx-line-2);overflow:hidden;cursor:pointer}
+.meterbox .fill{position:absolute;left:0;top:0;bottom:0;background:var(--cx-acid);
+  transition:width var(--cx-dur-feedback) var(--cx-ease), background var(--cx-dur-feedback) var(--cx-ease)}
+.meterbox .fill.warn{background:var(--cx-amber)}
+.meterbox .fill.danger{background:var(--cx-red-fill)}
+.meterbox .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:600;color:var(--cx-text-1);font-variant-numeric:tabular-nums;
+  text-shadow:0 1px 1px rgba(0,0,0,.5); letter-spacing:.02em; z-index:2}
+.meterbox:hover{border-color:var(--cx-mod)}
+.meter-label{font-size:8px;letter-spacing:.14em;text-transform:uppercase;color:var(--cx-text-3);
+  text-align:center;margin-top:3px}
+.meter-wrap{display:flex;flex-direction:column;align-items:center}
+
+/* ---------- docked panel mockup ---------- */
+.dock-row{display:grid;grid-template-columns:1fr auto;gap:0;align-items:stretch}
+.dock-rest{background:var(--cx-surface-1);border:1px dashed var(--cx-line-2);border-radius:var(--cx-radius-card) 0 0 var(--cx-radius-card);
+  display:flex;align-items:center;justify-content:center;color:var(--cx-text-3);font-size:10px;
+  letter-spacing:.1em;text-transform:uppercase;min-height:520px}
+.dock-resizer{width:6px;cursor:ew-resize;background:var(--cx-surface-2);border-top:1px solid var(--cx-line-1);
+  border-bottom:1px solid var(--cx-line-1);position:relative}
+.dock-resizer::after{content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:2px;height:26px;background:var(--cx-line-2);border-radius:2px}
+.dock-resizer:hover::after,.dock-resizer.active::after{background:var(--cx-mod)}
+.mon-panel{background:var(--cx-bg-panel);border:1px solid var(--cx-line-1);border-radius:0 var(--cx-radius-card) var(--cx-radius-card) 0;
+  display:flex;flex-direction:column;min-width:300px;max-width:760px;width:460px;position:relative}
+.mon-head{height:var(--cx-panel-header);display:flex;align-items:center;gap:4px;padding:0 8px;
+  background:var(--cx-bg-raised);border-bottom:1px solid var(--cx-line-1);flex:none}
+.mon-title{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cx-text-3);
+  padding-right:8px;border-right:1px solid var(--cx-line-1);margin-right:2px}
+.mon-tab{font-family:var(--cx-font-ui);font-size:10px;letter-spacing:.04em;padding:5px 9px;
+  border-radius:var(--cx-radius-control);background:none;border:1px solid transparent;color:var(--cx-text-2);
+  cursor:pointer}
+.mon-tab:hover{color:var(--cx-text-1)}
+.mon-tab[aria-selected="true"]{background:var(--cx-bg-hover);color:var(--cx-text-1);border-color:var(--cx-line-2)}
+.mon-head .spacer{flex:1}
+.mon-reconnect-btn{font-family:var(--cx-font-ui);font-size:9px;padding:3px 8px;border-radius:99px;
+  background:none;border:1px solid var(--cx-line-2);color:var(--cx-text-3);cursor:pointer}
+.mon-reconnect-btn:hover{color:var(--cx-text-1);border-color:var(--cx-mod)}
+.mon-body{padding:12px;overflow:auto;flex:1;position:relative;min-height:420px}
+.mon-persist{font-size:8.5px;color:var(--cx-text-3);padding:4px 10px;border-top:1px solid var(--cx-line-1);
+  background:var(--cx-bg-raised)}
+
+/* reconnecting overlay */
+.mon-panel.disconnected .mon-body{filter:grayscale(.6) brightness(.7);pointer-events:none}
+.reconnect-banner{display:none;position:absolute;left:8px;right:8px;top:8px;z-index:20;
+  background:var(--cx-amber-wash);border:1px solid var(--cx-amber);border-radius:var(--cx-radius-control);
+  padding:6px 10px;font-size:10px;color:var(--cx-amber);text-align:center;pointer-events:auto}
+.mon-panel.disconnected .reconnect-banner{display:block}
+.mon-panel.disconnected .mon-reconnect-btn{color:var(--cx-amber);border-color:var(--cx-amber);pointer-events:auto}
+
+/* tab panes */
+.tabpane{display:none}
+.tabpane.active{display:block}
+
+/* frame summary strip */
+.frame-strip{display:flex;align-items:center;gap:10px;margin-bottom:12px;background:var(--cx-surface-1);
+  border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-control);padding:8px 10px}
+.frame-strip .lab{font-size:9px;letter-spacing:.12em;color:var(--cx-text-3);text-transform:uppercase;flex:none}
+.frame-bar{flex:1;height:9px;border-radius:99px;background:var(--cx-surface-0);border:1px solid var(--cx-line-1);
+  overflow:hidden}
+.frame-bar .f{height:100%;background:var(--cx-acid);width:64%}
+.frame-num{font-size:10.5px;color:var(--cx-text-1);font-variant-numeric:tabular-nums;flex:none;min-width:140px;text-align:right}
+.export-readout{display:none;font-size:10.5px;color:var(--cx-amber);font-variant-numeric:tabular-nums;flex:1}
+.mon-panel[data-export="true"] .frame-live{display:none}
+.mon-panel[data-export="true"] .export-readout{display:block}
+.export-toggle{display:flex;align-items:center;gap:6px;font-size:9.5px;color:var(--cx-text-3);margin-bottom:10px;
+  cursor:pointer;user-select:none}
+.export-toggle input{accent-color:var(--cx-mod)}
+
+/* table */
+.mon-table{width:100%;border-collapse:collapse;font-size:10.5px}
+.mon-table th{text-align:left;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--cx-text-3);padding:5px 8px;border-bottom:1px solid var(--cx-line-1);cursor:pointer;
+  user-select:none;white-space:nowrap}
+.mon-table th:hover{color:var(--cx-text-1)}
+.mon-table th.sorted{color:var(--cx-mod)}
+.mon-table th.sorted::after{content:attr(data-arrow);margin-left:3px}
+.mon-table td{padding:0 8px;height:var(--cx-row-h);border-bottom:1px solid var(--cx-line-1);
+  color:var(--cx-text-1);vertical-align:middle;white-space:nowrap}
+.mon-table tr.row--group{background:var(--cx-bg-raised);cursor:pointer;font-weight:600}
+.mon-table tr.row--group td{color:var(--cx-text-1)}
+.mon-table tr.row--member td{color:var(--cx-text-2)}
+.mon-table tr.row--member{display:none}
+.mon-table tr.row--member.expanded{display:table-row}
+.mon-table tr.row--offender{box-shadow:inset 3px 0 0 var(--cx-amber)}
+.mon-table tr.row--frozen td{color:var(--cx-text-3)}
+.mon-table tr.row--disabled td{color:var(--cx-text-disabled)}
+.trackcell{color:var(--cx-text-2)}
+.groupcaret{display:inline-block;width:10px;color:var(--cx-text-3)}
+.budget-cell{display:flex;align-items:center;gap:6px;height:100%}
+.budget-bar{flex:1;height:7px;background:var(--cx-surface-0);border:1px solid var(--cx-line-1);
+  border-radius:99px;overflow:hidden;min-width:44px}
+.budget-fill{height:100%;background:var(--cx-acid)}
+.budget-fill.warn{background:var(--cx-amber)}
+.budget-fill.danger{background:var(--cx-red-fill)}
+.budget-pct{font-variant-numeric:tabular-nums;min-width:30px;text-align:right;color:var(--cx-text-2)}
+.state-live{color:var(--cx-acid);font-size:9px}
+.state-frozen{color:var(--cx-text-3);font-size:9px}
+.state-disabled{color:var(--cx-danger-text);font-size:9px}
+.freeze-btn{font-family:var(--cx-font-ui);font-size:9px;padding:2px 8px;border-radius:var(--cx-radius-control);
+  border:1px solid var(--cx-line-2);background:none;color:var(--cx-text-2);cursor:pointer}
+.freeze-btn:hover{border-color:var(--cx-mod);color:var(--cx-text-1)}
+.freeze-btn.is-frozen{border-color:var(--cx-amber);color:var(--cx-amber);background:var(--cx-amber-wash)}
+.freeze-btn:disabled{opacity:.35;cursor:not-allowed}
+
+/* ledger preview */
+.ledger{margin-top:14px;border-top:1px solid var(--cx-line-1);padding-top:10px}
+.ledger .lt{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--cx-text-3);margin-bottom:6px}
+.ledger ul{list-style:none;margin:0;padding:0;display:grid;gap:3px;max-height:96px;overflow:auto}
+.ledger li{font-size:10px;color:var(--cx-text-2);display:flex;gap:6px}
+.ledger li::before{content:'↳';color:var(--cx-mod)}
+.ledger .empty{color:var(--cx-text-3);font-style:italic}
+
+/* memory / caches tabs */
+.rss-meter{height:22px;border-radius:var(--cx-radius-control);background:var(--cx-surface-0);
+  border:1px solid var(--cx-line-1);overflow:hidden;position:relative;margin-bottom:12px}
+.rss-meter .fill{position:absolute;inset:0;width:58%;background:linear-gradient(90deg,var(--cx-acid),var(--cx-amber) 130%)}
+.rss-meter .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:11px;color:var(--cx-text-1);font-variant-numeric:tabular-nums}
+.rssrow{display:grid;grid-template-columns:120px 1fr 60px;gap:8px;align-items:center;font-size:10.5px;
+  color:var(--cx-text-2);margin:6px 0}
+.rssrow .bar{height:7px;border-radius:99px;background:var(--cx-surface-0);border:1px solid var(--cx-line-1);overflow:hidden}
+.rssrow .bar i{display:block;height:100%;background:var(--cx-mod)}
+.rssrow .v{text-align:right;color:var(--cx-text-1);font-variant-numeric:tabular-nums}
+
+/* slow frame log */
+.logline{font-family:var(--cx-font-mono);font-size:10px;color:var(--cx-text-2);padding:4px 6px;
+  border-bottom:1px solid var(--cx-line-1);display:flex;gap:10px}
+.logline b{color:var(--cx-amber)}
+.logline .off{color:var(--cx-text-3)}
+.loglist{max-height:260px;overflow:auto;border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-control)}
+
+/* view menu mock */
+.menubar{display:flex;gap:2px;background:var(--cx-bg-raised);border:1px solid var(--cx-line-1);
+  border-radius:var(--cx-radius-control) var(--cx-radius-control) 0 0;padding:4px 6px;font-size:10.5px}
+.menubar span{padding:3px 8px;color:var(--cx-text-3);border-radius:var(--cx-radius-control)}
+.menubar span.open{background:var(--cx-bg-hover);color:var(--cx-text-1)}
+.viewmenu{background:var(--cx-surface-2);border:1px solid var(--cx-line-2);border-top:none;
+  width:230px;padding:4px 0;box-shadow:0 8px 24px rgba(0,0,0,.5);font-size:10.5px}
+.viewmenu .mi{padding:5px 14px;display:flex;justify-content:space-between;color:var(--cx-text-1)}
+.viewmenu .mi span.acc{color:var(--cx-text-3);font-size:9.5px}
+.viewmenu .mi.sep{height:1px;background:var(--cx-line-1);padding:0;margin:4px 0}
+.viewmenu .mi.new{background:var(--cx-mod-wash);position:relative}
+.viewmenu .mi.new::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--cx-mod)}
+
+/* ---------- OS window chrome (Stage-A variant) ---------- */
+.oswin{background:var(--cx-surface-0);border:1px solid var(--cx-line-2);border-radius:8px;overflow:clip;
+  box-shadow:0 20px 60px rgba(0,0,0,.55);max-width:560px}
+.oswin-bar{height:32px;background:var(--cx-bg-raised);border-bottom:1px solid var(--cx-line-1);
+  display:flex;align-items:center;padding:0 10px;gap:8px;position:relative}
+.oswin-dots{display:flex;gap:6px}
+.oswin-dots i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.oswin-dots i:nth-child(1){background:#ED6A5E}
+.oswin-dots i:nth-child(2){background:#F5BF4F}
+.oswin-dots i:nth-child(3){background:#61C554}
+.oswin-title{position:absolute;left:0;right:0;text-align:center;font-size:10.5px;color:var(--cx-text-2);
+  letter-spacing:.03em;pointer-events:none}
+.oswin-body{padding:10px;background:var(--cx-surface-0)}
+.oswin-body .mon-panel{width:100%;max-width:none;border-radius:var(--cx-radius-card);opacity:.97}
+.echo-badge{position:absolute;top:6px;right:6px;font-size:8.5px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--cx-text-3);background:var(--cx-surface-2);border:1px solid var(--cx-line-1);border-radius:99px;
+  padding:2px 8px;z-index:6}
+
+.footnote{font-size:10.5px;color:var(--cx-text-2);max-width:82ch;display:grid;gap:6px}
+.footnote b{color:var(--cx-text-1);font-weight:500}
+.decisions{display:grid;gap:8px;font-size:11px}
+.decisions span{color:var(--cx-text-2)}
+.decisions b{color:var(--cx-text-1);font-weight:500}
+.decisions code{color:var(--cx-mod);background:none;padding:0}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Creatrix · system-monitor-v1 · design mock · 2026-07-04</div>
+  <h1>The frame budget stops being a rumor. <b>Every effect instance shows its own cost, live.</b></h1>
+  <p class="thesis">Three surfaces from <code>system-monitor-v1</code>: the always-on statusbar meter cluster
+    (PK.3, decision 26 — Ableton's CPU box, verbatim), the Activity-Monitor-style panel that breaks the frame
+    budget down per effect <b>instance</b> — not per effect type (PK.1's anti-collapse fix) — with an actionable
+    freeze button per row (PK.4→PK.5), and the same panel re-hosted as a detached OS window for
+    <code>multiwindow-stage-a</code> (PK.6), polling at 2&nbsp;Hz, menu-only, no hotkey anywhere per the T1
+    verdict. Numbered pins tie every affordance back to its packet.</p>
+</header>
+
+<!-- ============================================================ -->
+<h2><span class="k">1 — Statusbar cluster</span><span class="pk">PK.3 · decision 26</span></h2>
+<p class="sub">Always visible, even at idle — the RAM meter no longer disappears at pressure level
+  <code>'ok'</code> the way today's <code>MemoryStatus.tsx</code> does. Percentage is rendered <b
+  style="color:var(--cx-text-1)">on top of the fill itself</b>, the Ableton Live CPU-box pattern,
+  not beside it. Mocked in the top transport bar's right cluster per this brief's wording — see
+  Open Question 1 on the exact mount point.</p>
+<div class="panelbox">
+  <div class="appframe">
+    <div class="transport">
+      <span style="font-size:9px;letter-spacing:.1em;color:var(--cx-text-3)">▶ ⏹ ⟳</span>
+      <span class="brand" style="letter-spacing:.05em;color:var(--cx-text-2)">0:16.1 / 0:38.2</span>
+      <span class="spacer"></span>
+      <span class="brand">CREATRIX</span>
+      <span class="spacer"></span>
+      <div class="meter-cluster" id="statusMeters">
+        <div class="meter-wrap">
+          <div class="meterbox" id="cpuMeter" tabindex="0" role="button" aria-label="CPU — open System Monitor CPU tab">
+            <div class="fill" id="cpuFill" style="width:41%"></div>
+            <div class="pct" id="cpuPct">41%</div>
+          </div>
+          <div class="meter-label">cpu</div>
+        </div>
+        <div class="meter-wrap">
+          <div class="meterbox" id="ramMeter" tabindex="0" role="button" aria-label="RAM — open System Monitor Memory tab">
+            <div class="fill" id="ramFill" style="width:58%"></div>
+            <div class="pct" id="ramPct">58%</div>
+          </div>
+          <div class="meter-label">ram</div>
+        </div>
+      </div>
+    </div>
+    <div class="workspace-ph">rest of Creatrix workspace</div>
+  </div>
+  <div class="anno-list">
+    <div class="anno"><b class="n">①</b> CPU meter — percentage rendered <b style="color:var(--cx-text-1)">on the bar</b> itself, Ableton Live verbatim. <span class="pkid">PK.3 · decision 26</span></div>
+    <div class="anno"><b class="n">②</b> RAM meter — sibling meter, always visible (today's <code>MemoryStatus</code> returns <code>null</code> at level <code>'ok'</code> — this removes that early-return). <span class="pkid">PK.3</span></div>
+    <div class="anno"><b class="n">③</b> Click either meter → try it — scrolls to §2 and opens the matching tab (CPU / Memory). <span class="pkid">PK.3</span></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="k">2 — Activity Monitor panel</span><span class="pk">PK.1 · PK.4 · PK.5</span></h2>
+<p class="sub">Docked as a fixed-width collapsible column (OD-3 locked default — <b style="color:var(--cx-text-1)">not</b>
+  a drag-anywhere panel), one row per effect <b>instance</b>. The two <code>fx.datamosh</code> rows below
+  are the same effect TYPE on two different tracks — PK.1 exists specifically so these render as two
+  distinct rows, never merged into one. Default sort is "% of budget" descending, offenders on top.</p>
+<div class="panelbox">
+  <div class="dock-row">
+    <div class="dock-rest">rest of Creatrix workspace (canvas / timeline / inspector)</div>
+    <div class="dock-resizer" id="dockResizer"></div>
+    <div class="mon-panel" id="monitorPanel" data-export="false">
+      <div class="reconnect-banner">⟳ reconnecting to sidecar — poll paused, values shown are last-known (dimmed), never stale-live</div>
+      <div class="mon-head">
+        <span class="mon-title">System Monitor</span>
+        <button class="mon-tab" data-tab="cpu" aria-selected="true">CPU</button>
+        <button class="mon-tab" data-tab="memory" aria-selected="false">Memory</button>
+        <button class="mon-tab" data-tab="caches" aria-selected="false">Caches</button>
+        <button class="mon-tab" data-tab="slow" aria-selected="false">Slow Frames</button>
+        <span class="spacer"></span>
+        <button class="mon-reconnect-btn" id="reconnectBtn">simulate sidecar restart</button>
+      </div>
+      <div class="mon-body">
+        <span class="pin" style="top:6px;right:64px" title="tabs">④</span>
+
+        <!-- CPU TAB -->
+        <div class="tabpane active" id="tab-cpu">
+          <label class="export-toggle"><input type="checkbox" id="exportToggle"> Export Mode <span class="pin" style="position:static;display:inline-flex" title="export toggle">⑥</span></label>
+          <div class="frame-strip">
+            <span class="lab">frame</span>
+            <div class="frame-live" style="display:flex;align-items:center;gap:10px;flex:1">
+              <div class="frame-bar"><div class="f"></div></div>
+              <span class="frame-num">21.4ms / 33.3ms · 30fps</span>
+            </div>
+            <div class="export-readout">export: 187 frames rendered · <b>0.82×</b> realtime (44.2s wall / 36.2s footage)</div>
+            <span class="pin" style="position:static;display:inline-flex" title="frame strip / export readout">⑤</span>
+          </div>
+
+          <table class="mon-table" id="cpuTable">
+            <thead>
+              <tr>
+                <th data-col="name">Name</th>
+                <th data-col="track">Track</th>
+                <th data-col="ms">ms/frame</th>
+                <th data-col="pct" class="sorted" data-arrow="▾">% of budget <span class="pin" style="position:static;display:inline-flex" title="sortable, offenders on top">⑦</span></th>
+                <th data-col="lat">Latency</th>
+                <th data-col="state">State</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="cpuTbody"></tbody>
+          </table>
+
+          <div class="ledger">
+            <div class="lt">History (Ledger preview) <span class="pin" style="position:static;display:inline-flex" title="freeze → non-generic Ledger entry">⑬</span></div>
+            <ul id="ledgerList"><li class="empty">no freeze/unfreeze actions yet — click ❄ on a row above</li></ul>
+          </div>
+        </div>
+
+        <!-- MEMORY TAB -->
+        <div class="tabpane" id="tab-memory">
+          <div class="rss-meter"><div class="fill"></div><div class="pct">1.9 GB / 3.3 GB RSS</div></div>
+          <div class="rssrow"><span>Frame buffers</span><span class="bar"><i style="width:38%"></i></span><span class="v">720 MB</span></div>
+          <div class="rssrow"><span>Effect caches</span><span class="bar"><i style="width:22%"></i></span><span class="v">418 MB</span></div>
+          <div class="rssrow"><span>Undo history</span><span class="bar"><i style="width:11%"></i></span><span class="v">204 MB</span></div>
+          <div class="rssrow"><span>Layer thumbnails</span><span class="bar"><i style="width:8%"></i></span><span class="v">148 MB</span></div>
+          <div class="rssrow"><span>Other</span><span class="bar"><i style="width:6%"></i></span><span class="v">96 MB</span></div>
+          <div class="hint">Memory tab shape mirrors <code>get_perf_stats().memory</code> (PK.1) — fed by the
+            existing pressure monitor, no new backend collection needed. <span class="pin" style="position:static;display:inline-flex" title="memory tab">⑯</span></div>
+        </div>
+
+        <!-- CACHES TAB -->
+        <div class="tabpane" id="tab-caches">
+          <table class="mon-table">
+            <thead><tr><th>Cache</th><th>Entries</th><th>Size</th><th>Hit rate</th></tr></thead>
+            <tbody>
+              <tr><td>Matte cache</td><td class="trackcell">128</td><td class="trackcell">24.6&nbsp;MB</td><td class="trackcell">94%</td></tr>
+              <tr><td>Field cache</td><td class="trackcell">64</td><td class="trackcell">11.2&nbsp;MB</td><td class="trackcell">88%</td></tr>
+              <tr><td>Frame decode cache</td><td class="trackcell">300</td><td class="trackcell">180&nbsp;MB</td><td class="trackcell">99%</td></tr>
+            </tbody>
+          </table>
+          <div class="hint">From <code>masking/matte_source.py:cache_stats()</code> + <code>effects/field_source.py:cache_stats()</code>,
+            reused unchanged by <code>get_perf_stats</code>. <span class="pin" style="position:static;display:inline-flex" title="caches tab">⑰</span></div>
+        </div>
+
+        <!-- SLOW FRAMES TAB -->
+        <div class="tabpane" id="tab-slow">
+          <div class="loglist">
+            <div class="logline"><span>14:32:07.112</span><b>+5.1ms over</b><span class="off">38.4ms — top: fx.datamosh (61%)</span></div>
+            <div class="logline"><span>14:31:52.884</span><b>+2.0ms over</b><span class="off">35.3ms — top: fx.datamosh (58%)</span></div>
+            <div class="logline"><span>14:30:11.030</span><b>+9.7ms over</b><span class="off">43.0ms — top: GROUP texture rack (44%)</span></div>
+            <div class="logline"><span>14:28:44.501</span><b>+1.2ms over</b><span class="off">34.5ms — top: fx.datamosh (52%)</span></div>
+          </div>
+          <div class="hint">Rate-limited to max 1 line/sec of sustained overrun (mirrors Toast's 2s-dedup
+            pattern, adjusted to a 1s window) — PK.2, backend-only, surfaced here read-only.
+            <span class="pin" style="position:static;display:inline-flex" title="slow-frame log">⑱</span></div>
+        </div>
+      </div>
+      <div class="mon-persist" id="persistNote">docked width: 460px — persisted (<code>monitorPanelW</code> in <code>layout.ts</code>, <code>clampFinite</code> pattern)</div>
+    </div>
+  </div>
+
+  <div class="anno-list">
+    <div class="anno"><b class="n">④</b> Tabs — CPU / Memory / Caches / Slow Frames. <span class="pkid">PK.5</span></div>
+    <div class="anno"><b class="n">⑤</b> Frame summary strip — swaps to a realtime-factor readout during export (branches on the <code>is_export</code> flag already threaded through <code>apply_chain</code>, no new plumbing). <span class="pkid">PK.5</span></div>
+    <div class="anno"><b class="n">⑥</b> Export Mode toggle — demo switch for the readout swap above; try it. <span class="pkid">PK.5</span></div>
+    <div class="anno"><b class="n">⑦</b> Column sort — click any header; default is "% of budget" desc, offenders on top. <span class="pkid">PK.5</span></div>
+    <div class="anno"><b class="n">⑧</b> Per-instance row — name · track · ms/frame · % of budget (bar-in-cell) · latency. <span class="pkid">PK.1 shape → PK.5 table</span></div>
+    <div class="anno"><b class="n">⑨</b> Two <code>fx.datamosh</code> rows, different tracks — proves PK.1's anti-collapse fix (same effect TYPE, distinct instances, never merged). <span class="pkid">PK.1</span></div>
+    <div class="anno"><b class="n">⑩</b> GROUP rollup row — click to expand/collapse; sums member ms, takes max latency. <span class="pkid">PK.5 · routing PRD group-bus rule</span></div>
+    <div class="anno"><b class="n">⑪</b> State column — live / ❄ frozen / ⛔ auto-disabled. <span class="pkid">PK.5</span></div>
+    <div class="anno"><b class="n">⑫</b> Freeze button per row — actionable; dispatches PK.4's undoable-wrapped freeze command. Try it — watch the Ledger preview below the table. <span class="pkid">decision ⑯ (routing PRD) · PK.4→PK.5</span></div>
+    <div class="anno"><b class="n">⑬</b> History (Ledger) preview — freeze/unfreeze writes a non-generic row, e.g. "Freeze A2·drums-cam up to cut 14". <span class="pkid">PK.4</span></div>
+    <div class="anno"><b class="n">⑭</b> Reconnecting state — click "simulate sidecar restart"; the 2&nbsp;Hz poll pauses, table dims, numbers never flip to stale-but-undimmed. <span class="pkid">PK.5 · useEngineStore</span></div>
+    <div class="anno"><b class="n">⑮</b> Docked panel width — drag the resizer between the panels; persists via the same pattern as <code>inspectorH</code>. <span class="pkid">PK.5 · OD-3</span></div>
+  </div>
+
+  <div class="hint">Sample <code>30fps / 33.3ms</code> budget above is placeholder fixture data for this mock
+    only — the real value is always <code>1000 / project_fps</code>, computed live; no hardcoded 33ms
+    constant exists or should exist in the codebase (PK.1 code-ground note).</div>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="k">Opening the panel</span><span class="pk">PK.5 · T1 verdict</span></h2>
+<p class="sub">Menu-entry-only. No accelerator field is wired in this packet — the hotkey is a separate,
+  later decision (T1 Verdicts global override). Real items above the separator are the existing
+  <code>menu.ts</code> View submenu, reproduced verbatim; the highlighted row is new.</p>
+<div class="panelbox" style="max-width:280px">
+  <div class="menubar"><span>File</span><span>Edit</span><span class="open">View</span><span>Clip</span><span>Help</span></div>
+  <div class="viewmenu">
+    <div class="mi">Toggle Sidebar <span class="acc">⌘B</span></div>
+    <div class="mi">Toggle Focus Mode <span class="acc">F</span></div>
+    <div class="mi">Toggle Automation <span class="acc">A</span></div>
+    <div class="mi sep"></div>
+    <div class="mi">Zoom In <span class="acc">⌘=</span></div>
+    <div class="mi">Zoom Out <span class="acc">⌘-</span></div>
+    <div class="mi">Zoom to Fit <span class="acc">⌘0</span></div>
+    <div class="mi sep"></div>
+    <div class="mi">Toggle Quantize <span class="acc">⌘U</span></div>
+    <div class="mi sep"></div>
+    <div class="mi new">System Monitor <span class="acc" style="position:relative">
+      <span class="pin" style="position:static;display:inline-flex;margin-right:4px" title="no accelerator">⑲</span>
+    </span></div>
+  </div>
+  <div class="anno-list">
+    <div class="anno"><b class="n">⑲</b> "System Monitor" — no <code>accelerator</code> field, matches this file's own convention ("renderer owns all keyboard dispatch"); no shortcut hint shown because none exists yet. <span class="pkid">PK.5 · T1 verdict override</span></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="k">3 — Multiwindow Stage-A variant</span><span class="pk">PK.6 · multiwindow-stage-a</span></h2>
+<p class="sub">The exact same <code>SystemMonitorPanel</code> component, mounted verbatim in a detached OS
+  window — no second implementation, no duplicated table logic. Static echo below (interact with the
+  live version in §2); chrome and callouts are what changes here.</p>
+<div class="panelbox">
+  <div class="oswin">
+    <div class="oswin-bar">
+      <div class="oswin-dots"><i></i><i></i><i></i></div>
+      <div class="oswin-title">Creatrix — System Monitor</div>
+    </div>
+    <div class="oswin-body" id="osWinBody" style="position:relative">
+      <span class="echo-badge">static echo of §2</span>
+    </div>
+  </div>
+  <div class="anno-list">
+    <div class="anno"><b class="n">⑳</b> Detached OS window — same component mounted verbatim; reuses the main <code>preload/index.ts</code> (bidirectional IPC), not the pop-out's read-only preload. <span class="pkid">PK.6</span></div>
+    <div class="anno"><b class="n">㉑</b> Polls <code>get_perf_stats</code> at 2&nbsp;Hz — independent of the statusbar cluster's separate 1&nbsp;Hz pressure poll (§1); the two never merge. <span class="pkid">PK.1 cadence · PK.3 non-scope</span></div>
+    <div class="anno"><b class="n">㉒</b> Opened via View ▸ System Monitor only — no hotkey shown anywhere in this window, its menu, or its chrome. <span class="pkid">T1 verdict, global</span></div>
+  </div>
+  <div class="hint footnote">
+    <b>Engineering footnote (not a visual affordance):</b> if <code>multiwindow-stage-a</code>'s own
+    WindowManager + <code>preload/monitor.ts</code> + <code>monitor.html</code> land first, PK.6 is
+    superseded — this chrome then represents that WindowManager's shell instead of a hand-rolled
+    <code>system-monitor-window.ts</code>. Either way the panel inside is identical; see Open Question 4.
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2><span class="k">Packet map</span></h2>
+<div class="panelbox">
+  <div class="decisions">
+    <span><b>PK.1</b> — backend per-instance timing scope + <code>get_perf_stats</code> IPC (feeds §2's table shape, the two-datamosh-rows proof).</span>
+    <span><b>PK.2</b> — backend slow-frame WARN log + crash enrichment (feeds §2's Slow Frames tab, read-only here).</span>
+    <span><b>PK.3</b> — statusbar Ableton-clone meters, decision 26 (§1).</span>
+    <span><b>PK.4</b> — History Ledger wrap for freeze/unfreeze, OD-4 (feeds §2's Ledger preview and freeze button).</span>
+    <span><b>PK.5</b> — the docked Activity Monitor panel itself: table, tabs, export-mode readout, docked slot, menu item (§2, "Opening the panel").</span>
+    <span><b>PK.6</b> — detached OS window hosting, decision 28, pending ownership resolution with <code>multiwindow-stage-a</code> (§3).</span>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+/* ---------------- fixture data (per-instance rows; PK.1 shape) ---------------- */
+const ROWS = [
+  {id:'r1', name:'fx.datamosh', track:'A2 · drums-cam', ms:14.2, lat:2, state:'live'},
+  {id:'r2', name:'fx.datamosh', track:'C1 · crowd',      ms:9.8,  lat:1, state:'live'},
+  {id:'r3', name:'fx.copy_machine', track:'A2', ms:3.1, lat:0, state:'live'},
+  {id:'r4', name:'fx.grid_moire', track:'B1', ms:2.1, lat:0, state:'live'},
+  {id:'r5', name:'fx.ai_matte', track:'E1 · hands', ms:5.4, lat:0, state:'frozen'},
+  {id:'r6', name:'fx.chroma_shift', track:'D2 · tape', ms:0, lat:0, state:'disabled'},
+];
+const GROUP = {id:'g1', name:'GROUP: texture rack', track:'B2', members:[
+  {id:'m1', name:'fx.field_warp', track:'B2', ms:4.1, lat:0, state:'live'},
+  {id:'m2', name:'fx.grain', track:'B2', ms:2.2, lat:1, state:'live'},
+]};
+const BUDGET_MS = 33.3; // fixture only — real value is 1000/project_fps (PK.1)
+
+function pctOf(ms){ return Math.min(999, (ms / BUDGET_MS) * 100); }
+function fillClass(pct){ return pct >= 60 ? 'danger' : pct >= 25 ? 'warn' : ''; }
+
+let sortCol = 'pct', sortDir = 'desc';
+let groupExpanded = false;
+const ledger = [];
+
+function stateBadge(state){
+  if(state==='frozen') return '<span class="state-frozen">❄ frozen</span>';
+  if(state==='disabled') return '<span class="state-disabled">⛔ auto-disabled</span>';
+  return '<span class="state-live">● live</span>';
+}
+function freezeBtn(row){
+  if(row.state==='disabled') return '<button class="freeze-btn" disabled title="auto-disabled — no freeze action">⛔</button>';
+  const frozen = row.state==='frozen';
+  return `<button class="freeze-btn ${frozen?'is-frozen':''}" data-freeze="${row.id}">${frozen?'❄ unfreeze':'❄ freeze'}</button>`;
+}
+function rowHTML(row, cls){
+  const pct = row.ms ? pctOf(row.ms) : 0;
+  const fc = fillClass(pct);
+  const offender = pct >= 25 ? 'row--offender' : '';
+  return `<tr class="${cls} ${row.state==='frozen'?'row--frozen':''} ${row.state==='disabled'?'row--disabled':''} ${offender}" data-id="${row.id}">
+    <td>${row.name}</td>
+    <td class="trackcell">${row.track}</td>
+    <td class="trackcell">${row.ms ? row.ms.toFixed(1)+'ms' : '—'}</td>
+    <td><div class="budget-cell"><div class="budget-bar"><div class="budget-fill ${fc}" style="width:${Math.min(100,pct)}%"></div></div><span class="budget-pct">${row.ms ? pct.toFixed(0)+'%':'—'}</span></div></td>
+    <td class="trackcell">${row.state==='disabled' ? '—' : row.lat+'f'}</td>
+    <td>${stateBadge(row.state)}</td>
+    <td>${freezeBtn(row)}</td>
+  </tr>`;
+}
+function groupHTML(){
+  const sumMs = GROUP.members.reduce((a,m)=>a+m.ms,0);
+  const maxLat = Math.max(...GROUP.members.map(m=>m.lat));
+  const pct = pctOf(sumMs);
+  const fc = fillClass(pct);
+  let html = `<tr class="row--group" data-id="${GROUP.id}">
+    <td><span class="groupcaret">${groupExpanded?'▾':'▸'}</span>${GROUP.name}</td>
+    <td class="trackcell">${GROUP.track}</td>
+    <td class="trackcell">${sumMs.toFixed(1)}ms</td>
+    <td><div class="budget-cell"><div class="budget-bar"><div class="budget-fill ${fc}" style="width:${Math.min(100,pct)}%"></div></div><span class="budget-pct">${pct.toFixed(0)}%</span></div></td>
+    <td class="trackcell">${maxLat}f</td>
+    <td><span class="state-live">● live</span></td>
+    <td></td>
+  </tr>`;
+  GROUP.members.forEach(m => { html += rowHTML(m, 'row--member' + (groupExpanded?' expanded':'')); });
+  return html;
+}
+
+function sortedTop(){
+  const items = ROWS.slice();
+  items.push({__group:true});
+  items.sort((a,b)=>{
+    const av = a.__group ? GROUP.members.reduce((s,m)=>s+m.ms,0) : (sortCol==='ms'?a.ms:sortCol==='lat'?a.lat:sortCol==='pct'?pctOf(a.ms):sortCol==='name'?a.name:sortCol==='track'?a.track:sortCol==='state'?a.state:a.ms);
+    const bv = b.__group ? GROUP.members.reduce((s,m)=>s+m.ms,0) : (sortCol==='ms'?b.ms:sortCol==='lat'?b.lat:sortCol==='pct'?pctOf(b.ms):sortCol==='name'?b.name:sortCol==='track'?b.track:sortCol==='state'?b.state:b.ms);
+    let cmp;
+    if(typeof av === 'string') cmp = av.localeCompare(bv); else cmp = av - bv;
+    return sortDir==='asc' ? cmp : -cmp;
+  });
+  return items;
+}
+
+function render(){
+  const tbody = document.getElementById('cpuTbody');
+  let html = '';
+  sortedTop().forEach(item=>{
+    html += item.__group ? groupHTML() : rowHTML(item, 'row--single');
+  });
+  tbody.innerHTML = html;
+  // sort header state
+  document.querySelectorAll('#cpuTable th[data-col]').forEach(th=>{
+    const col = th.dataset.col;
+    th.classList.toggle('sorted', col===sortCol);
+    if(col===sortCol) th.dataset.arrow = sortDir==='asc' ? '▴' : '▾';
+  });
+  renderLedger();
+}
+function renderLedger(){
+  const ul = document.getElementById('ledgerList');
+  if(!ledger.length){ ul.innerHTML = '<li class="empty">no freeze/unfreeze actions yet — click ❄ on a row above</li>'; return; }
+  ul.innerHTML = ledger.slice(-6).reverse().map(l=>`<li>${l}</li>`).join('');
+}
+function ts(){ const d=new Date(); return d.toTimeString().slice(0,8); }
+
+document.getElementById('cpuTable').addEventListener('click', e=>{
+  const th = e.target.closest('th[data-col]');
+  if(th){
+    const col = th.dataset.col;
+    if(sortCol===col) sortDir = sortDir==='asc'?'desc':'asc'; else { sortCol=col; sortDir='desc'; }
+    render();
+    return;
+  }
+  const groupRow = e.target.closest('tr.row--group');
+  if(groupRow && !e.target.closest('button')){
+    groupExpanded = !groupExpanded;
+    render();
+    return;
+  }
+  const btn = e.target.closest('[data-freeze]');
+  if(btn){
+    const id = btn.dataset.freeze;
+    const all = ROWS.concat(GROUP.members);
+    const row = all.find(r=>r.id===id);
+    if(!row) return;
+    const label = row.track.split('·')[0].trim() + '·' + row.name.replace('fx.','');
+    if(row.state==='frozen'){
+      row.state = 'live';
+      ledger.push(`Unfreeze ${label} — ${ts()}`);
+    } else {
+      row.state = 'frozen';
+      ledger.push(`Freeze ${label} up to cut 14 — ${ts()}`);
+    }
+    render();
+  }
+});
+
+/* tabs */
+document.querySelectorAll('.mon-tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.mon-tab').forEach(b=>b.setAttribute('aria-selected', b===btn));
+    document.querySelectorAll('.tabpane').forEach(p=>p.classList.remove('active'));
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* export mode toggle */
+document.getElementById('exportToggle').addEventListener('change', e=>{
+  document.getElementById('monitorPanel').dataset.export = e.target.checked ? 'true' : 'false';
+});
+
+/* reconnect simulate */
+const monPanel = document.getElementById('monitorPanel');
+document.getElementById('reconnectBtn').addEventListener('click', function(){
+  const on = monPanel.classList.toggle('disconnected');
+  this.textContent = on ? 'resume connection' : 'simulate sidecar restart';
+});
+
+/* statusbar meters -> open panel at matching tab */
+function openAt(tab){
+  document.querySelector(`.mon-tab[data-tab="${tab}"]`).click();
+  document.getElementById('monitorPanel').scrollIntoView({behavior:'smooth', block:'center'});
+  monPanel.style.outline = '2px solid var(--cx-mod)';
+  monPanel.style.outlineOffset = '2px';
+  setTimeout(()=>{ monPanel.style.outline=''; monPanel.style.outlineOffset=''; }, 900);
+}
+document.getElementById('cpuMeter').addEventListener('click', ()=>openAt('cpu'));
+document.getElementById('ramMeter').addEventListener('click', ()=>openAt('memory'));
+document.getElementById('cpuMeter').addEventListener('keypress', e=>{ if(e.key==='Enter') openAt('cpu'); });
+document.getElementById('ramMeter').addEventListener('keypress', e=>{ if(e.key==='Enter') openAt('memory'); });
+
+/* meter fill color thresholds */
+function tint(el, pct){
+  el.classList.remove('warn','danger');
+  if(pct>=80) el.classList.add('danger'); else if(pct>=55) el.classList.add('warn');
+}
+tint(document.getElementById('cpuFill'), 41);
+tint(document.getElementById('ramFill'), 58);
+
+/* docked panel resizer, persisted via localStorage (mirrors monitorPanelW / clampFinite pattern) */
+(function(){
+  const KEY = 'mockMonitorPanelW';
+  const panel = document.getElementById('monitorPanel');
+  const note = document.getElementById('persistNote');
+  const saved = parseInt(localStorage.getItem(KEY) || '', 10);
+  if(saved && saved >= 300 && saved <= 760){
+    panel.style.width = saved + 'px';
+    note.innerHTML = `docked width: ${saved}px — restored from localStorage (<code>monitorPanelW</code> in <code>layout.ts</code>, <code>clampFinite</code> pattern)`;
+  }
+  const resizer = document.getElementById('dockResizer');
+  let dragging = false, startX = 0, startW = 0;
+  resizer.addEventListener('mousedown', e=>{
+    dragging = true; startX = e.clientX; startW = panel.getBoundingClientRect().width;
+    resizer.classList.add('active');
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e=>{
+    if(!dragging) return;
+    let w = startW - (e.clientX - startX); // resizer is left of panel -> dragging left grows panel
+    w = Math.max(300, Math.min(760, w));
+    panel.style.width = w + 'px';
+  });
+  window.addEventListener('mouseup', ()=>{
+    if(!dragging) return;
+    dragging = false;
+    resizer.classList.remove('active');
+    const w = Math.round(panel.getBoundingClientRect().width);
+    localStorage.setItem(KEY, String(w));
+    note.innerHTML = `docked width: ${w}px — persisted (<code>monitorPanelW</code> in <code>layout.ts</code>, <code>clampFinite</code> pattern)`;
+  });
+})();
+
+render();
+
+/* Section 3: clone the rendered panel as a static, non-interactive echo */
+window.addEventListener('load', ()=>{
+  const src = document.getElementById('monitorPanel');
+  const clone = src.cloneNode(true);
+  clone.removeAttribute('id');
+  clone.style.width = '100%';
+  clone.style.maxWidth = 'none';
+  clone.style.pointerEvents = 'none';
+  clone.classList.remove('disconnected');
+  const host = document.getElementById('osWinBody');
+  host.appendChild(clone);
+});
+})();
+</script>

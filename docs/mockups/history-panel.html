@@ -1,0 +1,555 @@
+<title>Creatrix — History Panel Delta</title>
+<style>
+:root{
+  /* Mock fallbacks mirroring frontend/src/renderer/styles/tokens.css --cx-* names.
+     Real app currently resolves --cx-action to acid green (#C8F321); this mock
+     follows the packet brief's explicit fallback theme (#1a1a1a / #4ade80 / #ef4444)
+     since this file has no parent stylesheet to inherit real tokens from. */
+  --cx-bg-app:#1a1a1a;
+  --cx-bg-panel:#1d1d20;
+  --cx-bg-raised:#26262b;
+  --cx-bg-hover:#2c2c33;
+  --cx-line-1:rgba(235,235,230,.12);
+  --cx-line-2:rgba(235,235,230,.20);
+  --cx-text-1:#E7E7EC;
+  --cx-text-2:#9A9AA6;
+  --cx-text-3:#80808E;
+  --cx-text-disabled:#5A5A64;
+  --cx-action:#4ade80;
+  --cx-action-wash:rgba(74,222,128,.12);
+  --cx-action-on:#0B0B10;
+  --cx-danger-text:#ef4444;
+  --cx-danger-wash:rgba(239,68,68,.12);
+  --cx-warn:#f59e0b;
+  --cx-mod:#9b7bb5;
+  --cx-mod-wash:rgba(155,123,181,.14);
+  --cx-focus-ring:#4ade80;
+  --cx-font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+}
+*{box-sizing:border-box}
+body{background:var(--cx-bg-app);color:var(--cx-text-1);font-family:var(--cx-font-mono);
+  font-size:13px;line-height:1.55;margin:0;padding:0 0 90px}
+.wrap{max-width:1180px;margin:0 auto;padding:0 22px}
+header{border-bottom:1px solid var(--cx-line-1);padding:34px 0 22px;margin-bottom:28px}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--cx-text-3)}
+h1{font-size:19px;font-weight:500;letter-spacing:.02em;margin:8px 0 10px;text-wrap:balance}
+h1 b{color:var(--cx-action);font-weight:500}
+.thesis{max-width:74ch;color:var(--cx-text-2);font-size:12px}
+.thesis b{color:var(--cx-text-1);font-weight:500}
+h2{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--cx-text-2);font-weight:500;
+  border-top:1px solid var(--cx-line-1);padding-top:18px;margin:40px 0 6px}
+.sub{font-size:11.5px;color:var(--cx-text-2);max-width:80ch;margin:0 0 16px}
+.sub b{color:var(--cx-text-1);font-weight:500}
+.panelbox{background:var(--cx-bg-panel);border:1px solid var(--cx-line-1);border-radius:10px;
+  padding:16px;position:relative}
+
+/* ---------- callout pill ---------- */
+.callout{display:inline-flex;align-items:baseline;gap:6px;background:var(--cx-bg-raised);
+  border:1px dashed var(--cx-line-2);border-radius:99px;padding:3px 10px 3px 4px;
+  font-size:9.5px;color:var(--cx-text-2);margin:4px 6px 4px 0;white-space:normal}
+.callout b{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+  border-radius:50%;background:var(--cx-action);color:var(--cx-action-on);font-size:8.5px;
+  font-weight:700;flex:none}
+.callout .pk{color:var(--cx-action);font-weight:600}
+.callout.p4{--dot:var(--cx-mod)}
+.callout.p4 b{background:var(--cx-mod);color:#111}
+.callout.p4 .pk{color:var(--cx-mod)}
+.callout.p1{--dot:var(--cx-warn)}
+.callout.p1 b{background:var(--cx-warn);color:#111}
+.callout.p1 .pk{color:var(--cx-warn)}
+.callout-row{display:flex;flex-wrap:wrap;gap:0;margin-top:8px}
+
+/* ---------- app-frame stage ---------- */
+.stage{background:#0e0e10;border:1px solid var(--cx-line-2);border-radius:10px;
+  box-shadow:0 12px 40px rgba(0,0,0,.5);overflow:clip;position:relative;
+  height:640px;display:flex;flex-direction:column}
+.menubar{height:28px;flex:none;background:var(--cx-bg-panel);border-bottom:1px solid var(--cx-line-1);
+  display:flex;align-items:center;gap:2px;padding:0 10px;font-size:11px;color:var(--cx-text-2);
+  position:relative;z-index:20}
+.menubar .mi{padding:4px 9px;border-radius:4px;cursor:default}
+.menubar .mi.open{background:var(--cx-bg-hover);color:var(--cx-text-1)}
+.menu-dd{position:absolute;top:26px;left:52px;width:206px;background:var(--cx-bg-raised);
+  border:1px solid var(--cx-line-2);border-radius:6px;box-shadow:0 10px 28px rgba(0,0,0,.55);
+  padding:5px;z-index:30;font-size:11px}
+.menu-dd .item{display:flex;justify-content:space-between;align-items:center;padding:5px 9px;
+  border-radius:4px;color:var(--cx-text-1)}
+.menu-dd .item .k{color:var(--cx-text-3);font-size:10px}
+.menu-dd .sep{height:1px;background:var(--cx-line-1);margin:4px 2px}
+.menu-dd .item.hl{background:var(--cx-action-wash);outline:1px solid var(--cx-action);
+  outline-offset:-1px}
+.body-area{flex:1;display:flex;position:relative;min-height:0}
+.railstub{width:46px;flex:none;background:var(--cx-bg-panel);border-right:1px solid var(--cx-line-1);
+  display:flex;flex-direction:column;align-items:center;gap:10px;padding:12px 0;color:var(--cx-text-3)}
+.railstub .ic{width:26px;height:26px;border-radius:5px;display:flex;align-items:center;
+  justify-content:center;font-size:13px;border:1px solid transparent}
+.railstub .ic.on{background:var(--cx-bg-hover);border-color:var(--cx-line-2);color:var(--cx-text-1)}
+.mainstub{flex:1;position:relative;background:
+  repeating-linear-gradient(135deg,#141416 0 2px,#121214 2px 26px);
+  filter:saturate(.5)}
+.mainstub::after{content:'timeline / preview — out of scope for this change, dimmed for focus';
+  position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  color:var(--cx-text-3);font-size:10.5px;text-align:center;padding:40px;opacity:.6}
+
+/* ---------- floating history panel (interim chrome, OD-1) ---------- */
+.hpanel{position:absolute;top:58px;left:16px;width:322px;max-height:calc(100% - 116px);
+  background:var(--cx-bg-panel);border:1px solid var(--cx-line-2);border-radius:8px;
+  box-shadow:0 14px 36px rgba(0,0,0,.55);display:flex;flex-direction:column;z-index:15;
+  outline:1px dashed rgba(74,222,128,.35);outline-offset:4px}
+.hpanel__header{display:flex;justify-content:space-between;align-items:center;
+  padding:9px 12px;border-bottom:1px solid var(--cx-line-1);flex:none}
+.hpanel__title{font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--cx-text-2);
+  font-weight:600}
+.hpanel__close{background:none;border:none;color:var(--cx-text-2);cursor:pointer;font-size:15px;
+  line-height:1;padding:2px}
+.hpanel__close:hover{color:var(--cx-text-1)}
+.hpanel__list{overflow-y:auto;padding:6px}
+.hentry{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;
+  border-radius:5px;padding:0;margin:1px 0;font-family:var(--cx-font-mono);color:var(--cx-text-1)}
+.hentry__row{display:flex;align-items:center;gap:7px;padding:6px 8px;border-radius:5px;position:relative}
+.hentry:hover .hentry__row{background:var(--cx-bg-hover)}
+.hentry__icon{flex:none;width:15px;text-align:center;font-size:11.5px;color:var(--cx-text-2)}
+.hentry__desc{flex:1;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hentry__toggle{flex:none;background:none;border:none;color:var(--cx-text-3);cursor:pointer;
+  font-size:9px;width:14px;text-align:center;padding:0}
+.hentry__toggle:hover{color:var(--cx-text-1)}
+.hentry__time{flex:none;font-size:9px;color:var(--cx-text-3);opacity:0;transition:opacity .12s;
+  font-variant-numeric:tabular-nums;margin-left:4px}
+.hentry:hover .hentry__time{opacity:1}
+.hentry--current .hentry__row{background:var(--cx-action-wash);box-shadow:inset 2px 0 0 var(--cx-action)}
+.hentry--current .hentry__desc{color:var(--cx-text-1);font-weight:600}
+.hentry--future .hentry__row{opacity:.42}
+.hentry--future .hentry__desc,.hentry--future .hentry__icon{color:var(--cx-text-disabled)}
+.hentry--jumping .hentry__row{background:var(--cx-mod-wash);box-shadow:inset 2px 0 0 var(--cx-mod)}
+.hentry--poison .hentry__row{background:var(--cx-danger-wash);box-shadow:inset 2px 0 0 var(--cx-danger-text)}
+.hentry__children{padding:2px 8px 4px 34px;display:none}
+.hentry__children.open{display:block}
+.hentry__child{font-size:10px;color:var(--cx-text-2);padding:3px 0;display:flex;gap:6px}
+.hentry__child::before{content:'—';color:var(--cx-text-3)}
+.hpanel__empty{padding:20px 12px;color:var(--cx-text-3);font-size:11px;text-align:center}
+.hpanel__footer{flex:none;border-top:1px solid var(--cx-line-1);padding:8px 12px 10px}
+.hpanel__footer-text{font-size:10px;color:var(--cx-text-2);font-variant-numeric:tabular-nums;
+  display:flex;justify-content:space-between}
+.hpanel__progress{height:3px;background:var(--cx-bg-raised);border-radius:99px;margin-top:6px;
+  position:relative;overflow:hidden;display:none}
+.hpanel__progress.on{display:block}
+.hpanel__progress-fill{position:absolute;left:0;top:0;bottom:0;background:var(--cx-mod);
+  border-radius:99px;transition:width .28s linear;width:0%}
+.hpanel__progress-cursor{position:absolute;top:-2.5px;width:7px;height:7px;border-radius:50%;
+  background:var(--cx-mod);box-shadow:0 0 0 3px rgba(155,123,181,.25);transition:left .28s linear;left:0%}
+
+/* ---------- status bar ---------- */
+.statusbar{height:26px;flex:none;background:var(--cx-bg-panel);border-top:1px solid var(--cx-line-1);
+  display:flex;align-items:center;justify-content:space-between;padding:0 10px;font-size:10.5px;
+  color:var(--cx-text-2);position:relative;z-index:20}
+.statusbar__left,.statusbar__right{display:flex;align-items:center;gap:8px}
+.chip-generic{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:99px;
+  border:1px solid var(--cx-line-2);color:var(--cx-text-2);font-size:10px}
+.breadcrumb-chip{display:inline-flex;align-items:center;gap:6px;padding:2px 9px;border-radius:99px;
+  border:1px solid var(--cx-action);background:var(--cx-action-wash);color:var(--cx-text-1);
+  font-size:10px;cursor:pointer;font-family:var(--cx-font-mono)}
+.breadcrumb-chip:hover{background:rgba(74,222,128,.20)}
+.breadcrumb-chip .ic{color:var(--cx-action)}
+.breadcrumb-chip.flash{animation:flashring .5s ease}
+@keyframes flashring{0%{box-shadow:0 0 0 0 rgba(74,222,128,.6)}100%{box-shadow:0 0 0 8px rgba(74,222,128,0)}}
+
+/* ---------- toast ---------- */
+.toaststack{position:absolute;right:14px;bottom:38px;display:flex;flex-direction:column;gap:6px;
+  z-index:60;pointer-events:none}
+.toast{pointer-events:auto;min-width:260px;max-width:320px;background:var(--cx-bg-raised);
+  border:1px solid var(--cx-line-2);border-left:3px solid var(--cx-text-2);border-radius:6px;
+  padding:8px 11px;font-size:10.5px;color:var(--cx-text-1);box-shadow:0 8px 24px rgba(0,0,0,.5);
+  opacity:0;transform:translateY(6px);transition:opacity .18s,transform .18s}
+.toast.show{opacity:1;transform:translateY(0)}
+.toast.error{border-left-color:var(--cx-danger-text)}
+.toast b{color:var(--cx-danger-text)}
+.toast .src{color:var(--cx-text-3);font-size:9px;margin-top:2px}
+
+/* ---------- demo controls ---------- */
+.demorow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px}
+.demorow button{font-family:var(--cx-font-mono);font-size:10.5px;padding:6px 13px;border-radius:99px;
+  background:none;color:var(--cx-text-1);border:1px solid var(--cx-line-2);cursor:pointer}
+.demorow button:hover{border-color:var(--cx-text-2)}
+.demorow button.primary{background:var(--cx-mod-wash);border-color:var(--cx-mod);color:var(--cx-mod)}
+.demorow button.danger{background:var(--cx-danger-wash);border-color:var(--cx-danger-text);color:var(--cx-danger-text)}
+.demorow button:disabled{opacity:.4;cursor:not-allowed}
+.demonote{font-size:10px;color:var(--cx-text-3);margin-top:8px;max-width:76ch}
+
+/* ---------- ledger table ---------- */
+.ledger{width:100%;border-collapse:collapse;font-size:10.5px}
+.ledger th{text-align:left;color:var(--cx-text-3);font-weight:500;text-transform:uppercase;
+  letter-spacing:.08em;font-size:9px;padding:6px 10px;border-bottom:1px solid var(--cx-line-1)}
+.ledger td{padding:8px 10px;border-bottom:1px solid var(--cx-line-1);vertical-align:top;color:var(--cx-text-2)}
+.ledger td.pid{color:var(--cx-text-1);font-weight:600;white-space:nowrap}
+.ledger tr:last-child td{border-bottom:none}
+.badge{display:inline-block;font-size:8.5px;padding:1px 7px;border-radius:99px;letter-spacing:.06em}
+.badge.visual{background:var(--cx-action-wash);color:var(--cx-action)}
+.badge.nonvisual{background:var(--cx-mod-wash);color:var(--cx-mod)}
+.badge.deferred{background:rgba(245,158,11,.14);color:var(--cx-warn)}
+
+.rules{font-size:10.5px;color:var(--cx-text-2);display:grid;gap:7px;margin-top:6px;max-width:80ch}
+.rules b{color:var(--cx-text-1);font-weight:500}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+
+<div class="wrap">
+<header>
+  <div class="eyebrow">Creatrix · history-panel-delta · mockup · 2026-07-04</div>
+  <h1>The History panel learns to <b>say what happened</b>, not just list it.</h1>
+  <p class="thesis">Op-class icons replace the flat button list, transactions collapse into one
+    jump target with an expandable audit trail, the footer tells you where you are in the 500-step
+    budget, and a failing inverse stops cleanly instead of corrupting the stack. Entry point stays
+    exactly where it is today — <b>Edit → Undo History</b> — no new hotkey ships in this change.</p>
+</header>
+
+<h2>Entry point — menu only, no accelerator this change</h2>
+<p class="sub">T1 Verdicts (locked 2026-07-03): menu-entry-only now, an accelerator gets picked at
+  build/UAT. This mock does not show <b>⌘Y</b> or any other binding anywhere — the existing
+  <b>Edit → Undo History</b> item (open-only, unchanged since ship) is the sole way in.</p>
+<div class="panelbox" style="max-width:420px">
+  <div style="background:#0e0e10;border:1px solid var(--cx-line-2);border-radius:6px;padding:0;
+    position:relative;height:150px">
+    <div class="menubar" style="border-radius:6px 6px 0 0">
+      <span class="mi">File</span><span class="mi open">Edit</span><span class="mi">View</span>
+      <span class="mi">Timeline</span><span class="mi">Window</span>
+    </div>
+    <div class="menu-dd" style="left:44px;top:26px;position:absolute">
+      <div class="item"><span>Undo</span><span class="k">⌘Z</span></div>
+      <div class="item"><span>Redo</span><span class="k">⇧⌘Z</span></div>
+      <div class="sep"></div>
+      <div class="item hl"><span>Undo History</span><span class="k">—</span></div>
+    </div>
+  </div>
+  <div class="callout-row">
+    <span class="callout p1"><b>1</b><span class="pk">P1</span> menu-entry-only — no ⌘Y anywhere; accelerator deferred to build/UAT (locked, do not re-open)</span>
+  </div>
+</div>
+
+<h2>Panel chrome + row anatomy</h2>
+<p class="sub">The full frame below: menu bar, sidebar rail, dimmed main canvas (out of scope), the
+  History panel floating at its existing position, and the status bar carrying the new breadcrumb.
+  Everything with a numbered pill ties back to a packet.</p>
+
+<div class="panelbox" style="padding:0">
+  <div class="stage" id="stage">
+    <div class="menubar">
+      <span class="mi">File</span><span class="mi">Edit</span><span class="mi">View</span>
+      <span class="mi">Timeline</span><span class="mi">Window</span><span class="mi">Help</span>
+    </div>
+    <div class="body-area">
+      <div class="railstub">
+        <div class="ic">▤</div><div class="ic">⧉</div><div class="ic on">✎</div><div class="ic">✦</div>
+      </div>
+      <div class="mainstub"></div>
+
+      <div class="hpanel" id="hpanel">
+        <div class="hpanel__header">
+          <span class="hpanel__title">History</span>
+          <button class="hpanel__close" title="Close">×</button>
+        </div>
+        <div class="hpanel__list" id="hlist"></div>
+        <div class="hpanel__footer">
+          <div class="hpanel__footer-text"><span id="footerText">6 of 500 steps</span>
+            <span id="jumpLabel" style="color:var(--cx-mod);display:none">jumping…</span></div>
+          <div class="hpanel__progress" id="progressTrack">
+            <div class="hpanel__progress-fill" id="progressFill"></div>
+            <div class="hpanel__progress-cursor" id="progressCursor"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="toaststack" id="toaststack"></div>
+    </div>
+    <div class="statusbar">
+      <div class="statusbar__left">
+        <span class="chip-generic">◉ REC off</span>
+        <span class="chip-generic">29.97fps</span>
+      </div>
+      <div class="statusbar__right">
+        <span class="chip-generic">⌖ select</span>
+        <button class="breadcrumb-chip" id="breadcrumb" title="Click opens History panel (open-only)">
+          <span class="ic" id="breadcrumbIcon">✎</span><span id="breadcrumbText">Simplify lane (−212 pts)</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="callout-row">
+  <span class="callout"><b>2</b><span class="pk">P2</span> statusbar breadcrumb — reads the raw <code>past[past.length-1].description</code> string only (no ⌘-hint appended, no truncation logic invented — see open question below); click is open-only, not a toggle</span>
+  <span class="callout"><b>3</b><span class="pk">P3</span> interim floating-panel chrome (dashed outline) — flush-left, open/closed persisted to <code>localStorage</code>; no drag, no multi-slot dock (that's Stage B)</span>
+  <span class="callout"><b>5</b><span class="pk">P5</span> op-class icon per row: ✎ edit · ⧉ routing · ❄ freeze · ✦ paint · ⌗ transform — classifier keyed on the Ledger keyword vocabulary, default → edit</span>
+  <span class="callout"><b>5</b><span class="pk">P5</span> transaction rows collapse with ▸ / expand to ▾, indented children — clicking the row still jumps to the whole transaction, expansion never changes the jump target</span>
+  <span class="callout"><b>5</b><span class="pk">P5</span> current-index row highlighted (green wash + left rule); rows past the cursor are greyed (future/redo territory)</span>
+  <span class="callout"><b>5</b><span class="pk">P5</span> hover any row → timestamp fades in at the right edge (<code>title</code> also carries the full locale string)</span>
+  <span class="callout"><b>5</b><span class="pk">P5</span> footer reads position, not combined count — "N of 500 steps" against the exported <code>MAX_UNDO_ENTRIES</code></span>
+</div>
+
+<h2>Interactive — multi-step jump + failing-inverse stop</h2>
+<p class="sub">Two demos below drive the same panel above. <b>Demo A</b> jumps 4 steps backward
+  cleanly, animating the jump-progress cursor under the footer. <b>Demo B</b> jumps toward the
+  oldest entry but simulates <code>Freeze C1</code>'s inverse throwing mid-jump (OD-4) — the panel
+  stops at the last good step, fires exactly one error toast, and the stack is left consistent.</p>
+<div class="panelbox">
+  <div class="demorow">
+    <button class="primary" id="demoA">▶ Demo A — jump 4 steps back (clean)</button>
+    <button class="danger" id="demoB">▶ Demo B — jump to oldest (inverse fails mid-jump)</button>
+    <button id="demoReset">↺ reset</button>
+  </div>
+  <div class="demonote">Both demos are click-driven against the live panel above — watch the
+    violet "jumping" highlight sweep the rows, the progress cursor move under the footer, and (for
+    Demo B) the toast + red row where the simulated failure occurs. Buttons disable mid-animation
+    to avoid double-fire.</div>
+  <div class="callout-row">
+    <span class="callout p4"><b>4</b><span class="pk">P4</span> <code>undo()</code>/<code>redo()</code> now return a boolean; a throwing inverse leaves <code>past</code>/<code>future</code> untouched at that step instead of corrupting the stack</span>
+    <span class="callout p4"><b>4</b><span class="pk">P4</span> failure path: toast <code>level: 'error', source: 'undo'</code>, fired exactly once per failed jump</span>
+    <span class="callout"><b>5</b><span class="pk">P5</span> <code>handleJump</code> checks each step's return value and breaks on <code>false</code> — panel highlight stops at the last successful step, never desyncs from the real stack</span>
+  </div>
+</div>
+
+<h2>Non-visual packets</h2>
+<p class="sub">Two packets in this change ship no new UI at all — recorded here for full
+  traceability against the mock above.</p>
+<div class="panelbox">
+  <table class="ledger">
+    <tr><th>Packet</th><th>Surface</th><th>What it does</th><th>Visible in this mock?</th></tr>
+    <tr><td class="pid">P1</td><td><span class="badge deferred">deferred</span></td>
+      <td>Confirms no <code>meta+y</code>/<code>toggle_history</code> binding exists anywhere; Edit → Undo History menu item stays open-only, unchanged.</td>
+      <td>Yes — menu mock above, callout ①.</td></tr>
+    <tr><td class="pid">P2</td><td><span class="badge visual">visual</span></td>
+      <td>New <code>HistoryBreadcrumbChip</code> in <code>status-bar__right</code>, mirrors <code>CursorToolChip</code>'s pattern; open-only click.</td>
+      <td>Yes — statusbar chip, callout ②.</td></tr>
+    <tr><td class="pid">P3</td><td><span class="badge visual">visual</span></td>
+      <td>Persist <code>showHistory</code> open/closed to <code>localStorage</code>; flush-left interim chrome, malformed-value fallback to closed.</td>
+      <td>Yes — dashed outline on the panel, callout ③.</td></tr>
+    <tr><td class="pid">P4</td><td><span class="badge nonvisual">store logic</span></td>
+      <td><code>undo()</code>/<code>redo()</code> return boolean + toast-on-failure; <code>commitTransaction()</code> populates <code>childDescriptions</code>.</td>
+      <td>Simulated by Demo B — the real fix lives in <code>undo.ts</code>, not rendered UI.</td></tr>
+    <tr><td class="pid">P5</td><td><span class="badge visual">visual</span></td>
+      <td>Icons, expand/collapse, footer count, hover timestamp, jump-progress cursor, failing-inverse consumption.</td>
+      <td>Yes — panel body + demos, callouts ⑤.</td></tr>
+    <tr><td class="pid">P6</td><td><span class="badge nonvisual">perf tier</span></td>
+      <td>Opt-in <code>RUN_PERF=1</code> memory-smoke test over 500 <code>UndoEntry</code> objects; never gates CI, never rendered.</td>
+      <td>No UI surface — test-only, intentionally absent from this mock.</td></tr>
+  </table>
+</div>
+
+<h2>Design decisions &amp; open questions</h2>
+<div class="panelbox">
+  <div class="rules">
+    <span><b>Locked in this mock:</b> icon glyph set (✎⧉❄✦⌗) rendered verbatim from
+      plan.md — not re-colored per op-class, since the classifier taxonomy (edit/routing/freeze/
+      paint/transform) is orthogonal to the routing-type palette (mask/field/scalar/feedback);
+      inventing a color mapping between the two was not asked for.</span>
+    <span><b>Open question 1:</b> the task brief's example breadcrumb style was
+      <code>"Freeze C1 · ⌘Z"</code>, but P2's locked non-scope explicitly excludes "any change to
+      the breadcrumb's text formatting beyond the raw description string." This mock renders the
+      raw description only (no accelerator hint appended) to match the locked packet contract —
+      flagging the discrepancy rather than silently picking one reading.</span>
+    <span><b>Open question 2:</b> child rows inside an expanded transaction render as plain
+      indented text (matching plan.md's "nested read-only list") — whether children should also
+      carry their own op-class icon is not specified anywhere in plan.md/packets.md; this mock
+      leaves them icon-less as the more conservative reading.</span>
+    <span><b>Open question 3:</b> jump-progress cursor visual form (a filling track + moving dot
+      under the footer) is this mock's best guess — plan.md only specifies "a lightweight
+      in-progress indicator shown only when steps &gt; 1," no exact form is locked.</span>
+  </div>
+</div>
+</div>
+
+<script>
+(function(){
+const ICONS = { edit:'✎', routing:'⧉', freeze:'❄', paint:'✦', transform:'⌗' };
+// classifier mirrors packets.md P5(a) verbatim: Route/Edit tap -> routing, Freeze -> freeze,
+// Paint stroke/Record gesture -> paint, transform/drag verbs -> transform, default -> edit
+function classify(desc){
+  if(/Route|Edit tap/.test(desc)) return 'routing';
+  if(/Freeze/.test(desc)) return 'freeze';
+  if(/Paint stroke|Record gesture/.test(desc)) return 'paint';
+  if(/transform|drag/i.test(desc)) return 'transform';
+  return 'edit';
+}
+const now = Date.now();
+const MIN = 60000;
+const ENTRIES = [
+  { desc:'Import media (drums-cam.mp4)', ts: now-9*MIN },
+  { desc:'Route A2 → B1 (mask)',          ts: now-8*MIN },
+  { desc:'Freeze C1',                     ts: now-7*MIN },
+  { desc:'Record gesture (skew, rot)',    ts: now-6*MIN,
+    children:['Transform drag (skew 8°)','Transform drag (rotate 4°)','Paint stroke (G2)'] },
+  { desc:'Edit tap gain',                 ts: now-5*MIN },
+  { desc:'Simplify lane (−212 pts)',      ts: now-4*MIN },
+  { desc:'Transform drag (scale 1.4×)',   ts: now-3*MIN },
+  { desc:'Promote matte → track M1',      ts: now-2*MIN,
+    children:['Duplicate track C1','Convert to matte','Relink 2 taps'] },
+  { desc:'Paint stroke (G3)',             ts: now-1*MIN },
+];
+const MAX_UNDO_ENTRIES = 500;
+const INITIAL_CURRENT = 5; // past = [0..5], future = [6..8]
+let currentIndex = INITIAL_CURRENT;
+let expanded = new Set();
+let jumping = false;
+let jumpingRow = -1, poisonRow = -1;
+
+const hlist = document.getElementById('hlist');
+const footerText = document.getElementById('footerText');
+const jumpLabel = document.getElementById('jumpLabel');
+const progressTrack = document.getElementById('progressTrack');
+const progressFill = document.getElementById('progressFill');
+const progressCursor = document.getElementById('progressCursor');
+const breadcrumb = document.getElementById('breadcrumb');
+const breadcrumbIcon = document.getElementById('breadcrumbIcon');
+const breadcrumbText = document.getElementById('breadcrumbText');
+const toaststack = document.getElementById('toaststack');
+const demoA = document.getElementById('demoA');
+const demoB = document.getElementById('demoB');
+const demoReset = document.getElementById('demoReset');
+
+function fmtTime(ts){
+  const d = new Date(ts);
+  return d.toTimeString().slice(0,8);
+}
+function fmtFull(ts){
+  return new Date(ts).toLocaleString();
+}
+
+function render(){
+  hlist.innerHTML = '';
+  ENTRIES.forEach((entry, i) => {
+    const isCurrent = i === currentIndex;
+    const isFuture = i > currentIndex;
+    const isJumping = i === jumpingRow;
+    const isPoison = i === poisonRow;
+    const kind = classify(entry.desc);
+    const hasChildren = Array.isArray(entry.children) && entry.children.length > 0;
+    const wrap = document.createElement('div');
+    wrap.className = 'hentry'
+      + (isCurrent ? ' hentry--current' : '')
+      + (isFuture ? ' hentry--future' : '')
+      + (isJumping ? ' hentry--jumping' : '')
+      + (isPoison ? ' hentry--poison' : '');
+    const row = document.createElement('div');
+    row.className = 'hentry__row';
+    row.title = fmtFull(entry.ts);
+    row.innerHTML =
+      (hasChildren
+        ? `<button class="hentry__toggle" data-i="${i}">${expanded.has(i) ? '▾' : '▸'}</button>`
+        : `<span class="hentry__toggle"></span>`) +
+      `<span class="hentry__icon">${ICONS[kind]}</span>` +
+      `<span class="hentry__desc">${entry.desc}</span>` +
+      `<span class="hentry__time">${fmtTime(entry.ts)}</span>`;
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.hentry__toggle')) return; // toggle handled separately, never jumps
+      if (jumping) return;
+      handleJump(i);
+    });
+    wrap.appendChild(row);
+    if (hasChildren) {
+      const kids = document.createElement('div');
+      kids.className = 'hentry__children' + (expanded.has(i) ? ' open' : '');
+      kids.innerHTML = entry.children.map(c => `<div class="hentry__child">${c}</div>`).join('');
+      wrap.appendChild(kids);
+      row.querySelector('.hentry__toggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (expanded.has(i)) expanded.delete(i); else expanded.add(i);
+        render();
+      });
+    }
+    hlist.appendChild(wrap);
+  });
+  footerText.textContent = `${currentIndex + 1} of ${MAX_UNDO_ENTRIES} steps`;
+  breadcrumbIcon.textContent = ICONS[classify(ENTRIES[currentIndex].desc)];
+  breadcrumbText.textContent = ENTRIES[currentIndex].desc;
+}
+
+function showToast(msg, sub){
+  const t = document.createElement('div');
+  t.className = 'toast error';
+  t.innerHTML = `<b>⚠ Undo failed</b><div>${msg}</div><div class="src">level: error · source: undo</div>`;
+  toaststack.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 250); }, 3800);
+}
+
+function setDemoButtons(disabled){
+  demoA.disabled = disabled; demoB.disabled = disabled; demoReset.disabled = disabled;
+}
+
+// Simulates handleJump: steps one index at a time, checking a per-step "ok" outcome
+// (mirrors P4's undo()/redo() boolean return + P5's break-on-false loop).
+function handleJump(targetIndex, opts){
+  opts = opts || {};
+  const failAt = opts.failAt; // row index whose inverse "throws" mid-jump
+  const steps = Math.abs(targetIndex - currentIndex);
+  if (steps === 0) return;
+  jumping = true;
+  setDemoButtons(true);
+  const dir = targetIndex < currentIndex ? -1 : 1;
+  progressTrack.classList.add('on');
+  jumpLabel.style.display = steps > 1 ? 'inline' : 'none';
+  let stepsTaken = 0;
+  poisonRow = -1;
+
+  function tick(){
+    const nextIndex = currentIndex + dir;
+    // "attempting" to move onto nextIndex — check simulated failure
+    if (failAt !== undefined && nextIndex === failAt) {
+      jumpingRow = -1;
+      poisonRow = failAt;
+      render();
+      showToast(`stopped after ${stepsTaken}/${steps} steps — inverse threw at "${ENTRIES[failAt].desc}"`);
+      finish();
+      return;
+    }
+    currentIndex = nextIndex;
+    jumpingRow = currentIndex;
+    stepsTaken++;
+    const pct = Math.round((stepsTaken / steps) * 100);
+    progressFill.style.width = pct + '%';
+    progressCursor.style.left = pct + '%';
+    render();
+    if (currentIndex === targetIndex) { finish(); return; }
+    setTimeout(tick, 320);
+  }
+  function finish(){
+    setTimeout(() => {
+      jumping = false;
+      jumpingRow = -1;
+      progressTrack.classList.remove('on');
+      progressFill.style.width = '0%';
+      progressCursor.style.left = '0%';
+      jumpLabel.style.display = 'none';
+      setDemoButtons(false);
+      render();
+    }, 550);
+  }
+  setTimeout(tick, 150);
+}
+
+demoA.addEventListener('click', () => {
+  if (jumping) return;
+  currentIndex = INITIAL_CURRENT;
+  render();
+  handleJump(1); // 4 steps back, clean
+});
+demoB.addEventListener('click', () => {
+  if (jumping) return;
+  currentIndex = INITIAL_CURRENT;
+  render();
+  handleJump(0, { failAt: 2 }); // jump toward oldest, "Freeze C1" (index 2) throws
+});
+demoReset.addEventListener('click', () => {
+  if (jumping) return;
+  currentIndex = INITIAL_CURRENT;
+  expanded = new Set();
+  jumpingRow = -1; poisonRow = -1;
+  toaststack.innerHTML = '';
+  render();
+});
+breadcrumb.addEventListener('click', () => {
+  breadcrumb.classList.remove('flash'); void breadcrumb.offsetWidth; breadcrumb.classList.add('flash');
+  document.getElementById('hpanel').scrollIntoView({ behavior:'smooth', block:'center' });
+});
+
+render();
+})();
+</script>
