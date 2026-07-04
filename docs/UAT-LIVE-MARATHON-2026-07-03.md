@@ -56,3 +56,17 @@ UI control is clipped, unmounted, or missing** — so the feature is in-code but
 **Recommendation:** the highest-leverage fix wave is CONTROL-SURFACE, not engine — mount the
 rail, un-clip the header cluster, add the missing param affordances. Then the blocked CU
 journeys (Stage F masking, Stage I automation) become testable.
+
+### LIVE-M3 (P1 — render stability) — engine timeout + silent empty-chain fallback
+- Live: during playback with ONE effect (Chromatic Aberration) + one armed Master automation
+  lane, the console floods with `[Render] frame N error: Engine took too long to respond. Try
+  removing the last effect or reducing chain length.` followed by `[Render] retrying frame N
+  with empty chain` (App.tsx:1741/1749) — 128 errors across frames 126–149+, plus a toast over
+  the preview. The **empty-chain retry silently drops the effect** → the rendered/played frame
+  is WRONG (no effect) with no clear user signal beyond a transient toast.
+- **Confound to control for:** this dev sidecar had ~10.6h uptime (38282s) — the timeouts may be
+  long-running-process degradation (memory/resource leak) rather than the light load itself.
+  **Repro protocol:** relaunch fresh, import 1 clip + 1 effect, play through → if timeouts recur
+  on a fresh sidecar, it's a real per-frame budget/perf bug; if only after long uptime, it's a
+  sidecar leak. Either is a P1 (silent wrong-output fallback). Needs a clean-relaunch repro.
+- Note: further CU verdicts on THIS instance are unreliable until relaunch (engine degraded).
