@@ -85,3 +85,81 @@ Export-verify tooling (`verify_export.py`: PIL pixel/diff/ProRes-4444-alpha prob
 
 **Still requires CU (nothing below can be done headless):** every ✅/🐛 verdict in Stages A3–H —
 all need the running screen driven and screenshotted. This pass de-risked them; it did not replace them.
+
+
+---
+
+## LIVE CU PASS — Session 2 (2026-07-03 PM, dev build af9ba3b, computer-use)
+
+Runtime: dev Electron relaunched fresh from `frontend` (npm start :5173), confirmed dev build via
+DevTools `./index.tsx` + `--cx-bg-app`/`--cx-text-1` Live Signal tokens. Engine Connected throughout.
+Verdict key: ✅ pass · 🐛 bug · ⚠️ observation-to-investigate · ⏸ not-run.
+
+### Stage A — regression + spine (PASS)
+| # | Check | Verdict | Evidence |
+|---|-------|---------|----------|
+| A1 | Clean launch → New Project → DAW | ✅ | Welcome (CREATRIX v3.0.0), no crash |
+| A2 | Import renders | ✅ | test-video.mp4 1280x720 color bars; scrub 0→2.0s renders clean (30fps 19ms) |
+| A5/G | F_CREATRIX_LAYOUT default-ON | ✅ | LAYER panel present by default (B3 shipped, #398) |
+| — | Master bus + automation-editing toolbar live | ✅ | MASTER row; Overdub + Flatten/Ramp/Shape/+Mod buttons; MAP button all present |
+| A7a | %-label fix (#337) | ✅ | device reads "30px"/"MIX 100%", not "1.00%" |
+
+### Core pipeline (the spine) — end-to-end PASS
+| Step | Verdict | Evidence |
+|------|---------|----------|
+| Add effect → preview | ✅ | fx.chromatic_aberration renders (fringing visible); Offset knob drag 5→30px works |
+| Export H.264 MP4 | ✅ | full-timeline 150fr → ~/Desktop/uat-parity-ca.mp4 (185KB), "Export complete!" |
+| Export path guard | ✅ | ~/Desktop export works → confirms export-e2e red = TEST-ENV (only os.tmpdir blocked), NOT app bug |
+| **GATE 1: preview==export parity** | ✅ | export vs source mean_abs_diff **24.24** (effect baked in); export RENDERED (mean125/std124, not black) |
+
+### Stage A3 / P1-B — instrument preview unblock (PASS on the bug's surface)
+| Check | Verdict | Evidence |
+|-------|---------|----------|
+| MIDI track add (+I) | ✅ | "MIDI 1" track + PERFORM/CAPTURE control |
+| Sampler add (double-click on selected MIDI track) | ✅ | param panel Source/Start/Speed/Opacity/Blend |
+| Source bind → test-video.mp4 | ✅ | dropdown selectable+bound |
+| **P1-B: no "v2 unsupported" rejection** | ✅ | NO rejection toast, NO compositing-error on mount+bind (the exact #323 surface); render 18→75ms (compositor processing instrument track) |
+| INSTRUMENTS present | ✅ | Sampler / Sample Rack / Wavetable / Granulator |
+> Full note-triggered voice-render into preview NOT exercised (needs MIDI-note-entry UI) — the rejection-guard that the bug broke is clean.
+
+### Findings
+- 🐛 **UAT-1 (P2 papercut, NEW):** on every cold import, frame-0 render fires during the sidecar socket handshake → user sees a "Frame render failed" toast + console `[Render] frame 0 error: Engine error: Socket is closed` (App.tsx:1741). Recovers fully (all later frames render). Not in the known register. Fix: gate frame-0 render on socket-ready, or suppress the toast during startup.
+- 🐛 **UAT-2 (P1 candidate — CONFIRMED via discriminating test):** an un-triggered Sampler (MIDI 1, source=test-video, opacity 1.0, NO MIDI note fired) composites its clean source frame over the lower effected Track 2, silently occluding Track 2's chromatic aberration in the preview. **Discriminator run:** muting MIDI 1 → Track 2's CA returns in preview AND render time drops 75ms→25ms → confirms the sampler layer was actively compositing with no note. Design question for the user: an instrument with no note triggered should render nothing (transparent), not paint its full source over other tracks. If MIDI-layer-always-paints is intended, the parity gate still holds; if not, this is a composability/precedence bug. NOT in the known register.
+- ⚠️ **UAT-3 (inconclusive):** marquee tool did not activate via `q` with a video track selected (2 attempts; status bar stayed "select"/"effect", no marching ants). May require preview focus or the `tool`-tab chip (addendum notes the chip path). MK.CU J1–J5 remain ⏸ UNRUN — needs a clean retry next session.
+- Console noise: `useTrackDragReorder.ts:199/67` "UP armed=false moves=0 swaps=0 / DETACH listeners removed" fire on drag-onto-track gestures — harmless, no reorder committed.
+
+### NOT RUN this session (budget-bounded — for a continued CU pass)
+Stage B persistence round-trip · C2–C7 full journeys (freeze FSM, rack macros/choke, granulator 6-axis) ·
+D chaos/antipatterns · E design audit · **F masking J1–J5 (retry marquee activation)** · G B3 restack ·
+H MK.12 U1–U10 · I automation-editing suite · J modulation/LFO lanes · K master-bus isolation.
+
+### GO/NO-GO (partial — Session 2 scope only)
+Of the 6 cross-cutting gates, **Gate 1 (preview==export parity) = PASS** on the effect category on a
+1-effect project. The P1-B instrument unblock holds. No NO-GO condition tripped in what was exercised.
+UAT-2 is now CONFIRMED (un-triggered sampler occludes lower track) and must get a user design-decision before a full GO — it touches the composability gate. Gates 2–6 and the
+full journey/data-loss/composability matrix remain UNVERIFIED live → **overall verdict: INCOMPLETE, not
+yet GO** — the spine is proven, the breadth pass is outstanding.
+
+
+### Stage E — design audit (LIVE, user-flagged during pass)
+- 🐛 **E-1 (P1 layout):** B3 left column — LAYER panel "Fill" opacity slider renders OVER the EFFECTS/PRESETS/INSTRUMENTS tab row (z-order/overflow when LAYER panel + browser coexist in the cramped column). Zoom-confirmed. Same family as the June-17 device-editor cramping.
+- 🐛 **E-2 (P2):** a slider also bleeds across the INSTRUMENTS "Wavetable" rack row — same overflow bug.
+- ⚠️ **E-3 (P3):** transport = raw Unicode glyphs (▶ ■ ⟳), instrument racks text-only — DESIGN-SPEC §8 wants schematic line icons; "missing icons" = no custom iconography. device-chain.css also has sub-11px (7-8px) fonts, below the §9 floor.
+
+
+### Stage F masking (J1) — mask tools activate, DRAW unconfirmed via CU
+- Mask chips EXIST in the EFFECTS→tool sub-tab under "Mask Tools": **Mask Rect / Mask Ellipse / Mask Lasso / Mask Polygon** (naming diverges from J1 j1-02 spec which expects marquee/lasso/wand/key — no wand/key chip in this list).
+- 🐛 **F-1 (P2):** `q` hotkey did NOT activate the marquee tool (3 attempts) while an effect was the active selection context (status stayed "tool: select"). Clicking the **Mask Rect chip** DID activate it (status "tool: mask-marquee-rect"). So the tool-tab path works; the `q` binding is blocked/broken when an effect is selected.
+- ⚠️ **F-2 (needs human-pointer retry):** with mask-marquee-rect active, drawing on the preview produced NO visible marquee/marching-ants — via synthetic left_click_drag AND a manual mouse-down→move→up sequence, and after toggling both preview-overlay icons. Either the MaskSelectOverlay does not respond to synthetic PointerEvents (CU limitation) or the draw is broken. **J1–J5 draw remains UNCONFIRMED** — needs a real human pointer test to disambiguate.
+
+### RUNTIME/ENV note (session interrupted)
+- App relaunched cleanly on main af9ba3b (verified: no commits merged since original launch). A hard renderer reload (Cmd+R) crashed the renderer window; relaunched fresh.
+- CU display then went UNAVAILABLE (screen lock/sleep — input events register, screenshot capture blocked). Live pass halted here pending display recovery (user must wake/unlock).
+
+### "Missing UI work / icons" (user report during pass) — diagnosis
+- Running app IS latest main (af9ba3b). On main the UI shows: transport as Unicode glyphs (▶ ■ ⟳), instrument racks text-only (no icons), and the E-1/E-2 LAYER-panel-slider-over-tabs overlap. App renders icons as inline SVG (frontend/src/renderer/assets/tool-icons.tsx exists).
+- The polished/newer UI work is in UNMERGED build/* worktree branches (parallel session ultracode wave-1): build/aa1-curves-polish, aa2-modulation-lanes, aa3a-lfo-lane, aa4b-automation-transform-box, aa6-param-automated-indicator, **hui**, m1-master-bus-schema, t5 — none on main yet → the running (main) app does not show them. This explains "the UI work is not there."
+
+
+### CORRECTION + ROOT CAUSE (user report: "missing icons on the side, like Photoshop")
+- The Photoshop-style **left tool rail** is the missing UI. **L0 icon SET WAS built** (#347 → tool-icons.tsx, 14 Block icons) but its ONLY consumer is EffectBrowser.tsx (the browser tool sub-tab) — **the left RAIL surface was NEVER built** (no ToolRail component). B3 shipped L1/L2/L3/L4 (#346/#377/#398) but not the rail. Full reconciliation: docs/UAT-COVERAGE-RECONCILIATION-2026-07-03.md.
