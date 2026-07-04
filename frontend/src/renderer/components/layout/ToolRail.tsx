@@ -1,15 +1,14 @@
-import { useCallback } from 'react'
+import { useEffect } from 'react'
 import { useLayoutStore } from '../../stores/layout'
-import { useTimelineStore } from '../../stores/timeline'
 import ToolIcon from '../../assets/tool-icons'
 import {
   TOOL_ENTRIES,
   MASK_TOOL_ENTRIES,
   TOOL_ICON,
-  isTextInputActive,
+  selectCursorTool,
   type CursorTool,
 } from '../effects/EffectBrowser'
-import { DEFAULT_SHORTCUTS } from '../../utils/default-shortcuts'
+import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
 // tool-rail.css is imported centrally in App.tsx, matching this codebase's
 // convention (creatrix-layout.css, global.css) — no per-component CSS imports.
@@ -19,18 +18,18 @@ import { prettyShortcut } from '../../utils/pretty-shortcut'
  * Reference mockup: docs/roadmap/layout-session/challengers/challenger-b3-arrangement.html
  * `.rail` element — 4 groups (TRNS/EDIT/MASK/MISC), 14 tools, acid-wash active state.
  *
- * Reuses TOOL_ENTRIES + MASK_TOOL_ENTRIES + TOOL_ICON from EffectBrowser.tsx
- * (the [tool] tab's canonical lists) rather than redefining the tool set, so
- * the rail and the browser tab can never drift out of sync — both read the
- * same useLayoutStore.cursorTool/setCursorTool.
+ * Reuses TOOL_ENTRIES + MASK_TOOL_ENTRIES + TOOL_ICON + selectCursorTool from
+ * EffectBrowser.tsx (the [tool] tab's canonical lists + selection logic)
+ * rather than redefining them, so the rail and the browser tab can never
+ * drift out of sync — both read/write the same
+ * useLayoutStore.cursorTool/setCursorTool.
  *
  * Mounted by App.tsx only under FF.F_CREATRIX_LAYOUT (left of the preview canvas).
  */
 
 // Groups mirror the mockup's TRNS/EDIT/MASK/MISC split. 'select' (Transform)
 // is its own group; razor/slip/slide/ripple-delete are EDIT; all 6 mask tools
-// are MASK; marker/loop-in/loop-out (no keyboard-wired cursor-tool hotkey of
-// their own — see HOTKEY_ACTION below) are MISC. 1 + 4 + 6 + 3 = 14 tools.
+// are MASK; marker/loop-in/loop-out are MISC. 1 + 4 + 6 + 3 = 14 tools.
 const RAIL_GROUPS: Array<{ label: string; ids: CursorTool[] }> = [
   { label: 'TRNS', ids: ['select'] },
   { label: 'EDIT', ids: ['razor', 'slip', 'slide', 'ripple-delete'] },
@@ -41,17 +40,18 @@ const RAIL_GROUPS: Array<{ label: string; ids: CursorTool[] }> = [
 const ALL_ENTRIES = [...TOOL_ENTRIES, ...MASK_TOOL_ENTRIES]
 const LABEL_BY_ID = new Map(ALL_ENTRIES.map((e) => [e.id, e.label]))
 
-// Maps a CursorTool to the shortcutRegistry action that sets it, so the rail's
-// hotkey badge is read from DEFAULT_SHORTCUTS (single source of truth) instead
-// of a second hardcoded key table. 'tool_marquee'/'tool_lasso' each toggle
-// between two CursorTool values (App.tsx MK.5), so both entries share one key.
-// wand/key-picker/loop-in/loop-out have no dedicated cursor-tool hotkey today
-// — omitted here rather than inventing one.
+// Maps a CursorTool to the shortcutRegistry action that sets it. Only tools
+// with an ACTUALLY-REGISTERED keyboard handler get an entry here (verified
+// against the `shortcutRegistry.register('tool_*', ...)` calls in App.tsx) —
+// 'slip'/'slide' are deliberately omitted: default-shortcuts.ts lists
+// tool_slip/tool_slide, but App.tsx never registers a handler for them yet
+// ("slip/slide are intentionally NOT wired here" — later packet), so showing
+// a hotkey badge for them would advertise a key press that does nothing.
+// 'tool_marquee'/'tool_lasso' each toggle between two CursorTool values
+// (App.tsx MK.5), so both entries below share one action/key.
 const HOTKEY_ACTION: Partial<Record<CursorTool, string>> = {
   select: 'tool_select',
   razor: 'tool_razor',
-  slip: 'tool_slip',
-  slide: 'tool_slide',
   'ripple-delete': 'tool_ripple_delete',
   marker: 'tool_marker',
   'mask-marquee-rect': 'tool_marquee',
@@ -60,29 +60,34 @@ const HOTKEY_ACTION: Partial<Record<CursorTool, string>> = {
   'mask-lasso-polygon': 'tool_lasso',
 }
 
+/**
+ * Reads the LIVE effective key (default or user-remapped via ShortcutEditor.tsx)
+ * from shortcutRegistry — the same `prettyShortcut(shortcutRegistry.getEffectiveKey(...))`
+ * idiom used at every other hotkey-badge call site in this codebase (Clip.tsx,
+ * DeviceChain.tsx). A static DEFAULT_SHORTCUTS lookup would go stale the moment
+ * a user remaps a tool shortcut in Preferences → Keyboard Shortcuts.
+ */
 function hotkeyFor(id: CursorTool): string | undefined {
   const action = HOTKEY_ACTION[id]
   if (!action) return undefined
-  const binding = DEFAULT_SHORTCUTS.find((s) => s.action === action)
-  return prettyShortcut(binding?.keys)
+  return prettyShortcut(shortcutRegistry.getEffectiveKey(action))
 }
 
 export default function ToolRail() {
   const cursorTool = useLayoutStore((s) => s.cursorTool)
   const setCursorTool = useLayoutStore((s) => s.setCursorTool)
 
-  // Verbatim copy of EffectBrowser's handleToolSelect body (isTextInputActive
-  // guard + mask-tool → previewToolMode wiring) so clicking a rail button has
-  // IDENTICAL side effects to clicking the matching [tool] tab button.
-  const handleSelect = useCallback(
-    (tool: CursorTool) => {
-      if (isTextInputActive()) return
-      setCursorTool(tool)
-      const maskEntry = MASK_TOOL_ENTRIES.find((e) => e.id === tool)
-      useTimelineStore.getState().setPreviewToolMode(maskEntry ? maskEntry.previewMode : null)
-    },
-    [setCursorTool],
-  )
+  // Expose cursor tool on body for statusbar chip reads (mirrors EffectBrowser's
+  // identical effect). ToolRail is mounted unconditionally under the flag while
+  // EffectBrowser only mounts while the sidebar [tool] tab is active, so this
+  // rail is the reliable writer whenever a user is on a different sidebar tab.
+  // Both effects writing the same value when both are mounted is idempotent.
+  useEffect(() => {
+    document.body.setAttribute('data-cursor-tool', cursorTool)
+    return () => {
+      document.body.removeAttribute('data-cursor-tool')
+    }
+  }, [cursorTool])
 
   return (
     <div className="tool-rail" data-testid="tool-rail">
@@ -99,7 +104,7 @@ export default function ToolRail() {
                 key={id}
                 type="button"
                 className={`tool-rail__tool${isActive ? ' tool-rail__tool--active' : ''}`}
-                onClick={() => handleSelect(id)}
+                onClick={() => selectCursorTool(id, setCursorTool)}
                 title={hotkey ? `${label} (${hotkey})` : label}
                 aria-label={label}
                 aria-pressed={isActive}
