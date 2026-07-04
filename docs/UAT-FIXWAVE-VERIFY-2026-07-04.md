@@ -59,3 +59,16 @@ the two P1s the user prioritized (rail + render stability) work live.
 - **BONUS #431 stress-confirm:** Copy Machine renders at ~443ms/frame (heavy) with **zero timeout /
   empty-chain / socket-busy errors** in console. This is exactly the scenario that flooded 114 errors
   pre-fix — #431 holds even under a slow effect. Strong confirmation.
+
+## Undo + F_0512_6 (undo-rerender) — ✅ PASS
+Cmd+Z removed Copy Machine (device chain 2→1, effects count 2→1) AND the preview re-rendered back to
+Blur-only (photocopy look gone, blurred bars restored). Undo correctly reverts state AND triggers a
+re-render — the F_0512_6 undo-rerender fix holds live.
+
+## SESSION TALLY (2026-07-04 fix-wave verification + gap-closure, all live CU)
+PASSES: #433 rail · #431 render-timeout (0 vs 114, holds under heavy 443ms effect) · UAT-1 socket ·
+#432 header arm-R/lock · E-1 overlap gone · X272-1 Field control · #427 Copy Machine renders ·
+Undo+F_0512_6 rerender · (earlier: spine, parity, P1-B, A7a, F_0512_37, G4, G3).
+VALIDATED-VIA-E2E: #439 mask-draw (synthetic-CU can't observe canvas draw — method limit, not a bug).
+OBSERVATION: video-track header R-click may be intercepted by the drag-reorder zone (needs human confirm).
+The fix-wave is solid and the previously-blocked playback lane is now open for full journey testing.
