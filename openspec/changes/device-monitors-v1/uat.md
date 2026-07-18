@@ -19,3 +19,4 @@
 | 13 | Matte/alpha content monitored | Checkerboard composite (backend), never black garbage | [CU] |
 | 14 | Undo History + operators overlay | Render exactly as before (floating-panel regression) | [V]+[CU] |
 | 15 | Monitor cost visible | Statusbar warn >30% budget (or System Monitor rows if landed) | [V] |
+| 16 | Main render integrity under taps | With 4 taps open on stateful effects, main render output byte-identical to taps-closed (state isolation) | [PT] |

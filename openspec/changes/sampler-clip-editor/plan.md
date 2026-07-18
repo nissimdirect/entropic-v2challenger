@@ -24,10 +24,16 @@ FrameStrip {
   (reuse `thumbnail-density.ts` unmodified at default zoom); zoomed range → OD-3(a) params.
 - Region select: drag across strip = set in/out; edge handles resize; drag body = move
   region. All pointer math clamped + NaN-guarded (mirror `launch-quantize.ts` guard style).
-- Grid: `mode 'bpm'` → snap candidate = `quantizeFrame(frame - anchor, division,
-  effectiveBpm, fps) + anchor`; `mode 'clip'` → anchor + k·(regionOrClipLen/division).
+- Grid: `mode 'bpm'` → snap candidate = nearest boundary of the `quantizeFrame` grid
+  formula, offset by anchor; `mode 'clip'` → anchor + k·(regionOrClipLen/division).
   Anchor = region.in, fallback 0 (OD-1). Local division chip overrides global; global
   `quantizeEnabled` (Cmd+U) toggles snap by default.
+  ⚠ VERIFIED CONSTRAINT (2026-07-18): `quantizeFrame` snaps CEIL-ONLY ("next division
+  boundary", `launch-quantize.ts:63`) — correct for pad-launch, WRONG for edge snapping
+  (an IN handle dragged leftward could never settle on the boundary it approaches).
+  Add an additive `snapFrameNearest(frame, division, bpm, fps)` sibling in the same file
+  reusing the fpd formula + guards with `Math.round`; launch path byte-untouched
+  (regression test both directions around a boundary).
 - Hover-scrub: pointer position → frame → `onScrub(frame)` with CACHED thumb shown inline;
   `onCommitScrub` on rest(150ms)/release → ONE real render (NFR-01 pattern). No IPC in
   pointermove.
@@ -68,8 +74,11 @@ persistence. No new store.
 - Backend: new `crop_clip` command — validate `{asset_path, in_frame, out_frame}` at the
   handler (path inside granted dirs; 0 ≤ in < out ≤ frameCount; finite ints; reject
   malformed with `ok:false`, never clamp silently — UE.6 precedent). Decode source frames
-  [in,out], encode via the existing export encode path (same codec/settings as source where
-  possible; document fallback), write to project media dir, return new asset path.
+  [in,out], encode via the STANDARD export encode settings (the export path's fixed
+  codec/profile — NOT source-matching; deterministic output beats codec fidelity, and the
+  determinism test in §7 depends on it). Write atomically: encode to `<name>.part`, rename
+  on success, delete `.part` on any failure (no half-written assets ever registered).
+  Return new asset path.
 - Frontend: context-menu on the region → confirm dialog (names the new asset) → IPC → ingest
   result → replace sampler source with new asset, region resets to full. Undoable as a
   compound transaction (asset add + source swap).

@@ -20,6 +20,14 @@ click-to-front (z cycling within tier). Extends `.floating-panel` with a
     the freeze-prefix slice pattern (`pipeline.py:207-229`), decoded source per the
     LayerTap stage definition (joint schema — pre=pre-chain decoded, post=post-chain incl.
     masks, SOURCE pixel space).
+  - ⚠ STATE ISOLATION (verified 2026-07-18): `apply_chain` threads stateful-effect state
+    (`states`/`new_states` dicts) across frames. Tap renders MUST use an ISOLATED per-tap
+    state store (keyed `tap::<id>`), NEVER the main render's states — sharing would advance
+    temporal effects (datamosh family etc.) at monitor cadence and corrupt the main output.
+    Consequence to document in the UI contract: stateful effects in a 10fps tap will DRIFT
+    from the 30fps main output — acceptable for monitoring; the tap is a faithful signal
+    shape, not a frame-exact mirror. Oracle: main-render byte-identity with 4 taps open
+    (regression test), tap-state keys never intersect main-state keys (unit).
   - LOW-PRIORITY: main render always preempts; taps drop frames, never queue >1 deep
     (latest-wins slot per tap id). Budget guard: aggregate tap time metered into
     `_effect_timing`-adjacent stats for System Monitor.
@@ -28,7 +36,11 @@ click-to-front (z cycling within tier). Extends `.floating-panel` with a
     frozen frame masquerading as live.
 - Frontend relay: monitor frames arrive on the existing frame-push pattern
   (`pop-out:frame` precedent) keyed by tap id; `enqueueExchange` FIFO discipline (#431)
-  respected — taps use the same serialized socket, hence low fps caps.
+  respected — taps use the same serialized socket, hence low fps caps. ⚠ Load math:
+  4 monitors × 10fps = up to 40 extra exchanges/s on the ONE REQ socket. If P2's perf row
+  shows main-render latency regression, the ESCALATION PATH (do not improvise a new one)
+  is the multiwindow Stage-C second-consumer stream (a second subscriber id on the sidecar
+  — multiwindow PRD §Stage C); fps floor rather than socket forking is the v1 rule.
 
 ## §3 MonitorPanel component
 
