@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mock — FrameStrip clip editor + device monitors (Lane 4)</title>
+<style>
+/* Tokens EXTRACTED VERBATIM from frontend/src/renderer/styles/tokens.css @ 2369858
+   (REAL-INVENTORY-ONLY rule). Do not invent values — if a token is missing here it
+   was not needed by this mock. */
+:root{
+  --cx-surface-0:#0B0B10; --cx-surface-1:#121218; --cx-surface-2:#18181F;
+  --cx-surface-3:#20202A; --cx-surface-4:#282834;
+  --cx-line-1:#2E2E3A; --cx-line-2:#3C3C4C;
+  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#80808E;
+  --cx-acid:#C8F321; --cx-acid-wash:rgba(200,243,33,0.10); --cx-acid-on:#0B0B10;
+  --cx-mod:#8F7DFF; --cx-mod-wash:rgba(143,125,255,0.12);
+  --cx-amber:#D9A23C; --cx-red-text:#E5484D;
+  --cx-font-mono:'JetBrains Mono','Courier New',monospace;
+}
+body{background:var(--cx-surface-1);color:var(--cx-text-1);font-family:var(--cx-font-mono);
+  font-size:12px;margin:0;padding:32px;display:flex;flex-direction:column;gap:28px}
+h1{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--cx-text-2);margin:0}
+h2{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--cx-text-3);margin:0 0 8px}
+.note{font-size:10px;color:var(--cx-amber);max-width:720px;line-height:1.5}
+.device{background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:6px;
+  padding:10px;width:560px}
+.device__title{font-size:10px;color:var(--cx-text-2);text-transform:uppercase;
+  letter-spacing:.05em;margin-bottom:8px;display:flex;justify-content:space-between}
+/* --- FrameStrip (plan §1) --- */
+.frame-strip{position:relative;display:flex;gap:2px;background:var(--cx-surface-2);
+  border:1px solid var(--cx-line-1);border-radius:4px;padding:3px;height:44px}
+.frame-strip__thumb{flex:1;border-radius:2px;position:relative;overflow:hidden;
+  /* FIXTURE DATA: gradients stand in for real generate_thumbnails() frames */
+  background:linear-gradient(135deg,#20202A 0%,#3C3C4C 60%,#282834 100%)}
+.frame-strip__thumb:nth-child(odd){background:linear-gradient(135deg,#282834,#20202A 70%)}
+.frame-strip__region{position:absolute;top:0;bottom:0;left:22%;width:41%;
+  border:1px solid var(--cx-acid);background:var(--cx-acid-wash);border-radius:3px;
+  pointer-events:none}
+.frame-strip__handle{position:absolute;top:0;bottom:0;width:6px;background:var(--cx-acid);
+  opacity:.9}
+.frame-strip__handle--in{left:-1px;border-radius:3px 0 0 3px}
+.frame-strip__handle--out{right:-1px;border-radius:0 3px 3px 0}
+.frame-strip__grid-tick{position:absolute;top:0;bottom:0;width:1px;background:var(--cx-line-2)}
+.frame-strip__grid-tick--anchor{background:var(--cx-acid);width:1px;opacity:.7}
+.frame-strip__marker{position:absolute;top:0;bottom:0;width:2px;background:var(--cx-mod);left:37%}
+.strip-controls{display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap}
+.chip{border:1px solid var(--cx-line-2);border-radius:3px;padding:2px 7px;font-size:10px;
+  color:var(--cx-text-2);background:var(--cx-surface-2)}
+.chip--on{border-color:var(--cx-acid);color:var(--cx-acid);background:var(--cx-acid-wash)}
+.chip--mod{border-color:var(--cx-mod);color:var(--cx-mod);background:var(--cx-mod-wash)}
+.readout{font-size:10px;color:var(--cx-text-3);margin-left:auto}
+/* --- Monitor panels (device-monitors-v1 plan §3) --- */
+.mrow{display:flex;gap:16px;flex-wrap:wrap}
+.monitor{width:236px;background:var(--cx-surface-3);border:1px solid var(--cx-line-2);
+  border-radius:6px;box-shadow:0 4px 24px rgba(0,0,0,.5)}
+.monitor__hdr{display:flex;align-items:center;gap:6px;padding:5px 8px;
+  border-bottom:1px solid var(--cx-line-1);font-size:10px;color:var(--cx-text-2)}
+.monitor__badge{margin-left:auto;font-size:9px;padding:1px 5px;border-radius:3px}
+.monitor__badge--live{background:var(--cx-acid-wash);color:var(--cx-acid)}
+.monitor__badge--paused{background:var(--cx-mod-wash);color:var(--cx-mod)}
+.monitor__body{height:120px;display:flex;align-items:center;justify-content:center;
+  background:var(--cx-surface-0);border-radius:0 0 6px 6px;position:relative;overflow:hidden}
+.monitor__frame{position:absolute;inset:0;
+  background:linear-gradient(160deg,#20202A 0%,#3C3C4C 45%,#18181F 100%)} /* FIXTURE */
+.monitor__empty{color:var(--cx-text-3);font-size:10px;text-align:center;line-height:1.6}
+.monitor__fps{position:absolute;right:6px;bottom:4px;font-size:9px;color:var(--cx-text-3)}
+.monitor__paused-ico{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;color:var(--cx-mod);font-size:20px;background:rgba(11,11,16,.45)}
+</style>
+</head>
+<body>
+<h1>Lane 4 mock — FrameStrip clip editor · device monitors</h1>
+<div class="note">All colors/fonts are tokens extracted verbatim from tokens.css @ 2369858.
+Thumbnail cells and monitor frames are GRADIENT FIXTURES standing in for real
+generate_thumbnails()/tap_render output — flagged per the system-monitor mock precedent.
+Components shown exist in code (SamplerDevice, framebank marker idiom, .floating-panel) or
+in the locked Lane-4 plans (FrameStrip plan §1, MonitorPanel plan §3).</div>
+
+<section>
+<h2>1 · SamplerDevice with FrameStrip — default in-chain size (region + loop + BPM grid)</h2>
+<div class="device">
+  <div class="device__title"><span>SAMPLER · drums_take3.mp4</span><span>412 frames · 30fps</span></div>
+  <div class="frame-strip">
+    <div class="frame-strip__thumb"></div><div class="frame-strip__thumb"></div>
+    <div class="frame-strip__thumb"></div><div class="frame-strip__thumb"></div>
+    <div class="frame-strip__thumb"></div><div class="frame-strip__thumb"></div>
+    <div class="frame-strip__thumb"></div><div class="frame-strip__thumb"></div>
+    <!-- grid ticks: BPM mode, anchored at region IN (OD-1 recommended reading) -->
+    <div class="frame-strip__grid-tick frame-strip__grid-tick--anchor" style="left:22%"></div>
+    <div class="frame-strip__grid-tick" style="left:32.25%"></div>
+    <div class="frame-strip__grid-tick" style="left:42.5%"></div>
+    <div class="frame-strip__grid-tick" style="left:52.75%"></div>
+    <div class="frame-strip__grid-tick" style="left:63%"></div>
+    <div class="frame-strip__region">
+      <div class="frame-strip__handle frame-strip__handle--in"></div>
+      <div class="frame-strip__handle frame-strip__handle--out"></div>
+    </div>
+    <div class="frame-strip__marker" title="live position (framebank marker idiom)"></div>
+  </div>
+  <div class="strip-controls">
+    <span class="chip chip--on">LOOP</span>
+    <span class="chip">FWD</span>
+    <span class="chip">XFADE 4f</span>
+    <span class="chip chip--on">GRID · BPM</span>
+    <span class="chip">1/8 (global)</span>
+    <span class="readout">IN 91 · OUT 260 · 5.6s</span>
+  </div>
+</div>
+<div class="note" style="margin-top:6px">OD-1 VISUAL (confirm here): acid tick = grid ANCHOR
+at region IN; divisions count rightward from it. Alternative reading (anchor fixed at frame
+0 always) would place ticks independent of the region — say the word and this re-renders.</div>
+</section>
+
+<section>
+<h2>2 · Monitor panels — live · LRU-paused · chain tap · stale-tap empty</h2>
+<div class="mrow">
+  <div class="monitor">
+    <div class="monitor__hdr">T3 · SAMPLER · output <span class="monitor__badge monitor__badge--live">LIVE</span></div>
+    <div class="monitor__body"><div class="monitor__frame"></div><span class="monitor__fps">10fps · 320px</span></div>
+  </div>
+  <div class="monitor">
+    <div class="monitor__hdr">T5 · RACK · output <span class="monitor__badge monitor__badge--paused">PAUSED · LRU</span></div>
+    <div class="monitor__body"><div class="monitor__frame"></div><div class="monitor__paused-ico">▶</div></div>
+  </div>
+  <div class="monitor">
+    <div class="monitor__hdr">T2 · datamosh 3/7 · post <span class="monitor__badge monitor__badge--live">TAP</span></div>
+    <div class="monitor__body"><div class="monitor__frame"></div><span class="monitor__fps">10fps</span></div>
+  </div>
+  <div class="monitor">
+    <div class="monitor__hdr">T2 · — <span class="monitor__badge">—</span></div>
+    <div class="monitor__body"><div class="monitor__empty">tap target removed<br>[ close ]</div></div>
+  </div>
+</div>
+</section>
+</body>
+</html>
