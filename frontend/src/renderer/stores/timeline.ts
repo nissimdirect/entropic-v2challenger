@@ -853,6 +853,23 @@ function getAllClipsInOrder(tracks: Track[]): Clip[] {
   return result
 }
 
+/**
+ * Fix (video/performance/text solo was write-only): ONE visual solo bus spans
+ * video + performance + text tracks — mirrors the existing audio solo bus
+ * (see `anyAudioSolo` in getActiveAudioClipsAtTime below), which is the only
+ * track type that previously honored `isSoloed`. If ANY visual track is
+ * soloed, a visual track renders only when it is itself soloed. Mute wins on
+ * the soloed track itself. Used at every composite/render/export filter site
+ * in App.tsx so preview and export paths agree.
+ */
+export function isVisualTrackHidden(track: Track, tracks: Track[]): boolean {
+  if (track.isMuted) return true
+  const anyVisualSolo = tracks.some(
+    (t) => (t.type === 'video' || t.type === 'performance' || t.type === 'text') && t.isSoloed,
+  )
+  return anyVisualSolo && !track.isSoloed
+}
+
 export const useTimelineStore = create<TimelineState>((set, get) => ({
   ...INITIAL_STATE,
 

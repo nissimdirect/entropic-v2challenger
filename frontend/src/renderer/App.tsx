@@ -4,7 +4,7 @@ import { useProjectStore } from './stores/project'
 import { useEffectsStore } from './stores/effects'
 import { useAudioStore } from './stores/audio'
 import { useUndoStore } from './stores/undo'
-import { useTimelineStore } from './stores/timeline'
+import { useTimelineStore, isVisualTrackHidden } from './stores/timeline'
 import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
 import EffectBrowser from './components/effects/EffectBrowser'
@@ -1280,12 +1280,12 @@ function AppInner() {
 
         // Active text clips
         const activeTextClips = timelineState.tracks
-          .filter((t) => t.type === 'text' && !t.isMuted)
+          .filter((t) => t.type === 'text' && !isVisualTrackHidden(t, timelineState.tracks))
           .flatMap((t) => t.clips.filter((c) =>
             c.textConfig && c.isEnabled !== false && currentTime >= c.position && currentTime < c.position + c.duration,
           ))
 
-        // Active video clips across ALL unmuted video tracks (multi-track compositing).
+        // Active video clips across ALL visible video tracks (multi-track compositing).
         // Iterated in REVERSE store order so the topmost track in the UI ends up
         // LAST in the layer list — backend composites bottom-to-top so the last
         // entry lands on top. Result: NLE convention (Premiere / Final Cut /
@@ -1294,7 +1294,7 @@ function AppInner() {
         const activeVideoClips: { clip: typeof timelineState.tracks[0]['clips'][0]; track: typeof timelineState.tracks[0]; assetPath: string }[] = []
         for (let i = timelineState.tracks.length - 1; i >= 0; i--) {
           const track = timelineState.tracks[i]
-          if (track.type !== 'video' || track.isMuted) continue
+          if (track.type !== 'video' || isVisualTrackHidden(track, timelineState.tracks)) continue
           for (const clip of track.clips) {
             if (clip.isEnabled === false) continue
             if (currentTime < clip.position || currentTime >= clip.position + clip.duration) continue
@@ -1309,11 +1309,14 @@ function AppInner() {
         // Uses resolveTrackSamplerLayers (evaluateVoices + buildVoiceLayers, #423: no
         // active note → no layer) for voice-keyed rendering.
         // Only render samplers whose track still exists, is a performance track, and isn't
-        // muted (drops orphans left by a deleted track). Imperative getState() read is
-        // deliberate: requestRenderFrame's deps are [effectChain], so a coalesced/queued
-        // render must re-read instruments at exec time rather than capture a stale value.
+        // muted or solo-excluded (drops orphans left by a deleted track). Imperative
+        // getState() read is deliberate: requestRenderFrame's deps are [effectChain], so a
+        // coalesced/queued render must re-read instruments at exec time rather than
+        // capture a stale value.
         const perfTrackIds = new Set(
-          timelineState.tracks.filter((t) => t.type === 'performance' && !t.isMuted).map((t) => t.id),
+          timelineState.tracks
+            .filter((t) => t.type === 'performance' && !isVisualTrackHidden(t, timelineState.tracks))
+            .map((t) => t.id),
         )
         const perfState = usePerformanceStore.getState()
         const instrState = useInstrumentsStore.getState()
@@ -1933,7 +1936,7 @@ function AppInner() {
 
     let assetPath: string | null = null
     for (const track of timelineState.tracks) {
-      if (track.type !== 'video' || track.isMuted) continue
+      if (track.type !== 'video' || isVisualTrackHidden(track, timelineState.tracks)) continue
       for (const clip of track.clips) {
         const asset = projectState.assets[clip.assetId]
         if (asset?.path && asset.type === 'video') {
@@ -2197,7 +2200,7 @@ function AppInner() {
       assetPath: string
     }> = []
     for (const track of timeline.tracks) {
-      if (track.type !== 'video' || track.isMuted) continue
+      if (track.type !== 'video' || isVisualTrackHidden(track, timeline.tracks)) continue
       for (const clip of track.clips) {
         if (clip.isEnabled === false) continue
         if (currentTime < clip.position || currentTime >= clip.position + clip.duration) continue
@@ -2873,8 +2876,9 @@ function AppInner() {
       setExportOutputPath(settings.outputPath)
 
       // Collect text layers for export compositing
-      const exportTextLayers = useTimelineStore.getState().tracks
-        .filter((t) => t.type === 'text' && !t.isMuted)
+      const exportTracks = useTimelineStore.getState().tracks
+      const exportTextLayers = exportTracks
+        .filter((t) => t.type === 'text' && !isVisualTrackHidden(t, exportTracks))
         .flatMap((t) => t.clips
           .filter((c) => c.textConfig)
           .map((c) => ({
@@ -3095,7 +3099,7 @@ function AppInner() {
           attack: 0, decay: 0, sustain: 1, release: 0,
         }
         const perfTrackIds = timelineState.tracks
-          .filter((t) => t.type === 'performance' && !t.isMuted)
+          .filter((t) => t.type === 'performance' && !isVisualTrackHidden(t, timelineState.tracks))
           .map((t) => t.id)
 
         const events: unknown[] = []
@@ -3926,7 +3930,7 @@ function AppInner() {
               const tl = useTimelineStore.getState()
               const currentTime = tl.playheadTime
               for (const track of [...tl.tracks].reverse()) {
-                if (track.type !== 'video' || track.isMuted) continue
+                if (track.type !== 'video' || isVisualTrackHidden(track, tl.tracks)) continue
                 for (const clip of track.clips) {
                   if (clip.isEnabled === false) continue
                   if (currentTime >= clip.position && currentTime < clip.position + clip.duration) {
