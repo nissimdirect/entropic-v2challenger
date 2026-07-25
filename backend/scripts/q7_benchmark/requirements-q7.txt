@@ -1,0 +1,12 @@
+# Q7 benchmark dependencies (smoke tier — pure-Python, no GPU)
+#
+# PR #1 only needs stdlib + the harness self-tests. Real model deps (torch,
+# transformers, mlx, laion-clap, matplotlib, psutil) land in PR #3+ and are
+# pinned then. Keeping this file minimal lets CI smoke install in <10s.
+#
+# For Apple silicon measurement (PR #3+), users install via the runbook at
+# docs/runbooks/q7/q7-measure.md once that PR lands.
+#
+# Pinned exact versions — Q7 reproducibility requires it.
+
+# (intentionally empty for PR #1 — stdlib only)
