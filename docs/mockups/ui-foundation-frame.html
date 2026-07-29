@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Creatrix — UI Foundation full-frame mock (ui-foundation, v12 bar)</title>
+  <div><div style="font-size:11px;color:var(--cx-text-3,#9BA3B5);margin-bottom:10px">SCALE B — heading 15 · body 13</div>
+   <div style="font-size:45px;font-weight:650;color:var(--cx-text-1,#E6E9F2);line-height:1.15">DEVICE CHAIN</div>
+   <div style="font-size:39px;font-weight:450;color:var(--cx-text-2,#B8BFCC);line-height:1.3">Drag a device card here.</div></div>
+ </div></div>
+
+<div style="margin:28px 0 10px;padding:22px;border:1px solid var(--cx-border,#23283a);border-radius:8px">
+ <div style="font-size:12px;letter-spacing:.18em;color:var(--cx-text-2,#B8BFCC);margin-bottom:16px;text-transform:uppercase">Magnified specimen — same text, both scales at 300% (true deltas are 0.5–1px; judge the feel here, confirm in the panels above)</div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;font-family:var(--cx-font-mono)">
+  <div><div style="font-size:11px;color:var(--cx-text-3,#9BA3B5);margin-bottom:10px">SCALE A — heading 14 · body 12.5</div>
+   <div style="font-size:42px;font-weight:650;color:var(--cx-text-1,#E6E9F2);line-height:1.15">DEVICE CHAIN</div>
+   <div style="font-size:37.5px;font-weight:450;color:var(--cx-text-2,#B8BFCC);line-height:1.3">Drag a device card here.</div></div>
+<style>
+:root{
+  /* ---- REAL --cx-* tokens, copied verbatim from frontend/src/renderer/styles/tokens.css
+     (Live Signal v1.1). Tier 1 primitives + Tier 2 semantic aliases only — no invented colors. ---- */
+  --cx-surface-0:#0B0B10; --cx-surface-1:#121218; --cx-surface-2:#18181F;
+  --cx-surface-3:#20202A; --cx-surface-4:#282834;
+  --cx-line-1:#2E2E3A; --cx-line-2:#3C3C4C;
+  --cx-text-1:#E7E7EC; --cx-text-2:#9A9AA6; --cx-text-3:#80808E; --cx-text-disabled:#62626E;
+  --cx-acid:#C8F321; --cx-acid-hover:#D9FF4D; --cx-acid-on:#0B0B10; --cx-acid-wash:rgba(200,243,33,.10);
+  --cx-mod:#8F7DFF; --cx-mod-hover:#A693FF; --cx-mod-wash:rgba(143,125,255,.12); --cx-mod-on:#0B0B10;
+  --cx-red-text:#E5484D; --cx-red-fill:#C13B40; --cx-red-wash:rgba(229,72,77,.12);
+  --cx-amber:#D9A23C; --cx-amber-wash:rgba(217,162,60,.12);
+  --cx-automation-active:#4ade80;
+  --cx-font-mono:'JetBrains Mono','Courier New',monospace;
+  --cx-radius-control:2px; --cx-radius-card:4px; --cx-radius-dialog:6px;
+  --cx-ease:cubic-bezier(.2,0,0,1);
+  --cx-row-h:24px; --cx-panel-header:28px; --cx-device-param-h:18px;
+  --sidebar-width:280px; --statusbar-height:36px;
+
+  /* Tier 2 semantic aliases */
+  --cx-action:var(--cx-acid); --cx-action-hover:var(--cx-acid-hover); --cx-action-on:var(--cx-acid-on); --cx-action-wash:var(--cx-acid-wash);
+  --cx-selection:var(--cx-mod); --cx-selection-wash:var(--cx-mod-wash);
+  --cx-danger-text:var(--cx-red-text); --cx-danger-fill:var(--cx-red-fill); --cx-danger-wash:var(--cx-red-wash);
+  --cx-warn:var(--cx-amber); --cx-warn-wash:var(--cx-amber-wash);
+  --cx-bg-app:var(--cx-surface-1); --cx-bg-panel:var(--cx-surface-2); --cx-bg-raised:var(--cx-surface-3); --cx-bg-hover:var(--cx-surface-4);
+  --cx-focus-ring:var(--cx-acid);
+
+  /* ---- Packet A — NEW/EXTENDED tokens this change adds (proposal OD-1, plan.md Packet A).
+     --cx-text-body/label/data already exist in tokens.css at these exact values; the only literally
+     NEW additions are --cx-text-heading, --cx-weight-heading, --cx-weight-label, --cx-control-h. ---- */
+  --cx-text-data:11px;    --cx-weight-data:450;
+  --cx-text-label:12px;   --cx-weight-label:600;   /* NEW — first real weight token, was "approximated as 500" */
+  --cx-text-body:12.5px;  --cx-weight-body:450;
+  --cx-text-heading:14px; --cx-weight-heading:650; /* NEW tier */
+  --cx-control-h:22px;                              /* NEW — OD-7 */
+
+  /* ---- callout-pin color: annotation chrome, independent of any semantic token above ---- */
+  --callout:#5b8dee; --callout-wash:rgba(91,141,238,.14);
+}
+*{box-sizing:border-box}
+body{background:var(--cx-surface-1);color:var(--cx-text-1);font-family:var(--cx-font-mono);
+  font-size:12.5px;line-height:1.55;margin:0;padding:0 0 90px;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1660px;margin:0 auto;padding:0 24px}
+header{border-bottom:1px solid var(--cx-line-1);padding:34px 0 22px;margin-bottom:30px}
+.eyebrow{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--cx-text-3)}
+h1{font-size:20px;font-weight:500;letter-spacing:.02em;margin:8px 0 10px}
+h1 b{color:var(--cx-automation-active);font-weight:500}
+.thesis{max-width:88ch;color:var(--cx-text-2);font-size:12px}
+.thesis b{color:var(--cx-text-1);font-weight:500}
+h2{font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--cx-text-2);font-weight:500;
+  border-top:1px solid var(--cx-line-1);padding-top:18px;margin:44px 0 6px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.sub{font-size:11.5px;color:var(--cx-text-2);max-width:96ch;margin:0 0 16px}
+.tag{font-size:9px;padding:2px 8px;border-radius:99px;letter-spacing:.08em;font-weight:500}
+.tag.locked{background:rgba(74,222,128,.14);color:var(--cx-automation-active)}
+.tag.provisional{border:1px dashed var(--cx-amber);color:var(--cx-amber)}
+.tag.pending{border:1px dashed var(--cx-mod);color:#CBBEFF}
+.tag.override{background:rgba(229,72,77,.14);color:var(--cx-danger-text)}
+.panelbox{background:var(--cx-surface-2);border:1px solid var(--cx-line-1);border-radius:8px;
+  padding:16px;position:relative;overflow:visible}
+.hint{font-size:9.5px;color:var(--cx-text-3);margin-top:9px;border-top:1px solid var(--cx-line-1);padding-top:8px}
+kbd{background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:4px;padding:1px 6px;font-size:10px}
+
+/* ---- verdict box (T1 recap) ---- */
+.verdicts{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;font-size:10.5px;color:var(--cx-text-2);margin-top:14px}
+.verdicts div{display:flex;gap:6px}
+.verdicts b{color:var(--cx-text-1);font-weight:500;flex:none;min-width:64px}
+@media (max-width:100%;max-width:900px){.verdicts{grid-template-columns:1fr}}
+
+/* ---- numbered callout pin (tied to packet letters A–G) ---- */
+.pin{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;flex:none;
+  border-radius:50%;background:var(--callout);color:#0B0B10;font-size:8.5px;font-weight:700;
+  line-height:1;cursor:help;position:relative;vertical-align:middle;transition:background .12s,box-shadow .12s}
+.pin:hover,.pin:focus-visible{background:#78a3f5;box-shadow:0 0 0 4px var(--callout-wash)}
+.pin:hover .pintip,.pin:focus-visible .pintip{display:block}
+.pintip{display:none;position:absolute;left:50%;bottom:130%;transform:translateX(-50%);
+  background:#0B0B10;border:1px solid var(--callout);color:var(--cx-text-1);
+  padding:6px 9px;border-radius:5px;font-size:10px;white-space:nowrap;z-index:60;
+  box-shadow:0 8px 24px rgba(0,0,0,.5)}
+.pintip b{color:var(--callout)}
+.pkchip{display:inline-block;font-size:8.5px;padding:1px 6px;border-radius:99px;background:var(--cx-surface-4);
+  color:var(--cx-text-2);letter-spacing:.06em;margin-left:4px;font-weight:600}
+
+/* ---- before/after crop convention ---- */
+.baframe{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;margin:10px 0 4px}
+.bacrop{border-radius:6px;overflow:hidden;flex:none}
+.bacrop .lbl{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;padding:3px 8px;font-weight:600}
+.bacrop.before .lbl{background:rgba(229,72,77,.18);color:var(--cx-danger-text)}
+.bacrop.after .lbl{background:rgba(74,222,128,.16);color:var(--cx-automation-active)}
+.bacrop .stage{background:var(--cx-surface-0);border:1px solid var(--cx-line-1);padding:10px;display:flex;align-items:center;justify-content:center}
+.bacrop.before .stage{border-color:var(--cx-danger-text)}
+.bacrop.after .stage{border-color:var(--cx-automation-active)}
+.ba-note{font-size:9.5px;color:var(--cx-text-3);max-width:38ch}
+
+/* ==========================================================================
+   SECTION 1 — FULL FRAME
+   Real component classes (tool-rail, effect-search, preview-canvas,
+   device-chain, master-track-*, auto-toolbar, app__transport-*) reused
+   verbatim; Packet A–G's fixes applied as the live rule set below.
+   ========================================================================== */
+.frame-outer{overflow-x:auto;border:1px solid var(--cx-line-1);border-radius:10px;background:var(--cx-surface-0);padding:0}
+.frame-shell{width:1600px;display:flex;flex-direction:column;background:var(--cx-bg-app)}
+
+/* -- transport bar (Packet G / OD-7: uniform --cx-control-h) -- */
+.app__transport-bar{display:flex;align-items:center;gap:16px;padding:4px 12px;background:var(--cx-bg-app);
+  border-bottom:1px solid var(--cx-line-1);height:32px;flex:none}
+.app__transport-controls{display:flex;gap:4px}
+.app__transport-btn{display:inline-flex;align-items:center;justify-content:center;background:transparent;
+  border:1px solid var(--cx-line-2);color:var(--cx-text-1);font-size:var(--cx-text-label);padding:0 8px;
+  border-radius:3px;cursor:pointer;height:var(--cx-control-h);box-sizing:border-box;font-family:inherit}
+.app__transport-btn:hover{background:var(--cx-bg-raised)}
+.app__transport-btn--active{background:var(--cx-action);color:var(--cx-action-on);border-color:var(--cx-action)}
+.app__transport-timecode{font-family:var(--cx-font-mono);font-size:var(--cx-text-label);color:var(--cx-text-2);font-variant-numeric:tabular-nums}
+.app__transport-bpm{display:flex;align-items:center;gap:4px;font-size:var(--cx-text-data);color:var(--cx-text-2)}
+.app__transport-bpm label{text-transform:uppercase;letter-spacing:.06em}
+.app__transport-bpm input{width:48px;background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);color:var(--cx-text-1);
+  font-size:var(--cx-text-data);padding:0 4px;border-radius:2px;font-family:var(--cx-font-mono);height:var(--cx-control-h);box-sizing:border-box}
+.app__transport-quant{display:flex;align-items:center;gap:4px}
+.app__transport-select{background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);color:var(--cx-text-1);
+  font-size:var(--cx-text-data);padding:0 4px;border-radius:2px;font-family:var(--cx-font-mono);height:var(--cx-control-h);box-sizing:border-box}
+
+/* -- main row: rail + browser + preview -- */
+.mainrow{display:flex;flex:1;min-height:0}
+
+/* -- tool rail (Packet B / OD-3 — dims LOCKED, icons VISUAL-PENDING) -- */
+.tool-rail{display:flex;flex-direction:column;align-items:center;gap:8px;width:44px;flex-shrink:0;
+  padding:8px 0;background:var(--cx-bg-panel);border-right:1px solid var(--cx-line-1);overflow-y:auto}
+.tool-rail__group{display:flex;flex-direction:column;align-items:center;gap:4px}
+.tool-rail__group-label{font-size:var(--cx-text-data);font-weight:var(--cx-weight-data);letter-spacing:.12em;color:var(--cx-text-3);margin:2px 0 1px}
+.tool-rail__tool{width:32px;height:30px;display:flex;align-items:center;justify-content:center;border:none;
+  border-radius:var(--cx-radius-card);background:transparent;color:var(--cx-text-2);cursor:pointer;position:relative;padding:0}
+.tool-rail__tool:hover{background:var(--cx-bg-hover);color:var(--cx-text-1)}
+.tool-rail__tool--active{background:var(--cx-acid-wash);color:var(--cx-acid);outline:1px solid var(--cx-acid)}
+.tool-rail__fallback-label{font-size:var(--cx-text-data);font-family:var(--cx-font-mono);letter-spacing:.02em}
+.tool-rail__hotkey{position:absolute;top:2px;right:2px;font-size:var(--cx-text-data);color:var(--cx-text-3);
+  line-height:1;background:var(--cx-surface-1);border-radius:2px;padding:0 1px}
+.tool-rail__tool--active .tool-rail__hotkey{color:var(--cx-acid)}
+
+/* -- browser column -- */
+.browsercol{width:280px;flex-shrink:0;background:var(--cx-bg-panel);border-right:1px solid var(--cx-line-1);display:flex;flex-direction:column;min-height:0}
+.sidebar-tabs{display:flex;border-bottom:1px solid var(--cx-line-1)}
+.sidebar-tabs__btn{flex:1;padding:8px 4px;background:transparent;border:none;border-bottom:2px solid transparent;
+  color:var(--cx-text-2);font-family:inherit;font-size:var(--cx-text-data);font-weight:var(--cx-weight-label);
+  text-transform:uppercase;letter-spacing:.5px;cursor:pointer}
+.sidebar-tabs__btn--active{color:var(--cx-action);border-bottom-color:var(--cx-action)}
+.effect-search{padding:8px 12px;display:flex;align-items:center;gap:6px}
+.effect-search__input{flex:1;width:100%;padding:6px 8px;background:var(--cx-bg-panel);border:1px solid var(--cx-line-2);
+  border-radius:4px;color:var(--cx-text-1);font-family:inherit;font-size:var(--cx-text-label);outline:none}
+.effect-search__input:focus{border-color:var(--cx-action)}
+.effect-search__clear{width:20px;height:20px;flex:none;display:flex;align-items:center;justify-content:center;
+  background:var(--cx-surface-3);border:1px solid var(--cx-line-1);border-radius:var(--cx-radius-control);
+  color:var(--cx-text-2);font-size:11px;cursor:pointer;padding:0}
+.effect-search__clear:hover{background:var(--cx-surface-4);color:var(--cx-text-1)}
+.effect-browser__tabs{display:flex;gap:1px;padding:0 6px 6px;margin-bottom:2px;overflow-x:auto;border-bottom:1px solid var(--cx-line-1)}
+.effect-browser__tab{flex:1 1 auto;padding:3px 5px;background:transparent;border:none;border-radius:var(--cx-radius-control);
+  color:var(--cx-text-2);font-family:inherit;font-size:var(--cx-text-data);cursor:pointer;white-space:nowrap}
+.effect-browser__tab--active{background:var(--cx-bg-raised);color:var(--cx-text-1)}
+.effect-browser__actions{padding-top:8px;padding:8px 12px 8px;display:flex;gap:4px;border-top:1px solid var(--cx-line-1)}
+.effect-browser__action-btn{display:flex;align-items:center;justify-content:center;gap:6px;padding:5px 8px;
+  background:var(--cx-surface-3);border:1px solid var(--cx-line-2);border-radius:var(--cx-radius-control);
+  color:var(--cx-text-2);font-family:inherit;font-size:var(--cx-text-label);cursor:pointer;flex:1}
+.effect-browser__body{flex:1;overflow-y:auto;padding:8px 12px;color:var(--cx-text-3);font-size:var(--cx-text-body)}
+
+/* -- preview column -- */
+.previewcol{flex:1;display:flex;flex-direction:column;min-width:0}
+.preview-canvas{flex:1;display:flex;align-items:center;justify-content:center;background:var(--cx-bg-app);
+  position:relative;min-height:280px;overflow:hidden}
+.preview-canvas__overlay-bar{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;
+  align-items:center;padding:4px;pointer-events:none}
+.preview-canvas__fps{pointer-events:auto;background:rgba(0,0,0,.6);color:var(--cx-action);font-family:var(--cx-font-mono);
+  font-size:var(--cx-text-data);padding:2px 6px;border-radius:3px;line-height:1;font-variant-numeric:tabular-nums}
+.preview-canvas__popout-btn{pointer-events:auto;background:rgba(0,0,0,.6);border:1px solid var(--cx-line-2);
+  color:var(--cx-text-2);font-size:14px;cursor:pointer;padding:2px 6px;border-radius:3px;line-height:1}
+.preview-canvas__placeholder{font-size:var(--cx-text-body);font-weight:var(--cx-weight-body);color:var(--cx-text-3)}
+
+/* -- device chain (Packet D) -- */
+.device-chain{background:var(--cx-bg-panel);display:flex;flex-direction:column;min-height:96px;flex:none}
+.device-chain--has-devices{border-top:1px solid var(--cx-selection)}
+.device-chain__header{display:flex;align-items:center;justify-content:space-between;padding:4px 12px;
+  background:var(--cx-bg-panel);border-bottom:1px solid var(--cx-bg-hover);min-height:24px;flex-shrink:0}
+.device-chain__title{font-size:var(--cx-text-heading);font-weight:var(--cx-weight-heading);color:var(--cx-text-1);
+  text-transform:uppercase;letter-spacing:.8px}
+.device-chain__empty{flex:1;display:flex;align-items:center;justify-content:center;color:var(--cx-text-3);
+  font-size:var(--cx-text-body);font-weight:var(--cx-weight-body);padding:14px}
+
+/* -- timeline -- */
+.timeline{background:var(--cx-bg-panel);border-top:1px solid var(--cx-line-1);flex:none}
+.master-track-header{display:flex;align-items:center;gap:8px;padding:4px 10px;border-bottom:1px solid var(--cx-line-1);background:var(--cx-surface-2)}
+.master-track-header__name{font-size:var(--cx-text-label);font-weight:var(--cx-weight-label);color:var(--cx-text-1)}
+.master-track-header__badge{font-family:var(--cx-font-mono);font-size:var(--cx-text-data);font-weight:700;letter-spacing:1px;color:var(--cx-warn)}
+.master-track-lane{height:76px;border-top:2px solid var(--cx-warn);background:var(--cx-warn-wash);display:flex;
+  align-items:center;justify-content:center;cursor:pointer;padding:0 12px}
+.master-track-lane__label{font-family:var(--cx-font-mono);font-size:var(--cx-text-data);font-weight:var(--cx-weight-data);
+  letter-spacing:.3px;color:var(--cx-text-3);pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.trackrow{display:flex;align-items:center;height:44px;border-top:1px solid var(--cx-line-1);padding:0 10px;gap:8px}
+.trackrow__name{font-size:var(--cx-text-label);color:var(--cx-text-2);width:120px;flex:none}
+.trackrow__lane{flex:1;height:26px;background:var(--cx-surface-0);border-radius:2px;border:1px solid var(--cx-line-1)}
+.ruler{height:18px;border-top:1px solid var(--cx-line-1);background:var(--cx-surface-1);display:flex;align-items:center;
+  padding:0 10px;font-size:var(--cx-text-data);color:var(--cx-text-3);letter-spacing:.06em}
+
+/* -- automation strip (Packet C / OD-6) -- */
+.auto-toolbar{display:flex;align-items:center;gap:8px;padding:4px 8px;background:var(--cx-bg-panel);
+  border-top:1px solid var(--cx-line-1);font-family:var(--cx-font-mono);font-size:var(--cx-text-label);flex-wrap:wrap}
+.auto-toolbar__modes{display:flex;gap:2px}
+.auto-toolbar__mode-btn{background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);color:var(--cx-text-2);
+  font-family:inherit;font-size:var(--cx-text-label);font-weight:700;padding:2px 8px;border-radius:3px;cursor:pointer;min-width:24px}
+.auto-toolbar__mode-btn--active{background:var(--cx-action);color:var(--cx-bg-app);border-color:var(--cx-action)}
+.auto-toolbar__record,.auto-toolbar__curve-ops{display:flex;gap:8px;padding-left:8px;border-left:1px solid var(--cx-line-1)}
+.auto-toolbar__btn{background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);color:var(--cx-text-2);
+  font-family:inherit;font-size:var(--cx-text-label);padding:2px 8px;border-radius:3px;cursor:pointer}
+.auto-toolbar__btn:hover{background:var(--cx-bg-hover);color:var(--cx-text-1)}
+.auto-toolbar__btn--active{background:var(--cx-action);color:var(--cx-bg-app);border-color:var(--cx-action)}
+.auto-toolbar__btn--danger:hover{background:var(--cx-danger-fill);color:#fff;border-color:var(--cx-danger-text)}
+.auto-toolbar__hint{color:var(--cx-text-3);font-size:var(--cx-text-body);font-weight:var(--cx-weight-body)}
+.auto-toolbar--wrap .auto-toolbar__hint{flex-basis:100%;margin-left:0;padding-top:4px;border-top:1px solid var(--cx-line-1)}
+.auto-toolbar__hint kbd{display:inline-block;padding:0 4px;background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);
+  border-radius:3px;font-size:var(--cx-text-data);color:var(--cx-text-1);font-family:inherit}
+
+/* -- statusbar (real classnames: status-bar / status-bar__left / status-bar__right / status-indicator /
+   status-text / uptime / status-bar__metrics / status-bar__metric / status-bar__cursor-tool-chip,
+   global.css:222-330) -- */
+.status-bar{display:flex;align-items:center;justify-content:space-between;padding:0 12px;
+  background:var(--cx-bg-raised);border-top:1px solid var(--cx-bg-hover);height:var(--statusbar-height);flex:none}
+.status-bar__left,.status-bar__right{display:flex;align-items:center;gap:8px}
+.status-indicator{width:8px;height:8px;border-radius:50%}
+.status-text{font-size:var(--cx-text-label);font-weight:var(--cx-weight-label)}
+.uptime{font-size:var(--cx-text-data);color:var(--cx-text-2)}
+.status-bar__metrics{display:flex;align-items:center;gap:8px;margin-left:8px;padding-left:8px;border-left:1px solid var(--cx-line-2)}
+.status-bar__metric{font-size:var(--cx-text-data);font-weight:var(--cx-weight-data);font-variant-numeric:tabular-nums;
+  letter-spacing:.05em;color:var(--cx-text-2)}
+.status-bar__cursor-tool-chip{font-size:var(--cx-text-data);color:var(--cx-text-2)}
+
+/* ==========================================================================
+   SECTION 2 — TYPE SCALE A/B
+   ========================================================================== */
+.scaletoggle{display:flex;gap:0;border:1px solid var(--cx-line-2);border-radius:99px;overflow:hidden;width:max-content;margin:4px 0 16px}
+.scaletoggle button{font-family:var(--cx-font-mono);font-size:11px;padding:6px 16px;background:var(--cx-surface-3);
+  border:none;color:var(--cx-text-2);cursor:pointer}
+.scaletoggle button[aria-pressed="true"]{background:var(--cx-selection-wash);color:#CBBEFF}
+.pickline{font-size:11px;color:var(--cx-text-2);margin:0 0 16px}
+.pickline b{color:var(--cx-automation-active)}
+.scalecols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media (max-width:100%;max-width:900px){.scalecols{grid-template-columns:1fr}}
+.scalecol{border:1px solid var(--cx-line-2);border-radius:8px;overflow:hidden;transition:box-shadow .12s,border-color .12s}
+.scalecol.picked{border-color:var(--cx-automation-active);box-shadow:0 0 0 3px rgba(74,222,128,.14)}
+.scalecol__hd{padding:9px 12px;background:var(--cx-surface-3);border-bottom:1px solid var(--cx-line-2);
+  display:flex;align-items:center;justify-content:space-between}
+.scalecol__hd .name{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
+.scalecol__hd .vals{font-size:9.5px;color:var(--cx-text-3);font-variant-numeric:tabular-nums}
+.scalecol__body{padding:14px;background:var(--cx-surface-2)}
+
+/* device-chain demo column, driven by --demo-* vars per scale */
+.dcdemo .device-chain__title{font-size:var(--demo-heading);font-weight:var(--demo-w-heading)}
+.dcdemo .device-card{background:var(--cx-surface-3);border:1px solid var(--cx-line-2);border-radius:6px;margin-bottom:8px;overflow:hidden}
+.dcdemo .device-card__header{display:flex;align-items:center;justify-content:space-between;padding:4px 8px;
+  border-bottom:1px solid var(--cx-bg-hover);background:var(--cx-bg-raised);gap:4px}
+.dcdemo .device-card__name{font-size:var(--demo-label);font-weight:var(--demo-w-label);color:var(--cx-text-1)}
+.dcdemo .device-card__toggle{width:24px;height:16px;background:var(--cx-action);border:none;border-radius:2px;
+  color:var(--cx-surface-0);font-size:var(--demo-data);font-weight:700}
+.dcdemo .device-card__params{padding:6px 8px;display:flex;flex-wrap:wrap;gap:8px}
+.dcdemo .device-card__param-label{font-size:var(--demo-data);font-weight:var(--demo-w-data);color:var(--cx-text-3);text-transform:uppercase;letter-spacing:.5px}
+.dcdemo .device-card__param-value{font-size:var(--demo-data);font-weight:var(--demo-w-data);color:var(--cx-text-1);font-variant-numeric:tabular-nums}
+.dcdemo .device-card__mix{padding:4px 8px;border-top:1px solid var(--cx-bg-hover);display:flex;align-items:center;gap:6px}
+.dcdemo .device-card__mix-label{font-size:var(--demo-data);font-weight:var(--demo-w-data);color:var(--cx-text-3);text-transform:uppercase;letter-spacing:.5px}
+.dcdemo .device-card__mix-value{font-size:var(--demo-data);font-weight:var(--demo-w-data);color:var(--cx-text-3);font-variant-numeric:tabular-nums}
+.dcdemo .bodyline{font-size:var(--demo-body);font-weight:var(--demo-w-body);color:var(--cx-text-2);margin-top:10px}
+
+.scale-a{--demo-data:11px;--demo-w-data:450;--demo-label:12px;--demo-w-label:600;--demo-body:12.5px;--demo-w-body:450;--demo-heading:14px;--demo-w-heading:650}
+.scale-b{--demo-data:11px;--demo-w-data:450;--demo-label:12px;--demo-w-label:600;--demo-body:13px;--demo-w-body:450;--demo-heading:15px;--demo-w-heading:650}
+
+/* ==========================================================================
+   SECTION 3 — ICON SEMANTIC AUDIT
+   ========================================================================== */
+.icongrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.iconcard{background:var(--cx-surface-3);border:1px solid var(--cx-line-2);border-radius:6px;padding:12px;display:flex;flex-direction:column;gap:8px}
+.iconcard .sizes{display:flex;align-items:center;gap:16px}
+.iconcard .swatch{background:var(--cx-surface-0);border:1px solid var(--cx-line-1);border-radius:4px;display:flex;align-items:center;justify-content:center;color:var(--cx-text-1)}
+.iconcard .swatch.s16{width:32px;height:32px}
+.iconcard .swatch.s32{width:48px;height:48px}
+.iconcard .swatch .szlabel{position:absolute}
+.iconcard .meta{display:flex;flex-direction:column;gap:2px}
+.iconcard .toolname{font-size:12px;font-weight:600;color:var(--cx-text-1)}
+.iconcard .idname{font-size:9.5px;color:var(--cx-text-3);font-family:var(--cx-font-mono)}
+.iconcard .hotkey{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--cx-text-2)}
+.iconcard .fn{font-size:10.5px;color:var(--cx-text-2);line-height:1.4;min-height:2.8em}
+.iconcard.orphan{border-style:dashed;border-color:var(--cx-amber)}
+.iconcard .orphflag{font-size:9px;color:var(--cx-amber);text-transform:uppercase;letter-spacing:.08em}
+.verdictrow{display:flex;gap:0;border:1px solid var(--cx-line-2);border-radius:5px;overflow:hidden;margin-top:2px}
+.verdictrow label{flex:1;display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;padding:5px 4px;
+  cursor:pointer;background:var(--cx-surface-2);color:var(--cx-text-2)}
+.verdictrow label:first-child{border-right:1px solid var(--cx-line-2)}
+.verdictrow input{accent-color:var(--cx-automation-active)}
+.verdictrow input:checked + span{color:var(--cx-text-1)}
+.iconlegend{display:flex;gap:16px;font-size:10px;color:var(--cx-text-3);margin-bottom:14px;flex-wrap:wrap}
+.iconlegend span{display:inline-flex;align-items:center;gap:5px}
+.iconlegend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* ==========================================================================
+   SECTION 4 — EMPTY-STATE ANATOMY
+   ========================================================================== */
+.anatomy{display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.anatomy .stagebox{background:var(--cx-surface-0);border:1px solid var(--cx-line-1);border-radius:6px;
+  width:340px;height:150px;display:flex;align-items:center;justify-content:center;position:relative}
+.anatomy .stagebox .txt{font-size:12.5px;font-weight:450;color:var(--cx-text-3)}
+.anatomy .callrow{display:flex;flex-direction:column;gap:8px;font-size:10.5px;color:var(--cx-text-2);max-width:38ch}
+.anatomy .callrow b{color:var(--cx-text-1)}
+.anatomy .arrow{position:absolute;font-size:9px;color:var(--callout);white-space:nowrap}
+
+/* ---- callout legend table ---- */
+table.calltable{width:100%;border-collapse:collapse;font-size:10.5px}
+table.calltable th{text-align:left;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--cx-text-3);padding:6px 8px;border-bottom:1px solid var(--cx-line-1)}
+table.calltable td{padding:6px 8px;border-bottom:1px solid var(--cx-line-1);color:var(--cx-text-2);vertical-align:top}
+table.calltable td:first-child{width:26px}
+table.calltable td.pk{color:var(--cx-text-1);white-space:nowrap;font-size:9.5px}
+table.calltable tr:last-child td{border-bottom:none}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* READABILITY OVERRIDE 2026-07-10 (Fable review: annotation layer was 9-10.5px dim — unreadable; depicted app UI untouched) */
+/* zoom removed — caused h-overflow; per-class bumps carry readability */
+.eyebrow{font-size:12px}.tag{font-size:11px}.lbl{font-size:11.5px}
+.hint{font-size:12.5px;color:var(--cx-text-2,#B8BFCC)}
+.ba-note{font-size:12.5px;color:var(--cx-text-2,#B8BFCC);max-width:52ch}
+.vals{font-size:12px}.idname{font-size:12px}.hotkey{font-size:12px}
+.fn{font-size:13px;color:var(--cx-text-1,#E6E9F2)}.verdicts{font-size:12px}.verdicts>div{white-space:normal;overflow-wrap:anywhere}.eyebrow{white-space:normal}.stage,.baframe{overflow-x:auto}.hotkey{white-space:normal}.idname{overflow-wrap:anywhere}[class*="grid"]>*,.verdicts>*{min-width:0}
+.wrap{width:auto;max-width:1650px;box-sizing:border-box}
+.frame-outer,.baframe,.stage,.icongrid,.calltable,.scalecols,.anatomy{overflow-x:auto;max-width:100%}
+.scalecols{display:grid;grid-template-columns:1fr;gap:24px}@media(min-width:1500px){.scalecols{grid-template-columns:1fr 1fr}}/* depicted-frame internals render ~8% over true spec from the readability bumps — exact values are normative in design-spec.md §1-2 */
+p{font-size:14px;line-height:1.65;max-width:80ch}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="eyebrow">Creatrix · ui-foundation · full-frame mock · v12 bar · 2026-07-09</div>
+  <h1>The frame the other 9 changes mount into — <b>fixed, at the v12 bar</b>.</h1>
+  <p class="thesis">Every surface below is a REAL component from <code>frontend/src/renderer</code> —
+    class names, token names, and the 14 <code>tool-icons.tsx</code> glyphs are reused verbatim, not
+    redrawn. This mock renders packets <b>A–G</b>'s post-fix state (proposal.md, plan.md) plus two
+    T1-mandated deliverables that weren't in the original plan: a visual <b>A/B type-scale picker</b>
+    (OD-1, "no idea → decide visually") and an <b>icon semantic audit</b> (OD-3, "is it even the right
+    ICON THOUGH???"). Tool-rail/badge <em>dimensions</em> are locked; icon <em>choices</em> and the
+    type scale are not — both are open for a click-through verdict at this review.</p>
+  <div class="verdicts">
+    <div><b>OD-1 type</b> VISUAL-PENDING — §2 below, pick by eye</div>
+    <div><b>OD-2 case</b> LOCKED — UPPERCASE kept, size/weight/color only</div>
+    <div><b>OD-3 rail</b> dims LOCKED · icons VISUAL-PENDING — §3 below</div>
+    <div><b>OD-4 empty</b> OVERRIDE — minimal hint text only, NO CTA</div>
+    <div><b>OD-5 overlay</b> PROVISIONAL — mid-roadmap checkpoint revisits</div>
+    <div><b>OD-6 automation</b> PROVISIONAL — mid-roadmap checkpoint revisits</div>
+    <div><b>OD-7 control-h</b> PROVISIONAL — mid-roadmap checkpoint revisits</div>
+    <div><b>Standing</b> mono-identity only · real-inventory-only · UAT-as-micro-unit</div>
+  </div>
+</header>
+
+<h2>1 — Full frame, after-state <span class="tag locked">Packets A–G</span></h2>
+<p class="sub">1600px shell, scroll horizontally to see the whole row. Numbered pins map to the packet
+  letter that owns each fix (legend at the bottom of this page). A BEFORE crop sits beside every fixed
+  symptom — those crops intentionally render the <em>actual shipped bug values</em> (7px badges, 8px
+  labels, unstyled OS-chrome buttons) so the comparison is honest, not a straw man.</p>
+
+<div class="frame-outer">
+<div class="frame-shell">
+
+  <!-- transport bar -->
+  <div class="app__transport-bar">
+    <div class="app__transport-controls">
+      <button class="app__transport-btn app__transport-btn--active">▶</button>
+      <button class="app__transport-btn">■</button>
+      <button class="app__transport-btn">↻</button>
+      <span class="pin" tabindex="0" style="margin-left:2px">1<span class="pintip">All 3 native-chrome control types (button/number-input/select) now share one <b>--cx-control-h: 22px</b> — Packet G · OD-7</span></span>
+      <button class="app__transport-btn app__transport-btn--active">S</button>
+      <button class="app__transport-btn">Q</button>
+    </div>
+    <span class="app__transport-timecode">00:04.2</span>
+    <div class="app__transport-bpm"><label>BPM</label><input type="text" value="120" readonly></div>
+    <div class="app__transport-quant">
+      <select class="app__transport-select"><option>1/8</option></select>
+    </div>
+  </div>
+
+  <div class="baframe" style="padding:0 12px 12px">
+    <div class="bacrop before">
+      <div class="lbl">before — symptom 8</div>
+      <div class="stage" style="gap:6px">
+        <button style="padding:2px 8px;font-size:12px;background:transparent;border:1px solid var(--cx-line-2);color:var(--cx-text-1);border-radius:3px;font-family:var(--cx-font-mono)">▶</button>
+        <input style="width:48px;padding:1px 4px;font-size:11px;background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);color:var(--cx-text-1);border-radius:2px;font-family:var(--cx-font-mono)" value="120">
+        <select style="padding:1px 4px;font-size:11px;background:var(--cx-bg-raised);border:1px solid var(--cx-line-2);color:var(--cx-text-1);border-radius:2px;font-family:var(--cx-font-mono)"><option>1/8</option></select>
+      </div>
+    </div>
+    <p class="ba-note">3 different native-chrome heights (no explicit <code>height</code> on button/input/select) — visibly staggered baseline, confirmed <code>global.css:54-117</code>.</p>
+  </div>
+
+  <!-- main row -->
+  <div class="mainrow">
+
+    <!-- tool rail -->
+    <div style="position:relative;flex:none">
+      <div class="tool-rail" id="railMount"><!-- JS-populated: real 14-icon set, grouped TRNS/EDIT/MASK/MISC --></div>
+      <span class="pin" tabindex="0" style="position:absolute;top:2px;left:14px">2<span class="pintip">Icon 18→16px, badge to 11px floor + top-right (was bottom-right, 7px), gaps 3→4px / 4→8px — Packet B · OD-3 (dims LOCKED)</span></span>
+    </div>
+
+    <!-- browser column -->
+    <div class="browsercol">
+      <div class="sidebar-tabs">
+        <button class="sidebar-tabs__btn sidebar-tabs__btn--active">Effects</button>
+        <button class="sidebar-tabs__btn">Presets</button>
+        <button class="sidebar-tabs__btn">Instruments</button>
+      </div>
+      <div class="effect-search">
+        <input class="effect-search__input" placeholder="Search..." readonly value="mosh">
+        <button class="effect-search__clear" aria-label="Clear search">×</button>
+        <span class="pin" tabindex="0">3<span class="pintip">Styled square icon-button — matches <code>.preview-canvas__popout-btn</code>'s existing convention — Packet F</span></span>
+      </div>
+      <div class="effect-browser__tabs">
+        <button class="effect-browser__tab effect-browser__tab--active">fx</button>
+        <button class="effect-browser__tab">op</button>
+        <button class="effect-browser__tab">composite</button>
+        <button class="effect-browser__tab">tool</button>
+        <button class="effect-browser__tab">instruments</button>
+      </div>
+      <div class="effect-browser__body">fx.datamosh<br>fx.grain_field<br>fx.channelshift<br>fx.scanlines</div>
+      <div class="effect-browser__actions">
+        <button class="effect-browser__action-btn">+ Add Text Track</button>
+        <span class="pin" tabindex="0">4<span class="pintip">≥8px vertical gap from the tab strip above (was 2px margin, 0 top-padding) — Packet F</span></span>
+      </div>
+    </div>
+
+    <div class="baframe" style="padding:8px 0 0 8px;flex-direction:column">
+      <div class="bacrop before" style="width:280px">
+        <div class="lbl">before — symptom 4</div>
+        <div class="stage" style="flex-direction:column;align-items:stretch;gap:0;padding:6px">
+          <div style="display:flex;gap:4px">
+            <input style="flex:1;padding:6px 8px;font-size:12px;background:var(--cx-bg-panel);border:1px solid var(--cx-line-2);border-radius:4px;color:var(--cx-text-1)" value="mosh">
+            <button style="all:revert;font:inherit">×</button>
+          </div>
+          <div style="margin-top:2px;font-size:9px;color:var(--cx-text-3)">tabs strip ↓ 2px gap, 0 top-padding</div>
+          <div style="height:1px;background:var(--cx-line-1);margin:2px 0"></div>
+          <button style="padding:5px 8px;background:var(--cx-surface-3);border:1px solid var(--cx-line-2);font-size:11px;color:var(--cx-text-2);border-radius:2px;margin-top:0">+ Add Text Track</button>
+        </div>
+      </div>
+      <p class="ba-note">Raw <code>×</code> = unstyled OS button chrome (zero CSS matches, grepped clean) + tabs/actions fused with no separation — <code>EffectBrowser.tsx:465-479</code>, <code>global.css:579-589/774-778</code>.</p>
+    </div>
+
+    <!-- preview column -->
+    <div class="previewcol">
+      <div class="preview-canvas">
+        <div class="preview-canvas__overlay-bar">
+          <span class="preview-canvas__fps">29.9fps</span>
+          <span class="pin" tabindex="0">5<span class="pintip">FPS chip + pop-out button now DOM children of ONE anchored <code>.preview-canvas__overlay-bar</code>, not 2 independent <code>position:absolute</code> siblings — Packet G · OD-5</span></span>
+          <button class="preview-canvas__popout-btn">⤢</button>
+        </div>
+        <div class="preview-canvas__placeholder">Drag a clip here, or ⌘I to import.</div>
+        <span class="pin" tabindex="0" style="position:absolute;bottom:8px;right:8px">6<span class="pintip"><b>OD-4 OVERRIDE:</b> minimal hint text only, properly toned/sized — NO CTA button (quieter than the drafter's heading+body+button default) — Packet D</span></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="baframe" style="padding:0 12px 12px">
+    <div class="bacrop before">
+      <div class="lbl">before — symptoms 5 &amp; 6</div>
+      <div class="stage" style="position:relative;width:220px;height:80px">
+        <span style="position:absolute;top:4px;left:4px;background:rgba(0,0,0,.6);color:#C8F321;font-size:11px;padding:2px 6px;border-radius:3px">29.9fps</span>
+        <span style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.6);border:1px solid var(--cx-line-2);color:var(--cx-text-2);font-size:14px;padding:2px 6px;border-radius:3px">⤢</span>
+        <span style="font-size:14px;color:var(--cx-text-3)">No video loaded</span>
+      </div>
+    </div>
+    <p class="ba-note">2 independent <code>position:absolute</code> chips, no shared anchor + a single bare text node, no styling structure — <code>PreviewCanvas.tsx:174-198</code>, <code>global.css:1141-1145</code>.</p>
+  </div>
+
+  <!-- device chain -->
+  <div class="device-chain">
+    <div class="device-chain__header">
+      <span class="device-chain__title">Device Chain</span>
+      <span class="pin" tabindex="0">7<span class="pintip"><b>OD-4 OVERRIDE:</b> minimal hint text only, no CTA — Packet D</span></span>
+    </div>
+    <div class="device-chain__empty">No effects yet — browse the EFFECTS tab to add one.</div>
+  </div>
+  <div class="baframe" style="padding:0 12px 12px">
+    <div class="bacrop before">
+      <div class="lbl">before — symptom 5b</div>
+      <div class="stage" style="width:260px;height:60px;border-top-color:var(--cx-mod);border-top-width:1px;flex-direction:column;gap:4px">
+        <span style="font-size:11px;color:var(--cx-text-3);text-transform:uppercase">Device Chain</span>
+        <span style="font-size:12px;color:var(--cx-text-3)">Add effects from the browser (click or drag)</span>
+      </div>
+    </div>
+    <p class="ba-note">Stray full-width <code>border-top:1px solid var(--cx-selection)</code> (violet) fires unconditionally, even when the chain has 0 devices — <code>device-chain.css:3-12</code>. <span class="pin" tabindex="0" style="margin-left:2px">8<span class="pintip">Scoped: border-top now fires only when <code>chain.length &gt; 0</code> — this panel is empty, so it's absent above — Packet D</span></span></p>
+  </div>
+
+  <!-- timeline -->
+  <div class="timeline">
+    <div class="master-track-header">
+      <span class="master-track-header__name">Master</span>
+      <span class="master-track-header__badge">MASTER</span>
+    </div>
+    <div class="master-track-lane" style="max-width:340px">
+      <span class="master-track-lane__label">Master bus — effects &amp; automation only, no clips</span>
+      <span class="pin" tabindex="0">9<span class="pintip"><code>white-space:nowrap;overflow:hidden;text-overflow:ellipsis</code> — the full sentence never drops a mid-word glyph at narrow lane widths anymore — Packet E</span></span>
+    </div>
+    <div class="trackrow"><span class="trackrow__name">Video 1</span><div class="trackrow__lane"></div></div>
+    <div class="trackrow"><span class="trackrow__name">Video 2</span><div class="trackrow__lane"></div></div>
+    <div class="ruler">00:00 · 00:05 · 00:10 · 00:15 <span class="pin" tabindex="0" style="margin-left:8px">10<span class="pintip"><code>MasterTrack.tsx</code>'s local <code>TRACK_HEIGHT</code> const (was 60) now matches <code>timeline.css</code>'s <code>.master-track-lane{height:76px}</code> — drift closed — Packet E</span></span></div>
+  </div>
+  <div class="baframe" style="padding:0 12px 12px">
+    <div class="bacrop before">
+      <div class="lbl">before — symptom 1</div>
+      <div class="stage" style="width:200px;height:50px;border-top:2px solid var(--cx-warn);background:var(--cx-warn-wash)">
+        <span style="font-size:10px;color:var(--cx-text-3);letter-spacing:.3px">Master bus — effects &amp;</span>
+      </div>
+    </div>
+    <p class="ba-note">No <code>white-space</code>/<code>text-overflow</code> rule at all — the sentence silently drops mid-word at narrow lane widths. Plus <code>TRACK_HEIGHT=60</code> vs. CSS <code>height:76px</code> — automation overlay and visible lane disagree — <code>MasterTrack.tsx:200/221-223</code>, <code>timeline.css:1354-1375</code>.</p>
+  </div>
+
+  <!-- automation strip -->
+  <div class="auto-toolbar">
+    <div class="auto-toolbar__modes">
+      <button class="auto-toolbar__mode-btn auto-toolbar__mode-btn--active">R</button>
+      <button class="auto-toolbar__mode-btn">L</button>
+      <button class="auto-toolbar__mode-btn">T</button>
+      <button class="auto-toolbar__mode-btn">D</button>
+    </div>
+    <div class="auto-toolbar__record">
+      <button class="auto-toolbar__btn">Overdub</button>
+      <button class="auto-toolbar__btn">+ Lane</button>
+      <button class="auto-toolbar__btn">+ Trigger</button>
+      <button class="auto-toolbar__btn">+ Mod</button>
+    </div>
+    <span class="pin" tabindex="0">11<span class="pintip">9 flat sibling buttons now wrapped into <b>Mode | Record | Curve ops</b>, each with a <code>border-left</code> divider (reuses the tool-rail's own group-divider convention) — Packet C · OD-6</span></span>
+    <div class="auto-toolbar__curve-ops">
+      <button class="auto-toolbar__btn">Flatten</button>
+      <button class="auto-toolbar__btn">Ramp</button>
+      <button class="auto-toolbar__btn">Shape</button>
+      <button class="auto-toolbar__btn">Simplify</button>
+      <button class="auto-toolbar__btn auto-toolbar__btn--danger">Clear</button>
+    </div>
+    <span class="auto-toolbar__hint">Click <kbd>R</kbd> on a track to arm</span>
+  </div>
+  <div class="baframe" style="padding:0 12px 14px">
+    <div class="bacrop before">
+      <div class="lbl">before — symptom 2</div>
+      <div class="stage" style="width:520px;overflow:hidden;justify-content:flex-start;padding:6px 8px">
+        <span style="font-size:10px;color:var(--cx-text-2);white-space:nowrap">R L T D&nbsp; Overdub&nbsp; +Lane&nbsp; +Trigger&nbsp; +Mod&nbsp; Flatten&nbsp; Ramp&nbsp; Shape&nbsp; Simplify&nbsp; Clear&nbsp; Click R on a track to a...</span>
+      </div>
+    </div>
+    <p class="ba-note">13 flat siblings, no <code>flex-wrap</code>, hint text on <code>margin-left:auto</code> — runs off-viewport the moment the row fills width — <code>AutomationToolbar.tsx:410-538</code>, <code>automation.css:33-40/108-121</code>.</p>
+    <div class="bacrop after" style="align-self:flex-start">
+      <div class="lbl">after — narrow width</div>
+      <div class="stage" style="width:0"></div>
+    </div>
+  </div>
+  <div style="padding:0 12px 12px">
+    <div class="auto-toolbar auto-toolbar--wrap" style="max-width:360px;border-radius:6px;border:1px solid var(--cx-line-1)">
+      <div class="auto-toolbar__modes">
+        <button class="auto-toolbar__mode-btn auto-toolbar__mode-btn--active">R</button><button class="auto-toolbar__mode-btn">L</button><button class="auto-toolbar__mode-btn">T</button><button class="auto-toolbar__mode-btn">D</button>
+      </div>
+      <div class="auto-toolbar__record"><button class="auto-toolbar__btn">Overdub</button><button class="auto-toolbar__btn">+ Lane</button></div>
+      <div class="auto-toolbar__curve-ops"><button class="auto-toolbar__btn">Flatten</button><button class="auto-toolbar__btn">Ramp</button></div>
+      <span class="auto-toolbar__hint">Click <kbd>R</kbd> on a track to arm — wraps to its own row, never clipped</span>
+    </div>
+    <p class="ba-note" style="margin-top:6px">↑ Same strip at 360px: <code>flex-wrap:wrap</code> + hint moved off <code>margin-left:auto</code> onto its own row on wrap. <span class="pin" tabindex="0">12<span class="pintip">Hint/armed text never runs off-viewport at any width — Packet C</span></span></p>
+  </div>
+
+  <!-- statusbar (App.tsx:4304-4335 — status-bar / status-indicator / status-text / uptime /
+       status-bar__metrics / status-bar__cursor-tool-chip, all real classnames) -->
+  <div class="status-bar" style="position:relative">
+    <div class="status-bar__left">
+      <span class="status-indicator" style="background:#4ade80"></span>
+      <span class="status-text">Engine: Connected</span>
+      <span class="uptime">Uptime: 812s</span>
+      <span class="status-bar__metrics">
+        <span class="status-bar__metric">1080p</span>
+        <span class="status-bar__metric">30fps</span>
+        <span class="status-bar__metric" style="color:#4ade80">18ms</span>
+      </span>
+    </div>
+    <div class="status-bar__right">
+      <span class="status-bar__cursor-tool-chip">tool: select</span>
+    </div>
+    <span class="pin" tabindex="0" style="position:absolute;right:2px;top:-8px">13<span class="pintip">Shell-wide: <code>--cx-text-heading</code> + <code>--cx-weight-label:600</code> now applied to every touched surface's headers/labels — was one flat size everywhere despite 3 unused tokens on paper — Packet A</span></span>
+  </div>
+
+</div>
+</div>
+
+<h2>2 — Type scale A/B <span class="tag pending">OD-1 · VISUAL-PENDING</span></h2>
+<p class="sub">Same real column (<code>DeviceChain</code> header + 2 <code>DeviceCard</code>s, exact class
+  names from <code>device-chain.css</code>) rendered twice, once per candidate scale. Data (11px/450)
+  and label (12px/600) are identical in both candidates — only <b>body</b> and <b>heading</b> differ.
+  Click a scale to mark your pick; both stay visible for direct eye comparison either way.
+  <span class="tag" style="border:1px dashed var(--cx-text-3);color:var(--cx-text-3)">param names below are illustrative — this demo exercises DeviceCard chrome/typography, not a verified per-effect param registry</span></p>
+<div class="scaletoggle" role="radiogroup" aria-label="pick a type scale">
+  <button id="pickA" aria-pressed="false">Scale A — 11 / 12 / 12.5 / 14</button>
+  <button id="pickB" aria-pressed="false">Scale B — 11 / 12 / 13 / 15</button>
+</div>
+<p class="pickline" id="pickLine">No pick recorded yet — click a scale above to mark it (this box records the choice for the mock review, no data leaves this page).</p>
+<div class="scalecols">
+  <div class="scalecol" id="colA">
+    <div class="scalecol__hd"><span class="name">Scale A (provisional default)</span><span class="vals">data 11/450 · label 12/600 · body 12.5/450 · heading 14/650</span></div>
+    <div class="scalecol__body scale-a dcdemo" id="demoA"></div>
+  </div>
+  <div class="scalecol" id="colB">
+    <div class="scalecol__hd"><span class="name">Scale B (alternate)</span><span class="vals">data 11/450 · label 12/600 · body 13/450 · heading 15/650</span></div>
+    <div class="scalecol__body scale-b dcdemo" id="demoB"></div>
+  </div>
+</div>
+
+<h2>3 — Icon semantic audit <span class="tag pending">OD-3 · icons VISUAL-PENDING (dims LOCKED)</span></h2>
+<p class="sub">All 14 Block glyphs, extracted VERBATIM from <code>frontend/src/renderer/assets/tool-icons.tsx</code>
+  (same <code>&lt;svg viewBox="0 0 24 24" stroke-width="2.7" stroke-linecap="square" stroke-linejoin="miter"&gt;</code>
+  wrapper, same path data — rendered here by the identical <code>ICON_BODY</code> lookup, not redrawn).
+  11 of 14 are currently wired to a rail tool (<code>EffectBrowser.tsx</code>'s <code>TOOL_ICON</code>
+  map); 3 (<code>text</code>, <code>hand</code>, <code>zoom</code>) exist in the source file but aren't
+  wired to any <code>CursorTool</code> today — flagged below, not silently included as "in use."
+  Separately: the MISC group's 3 tools (Marker/Loop In/Loop Out) have <b>no</b> Block glyph at all —
+  they render a 2-letter fallback label in the live rail (visible in §1 above), which is its own open
+  question, not part of the 14. Ground-truth quirk found extracting this audit: <code>ToolRail.tsx:116</code>'s
+  fallback is <code>label.slice(0,2).toUpperCase()</code> — "Loop In" and "Loop Out" both reduce to
+  <b>"LO"</b>, so those two buttons render an identical fallback glyph today (distinguishable only by
+  their <code>title</code> tooltip). Not fixed by this change (Packet B doesn't touch the fallback
+  logic) — flagged here since the audit surfaced it.</p>
+<div class="iconlegend">
+  <span><i style="background:var(--cx-surface-3);border:1px solid var(--cx-line-2)"></i>wired to a rail tool</span>
+  <span><i style="background:var(--cx-surface-3);border:1px dashed var(--cx-amber)"></i>orphan glyph — no CursorTool mapped today</span>
+</div>
+<div class="icongrid" id="iconGrid"><!-- JS-populated: 14 cards --></div>
+
+<h2>4 — Empty-state anatomy <span class="tag override">OD-4 · OVERRIDE — minimal hint, no CTA</span></h2>
+<p class="sub">This overrides plan.md Packet D's drafted default (heading + body + CTA button) — the user's
+  T1 verdict is quieter: one properly-styled hint line, nothing else. Applies identically to the preview
+  canvas and device-chain empty states in §1 above.</p>
+<div class="anatomy">
+  <div class="bacrop before" style="flex:none">
+    <div class="lbl">before</div>
+    <div class="stagebox"><span style="font-size:14px;color:var(--cx-text-3)">No video loaded</span></div>
+  </div>
+  <div class="bacrop after" style="flex:none">
+    <div class="lbl">after — OD-4 override</div>
+    <div class="stagebox"><span class="txt">Drag a clip here, or ⌘I to import.</span></div>
+  </div>
+  <div class="callrow">
+    <span><b>Token:</b> <code>--cx-text-body</code> (12.5px / weight 450) — one tier below heading, never bumped to heading since there's no heading line at all in the override.</span>
+    <span><b>Color:</b> <code>--cx-text-3</code> — the hint tier, never <code>--cx-text-1</code> (that would read as an active/selected label, not ambient guidance).</span>
+    <span><b>Placement:</b> centered in the panel, single line, no icon, no button, no border.</span>
+    <span><b>What's explicitly absent:</b> no heading line, no CTA button, no icon glyph — the drafter's richer 3-part pattern (matching Timeline's existing hint+badge+2-buttons empty state) was considered and rejected by the user as too loud for this pass.</span>
+  </div>
+</div>
+
+<h2>Callout legend</h2>
+<div class="panelbox">
+  <table class="calltable">
+    <tr><th></th><th>Fix</th><th>Packet</th></tr>
+    <tr><td><span class="pin">1</span></td><td>Transport controls share one <code>--cx-control-h: 22px</code> (button/input/select)</td><td class="pk">G · OD-7</td></tr>
+    <tr><td><span class="pin">2</span></td><td>Tool-rail icon 18→16px, badge to 11px floor + top-right, gaps 3/4→4/8px</td><td class="pk">B · OD-3</td></tr>
+    <tr><td><span class="pin">3</span></td><td>Search-clear button styled (was raw OS chrome, zero CSS matched it)</td><td class="pk">F</td></tr>
+    <tr><td><span class="pin">4</span></td><td>Category tabs / "+ Add Text Track" separated by ≥8px</td><td class="pk">F</td></tr>
+    <tr><td><span class="pin">5</span></td><td>FPS chip + pop-out button unified into one anchored <code>.preview-canvas__overlay-bar</code></td><td class="pk">G · OD-5</td></tr>
+    <tr><td><span class="pin">6</span></td><td>Preview empty state: minimal hint text only, no CTA</td><td class="pk">D · OD-4 override</td></tr>
+    <tr><td><span class="pin">7</span></td><td>Device-chain empty state: minimal hint text only, no CTA</td><td class="pk">D · OD-4 override</td></tr>
+    <tr><td><span class="pin">8</span></td><td>Stray purple <code>border-top</code> scoped to fire only when chain has ≥1 device</td><td class="pk">D</td></tr>
+    <tr><td><span class="pin">9</span></td><td>Master-bus label: ellipsis/nowrap, never clips mid-word</td><td class="pk">E</td></tr>
+    <tr><td><span class="pin">10</span></td><td><code>TRACK_HEIGHT</code> const (60) reconciled with CSS <code>height</code> (76px)</td><td class="pk">E</td></tr>
+    <tr><td><span class="pin">11</span></td><td>13 automation buttons grouped into Mode / Record / Curve-ops with dividers</td><td class="pk">C · OD-6</td></tr>
+    <tr><td><span class="pin">12</span></td><td>Hint/armed text off <code>margin-left:auto</code>; own row when the strip wraps</td><td class="pk">C · OD-6</td></tr>
+    <tr><td><span class="pin">13</span></td><td>Type tiers (data/label/body/heading) applied shell-wide, replacing one flat size everywhere</td><td class="pk">A · OD-1/2</td></tr>
+    <tr><td><span class="pin">14</span></td><td>Per-icon keep/rework verdict — icon <em>choices</em> not locked, only rail dimensions are</td><td class="pk">B · OD-3</td></tr>
+  </table>
+</div>
+
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ---------------------------------------------------------------------
+ * Icon bodies extracted VERBATIM from
+ * frontend/src/renderer/assets/tool-icons.tsx (ICON_BODY, lines 32-107).
+ * Same key order as tool-icons.tsx's TOOL_NAMES export. Do not redraw —
+ * any visual change to a glyph happens in the source file, not here.
+ * ------------------------------------------------------------------- */
+var ICON_BODY = {
+  transform: '<rect x="6.5" y="6.5" width="11" height="11"/>'
+    + '<rect x="4.5" y="4.5" width="4" height="4" fill="currentColor" stroke="none"/>'
+    + '<rect x="15.5" y="4.5" width="4" height="4" fill="currentColor" stroke="none"/>'
+    + '<rect x="4.5" y="15.5" width="4" height="4" fill="currentColor" stroke="none"/>'
+    + '<rect x="15.5" y="15.5" width="4" height="4" fill="currentColor" stroke="none"/>'
+    + '<circle cx="12" cy="2.8" r="1.3"/>',
+  text: '<path d="M6 6.5h12M6 6.5v2.5M18 6.5v2.5M12 6.5v12M9.5 18.5h5"/>',
+  razor: '<path d="M4.5 15.5L14 6l4 4-9.5 9.5H4.5v-4z" fill="currentColor" stroke="none"/>'
+    + '<path d="M12.5 7.5l4 4"/>',
+  slip: '<path d="M5.5 5v14M18.5 5v14"/>'
+    + '<path d="M11.5 12H8.5M10 9.8L7.8 12l2.2 2.2"/>'
+    + '<path d="M12.5 12h3M14 9.8l2.2 2.2-2.2 2.2"/>',
+  slide: '<path d="M4 6.5h16M4 17.5h16"/>'
+    + '<rect x="9" y="9.5" width="6" height="5" fill="currentColor" stroke="none"/>'
+    + '<path d="M5 12h2.2M16.8 12H19"/>',
+  rippledel: '<path d="M12.5 6l-6 6 6 6M6.5 12h8"/><path d="M18.5 5.5v13"/>',
+  marqrect: '<rect x="5" y="6" width="14" height="12" stroke-dasharray="3 2.4"/>',
+  marqellipse: '<ellipse cx="12" cy="12" rx="7.2" ry="6" stroke-dasharray="3 2.4"/>',
+  lasso: '<path d="M12 4.5c4.7 0 8.5 2.2 8.5 5s-3.8 5-8.5 5c-1.2 0-2.3-.14-3.3-.4M6.2 13.2C4.5 12.3 3.5 11 3.5 9.5c0-2.8 3.8-5 8.5-5"/>'
+    + '<path d="M8.7 14.1c-1.6 1.5-1.6 3.7-.2 5.4"/>',
+  polylasso: '<path d="M12 4l7.5 3.5-1.8 7-7.2 3-5.5-5.5L7.5 6z"/>'
+    + '<path d="M10 17.5c-1.5 1.2-1.7 2.8-.7 4"/>',
+  wand: '<path d="M4.5 19.5L14 10"/>'
+    + '<path d="M13 8l2.6-1 1-2.6 1 2.6 2.6 1-2.6 1-1 2.6-1-2.6z" fill="currentColor" stroke="none"/>'
+    + '<path d="M19.5 13.5v3M18 15h3"/>',
+  keypicker: '<path d="M12.5 8.5l3 3L7.5 19.5H4.5v-3z"/>'
+    + '<path d="M14 4.5L19.5 10l-2.6 2.6-5.5-5.5z" fill="currentColor" stroke="none"/>',
+  hand: '<path d="M17.5 11V6.5a1.8 1.8 0 00-3.6 0V10M13.9 9.5V4.8a1.8 1.8 0 00-3.6 0V10M10.3 10.3V6.3a1.8 1.8 0 00-3.6 0v7.2"/>'
+    + '<path d="M17.5 8.3a1.8 1.8 0 013.6 0v5.2c0 3.9-2.6 6.9-6.6 6.9h-1.6c-2.4 0-3.9-.8-5.2-2.2l-3-3.4a1.7 1.7 0 012.5-2.3l1.5 1.4"/>',
+  zoom: '<circle cx="11" cy="11" r="6"/><path d="M15.4 15.4L20 20M8.8 11h4.4M11 8.8v4.4"/>'
+};
+var TOOL_NAMES = ['transform','text','razor','slip','slide','rippledel','marqrect','marqellipse','lasso','polylasso','wand','keypicker','hand','zoom'];
+
+function iconSvg(name, size){
+  return '<svg viewBox="0 0 24 24" width="'+size+'" height="'+size+'" fill="none" stroke="currentColor" '
+    + 'stroke-width="2.7" stroke-linecap="square" stroke-linejoin="miter" aria-hidden="true">'
+    + ICON_BODY[name] + '</svg>';
+}
+
+/* ---- §1 tool rail: mirrors ToolRail.tsx's RAIL_GROUPS + TOOL_ICON exactly ---- */
+var RAIL_GROUPS = [
+  { label: 'TRNS', items: [ {icon:'transform', label:'Select', hotkey:'V'} ] },
+  { label: 'EDIT', items: [
+    {icon:'razor', label:'Razor', hotkey:'B'},
+    {icon:'slip', label:'Slip', hotkey:null},
+    {icon:'slide', label:'Slide', hotkey:null},
+    {icon:'rippledel', label:'Ripple Delete', hotkey:'X'}
+  ]},
+  { label: 'MASK', items: [
+    {icon:'marqrect', label:'Mask Rect', hotkey:'Q'},
+    {icon:'marqellipse', label:'Mask Ellipse', hotkey:'Q'},
+    {icon:'lasso', label:'Mask Lasso', hotkey:'W'},
+    {icon:'polylasso', label:'Mask Polygon', hotkey:'W'},
+    {icon:'wand', label:'Mask Wand', hotkey:null},
+    {icon:'keypicker', label:'Key Picker', hotkey:null}
+  ]},
+  { label: 'MISC', items: [
+    {icon:null, label:'Marker', hotkey:'⇧M', fallback:'MA'},
+    {icon:null, label:'Loop In', hotkey:null, fallback:'LO'},
+    {icon:null, label:'Loop Out', hotkey:null, fallback:'LO'}
+  ]}
+];
+(function renderRail(){
+  var mount = document.getElementById('railMount');
+  RAIL_GROUPS.forEach(function(g){
+    var grp = document.createElement('div');
+    grp.className = 'tool-rail__group';
+    var lab = document.createElement('div');
+    lab.className = 'tool-rail__group-label';
+    lab.textContent = g.label;
+    grp.appendChild(lab);
+    g.items.forEach(function(it){
+      var btn = document.createElement('button');
+      btn.className = 'tool-rail__tool' + (it.label === 'Select' ? ' tool-rail__tool--active' : '');
+      btn.type = 'button';
+      btn.title = it.hotkey ? (it.label + ' (' + it.hotkey + ')') : it.label;
+      btn.innerHTML = it.icon ? iconSvg(it.icon, 16)
+        : '<span class="tool-rail__fallback-label">' + it.fallback + '</span>';
+      if (it.hotkey) {
+        var hk = document.createElement('span');
+        hk.className = 'tool-rail__hotkey';
+        hk.textContent = it.hotkey;
+        btn.appendChild(hk);
+      }
+      grp.appendChild(btn);
+    });
+    mount.appendChild(grp);
+  });
+})();
+
+/* ---- §2 type-scale demo column (DeviceChain header + 2 DeviceCards) ---- */
+function deviceChainDemoHTML(){
+  return ''
+    + '<div class="device-chain__title" style="margin-bottom:10px">Device Chain</div>'
+    + '<div class="device-card">'
+    + '  <div class="device-card__header"><span class="device-card__name">fx.datamosh</span><span class="device-card__toggle">ON</span></div>'
+    + '  <div class="device-card__params">'
+    + '    <div><div class="device-card__param-label">Intensity</div><div class="device-card__param-value">0.62</div></div>'
+    + '    <div><div class="device-card__param-label">Block Size</div><div class="device-card__param-value">16</div></div>'
+    + '  </div>'
+    + '  <div class="device-card__mix"><span class="device-card__mix-label">Mix</span><span class="device-card__mix-value">100%</span></div>'
+    + '</div>'
+    + '<div class="device-card">'
+    + '  <div class="device-card__header"><span class="device-card__name">fx.grain_field</span><span class="device-card__toggle">ON</span></div>'
+    + '  <div class="device-card__params">'
+    + '    <div><div class="device-card__param-label">Amount</div><div class="device-card__param-value">0.40</div></div>'
+    + '  </div>'
+    + '  <div class="device-card__mix"><span class="device-card__mix-label">Mix</span><span class="device-card__mix-value">65%</span></div>'
+    + '</div>'
+    + '<div class="bodyline">Body-tier hint: "Drag a device card here to build the chain."</div>';
+}
+document.getElementById('demoA').innerHTML = deviceChainDemoHTML();
+document.getElementById('demoB').innerHTML = deviceChainDemoHTML();
+
+(function scaleToggle(){
+  var a = document.getElementById('pickA'), b = document.getElementById('pickB');
+  var colA = document.getElementById('colA'), colB = document.getElementById('colB');
+  var line = document.getElementById('pickLine');
+  function pick(which){
+    a.setAttribute('aria-pressed', which === 'A');
+    b.setAttribute('aria-pressed', which === 'B');
+    colA.classList.toggle('picked', which === 'A');
+    colB.classList.toggle('picked', which === 'B');
+    line.innerHTML = 'Your pick recorded: <b>Scale ' + which + '</b> — '
+      + (which === 'A' ? '11 / 12 / 12.5 / 14 (provisional default)' : '11 / 12 / 13 / 15 (alternate)');
+  }
+  a.addEventListener('click', function(){ pick('A'); });
+  b.addEventListener('click', function(){ pick('B'); });
+})();
+
+/* ---- §3 icon semantic audit grid ---- */
+var AUDIT = [
+  { icon:'transform', name:'Select / Transform', wired:'select', hotkey:'V', group:'TRNS', fn:'Move / scale / rotate the selected clip via on-canvas handles.' },
+  { icon:'text', name:'Text', wired:null, hotkey:'—', group:'—', fn:'No CursorTool wired today — glyph reads as a future caption/text tool.' },
+  { icon:'razor', name:'Razor', wired:'razor', hotkey:'B', group:'EDIT', fn:'Split a clip at the playhead / click point.' },
+  { icon:'slip', name:'Slip', wired:'slip', hotkey:'— (registered, unwired)', group:'EDIT', fn:'Slide a clip\'s in/out content without moving its timeline position.' },
+  { icon:'slide', name:'Slide', wired:'slide', hotkey:'— (registered, unwired)', group:'EDIT', fn:'Move a clip while trimming neighbors to fill the gap.' },
+  { icon:'rippledel', name:'Ripple Delete', wired:'ripple-delete', hotkey:'X', group:'EDIT', fn:'Delete a clip and ripple-close the resulting gap.' },
+  { icon:'marqrect', name:'Mask Rect', wired:'mask-marquee-rect', hotkey:'Q (shared w/ Ellipse)', group:'MASK', fn:'Draw a rectangular mask region.' },
+  { icon:'marqellipse', name:'Mask Ellipse', wired:'mask-marquee-ellipse', hotkey:'Q (shared w/ Rect)', group:'MASK', fn:'Draw an elliptical mask region.' },
+  { icon:'lasso', name:'Mask Lasso', wired:'mask-lasso-freehand', hotkey:'W (shared w/ Polygon)', group:'MASK', fn:'Freehand-draw a mask region.' },
+  { icon:'polylasso', name:'Mask Polygon', wired:'mask-lasso-polygon', hotkey:'W (shared w/ Lasso)', group:'MASK', fn:'Click-point polygon mask region.' },
+  { icon:'wand', name:'Mask Wand', wired:'mask-wand', hotkey:'—', group:'MASK', fn:'Auto-select a mask region by color / luminance similarity.' },
+  { icon:'keypicker', name:'Key Picker', wired:'mask-key-picker', hotkey:'—', group:'MASK', fn:'Eyedropper — pick a color for chroma / luma-key masking.' },
+  { icon:'hand', name:'Hand', wired:null, hotkey:'—', group:'—', fn:'No CursorTool wired today — glyph reads as a future canvas pan/hand tool.' },
+  { icon:'zoom', name:'Zoom', wired:null, hotkey:'—', group:'—', fn:'No CursorTool wired today — glyph reads as a future canvas zoom tool.' }
+];
+(function renderAudit(){
+  var grid = document.getElementById('iconGrid');
+  AUDIT.forEach(function(a, i){
+    var card = document.createElement('div');
+    card.className = 'iconcard' + (a.wired ? '' : ' orphan');
+    card.innerHTML = ''
+      + (a.wired ? '' : '<div class="orphflag">orphan glyph — unwired</div>')
+      + '<div class="sizes">'
+      + '  <div class="swatch s16">' + iconSvg(a.icon, 16) + '</div>'
+      + '  <div class="swatch s32">' + iconSvg(a.icon, 32) + '</div>'
+      + '</div>'
+      + '<div class="meta">'
+      + '  <div class="toolname">' + a.name + '</div>'
+      + '  <div class="idname">tool-icons.tsx: \'' + a.icon + '\'' + (a.wired ? ' → ' + a.group : '') + '</div>'
+      + '  <div class="hotkey">hotkey: <kbd>' + a.hotkey + '</kbd></div>'
+      + '</div>'
+      + '<div class="fn">' + a.fn + '</div>'
+      + '<div class="verdictrow" role="radiogroup" aria-label="verdict for ' + a.name + '">'
+      + '  <label><input type="radio" name="verdict-' + i + '"><span>keep</span></label>'
+      + '  <label><input type="radio" name="verdict-' + i + '"><span>rework</span></label>'
+      + '</div>';
+    grid.appendChild(card);
+  });
+})();
+
+})();
+</script>
+</body>
+</html>
