@@ -1,240 +1,239 @@
 {
-  "measured": "2026-07-03",
+  "measured": "2026-07-29",
   "machine": "arm64",
   "python": "3.14.3",
   "opencv": "4.13.0",
   "frames_per_cell": 6,
+  "ref_field_ms": 19.45,
   "results": [
     {
       "res": "720p",
       "tracks": 2,
       "routes": 0,
       "mix": "scalar",
-      "ms": 9.43
+      "ms": 9.12
     },
     {
       "res": "720p",
       "tracks": 2,
       "routes": 4,
       "mix": "scalar",
-      "ms": 18.69
+      "ms": 18.16
     },
     {
       "res": "720p",
       "tracks": 2,
       "routes": 8,
       "mix": "scalar",
-      "ms": 28.1
+      "ms": 27.14
     },
     {
       "res": "720p",
       "tracks": 2,
       "routes": 4,
       "mix": "field",
-      "ms": 46.18
+      "ms": 43.7
     },
     {
       "res": "720p",
       "tracks": 2,
       "routes": 8,
       "mix": "field",
-      "ms": 82.52
+      "ms": 78.57
     },
     {
       "res": "720p",
       "tracks": 2,
       "routes": 4,
       "mix": "mixed",
-      "ms": 32.75
+      "ms": 31.04
     },
     {
       "res": "720p",
       "tracks": 2,
       "routes": 8,
       "mix": "mixed",
-      "ms": 56.1
+      "ms": 53.27
     },
     {
       "res": "720p",
       "tracks": 2,
       "routes": "unit_field",
       "mix": "derived",
-      "ms": 9.14
+      "ms": 8.68
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": 0,
       "mix": "scalar",
-      "ms": 37.57
+      "ms": 36.27
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": 4,
       "mix": "scalar",
-      "ms": 46.94
+      "ms": 46.03
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": 8,
       "mix": "scalar",
-      "ms": 56.31
+      "ms": 54.45
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": 4,
       "mix": "field",
-      "ms": 74.19
+      "ms": 70.74
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": 8,
       "mix": "field",
-      "ms": 111.0
+      "ms": 104.85
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": 4,
       "mix": "mixed",
-      "ms": 61.08
+      "ms": 58.0
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": 8,
       "mix": "mixed",
-      "ms": 84.34
+      "ms": 80.06
     },
     {
       "res": "720p",
       "tracks": 8,
       "routes": "unit_field",
       "mix": "derived",
-      "ms": 9.18
+      "ms": 8.57
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": 0,
       "mix": "scalar",
-      "ms": 21.24
+      "ms": 20.55
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": 4,
       "mix": "scalar",
-      "ms": 42.47
+      "ms": 40.8
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": 8,
       "mix": "scalar",
-      "ms": 64.2
+      "ms": 61.04
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": 4,
       "mix": "field",
-      "ms": 107.21
+      "ms": 98.63
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": 8,
       "mix": "field",
-      "ms": 189.43
+      "ms": 177.28
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": 4,
       "mix": "mixed",
-      "ms": 74.89
+      "ms": 70.59
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": 8,
       "mix": "mixed",
-      "ms": 129.04
+      "ms": 125.22
     },
     {
       "res": "1080p",
       "tracks": 2,
       "routes": "unit_field",
       "mix": "derived",
-      "ms": 21.02
+      "ms": 19.59
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": 0,
       "mix": "scalar",
-      "ms": 85.67
+      "ms": 85.25
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": 4,
       "mix": "scalar",
-      "ms": 106.0
+      "ms": 107.19
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": 8,
       "mix": "scalar",
-      "ms": 126.69
+      "ms": 127.76
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": 4,
       "mix": "field",
-      "ms": 166.3
+      "ms": 169.23
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": 8,
       "mix": "field",
-      "ms": 249.06
+      "ms": 250.7
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": 4,
       "mix": "mixed",
-      "ms": 138.1
+      "ms": 133.01
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": 8,
       "mix": "mixed",
-      "ms": 189.65
+      "ms": 182.94
     },
     {
       "res": "1080p",
       "tracks": 8,
       "routes": "unit_field",
       "mix": "derived",
-      "ms": 20.42
+      "ms": 20.68
     }
   ],
   "warn_model_ms": "6*fields + 5*masks + 7*feedback + 0.2*scalars",
   "meter": {
     "yellow_ms": 10,
     "red_ms": 20
-  },
-  "optimized_field_tap_ms_1080p": 4.3,
-  "naive_field_tap_ms_1080p": 20.39
+  }
 }

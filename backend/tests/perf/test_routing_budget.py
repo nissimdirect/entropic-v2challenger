@@ -123,8 +123,31 @@ def _cell_ms(res_name: str, n_tracks: int, n_routes: int, mix: str) -> float:
     return median(times)
 
 
+def _ref_field_ms() -> float:
+    """Directly-timed single _tap_field @1080p — the machine's own field-route cost.
+
+    The derived unit cost below is (full - base) / 8 over the SAME op, so
+    unit/ref is machine-independent: it checks the additive cost model (routing
+    adds ~one tap per route, no superlinear blowup), not absolute wall-clock.
+    Shared CI runners are ~10x slower than the calibrated dev M4 (26/26 red
+    nightlies before this gate), which the absolute 24ms bound can't tolerate.
+    """
+    w, h = RES["1080p"]
+    src = _frame(w, h, 1)[:, :, :3]
+    dst = _frame(w, h, 2)[:, :, :3]
+    _tap_field(src, dst)  # warm-up (LUT/merge allocations)
+    times = []
+    for _ in range(FRAMES):
+        t0 = time.perf_counter()
+        _tap_field(src, dst)
+        times.append((time.perf_counter() - t0) * 1000)
+    return median(times)
+
+
 def test_routing_budget_curves():
     """Produce the ms/frame grid, write the baseline, sanity-check the cost model."""
+    ref_ms = _ref_field_ms()
+    print(f"ref single _tap_field @1080p: {ref_ms:.2f} ms (model: ~6ms on dev M4)")
     results = []
     for res_name in RES:
         for n_tracks in TRACKS:
@@ -171,8 +194,20 @@ def test_routing_budget_curves():
                 }
             )
             if res_name == "1080p":
-                # SOFT sanity gate: within 4x of the Phase-0 model, and positive.
-                assert 0 < unit < 24, f"field unit cost {unit:.2f}ms wildly off model"
+                # SOFT sanity gate, machine-relative: derived per-route unit cost
+                # within 4x of a directly-timed single tap on THIS machine.
+                # Catches superlinear routing blowups / per-route overhead
+                # regressions; immune to runner speed (see _ref_field_ms).
+                assert 0 < unit < 4 * ref_ms, (
+                    f"field unit cost {unit:.2f}ms wildly off additive model "
+                    f"(direct single-tap ref: {ref_ms:.2f}ms; bound {4 * ref_ms:.2f}ms)"
+                )
+                if not os.environ.get("GITHUB_ACTIONS"):
+                    # Absolute calibration bound (Phase-0 model ~6ms) only on
+                    # calibrated dev hardware — meaningless on shared runners.
+                    assert 0 < unit < 24, (
+                        f"field unit cost {unit:.2f}ms wildly off model"
+                    )
 
     out_path = Path(__file__).resolve().parents[2].parent / "docs" / "perf"
     out_path.mkdir(parents=True, exist_ok=True)
@@ -182,6 +217,7 @@ def test_routing_budget_curves():
         "python": platform.python_version(),
         "opencv": cv2.__version__,
         "frames_per_cell": FRAMES,
+        "ref_field_ms": round(ref_ms, 2),
         "results": results,
         "warn_model_ms": "6*fields + 5*masks + 7*feedback + 0.2*scalars",
         "meter": {"yellow_ms": 10, "red_ms": 20},
@@ -196,10 +232,12 @@ def test_optimized_tap_path_quantifies_mandates():
     optimized number is what the budget meter constants should assume."""
     w, h = RES["1080p"]
     raw = _frame(w, h, 7)
-    src_naive = raw[:, :, :3]                      # NON-contiguous view (the trap)
+    src_naive = raw[:, :, :3]  # NON-contiguous view (the trap)
     dst_naive = _frame(w, h, 8)[:, :, :3]
-    src_opt = np.ascontiguousarray(src_naive)      # mandate 2
-    dst_f32 = np.ascontiguousarray(dst_naive).astype(np.float32)  # mandate 1: hoisted once
+    src_opt = np.ascontiguousarray(src_naive)  # mandate 2
+    dst_f32 = np.ascontiguousarray(dst_naive).astype(
+        np.float32
+    )  # mandate 1: hoisted once
 
     def _naive():
         _tap_field(src_naive, dst_naive)
@@ -214,11 +252,15 @@ def test_optimized_tap_path_quantifies_mandates():
         fn()
         ts = []
         for _ in range(20):
-            t0 = time.perf_counter(); fn(); ts.append((time.perf_counter() - t0) * 1000)
+            t0 = time.perf_counter()
+            fn()
+            ts.append((time.perf_counter() - t0) * 1000)
         return median(ts)
 
     naive, opt = _t(_naive), _t(_opt)
-    print(f"field tap @1080p: naive {naive:.2f}ms -> optimized {opt:.2f}ms ({naive/opt:.1f}x)")
+    print(
+        f"field tap @1080p: naive {naive:.2f}ms -> optimized {opt:.2f}ms ({naive / opt:.1f}x)"
+    )
     assert opt < naive, "optimized path must beat naive"
     # record beside the grid baseline
     out_path = Path(__file__).resolve().parents[2].parent / "docs" / "perf"
