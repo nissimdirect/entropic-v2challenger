@@ -24,14 +24,13 @@
  */
 import { useState, useEffect, useRef } from 'react'
 import Icon from '../../assets/icon-kit'
-import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
+import { resolveRackNode } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
-import { usePerformanceStore } from '../../stores/performance'
-import { routeRackTrigger, usePerformanceFreezeStore } from '../../stores/performanceFreeze'
+import { routeRackTrigger } from '../../stores/performanceFreeze'
 import { useToastStore } from '../../stores/toast'
 import { useMIDIStore } from '../../stores/midi'
-import { useLayoutStore } from '../../stores/layout'
 import { useAudioStore } from '../../stores/audio'
+import { useRackDeviceView } from '../../selectors/rackView'
 import Slider from '../common/Slider'
 import Select from '../common/Select'
 import { clampFinite } from '../../../shared/numeric'
@@ -58,35 +57,41 @@ const MACRO_PARAMS = ['scrub', 'speed', 'opacity'] as const
 type MacroParam = (typeof MACRO_PARAMS)[number]
 
 export default function RackDevice({ trackId }: { trackId: string }) {
-  const rack = useInstrumentsStore((s) => s.racks[trackId])
-  const setRackPadSourceAt = useInstrumentsStore((s) => s.setRackPadSourceAt)
-  const updateRackPadAt = useInstrumentsStore((s) => s.updateRackPadAt)
-  const setRackPadChokeGroupAt = useInstrumentsStore((s) => s.setRackPadChokeGroupAt)
-  const addRackPadAt = useInstrumentsStore((s) => s.addRackPadAt)
-  const removeRackPadAt = useInstrumentsStore((s) => s.removeRackPadAt)
-  const convertPadToBranch = useInstrumentsStore((s) => s.convertPadToBranch)
-  const addRackMacro = useInstrumentsStore((s) => s.addRackMacro)
-  const updateRackMacro = useInstrumentsStore((s) => s.updateRackMacro)
-  const removeRackMacro = useInstrumentsStore((s) => s.removeRackMacro)
-  const addMacroRoute = useInstrumentsStore((s) => s.addMacroRoute)
-  const removeMacroRoute = useInstrumentsStore((s) => s.removeMacroRoute)
-  const triggerRackPad = usePerformanceStore((s) => s.triggerRackPad)
-  const clearRackPadEvents = usePerformanceStore((s) => s.clearRackPadEvents)
-  const captureRetroBuffer = usePerformanceStore((s) => s.captureRetroBuffer)
-  const assets = useProjectStore((s) => s.assets)
-
   // B10.1b — Ableton-style FREEZE state for THIS track (reactive). FROZEN → the
   // render loop plays the baked clip; the button toggles freeze ↔ unfreeze.
-  const freezeFsm = usePerformanceFreezeStore((s) => s.fsm[trackId] ?? 'idle')
-  const freezePerformanceTrack = usePerformanceFreezeStore((s) => s.freezePerformanceTrack)
-  const unfreezePerformanceTrack = usePerformanceFreezeStore((s) => s.unfreezePerformanceTrack)
-
-  // B5.2 — the branch path the RackDevice is currently editing. EMPTY → top rack
-  // (B4 behavior). Reactive so drilling in/out re-renders the right level.
-  const rackEditPath = useProjectStore((s) => s.rackEditPath)
-  const enterBranch = useProjectStore((s) => s.enterBranch)
-  const setRackEditPathDepth = useProjectStore((s) => s.setRackEditPathDepth)
-  const resetRackEditPath = useProjectStore((s) => s.resetRackEditPath)
+  // B5.2 — `rackEditPath` is the branch path RackDevice is currently editing.
+  // EMPTY → top rack (B4 behavior). Reactive so drilling in/out re-renders the
+  // right level. B10.2 — launch-quantize snaps the trigger frame to the next
+  // division of the edit/slice grid when enabled (OFF by default).
+  const {
+    rack,
+    setRackPadSourceAt,
+    updateRackPadAt,
+    setRackPadChokeGroupAt,
+    addRackPadAt,
+    removeRackPadAt,
+    convertPadToBranch,
+    addRackMacro,
+    updateRackMacro,
+    removeRackMacro,
+    addMacroRoute,
+    removeMacroRoute,
+    triggerRackPad,
+    clearRackPadEvents,
+    captureRetroBuffer,
+    assets,
+    freezeFsm,
+    freezePerformanceTrack,
+    unfreezePerformanceTrack,
+    rackEditPath,
+    enterBranch,
+    setRackEditPathDepth,
+    resetRackEditPath,
+    selectedRackPad,
+    launchQuantizeEnabled,
+    toggleLaunchQuantize,
+    quantizeDivision,
+  } = useRackDeviceView(trackId)
 
   // B5.2 — STALE-PATH SAFETY: reset the edit path whenever the active track
   // CHANGES (the path's pad ids belong to a DIFFERENT rack). Mirrors the
@@ -107,7 +112,6 @@ export default function RackDevice({ trackId }: { trackId: string }) {
   // it now ALSO carries the current branchPath so the bottom DeviceChain edits
   // the pad at the CURRENT level (nested insert-chain targeting). Empty path →
   // omitted branchPath → byte-identical to B4.
-  const selectedRackPad = useProjectStore((s) => s.selectedRackPad)
   const selectedPadId =
     selectedRackPad && selectedRackPad.trackId === trackId ? selectedRackPad.padId : null
   const setSelectedPad = (padId: string) =>
@@ -117,13 +121,6 @@ export default function RackDevice({ trackId }: { trackId: string }) {
       useProjectStore.getState().rackEditPath,
     )
   const clearSelectedPad = () => useProjectStore.getState().clearSelectedRackPad()
-
-  // B10.2 — launch-quantize: snap the trigger frame to the next division of the
-  // edit/slice grid when enabled. Uses the SAME grid division as the timeline
-  // quantize (quantizeDivision). OFF by default.
-  const launchQuantizeEnabled = useLayoutStore((s) => s.launchQuantizeEnabled)
-  const toggleLaunchQuantize = useLayoutStore((s) => s.toggleLaunchQuantize)
-  const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
 
   // Mirror SamplerDevice: return null when the track has no rack (mount-safe).
   if (!rack) return null

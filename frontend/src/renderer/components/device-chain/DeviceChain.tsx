@@ -1,13 +1,10 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
-import { useProjectStore, useActiveEffectChain, getActiveTrackId, useActiveTrackId, useActivePadEffectChain } from '../../stores/project'
+import { useProjectStore, getActiveTrackId } from '../../stores/project'
 import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
-import { useTimelineStore } from '../../stores/timeline'
-import { useEffectsStore } from '../../stores/effects'
-import { useEngineStore } from '../../stores/engine'
-import { useFreezeStore } from '../../stores/freeze'
-import { useAutomationStore } from '../../stores/automation'
 import { useLayoutStore } from '../../stores/layout'
+import { useAutomationStore } from '../../stores/automation'
 import { useToastStore } from '../../stores/toast'
+import { useDeviceChainView } from '../../selectors/deviceChainView'
 import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
 import EmptyState from '../common/EmptyState'
@@ -17,10 +14,7 @@ import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
 import { EFFECT_DRAG_TYPE, CREATRIX_NONCE_TYPE, SESSION_NONCE } from '../effects/EffectBrowser'
 import { randomUUID } from '../../utils'
-import type { EffectInstance, MatteNode, MatteRef, ParamValue } from '../../../shared/types'
-
-// Stable empty array for the no-mask-nodes case (avoid re-render churn).
-const EMPTY_MASK_NODES: MatteNode[] = []
+import type { EffectInstance, MatteRef, ParamValue } from '../../../shared/types'
 
 // LIVE-M2 (#435): same palette used by the "+ Lane" flows (AutomationToolbar,
 // Track.tsx track-header menu) so a lane created via right-click "Automate"
@@ -53,52 +47,31 @@ export default function DeviceChain({
   // THAT PAD's insert chain (Ableton drum-rack); otherwise it edits the active
   // TRACK's chain exactly as before. `selectedRackPad` is the single decision
   // point — every display + mutation below routes through `chainTarget`.
-  const selectedRackPad = useProjectStore((s) => s.selectedRackPad)
-  // Epic 3 (D3): read active trackId reactively so isFrozenAt queries the correct
-  // per-track state. ALSO the scoping key for the pad target below — declared here
-  // (above isPadTarget) so display + mutation share one active-track predicate.
-  const activeTrackId = useActiveTrackId()
-  // M.2 (Master-Out Bus PRD): track type of the active track, used to guard
-  // the instruments/composite REJECT rule for the Master bus (locked design
-  // #3 — Master processes the summed output; instruments (generators) and
-  // the terminal `composite` effect are structurally invalid there, since
-  // there is no per-track/per-clip context post-composite for either to
-  // operate on).
-  const activeTrackType = useTimelineStore((s) => s.tracks.find((t) => t.id === activeTrackId)?.type)
-  // Both hooks subscribe unconditionally (rules-of-hooks); only the relevant one
-  // is read into `effectChain` below. The track chain is the render/freeze/export
-  // source and stays decoupled from this editor retarget.
-  const trackEffectChain = useActiveEffectChain()
-  const padEffectChain = useActivePadEffectChain()
-  // qa-redteam Tiger fix: the pad target is ACTIVE-TRACK-SCOPED. A selected pad on
-  // track A must NOT hijack the editor when track B is active (B's RackDevice may
-  // even be unmounted). Only treat it as a pad target when the selection belongs
-  // to the active track. Switching away → fall back to the track path; switching
-  // back to A → the {A,P} selection re-targets (Ableton-correct, persists per-rack).
-  // Also makes a deleted track's dangling selection a no-op (deleted ≠ active).
-  const isPadTarget = selectedRackPad != null && selectedRackPad.trackId === activeTrackId
-  // D2 (Epic 02): display the ACTIVE track's chain, OR the selected pad's chain.
-  const effectChain = isPadTarget ? padEffectChain : trackEffectChain
-  // B4-pad-chain UI: a header label so the user knows which device's chain is
-  // shown (Ableton shows the device name). Reactive 1-based pad index, or null
-  // when not on the pad's rack-track / the pad is gone (label hides → track title).
-  const padLabel = useInstrumentsStore((s) => {
-    if (!isPadTarget || !selectedRackPad) return null
-    const rack = s.racks[selectedRackPad.trackId]
-    if (!rack) return null
-    // B5.2: resolve the nested RackNode the selected pad lives in (top rack when
-    // branchPath is empty/absent → byte-identical to B4).
-    const node = resolveRackNode(rack, selectedRackPad.branchPath ?? [])
-    if (!node) return null
-    const idx = node.pads.findIndex((p) => p.id === selectedRackPad.padId)
-    return idx === -1 ? null : `Pad ${idx + 1}`
-  })
-  const selectedEffectId = useProjectStore((s) => s.selectedEffectId)
-  const deviceGroups = useProjectStore((s) => s.deviceGroups)
-  const registry = useEffectsStore((s) => s.registry)
+  // M.2 (Master-Out Bus PRD): `activeTrackType` guards the instruments/composite
+  // REJECT rule for the Master bus (locked design #3). qa-redteam Tiger fix:
+  // `isPadTarget` is ACTIVE-TRACK-SCOPED (a selected pad on track A must NOT
+  // hijack the editor when track B is active). `padLabel` mirrors the Ableton
+  // device-name header (hides when not on the pad's rack-track / pad is gone).
+  const {
+    selectedRackPad,
+    activeTrackId,
+    activeTrackType,
+    isPadTarget,
+    effectChain,
+    padLabel,
+    selectedEffectId,
+    deviceGroups,
+    registry,
+    projectAssets,
+    lastFrameMs,
+    isFrozenAt,
+    freezeOpState,
+    height,
+    maskNodes,
+    maskClipId,
+  } = useDeviceChainView()
   // P6.6: image/video media items selectable as a 2D field source for a
   // field-capable param. Derived from project assets (id + path + type).
-  const projectAssets = useProjectStore((s) => s.assets)
   const fieldSources = useMemo(
     () =>
       Object.values(projectAssets)
@@ -106,9 +79,6 @@ export default function DeviceChain({
         .map((a) => ({ id: a.id, label: a.path.split('/').pop() || a.id, kind: a.type as 'image' | 'video' })),
     [projectAssets],
   )
-  const lastFrameMs = useEngineStore((s) => s.lastFrameMs) ?? 0
-  const isFrozenAt = useFreezeStore((s) => s.isFrozen)
-  const freezeOpState = useFreezeStore((s) => s.operationState)
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; effectId: string; index: number } | null>(null)
   // LIVE-M2 (#435): separate menu state for the per-PARAM "Automate" entry,
   // distinct from the whole-device `contextMenu` above (Freeze/Save-Preset).
@@ -121,7 +91,6 @@ export default function DeviceChain({
   // Drag-resize for the device chain panel — top-edge handle, vertical drag
   // adjusts height. Persists via the layout store. Matches the pattern used
   // by the timeline's resize handle (drag up = taller, drag down = shorter).
-  const height = useLayoutStore((s) => s.deviceChainHeight)
   const resizeRef = useRef<{ startY: number; startH: number } | null>(null)
   const handleResizeDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -317,33 +286,9 @@ export default function DeviceChain({
     useProjectStore.getState().setMix(trackId, effectId, mix)
   }, [])
 
-  // MK.3: mask nodes available to assign on this track's devices. Derived from
-  // the active clip on the active track at the playhead. Reactive so adding a
-  // matte node (MK.4+) immediately populates the DeviceCard mask row.
-  const playheadTime = useTimelineStore((s) => s.playheadTime)
-  const maskNodes = useTimelineStore((s) => {
-    const tid = activeTrackId
-    if (!tid) return EMPTY_MASK_NODES
-    const track = s.tracks.find((t) => t.id === tid)
-    if (!track) return EMPTY_MASK_NODES
-    const clip = track.clips.find(
-      (c) => playheadTime >= c.position && playheadTime < c.position + c.duration,
-    )
-    return clip?.maskStack && clip.maskStack.length > 0 ? clip.maskStack : EMPTY_MASK_NODES
-  })
-
-  // MK.13: clip_id of the clip that owns the mask stack above (for mask_thumbnail IPC).
-  const maskClipId = useTimelineStore((s) => {
-    const tid = activeTrackId
-    if (!tid) return undefined
-    const track = s.tracks.find((t) => t.id === tid)
-    if (!track) return undefined
-    const clip = track.clips.find(
-      (c) => playheadTime >= c.position && playheadTime < c.position + c.duration,
-    )
-    return clip?.id
-  })
-
+  // MK.3/MK.13: mask nodes + owning clip id for the active clip at the playhead
+  // (composed in useDeviceChainView — reactive so adding a matte node (MK.4+)
+  // immediately populates the DeviceCard mask row).
   const handleSetMaskRef = useCallback((effectId: string, maskRef: MatteRef | null) => {
     const trackId = getActiveTrackId()
     if (!trackId) return
