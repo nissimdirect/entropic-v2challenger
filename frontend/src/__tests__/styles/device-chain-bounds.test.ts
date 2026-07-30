@@ -33,7 +33,8 @@ import { dirname, resolve } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const globalCssPath = resolve(__dirname, '../../renderer/styles/global.css')
-const creatrixCssPath = resolve(__dirname, '../../renderer/styles/creatrix-layout.css')
+// F4a: creatrix-layout.css + b3-layout.css unified into creatrix-shell.css.
+const creatrixCssPath = resolve(__dirname, '../../renderer/styles/creatrix-shell.css')
 
 /** Extract the first `{ ... }` block body following `selector {`. */
 function ruleBody(css: string, selectorRegex: RegExp): string | null {
@@ -76,7 +77,7 @@ describe('global.css .app__device-chain — base grid bounding (UAT P4)', () => 
   })
 })
 
-describe('creatrix-layout.css .app__device-chain flag path — scrolls instead of clipping (UAT P4)', () => {
+describe('creatrix-shell.css .app__device-chain — scrolls instead of clipping (UAT P4)', () => {
   const css = readFileSync(creatrixCssPath, 'utf8')
   const body = ruleBody(css, /\.app--creatrix\s+\.cx-right-col\s+\.app__device-chain\s*\{/m)
 

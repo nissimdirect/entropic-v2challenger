@@ -51,8 +51,10 @@ import { fileURLToPath } from 'node:url'
 import { dirname, resolve } from 'node:path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const creatrixCssPath = resolve(__dirname, '../../renderer/styles/creatrix-layout.css')
-const b3CssPath = resolve(__dirname, '../../renderer/styles/b3-layout.css')
+// F4a: creatrix-layout.css + b3-layout.css unified into one file
+// (creatrix-shell.css) — both assertion groups below now read the same path.
+const creatrixCssPath = resolve(__dirname, '../../renderer/styles/creatrix-shell.css')
+const b3CssPath = resolve(__dirname, '../../renderer/styles/creatrix-shell.css')
 
 /** Extract the first `{ ... }` block body following `selector {`. */
 function ruleBody(css: string, selectorRegex: RegExp): string | null {
@@ -67,7 +69,7 @@ function ruleBody(css: string, selectorRegex: RegExp): string | null {
   return css.slice(openBrace + 1, closeBrace).replace(/\/\*[\s\S]*?\*\//g, '')
 }
 
-describe('creatrix-layout.css .cx-left-col — flex-column, not grid auto-placement (UAT #424 E-1/E-2)', () => {
+describe('creatrix-shell.css .cx-left-col — flex-column, not grid auto-placement (UAT #424 E-1/E-2)', () => {
   const css = readFileSync(creatrixCssPath, 'utf8')
   const body = ruleBody(css, /\.app--creatrix\s+\.cx-left-col\s*\{/m)
 
@@ -89,7 +91,7 @@ describe('creatrix-layout.css .cx-left-col — flex-column, not grid auto-placem
   })
 })
 
-describe('creatrix-layout.css .cx-inspector — explicit flex-basis (UAT #424 E-1/E-2)', () => {
+describe('creatrix-shell.css .cx-inspector — explicit flex-basis (UAT #424 E-1/E-2)', () => {
   const css = readFileSync(creatrixCssPath, 'utf8')
   const body = ruleBody(css, /\.app--creatrix\s+\.cx-inspector\s*\{/m)
 
@@ -102,7 +104,7 @@ describe('creatrix-layout.css .cx-inspector — explicit flex-basis (UAT #424 E-
   })
 })
 
-describe('b3-layout.css .track-header--lean — stretch cross-axis (UAT #424 LIVE-M1)', () => {
+describe('creatrix-shell.css .track-header--lean — stretch cross-axis (UAT #424 LIVE-M1)', () => {
   const css = readFileSync(b3CssPath, 'utf8')
   const body = ruleBody(css, /\.track-header--lean\s*\{/m)
 
@@ -115,7 +117,7 @@ describe('b3-layout.css .track-header--lean — stretch cross-axis (UAT #424 LIV
   })
 })
 
-describe('b3-layout.css .app--creatrix .timeline__headers — widened for the lean button cluster (UAT #424 LIVE-M1)', () => {
+describe('creatrix-shell.css .app--creatrix .timeline__headers — widened for the lean button cluster (UAT #424 LIVE-M1)', () => {
   const css = readFileSync(b3CssPath, 'utf8')
   const body = ruleBody(css, /\.app--creatrix\s+\.timeline__headers\s*\{/m)
 

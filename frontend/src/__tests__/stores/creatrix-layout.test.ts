@@ -112,7 +112,17 @@ describe('Creatrix layout store — P3.1', () => {
     expect(FF.F_CREATRIX_LAYOUT).toBe(true)
   })
 
-  it('flag off renders legacy layout: the entropic-disable-creatrix-layout escape hatch still works', async () => {
+  // SURVIVORSHIP NOTE (F4a, 2026-07-30): this test used to assert "flag off
+  // renders legacy layout" — it never actually rendered anything, it only
+  // read the FF.F_CREATRIX_LAYOUT boolean, but that title implied a rendering
+  // guarantee that F4a removed. App.tsx's ~13 F_CREATRIX_LAYOUT conditionals
+  // were deleted (the legacy flag-OFF branches no longer exist — Creatrix is
+  // now the only layout), so flipping this flag OFF no longer changes what
+  // renders. The flag ITSELF and its localStorage escape-hatch mechanism are
+  // kept alive on purpose (flag removal is an open decision, tracked as F4)
+  // — this test now asserts only that the mechanism still exists and still
+  // flips the boolean, not that it has any remaining effect on the UI.
+  it('escape hatch mechanism survives: entropic-disable-creatrix-layout still flips FF.F_CREATRIX_LAYOUT to false (no longer changes rendered output — legacy layout branches were retired in F4a)', async () => {
     // isFixEnabled('creatrix-layout') reads localStorage at module-evaluation
     // time, so to observe the disabled state we must set the override BEFORE
     // re-evaluating the module (vi.resetModules + dynamic re-import).
