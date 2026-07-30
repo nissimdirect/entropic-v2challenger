@@ -15,6 +15,14 @@ Never execute a stub directly.
 
 ## 1. The Work Packet Contract
 
+> **FRONTEND PACKETS (2026-07-30):** any packet touching `frontend/src/renderer` is
+> additionally bound by the frontend framework — `docs/frontend/FRONTEND-SDLC.md`
+> (visual cadence L1: screenshot every visual edit; testing pyramid; traceability) and
+> `docs/frontend/COMPONENT-SPEC.md` (state contract, test-ids, primitives, token tiers).
+> CI enforces via `frontend/scripts/{hex-ratchet,ui-ratchets}.sh` + the vitest guards.
+> Inline the relevant rules into executor briefs verbatim — lower-tier models don't
+> infer them.
+
 Every packet below has these fields. An executor (Sonnet-class agent) runs them top to bottom with
 **zero improvisation**.
 

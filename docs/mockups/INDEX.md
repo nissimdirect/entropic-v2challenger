@@ -1,5 +1,12 @@
 # Mockup Registry
 
+> **REAL-DIMENSIONS-ONLY (ratified 2026-07-29, `docs/frontend/RATIFIED-FOUNDATIONS.md`):**
+> mocks are authored inside the app's default 1280×800 window and sanity-checked at the
+> minimum supported size. Trigger: `ui-foundation-frame.html` below shipped hard-coded at
+> 1600px (25% wider than the app default) — its width-sensitive judgments (rail collisions,
+> strip wrapping) must be RE-CHECKED at 1280×800 before PK.B/PK.C build. Fixed shell widths
+> are a registry-verification failure for all future mocks.
+
 Single source of truth for all Entropic/Creatrix visual mockups — both the six mocks built this session and the pre-existing reference mocks they extend. Every mock is a self-contained HTML file (inline CSS, zero external requests) with numbered callout annotations tying UI elements back to PRD/plan/packet decisions.
 
 | File | Change | Surfaces | Open Questions |

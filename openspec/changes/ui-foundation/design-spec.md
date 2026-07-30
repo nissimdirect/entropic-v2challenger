@@ -20,7 +20,16 @@ per-surface CSS files, alias Tier 1/2). New tokens below are tagged with their t
 
 ## 1. Type scale — dual candidate, A/B (OD-1, VISUAL-PENDING)
 
-> **VERDICT LOCKED 2026-07-10: SCALE B (15/13/12/11) is the shipping scale.** Candidate A is the rejected alternate; every token value below that differs between candidates resolves to the B column.
+> **SUPERSEDED 2026-07-29 — RATIFIED D6 "SCALE B+1" IS THE SHIPPING SCALE** (user F-1
+> ratification, `docs/frontend/RATIFIED-FOUNDATIONS.md`): **heading 16/650 · body 14/450 ·
+> label 13/600 · data 12/450 — app floor 12px.** Mechanical mapping for every value in this
+> document: data 11→12 · label 12→13 · body 12.5-or-13→14 · heading 14-or-15→16 · every
+> "11px floor" reference reads **12px**. The A/B candidate machinery below is historical
+> record (the mock's toggle already served its purpose); where any line conflicts with the
+> B+1 mapping, B+1 wins. The `css_font_below_floor` ratchet (`frontend/scripts/ui-ratchets.sh`)
+> enforces the 12px floor repo-wide.
+>
+> ~~VERDICT LOCKED 2026-07-10: SCALE B (15/13/12/11) is the shipping scale.~~ Candidate A is the rejected alternate.
 
 
 T1 verdict: user has no prior on type sizing → **decide visually**. The mock MUST render both

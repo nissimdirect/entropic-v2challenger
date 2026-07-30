@@ -1,5 +1,20 @@
 # Packets — ui-foundation
 
+> ## RATIFIED AMENDMENTS (2026-07-30 — read before dispatching ANY packet)
+> Source: `docs/frontend/RATIFIED-FOUNDATIONS.md` (user F-1 ratification 2026-07-29/30).
+> 1. **PK.A type values = SCALE B+1**: heading 16/650 · body 14/450 · label 13/600 ·
+>    data 12/450; **floor 12px** (not 11). Mapping for every stale number in this file and
+>    design-spec.md: data 11→12 · label 12→13 · body 12.5/13→14 · heading 14/15→16.
+>    The `css_font_below_floor` ratchet ceiling MUST be clicked down in PK.A's PR.
+> 2. **PK.C re-scoped by D8**: curve ops (Flatten/Ramp/Shape/Simplify/Clear) LEAVE the
+>    strip entirely → lane-contextual actions (see amended PK.C below). OD-6's 3-cluster
+>    design is superseded — the strip keeps Mode + Record only.
+> 3. **REAL-DIMENSIONS re-check**: `ui-foundation-frame.html` was authored at 1600px vs
+>    the app's 1280×800 default — PK.B and PK.C executors must re-verify width-sensitive
+>    judgments (rail collisions, strip wrapping) at 1280×800 before implementation.
+> 4. Every packet is additionally bound by `docs/frontend/FRONTEND-SDLC.md` (cadence L1:
+>    screenshot every visual edit into the ledger) and the PR template's TRACEABILITY section.
+
 **Emitted:** 2026-07-10 by `/packetize`. **Plan:** `plan.md` (same dir — packets POINT to its
 file:line-anchored normative sections; do not re-derive). **Spec:** `design-spec.md` (quantified
 values contract; **supersedes `plan.md`'s prose wherever the two conflict** — flagged per-packet
@@ -44,7 +59,7 @@ re-derives it differently.
 
 ---
 
-### PK.A — Type-scale + Schoger hierarchy tokens — **TOKEN VALUES = SCALE B (heading 15/650 · body 13/450 · label 12/600 · data 11/450), locked 2026-07-10**
+### PK.A — Type-scale + Schoger hierarchy tokens — **TOKEN VALUES = SCALE B+1 (heading 16/650 · body 14/450 · label 13/600 · data 12/450, floor 12px), RATIFIED 2026-07-29 — supersedes the 2026-07-10 Scale B lock**
 - **Scope:** land `plan.md` Packet A's normative contract (`plan.md:64-84`) using design-spec's
   exact values (design-spec §1 Candidate A table, §3 spacing scale, §7 `--cx-control-h`): add
   `--cx-text-heading` (14px/650), `--cx-weight-label` (600), `--cx-weight-heading` (650),
@@ -146,26 +161,34 @@ re-derives it differently.
 
 ---
 
-### PK.C — Automation control-strip grouping
-- **Scope:** `plan.md:138-164` / design-spec §6: wrap the 9 flat buttons into `.auto-toolbar__record`
-  (Overdub, +Lane, +Trigger, +Mod) and `.auto-toolbar__curve-ops` (Flatten, Ramp, Shape, Simplify,
-  Clear), each `border-left: 1px solid var(--cx-line-1)` (reuses `.tool-rail__group`'s existing
-  divider convention, adapted horizontal). `flex-wrap: wrap` on `.auto-toolbar`; move
-  `.auto-toolbar__hint`/`__armed` off `margin-left:auto` onto `flex-basis:100%` when wrapped. Apply
-  `--cx-text-label` to button labels, `--cx-text-body` to hint/armed text.
-- **Non-scope:** `.auto-toolbar__modes` (R/L/T/D — already grouped, unchanged); any new automation
-  functionality — this is purely a grouping/wrap CSS+JSX pass.
+### PK.C — Automation strip: Mode+Record clusters; curve ops move to the lane — **RE-SCOPED by RATIFIED D8 (2026-07-30)**
+- **User verdict (D8):** *"curve ops i think are not actual buttons i think its more like in the
+  lane."* Flatten/Ramp/Shape/Simplify/Clear LEAVE the strip — they act on a specific lane, so
+  they live AT the lane (also kills the global-button "which lane?" ambiguity).
+- **Scope (amended):** (i) strip keeps `.auto-toolbar__modes` (R/L/T/D, unchanged) + new
+  `.auto-toolbar__record` cluster (Overdub, +Lane, +Trigger, +Mod) with the horizontal divider
+  convention; `flex-wrap: wrap` on `.auto-toolbar`; `__hint`/`__armed` reflow onto
+  `flex-basis:100%` when wrapped; `--cx-text-label` (13/600) labels, `--cx-text-body` (14/450)
+  hint text. (ii) Curve ops become **lane-contextual actions**: PRE-IMPLEMENTATION step — render
+  a small mock at REAL 1280×800 comparing the two candidate affordances (lane right-click
+  context-menu section vs on-lane hover mini-toolbar), pick with the user by eye (one message);
+  then implement the pick, targeting the CLICKED lane explicitly (no armed-lane inference).
+- **Non-scope:** any new curve-op algorithms — functional parity only, relocated entry points;
+  R/L/T/D modes unchanged.
 - **Files:** `frontend/src/renderer/components/automation/AutomationToolbar.tsx` (wrap 9 buttons
   into 2 new `<div>`s); `frontend/src/renderer/styles/automation.css` (`.auto-toolbar` flex-wrap,
   new divider rules, `.auto-toolbar__armed`/`.auto-toolbar__hint` reflow).
 - **Depends:** PK.A (consumes tokens). **Blocks:** none.
 - **Risk:** LOW.
-- **Hard oracle:** vitest — all 13 buttons present + clickable (no functional regression); buttons
-  render inside exactly 3 grouping containers (Mode/Record/Curve ops); `.auto-toolbar` computed
-  style has `flex-wrap: wrap`; at a constrained-width test container, hint/armed text does not
+- **Hard oracle (amended for D8):** vitest — the strip renders exactly 8 buttons in exactly 2
+  grouping containers (Mode/Record) and contains NONE of Flatten/Ramp/Shape/Simplify/Clear;
+  each of the 5 curve ops is reachable from a lane (context affordance fires the same handler —
+  functional-parity assertion per op, targeting the clicked lane's id); `.auto-toolbar` computed
+  style has `flex-wrap: wrap`; at a constrained-width container, hint/armed text does not
   overflow `scrollWidth`.
-- **Test plan:** component — button presence/click, cluster-membership assertion, flex-wrap computed
-  style, narrow-container overflow assertion (new or extended `AutomationToolbar.test.tsx`).
+- **Test plan:** component — strip membership + curve-ops-absent assertion, per-op lane-context
+  parity (5 ops × handler fires with correct laneId), flex-wrap computed style, narrow-container
+  overflow assertion (new or extended `AutomationToolbar.test.tsx` + lane-context test).
 - **UAT unit (MANDATORY):** closes `uat.md` rows **UI-C1 through UI-C4**. Methods: UI-C1 (command
   oracle — vitest 13-buttons/3-clusters assertion) · UI-C2 (screenshot — window resize to trigger
   wrap; resizing a window is not a drag/draw gesture on the canvas, CU is correct tier) · UI-C3
