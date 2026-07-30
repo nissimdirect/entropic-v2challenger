@@ -13,7 +13,8 @@ export default defineConfig({
     environment: 'happy-dom',
     setupFiles: ['src/__tests__/setup.ts'],
     alias: {
-      '@renderer': resolve(__dirname, 'src/renderer/src'),
+      // was src/renderer/src — a directory that has never existed (F0 housekeeping)
+      '@renderer': resolve(__dirname, 'src/renderer'),
     },
   },
 })

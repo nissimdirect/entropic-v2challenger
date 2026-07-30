@@ -1,5 +1,13 @@
 # Entropic v2 — Component Test Matrix
 
+> ## ⚠️ SUPERSEDED (2026-07-30, frontend-framework F0)
+> This inventory is pinned to a tree of 81 TSX files / 17 stores; the codebase is now
+> 128 files / 26 stores and this doc was never updated — hand-maintained inventories
+> rot (this is the second one that did). **Do not extend.** The living replacements:
+> component contract + law → `CONTRIBUTING.md` §Frontend UI Law and (from F1)
+> `docs/frontend/COMPONENT-SPEC.md`; inventory → the F1 generated-inventory script.
+> Kept for historical reference only.
+
 > **Purpose:** Systematic inventory of every visible UI component and its expected interactions.
 > **Method:** Full-screen screenshot → zoom into each zone → label every visible element → cross-reference with test history.
 > **Created:** 2026-04-09. Initial version built from session memory (not fully honest).
