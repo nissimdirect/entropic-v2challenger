@@ -20,7 +20,7 @@
   padding: 10px 12px;
   cursor: pointer;
   animation: toast-slide-in 200ms ease-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px var(--cx-overlay-40);
 }
 
 @media (prefers-reduced-motion: reduce) {

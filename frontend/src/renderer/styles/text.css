@@ -178,12 +178,12 @@
 }
 
 .text-overlay__box {
-  border: 1px dashed rgba(74, 222, 128, 0.5);
+  border: 1px dashed var(--cx-green-alpha-50);
   border-radius: 2px;
   padding: 4px 8px;
   min-width: 40px;
   min-height: 20px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--cx-overlay-20);
   transition: border-color 0.15s;
 }
 
@@ -194,7 +194,7 @@
 .text-overlay--editing .text-overlay__box {
   border-style: solid;
   border-color: var(--cx-action);
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--cx-overlay-40);
 }
 
 .text-overlay__preview {

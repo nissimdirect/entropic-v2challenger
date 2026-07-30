@@ -445,7 +445,7 @@
 }
 
 .mod-matrix__cell--active {
-  background: rgba(74, 222, 128, 0.08);
+  background: var(--cx-green-alpha-08);
   border-color: var(--cx-line-1);
 }
 

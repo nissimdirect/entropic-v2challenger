@@ -8,7 +8,7 @@
   border: 1px solid var(--cx-line-2);
   border-radius: 4px;
   padding: 4px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px var(--cx-overlay-40);
 }
 
 .context-menu__item {
@@ -84,7 +84,7 @@
   width: 18px;
   height: 18px;
   border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--cx-white-alpha-20);
   cursor: pointer;
   padding: 0;
   transition: transform 0.1s, border-color 0.1s;
@@ -92,7 +92,7 @@
 
 .context-menu__swatch:hover {
   transform: scale(1.15);
-  border-color: rgba(255, 255, 255, 0.7);
+  border-color: var(--cx-white-alpha-70);
 }
 
 /* UE.7 — Clip inline rename input */
@@ -101,7 +101,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--cx-overlay-70);
   border: 1px solid var(--cx-action);
   border-radius: 3px;
   color: var(--cx-text-1);
@@ -152,7 +152,7 @@
 }
 
 .timeline__resize-handle:hover {
-  background: rgba(74, 222, 128, 0.15);
+  background: var(--cx-green-alpha-15);
 }
 
 .timeline__resize-handle:hover::after {
@@ -196,7 +196,7 @@
 
 .timeline__add-track-btn:hover {
   color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.1);
+  background: var(--cx-green-alpha-10);
 }
 
 .timeline__track-headers {
@@ -278,7 +278,7 @@
   position: absolute;
   inset: 0;
   border: 2px dashed var(--cx-action);
-  background: rgba(74, 222, 128, 0.06);
+  background: var(--cx-green-alpha-05);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -336,7 +336,7 @@
 
 .timeline__collapse-btn:hover {
   color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.1);
+  background: var(--cx-green-alpha-10);
 }
 
 /* --- Transport Controls --- */
@@ -369,7 +369,7 @@
 
 .timeline__transport-btn--active:hover {
   color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.15);
+  background: var(--cx-green-alpha-15);
 }
 
 .timeline__transport-btn:focus-visible {
@@ -556,15 +556,15 @@
 }
 
 .track-header--selected {
-  background: rgba(74, 222, 128, 0.08);
+  background: var(--cx-green-alpha-08);
 }
 
 .track-header--dragging {
   cursor: grabbing;
-  background: rgba(74, 222, 128, 0.22);
+  background: var(--cx-green-alpha-20);
   box-shadow:
     0 0 0 1px var(--cx-action) inset,
-    0 4px 12px rgba(0, 0, 0, 0.6);
+    0 4px 12px var(--cx-overlay-60);
   z-index: 5;
   position: relative;
 }
@@ -583,7 +583,7 @@ body.track-reorder-active * {
   margin-top: 8px;
   border: 2px dashed var(--cx-action);
   border-radius: 4px;
-  background: rgba(74, 222, 128, 0.08);
+  background: var(--cx-green-alpha-08);
   pointer-events: auto;
 }
 
@@ -783,7 +783,7 @@ body.clip-dragging .timeline__new-track-zone {
 }
 
 .track-lane--selected {
-  background: rgba(74, 222, 128, 0.04);
+  background: var(--cx-green-alpha-05);
 }
 
 /* --- Clip --- */
@@ -855,7 +855,7 @@ body.clip-dragging .timeline__new-track-zone {
   text-overflow: ellipsis;
   position: relative;
   z-index: 1;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 2px var(--cx-overlay-80);
 }
 
 /* PUX.5 — Clip trim handle: widened 6px→8px, visible grip bars when selected.
@@ -953,9 +953,9 @@ body[data-disable-f-0512-8] .clip__thumb {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(59, 130, 246, 0.12);
-  border-left: 1px solid rgba(59, 130, 246, 0.5);
-  border-right: 1px solid rgba(59, 130, 246, 0.5);
+  background: var(--cx-blue-alpha-12);
+  border-left: 1px solid var(--cx-blue-alpha-50);
+  border-right: 1px solid var(--cx-blue-alpha-50);
   pointer-events: none;
   z-index: 3;
 }
@@ -1088,7 +1088,7 @@ body[data-disable-f-0512-8] .clip__thumb {
   border: 1px solid var(--cx-line-2);
   border-radius: 6px;
   width: 200px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px var(--cx-overlay-50);
   z-index: 1001;
 }
 
@@ -1292,11 +1292,11 @@ body[data-disable-f-0512-8] .clip__thumb {
 }
 
 .master-track-header:hover {
-  background: rgba(217, 162, 60, 0.2);
+  background: var(--cx-amber-alpha-20);
 }
 
 .master-track-header.track-header--selected {
-  background: rgba(217, 162, 60, 0.28);
+  background: var(--cx-amber-alpha-28);
 }
 
 .master-track-header__color {
@@ -1328,7 +1328,7 @@ body[data-disable-f-0512-8] .clip__thumb {
 }
 
 .master-track-lane--selected {
-  background: rgba(217, 162, 60, 0.2);
+  background: var(--cx-amber-alpha-20);
 }
 
 .master-track-lane__label {

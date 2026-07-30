@@ -8,4 +8,8 @@ css_font_below_floor=225
 tsx_raw_range=0
 tsx_native_select=0
 # css_raw_rgba measured on main @ 2512511, 2026-07-30 (UC1).
-css_raw_rgba=70
+# F3-C5: 69/70 migrated to --cx-*-alpha tokens; 1 remainder has no clean
+# mapping (rgba(239, 68, 68, 0.12) in instruments.css — no --cx-red-alpha-12
+# token exists; nearest is 15, a 25% relative alpha change, not a clean snap
+# per the tokens.css comment's own examples). Reported, not invented.
+css_raw_rgba=1

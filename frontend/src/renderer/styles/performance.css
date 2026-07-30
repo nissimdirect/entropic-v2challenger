@@ -35,7 +35,7 @@
 
 .performance-panel__indicator--active {
   background: var(--cx-action);
-  box-shadow: 0 0 6px rgba(74, 222, 128, 0.5);
+  box-shadow: 0 0 6px var(--cx-green-alpha-50);
 }
 
 .performance-panel__toggle-btn {
@@ -99,7 +99,7 @@
 .pad-cell--active {
   background: var(--cx-action);
   border-color: var(--cx-action);
-  box-shadow: 0 0 12px rgba(74, 222, 128, 0.4);
+  box-shadow: 0 0 12px var(--cx-green-alpha-40);
 }
 
 .pad-cell--active .pad-cell__key,
@@ -166,7 +166,7 @@
   justify-content: center;
   gap: 12px;
   padding: 8px 16px;
-  background: rgba(59, 130, 246, 0.9);
+  background: var(--cx-blue-alpha-90);
   color: var(--cx-text-1);
   font-size: 12px;
   font-weight: 600;
@@ -180,8 +180,8 @@
 }
 
 .midi-learn-overlay__cancel {
-  background: rgba(255, 255, 255, 0.2);
-  border: 1px solid rgba(255, 255, 255, 0.4);
+  background: var(--cx-white-alpha-20);
+  border: 1px solid var(--cx-white-alpha-40);
   border-radius: 4px;
   color: var(--cx-text-1);
   font-size: 11px;
@@ -191,7 +191,7 @@
 }
 
 .midi-learn-overlay__cancel:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--cx-white-alpha-30);
 }
 
 /* --- CC Badge (on Knob) --- */
@@ -222,7 +222,7 @@
   height: 6px;
   border-radius: 50%;
   background: var(--cx-automation-active);
-  box-shadow: 0 0 3px rgba(74, 222, 128, 0.8);
+  box-shadow: 0 0 3px var(--cx-green-alpha-80);
   pointer-events: none;
 }
 

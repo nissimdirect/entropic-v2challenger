@@ -210,7 +210,7 @@ body {
   background: var(--cx-bg-app);
   border: 1px solid var(--cx-line-2);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px var(--cx-overlay-50);
   max-width: 400px;
   max-height: 300px;
   overflow: auto;
@@ -404,7 +404,7 @@ body {
 .drop-zone:hover,
 .drop-zone--active {
   border-color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.05);
+  background: var(--cx-green-alpha-05);
 }
 
 .drop-zone--disabled {
@@ -1216,7 +1216,7 @@ body {
 .preview-canvas__popout-btn {
   margin-left: auto;
   pointer-events: auto;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-2);
   font-size: var(--cx-text-body);
@@ -1227,7 +1227,7 @@ body {
 }
 
 .preview-canvas__fps {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   color: var(--cx-action);
   font-family: "JetBrains Mono", monospace;
   font-size: var(--cx-text-data);
@@ -1240,7 +1240,7 @@ body {
 
 .preview-canvas__popout-btn:hover {
   color: var(--cx-text-1);
-  background: rgba(0, 0, 0, 0.8);
+  background: var(--cx-overlay-80);
 }
 
 /* --- Transform Panel --- */
@@ -1808,7 +1808,7 @@ body[data-disable-f-0512-36] .transform-panel {
 /* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
  * compound selectors so they win regardless of cascade order. */
 .dialog-overlay.consent-dialog__overlay {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--cx-overlay-70);
 }
 
 .dialog.consent-dialog {
@@ -1878,7 +1878,7 @@ body[data-disable-f-0512-36] .transform-panel {
  * root (COMPONENT-SPEC §3, F3-C1) — only the deltas from that base are kept
  * here, as compound selectors so they win regardless of cascade order. */
 .dialog-overlay.crash-recovery__overlay {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--cx-overlay-70);
 }
 
 .dialog.crash-recovery {
@@ -1955,7 +1955,7 @@ body[data-disable-f-0512-36] .transform-panel {
 /* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
  * compound selectors so they win regardless of cascade order. */
 .dialog-overlay.feedback-dialog__overlay {
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--cx-overlay-70);
 }
 
 .dialog.feedback-dialog {
@@ -2070,7 +2070,7 @@ body[data-disable-f-0512-36] .transform-panel {
 
 .freeze-overlay--active {
   backdrop-filter: blur(4px);
-  background: rgba(100, 180, 255, 0.15);
+  background: var(--cx-freeze-wash);
 }
 
 .freeze-overlay__badge {
@@ -2112,7 +2112,7 @@ body[data-disable-f-0512-36] .transform-panel {
 }
 
 .shortcut-editor__conflict {
-  background: rgba(239, 68, 68, 0.15);
+  background: var(--cx-red-alpha-15);
   border: 1px solid var(--cx-danger-text);
   color: var(--cx-danger-text);
   padding: 6px 10px;
@@ -2223,7 +2223,7 @@ body[data-disable-f-0512-36] .transform-panel {
 .preferences__overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2404,7 +2404,7 @@ body[data-disable-f-0512-36] .transform-panel {
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   display: flex;
   align-items: center;
   justify-content: center;
