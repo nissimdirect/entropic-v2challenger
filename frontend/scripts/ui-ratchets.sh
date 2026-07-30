@@ -72,7 +72,14 @@ count_tsx_raw_range() {
 }
 count_tsx_native_select() {
   # '<select' does not match '</select>' (the slash breaks the literal).
-  { grep -roh '<select' "$SRC_DIR" --include='*.tsx' || true; } | wc -l
+  # components/common/Select.tsx is EXCLUDED by path: it is the one legal
+  # wrapper (the Select primitive, COMPONENT-SPEC §3) and necessarily
+  # contains the single sanctioned native <select>. Counting it would park
+  # the counter one above the true adoptable debt forever. Every other
+  # .tsx still counts toward the 56 → 0 ratchet.
+  { find "$SRC_DIR" -name '*.tsx' \
+      -not -path "$SRC_DIR/components/common/Select.tsx" -print0 \
+    | xargs -0 grep -oh '<select' 2>/dev/null || true; } | wc -l
 }
 
 FAILED=0
