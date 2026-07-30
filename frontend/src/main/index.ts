@@ -163,6 +163,12 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     ...winOpts,
     ...(winOpts.x === undefined ? { center: true } : {}),
+    // Hermetic e2e must get EXACTLY 1280×800 even when the display is
+    // smaller (CI runners expose a 1024×768 virtual display, and macOS
+    // clamps window bounds to the work area at creation — observed on the
+    // first CI run of this fixture). Larger-than-screen is fine for tests:
+    // Playwright captures the content buffer, not the physical screen.
+    ...(IS_E2E ? { enableLargerThanScreen: true } : {}),
     title: 'Creatrix',
     backgroundColor: '#1a1a1a',
     webPreferences: {
@@ -176,6 +182,12 @@ function createWindow(): BrowserWindow {
   // Restore maximized state after creation
   if (saved?.isMaximized) {
     win.maximize()
+  }
+
+  // Hermetic e2e: enforce the exact default bounds post-creation —
+  // creation-time clamping to a small display would otherwise win.
+  if (IS_E2E) {
+    win.setBounds({ x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
   }
 
   // Debounced window state save on resize/move
