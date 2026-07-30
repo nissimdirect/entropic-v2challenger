@@ -21,7 +21,6 @@ import { SAMPLER_SPEED_MIN, SAMPLER_SPEED_MAX, RACK_PAD_OPACITY_MIN, RACK_PAD_OP
 import { clampFinite } from '../shared/numeric'
 import { randomUUID } from './utils'
 import { CLIP_TRANSFORM_NAMESPACE, parseTransformLanePath } from './utils/transformLanes'
-import { FF } from '../shared/feature-flags'
 import { LIMITS } from '../shared/limits'
 
 // B1 mount: blend modes accepted on a persisted sampler (mirrors SamplerDevice).
@@ -709,7 +708,7 @@ function serializeProject(): string {
     markers: timelineStore.markers,
     loopRegion: timelineStore.loopRegion,
     // F-0512-25: persist zoom so reloads don't lose the user's view setting.
-    ...(FF.F_0512_25_ZOOM_PERSIST ? { zoom: timelineStore.zoom } : {}),
+    zoom: timelineStore.zoom,
   }
 
   const operatorStore = useOperatorStore.getState()
@@ -1293,7 +1292,7 @@ function hydrateStores(project: Project & { masterEffectChain?: EffectInstance[]
   }
 
   // F-0512-25: hydrate timeline zoom (optional; absent on legacy files)
-  if (FF.F_0512_25_ZOOM_PERSIST && typeof project.timeline.zoom === 'number' && project.timeline.zoom > 0) {
+  if (typeof project.timeline.zoom === 'number' && project.timeline.zoom > 0) {
     timelineStore.setZoom(project.timeline.zoom)
   }
 

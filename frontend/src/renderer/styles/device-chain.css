@@ -197,12 +197,6 @@
   opacity: 0.5;
 }
 
-/* F-0512-30 disable override: revert to the pre-fix 130-180px range. */
-body[data-disable-f-0512-30] .device-card {
-  min-width: 130px;
-  max-width: 180px;
-}
-
 .device-card--error {
   border-color: var(--cx-danger-text);
 }

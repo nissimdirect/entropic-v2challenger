@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import ShortcutEditor from './ShortcutEditor'
 import Select from '../common/Select'
-import { FF } from '../../../shared/feature-flags'
 import { useModalBehavior } from '../../hooks/useModalBehavior'
 
 export type PreferencesTab = 'general' | 'shortcuts' | 'performance' | 'paths'
@@ -24,14 +23,11 @@ const TAB_LABELS: Record<PreferencesTab, string> = {
 const TABS: PreferencesTab[] = ['general', 'shortcuts', 'performance', 'paths']
 
 export default function Preferences({ isOpen, onClose, initialTab }: PreferencesProps) {
-  const [activeTab, setActiveTab] = useState<PreferencesTab>(
-    FF.F_0512_37_SHORTCUTS_TAB ? (initialTab ?? 'general') : 'general',
-  )
+  const [activeTab, setActiveTab] = useState<PreferencesTab>(initialTab ?? 'general')
 
   // F-0512-37: Re-sync the active tab whenever the modal is reopened with a
   // different initialTab — useState's initialiser only runs once at mount.
   useEffect(() => {
-    if (!FF.F_0512_37_SHORTCUTS_TAB) return
     if (isOpen && initialTab) setActiveTab(initialTab)
   }, [isOpen, initialTab])
   const [autoFreezeThreshold, setAutoFreezeThreshold] = useState(50)

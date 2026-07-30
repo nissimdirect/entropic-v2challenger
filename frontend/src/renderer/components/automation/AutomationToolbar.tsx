@@ -14,7 +14,6 @@ import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
 import type { TriggerMode, BlendOp, AutomationLaneSource } from '../../../shared/types'
 import type { Axis } from '../../../shared/axis-binding'
-import { FF } from '../../../shared/feature-flags'
 import {
   TRANSFORM_FIELDS,
   TRANSFORM_FIELD_META,
@@ -379,7 +378,7 @@ export default function AutomationToolbar() {
         <button
           className="auto-toolbar__btn"
           onClick={handleAddLane}
-          title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          title={!armedTrackId
             ? 'Arm a track first — click the R button on a track header'
             : 'Add automation lane to armed track'}
           disabled={!armedTrackId}
@@ -390,7 +389,7 @@ export default function AutomationToolbar() {
         <button
           className="auto-toolbar__btn"
           onClick={handleAddTrigger}
-          title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          title={!armedTrackId
             ? 'Arm a track first — click the R button on a track header'
             : 'Add trigger automation lane (0/1 toggle) to armed track'}
           disabled={!armedTrackId}
@@ -405,7 +404,7 @@ export default function AutomationToolbar() {
         <button
           className="auto-toolbar__btn"
           onClick={handleAddMod}
-          title={FF.F_0512_34_ARM_HINT && !armedTrackId
+          title={!armedTrackId
             ? 'Arm a track first — click the R button on a track header'
             : modTargetLanes.length === 0
               ? 'Add an automation lane first — modulation superimposes onto an existing lane'
@@ -416,7 +415,7 @@ export default function AutomationToolbar() {
           + Mod
         </button>
       </div>
-      {FF.F_0512_34_ARM_HINT && !armedTrackId && (
+      {!armedTrackId && (
         <span className="auto-toolbar__hint">
           Click <kbd>R</kbd> on a track to arm
         </span>
