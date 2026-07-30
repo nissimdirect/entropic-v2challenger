@@ -8,6 +8,7 @@ import type { SamplerInstrumentV1 } from '../instruments/types'
 // visually misrepresenting it) whenever the two UIs edited the same mapping.
 // Sharing clampAmount keeps both UIs' semantics identical.
 import { clampAmount } from '../routing-canvas/EdgeInspector'
+import Slider from '../common/Slider'
 
 interface ModulationMatrixProps {
   effectChain: { id: string; effectId: string }[]
@@ -188,19 +189,21 @@ export default function ModulationMatrix({
                       >
                         {mapping ? (
                           <div className="mod-matrix__cell-content">
-                            <input
-                              type="range"
-                              className="mod-matrix__depth-slider"
-                              min={-1}
-                              max={1}
-                              step={0.01}
-                              value={clampAmount(mapping.depth)}
-                              onChange={(e) =>
-                                updateMapping(op.id, mappingIndex, {
-                                  depth: clampAmount(parseFloat(e.target.value)),
-                                })
-                              }
-                            />
+                            <div className="mod-matrix__depth-slider">
+                              <Slider
+                                testId={`mod-matrix-depth-${op.id}-${t.effectId}-${t.paramKey}`}
+                                value={clampAmount(mapping.depth)}
+                                min={-1}
+                                max={1}
+                                default={0}
+                                label={`${op.label} → ${t.effectId}.${t.paramKey} depth`}
+                                type="float"
+                                showHeader={false}
+                                onChange={(v) =>
+                                  updateMapping(op.id, mappingIndex, { depth: clampAmount(v) })
+                                }
+                              />
+                            </div>
                             <span className="mod-matrix__depth-value">
                               {Math.round(clampAmount(mapping.depth) * 100)}%
                             </span>

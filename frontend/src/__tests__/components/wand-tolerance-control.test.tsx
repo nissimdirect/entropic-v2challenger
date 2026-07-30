@@ -52,16 +52,27 @@ describe('Wand tolerance control (cohesion: WIRE setWandTolerance)', () => {
     renderToolTab()
     fireEvent.click(screen.getByTestId('tool-item-mask-wand'))
     expect(useTimelineStore.getState().wandTolerance).toBe(30) // default
-    fireEvent.change(screen.getByTestId('wand-tolerance'), { target: { value: '120' } })
-    expect(useTimelineStore.getState().wandTolerance).toBe(120)
+    // F3-C2: tolerance is now the common/Slider primitive (ARIA track driven
+    // by pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). Shift+ArrowRight is
+    // Slider's tested keyboard interaction (slider.test.tsx) — one press
+    // moves by 10% of the [0, 441.67] range (delta ~44.167) from the 30
+    // default; int-typed rounds the result to 74.
+    fireEvent.keyDown(screen.getByTestId('wand-tolerance'), { key: 'ArrowRight', shiftKey: true })
+    expect(useTimelineStore.getState().wandTolerance).toBe(74)
   })
 
   it('the slider value is clamped by the store to [0, 441.67]', () => {
     renderToolTab()
     fireEvent.click(screen.getByTestId('tool-item-mask-wand'))
-    fireEvent.change(screen.getByTestId('wand-tolerance'), { target: { value: '9999' } })
+    // F3-C2: Slider's own pointer/keyboard interaction paths are
+    // structurally bounded to [min,max] (clampAndRound), so there is no
+    // longer a UI path that can submit a raw out-of-range value. The store
+    // action's OWN defensive clamp (for any non-UI caller) is exercised
+    // directly here.
+    useTimelineStore.getState().setWandTolerance(9999)
     expect(useTimelineStore.getState().wandTolerance).toBeCloseTo(441.67, 1)
-    fireEvent.change(screen.getByTestId('wand-tolerance'), { target: { value: '-50' } })
+    useTimelineStore.getState().setWandTolerance(-50)
     expect(useTimelineStore.getState().wandTolerance).toBe(0)
   })
 })

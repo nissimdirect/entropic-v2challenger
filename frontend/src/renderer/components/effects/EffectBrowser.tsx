@@ -6,6 +6,8 @@ import { LIMITS } from '../../../shared/limits'
 import { useBrowserStore, type BrowserTab, BROWSER_TABS } from '../../stores/browser'
 import { useToastStore } from '../../stores/toast'
 import { useTimelineStore } from '../../stores/timeline'
+import Slider from '../common/Slider'
+import EmptyState from '../common/EmptyState'
 import { useLayoutStore } from '../../stores/layout'
 import { FF } from '../../../shared/feature-flags'
 import ToolIcon, { type ToolName } from '../../assets/tool-icons'
@@ -559,7 +561,7 @@ export default function EffectBrowser({
               </button>
             ))}
             {searchMatches.length === 0 && (
-              <div className="effect-browser__empty">No effects found</div>
+              <EmptyState testId="effect-browser-empty-search" hint="No effects found" className="effect-browser__empty" />
             )}
           </>
         ) : activeTab === 'fx' ? (
@@ -659,7 +661,7 @@ export default function EffectBrowser({
               <div className="effect-browser__folder-header effect-browser__folder-header--static">
                 <span>Composite</span>
               </div>
-              <div className="effect-browser__empty">No composite effects registered</div>
+              <EmptyState testId="effect-browser-empty-composite" hint="No composite effects registered" className="effect-browser__empty" />
             </div>
           )
         ) : activeTab === 'tool' ? (
@@ -726,14 +728,16 @@ export default function EffectBrowser({
                 data-testid="wand-tolerance-control"
               >
                 <span>Tolerance</span>
-                <input
-                  type="range"
-                  data-testid="wand-tolerance"
+                <Slider
+                  testId="wand-tolerance"
                   value={wandTolerance}
                   min={0}
                   max={441.67}
-                  step={1}
-                  onChange={(e) => setWandTolerance(Number(e.target.value))}
+                  default={30}
+                  label="Tolerance"
+                  type="int"
+                  showHeader={false}
+                  onChange={setWandTolerance}
                 />
                 <span data-testid="wand-tolerance-readout">{Math.round(wandTolerance)}</span>
               </label>

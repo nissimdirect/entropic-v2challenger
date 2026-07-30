@@ -1,12 +1,17 @@
-/* --- About Dialog --- */
-
-.about-dialog__overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 1000;
-  display: flex; align-items: center; justify-content: center;
+/* --- About Dialog ---
+ * Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. About has no
+ * header/body/actions substructure (flat splash card), so only the overlay
+ * and box are shared. */
+.dialog-overlay.about-dialog__overlay {
+  z-index: 1000;
 }
-.about-dialog {
-  background: var(--cx-bg-raised); border-radius: 8px; padding: 32px; text-align: center;
-  min-width: 300px; border: 1px solid var(--cx-line-1);
+.dialog.about-dialog {
+  border-color: var(--cx-line-1);
+  width: auto;
+  min-width: 300px;
+  padding: 32px;
+  text-align: center;
 }
 .about-dialog__logo { font-size: 32px; font-weight: 700; color: var(--cx-action); letter-spacing: 3px; }
 .about-dialog__version { font-size: 13px; color: var(--cx-text-2); margin-top: 4px; }

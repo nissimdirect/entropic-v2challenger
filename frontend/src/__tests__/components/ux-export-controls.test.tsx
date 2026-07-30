@@ -12,7 +12,7 @@ import { render, fireEvent, cleanup } from '@testing-library/react'
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 
-import ExportDialog from '../../renderer/components/export/ExportDialog'
+import ExportDialog from '../../renderer/components/dialogs/ExportDialog'
 import ExportProgress from '../../renderer/components/export/ExportProgress'
 import PreviewControls from '../../renderer/components/preview/PreviewControls'
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'
@@ -85,7 +85,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
     expect(document.querySelector('.export-dialog')).toBeTruthy()
 
     // Default codec select = h264
-    const codecSelect = document.querySelector('.export-dialog__select') as HTMLSelectElement
+    const codecSelect = document.querySelector('.export-dialog__select select') as HTMLSelectElement
     expect(codecSelect.value).toBe('h264')
 
     // Video tab active by default
@@ -109,7 +109,7 @@ describe('UX Combos — Group 5: Export Round-trips', () => {
     )
 
     // Settings should be fresh defaults
-    const codecSelectReopen = document.querySelector('.export-dialog__select') as HTMLSelectElement
+    const codecSelectReopen = document.querySelector('.export-dialog__select select') as HTMLSelectElement
     expect(codecSelectReopen.value).toBe('h264')
     expect(document.querySelector('.export-dialog__tab--active')?.textContent).toBe('Video')
   })

@@ -8,7 +8,7 @@
   border: 1px solid var(--cx-line-2);
   border-radius: 4px;
   padding: 4px 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px var(--cx-overlay-40);
 }
 
 .context-menu__item {
@@ -84,7 +84,7 @@
   width: 18px;
   height: 18px;
   border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--cx-white-alpha-20);
   cursor: pointer;
   padding: 0;
   transition: transform 0.1s, border-color 0.1s;
@@ -92,7 +92,7 @@
 
 .context-menu__swatch:hover {
   transform: scale(1.15);
-  border-color: rgba(255, 255, 255, 0.7);
+  border-color: var(--cx-white-alpha-70);
 }
 
 /* UE.7 — Clip inline rename input */
@@ -101,7 +101,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--cx-overlay-70);
   border: 1px solid var(--cx-action);
   border-radius: 3px;
   color: var(--cx-text-1);
@@ -152,7 +152,7 @@
 }
 
 .timeline__resize-handle:hover {
-  background: rgba(74, 222, 128, 0.15);
+  background: var(--cx-green-alpha-15);
 }
 
 .timeline__resize-handle:hover::after {
@@ -196,7 +196,7 @@
 
 .timeline__add-track-btn:hover {
   color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.1);
+  background: var(--cx-green-alpha-10);
 }
 
 .timeline__track-headers {
@@ -278,7 +278,7 @@
   position: absolute;
   inset: 0;
   border: 2px dashed var(--cx-action);
-  background: rgba(74, 222, 128, 0.06);
+  background: var(--cx-green-alpha-05);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -336,7 +336,7 @@
 
 .timeline__collapse-btn:hover {
   color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.1);
+  background: var(--cx-green-alpha-10);
 }
 
 /* --- Transport Controls --- */
@@ -369,7 +369,7 @@
 
 .timeline__transport-btn--active:hover {
   color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.15);
+  background: var(--cx-green-alpha-15);
 }
 
 .timeline__transport-btn:focus-visible {
@@ -452,40 +452,20 @@
   flex-shrink: 0;
 }
 
-/* PUX.5 — Zoom-scroll slider: thumb 10×10→12×12, track height→24px transparent.
- * Electron = Chromium, -moz- skipped. */
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .zoom-scroll__slider {
-  -webkit-appearance: none;
   width: 100px;
-  height: 24px;
-  background: transparent;
-  border-radius: 2px;
-  outline: none;
 }
 
-.zoom-scroll__slider::-webkit-slider-runnable-track {
+.zoom-scroll__slider .hslider__track {
   height: 4px;
-  background: var(--cx-bg-hover);
-  border-radius: 2px;
 }
 
-.zoom-scroll__slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.zoom-scroll__slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.zoom-scroll__slider .hslider__thumb {
   width: 12px;
   height: 12px;
-  background: var(--cx-text-1);
-  border-radius: 50%;
-  cursor: pointer;
-  margin-top: -4px;
-}
-
-.zoom-scroll__slider::-webkit-slider-thumb:hover {
-  background: var(--cx-action);
 }
 
 .zoom-scroll__value {
@@ -576,15 +556,15 @@
 }
 
 .track-header--selected {
-  background: rgba(74, 222, 128, 0.08);
+  background: var(--cx-green-alpha-08);
 }
 
 .track-header--dragging {
   cursor: grabbing;
-  background: rgba(74, 222, 128, 0.22);
+  background: var(--cx-green-alpha-20);
   box-shadow:
     0 0 0 1px var(--cx-action) inset,
-    0 4px 12px rgba(0, 0, 0, 0.6);
+    0 4px 12px var(--cx-overlay-60);
   z-index: 5;
   position: relative;
 }
@@ -603,7 +583,7 @@ body.track-reorder-active * {
   margin-top: 8px;
   border: 2px dashed var(--cx-action);
   border-radius: 4px;
-  background: rgba(74, 222, 128, 0.08);
+  background: var(--cx-green-alpha-08);
   pointer-events: auto;
 }
 
@@ -709,40 +689,21 @@ body.clip-dragging .timeline__new-track-zone {
   margin-left: 4px;
 }
 
-/* PUX.5 — Track opacity slider: thumb 10×10→12×12, track height 4px→24px
- * (transparent track padding gives ≥24px effective target). Electron = Chromium,
- * -moz- pseudo skipped intentionally. */
-.track-header__opacity input[type="range"] {
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
+.track-header__opacity .hslider {
   width: 40px;
-  height: 24px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
 }
 
-.track-header__opacity input[type="range"]::-webkit-slider-runnable-track {
+.track-header__opacity .hslider__track {
   height: 4px;
   background: var(--cx-bg-raised);
-  border-radius: 2px;
 }
 
-.track-header__opacity input[type="range"]:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.track-header__opacity input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
+.track-header__opacity .hslider__thumb {
   width: 12px;
   height: 12px;
-  border-radius: 50%;
-  background: var(--cx-action);
-  cursor: pointer;
-  margin-top: -4px;
 }
 
 .track-header__opacity-label {
@@ -755,28 +716,32 @@ body.clip-dragging .timeline__new-track-zone {
 
 /* --- Track Blend Mode Dropdown --- */
 
-/* PUX.5 — Track blend dropdown: height 20→24 for ≥24px effective hit target. */
+/* PUX.5 — Track blend dropdown: height 20→24 for ≥24px effective hit target.
+ * F3-C3: wraps common/Select instead of a raw native <select> — keeps this
+ * compact, borderless mini-dropdown look (overrides the shared cx-select
+ * skin's default border/height/padding). */
 .track-header__blend {
-  height: 24px;
   max-width: 48px;
+  margin-left: 2px;
+}
+
+.track-header__blend .cx-select__control {
+  height: 24px;
   background: var(--cx-bg-raised);
   border: none;
   border-radius: 2px;
   color: var(--cx-text-2);
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
-  cursor: pointer;
   padding: 0 2px;
-  margin-left: 2px;
-  outline: none;
 }
 
-.track-header__blend:hover {
+.track-header__blend .cx-select__control:hover {
   background: var(--cx-bg-hover);
   color: var(--cx-text-1);
 }
 
-.track-header__blend:focus-visible {
+.track-header__blend .cx-select__control:focus-visible {
   outline: 2px solid var(--cx-focus-ring);
   outline-offset: 1px;
   color: var(--cx-text-1);
@@ -818,7 +783,7 @@ body.clip-dragging .timeline__new-track-zone {
 }
 
 .track-lane--selected {
-  background: rgba(74, 222, 128, 0.04);
+  background: var(--cx-green-alpha-05);
 }
 
 /* --- Clip --- */
@@ -890,7 +855,7 @@ body.clip-dragging .timeline__new-track-zone {
   text-overflow: ellipsis;
   position: relative;
   z-index: 1;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 1px 2px var(--cx-overlay-80);
 }
 
 /* PUX.5 — Clip trim handle: widened 6px→8px, visible grip bars when selected.
@@ -988,9 +953,9 @@ body[data-disable-f-0512-8] .clip__thumb {
   position: absolute;
   top: 0;
   bottom: 0;
-  background: rgba(59, 130, 246, 0.12);
-  border-left: 1px solid rgba(59, 130, 246, 0.5);
-  border-right: 1px solid rgba(59, 130, 246, 0.5);
+  background: var(--cx-blue-alpha-12);
+  border-left: 1px solid var(--cx-blue-alpha-50);
+  border-right: 1px solid var(--cx-blue-alpha-50);
   pointer-events: none;
   z-index: 3;
 }
@@ -1123,7 +1088,7 @@ body[data-disable-f-0512-8] .clip__thumb {
   border: 1px solid var(--cx-line-2);
   border-radius: 6px;
   width: 200px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px var(--cx-overlay-50);
   z-index: 1001;
 }
 
@@ -1327,11 +1292,11 @@ body[data-disable-f-0512-8] .clip__thumb {
 }
 
 .master-track-header:hover {
-  background: rgba(217, 162, 60, 0.2);
+  background: var(--cx-amber-alpha-20);
 }
 
 .master-track-header.track-header--selected {
-  background: rgba(217, 162, 60, 0.28);
+  background: var(--cx-amber-alpha-28);
 }
 
 .master-track-header__color {
@@ -1363,7 +1328,7 @@ body[data-disable-f-0512-8] .clip__thumb {
 }
 
 .master-track-lane--selected {
-  background: rgba(217, 162, 60, 0.2);
+  background: var(--cx-amber-alpha-20);
 }
 
 .master-track-lane__label {

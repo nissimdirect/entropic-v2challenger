@@ -31,6 +31,8 @@ import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import type { Operator, LFOWaveform, OperatorMapping, EffectInfo } from '../../../shared/types'
 import OperatorDepthArc from './OperatorDepthArc'
+import Slider from '../common/Slider'
+import Select from '../common/Select'
 
 const WAVEFORMS: LFOWaveform[] = ['sine', 'saw', 'square', 'triangle', 'random', 'noise', 'sample_hold']
 
@@ -278,16 +280,18 @@ export default function OperatorKentaroCluster({
         </div>
         <div className="operator-card__param-row">
           <span className="operator-card__param-label">M.Depth</span>
-          <input
-            type="range"
-            className="operator-kentaro__master-depth"
-            min={0}
-            max={1}
-            step={0.01}
-            value={masterDepth}
-            onChange={(e) => setMasterDepth(parseFloat(e.target.value))}
-            aria-label="master depth"
-          />
+          <div className="operator-kentaro__master-depth">
+            <Slider
+              value={masterDepth}
+              min={0}
+              max={1}
+              default={1}
+              label="master depth"
+              type="float"
+              showHeader={false}
+              onChange={setMasterDepth}
+            />
+          </div>
           <OperatorDepthArc depth={masterEffective} color={ARC_COLOR} radius={9} />
         </div>
         <div className="operator-card__param-row">
@@ -313,7 +317,7 @@ export default function OperatorKentaroCluster({
             <div key={i} className="operator-kentaro__lfo-row" data-lfo-index={i}>
               <div className="operator-kentaro__lfo-head">
                 <span className="operator-card__param-label">{`L${i}`}</span>
-                <select
+                <Select
                   className="operator-card__param-select"
                   value={lfo.shape}
                   onChange={(e) => setLfoField(i, 'shape', e.target.value)}
@@ -322,7 +326,7 @@ export default function OperatorKentaroCluster({
                   {WAVEFORMS.map((w) => (
                     <option key={w} value={w}>{w}</option>
                   ))}
-                </select>
+                </Select>
                 <input
                   className="operator-card__param-input"
                   type="number"
@@ -375,7 +379,7 @@ export default function OperatorKentaroCluster({
               <div className="operator-kentaro__lfo-map">
                 {map ? (
                   <>
-                    <select
+                    <Select
                       className="operator-card__param-select"
                       value={`${map.mapping.targetEffectId}::${map.mapping.targetParamKey}`}
                       onChange={(e) => {
@@ -393,7 +397,7 @@ export default function OperatorKentaroCluster({
                           </option>
                         ))
                       })}
-                    </select>
+                    </Select>
                     <button
                       className="operator-card__remove-btn"
                       onClick={() => removeMapping(operator.id, map.index)}

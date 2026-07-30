@@ -4,6 +4,7 @@ import type { ClipTransform } from '../../../shared/types'
 import { IDENTITY_TRANSFORM } from '../../../shared/types'
 import { FF } from '../../../shared/feature-flags'
 import { useMIDIStore } from '../../stores/midi'
+import Slider from '../common/Slider'
 
 interface TransformPanelProps {
   transform: ClipTransform
@@ -216,15 +217,19 @@ export default function TransformPanel({
             <span className="transform-panel__label">
               {FF.F_0512_21_OPACITY_LABELS ? 'Clip opacity' : 'Opacity'}
             </span>
-            <input
-              className="transform-panel__input"
-              type="range"
-              min={0}
-              max={100}
-              value={Math.round(opacity * 100)}
-              onContextMenu={learnField('opacity')}
-              onChange={(e) => onOpacityChange(Number(e.target.value) / 100)}
-            />
+            <div className="transform-panel__opacity-slider">
+              <Slider
+                value={Math.round(opacity * 100)}
+                min={0}
+                max={100}
+                default={100}
+                label={FF.F_0512_21_OPACITY_LABELS ? 'Clip opacity' : 'Opacity'}
+                type="int"
+                showHeader={false}
+                onContextMenu={learnField('opacity')}
+                onChange={(v) => onOpacityChange(v / 100)}
+              />
+            </div>
             <span className="transform-panel__unit">{Math.round(opacity * 100)}%</span>
           </label>
         )}

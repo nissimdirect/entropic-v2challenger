@@ -14,8 +14,9 @@ import TextPanel from './components/text/TextPanel'
 import TextOverlay from './components/text/TextOverlay'
 import PreviewControls from './components/preview/PreviewControls'
 import MaskSelectOverlay from './components/preview/MaskSelectOverlay'
-import ExportDialog from './components/export/ExportDialog'
-import type { ExportSettings } from './components/export/ExportDialog'
+import ExportDialog from './components/dialogs/ExportDialog'
+import Select from './components/common/Select'
+import type { ExportSettings } from './components/dialogs/ExportDialog'
 import ExportProgress from './components/export/ExportProgress'
 import Timeline from './components/timeline/Timeline'
 import SpeedDialog from './components/timeline/SpeedDialog'
@@ -3702,7 +3703,7 @@ function AppInner() {
           >
             Q
           </button>
-          <select
+          <Select
             className="app__transport-select"
             value={quantizeDivision}
             onChange={(e) => useLayoutStore.getState().setQuantizeDivision(Number(e.target.value))}
@@ -3713,7 +3714,7 @@ function AppInner() {
             <option value={8}>1/8</option>
             <option value={16}>1/16</option>
             <option value={32}>1/32</option>
-          </select>
+          </Select>
         </div>
       </div>
       <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />

@@ -1,4 +1,6 @@
 import Icon from '../../assets/icon-kit';
+import Select from '../common/Select';
+import EmptyState from '../common/EmptyState';
 import { useMIDIStore } from '../../stores/midi';
 
 export default function MIDISettings() {
@@ -22,7 +24,7 @@ export default function MIDISettings() {
     <div className="midi-settings">
       <div className="midi-settings__section">
         <label className="midi-settings__label">Device</label>
-        <select
+        <Select
           className="param-choice__select"
           value={activeDeviceId ?? ''}
           onChange={(e) => useMIDIStore.getState().setActiveDevice(e.target.value || null)}
@@ -33,12 +35,12 @@ export default function MIDISettings() {
               {d.name} ({d.manufacturer})
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="midi-settings__section">
         <label className="midi-settings__label">Channel</label>
-        <select
+        <Select
           className="param-choice__select"
           value={channelFilter ?? ''}
           onChange={(e) => {
@@ -50,7 +52,7 @@ export default function MIDISettings() {
           {Array.from({ length: 16 }, (_, i) => (
             <option key={i} value={i}>{i + 1}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="midi-settings__section">
@@ -66,9 +68,11 @@ export default function MIDISettings() {
           )}
         </div>
         {ccMappings.length === 0 ? (
-          <div className="midi-settings__empty">
-            No CC mappings — right-click a knob to learn
-          </div>
+          <EmptyState
+            testId="midi-settings-empty"
+            hint="No CC mappings — right-click a knob to learn"
+            className="midi-settings__empty"
+          />
         ) : (
           <div className="midi-settings__mapping-list">
             {ccMappings.map((m, idx) => (

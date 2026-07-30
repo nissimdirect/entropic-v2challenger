@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useModalBehavior } from '../../hooks/useModalBehavior'
+import Slider from '../common/Slider'
+import Select from '../common/Select'
 
 export interface ExportSettings {
   outputPath: string
@@ -181,7 +183,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Region</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={region}
           onChange={(e) => setRegion(e.target.value)}
@@ -191,7 +193,7 @@ export default function ExportDialog({
             Loop Region{hasLoop ? ` (${loopIn}–${loopOut})` : ' (no loop set)'}
           </option>
           <option value="custom">Custom Range</option>
-        </select>
+        </Select>
       </div>
       {region === 'custom' && (
         <div className="export-dialog__field export-dialog__field--resolution">
@@ -222,7 +224,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Codec</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={codec}
           onChange={(e) => setCodec(e.target.value)}
@@ -230,12 +232,12 @@ export default function ExportDialog({
           {CODECS.map((c) => (
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
         <label>Resolution</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={resolution}
           onChange={(e) => setResolution(e.target.value)}
@@ -245,7 +247,7 @@ export default function ExportDialog({
               {r.value === 'source' ? `Source (${sourceWidth}x${sourceHeight})` : r.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       {resolution === 'custom' && (
         <div className="export-dialog__field export-dialog__field--resolution">
@@ -271,7 +273,7 @@ export default function ExportDialog({
 
       <div className="export-dialog__field">
         <label>Frame Rate</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={fps}
           onChange={(e) => setFps(e.target.value)}
@@ -281,12 +283,12 @@ export default function ExportDialog({
               {f.value === 'source' ? `Source (${sourceFps} fps)` : f.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
         <label>Quality Preset</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={qualityPreset}
           onChange={(e) => setQualityPreset(e.target.value)}
@@ -294,7 +296,7 @@ export default function ExportDialog({
           {QUALITY_PRESETS.map((q) => (
             <option key={q.value} value={q.value}>{q.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
@@ -318,26 +320,34 @@ export default function ExportDialog({
       {bitrateMode === 'crf' ? (
         <div className="export-dialog__field">
           <label>CRF: {crf}</label>
-          <input
-            type="range"
-            className="export-dialog__slider"
-            min={0}
-            max={51}
-            value={crf}
-            onChange={(e) => setCrf(parseInt(e.target.value, 10))}
-          />
+          <div className="export-dialog__slider">
+            <Slider
+              value={crf}
+              min={0}
+              max={51}
+              default={23}
+              label="CRF"
+              type="int"
+              showHeader={false}
+              onChange={setCrf}
+            />
+          </div>
         </div>
       ) : (
         <div className="export-dialog__field">
           <label>Bitrate: {bitrate} Mbps</label>
-          <input
-            type="range"
-            className="export-dialog__slider"
-            min={1}
-            max={50}
-            value={bitrate}
-            onChange={(e) => setBitrate(parseInt(e.target.value, 10))}
-          />
+          <div className="export-dialog__slider">
+            <Slider
+              value={bitrate}
+              min={1}
+              max={50}
+              default={10}
+              label="Bitrate"
+              type="int"
+              showHeader={false}
+              onChange={setBitrate}
+            />
+          </div>
         </div>
       )}
 
@@ -360,7 +370,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Max Resolution</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={gifMaxWidth}
           onChange={(e) => setGifMaxWidth(parseInt(e.target.value, 10))}
@@ -368,7 +378,7 @@ export default function ExportDialog({
           {GIF_WIDTHS.map((g) => (
             <option key={g.value} value={g.value}>{g.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
@@ -390,7 +400,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Format</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={imageFormat}
           onChange={(e) => setImageFormat(e.target.value)}
@@ -398,20 +408,24 @@ export default function ExportDialog({
           {IMAGE_FORMATS.map((f) => (
             <option key={f.value} value={f.value}>{f.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {imageFormat === 'jpeg' && (
         <div className="export-dialog__field">
           <label>JPEG Quality: {jpegQuality}</label>
-          <input
-            type="range"
-            className="export-dialog__slider"
-            min={1}
-            max={100}
-            value={jpegQuality}
-            onChange={(e) => setJpegQuality(parseInt(e.target.value, 10))}
-          />
+          <div className="export-dialog__slider">
+            <Slider
+              value={jpegQuality}
+              min={1}
+              max={100}
+              default={95}
+              label="JPEG Quality"
+              type="int"
+              showHeader={false}
+              onChange={setJpegQuality}
+            />
+          </div>
         </div>
       )}
 
@@ -426,16 +440,16 @@ export default function ExportDialog({
   }
 
   return (
-    <div className="export-dialog__overlay" onClick={onClose}>
+    <div className="dialog-overlay export-dialog__overlay" onClick={onClose}>
       <div
         ref={dialogRef}
-        className="export-dialog"
+        className="dialog export-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-dialog-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="export-dialog__header">
+        <div className="dialog__header export-dialog__header">
           <span id="export-dialog-title">Export</span>
           <button className="export-dialog__close" onClick={onClose}>x</button>
         </div>
@@ -452,13 +466,13 @@ export default function ExportDialog({
           ))}
         </div>
 
-        <div className="export-dialog__body">
+        <div className="dialog__body export-dialog__body">
           {activeTab === 'video' && renderVideoTab()}
           {activeTab === 'gif' && renderGifTab()}
           {activeTab === 'image_sequence' && renderImageSequenceTab()}
         </div>
 
-        <div className="export-dialog__footer">
+        <div className="dialog__actions export-dialog__footer">
           <button className="export-dialog__cancel-btn" onClick={onClose}>Cancel</button>
           <button className="export-dialog__export-btn" onClick={handleExport}>Export</button>
         </div>

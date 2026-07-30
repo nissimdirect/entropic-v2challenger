@@ -1,5 +1,6 @@
 import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
+import Select from '../common/Select'
 import type { Operator, LFOWaveform, OperatorMapping, EffectInfo } from '../../../shared/types'
 
 const WAVEFORMS: LFOWaveform[] = ['sine', 'saw', 'square', 'triangle', 'random', 'noise', 'sample_hold']
@@ -43,7 +44,7 @@ export default function LFOEditor({ operator, effectChain, registry }: LFOEditor
     <div className="operator-card__body">
       <div className="operator-card__param-row">
         <span className="operator-card__param-label">Wave</span>
-        <select
+        <Select
           className="operator-card__param-select"
           value={String(params.waveform ?? 'sine')}
           onChange={(e) => setParam('waveform', e.target.value)}
@@ -51,7 +52,7 @@ export default function LFOEditor({ operator, effectChain, registry }: LFOEditor
           {WAVEFORMS.map((w) => (
             <option key={w} value={w}>{w}</option>
           ))}
-        </select>
+        </Select>
       </div>
       <div className="operator-card__param-row">
         <span className="operator-card__param-label">Rate</span>

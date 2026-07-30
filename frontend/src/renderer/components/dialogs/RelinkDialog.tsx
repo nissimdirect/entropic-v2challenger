@@ -90,19 +90,19 @@ export default function RelinkDialog({
   }
 
   return (
-    <div className="relink-dialog__overlay">
+    <div className="dialog-overlay relink-dialog__overlay">
       <div
         ref={dialogRef}
-        className="relink-dialog"
+        className="dialog relink-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="relink-dialog-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relink-dialog__header">
+        <div className="dialog__header relink-dialog__header">
           <span id="relink-dialog-title">Media Files Missing</span>
         </div>
-        <div className="relink-dialog__body">
+        <div className="dialog__body relink-dialog__body">
           <p className="relink-dialog__text">
             {missingAssets.length === 1
               ? 'One media file could not be found. Locate the file or skip to leave it flagged.'
@@ -154,7 +154,7 @@ export default function RelinkDialog({
             })}
           </ul>
         </div>
-        <div className="relink-dialog__footer">
+        <div className="dialog__actions relink-dialog__footer">
           <button
             className="relink-dialog__btn relink-dialog__btn--done"
             onClick={onClose}

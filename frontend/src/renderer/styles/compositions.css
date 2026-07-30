@@ -1,0 +1,68 @@
+/* compositions.css — layout primitives (Stack / Row / PanelShell), F3-C6.
+ *
+ * INCREMENTAL @layer adoption (COMPONENT-SPEC §3 "Layout shell"). This is
+ * the first file in the app to use CSS cascade layers — it wraps ONLY the
+ * new compositions below plus the canonical dialog primitive block in
+ * global.css (COMPONENT-SPEC §3 "Dialog" — see the `@layer components`
+ * wrapper around `.dialog`/`.dialog__*` there). Every other stylesheet in
+ * the app is untouched. This is deliberately NOT a full-cascade @layer
+ * migration — the packet's own instruction is "wrap ONLY the new
+ * compositions + the dialog styles you consolidated in C1; do NOT churn
+ * every stylesheet."
+ *
+ * Layer order (lowest -> highest precedence among LAYERED rules):
+ *   tokens       — reserved for a future styles/tokens.css migration (empty
+ *                  today; tokens.css stays unlayered, see note below).
+ *   base         — reserved for a future reset/base-element layer (empty
+ *                  today).
+ *   compositions — Stack/Row/PanelShell utility classes (this file).
+ *   components   — primitive component skins that opt in (currently just
+ *                  the canonical dialog block in global.css).
+ * Declared once, here, since this is the first file to reference @layer —
+ * a bare `@layer name, name, ...;` statement only registers precedence
+ * order and can appear before any of the layers have actual rules.
+ *
+ * IMPORTANT cascade-layers semantics this design relies on: per the CSS
+ * Cascade Layers spec, UNLAYERED rules always win over ANY layered rule,
+ * regardless of specificity or source order. Since tokens.css and ~every
+ * other stylesheet in the app stay unlayered (not migrated by this
+ * packet), wrapping just these compositions + the dialog block can never
+ * accidentally override anything else in the app — the unlayered
+ * majority of the cascade is categorically protected. This is what makes
+ * "wrap only the new stuff" safe without a full migration.
+ */
+@layer tokens, base, compositions, components;
+
+@layer compositions {
+  /* --- Stack: vertical flex flow --- */
+  .cx-stack {
+    display: flex;
+    flex-direction: column;
+  }
+  .cx-stack--gap-4 { gap: 4px; }
+  .cx-stack--gap-8 { gap: 8px; }
+  .cx-stack--gap-12 { gap: 12px; }
+  .cx-stack--gap-16 { gap: 16px; }
+
+  /* --- Row: horizontal flex flow, vertically centered by default --- */
+  .cx-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+  }
+  .cx-row--gap-4 { gap: 4px; }
+  .cx-row--gap-8 { gap: 8px; }
+  .cx-row--gap-12 { gap: 12px; }
+  .cx-row--gap-16 { gap: 16px; }
+
+  /* --- PanelShell: the raised-surface card shape shared by panels/
+     dialogs/dropdowns — background + border + radius, no layout opinion
+     beyond stacking its own children (compose with .cx-stack/.cx-row). --- */
+  .cx-panel-shell {
+    display: flex;
+    flex-direction: column;
+    background: var(--cx-bg-panel);
+    border: 1px solid var(--cx-line-2);
+    border-radius: var(--cx-radius-control, 4px);
+  }
+}

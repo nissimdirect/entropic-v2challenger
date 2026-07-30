@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Icon from '../../assets/icon-kit'
+import EmptyState from '../common/EmptyState'
 import type { Track as TrackType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
@@ -249,9 +250,11 @@ export function InspectorTrackLane({ track, isSelected }: InspectorTrackLaneProp
       onDragLeave={handleDragLeave}
     >
       {bindings.length === 0 ? (
-        <div className="inspector-track-lane__empty">
-          Drag a parameter here to add a probe
-        </div>
+        <EmptyState
+          testId="inspector-track-lane-empty"
+          hint="Drag a parameter here to add a probe"
+          className="inspector-track-lane__empty"
+        />
       ) : (
         bindings.map((b) => (
           <div key={b.probeId} className="inspector-probe-row">

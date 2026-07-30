@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import type { Preset } from '../../../shared/types'
+import EmptyState from '../common/EmptyState'
 import { useLibraryStore } from '../../stores/library'
 import PresetCard from './PresetCard'
 
@@ -66,9 +67,11 @@ export default function PresetBrowser({ onApplyPreset }: PresetBrowserProps) {
 
       <div className="preset-browser__grid">
         {presets.length === 0 && (
-          <div className="preset-browser__empty">
-            {searchQuery || categoryFilter ? 'No matching presets' : 'No presets saved yet'}
-          </div>
+          <EmptyState
+            testId="preset-browser-empty"
+            hint={searchQuery || categoryFilter ? 'No matching presets' : 'No presets saved yet'}
+            className="preset-browser__empty"
+          />
         )}
         {presets.map((preset) => (
           <PresetCard

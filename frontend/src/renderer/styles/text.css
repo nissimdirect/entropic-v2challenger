@@ -51,21 +51,14 @@
   border-color: var(--cx-action);
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin (COMPONENT-SPEC §3) in place of the former custom
+ * background/border/padding, which duplicated it almost exactly. The
+ * wrapper just needs to fill the row (Select's own .cx-select is
+ * inline-flex, not full-width, by default). */
 .text-panel__select {
+  display: flex;
   width: 100%;
-  padding: 5px 8px;
-  background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 4px;
-  color: var(--cx-text-1);
-  font-family: inherit;
-  font-size: 11px;
-  outline: none;
-  cursor: pointer;
-}
-
-.text-panel__select:focus {
-  border-color: var(--cx-action);
 }
 
 .text-panel__row {
@@ -144,28 +137,21 @@
   border-color: var(--cx-action);
 }
 
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .text-panel__slider {
   width: 100%;
+}
+
+.text-panel__slider .hslider__track {
   height: 4px;
-  -webkit-appearance: none;
-  appearance: none;
   background: var(--cx-bg-raised);
-  border-radius: 2px;
-  outline: none;
 }
 
-.text-panel__slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.text-panel__slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.text-panel__slider .hslider__thumb {
   width: 12px;
   height: 12px;
-  background: var(--cx-action);
-  border-radius: 50%;
-  cursor: pointer;
 }
 
 .text-panel__divider {
@@ -192,12 +178,12 @@
 }
 
 .text-overlay__box {
-  border: 1px dashed rgba(74, 222, 128, 0.5);
+  border: 1px dashed var(--cx-green-alpha-50);
   border-radius: 2px;
   padding: 4px 8px;
   min-width: 40px;
   min-height: 20px;
-  background: rgba(0, 0, 0, 0.2);
+  background: var(--cx-overlay-20);
   transition: border-color 0.15s;
 }
 
@@ -208,7 +194,7 @@
 .text-overlay--editing .text-overlay__box {
   border-style: solid;
   border-color: var(--cx-action);
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--cx-overlay-40);
 }
 
 .text-overlay__preview {

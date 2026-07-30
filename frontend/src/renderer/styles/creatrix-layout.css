@@ -299,7 +299,7 @@
   border: 1px solid var(--cx-line-1);
   border-radius: var(--cx-radius-card);
   background: var(--cx-bg-raised);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 12px var(--cx-overlay-35);
 }
 .app--creatrix .cx-inspector-hover-help__title {
   margin: 0 0 4px;

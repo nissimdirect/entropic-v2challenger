@@ -1,5 +1,6 @@
 import { useEffectsStore } from '../../stores/effects'
 import { useBrowserStore } from '../../stores/browser'
+import EmptyState from '../common/EmptyState'
 
 export default function HelpPanel() {
   const hoveredEffectId = useBrowserStore((s) => s.hoveredEffectId)
@@ -10,7 +11,7 @@ export default function HelpPanel() {
   if (!info) {
     return (
       <div className="help-panel" data-testid="help-panel">
-        <div className="help-panel__empty">Hover an effect for details</div>
+        <EmptyState testId="help-panel-empty" hint="Hover an effect for details" className="help-panel__empty" />
       </div>
     )
   }

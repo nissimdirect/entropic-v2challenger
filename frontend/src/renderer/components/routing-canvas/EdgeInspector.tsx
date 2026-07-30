@@ -15,6 +15,7 @@
  */
 
 import type { RoutingEdge } from './routing-graph-ipc'
+import Slider from '../common/Slider'
 
 interface EdgeInspectorProps {
   /** The selected edge, or null when nothing is selected. */
@@ -78,18 +79,21 @@ export default function EdgeInspector({
       </div>
 
       <div className="routing-edge-inspector__field">
-        <label htmlFor="routing-edge-depth">depth</label>
-        <input
-          id="routing-edge-depth"
-          type="range"
-          min={-1}
-          max={1}
-          step={0.01}
-          value={amount}
-          disabled={!editable}
-          onChange={(e) => onDepthChange(edge, clampAmount(parseFloat(e.target.value)))}
-          aria-label="Edge depth"
-        />
+        <span>depth</span>
+        <div className="routing-edge-inspector__depth-slider">
+          <Slider
+            testId="routing-edge-depth"
+            value={amount}
+            min={-1}
+            max={1}
+            default={0}
+            label="Edge depth"
+            type="float"
+            showHeader={false}
+            disabled={!editable}
+            onChange={(v) => onDepthChange(edge, clampAmount(v))}
+          />
+        </div>
         <span className="routing-edge-inspector__value" data-testid="routing-depth-value">
           ×{amount.toFixed(2)}
         </span>

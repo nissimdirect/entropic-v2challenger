@@ -44,19 +44,19 @@ export default function CrashRecoveryDialog({
   }
 
   return (
-    <div className="crash-recovery__overlay">
+    <div className="dialog-overlay crash-recovery__overlay">
       <div
         ref={dialogRef}
-        className="crash-recovery"
+        className="dialog crash-recovery"
         role="dialog"
         aria-modal="true"
         aria-labelledby="crash-recovery-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="crash-recovery__header">
+        <div className="dialog__header crash-recovery__header">
           <span id="crash-recovery-title">{title}</span>
         </div>
-        <div className="crash-recovery__body">
+        <div className="dialog__body crash-recovery__body">
           <p className="crash-recovery__text">{message}</p>
           {showCheckbox && (
             <label className="crash-recovery__checkbox">
@@ -69,7 +69,7 @@ export default function CrashRecoveryDialog({
             </label>
           )}
         </div>
-        <div className="crash-recovery__footer">
+        <div className="dialog__actions crash-recovery__footer">
           <button
             className="crash-recovery__btn crash-recovery__btn--neutral"
             onClick={() => onDiscard(sendReport)}

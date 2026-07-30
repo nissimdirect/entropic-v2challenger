@@ -9,6 +9,8 @@ import { useOperatorStore } from '../../stores/operators'
 import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
 import ContextMenu from './ContextMenu'
+import Slider from '../common/Slider'
+import Select from '../common/Select'
 import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
 import { useAutomationStore } from '../../stores/automation'
@@ -223,14 +225,13 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   }, [track.id, track.effectChain])
 
   const handleOpacityChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      e.stopPropagation()
+    (value: number) => {
       const composite = getTerminalComposite(track.effectChain)
       if (!composite) {
         useToastStore.getState().addToast({ level: 'info', message: 'Add a Composite effect to set track opacity', source: 'composite-ui' })
         return
       }
-      useProjectStore.getState().updateParam(track.id, composite.id, 'opacity', parseFloat(e.target.value))
+      useProjectStore.getState().updateParam(track.id, composite.id, 'opacity', value)
     },
     [track.id, track.effectChain],
   )
@@ -643,22 +644,24 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
           {terminalComposite ? (
             <>
               <div className="track-header__opacity" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="range"
+                <Slider
+                  value={compositing.opacity}
                   min={0}
                   max={1}
-                  step={0.01}
-                  value={compositing.opacity}
-                  onChange={handleOpacityChange}
-                  title={FF.F_0512_21_OPACITY_LABELS
+                  default={1}
+                  label="Track opacity"
+                  description={FF.F_0512_21_OPACITY_LABELS
                     ? `Track opacity: ${Math.round(compositing.opacity * 100)}% (multiplies with clip opacity)`
                     : `Opacity: ${Math.round(compositing.opacity * 100)}%`}
+                  type="float"
+                  showHeader={false}
+                  onChange={handleOpacityChange}
                 />
                 <span className="track-header__opacity-label">
                   {Math.round(compositing.opacity * 100)}%
                 </span>
               </div>
-              <select
+              <Select
                 className="track-header__blend"
                 value={compositing.mode}
                 onChange={handleBlendModeChange}
@@ -668,7 +671,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                 {BLEND_MODES.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
-              </select>
+              </Select>
             </>
           ) : (
             // P2.2b: no terminal composite yet — offer the creation path instead of

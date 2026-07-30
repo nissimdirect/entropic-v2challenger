@@ -3,6 +3,8 @@ import Icon from '../../assets/icon-kit'
 import type { EffectInstance, EffectInfo, ParamDef, ParamValue, MatteNode, MatteRef, AutomationLane } from '../../../shared/types'
 import { isFieldRef, makeFieldRef, clampGain, type FieldKind } from '../../../shared/field-param'
 import Knob from '../common/Knob'
+import Slider from '../common/Slider'
+import Select from '../common/Select'
 import ParamChoice from '../effects/ParamChoice'
 import ParamToggle from '../effects/ParamToggle'
 import { useAutomationStore } from '../../stores/automation'
@@ -203,8 +205,8 @@ export default function DeviceCard({
   )
 
   const handleMixChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      onSetMix(effect.id, parseFloat(e.target.value) / 100)
+    (percent: number) => {
+      onSetMix(effect.id, percent / 100)
     },
     [effect.id, onSetMix],
   )
@@ -356,18 +358,21 @@ export default function DeviceCard({
               >
                 <span className="device-card__param-label">{def.label}</span>
                 <span className="device-card__field-badge" data-testid={`field-badge-${effect.id}-${key}`}>field</span>
-                <input
-                  className="device-card__field-gain"
-                  data-testid={`field-gain-${effect.id}-${key}`}
-                  type="range"
-                  min={-4}
-                  max={4}
-                  step={0.1}
-                  value={fieldVal.gain}
-                  onChange={(e) => handleFieldGain(key, Number(e.target.value))}
-                  onClick={(e) => e.stopPropagation()}
-                  title={`Field gain ×${fieldVal.gain.toFixed(2)}`}
-                />
+                <div className="device-card__field-gain">
+                  <Slider
+                    testId={`field-gain-${effect.id}-${key}`}
+                    value={fieldVal.gain}
+                    min={-4}
+                    max={4}
+                    default={1}
+                    label="Field gain"
+                    description={`Field gain ×${fieldVal.gain.toFixed(2)}`}
+                    type="float"
+                    showHeader={false}
+                    onChange={(v) => handleFieldGain(key, v)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
                 <button
                   className={`device-card__field-invert${fieldVal.invert ? ' device-card__field-invert--on' : ''}`}
                   data-testid={`field-invert-${effect.id}-${key}`}
@@ -439,7 +444,7 @@ export default function DeviceCard({
                 />
               )}
               {isFieldCapable && (
-                <select
+                <Select
                   className="device-card__field-assign"
                   data-testid={`field-assign-${effect.id}-${key}`}
                   value=""
@@ -456,7 +461,7 @@ export default function DeviceCard({
                   {sources.map((s) => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
-                </select>
+                </Select>
               )}
             </div>
           )
@@ -492,15 +497,19 @@ export default function DeviceCard({
       {/* Mix */}
       <div className="device-card__mix" data-testid="device-mix">
         <span className="device-card__mix-label">Mix</span>
-        <input
-          className="device-card__mix-slider"
-          type="range"
-          min={0}
-          max={100}
-          value={mixPercent}
-          onChange={handleMixChange}
-          onClick={(e) => e.stopPropagation()}
-        />
+        <div className="device-card__mix-slider">
+          <Slider
+            value={mixPercent}
+            min={0}
+            max={100}
+            default={100}
+            label="Mix"
+            type="int"
+            showHeader={false}
+            onChange={handleMixChange}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
         <span className="device-card__mix-value">{mixPercent}%</span>
       </div>
 
@@ -541,7 +550,7 @@ export default function DeviceCard({
       {maskAssignable && (((maskNodes?.length ?? 0) > 0) || effect.maskRef) && (
         <div className="device-card__mask" data-testid="device-mask">
           <span className="device-card__mask-label">Mask</span>
-          <select
+          <Select
             className="device-card__mask-select"
             data-testid="device-mask-select"
             value={effect.maskRef?.nodeId ?? ''}
@@ -558,7 +567,7 @@ export default function DeviceCard({
             {effect.maskRef && !(maskNodes ?? []).some((n) => n.id === effect.maskRef!.nodeId) && (
               <option value={effect.maskRef.nodeId}>{effect.maskRef.nodeId} (missing)</option>
             )}
-          </select>
+          </Select>
           <button
             className={`device-card__mask-invert${effect.maskRef?.invert ? ' device-card__mask-invert--on' : ''}`}
             data-testid="device-mask-invert"

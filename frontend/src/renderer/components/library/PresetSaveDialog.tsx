@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import type { Preset, EffectInstance, MacroMapping, ModulationRoute } from '../../../shared/types'
 import { randomUUID } from '../../utils'
 import { useModalBehavior } from '../../hooks/useModalBehavior'
+import Select from '../common/Select'
 
 interface PresetSaveDialogProps {
   isOpen: boolean
@@ -95,21 +96,21 @@ export default function PresetSaveDialog({
   }
 
   return (
-    <div className="preset-save__overlay">
+    <div className="dialog-overlay preset-save__overlay">
       <div
         ref={dialogRef}
-        className="preset-save"
+        className="dialog preset-save"
         role="dialog"
         aria-modal="true"
         aria-labelledby="preset-save-title"
       >
-        <div className="preset-save__header">
+        <div className="dialog__header preset-save__header">
           <span id="preset-save-title">Save {mode === 'single_effect' ? 'Effect' : 'Chain'} Preset</span>
           <button className="preset-save__close" onClick={onClose}>
             x
           </button>
         </div>
-        <div className="preset-save__body">
+        <div className="dialog__body preset-save__body">
           <div className="preset-save__field">
             <label className="preset-save__label">Name</label>
             <input
@@ -149,7 +150,7 @@ export default function PresetSaveDialog({
                     onChange={(e) => updateMacro(i, 'label', e.target.value)}
                     placeholder="Label"
                   />
-                  <select
+                  <Select
                     className="preset-save__macro-select"
                     value={macro.effectId}
                     onChange={(e) => updateMacro(i, 'effectId', e.target.value)}
@@ -159,7 +160,7 @@ export default function PresetSaveDialog({
                         {eff.effectId}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <input
                     className="preset-save__macro-param"
                     value={macro.paramKey}
@@ -177,7 +178,7 @@ export default function PresetSaveDialog({
             </div>
           )}
         </div>
-        <div className="preset-save__footer">
+        <div className="dialog__actions preset-save__footer">
           <button className="preset-save__btn--cancel" onClick={onClose}>
             Cancel
           </button>

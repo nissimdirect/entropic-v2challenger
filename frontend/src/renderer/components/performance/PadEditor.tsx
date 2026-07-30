@@ -5,6 +5,8 @@ import { ADSR_PRESETS, RESERVED_KEYS, codeToLabel } from '../../../shared/consta
 import { midiNoteToName } from '../../../shared/midi-utils';
 import { useStableListener } from '../../hooks/useStableListener';
 import Icon, { CloseButton } from '../../assets/icon-kit';
+import Slider from '../common/Slider';
+import Select from '../common/Select';
 import type { EffectInstance, EffectInfo, ModulationRoute, PadMode } from '../../../shared/types';
 
 interface PadEditorProps {
@@ -156,7 +158,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
           {/* Choke Group */}
           <div className="export-dialog__field">
             <label style={{ color: '#aaa', fontSize: 12, minWidth: 70 }}>Choke:</label>
-            <select
+            <Select
               className="param-choice__select"
               value={pad.chokeGroup ?? ''}
               onChange={(e) => setChokeGroup(padId, e.target.value ? Number(e.target.value) : null)}
@@ -165,14 +167,14 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <option key={n} value={n}>Group {n}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* ADSR */}
           <div style={{ borderTop: '1px solid #333', paddingTop: 8, marginTop: 4 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <span style={{ fontSize: 11, color: '#888', fontWeight: 600, textTransform: 'uppercase' }}>ADSR</span>
-              <select
+              <Select
                 className="param-choice__select"
                 style={{ fontSize: 10, padding: '2px 4px' }}
                 value=""
@@ -185,27 +187,21 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                 {PRESET_NAMES.map((name) => (
                   <option key={name} value={name}>{name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
               {(['attack', 'decay', 'sustain', 'release'] as const).map((param) => (
                 <div key={param} className="param-slider">
-                  <div className="param-slider__label">
-                    <span>{param[0].toUpperCase()}</span>
-                    <span className="param-slider__value">
-                      {param === 'sustain' ? pad.envelope[param].toFixed(2) : pad.envelope[param].toFixed(1)}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    className="param-slider__input"
+                  <Slider
+                    value={pad.envelope[param]}
                     min={0}
                     max={param === 'sustain' ? 1 : 300}
-                    step={param === 'sustain' ? 0.01 : 0.1}
-                    value={pad.envelope[param]}
-                    onChange={(e) => {
+                    default={param === 'sustain' ? 1 : 0}
+                    label={param[0].toUpperCase()}
+                    type="float"
+                    onChange={(v) => {
                       updatePad(padId, {
-                        envelope: { ...pad.envelope, [param]: parseFloat(e.target.value) },
+                        envelope: { ...pad.envelope, [param]: v },
                       });
                     }}
                   />
@@ -250,7 +246,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                     marginBottom: 2,
                   }}
                 >
-                  <select
+                  <Select
                     className="param-choice__select"
                     style={{ flex: 1, fontSize: 10 }}
                     value={mapping.effectId ?? ''}
@@ -269,8 +265,8 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                         </option>
                       );
                     })}
-                  </select>
-                  <select
+                  </Select>
+                  <Select
                     className="param-choice__select"
                     style={{ flex: 1, fontSize: 10 }}
                     value={mapping.paramKey ?? ''}
@@ -286,22 +282,24 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                       .map(([key, def]) => (
                         <option key={key} value={key}>{def.label}</option>
                       ))}
-                  </select>
-                  <input
-                    type="range"
-                    style={{ width: 50 }}
-                    className="param-slider__input"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={mapping.depth}
-                    title={`Depth: ${mapping.depth.toFixed(2)}`}
-                    onChange={(e) => {
-                      const newMappings = [...pad.modRoutes];
-                      newMappings[idx] = { ...mapping, depth: parseFloat(e.target.value) };
-                      updatePad(padId, { modRoutes: newMappings });
-                    }}
-                  />
+                  </Select>
+                  <div style={{ width: 50 }}>
+                    <Slider
+                      value={mapping.depth}
+                      min={0}
+                      max={1}
+                      default={0}
+                      label="Depth"
+                      description={`Depth: ${mapping.depth.toFixed(2)}`}
+                      type="float"
+                      showHeader={false}
+                      onChange={(v) => {
+                        const newMappings = [...pad.modRoutes];
+                        newMappings[idx] = { ...mapping, depth: v };
+                        updatePad(padId, { modRoutes: newMappings });
+                      }}
+                    />
+                  </div>
                   <button
                     className="effect-card__remove"
                     onClick={() => removePadMapping(padId, idx)}

@@ -1,4 +1,5 @@
 import type { ParamDef } from '../../../shared/types'
+import Select from '../common/Select'
 
 interface ParamChoiceProps {
   paramKey: string
@@ -11,7 +12,7 @@ export default function ParamChoice({ paramKey, def, value, onChange }: ParamCho
   return (
     <div className="param-choice">
       <label className="param-choice__label">{def.label}</label>
-      <select
+      <Select
         className="param-choice__select"
         value={value}
         onChange={(e) => onChange(paramKey, e.target.value)}
@@ -21,7 +22,7 @@ export default function ParamChoice({ paramKey, def, value, onChange }: ParamCho
             {opt}
           </option>
         ))}
-      </select>
+      </Select>
     </div>
   )
 }

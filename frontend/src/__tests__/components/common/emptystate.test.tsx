@@ -49,4 +49,13 @@ describe('EmptyState — D7/OD-4 primitive', () => {
     expect(container.querySelector('button')).toBeNull()
     expect(container.querySelector('[role="button"]')).toBeNull()
   })
+
+  it('F3-C4: optional className is appended alongside cx-empty-state, not replacing it', () => {
+    const { getByTestId } = render(
+      <EmptyState hint="Drag a clip here" testId="positioned-empty" className="preview-canvas__placeholder" />,
+    )
+    const el = getByTestId('positioned-empty')
+    expect(el.classList.contains('cx-empty-state')).toBe(true)
+    expect(el.classList.contains('preview-canvas__placeholder')).toBe(true)
+  })
 })

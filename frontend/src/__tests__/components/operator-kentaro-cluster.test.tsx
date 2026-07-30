@@ -106,9 +106,17 @@ describe('OperatorKentaroCluster editor', () => {
     const { getByLabelText } = render(
       <OperatorKentaroCluster operator={getCluster()} effectChain={effectChain} registry={registry} />,
     )
-    const slider = getByLabelText('master depth') as HTMLInputElement
-    fireEvent.change(slider, { target: { value: '0.42' } })
-    expect(getCluster().parameters.master_depth).toBeCloseTo(0.42, 5)
+    // F3-C2: master depth is now the common/Slider primitive (ARIA track
+    // driven by pointer-drag or keyboard, not a native <input type="range">,
+    // so a synthetic `change` event no longer applies). Shift+ArrowLeft is
+    // Slider's tested keyboard interaction (slider.test.tsx) — each press
+    // moves by 10% of the [0,1] range relative to the value this render was
+    // mounted with (this test doesn't re-render between presses, so a
+    // second press would repeat the same delta rather than accumulate).
+    // One press from the 1.0 default lands at 0.9.
+    const slider = getByLabelText('master depth')
+    fireEvent.keyDown(slider, { key: 'ArrowLeft', shiftKey: true })
+    expect(getCluster().parameters.master_depth).toBeCloseTo(0.9, 5)
   })
 
   it('per-LFO target mapping creates a mapping with the correct sourceKey', () => {

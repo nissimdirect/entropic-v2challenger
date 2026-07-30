@@ -30,7 +30,7 @@
 
 .device-chain__resize-handle:hover,
 .device-chain__resize-handle:active {
-  background: rgba(155, 123, 181, 0.5);
+  background: var(--cx-mod-alpha-50);
 }
 
 /* F-0514-7: drag-target affordance. Tinted background + accent border tell the
@@ -295,8 +295,8 @@ body[data-disable-f-0512-30] .device-card {
   font-size: 11px;
   font-weight: 700;
   color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.15);
-  border: 1px solid rgba(74, 222, 128, 0.3);
+  background: var(--cx-green-alpha-15);
+  border: 1px solid var(--cx-green-alpha-30);
   border-radius: 2px;
   /* Padding bumped 0/2px->1px/3px alongside the 11px floor bump (was 7px)
      so the "CC" text isn't flush against the badge edge. */
@@ -316,7 +316,7 @@ body[data-disable-f-0512-30] .device-card {
   height: 6px;
   border-radius: 50%;
   background: var(--cx-automation-active);
-  box-shadow: 0 0 3px rgba(74, 222, 128, 0.8);
+  box-shadow: 0 0 3px var(--cx-green-alpha-80);
   pointer-events: none;
 }
 
@@ -338,30 +338,26 @@ body[data-disable-f-0512-30] .device-card {
   flex-shrink: 0;
 }
 
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — sizing/colors carried over onto the Slider's own
+ * .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .device-card__mix-slider {
   flex: 1;
-  -webkit-appearance: none;
+}
+
+.device-card__mix-slider .hslider__track {
   height: 2px;
   background: var(--cx-bg-raised);
   border-radius: 1px;
-  outline: none;
 }
 
-.device-card__mix-slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.device-card__mix-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.device-card__mix-slider .hslider__thumb {
   width: 8px;
   height: 8px;
   background: var(--cx-text-2);
-  border-radius: 50%;
-  cursor: pointer;
 }
 
-.device-card__mix-slider::-webkit-slider-thumb:hover {
+.device-card__mix-slider .hslider__track:hover .hslider__thumb {
   background: var(--cx-selection);
 }
 
@@ -393,21 +389,19 @@ body[data-disable-f-0512-30] .device-card {
   flex-shrink: 0;
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/focus-ring (COMPONENT-SPEC §3), keeping
+ * this row's compact sizing/flex behavior. */
 .device-card__mask-select {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
-  background: var(--cx-bg-raised);
-  color: var(--cx-text-2);
-  border: 1px solid var(--cx-bg-hover);
-  border-radius: 2px;
-  padding: 1px 2px;
-  outline: none;
 }
 
-.device-card__mask-select:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
+.device-card__mask-select .cx-select__control {
+  font-size: 11px;
+  height: auto;
+  padding: 1px 2px;
+  color: var(--cx-text-2);
 }
 
 .device-card__mask-invert {
@@ -433,22 +427,21 @@ body[data-disable-f-0512-30] .device-card {
   cursor: default;
 }
 
-/* P6.6 — field-param assignment control (image/video as a 2D field). */
+/* P6.6 — field-param assignment control (image/video as a 2D field).
+ * F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/focus-ring (COMPONENT-SPEC §3), keeping
+ * this row's compact sizing. */
 .device-card__field-assign {
+  display: flex;
   margin-top: 2px;
   width: 100%;
-  font-size: 11px;
-  background: var(--cx-bg-raised);
-  color: var(--cx-text-3);
-  border: 1px solid var(--cx-bg-hover);
-  border-radius: 2px;
-  padding: 1px 2px;
-  outline: none;
 }
 
-.device-card__field-assign:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
+.device-card__field-assign .cx-select__control {
+  font-size: 11px;
+  height: auto;
+  padding: 1px 2px;
+  color: var(--cx-text-3);
 }
 
 .device-card__param--field {

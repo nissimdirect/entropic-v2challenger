@@ -8,6 +8,7 @@
  * that could only guess "which lane?". See RATIFIED-FOUNDATIONS.md D8.
  */
 import { useCallback, useState } from 'react'
+import Select from '../common/Select'
 import { useAutomationStore, type AutomationMode } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
@@ -432,7 +433,7 @@ export default function AutomationToolbar() {
           </div>
           <label className="auto-toolbar__picker-domain" title="Axis the lane's curve reads along. Y/X render live as a spatial gradient across the frame; T is time-domain automation.">
             Domain:{' '}
-            <select
+            <Select
               data-testid="lane-domain-select"
               value={pickDomain}
               onChange={(e) => setPickDomain(e.target.value as Axis)}
@@ -440,7 +441,7 @@ export default function AutomationToolbar() {
               {TIER1_DOMAINS.map((d) => (
                 <option key={d.value} value={d.value}>{d.label}</option>
               ))}
-            </select>
+            </Select>
           </label>
           {paramOptions.length === 0 ? (
             <div className="auto-toolbar__picker-empty">
@@ -465,7 +466,7 @@ export default function AutomationToolbar() {
           <div className="auto-toolbar__picker-title">Add Modulation Lane</div>
           <label title="How this modulation lane's evaluated value combines with the absolute lane it's layered onto.">
             Blend:{' '}
-            <select
+            <Select
               data-testid="mod-blendop-select"
               value={modBlendOp}
               onChange={(e) => setModBlendOp(e.target.value as BlendOp)}
@@ -473,7 +474,7 @@ export default function AutomationToolbar() {
               {BLEND_OPS.map((b) => (
                 <option key={b.value} value={b.value}>{b.label}</option>
               ))}
-            </select>
+            </Select>
           </label>
           {/* AA.3-A/B — value source for the lane about to be created: drawn
               breakpoints (paint it yourself, AA.2 default) or a live
@@ -481,14 +482,14 @@ export default function AutomationToolbar() {
               every frame (spec docs/plans/2026-07-03-aa3-live-generators-spec.md). */}
           <label title="Drawn: paint breakpoints yourself. Operator: a live generator drives the value every frame.">
             Source:{' '}
-            <select
+            <Select
               data-testid="mod-source-select"
               value={modSource}
               onChange={(e) => setModSource(e.target.value as AutomationLaneSource)}
             >
               <option value="drawn">Drawn</option>
               <option value="operator">Operator</option>
-            </select>
+            </Select>
           </label>
           {/* AA.3-B — which generator the new operator-sourced lane uses.
               Only shown once Source is 'operator'; LFO stays the default so
@@ -496,14 +497,14 @@ export default function AutomationToolbar() {
           {modSource === 'operator' && (
             <label title="LFO: a live sine/tri/saw/square generator. Audio Follower: reacts to the loaded audio's envelope (RMS / frequency band / onset).">
               Generator:{' '}
-              <select
+              <Select
                 data-testid="mod-generator-select"
                 value={modGeneratorType}
                 onChange={(e) => setModGeneratorType(e.target.value as 'lfo' | 'audio_follower')}
               >
                 <option value="lfo">LFO</option>
                 <option value="audio_follower">Audio Follower</option>
-              </select>
+              </Select>
             </label>
           )}
           {modTargetLanes.length === 0 ? (
@@ -534,7 +535,7 @@ export default function AutomationToolbar() {
             <label key={lane.id} className="auto-toolbar__mod-list-item" title={lane.paramPath}>
               <span style={{ color: MODULATION_LANE_COLOR }}>&#9679;</span> {lane.paramPath}
               {' '}
-              <select
+              <Select
                 data-testid={`mod-blendop-select-${lane.id}`}
                 value={lane.blendOp ?? 'add'}
                 onChange={(e) => handleChangeModBlendOp(lane.id, e.target.value as BlendOp)}
@@ -542,36 +543,36 @@ export default function AutomationToolbar() {
                 {BLEND_OPS.map((b) => (
                   <option key={b.value} value={b.value}>{b.label}</option>
                 ))}
-              </select>
+              </Select>
               {' '}
               {/* AA.3-A — inline source toggle, shown when this lane is
                   operator-sourced. */}
-              <select
+              <Select
                 data-testid={`mod-source-select-${lane.id}`}
                 value={lane.source ?? 'drawn'}
                 onChange={(e) => handleChangeLaneSource(lane.id, e.target.value as AutomationLaneSource)}
               >
                 <option value="drawn">Drawn</option>
                 <option value="operator">Operator</option>
-              </select>
+              </Select>
               {lane.source === 'operator' && lane.operator && (
                 <span className="auto-toolbar__lfo-panel" data-testid={`lfo-panel-${lane.id}`}>
                   {' '}
                   {/* AA.3-B — generator TYPE select: LFO vs Audio Follower.
                       Switching resets params to that type's own defaults
                       (updateLaneOperator, automation.ts). */}
-                  <select
+                  <Select
                     data-testid={`lane-generator-type-select-${lane.id}`}
                     value={lane.operator.type}
                     onChange={(e) => handleChangeLaneOperatorType(lane.id, e.target.value as 'lfo' | 'audio_follower')}
                   >
                     <option value="lfo">LFO</option>
                     <option value="audio_follower">Audio Follower</option>
-                  </select>
+                  </Select>
                   {' '}
                   {lane.operator.type === 'lfo' && (
                     <>
-                      <select
+                      <Select
                         data-testid={`lfo-waveform-select-${lane.id}`}
                         value={String(lane.operator.params.waveform ?? 'sine')}
                         onChange={(e) => handleChangeLfoWaveform(lane.id, e.target.value)}
@@ -580,7 +581,7 @@ export default function AutomationToolbar() {
                         <option value="triangle">Triangle</option>
                         <option value="saw">Saw</option>
                         <option value="square">Square</option>
-                      </select>
+                      </Select>
                       {' '}
                       <input
                         type="number"
@@ -600,7 +601,7 @@ export default function AutomationToolbar() {
                       operator-rack's own audio_follower editor). */}
                   {lane.operator.type === 'audio_follower' && (
                     <>
-                      <select
+                      <Select
                         data-testid={`audio-method-select-${lane.id}`}
                         value={String(lane.operator.params.method ?? 'rms')}
                         onChange={(e) => handleChangeAudioMethod(lane.id, e.target.value)}
@@ -608,7 +609,7 @@ export default function AutomationToolbar() {
                         <option value="rms">RMS</option>
                         <option value="frequency_band">Freq Band</option>
                         <option value="onset">Onset</option>
-                      </select>
+                      </Select>
                       {' '}
                       <input
                         type="number"

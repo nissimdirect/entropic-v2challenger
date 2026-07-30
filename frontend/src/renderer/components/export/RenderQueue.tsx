@@ -1,4 +1,5 @@
 import { useExportStore, type ExportJob } from '../../stores/export'
+import EmptyState from '../common/EmptyState'
 
 interface RenderQueueProps {
   isOpen: boolean
@@ -69,7 +70,7 @@ export default function RenderQueue({ isOpen, onClose }: RenderQueueProps) {
 
         <div className="render-queue__list">
           {jobs.length === 0 && (
-            <div className="render-queue__empty">No jobs in queue</div>
+            <EmptyState testId="render-queue-empty" hint="No jobs in queue" className="render-queue__empty" />
           )}
           {jobs.map((job, idx) => {
             const isCurrentRendering =

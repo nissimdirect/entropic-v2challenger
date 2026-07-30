@@ -10,6 +10,7 @@ import {
 import { randomUUID } from '../../utils'
 import { useTimelineStore } from '../../stores/timeline'
 import { useProjectStore } from '../../stores/project'
+import Slider from '../common/Slider'
 
 /**
  * B3 / L3 — LAYER inspector panel.
@@ -162,15 +163,16 @@ export default function LayerPanel() {
 
           <div className="b3-layer__row">
             <span>Opacity</span>
-            <input
-              type="range"
+            <Slider
+              testId="layer-opacity"
+              value={compositing.opacity}
               min={0}
               max={1}
-              step={0.01}
-              value={compositing.opacity}
-              data-testid="layer-opacity"
-              aria-label="Layer opacity"
-              onChange={(e) => handleSetOpacity(parseFloat(e.target.value))}
+              default={1}
+              label="Layer opacity"
+              type="float"
+              showHeader={false}
+              onChange={handleSetOpacity}
             />
             <span className="b3-layer__v" data-testid="layer-opacity-v">
               {Math.round(compositing.opacity * 100)}%
@@ -179,16 +181,17 @@ export default function LayerPanel() {
 
           <div className="b3-layer__row">
             <span>Fill</span>
-            <input
-              type="range"
+            <Slider
+              testId="layer-fill"
+              value={fill}
               min={0}
               max={1}
-              step={0.01}
-              value={fill}
+              default={1}
+              label="Layer fill"
+              type="float"
+              showHeader={false}
               disabled={!clip}
-              data-testid="layer-fill"
-              aria-label="Layer fill"
-              onChange={(e) => clip && handleSetFill(clip.id, parseFloat(e.target.value))}
+              onChange={(v) => clip && handleSetFill(clip.id, v)}
             />
             <span className="b3-layer__v" data-testid="layer-fill-v">
               {Math.round(fill * 100)}%
@@ -218,15 +221,16 @@ export default function LayerPanel() {
             <>
               <div className="b3-layer__row">
                 <span>Rotate</span>
-                <input
-                  type="range"
+                <Slider
+                  testId="layer-rotate"
+                  value={transform.rotation}
                   min={-180}
                   max={180}
-                  step={1}
-                  value={transform.rotation}
-                  data-testid="layer-rotate"
-                  aria-label="Layer rotation"
-                  onChange={(e) => handleSetRotate(clip, parseFloat(e.target.value))}
+                  default={0}
+                  label="Layer rotation"
+                  type="int"
+                  showHeader={false}
+                  onChange={(v) => handleSetRotate(clip, v)}
                 />
                 <span className="b3-layer__v" data-testid="layer-rotate-v">
                   {Math.round(transform.rotation)}°
@@ -234,15 +238,16 @@ export default function LayerPanel() {
               </div>
               <div className="b3-layer__row">
                 <span>Scale</span>
-                <input
-                  type="range"
+                <Slider
+                  testId="layer-scale"
+                  value={transform.scaleX}
                   min={0.1}
                   max={3}
-                  step={0.01}
-                  value={transform.scaleX}
-                  data-testid="layer-scale"
-                  aria-label="Layer scale"
-                  onChange={(e) => handleSetScale(clip, parseFloat(e.target.value))}
+                  default={1}
+                  label="Layer scale"
+                  type="float"
+                  showHeader={false}
+                  onChange={(v) => handleSetScale(clip, v)}
                 />
                 <span className="b3-layer__v" data-testid="layer-scale-v">
                   {Math.round(transform.scaleX * 100)}%

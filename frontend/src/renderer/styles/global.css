@@ -1,6 +1,7 @@
 @import './tokens.css';
 @import './select.css';
 @import './empty-state.css';
+@import './compositions.css';
 
 * {
   margin: 0;
@@ -112,15 +113,17 @@ body {
   gap: 4px;
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/states (COMPONENT-SPEC §3), keeping the
+ * monospace transport look and shared --cx-control-h height (matches
+ * .app__transport-btn / .app__transport-bpm input, PK.E/F/G frame-bug
+ * fix). */
 .app__transport-select {
   height: var(--cx-control-h);
-  box-sizing: border-box;
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  color: var(--cx-text-1);
   font-size: var(--cx-text-label);
-  padding: 1px 4px;
-  border-radius: 2px;
+}
+
+.app__transport-select .cx-select__control {
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -208,7 +211,7 @@ body {
   background: var(--cx-bg-app);
   border: 1px solid var(--cx-line-2);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px var(--cx-overlay-50);
   max-width: 400px;
   max-height: 300px;
   overflow: auto;
@@ -402,7 +405,7 @@ body {
 .drop-zone:hover,
 .drop-zone--active {
   border-color: var(--cx-action);
-  background: rgba(74, 222, 128, 0.05);
+  background: var(--cx-green-alpha-05);
 }
 
 .drop-zone--disabled {
@@ -1022,51 +1025,15 @@ body {
   margin: 12px 0;
 }
 
-/* --- Param Slider --- */
-
+/* --- Param Slider ---
+ * F3-C2: ParamSlider.tsx is now a thin adapter over common/Slider — its
+ * former label/value/track markup was a near-exact duplicate of the shared
+ * .hslider/.hslider__header/.hslider__track styles (same flex-column/gap,
+ * same label+value header, same thumb), so this block is superseded rather
+ * than mirrored. .param-slider stays as the width-constraining wrapper the
+ * grid layouts around it expect. */
 .param-slider {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.param-slider__label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--cx-text-2);
-}
-
-.param-slider__value {
-  color: var(--cx-text-1);
-  font-weight: 500;
-}
-
-.param-slider__input {
-  -webkit-appearance: none;
   width: 100%;
-  height: 4px;
-  background: var(--cx-bg-hover);
-  border-radius: 2px;
-  outline: none;
-}
-
-.param-slider__input:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.param-slider__input::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
-  background: var(--cx-text-1);
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.param-slider__input::-webkit-slider-thumb:hover {
-  background: var(--cx-action);
 }
 
 /* --- Param Choice --- */
@@ -1082,20 +1049,11 @@ body {
   color: var(--cx-text-2);
 }
 
-.param-choice__select {
-  padding: 4px 8px;
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 3px;
-  color: var(--cx-text-1);
-  font-family: inherit;
-  font-size: 12px;
-  outline: none;
-}
-
-.param-choice__select:focus {
-  border-color: var(--cx-action);
-}
+/* F3-C3: .param-choice__select wraps common/Select instead of a raw native
+ * <select> — its former background/border/padding duplicated the shared
+ * cx-select skin (COMPONENT-SPEC §3) almost exactly, so this rule is
+ * superseded rather than mirrored. The class name is kept as an inert
+ * wrapper marker (existing test/consumer references still resolve). */
 
 /* --- Param Toggle --- */
 
@@ -1259,7 +1217,7 @@ body {
 .preview-canvas__popout-btn {
   margin-left: auto;
   pointer-events: auto;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-2);
   font-size: var(--cx-text-body);
@@ -1270,7 +1228,7 @@ body {
 }
 
 .preview-canvas__fps {
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   color: var(--cx-action);
   font-family: "JetBrains Mono", monospace;
   font-size: var(--cx-text-data);
@@ -1283,7 +1241,7 @@ body {
 
 .preview-canvas__popout-btn:hover {
   color: var(--cx-text-1);
-  background: rgba(0, 0, 0, 0.8);
+  background: var(--cx-overlay-80);
 }
 
 /* --- Transform Panel --- */
@@ -1392,6 +1350,13 @@ body[data-disable-f-0512-36] .transform-panel {
   border-color: var(--cx-action);
 }
 
+/* F3-C2: opacity is common/Slider (showHeader=false), not the boxed
+ * .transform-panel__input text-field look used by the numeric fields above
+ * — it gets its own unboxed wrapper. */
+.transform-panel__opacity-slider {
+  width: 100%;
+}
+
 /* --- Preview Controls --- */
 
 .preview-controls {
@@ -1482,35 +1447,25 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Export Dialog --- */
 
-.export-dialog__overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.export-dialog {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+/* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. The z-index
+ * inconsistency (100 vs the 200 every other modal uses) had no dependent
+ * behavior on inspection — normalized to the shared 200 via dialog-overlay. */
+.dialog.export-dialog {
   width: 360px;
-  max-width: 90vw;
   max-height: min(80vh, calc(100vh - 80px));
   display: flex;
   flex-direction: column;
+  padding: 0;
 }
 
-.export-dialog__header {
+.dialog__header.export-dialog__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--cx-line-1);
-  font-size: 14px;
-  font-weight: 600;
+  margin-bottom: 0;
 }
 
 .export-dialog__close {
@@ -1527,7 +1482,7 @@ body[data-disable-f-0512-36] .transform-panel {
   color: var(--cx-text-1);
 }
 
-.export-dialog__body {
+.dialog__body.export-dialog__body {
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1535,6 +1490,7 @@ body[data-disable-f-0512-36] .transform-panel {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  margin: 0;
 }
 
 .export-dialog__field {
@@ -1572,10 +1528,7 @@ body[data-disable-f-0512-36] .transform-panel {
   border-color: var(--cx-action);
 }
 
-.export-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.export-dialog__footer {
   padding: 12px 16px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -1756,6 +1709,14 @@ body[data-disable-f-0512-36] .transform-panel {
   user-select: none;
 }
 
+.hslider--disabled {
+  opacity: 0.5;
+}
+
+.hslider--disabled .hslider__track {
+  cursor: default;
+}
+
 .hslider__header {
   display: flex;
   justify-content: space-between;
@@ -1845,33 +1806,26 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Consent Dialog --- */
 
-.consent-dialog__overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
+/* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. */
+.dialog-overlay.consent-dialog__overlay {
+  background: var(--cx-overlay-70);
 }
 
-.consent-dialog {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+.dialog.consent-dialog {
   width: 400px;
-  max-width: 90vw;
+  padding: 0;
 }
 
-.consent-dialog__header {
+.dialog__header.consent-dialog__header {
   padding: 16px 20px 0;
   font-size: 16px;
-  font-weight: 600;
-  color: var(--cx-text-1);
+  margin-bottom: 0;
 }
 
-.consent-dialog__body {
+.dialog__body.consent-dialog__body {
   padding: 12px 20px 16px;
+  margin: 0;
 }
 
 .consent-dialog__text {
@@ -1886,10 +1840,7 @@ body[data-disable-f-0512-36] .transform-panel {
   margin-top: 8px;
 }
 
-.consent-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.consent-dialog__footer {
   padding: 12px 20px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -1924,33 +1875,27 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Crash Recovery Dialog --- */
 
-.crash-recovery__overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
+/* Frame (overlay/box/header/body/actions) adopts the shared dialog/dialog__*
+ * root (COMPONENT-SPEC §3, F3-C1) — only the deltas from that base are kept
+ * here, as compound selectors so they win regardless of cascade order. */
+.dialog-overlay.crash-recovery__overlay {
+  background: var(--cx-overlay-70);
 }
 
-.crash-recovery {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+.dialog.crash-recovery {
   width: 420px;
-  max-width: 90vw;
+  padding: 0;
 }
 
-.crash-recovery__header {
+.dialog__header.crash-recovery__header {
   padding: 16px 20px 0;
   font-size: 16px;
-  font-weight: 600;
-  color: var(--cx-text-1);
+  margin-bottom: 0;
 }
 
-.crash-recovery__body {
+.dialog__body.crash-recovery__body {
   padding: 12px 20px 16px;
+  margin: 0;
 }
 
 .crash-recovery__text {
@@ -1973,10 +1918,7 @@ body[data-disable-f-0512-36] .transform-panel {
   accent-color: var(--cx-action);
 }
 
-.crash-recovery__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.crash-recovery__footer {
   padding: 12px 20px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -2011,32 +1953,24 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Feedback Dialog --- */
 
-.feedback-dialog__overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
+/* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. */
+.dialog-overlay.feedback-dialog__overlay {
+  background: var(--cx-overlay-70);
 }
 
-.feedback-dialog {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+.dialog.feedback-dialog {
   width: 420px;
-  max-width: 90vw;
+  padding: 0;
 }
 
-.feedback-dialog__header {
+.dialog__header.feedback-dialog__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px 0;
   font-size: 16px;
-  font-weight: 600;
-  color: var(--cx-text-1);
+  margin-bottom: 0;
 }
 
 .feedback-dialog__close {
@@ -2051,8 +1985,9 @@ body[data-disable-f-0512-36] .transform-panel {
   color: var(--cx-text-1);
 }
 
-.feedback-dialog__body {
+.dialog__body.feedback-dialog__body {
   padding: 12px 20px 16px;
+  margin: 0;
 }
 
 .feedback-dialog__textarea {
@@ -2080,10 +2015,7 @@ body[data-disable-f-0512-36] .transform-panel {
   margin-top: 4px;
 }
 
-.feedback-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.feedback-dialog__footer {
   padding: 12px 20px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -2139,7 +2071,7 @@ body[data-disable-f-0512-36] .transform-panel {
 
 .freeze-overlay--active {
   backdrop-filter: blur(4px);
-  background: rgba(100, 180, 255, 0.15);
+  background: var(--cx-freeze-wash);
 }
 
 .freeze-overlay__badge {
@@ -2181,7 +2113,7 @@ body[data-disable-f-0512-36] .transform-panel {
 }
 
 .shortcut-editor__conflict {
-  background: rgba(239, 68, 68, 0.15);
+  background: var(--cx-red-alpha-15);
   border: 1px solid var(--cx-danger-text);
   color: var(--cx-danger-text);
   padding: 6px 10px;
@@ -2292,7 +2224,7 @@ body[data-disable-f-0512-36] .transform-panel {
 .preferences__overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2421,19 +2353,12 @@ body[data-disable-f-0512-36] .transform-panel {
   flex: 1;
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/focus-ring (COMPONENT-SPEC §3), keeping
+ * this row's fixed width. */
 .preferences__select {
-  background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 4px;
-  color: var(--cx-text-1);
-  font-size: 13px;
-  padding: 5px 8px;
+  display: flex;
   width: 140px;
-}
-
-.preferences__select:focus {
-  outline: none;
-  border-color: var(--cx-action);
 }
 
 .preferences__browse-btn {
@@ -2475,12 +2400,21 @@ body[data-disable-f-0512-36] .transform-panel {
   color: var(--cx-text-1);
 }
 
-/* --- Generic Dialog --- */
+/* --- Generic Dialog ---
+ * F3-C6: the canonical dialog/dialog__* primitive (COMPONENT-SPEC §3) opts
+ * into the `components` cascade layer declared in compositions.css. Its
+ * per-consumer compound overrides elsewhere in this file (`.dialog.foo`,
+ * `.dialog__header.foo__header`, etc. — the C1 dialog-unification deltas)
+ * stay UNLAYERED: per the CSS Cascade Layers spec, unlayered rules always
+ * win over layered ones regardless of specificity, so those higher-
+ * specificity overrides continue to win exactly as before — nothing about
+ * their behavior changes by layering the base rules they override. */
+@layer components {
 
 .dialog-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: var(--cx-overlay-60);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2560,6 +2494,8 @@ body[data-disable-f-0512-36] .transform-panel {
   outline: 2px solid var(--cx-focus-ring);
   outline-offset: 1px;
 }
+
+} /* @layer components */
 
 /* --- Icon kit (PK.H2) --- */
 

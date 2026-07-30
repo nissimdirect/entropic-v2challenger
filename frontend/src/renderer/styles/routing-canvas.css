@@ -10,7 +10,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(11, 11, 16, 0.66);
+  background: var(--cx-scrim-66);
   backdrop-filter: blur(2px);
 }
 
@@ -22,7 +22,7 @@
   background: var(--cx-surface-2);
   border: 1px solid var(--cx-line-1);
   border-radius: 8px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 60px var(--cx-overlay-50);
   overflow: hidden;
   font-family: 'JetBrains Mono', ui-monospace, monospace;
   color: var(--cx-text-1);
@@ -301,14 +301,21 @@
   align-items: center;
   gap: 8px;
 }
-.routing-edge-inspector__field label {
+.routing-edge-inspector__field label,
+.routing-edge-inspector__field > span:first-child {
   font-size: 10px;
   text-transform: uppercase;
   color: var(--cx-text-2);
 }
-.routing-edge-inspector__field input[type='range'] {
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/accent carried over onto the Slider's own
+ * .hslider__track/.hslider__fill/.hslider__thumb (COMPONENT-SPEC §3). */
+.routing-edge-inspector__depth-slider {
   width: 120px;
-  accent-color: var(--cx-acid);
+}
+.routing-edge-inspector__depth-slider .hslider__fill,
+.routing-edge-inspector__depth-slider .hslider__track:hover .hslider__thumb {
+  background: var(--cx-acid);
 }
 .routing-edge-inspector__value {
   font-size: 11px;

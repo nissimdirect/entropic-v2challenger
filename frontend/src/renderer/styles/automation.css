@@ -265,24 +265,24 @@
 }
 
 .track-header__badge--trig {
-  background: rgba(239, 68, 68, 0.3);
+  background: var(--cx-red-alpha-30);
   color: var(--cx-danger-text);
-  border: 1px solid rgba(239, 68, 68, 0.5);
+  border: 1px solid var(--cx-red-alpha-50);
 }
 
 .track-header__badge--auto {
-  background: rgba(74, 222, 128, 0.2);
+  background: var(--cx-green-alpha-20);
   color: var(--cx-action);
-  border: 1px solid rgba(74, 222, 128, 0.4);
+  border: 1px solid var(--cx-green-alpha-40);
 }
 
 /* SG-3 clause-3 (audit medium #1): MUTED badge shown when the sentinel has
    aborted an automation lane. The containing row is dimmed so the AUTO badge
    reads as inactive while the abort is live. */
 .track-header__badge--muted {
-  background: rgba(239, 68, 68, 0.3);
+  background: var(--cx-red-alpha-30);
   color: var(--cx-danger-text);
-  border: 1px solid rgba(239, 68, 68, 0.6);
+  border: 1px solid var(--cx-red-alpha-60);
 }
 
 .track-header__badges--muted .track-header__badge--auto {
@@ -308,6 +308,6 @@
    curve/node fill; this outline is the additional lane-level cue) --- */
 
 .auto-lane--modulation {
-  outline: 1px dashed rgba(59, 130, 246, 0.35);
+  outline: 1px dashed var(--cx-blue-alpha-35);
   outline-offset: -1px;
 }

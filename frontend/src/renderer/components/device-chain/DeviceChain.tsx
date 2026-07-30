@@ -10,6 +10,7 @@ import { useLayoutStore } from '../../stores/layout'
 import { useToastStore } from '../../stores/toast'
 import { LIMITS } from '../../../shared/limits'
 import DeviceCard from './DeviceCard'
+import EmptyState from '../common/EmptyState'
 import ContextMenu from '../timeline/ContextMenu'
 import type { MenuItem } from '../timeline/ContextMenu'
 import { shortcutRegistry } from '../../utils/shortcuts'
@@ -545,7 +546,10 @@ export default function DeviceChain({
           )}
         </div>
         <div className="device-chain__empty">
-          <span>{isDragOver ? 'Release to add effect' : 'No effects yet — browse the EFFECTS tab to add one.'}</span>
+          <EmptyState
+            testId="device-chain-empty"
+            hint={isDragOver ? 'Release to add effect' : 'No effects yet — browse the EFFECTS tab to add one.'}
+          />
         </div>
       </div>
     )

@@ -178,32 +178,22 @@
 
 /* --- Preset Save Dialog --- */
 
-.preset-save__overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.preset-save {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+/* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. The z-index
+ * inconsistency (100 vs the 200 every other modal uses) had no dependent
+ * behavior on inspection — normalized to the shared 200 via dialog-overlay. */
+.dialog.preset-save {
   width: 380px;
-  max-width: 90vw;
+  padding: 0;
 }
 
-.preset-save__header {
+.dialog__header.preset-save__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--cx-line-1);
-  font-size: 14px;
-  font-weight: 600;
+  margin-bottom: 0;
 }
 
 .preset-save__close {
@@ -218,11 +208,12 @@
   color: var(--cx-text-1);
 }
 
-.preset-save__body {
+.dialog__body.preset-save__body {
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin: 0;
 }
 
 .preset-save__field {
@@ -305,15 +296,17 @@
   border-color: var(--cx-action);
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome (COMPONENT-SPEC §3), keeping this row's
+ * compact sizing. */
 .preset-save__macro-select {
   flex: 1;
-  padding: 4px 6px;
-  background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 3px;
-  color: var(--cx-text-1);
-  font-family: inherit;
+}
+
+.preset-save__macro-select .cx-select__control {
   font-size: 11px;
+  height: auto;
+  padding: 4px 6px;
 }
 
 .preset-save__macro-remove {
@@ -328,10 +321,7 @@
   color: var(--cx-danger-text);
 }
 
-.preset-save__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.preset-save__footer {
   padding: 12px 16px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -386,36 +376,21 @@
   color: var(--cx-text-2);
 }
 
-/* PUX.5 — Macro-knob slider: thumb 10×10→12×12, track height→24px transparent.
- * Electron = Chromium, -moz- skipped. */
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .macro-knob__slider {
-  -webkit-appearance: none;
   width: 60px;
-  height: 24px;
-  background: transparent;
-  border-radius: 2px;
-  outline: none;
 }
 
-.macro-knob__slider::-webkit-slider-runnable-track {
+.macro-knob__slider .hslider__track {
   height: 4px;
-  background: var(--cx-bg-hover);
-  border-radius: 2px;
 }
 
-.macro-knob__slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.macro-knob__slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.macro-knob__slider .hslider__thumb {
   width: 12px;
   height: 12px;
   background: var(--cx-action);
-  border-radius: 50%;
-  cursor: pointer;
-  margin-top: -4px;
 }
 
 .macro-knob__value {

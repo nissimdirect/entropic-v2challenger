@@ -5,6 +5,8 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
 import type { TextClipConfig, TextAnimation } from '../../../shared/types'
 import { useFonts } from '../../hooks/useFonts'
+import Slider from '../common/Slider'
+import Select from '../common/Select'
 
 const ANIMATIONS: { value: TextAnimation; label: string }[] = [
   { value: 'none', label: 'None' },
@@ -84,7 +86,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
       {/* Font family */}
       <div className="text-panel__section">
         <label className="text-panel__label">Font</label>
-        <select
+        <Select
           className="text-panel__select"
           value={config.fontFamily}
           onChange={(e) => onUpdate({ fontFamily: e.target.value })}
@@ -94,7 +96,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
               {f.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Font size + Color row */}
@@ -142,15 +144,18 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
         <label className="text-panel__label">
           Opacity <span className="text-panel__value">{Math.round(config.opacity * 100)}%</span>
         </label>
-        <input
-          className="text-panel__slider"
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={config.opacity}
-          onChange={(e) => onUpdate({ opacity: Number(e.target.value) })}
-        />
+        <div className="text-panel__slider">
+          <Slider
+            value={config.opacity}
+            min={0}
+            max={1}
+            default={1}
+            label="Opacity"
+            type="float"
+            showHeader={false}
+            onChange={(v) => onUpdate({ opacity: v })}
+          />
+        </div>
       </div>
 
       <div className="text-panel__divider" />
@@ -210,7 +215,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
       {/* Animation */}
       <div className="text-panel__section">
         <label className="text-panel__label">Animation</label>
-        <select
+        <Select
           className="text-panel__select"
           value={config.animation}
           onChange={(e) => onUpdate({ animation: e.target.value as TextAnimation })}
@@ -220,7 +225,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
               {a.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Animation duration */}
@@ -229,15 +234,18 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
           <label className="text-panel__label">
             Duration <span className="text-panel__value">{config.animationDuration.toFixed(1)}s</span>
           </label>
-          <input
-            className="text-panel__slider"
-            type="range"
-            min={0.1}
-            max={5}
-            step={0.1}
-            value={config.animationDuration}
-            onChange={(e) => onUpdate({ animationDuration: Number(e.target.value) })}
-          />
+          <div className="text-panel__slider">
+            <Slider
+              value={config.animationDuration}
+              min={0.1}
+              max={5}
+              default={1}
+              label="Duration"
+              type="float"
+              showHeader={false}
+              onChange={(v) => onUpdate({ animationDuration: v })}
+            />
+          </div>
         </div>
       )}
     </div>

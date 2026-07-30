@@ -17,6 +17,9 @@
 
 import React, { useCallback, useId } from 'react'
 import Icon from '../../assets/icon-kit'
+import Slider from '../common/Slider'
+import Select from '../common/Select'
+import EmptyState from '../common/EmptyState'
 import type { MatteNode, MatteOp } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
@@ -69,17 +72,15 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
   )
 
   const handleFeatherChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const clamped = clampFeather(parseFloat(e.target.value))
-      updateMatteNode(clipId, node.id, { feather: clamped })
+    (value: number) => {
+      updateMatteNode(clipId, node.id, { feather: clampFeather(value) })
     },
     [clipId, node.id, updateMatteNode],
   )
 
   const handleGrowShrinkChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const clamped = clampGrowShrink(parseFloat(e.target.value))
-      updateMatteNode(clipId, node.id, { growShrink: clamped })
+    (value: number) => {
+      updateMatteNode(clipId, node.id, { growShrink: clampGrowShrink(value) })
     },
     [clipId, node.id, updateMatteNode],
   )
@@ -174,7 +175,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
       {/* Boolean op selector */}
       <div className="mask-stack-panel__param-row">
         <span className="mask-stack-panel__label">op</span>
-        <select
+        <Select
           className="mask-stack-panel__op-select"
           data-testid={`mask-node-op-${node.id}`}
           value={node.op}
@@ -183,7 +184,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
           <option value="add">add</option>
           <option value="subtract">subtract</option>
           <option value="intersect">intersect</option>
-        </select>
+        </Select>
       </div>
 
       {/* Invert toggle */}
@@ -201,17 +202,20 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
       {/* Feather slider [0, 100] */}
       <div className="mask-stack-panel__param-row">
         <span className="mask-stack-panel__label">feather</span>
-        <input
-          className="mask-stack-panel__slider"
-          type="range"
-          data-testid={`mask-node-feather-${node.id}`}
-          min={0}
-          max={100}
-          step={1}
-          value={clampFeather(node.feather)}
-          onContextMenu={learnParam('feather')}
-          onChange={handleFeatherChange}
-        />
+        <div className="mask-stack-panel__slider">
+          <Slider
+            testId={`mask-node-feather-${node.id}`}
+            value={clampFeather(node.feather)}
+            min={0}
+            max={100}
+            default={0}
+            label="feather"
+            type="int"
+            showHeader={false}
+            onContextMenu={learnParam('feather')}
+            onChange={handleFeatherChange}
+          />
+        </div>
         <span className="mask-stack-panel__value" data-testid={`mask-node-feather-val-${node.id}`}>
           {clampFeather(node.feather)}px
         </span>
@@ -220,17 +224,20 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
       {/* Grow/Shrink slider [-50, 50] */}
       <div className="mask-stack-panel__param-row">
         <span className="mask-stack-panel__label">grow/shrink</span>
-        <input
-          className="mask-stack-panel__slider"
-          type="range"
-          data-testid={`mask-node-growshrink-${node.id}`}
-          min={-50}
-          max={50}
-          step={1}
-          value={clampGrowShrink(node.growShrink)}
-          onContextMenu={learnParam('growShrink')}
-          onChange={handleGrowShrinkChange}
-        />
+        <div className="mask-stack-panel__slider">
+          <Slider
+            testId={`mask-node-growshrink-${node.id}`}
+            value={clampGrowShrink(node.growShrink)}
+            min={-50}
+            max={50}
+            default={0}
+            label="grow/shrink"
+            type="int"
+            showHeader={false}
+            onContextMenu={learnParam('growShrink')}
+            onChange={handleGrowShrinkChange}
+          />
+        </div>
         <span className="mask-stack-panel__value" data-testid={`mask-node-growshrink-val-${node.id}`}>
           {clampGrowShrink(node.growShrink)}px
         </span>
@@ -274,9 +281,7 @@ export default function MaskStackPanel({ clipId }: MaskStackPanelProps): React.R
       </div>
 
       {visibleStack.length === 0 ? (
-        <div className="mask-stack-panel__empty" data-testid="mask-stack-empty">
-          no matte nodes
-        </div>
+        <EmptyState testId="mask-stack-empty" hint="no matte nodes" className="mask-stack-panel__empty" />
       ) : (
         <div className="mask-stack-panel__nodes" data-testid="mask-stack-nodes">
           {visibleStack.map((node, idx) => (

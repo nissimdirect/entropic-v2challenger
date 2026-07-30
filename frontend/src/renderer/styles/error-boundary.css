@@ -20,7 +20,7 @@
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: rgba(239, 68, 68, 0.15);
+  background: var(--cx-red-alpha-15);
   border: 2px solid var(--cx-danger-text);
   color: var(--cx-danger-text);
   font-size: 28px;

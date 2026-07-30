@@ -1,4 +1,5 @@
 import { useOperatorStore } from '../../stores/operators'
+import Select from '../common/Select'
 import type { Operator } from '../../../shared/types'
 
 interface AudioFollowerEditorProps {
@@ -25,7 +26,7 @@ export default function AudioFollowerEditor({ operator, hasAudio }: AudioFollowe
       )}
       <div className="operator-card__param-row">
         <span className="operator-card__param-label">Method</span>
-        <select
+        <Select
           className="operator-card__param-select"
           value={String(params.method ?? 'rms')}
           onChange={(e) => setParam('method', e.target.value)}
@@ -33,7 +34,7 @@ export default function AudioFollowerEditor({ operator, hasAudio }: AudioFollowe
           <option value="rms">RMS</option>
           <option value="frequency_band">Freq Band</option>
           <option value="onset">Onset</option>
-        </select>
+        </Select>
       </div>
       <div className="operator-card__param-row">
         <span className="operator-card__param-label">Sensitivity</span>

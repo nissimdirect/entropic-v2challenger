@@ -38,10 +38,10 @@ export default function FeedbackDialog({ isOpen, onClose }: FeedbackDialogProps)
 
   if (submitted) {
     return (
-      <div className="feedback-dialog__overlay">
+      <div className="dialog-overlay feedback-dialog__overlay">
         <div
           ref={dialogRef}
-          className="feedback-dialog"
+          className="dialog feedback-dialog"
           role="dialog"
           aria-modal="true"
           aria-labelledby="feedback-dialog-title"
@@ -56,22 +56,22 @@ export default function FeedbackDialog({ isOpen, onClose }: FeedbackDialogProps)
   }
 
   return (
-    <div className="feedback-dialog__overlay" onClick={handleClose}>
+    <div className="dialog-overlay feedback-dialog__overlay" onClick={handleClose}>
       <div
         ref={dialogRef}
-        className="feedback-dialog"
+        className="dialog feedback-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="feedback-dialog-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="feedback-dialog__header">
+        <div className="dialog__header feedback-dialog__header">
           <span id="feedback-dialog-title">Report a Bug</span>
           <button className="feedback-dialog__close" onClick={handleClose}>
             &times;
           </button>
         </div>
-        <div className="feedback-dialog__body">
+        <div className="dialog__body feedback-dialog__body">
           <textarea
             className="feedback-dialog__textarea"
             placeholder="What happened?"
@@ -83,7 +83,7 @@ export default function FeedbackDialog({ isOpen, onClose }: FeedbackDialogProps)
             {text.length}/2000
           </div>
         </div>
-        <div className="feedback-dialog__footer">
+        <div className="dialog__actions feedback-dialog__footer">
           <button
             className="feedback-dialog__btn feedback-dialog__btn--cancel"
             onClick={handleClose}

@@ -13,7 +13,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(11, 11, 16, 0.62); /* scrim — surface-0 at alpha, no new token */
+  background: var(--cx-scrim-62); /* scrim — surface-0 at alpha, no new token */
   animation: midi-map-fade var(--cx-dur-entry) var(--cx-ease);
 }
 
@@ -29,7 +29,7 @@
   border: 1px solid var(--cx-line-2);
   border-radius: var(--cx-radius-dialog);
   padding: 16px;
-  box-shadow: 0 12px 40px rgba(11, 11, 16, 0.5);
+  box-shadow: 0 12px 40px var(--cx-scrim-50);
   font-family: var(--cx-font-ui);
 }
 

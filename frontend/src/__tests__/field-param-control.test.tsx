@@ -125,8 +125,13 @@ describe('DeviceCard Field… control', () => {
       },
     })
     const { getByTestId, onUpdateParam } = renderCard({ effect: fieldEffect })
-    fireEvent.change(getByTestId('field-gain-e1-radius'), { target: { value: '3.5' } })
-    expect((onUpdateParam.mock.calls[0][2] as any).__field__.gain).toBeCloseTo(3.5, 5)
+    // F3-C2: gain is now the common/Slider primitive (ARIA track driven by
+    // pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). Shift+ArrowRight is
+    // Slider's tested keyboard interaction (slider.test.tsx) — one press
+    // moves by 10% of the [-4,4] range (delta 0.8) from the 1 seed.
+    fireEvent.keyDown(getByTestId('field-gain-e1-radius'), { key: 'ArrowRight', shiftKey: true })
+    expect((onUpdateParam.mock.calls[0][2] as any).__field__.gain).toBeCloseTo(1.8, 5)
     fireEvent.click(getByTestId('field-invert-e1-radius'))
     expect((onUpdateParam.mock.calls[1][2] as any).__field__.invert).toBe(true)
   })

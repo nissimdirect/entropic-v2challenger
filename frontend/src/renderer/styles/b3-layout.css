@@ -275,7 +275,10 @@
   color: var(--cx-text-2);
 }
 
-.b3-layer__row input[type='range'] {
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — it's a direct grid child (COMPONENT-SPEC §3), same
+ * width:100% behavior. */
+.b3-layer__row .hslider {
   width: 100%;
 }
 

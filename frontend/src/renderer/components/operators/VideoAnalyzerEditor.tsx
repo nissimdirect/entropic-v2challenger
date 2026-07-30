@@ -1,4 +1,5 @@
 import { useOperatorStore } from '../../stores/operators'
+import Select from '../common/Select'
 import type { Operator, VideoAnalyzerMethod } from '../../../shared/types'
 
 const METHODS: { value: VideoAnalyzerMethod; label: string }[] = [
@@ -21,7 +22,7 @@ export default function VideoAnalyzerEditor({ operator }: VideoAnalyzerEditorPro
     <div className="operator-editor operator-editor--video">
       <label className="operator-editor__label">
         Method
-        <select
+        <Select
           className="operator-editor__select"
           value={currentMethod}
           onChange={(e) =>
@@ -35,7 +36,7 @@ export default function VideoAnalyzerEditor({ operator }: VideoAnalyzerEditorPro
               {m.label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
       <div className="operator-editor__hint">
         Analyzes 64×64 proxy of current frame
