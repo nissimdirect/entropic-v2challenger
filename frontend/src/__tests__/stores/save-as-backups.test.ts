@@ -113,13 +113,19 @@ describe('UE.4 Save As', () => {
   })
 
   it('save as round trip: menu event → dialog path → write → rebind → title updates → reload from new path', async () => {
-    // Menu-event wiring is structural: App.tsx routes the 'save-as' menu action
-    // to saveProjectAs(), and derives document.title from projectName.
+    // Menu-event wiring is structural: the 'save-as' menu action routes to
+    // saveProjectAs() (F4b PR2: this dispatch now lives in
+    // renderer/app/menuActions.ts, extracted from App.tsx — see that file's
+    // header comment), and App.tsx still derives document.title from projectName.
+    const menuActionsSrc = readFileSync(
+      resolve(__dirname, '../../renderer/app/menuActions.ts'),
+      'utf-8',
+    )
     const appSrc = readFileSync(
       resolve(__dirname, '../../renderer/App.tsx'),
       'utf-8',
     )
-    expect(appSrc).toMatch(/case 'save-as': saveProjectAs\(\); break/)
+    expect(menuActionsSrc).toMatch(/case 'save-as': saveProjectAs\(\); break/)
     expect(appSrc).toMatch(/document\.title = isDirty \? `\$\{projectName\}/)
 
     useProjectStore.getState().setProjectPath('/test/orig.glitch')
