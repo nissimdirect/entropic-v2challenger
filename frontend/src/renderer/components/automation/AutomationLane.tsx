@@ -122,12 +122,14 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
   const selection = useAutomationStore((s) => s.selectedPoints)
 
   // D8/PK.C — lane right-click context menu (Option A, user verdict
-  // 2026-07-30): Simplify/Clear/Shape moved here from the automation strip,
-  // targeting THIS lane explicitly (no armed-lane inference). Flatten/Ramp
-  // are temporarily omitted from both the strip and this menu pending a
-  // STOP resolution (flagged to the packet owner): their store actions
-  // (flattenSelectedPoints/rampSelectedPoints) read only the global point
-  // selection and have no laneId parameter to target explicitly.
+  // 2026-07-30): Simplify/Clear/Shape/Flatten/Ramp moved here from the
+  // automation strip, targeting THIS lane explicitly (no armed-lane
+  // inference). Flatten/Ramp are a resolved STOP (team-lead adjudication):
+  // their store actions (flattenSelectedPoints/rampSelectedPoints) have no
+  // laneId parameter — they only read the global point-selection state — so
+  // they render disabled unless the clicked lane already owns a qualifying
+  // same-lane selection, same standard-menu-grammar treatment any
+  // selection-dependent item gets. See getLaneCurveMenuItems below.
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [shapePopoverOpen, setShapePopoverOpen] = useState(false)
   const [shapePopoverPos, setShapePopoverPos] = useState({ x: 0, y: 0 })
@@ -221,15 +223,39 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
     setShapePopoverOpen(false)
   }, [trackId, lane.id, shapeKind, shapeCycles, shapeAmplitude])
 
-  // D8/PK.C — CURVE section: Simplify/Clear act immediately on THIS lane
-  // (simplifyLane/clearLane already take an explicit laneId — clean
-  // functional-parity relocation, same tolerance the toolbar used). Shape…
-  // opens a small config popover anchored at the click point instead of the
-  // old toolbar's "pick a target lane" list, since the lane is already fixed
-  // by the right-click. Flatten/Ramp intentionally absent — see the state
-  // comment above this component's ctxMenu declaration.
+  // D8/PK.C — CURVE section, order matches D8's "Flatten · Ramp · Shape… ·
+  // Simplify · Clear". STOP adjudication ruling (team-lead, 2026-07-30):
+  // Flatten/Ramp relocate as-is — standard menu grammar (Photoshop/Premiere
+  // disable inapplicable items) rather than a new "select all in lane"
+  // behavior. Their store actions (flattenSelectedPoints/rampSelectedPoints)
+  // have no laneId param and only read the global point selection, so the
+  // menu item is disabled unless the CLICKED lane itself already owns a
+  // qualifying selection (matching trackId+laneId, >=1 point for Flatten,
+  // >=2 for Ramp — same thresholds the old strip buttons used); when
+  // enabled it fires the EXISTING handler completely unchanged. Simplify/
+  // Clear act immediately on THIS lane (simplifyLane/clearLane already take
+  // an explicit laneId — clean functional-parity relocation, same tolerance
+  // the toolbar used). Shape… opens a small config popover anchored at the
+  // click point instead of the old toolbar's "pick a target lane" list,
+  // since the lane is already fixed by the right-click.
   const getLaneCurveMenuItems = useCallback((): MenuItem[] => {
-    const items: MenuItem[] = []
+    const hasOwnSelection = selection?.trackId === trackId && selection?.laneId === lane.id
+    const selectedCount = hasOwnSelection ? selection!.indices.length : 0
+
+    const items: MenuItem[] = [
+      {
+        label: 'Flatten',
+        action: () => useAutomationStore.getState().flattenSelectedPoints('average'),
+        disabled: selectedCount < 1,
+        testId: 'lane-context-curve-flatten',
+      },
+      {
+        label: 'Ramp',
+        action: () => useAutomationStore.getState().rampSelectedPoints(),
+        disabled: selectedCount < 2,
+        testId: 'lane-context-curve-ramp',
+      },
+    ]
     if (!trigger) {
       items.push({
         label: 'Shape…',
@@ -255,7 +281,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
       },
     )
     return items
-  }, [trackId, lane.id, lane.points.length, trigger, ctxMenu])
+  }, [trackId, lane.id, lane.points.length, trigger, ctxMenu, selection])
 
   // AA.4 — marquee-select: pointerdown/move/up rubber-bands a 2D (time ×
   // value) box over the lane background. Mirrors MarqueeOverlay.tsx's

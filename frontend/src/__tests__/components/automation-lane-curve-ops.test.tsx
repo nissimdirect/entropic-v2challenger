@@ -8,19 +8,17 @@
  * right-click always targets an explicit lane instead of guessing "which
  * lane?" from a global armed-track button.
  *
- * STOP (reported to the packet owner, unresolved as of this PR): Simplify
- * and Clear cleanly relocate because their store actions already take an
- * explicit laneId (`simplifyLane(trackId, laneId, tolerance)` /
- * `clearLane(trackId, laneId)`). Shape relocates too
- * (`insertShapeIntoLane(trackId, laneId, ...)`) via a small config popover
- * anchored at the click point instead of the old toolbar's "pick a target
- * lane" list. Flatten/Ramp do NOT relocate: `flattenSelectedPoints`/
- * `rampSelectedPoints` have no laneId parameter at all — they only read the
- * global `selectedPoints` selection. Wiring them to "fire with this lane's
- * id" would mean inventing a new "select all points in this lane" behavior,
- * which is a new curve-op algorithm the packet's non-scope line forbids.
- * They are intentionally ABSENT from this menu pending that decision — see
- * the negative assertion below.
+ * STOP adjudication (team-lead ruling, 2026-07-30): Simplify/Clear/Shape
+ * relocate wholesale — their store actions already take an explicit laneId
+ * (`simplifyLane`/`clearLane`/`insertShapeIntoLane`). Flatten/Ramp are
+ * different: `flattenSelectedPoints`/`rampSelectedPoints` have NO laneId
+ * parameter at all — they only read the global `selectedPoints` selection.
+ * Rather than invent a new "select all points in this lane" behavior
+ * (forbidden by the packet's non-scope line), the ruling is standard menu
+ * grammar: Flatten/Ramp appear in the menu but render DISABLED unless the
+ * CLICKED lane already owns a qualifying same-lane selection (Flatten needs
+ * >=1 selected point, Ramp needs >=2); enabled, they fire the EXISTING
+ * handler completely unchanged. Both branches are asserted below.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
@@ -100,19 +98,73 @@ function renderLaneB() {
 }
 
 describe('AutomationLane — CURVE context menu (D8 Option A)', () => {
-  it('right-click opens a menu with lane-context-curve-* test-ids for shape/simplify/clear', () => {
+  it('right-click opens a menu with lane-context-curve-* test-ids for all 5 ops', () => {
     const { container } = renderLaneB()
     fireEvent.contextMenu(container.querySelector('[data-testid="automation-lane"]')!)
-    expect(container.querySelector('[data-testid="lane-context-curve-shape"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="lane-context-curve-simplify"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="lane-context-curve-clear"]')).toBeTruthy()
+    for (const op of ['flatten', 'ramp', 'shape', 'simplify', 'clear']) {
+      expect(container.querySelector(`[data-testid="lane-context-curve-${op}"]`)).toBeTruthy()
+    }
   })
 
-  it('does NOT offer Flatten or Ramp (STOP — no laneId param on their store actions)', () => {
-    const { container, queryByText } = renderLaneB()
-    fireEvent.contextMenu(container.querySelector('[data-testid="automation-lane"]')!)
-    expect(queryByText('Flatten')).toBeNull()
-    expect(queryByText('Ramp')).toBeNull()
+  describe('Flatten/Ramp — disabled/enabled branches (STOP adjudication)', () => {
+    it('both disabled when the clicked lane has no selection at all', () => {
+      const { container } = renderLaneB()
+      fireEvent.contextMenu(container.querySelector('[data-testid="automation-lane"]')!)
+      const flatten = container.querySelector('[data-testid="lane-context-curve-flatten"]')!
+      const ramp = container.querySelector('[data-testid="lane-context-curve-ramp"]')!
+      expect(flatten.className).toContain('context-menu__item--disabled')
+      expect(flatten.getAttribute('aria-disabled')).toBe('true')
+      expect(ramp.className).toContain('context-menu__item--disabled')
+      expect(ramp.getAttribute('aria-disabled')).toBe('true')
+    })
+
+    it('both disabled when the selection belongs to a DIFFERENT lane', () => {
+      useAutomationStore.setState({ selectedPoints: { trackId: TRACK_ID, laneId: LANE_A, indices: [0, 1, 2] } })
+      const { container } = renderLaneB()
+      fireEvent.contextMenu(container.querySelector('[data-testid="automation-lane"]')!)
+      expect(container.querySelector('[data-testid="lane-context-curve-flatten"]')!.className)
+        .toContain('context-menu__item--disabled')
+      expect(container.querySelector('[data-testid="lane-context-curve-ramp"]')!.className)
+        .toContain('context-menu__item--disabled')
+    })
+
+    it('Flatten enabled with >=1 same-lane point selected; fires the EXISTING flattenSelectedPoints handler unchanged', () => {
+      useAutomationStore.setState({ selectedPoints: { trackId: TRACK_ID, laneId: LANE_B, indices: [1] } })
+      const { container } = renderLaneB()
+      fireEvent.contextMenu(container.querySelector('[data-testid="automation-lane"]')!)
+      const flatten = container.querySelector('[data-testid="lane-context-curve-flatten"]')!
+      expect(flatten.className).not.toContain('context-menu__item--disabled')
+      expect(flatten.getAttribute('aria-disabled')).toBe('false')
+
+      fireEvent.click(flatten)
+      // Existing handler: flattenSelectedPoints('average') — collapses the
+      // selection to its average value via transformSelectedPoints, same
+      // as the pre-relocation strip button.
+      const laneB = useAutomationStore.getState().lanes[TRACK_ID].find((l) => l.id === LANE_B)!
+      expect(laneB.points[1].value).toBeCloseTo(0.25) // its own single-point average
+    })
+
+    it('Ramp disabled with only 1 same-lane point selected (needs >=2), enabled at 2', () => {
+      useAutomationStore.setState({ selectedPoints: { trackId: TRACK_ID, laneId: LANE_B, indices: [1] } })
+      const { container: c1 } = renderLaneB()
+      fireEvent.contextMenu(c1.querySelector('[data-testid="automation-lane"]')!)
+      expect(c1.querySelector('[data-testid="lane-context-curve-ramp"]')!.className)
+        .toContain('context-menu__item--disabled')
+      cleanup()
+
+      useAutomationStore.setState({ selectedPoints: { trackId: TRACK_ID, laneId: LANE_B, indices: [0, 4] } })
+      const { container: c2 } = renderLaneB()
+      fireEvent.contextMenu(c2.querySelector('[data-testid="automation-lane"]')!)
+      const ramp = c2.querySelector('[data-testid="lane-context-curve-ramp"]')!
+      expect(ramp.className).not.toContain('context-menu__item--disabled')
+
+      fireEvent.click(ramp)
+      // Existing handler: rampSelectedPoints() — straight line first->last
+      // selected point (0 -> 1 here), same as the pre-relocation strip button.
+      const laneB = useAutomationStore.getState().lanes[TRACK_ID].find((l) => l.id === LANE_B)!
+      expect(laneB.points[0].value).toBeCloseTo(0)
+      expect(laneB.points[4].value).toBeCloseTo(1)
+    })
   })
 
   it('Simplify parity — fires simplifyLane with THIS lane\'s id, leaves the other lane untouched', () => {
