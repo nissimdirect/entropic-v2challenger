@@ -27,7 +27,7 @@ import AutomationDraw from '../automation/AutomationDraw'
 import { FF } from '../../../shared/feature-flags'
 import MarqueeOverlay from './MarqueeOverlay'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
-import { useTrackDragStore } from '../../stores/trackDrag'
+import { useTrackHeaderView, useLaneBadgesView, useTrackLaneView } from '../../selectors/trackView'
 
 interface TrackHeaderProps {
   track: TrackType
@@ -35,7 +35,7 @@ interface TrackHeaderProps {
 }
 
 export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
-  const armedTrackId = useAutomationStore((s) => s.armedTrackId)
+  const { armedTrackId, dragFromIdx, expandedTrackIds, registry, leanAutoLanes } = useTrackHeaderView(track.id)
   const isArmed = armedTrackId === track.id
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [isRenaming, setIsRenaming] = useState(false)
@@ -256,7 +256,6 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     { value: 'lighten', label: 'Ltn' },
   ]
 
-  const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
   const headerClasses = [
     'track-header',
     'track-header--video',
@@ -271,9 +270,6 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   // twirl reveals the track's nested fx + automation lanes ("arrangement-is-
   // the-layers" AE model). Rendered as an early return so the legacy two-row
   // header (flag OFF) is untouched — both paths stay shippable (flag divergence).
-  const expandedTrackIds = useLayoutStore((s) => s.expandedTrackIds)
-  const registry = useEffectsStore((s) => s.registry)
-  const leanAutoLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
   if (FF.F_CREATRIX_LAYOUT) {
     const isExpanded = expandedTrackIds.includes(track.id)
     const modeLabel = compositing.mode.charAt(0).toUpperCase() + compositing.mode.slice(1)
@@ -707,15 +703,12 @@ interface TrackLaneProps {
   onSeek?: (time: number) => void
 }
 
-const EMPTY_LANES: never[] = []
-
 export function LaneBadges({ trackId }: { trackId: string }) {
-  const lanes = useAutomationStore((s) => s.lanes[trackId]) ?? EMPTY_LANES
   // SG-3 clause-3 consumer (audit medium #1): when the sentinel has aborted a
   // lane, the abort set is non-empty. lane_id is always "unknown" (the output
   // gate cannot trace the specific lane), so we show the MUTED badge + dimmed
   // styling on any track that carries an automation lane.
-  const sg3Aborted = useAutomationStore((s) => s.sg3AbortedLaneIds)
+  const { lanes, sg3Aborted } = useLaneBadgesView(trackId)
   const hasTrigger = lanes.some((l) => isTriggerLane(l))
   const hasAuto = lanes.some((l) => !isTriggerLane(l))
   const isMuted = sg3Aborted.size > 0 && hasAuto
@@ -730,9 +723,7 @@ export function LaneBadges({ trackId }: { trackId: string }) {
 }
 
 export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds, waveformPeaks, clipThumbnails, onSeek }: TrackLaneProps) {
-  const assets = useProjectStore((s) => s.assets)
-  const automationLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
-  const automationMode = useAutomationStore((s) => s.mode)
+  const { assets, automationLanes, automationMode } = useTrackLaneView(track.id)
   // ref passed to MarqueeOverlay so it can map pointer coords to lane-relative space
   const laneRef = useRef<HTMLDivElement>(null)
 
