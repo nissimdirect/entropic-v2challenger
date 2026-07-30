@@ -29,10 +29,10 @@ import HelpPanel from './components/effects/HelpPanel'
 // P3.3: Polymorphic inspector (8 states, info-only)
 import Inspector from './components/inspector/Inspector'
 // B3 / L3: LAYER inspector panel (right-dock, above EFFECTS) — bound to the
-// selected track. Mounted flag-gated (F_CREATRIX_LAYOUT) in the sidebar.
+// selected track. Mounted unconditionally in the sidebar (F4a).
 import LayerPanel from './components/timeline/LayerPanel'
-// L-block (GH issue 422): Photoshop-style left tool rail, mounted flag-gated
-// (F_CREATRIX_LAYOUT) to the left of the preview canvas.
+// L-block (GH issue 422): Photoshop-style left tool rail, mounted
+// unconditionally (F4a) to the left of the preview canvas.
 // ui-foundation PK.B2: cycleRailGroup is the shared group-cycle dispatcher —
 // ToolRail.tsx owns the group/id definitions (single source of truth), the
 // hotkey handlers below just call into it so the rail and the keyboard path
@@ -58,8 +58,13 @@ import type { SamplerInstrumentV1, RackPad } from './components/instruments/type
 import { resolveSamplerModulations } from './components/instruments/resolveSamplerModulations'
 import { useInstrumentsStore } from './stores/instruments'
 import './styles/instruments.css'
-import './styles/creatrix-layout.css'
-import './styles/b3-layout.css'
+// F4a: creatrix-layout.css + b3-layout.css unified into creatrix-shell.css
+// (the F_CREATRIX_LAYOUT flag-OFF branches below were retired in the same
+// PR — Creatrix is now the only layout, so the two flag-scoped stylesheets
+// no longer need to be separate files). Import position preserved: still
+// before tool-rail.css / timeline.css (see creatrix-shell.css header for
+// why that ordering matters).
+import './styles/creatrix-shell.css'
 import './styles/tool-rail.css'
 import type { Asset, EffectInstance } from '../shared/types'
 import { IDENTITY_TRANSFORM, getTrackCompositing } from '../shared/types'
@@ -3622,18 +3627,21 @@ function AppInner() {
     restarting: 'Engine: Restarting...',
   }
 
+  // P3.1: Creatrix CSS vars drive the grid-template-columns/rows. These are
+  // genuinely dynamic (user drag-resize state, not a static design value),
+  // so they can't be expressed as a class + token — named here (rather than
+  // an inline object literal) to keep the shell's root JSX readable.
+  const cxShellVars: React.CSSProperties = {
+    ['--cx-left-col-w' as string]: `${leftColW}px`,
+    ['--cx-inspector-h' as string]: `${inspectorH}px`,
+    ['--cx-preview-h' as string]: `${previewHPct}%`,
+    ['--cx-device-chain-h' as string]: `${deviceChainH}px`,
+  }
+
   return (
     <div
-      className={`app${FF.F_CREATRIX_LAYOUT ? ' app--creatrix' : ''}`}
-      style={FF.F_CREATRIX_LAYOUT ? {
-        // P3.1: Creatrix CSS vars drive the grid-template-columns/rows
-        ['--cx-left-col-w' as string]: `${leftColW}px`,
-        ['--cx-inspector-h' as string]: `${inspectorH}px`,
-        ['--cx-preview-h' as string]: `${previewHPct}%`,
-        ['--cx-device-chain-h' as string]: `${deviceChainH}px`,
-      } : {
-        gridTemplateColumns: sidebarCollapsed ? 'var(--sidebar-width-collapsed) 1fr' : 'var(--sidebar-width) 1fr',
-      }}
+      className="app app--creatrix"
+      style={cxShellVars}
       onDragEnter={handleGlobalDragEnter}
       onDragOver={handleGlobalDragOver}
       onDragLeave={handleGlobalDragLeave}
@@ -3718,7 +3726,7 @@ function AppInner() {
         </div>
       </div>
       <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />
-      <div className={`app__sidebar${FF.F_CREATRIX_LAYOUT ? ' cx-left-col' : ''}`} style={sidebarCollapsed ? { display: 'none' } : undefined}>
+      <div className="app__sidebar cx-left-col" style={sidebarCollapsed ? { display: 'none' } : undefined}>
         {!hasAssets && (
           <div className="app__upload">
             <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} />
@@ -3782,9 +3790,8 @@ function AppInner() {
             }}
           />
         )}
-        {/* B3 / L3: LAYER inspector — above EFFECTS, contextual to the selected
-            track. Flag-gated so the legacy sidebar is untouched when off. */}
-        {FF.F_CREATRIX_LAYOUT && <LayerPanel />}
+        {/* B3 / L3: LAYER inspector — above EFFECTS, contextual to the selected track. */}
+        <LayerPanel />
         <div className="sidebar-tabs">
           <button
             className={`sidebar-tabs__btn ${sidebarTab === 'effects' ? 'sidebar-tabs__btn--active' : ''}`}
@@ -3843,55 +3850,21 @@ function AppInner() {
         {/* Phase 13C: EffectRack removed — replaced by DeviceChain at bottom */}
         {/* Phase 13C: HistoryPanel removed from sidebar — accessible via Edit → Undo History */}
         <HelpPanel />
-        {/* P3.1: Inspector top resize handle + placeholder (P3.3 fills real inspector content) */}
-        {FF.F_CREATRIX_LAYOUT && (
-          <>
-            <div
-              className="cx-resize-handle cx-resize-handle--horizontal"
-              data-testid="cx-handle-inspector"
-              onPointerDown={(e) => {
-                cxIsDragging.current = false
-                const startY = e.clientY
-                const startH = useLayoutStore.getState().inspectorH
-                const el = e.currentTarget
-                el.setPointerCapture(e.pointerId)
-                el.classList.add('cx-resize-handle--dragging')
-                const onMove = (ev: PointerEvent) => {
-                  cxIsDragging.current = true
-                  // Dragging up increases inspector height
-                  useLayoutStore.getState().setInspectorH(startH - (ev.clientY - startY))
-                }
-                const onUp = () => {
-                  el.classList.remove('cx-resize-handle--dragging')
-                  el.removeEventListener('pointermove', onMove)
-                  el.removeEventListener('pointerup', onUp)
-                  setTimeout(() => { cxIsDragging.current = false }, 0)
-                }
-                el.addEventListener('pointermove', onMove as EventListener)
-                el.addEventListener('pointerup', onUp)
-              }}
-              onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
-            />
-            {/* P3.3: Real inspector replaces placeholder */}
-            <Inspector />
-          </>
-        )}
-      </div>
-      {/* P3.1: Vertical resize handle between left-col and right-col */}
-      {FF.F_CREATRIX_LAYOUT && (
+        {/* P3.1: Inspector top resize handle */}
         <div
-          className="cx-resize-handle cx-resize-handle--vertical"
-          data-testid="cx-handle-left-col"
+          className="cx-resize-handle cx-resize-handle--horizontal"
+          data-testid="cx-handle-inspector"
           onPointerDown={(e) => {
             cxIsDragging.current = false
-            const startX = e.clientX
-            const startW = useLayoutStore.getState().leftColW
+            const startY = e.clientY
+            const startH = useLayoutStore.getState().inspectorH
             const el = e.currentTarget
             el.setPointerCapture(e.pointerId)
             el.classList.add('cx-resize-handle--dragging')
             const onMove = (ev: PointerEvent) => {
               cxIsDragging.current = true
-              useLayoutStore.getState().setLeftColW(startW + (ev.clientX - startX))
+              // Dragging up increases inspector height
+              useLayoutStore.getState().setInspectorH(startH - (ev.clientY - startY))
             }
             const onUp = () => {
               el.classList.remove('cx-resize-handle--dragging')
@@ -3904,22 +3877,41 @@ function AppInner() {
           }}
           onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
         />
-      )}
-      {/* P3.1: cx-right-col wrapper. When flag is OFF, display:contents makes this div invisible
-          to layout — children render as direct children of the root div (same as before). */}
+        {/* P3.3: Inspector */}
+        <Inspector />
+      </div>
+      {/* P3.1: Vertical resize handle between left-col and right-col */}
       <div
-        className={FF.F_CREATRIX_LAYOUT ? 'cx-right-col' : undefined}
-        style={FF.F_CREATRIX_LAYOUT ? undefined : { display: 'contents' }}
-      >
+        className="cx-resize-handle cx-resize-handle--vertical"
+        data-testid="cx-handle-left-col"
+        onPointerDown={(e) => {
+          cxIsDragging.current = false
+          const startX = e.clientX
+          const startW = useLayoutStore.getState().leftColW
+          const el = e.currentTarget
+          el.setPointerCapture(e.pointerId)
+          el.classList.add('cx-resize-handle--dragging')
+          const onMove = (ev: PointerEvent) => {
+            cxIsDragging.current = true
+            useLayoutStore.getState().setLeftColW(startW + (ev.clientX - startX))
+          }
+          const onUp = () => {
+            el.classList.remove('cx-resize-handle--dragging')
+            el.removeEventListener('pointermove', onMove)
+            el.removeEventListener('pointerup', onUp)
+            setTimeout(() => { cxIsDragging.current = false }, 0)
+          }
+          el.addEventListener('pointermove', onMove as EventListener)
+          el.addEventListener('pointerup', onUp)
+        }}
+        onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
+      />
+      {/* P3.1: cx-right-col wrapper. */}
+      <div className="cx-right-col">
       <div className="app__main">
-        {/* L-block (GH issue 422): rail sits LEFT of the preview canvas. display:contents
-            when the flag is off keeps app__preview a direct child of app__main,
-            i.e. identical DOM/layout to before this change. */}
-        <div
-          className={FF.F_CREATRIX_LAYOUT ? 'cx-preview-row' : undefined}
-          style={FF.F_CREATRIX_LAYOUT ? undefined : { display: 'contents' }}
-        >
-        {FF.F_CREATRIX_LAYOUT && <ToolRail />}
+        {/* L-block (GH issue 422): rail sits LEFT of the preview canvas. */}
+        <div className="cx-preview-row">
+        <ToolRail />
         <div className="app__preview">
           <div
             ref={previewContainerRef}
@@ -4054,37 +4046,35 @@ function AppInner() {
       </div>
 
       {/* P3.1: Preview bottom resize handle */}
-      {FF.F_CREATRIX_LAYOUT && (
-        <div
-          className="cx-resize-handle cx-resize-handle--horizontal"
-          data-testid="cx-handle-preview"
-          onPointerDown={(e) => {
-            cxIsDragging.current = false
-            const startY = e.clientY
-            const startPct = useLayoutStore.getState().previewHPct
-            const el = e.currentTarget
-            el.setPointerCapture(e.pointerId)
-            el.classList.add('cx-resize-handle--dragging')
-            const onMove = (ev: PointerEvent) => {
-              cxIsDragging.current = true
-              // Convert pixel delta to percentage of right-col height
-              const rightCol = el.closest('.cx-right-col') as HTMLElement | null
-              const colH = rightCol ? rightCol.offsetHeight : window.innerHeight
-              const deltaPct = ((ev.clientY - startY) / colH) * 100
-              useLayoutStore.getState().setPreviewHPct(startPct + deltaPct)
-            }
-            const onUp = () => {
-              el.classList.remove('cx-resize-handle--dragging')
-              el.removeEventListener('pointermove', onMove)
-              el.removeEventListener('pointerup', onUp)
-              setTimeout(() => { cxIsDragging.current = false }, 0)
-            }
-            el.addEventListener('pointermove', onMove as EventListener)
-            el.addEventListener('pointerup', onUp)
-          }}
-          onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
-        />
-      )}
+      <div
+        className="cx-resize-handle cx-resize-handle--horizontal"
+        data-testid="cx-handle-preview"
+        onPointerDown={(e) => {
+          cxIsDragging.current = false
+          const startY = e.clientY
+          const startPct = useLayoutStore.getState().previewHPct
+          const el = e.currentTarget
+          el.setPointerCapture(e.pointerId)
+          el.classList.add('cx-resize-handle--dragging')
+          const onMove = (ev: PointerEvent) => {
+            cxIsDragging.current = true
+            // Convert pixel delta to percentage of right-col height
+            const rightCol = el.closest('.cx-right-col') as HTMLElement | null
+            const colH = rightCol ? rightCol.offsetHeight : window.innerHeight
+            const deltaPct = ((ev.clientY - startY) / colH) * 100
+            useLayoutStore.getState().setPreviewHPct(startPct + deltaPct)
+          }
+          const onUp = () => {
+            el.classList.remove('cx-resize-handle--dragging')
+            el.removeEventListener('pointermove', onMove)
+            el.removeEventListener('pointerup', onUp)
+            setTimeout(() => { cxIsDragging.current = false }, 0)
+          }
+          el.addEventListener('pointermove', onMove as EventListener)
+          el.addEventListener('pointerup', onUp)
+        }}
+        onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
+      />
       <div className={`app__timeline${timelineCollapsed ? ' app__timeline--collapsed' : ''}`}>
         {timelineCollapsed ? (
           <div className="timeline-collapsed-header">
@@ -4184,34 +4174,32 @@ function AppInner() {
       )}
 
       {/* P3.1: Device-chain top resize handle */}
-      {FF.F_CREATRIX_LAYOUT && (
-        <div
-          className="cx-resize-handle cx-resize-handle--horizontal"
-          data-testid="cx-handle-device-chain"
-          onPointerDown={(e) => {
-            cxIsDragging.current = false
-            const startY = e.clientY
-            const startH = useLayoutStore.getState().deviceChainH
-            const el = e.currentTarget
-            el.setPointerCapture(e.pointerId)
-            el.classList.add('cx-resize-handle--dragging')
-            const onMove = (ev: PointerEvent) => {
-              cxIsDragging.current = true
-              // Dragging up increases device-chain height
-              useLayoutStore.getState().setDeviceChainH(startH - (ev.clientY - startY))
-            }
-            const onUp = () => {
-              el.classList.remove('cx-resize-handle--dragging')
-              el.removeEventListener('pointermove', onMove)
-              el.removeEventListener('pointerup', onUp)
-              setTimeout(() => { cxIsDragging.current = false }, 0)
-            }
-            el.addEventListener('pointermove', onMove as EventListener)
-            el.addEventListener('pointerup', onUp)
-          }}
-          onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
-        />
-      )}
+      <div
+        className="cx-resize-handle cx-resize-handle--horizontal"
+        data-testid="cx-handle-device-chain"
+        onPointerDown={(e) => {
+          cxIsDragging.current = false
+          const startY = e.clientY
+          const startH = useLayoutStore.getState().deviceChainH
+          const el = e.currentTarget
+          el.setPointerCapture(e.pointerId)
+          el.classList.add('cx-resize-handle--dragging')
+          const onMove = (ev: PointerEvent) => {
+            cxIsDragging.current = true
+            // Dragging up increases device-chain height
+            useLayoutStore.getState().setDeviceChainH(startH - (ev.clientY - startY))
+          }
+          const onUp = () => {
+            el.classList.remove('cx-resize-handle--dragging')
+            el.removeEventListener('pointermove', onMove)
+            el.removeEventListener('pointerup', onUp)
+            setTimeout(() => { cxIsDragging.current = false }, 0)
+          }
+          el.addEventListener('pointermove', onMove as EventListener)
+          el.addEventListener('pointerup', onUp)
+        }}
+        onClick={(e) => { if (cxIsDragging.current) e.stopPropagation() }}
+      />
       {/* Phase 13: Ableton-style Device Chain */}
       <div className="app__device-chain">
         {/* B2: a selected Performance track shows its Sampler instrument here,
