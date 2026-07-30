@@ -1,6 +1,7 @@
 # Change — ui-foundation
 
-**Status:** T1 decisions PENDING — 7 Open Decisions below, each with a recommended default. This
+**Status:** RATIFIED-AMENDED 2026-07-30 — see `packets.md` top block + `docs/frontend/RATIFIED-FOUNDATIONS.md`: OD-1 → **Scale B+1** (16/14/13/12, floor 12px; supersedes both Scale B and this doc's OD-1 table) · OD-6 → **superseded by D8** (curve ops leave the strip → lane-contextual; strip = Mode+Record) · PK.B/PK.C carry a REAL-DIMENSIONS re-check (frame mock was 1600px vs the 1280×800 app default). Historical status follows.
+**(historical) Status:** T1 decisions PENDING — 7 Open Decisions below, each with a recommended default. This
 proposal is written so a user "go" on the defaults (or targeted overrides) is sufficient to move
 straight to `/packetize`; no further design spelunking is required.
 **PRIORITY:** user-blocking usability fix ("i legit cant use anything like this," live-screenshot
