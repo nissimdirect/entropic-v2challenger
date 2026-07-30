@@ -161,6 +161,37 @@ re-derives it differently.
 
 ---
 
+### PK.B2 — Grouped rail, Convention 1 — **NEW PACKET (2026-07-30): carries the 2026-07-15 "RESIZE PK.B" that never propagated into this file (caught by the PK.B executor's STOP)**
+- **Scope — the LOCKED grouping verdict (proposal.md OD-3 GROUPING, user 2026-07-15) with the
+  interaction contract now made explicit:**
+  - **Group model:** 8 groups — SELECT V · TRIM B · TEXT T · MASK-SHAPE Q · MASK-FREE W ·
+    KEY E · NAV H · MARK/LOOP M. Each slot renders its group's ACTIVE subtool glyph; groups
+    with >1 subtool add a corner caret (bottom-right, ~4px triangle, `--cx-text-3`).
+  - **Activation:** click slot → activate its current subtool. Group hotkey tap → if the
+    group isn't active, activate its current subtool; if already active, CYCLE to the next
+    subtool (locked verdict — this subsumes the old Q/W key collisions).
+  - **Flyout (Photoshop convention):** press-and-hold ≥300ms OR right-click on a slot opens
+    the flyout beside the rail — subtools listed with glyph + name + hotkey; release-over-item
+    or click selects; Esc / click-outside / blur dismisses. Only one flyout open at a time.
+  - **Keyboard/ARIA:** slot = `button` with `aria-haspopup="menu"`; flyout `role="menu"`,
+    items `role="menuitemradio"` with `aria-checked` on the active subtool; ArrowUp/Down
+    navigate, Enter selects, Esc closes, focus returns to the slot.
+  - **Test-ids (selector contract):** `tool-rail-group-<key>`, `tool-rail-flyout`,
+    `tool-rail-flyout-item-<toolId>`.
+  - Existing tokens only; states per COMPONENT-SPEC enum; wand glyph unchanged (user pick open).
+- **Non-scope:** glyph redraws (PK.H owns the manifest sweep); rail dims (PK.B); any new tools.
+- **Depends:** PK.B (dims land first — serialize on tool-rail files). **Blocks:** PK.H.
+- **Risk:** MED (new interaction machinery + hotkey dispatch rewiring).
+- **Hard oracle:** vitest — 8 groups render with correct slots/carets; group-hotkey cycle
+  order deterministic and wraps; flyout opens on hold AND right-click, dismisses on Esc and
+  outside-click; menuitemradio aria-checked tracks active subtool; every one of the 14 tools
+  reachable (no tool orphaned by grouping); full suite green; ratchets PASS; build passes.
+- **STOP semantics:** if hold-to-open conflicts with an existing mousedown drag behavior on
+  the rail, or a group hotkey collides with a non-rail binding in default-shortcuts, STOP
+  and report — do not rewire shortcuts silently.
+- **UAT unit (MANDATORY):** orchestrator visual pass at 1280×800 — flyout legibility, caret
+  visibility at 16px, one screenshot per group open; plus CU click-through of all 8 groups.
+
 ### PK.C — Automation strip: Mode+Record clusters; curve ops move to the lane — **RE-SCOPED by RATIFIED D8 (2026-07-30)**
 - **User verdict (D8):** *"curve ops i think are not actual buttons i think its more like in the
   lane."* Flatten/Ramp/Shape/Simplify/Clear LEAVE the strip — they act on a specific lane, so
