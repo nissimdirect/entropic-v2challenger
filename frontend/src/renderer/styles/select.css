@@ -1,0 +1,73 @@
+/* select.css — cx-select primitive skin (packet UC3, COMPONENT-SPEC §3)
+   Styled wrapper around native <select>: Live Signal tokens only, native
+   dropdown behavior untouched. Imported once from global.css.
+
+   State contract (COMPONENT-SPEC §1): rest = base · hover = :hover ·
+   focus-visible = :focus-visible ring · disabled = --disabled modifier.
+   Chevron affordance is pure CSS (::after caret) — no assets, no deps. */
+
+.cx-select {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cx-select__control {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: var(--cx-control-h);
+  padding: 0 var(--cx-space-16) 0 var(--cx-space-6);
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-control);
+  color: var(--cx-text-1);
+  font-family: var(--cx-font-ui);
+  font-size: var(--cx-text-label);
+  font-weight: var(--cx-weight-label);
+  cursor: pointer;
+  transition:
+    background var(--cx-dur-feedback) var(--cx-ease),
+    border-color var(--cx-dur-feedback) var(--cx-ease);
+}
+
+/* state: hover */
+.cx-select__control:hover {
+  background: var(--cx-bg-hover);
+}
+
+/* state: focus-visible — ACID ring per DESIGN-SPEC §4 */
+.cx-select__control:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+/* state: disabled */
+.cx-select--disabled .cx-select__control,
+.cx-select__control:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.cx-select--disabled .cx-select__control:hover {
+  background: var(--cx-bg-raised);
+}
+
+/* chevron affordance — pure CSS caret, non-interactive */
+.cx-select::after {
+  content: '';
+  position: absolute;
+  right: var(--cx-space-6);
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin-top: -4px;
+  border-right: 1px solid var(--cx-text-2);
+  border-bottom: 1px solid var(--cx-text-2);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+
+.cx-select--disabled::after {
+  opacity: 0.5;
+}

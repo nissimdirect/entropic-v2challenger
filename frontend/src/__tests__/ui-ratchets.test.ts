@@ -197,6 +197,27 @@ describe('ui-ratchets', () => {
     }
   })
 
+  it('components/common/Select.tsx (the sanctioned primitive) is excluded from tsx_native_select', () => {
+    // The Select primitive is the one legal home for a native <select>
+    // (COMPONENT-SPEC §3); the counter must skip exactly that path so the
+    // ratchet can still reach 0 while the wrapper exists.
+    const { dir, cleanup } = createFixture(
+      {
+        'components/common/Select.tsx': 'const s = <select\n  value={v}></select>\n',
+        'components/Other.tsx': 'const s = <select\n  value={v}></select>\n',
+      },
+      { tsx_native_select: 1 },
+    )
+    try {
+      const { exitCode, stdout } = runRatchets(dir)
+      // Other.tsx counts (1); Select.tsx does not — ceiling 1 passes.
+      expect(stdout).toContain('tsx_native_select: 1')
+      expect(exitCode).toBe(0)
+    } finally {
+      cleanup()
+    }
+  })
+
   it('live tree: the real renderer is at or under every committed ceiling', () => {
     // THE enforcing test — a PR that adds a raw hex/inline style/range/select
     // or sub-floor font-size anywhere in src/renderer goes red HERE, in the
