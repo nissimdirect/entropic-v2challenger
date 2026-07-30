@@ -1,0 +1,9 @@
+# ui-ratchets.sh ceilings — measured on main @ 99d8400, 2026-07-30.
+# Rule (c): lowering a count MUST lower its ceiling in the same PR.
+# Rule (d): a counter at 0 is a hard ban — never raise a ceiling.
+css_hex_outside_styles=0
+tsx_hex=178
+tsx_inline_style=138
+css_font_below_floor=245
+tsx_raw_range=34
+tsx_native_select=56
