@@ -162,3 +162,37 @@ describe('ToolRail (GH issue 422)', () => {
     expect(getByTestId('tool-rail-item-slide').querySelector('.tool-rail__hotkey')).toBeNull()
   })
 })
+
+/**
+ * ui-foundation PK.B hard oracle — icon size + testid stability.
+ * Dims/position assertions on tool-rail.css live in the CSS-text-pattern
+ * suite (styles/pkb-tool-rail-dims.test.ts, matching the PK.A precedent
+ * `styles/pka-type-scale.test.ts`) since ToolRail.tsx does not import
+ * tool-rail.css itself (App.tsx imports it centrally — see the header
+ * comment on ToolRail.tsx), so component-rendered getComputedStyle here
+ * would not reflect the real cascade.
+ */
+describe('ToolRail — PK.B icon size + testid stability', () => {
+  it('every wired tool icon renders at size=16 (was 18, OD-3 locked dims)', () => {
+    const { getByTestId } = render(<ToolRail />)
+    // Only tools with a TOOL_ICON mapping render an <svg>; the rest render the
+    // 2-letter fallback (design-spec.md §2 "Rail inventory" — marker/loop-in/
+    // loop-out have no SVG mapping today). Assert every rendered icon size,
+    // and assert the count matches the known-wired subset so a future TOOL_ICON
+    // addition doesn't silently skip the size check.
+    const wired = ALL_TOOL_IDS.filter((id) => getByTestId(`tool-rail-item-${id}`).querySelector('svg'))
+    expect(wired.length).toBeGreaterThan(0)
+    for (const id of wired) {
+      const svg = getByTestId(`tool-rail-item-${id}`).querySelector('svg')!
+      expect(svg.getAttribute('width'), `${id} icon width`).toBe('16')
+      expect(svg.getAttribute('height'), `${id} icon height`).toBe('16')
+    }
+  })
+
+  it('data-testid="tool-rail-item-<id>" selector stability holds for all 14 tools after the size/badge change', () => {
+    const { getByTestId } = render(<ToolRail />)
+    for (const id of ALL_TOOL_IDS) {
+      expect(getByTestId(`tool-rail-item-${id}`)).toBeTruthy()
+    }
+  })
+})

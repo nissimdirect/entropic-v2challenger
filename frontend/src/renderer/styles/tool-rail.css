@@ -20,7 +20,7 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: var(--cx-space-4);
   width: 44px;
   flex-shrink: 0;
   padding: 8px 0;
@@ -33,12 +33,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 3px;
+  gap: var(--cx-space-4);
 }
 
 .tool-rail__group + .tool-rail__group {
-  margin-top: 4px;
-  padding-top: 4px;
+  margin-top: var(--cx-space-8);
+  padding-top: var(--cx-space-8);
   border-top: 1px solid var(--cx-line-1);
 }
 
@@ -88,8 +88,8 @@
 
 .tool-rail__hotkey {
   position: absolute;
+  top: 2px;
   right: 2px;
-  bottom: 1px;
   font-size: var(--cx-text-data);
   color: var(--cx-text-3);
 }

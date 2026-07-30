@@ -111,7 +111,7 @@ export default function ToolRail() {
                 data-testid={`tool-rail-item-${id}`}
               >
                 {icon ? (
-                  <ToolIcon name={icon} size={18} />
+                  <ToolIcon name={icon} size={16} />
                 ) : (
                   <span className="tool-rail__fallback-label">{label.slice(0, 2).toUpperCase()}</span>
                 )}
