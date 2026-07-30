@@ -1,7 +1,7 @@
 /**
  * ui-ratchets.test.ts — frontend-framework F0 gate #1 verification
  *
- * Tests that frontend/scripts/ui-ratchets.sh enforces the six debt-counter
+ * Tests that frontend/scripts/ui-ratchets.sh enforces the seven debt-counter
  * ceilings (see the script header for the family definitions). Mirrors
  * hex-ratchet.test.ts: fixture tests prove the counting logic, and a final
  * LIVE-TREE test is the actual enforcing gate — it runs in the same vitest
@@ -27,6 +27,7 @@ type Ceilings = Partial<{
   css_font_below_floor: number
   tsx_raw_range: number
   tsx_native_select: number
+  css_raw_rgba: number
 }>
 
 const ZERO: Required<Ceilings> = {
@@ -36,6 +37,7 @@ const ZERO: Required<Ceilings> = {
   css_font_below_floor: 0,
   tsx_raw_range: 0,
   tsx_native_select: 0,
+  css_raw_rgba: 0,
 }
 
 /**
@@ -159,6 +161,28 @@ describe('ui-ratchets', () => {
     }
   })
 
+  it('raw rgba( in renderer CSS is counted, styles/tokens.css is exempt', () => {
+    const { dir, cleanup } = createFixture(
+      {
+        // tokens.css is the ONLY legal home for primitive rgba values
+        'styles/tokens.css': ':root { --cx-overlay-60: rgba(0, 0, 0, 0.6); }',
+        // any other css counts — styles/ and component-local alike
+        'styles/global.css': '.a { background: rgba(0, 0, 0, 0.6); }',
+        'components/statusbar/memory-status.css':
+          '.m { border: 1px solid rgba(255, 255, 255, 0.2); }',
+      },
+      { css_raw_rgba: 1 },
+    )
+    try {
+      const { exitCode, stderr } = runRatchets(dir)
+      expect(exitCode).toBe(1)
+      expect(stderr).toContain('css_raw_rgba: 2')
+      expect(stderr).toContain('FAIL')
+    } finally {
+      cleanup()
+    }
+  })
+
   it('closing </select> tags are not counted as native selects', () => {
     const { dir, cleanup } = createFixture(
       { 'components/A.tsx': 'const x = <select\n  value={v}>\n</select>' },
@@ -206,7 +230,8 @@ describe('ui-ratchets', () => {
     expect(
       res.status,
       `ui-ratchets failed on the live tree:\n${res.stdout}${res.stderr}\n` +
-        'A debt counter exceeded its ceiling. Route colors through tokens, ' +
+        'A debt counter exceeded its ceiling. Route colors through tokens ' +
+        '(raw rgba() belongs in tokens.css as --cx-*-alpha families), ' +
         'use the shared primitives (common/Slider, the Select skin), keep ' +
         'font sizes at or above the 12px floor — or, if you removed ' +
         'violations, lower the matching ceiling in .ui-ratchet-ceilings.',
