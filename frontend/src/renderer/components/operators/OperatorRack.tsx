@@ -166,8 +166,15 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
         <button
           className="operator-rack__add-btn"
           onClick={() => setShowAddMenu(!showAddMenu)}
+          aria-expanded={showAddMenu}
+          data-testid="operator-rack-add-btn"
         >
-          {showAddMenu ? '×' : '+ Add'}
+          <Icon
+            name="plus"
+            size={12}
+            className={showAddMenu ? 'operator-rack__add-icon operator-rack__add-icon--open' : 'operator-rack__add-icon'}
+          />
+          {' Add'}
         </button>
       </div>
 
@@ -222,7 +229,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
                       onClick={() => reorderOperators(index, index - 1)}
                       title="Move up"
                     >
-                      ↑
+                      <Icon name="chevron-up" size={12} />
                     </button>
                     <button
                       className="operator-card__move-down"
@@ -230,7 +237,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
                       onClick={() => reorderOperators(index, index + 1)}
                       title="Move down"
                     >
-                      ↓
+                      <Icon name="chevron-down" size={12} />
                     </button>
                     <button
                       className="operator-card__toggle-btn"
@@ -241,8 +248,9 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
                     <button
                       className="operator-card__remove-btn"
                       onClick={() => removeOperator(op.id)}
+                      title="Delete operator"
                     >
-                      ×
+                      <Icon name="trash-2" size={12} />
                     </button>
                   </div>
                 </div>
@@ -294,7 +302,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
             aria-expanded={showTopology}
             onClick={() => setShowTopology((v) => !v)}
           >
-            {showTopology ? '▼' : '▶'} Topology
+            <Icon name={showTopology ? 'chevron-down' : 'chevron-right'} size={12} /> Topology
           </button>
           {/* P5b.24 (B9): research toggle — hidden behind ⚗ so research rules
               are not visible to general users by default. */}

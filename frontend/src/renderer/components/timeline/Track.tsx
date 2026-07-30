@@ -368,7 +368,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               aria-expanded={isExpanded}
               onClick={(e) => { e.stopPropagation(); useLayoutStore.getState().toggleTrackExpanded(track.id) }}
             >
-              {isExpanded ? '▾' : '▸'}
+              <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} size={12} />
             </button>
             <button
               className={`track-header__eye${track.isMuted ? ' track-header__eye--off' : ''}`}
@@ -436,7 +436,10 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                 title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
                 aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
               >
-                R
+                {/* PK.H2 R-collision resolution: automation Read-mode keeps the
+                    text "R" (AutomationToolbar.tsx); record-arm is now this dot,
+                    never text, so the two "R" meanings no longer share a glyph. */}
+                <Icon name="circle" size={10} filled={isArmed} />
               </button>
               {/* T3: track lock toggle. Padlock glyph; --active when locked. Guards
                   all clips on this track + rejects reorder/drops onto it. */}
@@ -620,7 +623,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
               aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
             >
-              R
+              <Icon name="circle" size={10} filled={isArmed} />
             </button>
             {/* T3: track lock toggle. Padlock glyph; --active when locked. Guards
                 all clips on this track + rejects reorder/drops onto it. */}

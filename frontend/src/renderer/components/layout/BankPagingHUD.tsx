@@ -18,6 +18,7 @@
  * "nothing to show" pattern (kind === 'none' → null) so an unconfigured
  * controller doesn't add statusbar clutter for a feature that isn't in use.
  */
+import Icon from '../../assets/icon-kit'
 import { useMIDIStore } from '../../stores/midi'
 import { MAX_BANK_PAGES } from '../../../shared/bankTypes'
 
@@ -47,7 +48,7 @@ export default function BankPagingHUD() {
         disabled={atStart}
         onClick={bankPageLeft}
       >
-        ◀
+        <Icon name="chevron-left" size={12} />
       </button>
       <span className="status-bar__bank-hud-label">
         Bank {activeBankIndex + 1}/{MAX_BANK_PAGES}
@@ -60,7 +61,7 @@ export default function BankPagingHUD() {
         disabled={atEnd}
         onClick={bankPageRight}
       >
-        ▶
+        <Icon name="chevron-right" size={12} />
       </button>
     </span>
   )

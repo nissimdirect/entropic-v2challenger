@@ -49,18 +49,18 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
     expect(getByText(/no operators/i)).toBeTruthy()
   })
 
-  it('opens the add-menu when + Add is clicked', () => {
-    const { getByText, queryByText } = render(<OperatorRack {...baseProps} />)
+  it('opens the add-menu when the add button is clicked', () => {
+    const { getByTestId, queryByText } = render(<OperatorRack {...baseProps} />)
     expect(queryByText('LFO')).toBeNull()
-    fireEvent.click(getByText('+ Add'))
+    fireEvent.click(getByTestId('operator-rack-add-btn'))
     expect(queryByText('LFO')).not.toBeNull()
     expect(queryByText('Envelope')).not.toBeNull()
     expect(queryByText('Fusion')).not.toBeNull()
   })
 
   it('menu renders all 10 entries enabled, 0 disabled (P4.6: sidechain/gate/stutter now available)', () => {
-    const { getByText, container } = render(<OperatorRack {...baseProps} />)
-    fireEvent.click(getByText('+ Add'))
+    const { getByTestId, container } = render(<OperatorRack {...baseProps} />)
+    fireEvent.click(getByTestId('operator-rack-add-btn'))
     const allButtons = container.querySelectorAll('.operator-rack__add-option')
     const enabledButtons = container.querySelectorAll(
       '.operator-rack__add-option:not(:disabled)',
@@ -91,8 +91,8 @@ describe('OperatorRack mount (re-enabled 2026-05-15)', () => {
   })
 
   it('adds an LFO operator when LFO option is clicked', () => {
-    const { getByText } = render(<OperatorRack {...baseProps} />)
-    fireEvent.click(getByText('+ Add'))
+    const { getByText, getByTestId } = render(<OperatorRack {...baseProps} />)
+    fireEvent.click(getByTestId('operator-rack-add-btn'))
     fireEvent.click(getByText('LFO'))
     const ops = useOperatorStore.getState().operators
     expect(ops).toHaveLength(1)

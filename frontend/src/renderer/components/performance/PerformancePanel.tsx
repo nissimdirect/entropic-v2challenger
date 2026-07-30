@@ -95,7 +95,7 @@ export default function PerformancePanel({ onEditPad }: PerformancePanelProps) {
             <Icon name="settings" size={14} />
           </button>
           <button className="performance-panel__toggle-btn" tabIndex={-1}>
-            {isCollapsed ? '▶' : '▼'}
+            <Icon name={isCollapsed ? 'chevron-right' : 'chevron-down'} size={12} />
           </button>
         </div>
       </div>

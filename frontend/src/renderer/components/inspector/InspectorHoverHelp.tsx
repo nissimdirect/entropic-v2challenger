@@ -20,6 +20,7 @@
  * React children — NEVER dangerouslySetInnerHTML.
  */
 import React from 'react'
+import Icon from '../../assets/icon-kit'
 import type { HelpEntry } from '../../utils/help-registry'
 
 interface Props {
@@ -51,7 +52,7 @@ export default function InspectorHoverHelp({
         type="button"
       >
         <span className="cx-inspector-hover-help__chevron" aria-hidden="true">
-          {collapsed ? '▶' : '▼'}
+          <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={11} />
         </span>
         <span className="cx-inspector-hover-help__label">Help</span>
       </button>

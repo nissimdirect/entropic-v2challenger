@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import Icon from '../../assets/icon-kit'
 import type { BlendMode, Track as TrackType, Clip } from '../../../shared/types'
 import {
   getTrackCompositing,
@@ -138,7 +139,7 @@ export default function LayerPanel() {
       <div className="b3-layer__head">
         <span className="b3-layer__cc" style={{ background: track.color }} />
         <b data-testid="layer-panel-name">LAYER — {track.name}</b>
-        <span className="b3-layer__link">↖ selected track</span>
+        <span className="b3-layer__link"><Icon name="corner-up-left" size={11} /> selected track</span>
       </div>
 
       {canComposite ? (

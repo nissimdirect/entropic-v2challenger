@@ -27,6 +27,7 @@
  * store, so an old project loads without crashing.
  */
 import { useEffect, useRef } from 'react'
+import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import type { Operator, LFOWaveform, OperatorMapping, EffectInfo } from '../../../shared/types'
 import OperatorDepthArc from './OperatorDepthArc'
@@ -398,7 +399,7 @@ export default function OperatorKentaroCluster({
                       onClick={() => removeMapping(operator.id, map.index)}
                       aria-label={`remove lfo ${i} mapping`}
                     >
-                      ×
+                      <Icon name="unlink" size={12} />
                     </button>
                   </>
                 ) : (

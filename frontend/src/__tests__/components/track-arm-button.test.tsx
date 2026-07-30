@@ -1,13 +1,17 @@
 /**
- * Track Arm button label tests — F-0516-10.
+ * Track Arm button label tests — F-0516-10, superseded by PK.H2 R-collision
+ * resolution (openspec/changes/ui-foundation/proposal.md, CONVENTION-GROUNDED
+ * MANIFEST v4, "R = Read-mode (AutomationToolbar.tsx) AND arm-recording
+ * (Track.tsx:438) — record-arm becomes the filled dot, resolving it").
  *
- * Parallel session UAT 2026-05-16 filed F-0516-10: the track arm button was
- * labeled "A", which conflicts with the user mental model — in every major
- * DAW (Logic, Ableton, Pro Tools, Reaper) "R" is the record-arm convention.
- * "A" suggests Automation (which is what 'a' keyboard shortcut toggles).
- *
- * This locks the label as "R" with a descriptive aria-label so the change
- * cannot regress back to "A" silently.
+ * F-0516-10's real requirement was semantic, not glyph-literal: the arm
+ * button must not read as "Automation" (that's what the 'a' shortcut and the
+ * automation Read-mode "R" already mean) — it locked the text "R" as the fix
+ * available at the time. The manifest identified that literal "R" now
+ * COLLIDES with automation Read-mode's own "R", so PK.H2 replaces the text
+ * glyph with a filled/outline record dot (Pro Tools/Logic convention) while
+ * keeping the aria-label/title wording that actually carries F-0516-10's
+ * intent — this file's assertions moved from textContent to those.
  */
 import { describe, it, expect, afterEach, beforeEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
@@ -38,16 +42,19 @@ function trackForArmTests() {
   return t
 }
 
-describe('Track Arm button — F-0516-10 (label should be "R" not "A")', () => {
-  it('arm button text is "R" (DAW record-arm convention)', () => {
+describe('Track Arm button — F-0516-10 / PK.H2 R-collision resolution', () => {
+  it('arm button renders the record-dot glyph, never bare "R" or "A" text (R-collision + F-0516-10 regression guards)', () => {
     const t = trackForArmTests()
     const { container } = render(<TrackHeader track={t} isSelected={false} />)
     const armBtn = container.querySelector('.track-header__auto-btn') as HTMLElement
     expect(armBtn).toBeTruthy()
-    expect(armBtn.textContent).toBe('R')
-    // The visual label MUST NOT collide with the timeline 'a' shortcut for
-    // toggle_automation. "A" was the old label; assert it is gone.
+    // No bare-letter regression either direction: "A" is the old mislabel
+    // (F-0516-10); "R" is now automation Read-mode's glyph exclusively
+    // (AutomationToolbar.tsx) — the arm button must never render either as
+    // its own text content, only the record-dot icon.
     expect(armBtn.textContent).not.toBe('A')
+    expect(armBtn.textContent).not.toBe('R')
+    expect(armBtn.querySelector('svg')).toBeTruthy()
   })
 
   it('arm button has aria-label describing the action (accessibility)', () => {
@@ -66,8 +73,10 @@ describe('Track Arm button — F-0516-10 (label should be "R" not "A")', () => {
     const { container } = render(<TrackHeader track={t} isSelected={false} />)
     const armBtn = container.querySelector('.track-header__auto-btn') as HTMLElement
     expect(armBtn.getAttribute('aria-label')).toMatch(/^Disarm /)
-    // Text stays "R" — only the aria-label + title flip.
-    expect(armBtn.textContent).toBe('R')
+    // Glyph stays the record-dot icon (filled when armed) — only the
+    // aria-label + title flip; asserted via the `filled` prop's visible
+    // effect (a filled <circle>) rather than textContent.
+    expect(armBtn.querySelector('circle[fill="currentColor"]')).toBeTruthy()
   })
 
   it('arm button has --active modifier class when armed', () => {

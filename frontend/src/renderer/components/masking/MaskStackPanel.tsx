@@ -16,6 +16,7 @@
  */
 
 import React, { useCallback, useId } from 'react'
+import Icon from '../../assets/icon-kit'
 import type { MatteNode, MatteOp } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
@@ -146,7 +147,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
             aria-label="Move node up"
             title="Move up"
           >
-            ↑
+            <Icon name="chevron-up" size={12} />
           </button>
           <button
             className="mask-stack-panel__reorder-btn"
@@ -156,7 +157,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
             aria-label="Move node down"
             title="Move down"
           >
-            ↓
+            <Icon name="chevron-down" size={12} />
           </button>
           <button
             className="mask-stack-panel__delete-btn"
@@ -165,7 +166,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
             aria-label="Delete node"
             title="Delete"
           >
-            ×
+            <Icon name="trash-2" size={12} />
           </button>
         </div>
       </div>

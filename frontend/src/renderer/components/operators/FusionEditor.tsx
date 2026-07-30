@@ -1,3 +1,4 @@
+import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import type { Operator, FusionBlendMode } from '../../../shared/types'
 
@@ -96,8 +97,9 @@ export default function FusionEditor({ operator, availableOperators }: FusionEdi
               <button
                 className="operator-editor__remove-btn"
                 onClick={() => removeSource(i)}
+                title="Unroute source"
               >
-                ×
+                <Icon name="unlink" size={12} />
               </button>
             </div>
           )

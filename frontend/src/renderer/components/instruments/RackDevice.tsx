@@ -279,7 +279,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
             className="rack-breadcrumb__up"
             onClick={() => setRackEditPathDepth(editPath.length - 1)}
           >
-            ↑ up
+            <Icon name="arrow-up" size={11} /> up
           </button>
         )}
         {/* B10.1b — Ableton-style FREEZE toggle. FROZEN plays the baked clip
@@ -648,8 +648,9 @@ function MacroRow({
         type="button"
         data-testid="rack-macro-remove"
         onClick={() => onRemove(trackId, macro.id)}
+        title="Delete macro"
       >
-        ✕
+        <Icon name="trash-2" size={12} />
       </button>
 
       <div className="sampler-device__row">
@@ -691,8 +692,9 @@ function MacroRow({
             type="button"
             data-testid="rack-route-remove"
             onClick={() => onRemoveRoute(trackId, macro.id, i)}
+            title="Unroute"
           >
-            ✕
+            <Icon name="unlink" size={12} />
           </button>
         </div>
       ))}
