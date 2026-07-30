@@ -1372,5 +1372,13 @@ body[data-disable-f-0512-8] .clip__thumb {
   letter-spacing: 0.3px;
   color: var(--cx-text-3);
   pointer-events: none;
+  /* PK.E (symptom 1): the sentence was wrapping into clipped shards in
+     narrow lanes — degrade to a single ellipsized line instead. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  min-width: 0;
+  padding: 0 var(--cx-space-8);
 }
 

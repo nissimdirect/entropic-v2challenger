@@ -170,22 +170,26 @@ export default function PreviewCanvas({
 
   return (
     <div className="preview-canvas" ref={containerRef}>
-      <button
-        className="preview-canvas__popout-btn"
-        onClick={handlePopOut}
-        title={isPopOutOpen ? 'Close pop-out preview' : 'Pop out preview'}
-      >
-        {isPopOutOpen ? '↙' : '↗'}
-      </button>
+      {/* PK.G (OD-5): chips live in one pinned overlay bar, not as
+          independent absolutes — fps left, pop-out right. */}
+      <div className="preview-canvas__overlay-bar">
+        {import.meta.env.DEV && previewState === 'ready' && (
+          <div className="preview-canvas__fps">{fpsDisplay} fps</div>
+        )}
+        <button
+          className="preview-canvas__popout-btn"
+          onClick={handlePopOut}
+          title={isPopOutOpen ? 'Close pop-out preview' : 'Pop out preview'}
+        >
+          {isPopOutOpen ? '↙' : '↗'}
+        </button>
+      </div>
       <canvas
         ref={canvasRef}
         className="preview-canvas__element"
         width={width || undefined}
         height={height || undefined}
       />
-      {import.meta.env.DEV && previewState === 'ready' && (
-        <div className="preview-canvas__fps">{fpsDisplay} fps</div>
-      )}
       {previewState === 'empty' && (
         <div className="preview-canvas__placeholder">
           No video loaded

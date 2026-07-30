@@ -52,6 +52,8 @@ body {
 }
 
 .app__transport-btn {
+  height: var(--cx-control-h);
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -90,6 +92,8 @@ body {
 }
 
 .app__transport-bpm input {
+  height: var(--cx-control-h);
+  box-sizing: border-box;
   width: 48px;
   background: var(--cx-bg-raised);
   border: 1px solid var(--cx-line-2);
@@ -107,6 +111,8 @@ body {
 }
 
 .app__transport-select {
+  height: var(--cx-control-h);
+  box-sizing: border-box;
   background: var(--cx-bg-raised);
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-1);
@@ -521,11 +527,43 @@ body {
 
 .effect-search {
   padding: 8px 12px;
+  position: relative;
+}
+
+/* PK.F (symptom 4a): the clear chip rendered as a bare native button.
+   Styled per COMPONENT-SPEC control states; inset inside the input. */
+.effect-search__clear {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--cx-radius-control);
+  color: var(--cx-text-3);
+  font-size: var(--cx-text-body);
+  line-height: 1;
+  cursor: pointer;
+}
+
+.effect-search__clear:hover {
+  color: var(--cx-text-1);
+  background: var(--cx-bg-hover);
+}
+
+.effect-search__clear:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
 }
 
 .effect-search__input {
   width: 100%;
-  padding: 6px 8px;
+  padding: 6px 24px 6px 8px;
   background: var(--cx-bg-panel);
   border: 1px solid var(--cx-line-2);
   border-radius: 4px;
@@ -582,9 +620,9 @@ body {
   gap: 1px;
   padding: 0 6px 6px;
   margin-bottom: 2px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
+  /* PK.F (symptom 4b): was overflow-x auto with a hidden scrollbar — the
+     last tab clipped with no affordance. Wrap instead. */
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--cx-line-1);
 }
 
@@ -788,7 +826,7 @@ body {
   border-radius: var(--cx-radius-control);
   color: var(--cx-text-2);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--cx-text-label);
   cursor: pointer;
   transition: background var(--cx-dur-feedback) var(--cx-ease),
     border-color var(--cx-dur-feedback) var(--cx-ease),
@@ -1198,32 +1236,41 @@ body {
   color: var(--cx-text-1);
 }
 
-.preview-canvas__popout-btn {
+/* PK.G (OD-5, symptom 6): one pinned overlay bar docked to the panel's
+   top edge — the chips are flex children, not independent absolutes. */
+.preview-canvas__overlay-bar {
   position: absolute;
-  top: 4px;
-  right: 4px;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: flex-start;
+  padding: var(--cx-space-4);
+  gap: var(--cx-space-4);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.preview-canvas__popout-btn {
+  margin-left: auto;
+  pointer-events: auto;
   background: rgba(0, 0, 0, 0.6);
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-2);
-  font-size: 14px;
+  font-size: var(--cx-text-body);
   cursor: pointer;
   padding: 2px 6px;
   border-radius: 3px;
-  z-index: 10;
   line-height: 1;
 }
 
 .preview-canvas__fps {
-  position: absolute;
-  top: 4px;
-  left: 4px;
   background: rgba(0, 0, 0, 0.6);
   color: var(--cx-action);
   font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-size: var(--cx-text-data);
   padding: 2px 6px;
   border-radius: 3px;
-  z-index: 10;
   line-height: 1;
   pointer-events: none;
   font-variant-numeric: tabular-nums;
