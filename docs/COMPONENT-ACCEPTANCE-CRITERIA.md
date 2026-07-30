@@ -1,5 +1,12 @@
 # Entropic v2 — Component Acceptance Criteria (v2)
 
+> ## ⚠️ SUPERSEDED (2026-07-30, frontend-framework F0)
+> Pinned to "81 TSX files, 17 Zustand stores" — the tree is now 128/26 and this doc
+> was never updated. **Do not extend.** Living replacements: `CONTRIBUTING.md`
+> §Frontend UI Law, `docs/frontend/COMPONENT-SPEC.md` (F1), and the generated
+> component inventory (F1). The BDD scenarios remain useful as historical test ideas —
+> mine them, don't maintain them.
+
 > **Format:** BDD tickets for every UI component. Each has: description, acceptance criteria (Given/When/Then), undo scenario, error states, red-team attack scenarios.
 > **Standard:** What a professional video effects DAW SHOULD do. Each scenario marked `[IMPL]` (implemented) or `[TODO]` (not yet implemented).
 > **Source:** Screenshot-verified inventory + code cross-reference (81 TSX files, 17 Zustand stores).
