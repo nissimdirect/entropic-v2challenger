@@ -27,6 +27,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { CloseButton } from '../../assets/icon-kit'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -450,14 +451,11 @@ export default function RoutingCanvas({ open, onClose }: RoutingCanvasProps) {
               {sourceItems.length} sources · {destItems.length} destinations ·{' '}
               {graph.edges.length} routes
             </span>
-            <button
-              type="button"
+            <CloseButton
               className="routing-canvas__close"
-              aria-label="Close routing canvas"
+              ariaLabel="Close routing canvas"
               onClick={onClose}
-            >
-              ✕
-            </button>
+            />
           </div>
         </div>
 

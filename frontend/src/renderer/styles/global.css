@@ -1515,8 +1515,10 @@ body[data-disable-f-0512-36] .transform-panel {
   background: transparent;
   border: none;
   color: var(--cx-text-2);
-  font-size: 16px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .export-dialog__close:hover {
@@ -2555,4 +2557,33 @@ body[data-disable-f-0512-36] .transform-panel {
 .dialog__btn:focus-visible {
   outline: 2px solid var(--cx-focus-ring);
   outline-offset: 1px;
+}
+
+/* --- Icon kit (PK.H2) --- */
+
+/* Base reset for <CloseButton> when no host-specific class supplies its own
+   background/color (host classes, e.g. .floating-panel__close-btn, layer on
+   top of this and generally win on the properties they set). */
+.icon-kit__close {
+  background: none;
+  border: none;
+  color: var(--cx-text-2);
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--cx-radius-control);
+}
+
+.icon-kit__close:hover {
+  color: var(--cx-text-1);
+}
+
+/* <MaskCountBadge> — reuses the .masking__clip-badge positioning (see
+   masking.css) as its className; this rule only adds the icon+count layout. */
+.icon-kit__mask-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
