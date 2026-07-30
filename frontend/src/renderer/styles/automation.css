@@ -167,7 +167,7 @@
   border: 1px solid var(--cx-line-2);
   border-radius: 4px;
   padding: var(--cx-space-8);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px var(--cx-overlay-40);
   font-family: 'JetBrains Mono', monospace;
   font-size: var(--cx-text-body);
   color: var(--cx-text-1);
