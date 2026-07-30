@@ -32,7 +32,11 @@ import Inspector from './components/inspector/Inspector'
 import LayerPanel from './components/timeline/LayerPanel'
 // L-block (GH issue 422): Photoshop-style left tool rail, mounted flag-gated
 // (F_CREATRIX_LAYOUT) to the left of the preview canvas.
-import ToolRail from './components/layout/ToolRail'
+// ui-foundation PK.B2: cycleRailGroup is the shared group-cycle dispatcher —
+// ToolRail.tsx owns the group/id definitions (single source of truth), the
+// hotkey handlers below just call into it so the rail and the keyboard path
+// can never drift out of sync.
+import ToolRail, { cycleRailGroup } from './components/layout/ToolRail'
 // GH #436: transport SVG icons replacing bare Unicode glyphs (▶ ⏸ ⏹ ⟳).
 import TransportIcon from './assets/transport-icons'
 // B2: track-bound samplers (instruments browser + performance-track device + render).
@@ -746,17 +750,30 @@ function AppInner() {
       useLayoutStore.getState().setCursorTool('select')
       useTimelineStore.getState().setPreviewToolMode(null)
     })
+    // ui-foundation PK.B2 (D4a): 'b' is the TRIM group's cycle key — razor ->
+    // slip -> slide -> ripple-delete -> wrap, reading current cursorTool so a
+    // prior direct-select (e.g. via 'x' below) is respected as the cycle's
+    // starting point rather than always resetting to razor.
     shortcutRegistry.register('tool_razor', () => {
-      useLayoutStore.getState().setCursorTool('razor')
-      useTimelineStore.getState().setPreviewToolMode(null)
+      cycleRailGroup('trim', useLayoutStore.getState().setCursorTool)
     })
+    // Pre-existing direct-select shortcut to ripple-delete specifically —
+    // unchanged by PK.B2, kept as an additional entry point into the TRIM
+    // group alongside the 'b' cycle key (not a duplicate/foreign binding).
     shortcutRegistry.register('tool_ripple_delete', () => {
       useLayoutStore.getState().setCursorTool('ripple-delete')
       useTimelineStore.getState().setPreviewToolMode(null)
     })
+    // ui-foundation PK.B2 (D4a): shift+m is the MARK/LOOP group's cycle key —
+    // marker -> loop-in -> loop-out -> wrap. Bare 'm' stays on add_marker
+    // (F-0516-8) and is never touched here.
     shortcutRegistry.register('tool_marker', () => {
-      useLayoutStore.getState().setCursorTool('marker')
-      useTimelineStore.getState().setPreviewToolMode(null)
+      cycleRailGroup('mark-loop', useLayoutStore.getState().setCursorTool)
+    })
+    // ui-foundation PK.B2 (D4a): KEY group cycle key — mask-wand <->
+    // mask-key-picker. New action/handler; 'e' was previously unbound.
+    shortcutRegistry.register('tool_key', () => {
+      cycleRailGroup('key', useLayoutStore.getState().setCursorTool)
     })
     // T5: 'range-select' tool removed as a genuinely-redundant cursor tool —
     // see MarqueeOverlay.tsx's header comment: rubber-band select on the
@@ -879,46 +896,26 @@ function AppInner() {
       }
     })
 
-    // MK.4: q → toggle marquee tool (rect/ellipse via repeat-press; §1 hotkeys)
-    // GH #425 (F-1): also write useLayoutStore.cursorTool at each step, mirroring
-    // what the click path (EffectBrowser.tsx/ToolRail.tsx -> selectCursorTool())
-    // already does. Without this, cursorTool never left 'select', so every
-    // indicator keyed off it (the "tool: {cursorTool}" statusbar chip and
-    // ToolRail's active-icon highlight) looked like the hotkey did nothing —
-    // even though previewToolMode (the field MaskSelectOverlay actually reads
-    // to accept pointer input) was already toggling correctly.
+    // MK.4 / ui-foundation PK.B2: q → MASK-SHAPE group cycle (rect <-> ellipse).
+    // GH #425 (F-1): cycleRailGroup writes useLayoutStore.cursorTool at each
+    // step (via the shared selectCursorTool helper), mirroring the click path
+    // (EffectBrowser.tsx/ToolRail.tsx -> selectCursorTool()). Without this,
+    // cursorTool never left 'select', so every indicator keyed off it (the
+    // "tool: {cursorTool}" statusbar chip and ToolRail's active-icon
+    // highlight) looked like the hotkey did nothing — even though
+    // previewToolMode (the field MaskSelectOverlay actually reads to accept
+    // pointer input) was already toggling correctly.
+    // PK.B2 (D4a locked cycling contract) drops the old third "off" step —
+    // repeat-press now wraps rect -> ellipse -> rect forever instead of
+    // falling back to 'select' on the third press.
     shortcutRegistry.register('tool_marquee', () => {
-      const ts = useTimelineStore.getState()
-      const ls = useLayoutStore.getState()
-      const current = ts.previewToolMode
-      if (current === 'marquee-rect') {
-        ts.setPreviewToolMode('marquee-ellipse')
-        ls.setCursorTool('mask-marquee-ellipse')
-      } else if (current === 'marquee-ellipse') {
-        ts.setPreviewToolMode(null)
-        ls.setCursorTool('select')
-      } else {
-        ts.setPreviewToolMode('marquee-rect')
-        ls.setCursorTool('mask-marquee-rect')
-      }
+      cycleRailGroup('mask-shape', useLayoutStore.getState().setCursorTool)
     })
 
-    // MK.5: l → toggle lasso tool (freehand → polygon → off via repeat-press)
-    // GH #425 (F-1): same cursorTool sync fix as tool_marquee above.
+    // MK.5 / ui-foundation PK.B2: w → MASK-FREE group cycle (freehand <->
+    // polygon). Same "off" step removal as tool_marquee above.
     shortcutRegistry.register('tool_lasso', () => {
-      const ts = useTimelineStore.getState()
-      const ls = useLayoutStore.getState()
-      const current = ts.previewToolMode
-      if (current === 'lasso-freehand') {
-        ts.setPreviewToolMode('lasso-polygon')
-        ls.setCursorTool('mask-lasso-polygon')
-      } else if (current === 'lasso-polygon') {
-        ts.setPreviewToolMode(null)
-        ls.setCursorTool('select')
-      } else {
-        ts.setPreviewToolMode('lasso-freehand')
-        ls.setCursorTool('mask-lasso-freehand')
-      }
+      cycleRailGroup('mask-free', useLayoutStore.getState().setCursorTool)
     })
 
     // MK.4: Cmd+Shift+A → deselect (clear active mask selection)

@@ -97,7 +97,14 @@ describe('GH #425 F-1 — q/w tool hotkeys during effect-focus', () => {
     document.body.removeChild(input)
   })
 
-  it('(c) repeat-press "q" toggles marquee-rect -> marquee-ellipse -> off, cursorTool follows each step', async () => {
+  it('(c) repeat-press "q" cycles marquee-rect <-> marquee-ellipse and wraps, cursorTool follows each step', async () => {
+    // ui-foundation PK.B2 (D4a, RATIFIED-FOUNDATIONS.md): the group-cycle
+    // contract drops the old third "off" step (fall back to 'select') —
+    // repeat-press now wraps rect -> ellipse -> rect forever. Updated per
+    // packets.md's "if grouping legitimately changes an expectation, update
+    // WITH justification" allowance; the underlying F-1 regression this test
+    // guards (cursorTool must follow previewToolMode on every hotkey step) is
+    // unchanged and still asserted at each step below.
     setupMockEntropic({ onMenuAction: () => () => {} })
     const { container } = render(<App />)
     await waitFor(() => expect(container.querySelector('.app')).toBeTruthy())
@@ -113,11 +120,12 @@ describe('GH #425 F-1 — q/w tool hotkeys during effect-focus', () => {
     expect(useLayoutStore.getState().cursorTool).toBe('mask-marquee-ellipse')
 
     dispatchKey('q')
-    expect(useTimelineStore.getState().previewToolMode).toBeNull()
-    expect(useLayoutStore.getState().cursorTool).toBe('select')
+    expect(useTimelineStore.getState().previewToolMode).toBe('marquee-rect')
+    expect(useLayoutStore.getState().cursorTool).toBe('mask-marquee-rect')
   })
 
-  it('(bonus) "w" (lasso) mirrors the same fix: freehand -> polygon -> off, cursorTool follows', async () => {
+  it('(bonus) "w" (lasso) mirrors the same fix: freehand <-> polygon and wraps, cursorTool follows', async () => {
+    // ui-foundation PK.B2 (D4a): same "off" step removal as (c) above.
     setupMockEntropic({ onMenuAction: () => () => {} })
     const { container } = render(<App />)
     await waitFor(() => expect(container.querySelector('.app')).toBeTruthy())
@@ -133,7 +141,7 @@ describe('GH #425 F-1 — q/w tool hotkeys during effect-focus', () => {
     expect(useLayoutStore.getState().cursorTool).toBe('mask-lasso-polygon')
 
     dispatchKey('w')
-    expect(useTimelineStore.getState().previewToolMode).toBeNull()
-    expect(useLayoutStore.getState().cursorTool).toBe('select')
+    expect(useTimelineStore.getState().previewToolMode).toBe('lasso-freehand')
+    expect(useLayoutStore.getState().cursorTool).toBe('mask-lasso-freehand')
   })
 })

@@ -95,8 +95,12 @@ describe('T5 — split-clip shortcuts consolidated to one', () => {
   })
 
   it('the bare "e" key is no longer bound to anything split-related', () => {
+    // ui-foundation PK.B2 (D4a, RATIFIED-FOUNDATIONS.md): 'e' is now
+    // legitimately reused as the KEY group's cycle hotkey (tool_key) — the
+    // regression this test actually guards (per its title) is that 'e' isn't
+    // STILL bound to a split action, not that 'e' stays unbound forever.
     const eBound = DEFAULT_SHORTCUTS.find((b) => b.keys === 'e')
-    expect(eBound).toBeUndefined()
+    expect(eBound?.action).not.toMatch(/split/i)
   })
 
   it('no other action collides with meta+shift+k (freed up by removing split_clip)', () => {

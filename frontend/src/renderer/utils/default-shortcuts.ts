@@ -65,11 +65,21 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   // duplicate of 'select' (rubber-band marquee select already works un-gated
   // in every tool mode; see MarqueeOverlay.tsx). Table is now 11 entries.
   { action: 'tool_select',           keys: 'v',              category: 'tool', label: 'Tool: Select',           context: 'normal' },
-  { action: 'tool_razor',            keys: 'b',              category: 'tool', label: 'Tool: Razor (Blade)',     context: 'normal' },
+  // ui-foundation PK.B2: 'b' is now the TRIM group's cycle key (razor -> slip
+  // -> slide -> ripple-delete -> wrap), not a razor-only shortcut. 'x' below
+  // remains a direct-select shortcut straight to ripple-delete (pre-existing,
+  // out of PK.B2's scope to remove).
+  { action: 'tool_razor',            keys: 'b',              category: 'tool', label: 'Tool: Trim group (cycle)', context: 'normal' },
   { action: 'tool_slip',             keys: 's',              category: 'tool', label: 'Tool: Slip',             context: 'normal' },
   { action: 'tool_slide',            keys: 'd',              category: 'tool', label: 'Tool: Slide',            context: 'normal' },
   { action: 'tool_ripple_delete',    keys: 'x',              category: 'tool', label: 'Tool: Ripple Delete',    context: 'normal' },
-  { action: 'tool_marker',           keys: 'shift+m',        category: 'tool', label: 'Tool: Marker',           context: 'normal' },
+  // ui-foundation PK.B2 / D4a: MARK/LOOP group cycle key. Stays on shift+m —
+  // bare 'm' is reserved for add_marker (F-0516-8) and must never be reused.
+  { action: 'tool_marker',           keys: 'shift+m',        category: 'tool', label: 'Tool: Mark/Loop group (cycle)', context: 'normal' },
+  // ui-foundation PK.B2: KEY group cycle key (mask-wand <-> mask-key-picker).
+  // New action — bare 'e' was previously unbound (meta+e is 'export', a
+  // different combo).
+  { action: 'tool_key',              keys: 'e',              category: 'mask', label: 'Tool: Key group (cycle)', context: 'normal' },
   { action: 'loop_toggle',           keys: 'meta+l',         category: 'timeline', label: 'Toggle Loop',        context: 'normal' },
   { action: 'grid_up',               keys: ']',              category: 'view', label: 'Grid: Finer Division',   context: 'normal' },
   { action: 'grid_down',             keys: '[',              category: 'view', label: 'Grid: Coarser Division', context: 'normal' },

@@ -78,8 +78,12 @@ test.describe('GH #425 — masking tool hotkey + mask-draw proof', () => {
     // F-1 proof: ToolRail's active-icon highlight AND the data-cursor-tool
     // body attribute (both keyed off useLayoutStore.cursorTool) reflect the
     // mask tool, not the pre-fix stale 'select'.
+    // ui-foundation PK.B2 (D4a): the rail collapsed from one button per tool
+    // to one slot per GROUP (Convention 1) — 'mask-marquee-rect' now lives
+    // behind the MASK-SHAPE group's slot (tool-rail-group-mask-shape), not
+    // its own per-tool testid.
     await expect(window.locator('body')).toHaveAttribute('data-cursor-tool', 'mask-marquee-rect')
-    await expect(window.locator('[data-testid="tool-rail-item-mask-marquee-rect"]')).toHaveClass(
+    await expect(window.locator('[data-testid="tool-rail-group-mask-shape"]')).toHaveClass(
       /tool-rail__tool--active/,
     )
 
