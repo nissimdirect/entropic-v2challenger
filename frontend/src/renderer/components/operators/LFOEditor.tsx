@@ -1,3 +1,4 @@
+import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import type { Operator, LFOWaveform, OperatorMapping, EffectInfo } from '../../../shared/types'
 
@@ -97,8 +98,9 @@ export default function LFOEditor({ operator, effectChain, registry }: LFOEditor
             <button
               className="operator-card__remove-btn"
               onClick={() => removeMapping(operator.id, i)}
+              title="Unmap"
             >
-              ×
+              <Icon name="unlink" size={12} />
             </button>
           </div>
         ))}

@@ -1,0 +1,12 @@
+/* EmptyState primitive — RATIFIED D7 + OD-4 override (minimal hint, no CTA).
+   Shared skin for components/common/EmptyState.tsx; imported once from global.css.
+   Contrast guarantee (D7): --cx-text-3 on s-1 surfaces = 4.8:1 (WCAG AA) —
+   the AA-verified pairing recorded in tokens.css. Quiet ≠ illegible. */
+
+.cx-empty-state {
+  font-size: var(--cx-text-body);
+  color: var(--cx-text-3);
+  text-align: center;
+  max-width: 280px;
+  margin: 0 auto;
+}

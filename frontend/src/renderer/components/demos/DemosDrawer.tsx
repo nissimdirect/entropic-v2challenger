@@ -14,6 +14,7 @@
  * of auto-looping preview.
  */
 import { useRef, useEffect, useState, useCallback } from 'react'
+import Icon, { CloseButton } from '../../assets/icon-kit'
 import { useOnboardingStore } from '../../stores/onboarding'
 import { ONBOARDING } from '../../i18n/onboarding-strings'
 
@@ -111,7 +112,7 @@ function DemoCard({ demo, fileMissing, onOpen }: DemoCardProps) {
       >
         {fileMissing ? (
           <div className="demos-card__media-placeholder" aria-label="Demo file missing">
-            <span className="demos-card__media-icon">⚠</span>
+            <span className="demos-card__media-icon"><Icon name="triangle-alert" size={20} /></span>
           </div>
         ) : (
           <>
@@ -225,14 +226,12 @@ export default function DemosDrawer({ demoPaths, onOpenDemo }: DemosDrawerProps)
         <span className="demos-drawer__title" data-testid="demos-drawer-title">
           {ONBOARDING['drawer.title']}
         </span>
-        <button
+        <CloseButton
           className="demos-drawer__close"
           onClick={closeDrawer}
-          aria-label="Close demos drawer"
-          data-testid="demos-drawer-close"
-        >
-          ×
-        </button>
+          ariaLabel="Close demos drawer"
+          testId="demos-drawer-close"
+        />
       </div>
 
       <p className="demos-drawer__subtitle" data-testid="demos-drawer-subtitle">

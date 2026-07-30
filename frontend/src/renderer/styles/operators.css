@@ -32,6 +32,20 @@
   color: var(--cx-text-1);
   cursor: pointer;
   font-family: 'JetBrains Mono', monospace;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+/* PK.H2: add-operator picker toggle reads as an "x" (close the menu) when
+   open by rotating the same plus glyph 45deg — one glyph, two states, no
+   second icon needed (manifest v4.1: "add = plus, rotates 45deg open"). */
+.operator-rack__add-icon {
+  transition: transform 0.15s ease;
+}
+
+.operator-rack__add-icon--open {
+  transform: rotate(45deg);
 }
 
 .operator-rack__add-btn:hover {

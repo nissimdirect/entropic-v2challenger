@@ -1,4 +1,5 @@
 import type { Preset } from '../../../shared/types'
+import Icon from '../../assets/icon-kit'
 
 interface PresetCardProps {
   preset: Preset
@@ -33,7 +34,7 @@ export default function PresetCard({
           }}
           title={preset.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
         >
-          {preset.isFavorite ? '\u2605' : '\u2606'}
+          <Icon name="star" size={14} filled={preset.isFavorite} />
         </button>
       </div>
       <div className="preset-card__meta">
@@ -54,7 +55,7 @@ export default function PresetCard({
         }}
         title="Delete preset"
       >
-        x
+        <Icon name="trash-2" size={12} />
       </button>
     </div>
   )

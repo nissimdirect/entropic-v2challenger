@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from 'react';
+import Icon from '../../assets/icon-kit';
 import PadGrid from './PadGrid';
 import MIDILearnOverlay from './MIDILearnOverlay';
 import MIDISettings from './MIDISettings';
@@ -91,10 +92,10 @@ export default function PerformancePanel({ onEditPad }: PerformancePanelProps) {
             }}
             title="MIDI Settings"
           >
-            ⚙
+            <Icon name="settings" size={14} />
           </button>
           <button className="performance-panel__toggle-btn" tabIndex={-1}>
-            {isCollapsed ? '▶' : '▼'}
+            <Icon name={isCollapsed ? 'chevron-right' : 'chevron-down'} size={12} />
           </button>
         </div>
       </div>

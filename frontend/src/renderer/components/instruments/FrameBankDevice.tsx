@@ -19,6 +19,7 @@
  * the store boundary (the backend security.validate_frame_bank re-enforces).
  */
 import { useState } from 'react'
+import Icon from '../../assets/icon-kit'
 import { useInstrumentsStore } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { clampFinite } from '../../../shared/numeric'
@@ -127,8 +128,9 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
                 data-testid={`framebank-slot-remove-${i}`}
                 className="framebank-slot__remove"
                 onClick={() => removeFrameBankSlot(trackId, i)}
+                title="Delete frame"
               >
-                ✕
+                <Icon name="trash-2" size={11} />
               </button>
             </div>
           ))}

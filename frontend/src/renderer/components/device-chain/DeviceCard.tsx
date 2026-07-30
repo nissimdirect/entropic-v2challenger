@@ -1,4 +1,5 @@
 import { useCallback, useState, useEffect, useRef, useMemo } from 'react'
+import Icon from '../../assets/icon-kit'
 import type { EffectInstance, EffectInfo, ParamDef, ParamValue, MatteNode, MatteRef, AutomationLane } from '../../../shared/types'
 import { isFieldRef, makeFieldRef, clampGain, type FieldKind } from '../../../shared/field-param'
 import Knob from '../common/Knob'
@@ -331,9 +332,9 @@ export default function DeviceCard({
           className="device-card__remove"
           data-testid="device-remove"
           onClick={(e) => { e.stopPropagation(); onRemove() }}
-          title="Remove"
+          title="Delete device"
         >
-          ×
+          <Icon name="trash-2" size={12} />
         </button>
       </div>
 

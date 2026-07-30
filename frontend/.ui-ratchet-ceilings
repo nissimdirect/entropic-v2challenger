@@ -7,3 +7,5 @@ tsx_inline_style=138
 css_font_below_floor=228
 tsx_raw_range=34
 tsx_native_select=56
+# css_raw_rgba measured on main @ 2512511, 2026-07-30 (UC1).
+css_raw_rgba=73

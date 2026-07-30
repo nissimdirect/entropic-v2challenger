@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import Icon from '../../assets/icon-kit'
 import type { ClipTransform } from '../../../shared/types'
 import { IDENTITY_TRANSFORM } from '../../../shared/types'
 import { FF } from '../../../shared/feature-flags'
@@ -157,7 +158,7 @@ export default function TransformPanel({
             onClick={() => setAspectLocked(!aspectLocked)}
             title={aspectLocked ? 'Unlock aspect ratio' : 'Lock aspect ratio'}
           >
-            {aspectLocked ? '🔗' : '⛓️‍💥'}
+            <Icon name={aspectLocked ? 'link' : 'unlink'} size={13} />
           </button>
           <label className="transform-panel__field">
             <span className="transform-panel__label" onDoubleClick={() => resetField('scaleY')}>H</span>
