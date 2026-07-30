@@ -1482,35 +1482,25 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Export Dialog --- */
 
-.export-dialog__overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-}
-
-.export-dialog {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+/* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. The z-index
+ * inconsistency (100 vs the 200 every other modal uses) had no dependent
+ * behavior on inspection — normalized to the shared 200 via dialog-overlay. */
+.dialog.export-dialog {
   width: 360px;
-  max-width: 90vw;
   max-height: min(80vh, calc(100vh - 80px));
   display: flex;
   flex-direction: column;
+  padding: 0;
 }
 
-.export-dialog__header {
+.dialog__header.export-dialog__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
   border-bottom: 1px solid var(--cx-line-1);
-  font-size: 14px;
-  font-weight: 600;
+  margin-bottom: 0;
 }
 
 .export-dialog__close {
@@ -1527,7 +1517,7 @@ body[data-disable-f-0512-36] .transform-panel {
   color: var(--cx-text-1);
 }
 
-.export-dialog__body {
+.dialog__body.export-dialog__body {
   padding: 16px;
   display: flex;
   flex-direction: column;
@@ -1535,6 +1525,7 @@ body[data-disable-f-0512-36] .transform-panel {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  margin: 0;
 }
 
 .export-dialog__field {
@@ -1572,10 +1563,7 @@ body[data-disable-f-0512-36] .transform-panel {
   border-color: var(--cx-action);
 }
 
-.export-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.export-dialog__footer {
   padding: 12px 16px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -1845,33 +1833,26 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Consent Dialog --- */
 
-.consent-dialog__overlay {
-  position: fixed;
-  inset: 0;
+/* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. */
+.dialog-overlay.consent-dialog__overlay {
   background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
 }
 
-.consent-dialog {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+.dialog.consent-dialog {
   width: 400px;
-  max-width: 90vw;
+  padding: 0;
 }
 
-.consent-dialog__header {
+.dialog__header.consent-dialog__header {
   padding: 16px 20px 0;
   font-size: 16px;
-  font-weight: 600;
-  color: var(--cx-text-1);
+  margin-bottom: 0;
 }
 
-.consent-dialog__body {
+.dialog__body.consent-dialog__body {
   padding: 12px 20px 16px;
+  margin: 0;
 }
 
 .consent-dialog__text {
@@ -1886,10 +1867,7 @@ body[data-disable-f-0512-36] .transform-panel {
   margin-top: 8px;
 }
 
-.consent-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.consent-dialog__footer {
   padding: 12px 20px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -1924,33 +1902,27 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Crash Recovery Dialog --- */
 
-.crash-recovery__overlay {
-  position: fixed;
-  inset: 0;
+/* Frame (overlay/box/header/body/actions) adopts the shared dialog/dialog__*
+ * root (COMPONENT-SPEC §3, F3-C1) — only the deltas from that base are kept
+ * here, as compound selectors so they win regardless of cascade order. */
+.dialog-overlay.crash-recovery__overlay {
   background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
 }
 
-.crash-recovery {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+.dialog.crash-recovery {
   width: 420px;
-  max-width: 90vw;
+  padding: 0;
 }
 
-.crash-recovery__header {
+.dialog__header.crash-recovery__header {
   padding: 16px 20px 0;
   font-size: 16px;
-  font-weight: 600;
-  color: var(--cx-text-1);
+  margin-bottom: 0;
 }
 
-.crash-recovery__body {
+.dialog__body.crash-recovery__body {
   padding: 12px 20px 16px;
+  margin: 0;
 }
 
 .crash-recovery__text {
@@ -1973,10 +1945,7 @@ body[data-disable-f-0512-36] .transform-panel {
   accent-color: var(--cx-action);
 }
 
-.crash-recovery__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.crash-recovery__footer {
   padding: 12px 20px;
   border-top: 1px solid var(--cx-line-1);
 }
@@ -2011,32 +1980,24 @@ body[data-disable-f-0512-36] .transform-panel {
 
 /* --- Feedback Dialog --- */
 
-.feedback-dialog__overlay {
-  position: fixed;
-  inset: 0;
+/* Frame adopts shared dialog/dialog__* root (F3-C1) — deltas only, as
+ * compound selectors so they win regardless of cascade order. */
+.dialog-overlay.feedback-dialog__overlay {
   background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
 }
 
-.feedback-dialog {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 8px;
+.dialog.feedback-dialog {
   width: 420px;
-  max-width: 90vw;
+  padding: 0;
 }
 
-.feedback-dialog__header {
+.dialog__header.feedback-dialog__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 16px 20px 0;
   font-size: 16px;
-  font-weight: 600;
-  color: var(--cx-text-1);
+  margin-bottom: 0;
 }
 
 .feedback-dialog__close {
@@ -2051,8 +2012,9 @@ body[data-disable-f-0512-36] .transform-panel {
   color: var(--cx-text-1);
 }
 
-.feedback-dialog__body {
+.dialog__body.feedback-dialog__body {
   padding: 12px 20px 16px;
+  margin: 0;
 }
 
 .feedback-dialog__textarea {
@@ -2080,10 +2042,7 @@ body[data-disable-f-0512-36] .transform-panel {
   margin-top: 4px;
 }
 
-.feedback-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
+.dialog__actions.feedback-dialog__footer {
   padding: 12px 20px;
   border-top: 1px solid var(--cx-line-1);
 }

@@ -15,19 +15,19 @@ export default function TelemetryConsentDialog({ isOpen, onDecision }: Telemetry
   if (!isOpen) return null
 
   return (
-    <div className="consent-dialog__overlay">
+    <div className="dialog-overlay consent-dialog__overlay">
       <div
         ref={dialogRef}
-        className="consent-dialog"
+        className="dialog consent-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="consent-dialog-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="consent-dialog__header">
+        <div className="dialog__header consent-dialog__header">
           <span id="consent-dialog-title">Help Improve Creatrix</span>
         </div>
-        <div className="consent-dialog__body">
+        <div className="dialog__body consent-dialog__body">
           <p className="consent-dialog__text">
             We collect anonymous crash reports to fix bugs faster.
             No personal data, file paths, or project content is ever sent.
@@ -36,7 +36,7 @@ export default function TelemetryConsentDialog({ isOpen, onDecision }: Telemetry
             Takes effect on next launch.
           </p>
         </div>
-        <div className="consent-dialog__footer">
+        <div className="dialog__actions consent-dialog__footer">
           <button
             className="consent-dialog__btn consent-dialog__btn--neutral"
             onClick={() => onDecision(false)}

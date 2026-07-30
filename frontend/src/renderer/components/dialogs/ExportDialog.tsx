@@ -426,16 +426,16 @@ export default function ExportDialog({
   }
 
   return (
-    <div className="export-dialog__overlay" onClick={onClose}>
+    <div className="dialog-overlay export-dialog__overlay" onClick={onClose}>
       <div
         ref={dialogRef}
-        className="export-dialog"
+        className="dialog export-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-dialog-title"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="export-dialog__header">
+        <div className="dialog__header export-dialog__header">
           <span id="export-dialog-title">Export</span>
           <button className="export-dialog__close" onClick={onClose}>x</button>
         </div>
@@ -452,13 +452,13 @@ export default function ExportDialog({
           ))}
         </div>
 
-        <div className="export-dialog__body">
+        <div className="dialog__body export-dialog__body">
           {activeTab === 'video' && renderVideoTab()}
           {activeTab === 'gif' && renderGifTab()}
           {activeTab === 'image_sequence' && renderImageSequenceTab()}
         </div>
 
-        <div className="export-dialog__footer">
+        <div className="dialog__actions export-dialog__footer">
           <button className="export-dialog__cancel-btn" onClick={onClose}>Cancel</button>
           <button className="export-dialog__export-btn" onClick={handleExport}>Export</button>
         </div>

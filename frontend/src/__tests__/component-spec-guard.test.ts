@@ -88,17 +88,20 @@ describe('COMPONENT-SPEC guard A — primitives have tests', () => {
 
 // --- Guard B: new dialogs use the canonical `dialog` BEM root ---
 
-// Frozen 2026-07-30: 10 *Dialog.tsx files exist; only UnsavedChangesDialog
-// uses the canonical root. The other 9 are grandfathered until the F3
-// unification sweep (one dialog per PR).
+// F3-C1 dialog unification sweep (2026-07-30): CrashRecoveryDialog,
+// FeedbackDialog, RelinkDialog, TelemetryConsentDialog, ExportDialog (moved
+// export/ -> dialogs/), AboutDialog, and PresetSaveDialog now use the
+// canonical dialog/dialog__* root (frame only — inner content classes are
+// unchanged, this is adoption not a redesign). Two remain grandfathered,
+// both genuine non-fits for the canonical centered-modal structure:
+//   - SpeedDialog.tsx: an anchored popover (position:fixed at a click
+//     coordinate, invisible click-catcher, no backdrop) — wrapping it in
+//     dialog-overlay would paint a dark veil behind what is deliberately a
+//     lightweight context-menu-style control. Not a centered modal.
+//   - FileDialog.tsx: not a dialog at all — a plain button that opens the
+//     native OS file picker. It only matches the *Dialog.tsx naming pattern;
+//     it has no role="dialog", no overlay, no modal markup to convert.
 const DIALOGS_OFF_CONVENTION_GRANDFATHERED = [
-  'components/dialogs/CrashRecoveryDialog.tsx',
-  'components/dialogs/FeedbackDialog.tsx',
-  'components/dialogs/RelinkDialog.tsx',
-  'components/dialogs/TelemetryConsentDialog.tsx',
-  'components/export/ExportDialog.tsx',
-  'components/layout/AboutDialog.tsx',
-  'components/library/PresetSaveDialog.tsx',
   'components/timeline/SpeedDialog.tsx',
   'components/upload/FileDialog.tsx',
 ]

@@ -12,7 +12,7 @@ import { render, fireEvent, cleanup } from '@testing-library/react'
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 
-import ExportDialog from '../../renderer/components/export/ExportDialog'
+import ExportDialog from '../../renderer/components/dialogs/ExportDialog'
 import ExportProgress from '../../renderer/components/export/ExportProgress'
 import PreviewControls from '../../renderer/components/preview/PreviewControls'
 import EffectBrowser from '../../renderer/components/effects/EffectBrowser'

@@ -12,7 +12,7 @@ import { render, cleanup, fireEvent } from '@testing-library/react'
 import React from 'react'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 
-import ExportDialog from '../../renderer/components/export/ExportDialog'
+import ExportDialog from '../../renderer/components/dialogs/ExportDialog'
 import ExportProgress from '../../renderer/components/export/ExportProgress'
 
 const DIALOG_DEFAULTS = {

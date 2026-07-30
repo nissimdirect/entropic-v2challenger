@@ -95,21 +95,21 @@ export default function PresetSaveDialog({
   }
 
   return (
-    <div className="preset-save__overlay">
+    <div className="dialog-overlay preset-save__overlay">
       <div
         ref={dialogRef}
-        className="preset-save"
+        className="dialog preset-save"
         role="dialog"
         aria-modal="true"
         aria-labelledby="preset-save-title"
       >
-        <div className="preset-save__header">
+        <div className="dialog__header preset-save__header">
           <span id="preset-save-title">Save {mode === 'single_effect' ? 'Effect' : 'Chain'} Preset</span>
           <button className="preset-save__close" onClick={onClose}>
             x
           </button>
         </div>
-        <div className="preset-save__body">
+        <div className="dialog__body preset-save__body">
           <div className="preset-save__field">
             <label className="preset-save__label">Name</label>
             <input
@@ -177,7 +177,7 @@ export default function PresetSaveDialog({
             </div>
           )}
         </div>
-        <div className="preset-save__footer">
+        <div className="dialog__actions preset-save__footer">
           <button className="preset-save__btn--cancel" onClick={onClose}>
             Cancel
           </button>

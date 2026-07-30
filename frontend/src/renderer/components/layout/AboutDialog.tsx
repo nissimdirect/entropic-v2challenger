@@ -15,10 +15,10 @@ export default function AboutDialog({ isOpen, onClose }: AboutDialogProps) {
   if (!isOpen) return null
 
   return (
-    <div className="about-dialog__overlay" onClick={onClose}>
+    <div className="dialog-overlay about-dialog__overlay" onClick={onClose}>
       <div
         ref={dialogRef}
-        className="about-dialog"
+        className="dialog about-dialog"
         role="dialog"
         aria-modal="true"
         aria-labelledby="about-dialog-title"
