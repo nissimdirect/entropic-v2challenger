@@ -20,3 +20,5 @@ Standing rule: specs trace to rows in this table; new load-bearing decisions get
 
 ## Provenance (the user's own words behind D1–D5, for the record)
 "Ableton mixed with Photoshop" · "the second" · "each track IS a layer" · "oof this is worse" (B2) · "the actual tracks in the arrangement view are the layers" · "too much info to squeeze into a track header — maybe a panel that links to it on the right; just not the layer order" · "definitely block is best" → wire dictations (07-15/18) · "i legit cant use anything like this" (07-09).
+
+| D4a | Grouped rail group count | 🔧 **AMENDED 2026-07-30 (orchestrator ruling, veto-by-exception open)** | The 07-15 "8 groups" verdict was made against the invalid 1600px mock's imagined 14+3 toolset. Real inventory = 14 tools → **6 groups** (SELECT V · TRIM B · MASK-SHAPE Q · MASK-FREE W · KEY E · MARK/LOOP **Shift+M** — bare `m` stays add_marker per F-0516-8). TEXT/NAV groups ship with their future tools, no placeholder slots (REAL-INVENTORY-ONLY). |

@@ -164,9 +164,17 @@ re-derives it differently.
 ### PK.B2 — Grouped rail, Convention 1 — **NEW PACKET (2026-07-30): carries the 2026-07-15 "RESIZE PK.B" that never propagated into this file (caught by the PK.B executor's STOP)**
 - **Scope — the LOCKED grouping verdict (proposal.md OD-3 GROUPING, user 2026-07-15) with the
   interaction contract now made explicit:**
-  - **Group model:** 8 groups — SELECT V · TRIM B · TEXT T · MASK-SHAPE Q · MASK-FREE W ·
-    KEY E · NAV H · MARK/LOOP M. Each slot renders its group's ACTIVE subtool glyph; groups
-    with >1 subtool add a corner caret (bottom-right, ~4px triangle, `--cx-text-3`).
+  - **Group model — AMENDED 2026-07-30 (executor STOP #2, REAL-INVENTORY ruling): SIX
+    groups** — SELECT V (select) · TRIM B (razor/slip/slide/ripple-delete) · MASK-SHAPE Q
+    (marquee rect/ellipse) · MASK-FREE W (lasso freehand/polygon) · KEY E (wand/key-picker) ·
+    **MARK/LOOP Shift+M** (marker/loop-in/loop-out — bare `m` stays `add_marker` per
+    F-0516-8; Shift+M matches the existing tool_marker convention and its registration is
+    absorbed into the group-cycle dispatch). TEXT and NAV are DESCOPED: their glyphs exist
+    but no text/hand/zoom CursorTool does — rendering them violated REAL-INVENTORY-ONLY
+    (the 8-group count came from the invalid 1600px mock's imagined 14+3 toolset). NO
+    placeholder slots; those groups arrive with the future packets that ship the actual
+    tools. Each slot renders its group's ACTIVE subtool glyph; groups with >1 subtool add
+    a corner caret (bottom-right, ~4px triangle, `--cx-text-3`).
   - **Activation:** click slot → activate its current subtool. Group hotkey tap → if the
     group isn't active, activate its current subtool; if already active, CYCLE to the next
     subtool (locked verdict — this subsumes the old Q/W key collisions).
@@ -182,7 +190,8 @@ re-derives it differently.
 - **Non-scope:** glyph redraws (PK.H owns the manifest sweep); rail dims (PK.B); any new tools.
 - **Depends:** PK.B (dims land first — serialize on tool-rail files). **Blocks:** PK.H.
 - **Risk:** MED (new interaction machinery + hotkey dispatch rewiring).
-- **Hard oracle:** vitest — 8 groups render with correct slots/carets; group-hotkey cycle
+- **Hard oracle (amended):** vitest — 6 groups render with correct slots/carets; NO text/nav
+  placeholder slots exist (asserted absence = the REAL-INVENTORY negative check); group-hotkey cycle
   order deterministic and wraps; flyout opens on hold AND right-click, dismisses on Esc and
   outside-click; menuitemradio aria-checked tracks active subtool; every one of the 14 tools
   reachable (no tool orphaned by grouping); full suite green; ratchets PASS; build passes.
