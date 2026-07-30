@@ -93,7 +93,7 @@
   align-items: center;
   justify-content: center;
   color: var(--cx-text-3);
-  font-size: 12px;
+  font-size: var(--cx-text-body);
 }
 
 .device-chain__strip {

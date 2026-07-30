@@ -1368,7 +1368,7 @@ body[data-disable-f-0512-8] .clip__thumb {
 
 .master-track-lane__label {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 10px;
+  font-size: var(--cx-text-data);
   letter-spacing: 0.3px;
   color: var(--cx-text-3);
   pointer-events: none;
