@@ -158,6 +158,12 @@ export const TOOL_ICON: Partial<Record<CursorTool, ToolName>> = {
   slip: 'slip',
   slide: 'slide',
   'ripple-delete': 'rippledel',
+  // PK.H1: marker/loop-in/loop-out previously had no ToolIcon entry and fell
+  // back to their text label (see the "Tools with no Block glyph fall back
+  // to their text label" note above) — tool-icons.tsx now draws all 14.
+  marker: 'marker',
+  'loop-in': 'loopin',
+  'loop-out': 'loopout',
   'mask-marquee-rect': 'marqrect',
   'mask-marquee-ellipse': 'marqellipse',
   'mask-lasso-freehand': 'lasso',

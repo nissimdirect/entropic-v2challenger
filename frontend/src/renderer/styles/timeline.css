@@ -1382,3 +1382,35 @@ body[data-disable-f-0512-8] .clip__thumb {
   padding: 0 var(--cx-space-8);
 }
 
+
+/* PK.H1 (iv) — per-tool cursors, proposal.md v4.1 addendum "Cursor
+   inventory". Keyed off `body[data-cursor-tool]`, written by ToolRail.tsx
+   and EffectBrowser.tsx on every cursorTool change (single existing write
+   site — see tool-cursors.ts for the full rationale + the JS-side map used
+   by MaskSelectOverlay.tsx, which sets its own cursor inline since that
+   component already owns per-mode inline cursor styles).
+
+   The razor/ripple-delete/loop-in/loop-out data URIs below are the same
+   glyphs as tool-icons.tsx's ICON_BODY entries, rendered as fixed-color
+   (white-on-black-halo) cursor images — `cursor` values can't resolve
+   currentColor, so a literal color pair is a technical requirement here,
+   not a token-law deviation. */
+body[data-cursor-tool="razor"] .clip {
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxwYXRoIGQ9Ik00LjUgMTUuNUwxNCA2bDQgNC05LjUgOS41SDQuNXYtNHoiLz48cGF0aCBkPSJNNyAxNUwxNCA4Ii8+PC9nPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTQuNSAxNS41TDE0IDZsNCA0LTkuNSA5LjVINC41di00eiIvPjxwYXRoIGQ9Ik03IDE1TDE0IDgiLz48L2c+PC9zdmc+") 14 6, crosshair;
+}
+body[data-cursor-tool="ripple-delete"] .clip {
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxwYXRoIGQ9Ik03IDV2MTRNMTcgNXYxNCIvPjxwYXRoIGQ9Ik05LjUgOS41bDUgNU0xNC41IDkuNWwtNSA1Ii8+PC9nPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTcgNXYxNE0xNyA1djE0Ii8+PHBhdGggZD0iTTkuNSA5LjVsNSA1TTE0LjUgOS41bC01IDUiLz48L2c+PC9zdmc+") 12 12, crosshair;
+}
+body[data-cursor-tool="slip"] .clip,
+body[data-cursor-tool="slide"] .clip {
+  cursor: ew-resize;
+}
+body[data-cursor-tool="marker"] .time-ruler__canvas {
+  cursor: crosshair;
+}
+body[data-cursor-tool="loop-in"] .time-ruler__canvas {
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxwYXRoIGQ9Ik0xNSA1SDl2MTRoNiIvPjwvZz48ZyBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS45IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik0xNSA1SDl2MTRoNiIvPjwvZz48L3N2Zz4=") 9 12, crosshair;
+}
+body[data-cursor-tool="loop-out"] .time-ruler__canvas {
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxwYXRoIGQ9Ik05IDVoNnYxNEg5Ii8+PC9nPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTkgNWg2djE0SDkiLz48L2c+PC9zdmc+") 15 12, crosshair;
+}

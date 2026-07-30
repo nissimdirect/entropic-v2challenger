@@ -41,6 +41,7 @@ import type { CanvasLayout } from '../../utils/transform-coords'
 import { useTimelineStore } from '../../stores/timeline'
 import { useToastStore } from '../../stores/toast'
 import { randomUUID } from '../../utils'
+import { cursorForTool } from '../../assets/tool-cursors'
 import type { MatteNode, MatteNodeKind, MatteOp } from '../../../shared/types'
 
 // MK.13: Marching-ants constants (MOD-violet per DESIGN-SPEC).
@@ -747,9 +748,12 @@ export default function MaskSelectOverlay({
           left: 0,
           width: '100%',
           height: '100%',
+          // PK.H1 (iv): eyedropper gets a custom svg cursor (locked glyph
+          // set) instead of 'cell' — see tool-cursors.ts for the shared
+          // razor/ripple-delete/loop-in/loop-out/eyedropper cursor set.
           cursor: isWandMode
             ? (wandPending ? 'wait' : 'crosshair')
-            : 'cell',
+            : (cursorForTool('mask-key-picker') ?? 'crosshair'),
           pointerEvents: 'all',
           userSelect: 'none',
           overflow: 'visible',
@@ -792,7 +796,9 @@ export default function MaskSelectOverlay({
           left: 0,
           width: '100%',
           height: '100%',
-          cursor: isLassoPolygon ? 'crosshair' : 'cell',
+          // PK.H1 (iv): freehand lasso 'cell' -> 'crosshair' for consistency
+          // with the rest of the mask-tool family (v4.1 addendum).
+          cursor: 'crosshair',
           pointerEvents: 'all',
           userSelect: 'none',
           overflow: 'visible',
