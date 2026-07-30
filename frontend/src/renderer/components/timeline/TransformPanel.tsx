@@ -2,7 +2,6 @@ import { useCallback, useState } from 'react'
 import Icon from '../../assets/icon-kit'
 import type { ClipTransform } from '../../../shared/types'
 import { IDENTITY_TRANSFORM } from '../../../shared/types'
-import { FF } from '../../../shared/feature-flags'
 import { useMIDIStore } from '../../stores/midi'
 import Slider from '../common/Slider'
 
@@ -210,12 +209,11 @@ export default function TransformPanel({
         </div>
 
         {/* F-0512-21: label this slider "Clip opacity" so the user knows it
-            multiplies with the track-header opacity. Flag-off keeps the
-            generic "Opacity" wording. */}
+            multiplies with the track-header opacity. */}
         {onOpacityChange && (
           <label className="transform-panel__field">
             <span className="transform-panel__label">
-              {FF.F_0512_21_OPACITY_LABELS ? 'Clip opacity' : 'Opacity'}
+              Clip opacity
             </span>
             <div className="transform-panel__opacity-slider">
               <Slider
@@ -223,7 +221,7 @@ export default function TransformPanel({
                 min={0}
                 max={100}
                 default={100}
-                label={FF.F_0512_21_OPACITY_LABELS ? 'Clip opacity' : 'Opacity'}
+                label="Clip opacity"
                 type="int"
                 showHeader={false}
                 onContextMenu={learnField('opacity')}

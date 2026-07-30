@@ -1260,13 +1260,6 @@ body {
   flex-shrink: 1;
 }
 
-/* F-0512-36 disable override: revert to unbounded height. */
-body[data-disable-f-0512-36] .transform-panel {
-  max-height: none;
-  overflow-y: visible;
-  flex-shrink: 1;
-}
-
 .transform-panel__header {
   display: flex;
   align-items: center;

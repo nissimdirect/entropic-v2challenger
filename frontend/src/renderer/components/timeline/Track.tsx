@@ -46,22 +46,17 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   // Auto-focus and select text when rename input appears.
   useEffect(() => {
     if (!isRenaming) return
-    if (FF.F_0512_32_RENAME_FOCUS) {
-      // F-0512-32: defer to the next frame + explicit focus so the input
-      // captures focus after the ContextMenu's same-batch unmount has settled.
-      // Without this the input rendered but didn't gain focus on some
-      // Electron/React combos, and onBlur dismissed it before the user typed.
-      const id = requestAnimationFrame(() => {
-        const el = renameInputRef.current
-        if (!el) return
-        el.focus()
-        el.select()
-      })
-      return () => cancelAnimationFrame(id)
-    }
-    // Legacy: bare .select() — works in most environments, unreliable when
-    // the priorly-focused element is being detached in the same commit.
-    renameInputRef.current?.select()
+    // F-0512-32: defer to the next frame + explicit focus so the input
+    // captures focus after the ContextMenu's same-batch unmount has settled.
+    // Without this the input rendered but didn't gain focus on some
+    // Electron/React combos, and onBlur dismissed it before the user typed.
+    const id = requestAnimationFrame(() => {
+      const el = renameInputRef.current
+      if (!el) return
+      el.focus()
+      el.select()
+    })
+    return () => cancelAnimationFrame(id)
   }, [isRenaming])
 
   const startRename = useCallback(() => {
@@ -650,9 +645,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                   max={1}
                   default={1}
                   label="Track opacity"
-                  description={FF.F_0512_21_OPACITY_LABELS
-                    ? `Track opacity: ${Math.round(compositing.opacity * 100)}% (multiplies with clip opacity)`
-                    : `Opacity: ${Math.round(compositing.opacity * 100)}%`}
+                  description={`Track opacity: ${Math.round(compositing.opacity * 100)}% (multiplies with clip opacity)`}
                   type="float"
                   showHeader={false}
                   onChange={handleOpacityChange}

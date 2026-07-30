@@ -623,7 +623,7 @@ function AppInner() {
   useEffect(() => {
     // F-0512-3: while the welcome screen is still up (no project picked yet),
     // show plain "Creatrix" instead of the default "Untitled — Creatrix".
-    if (FF.F_0512_3_TITLE_BAR && !welcomeDismissed) {
+    if (!welcomeDismissed) {
       document.title = 'Creatrix'
       return
     }
@@ -1865,7 +1865,6 @@ function AppInner() {
   // but never trigger a re-render IPC. requestRenderFrame's in-flight queue
   // coalesces bursts.
   useEffect(() => {
-    if (!FF.F_0512_19_TRACKS_RERENDER) return
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
   }, [tracks, currentFrame, requestRenderFrame])
@@ -1876,7 +1875,6 @@ function AppInner() {
   // had already settled in the prior render and the canvas stayed "No video
   // loaded" even though the project was fully wired.
   useEffect(() => {
-    if (!FF.F_0512_29_RELOAD_REBIND) return
     if (!activeAssetPath.current) return
     requestRenderFrame(currentFrame)
   }, [previewState, currentFrame, requestRenderFrame])
@@ -2173,10 +2171,8 @@ function AppInner() {
     // F-0512-1: "New Project" implies Start Fresh — dismiss any pending
     // autosave / crash recovery prompt so the user is not asked again
     // about a session they have just chosen to abandon.
-    if (FF.F_0512_1_WELCOME_MODAL) {
-      setAutosavePath(null)
-      setCrashReports([])
-    }
+    setAutosavePath(null)
+    setCrashReports([])
   }, [])
 
   const handleAddTextTrack = useCallback(() => {
@@ -2428,7 +2424,7 @@ function AppInner() {
         case 'show-shortcuts':
           // F-0512-37: Help → Keyboard Shortcuts opens Preferences on the
           // Shortcuts tab instead of the default General tab.
-          if (FF.F_0512_37_SHORTCUTS_TAB) setPreferencesInitialTab('shortcuts')
+          setPreferencesInitialTab('shortcuts')
           setShowPreferences(true)
           break
         case 'show-feedback': setShowFeedbackDialog(true); break
@@ -2633,64 +2629,51 @@ function AppInner() {
   )
 
   const handlePlayPause = useCallback(() => {
-    if (FF.F_0512_14_SPACE_TRANSPORT) {
-      // F-0512-14 / F-0512-15: space and ▶ both route here, so this must always
-      // produce plain play/pause behavior regardless of prior J/K/L state.
-      // Previously we only toggled the audio transport; a stale isTimerPlaying
-      // from J (reverse) would keep the timer running in reverse while audio
-      // resumed forward, creating fights and "space toggles direction" UX.
-      const audio = useAudioStore.getState()
-      const audioIsPlaying = audio.isPlaying
-      const timerIsPlaying = isTimerPlayingRef.current
+    // F-0512-14 / F-0512-15: space and ▶ both route here, so this must always
+    // produce plain play/pause behavior regardless of prior J/K/L state.
+    // Previously we only toggled the audio transport; a stale isTimerPlaying
+    // from J (reverse) would keep the timer running in reverse while audio
+    // resumed forward, creating fights and "space toggles direction" UX.
+    const audio = useAudioStore.getState()
+    const audioIsPlaying = audio.isPlaying
+    const timerIsPlaying = isTimerPlayingRef.current
 
-      if (audioIsPlaying || timerIsPlaying) {
-        // Pause every active transport. Leave the JKL direction state intact so
-        // a subsequent J/L press picks up where the user left off; only space's
-        // own next press resets it (below).
-        if (audioIsPlaying) audio.togglePlayback()
-        if (timerIsPlaying) setIsTimerPlaying(false)
-        return
-      }
-
-      // Resume from a paused/stopped state. Space is unambiguously forward at 1×.
-      resetTransportSpeed()
-      setTransportSpeedMultiplier(1)
-      if (hasAudio && audio.isLoaded) {
-        audio.togglePlayback()
-      } else {
-        setIsTimerPlaying(true)
-      }
+    if (audioIsPlaying || timerIsPlaying) {
+      // Pause every active transport. Leave the JKL direction state intact so
+      // a subsequent J/L press picks up where the user left off; only space's
+      // own next press resets it (below).
+      if (audioIsPlaying) audio.togglePlayback()
+      if (timerIsPlaying) setIsTimerPlaying(false)
       return
     }
 
-    // Legacy path (F-0512-14 disabled): pre-fix behavior. Only toggles the
-    // primary transport; can leave JKL timer running in reverse.
-    if (hasAudio && audioStore.isLoaded) {
-      audioStore.togglePlayback()
+    // Resume from a paused/stopped state. Space is unambiguously forward at 1×.
+    resetTransportSpeed()
+    setTransportSpeedMultiplier(1)
+    if (hasAudio && audio.isLoaded) {
+      audio.togglePlayback()
     } else {
-      setIsTimerPlaying((prev) => !prev)
+      setIsTimerPlaying(true)
     }
-  }, [hasAudio, audioStore])
+  }, [hasAudio])
   handlePlayPauseRef.current = handlePlayPause
 
   const handleStop = useCallback(() => {
     const ts = useTimelineStore.getState()
-    if (FF.F_0512_16_ESCAPE_LOOP) {
-      // F-0512-16: if transport is already at rest at frame 0 AND a loop region
-      // is set, treat the next Stop / Escape press as "clear the loop region"
-      // so users who accidentally set one can dismiss it without hunting for
-      // a button. First press: stop + return to 0 (existing behaviour). Second
-      // press while already stopped: clear loop region overlay.
-      //
-      // F-0512-16 follow-up (validator 2026-05-13): the original gate used
-      // strict `playheadTime === 0` plus `!isTimerPlayingRef.current` — neither
-      // Escape×2 nor k×2 from a ruler-clicked "0" cleared the loop in UAT. See
-      // shouldClearLoopOnStop() for the relaxed predicate and rationale.
-      const audioPlaying = hasAudio && audioStore.isLoaded && audioStore.isPlaying
-      if (shouldClearLoopOnStop(ts.playheadTime, audioPlaying, ts.loopRegion)) {
-        ts.clearLoopRegion()
-        return
-      }
+    // F-0512-16: if transport is already at rest at frame 0 AND a loop region
+    // is set, treat the next Stop / Escape press as "clear the loop region"
+    // so users who accidentally set one can dismiss it without hunting for
+    // a button. First press: stop + return to 0 (existing behaviour). Second
+    // press while already stopped: clear loop region overlay.
+    //
+    // F-0512-16 follow-up (validator 2026-05-13): the original gate used
+    // strict `playheadTime === 0` plus `!isTimerPlayingRef.current` — neither
+    // Escape×2 nor k×2 from a ruler-clicked "0" cleared the loop in UAT. See
+    // shouldClearLoopOnStop() for the relaxed predicate and rationale.
+    const audioPlaying = hasAudio && audioStore.isLoaded && audioStore.isPlaying
+    if (shouldClearLoopOnStop(ts.playheadTime, audioPlaying, ts.loopRegion)) {
+      ts.clearLoopRegion()
+      return
     }
 
     if (hasAudio && audioStore.isLoaded) {
@@ -4304,7 +4287,7 @@ function AppInner() {
                   not the most-recent rendered frame width (flips between
                   source dims and canvas dims across user actions). */}
               {(() => {
-                const w = FF.F_0512_17_STATUS_BAR_CANVAS ? canvasResolution[0] : frameWidth
+                const w = canvasResolution[0]
                 return <span className="status-bar__metric">{w >= 3840 ? '4K' : w >= 1920 ? '1080p' : w >= 1280 ? '720p' : `${w}p`}</span>
               })()}
               <span className="status-bar__metric">{activeFps}fps</span>
@@ -4385,7 +4368,7 @@ function AppInner() {
         onDecision={handleConsentDecision}
       />
 
-      {startupChecked && (!FF.F_0512_1_WELCOME_MODAL || !welcomeDismissed) && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
+      {startupChecked && !welcomeDismissed && (crashReports.length > 0 || autosavePath !== null) && !window.entropic?.isTestMode && (
         <CrashRecoveryDialog
           isOpen={true}
           crashCount={crashReports.length}

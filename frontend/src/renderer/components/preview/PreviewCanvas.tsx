@@ -2,7 +2,6 @@ import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react
 import Icon from '../../assets/icon-kit'
 import EmptyState from '../common/EmptyState'
 import { useLayoutStore } from '../../stores/layout'
-import { FF } from '../../../shared/feature-flags'
 
 export type PreviewState = 'empty' | 'loading' | 'ready' | 'error'
 
@@ -38,17 +37,15 @@ function drawBase64Frame(
 
   canvas.width = drawW
   canvas.height = drawH
-  if (FF.F_0512_12_PREVIEW_ASPECT) {
-    // F-0512-12/13: lock CSS display size to the bitmap. The previous CSS
-    // rule (max-width: 100%; max-height: 100%) capped each dimension
-    // INDEPENDENTLY, which stretched the canvas to the container's aspect
-    // (e.g. 970x260 ≈ 3.7:1) whenever the bitmap was set before the
-    // ResizeObserver fired — see the stale-default 1920x1080 initial state
-    // in the component below. With explicit pixel sizes the BoundingBoxOverlay's
-    // contain-fit math aligns with what the user actually sees.
-    canvas.style.width = `${drawW}px`
-    canvas.style.height = `${drawH}px`
-  }
+  // F-0512-12/13: lock CSS display size to the bitmap. The previous CSS
+  // rule (max-width: 100%; max-height: 100%) capped each dimension
+  // INDEPENDENTLY, which stretched the canvas to the container's aspect
+  // (e.g. 970x260 ≈ 3.7:1) whenever the bitmap was set before the
+  // ResizeObserver fired — see the stale-default 1920x1080 initial state
+  // in the component below. With explicit pixel sizes the BoundingBoxOverlay's
+  // contain-fit math aligns with what the user actually sees.
+  canvas.style.width = `${drawW}px`
+  canvas.style.height = `${drawH}px`
   ctx.drawImage(img, 0, 0, drawW, drawH)
 }
 
@@ -80,11 +77,9 @@ export default function PreviewCanvas({
   useLayoutEffect(() => {
     const el = containerRef.current
     if (!el) return
-    if (FF.F_0512_12_PREVIEW_ASPECT) {
-      const rect = el.getBoundingClientRect()
-      if (rect.width > 0 && rect.height > 0) {
-        setContainerSize({ w: rect.width, h: rect.height })
-      }
+    const rect = el.getBoundingClientRect()
+    if (rect.width > 0 && rect.height > 0) {
+      setContainerSize({ w: rect.width, h: rect.height })
     }
     const observer = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect
@@ -162,7 +157,7 @@ export default function PreviewCanvas({
     // need an explicit synchronous redraw so the canvas refits to the new
     // container dims — otherwise the preview stays sized for the stale
     // container until the next frame_data_url change.
-    if (FF.F_0512_12_PREVIEW_ASPECT && img.complete && img.src === frameDataUrl) {
+    if (img.complete && img.src === frameDataUrl) {
       drawToCanvas()
       return
     }

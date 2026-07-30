@@ -13,7 +13,6 @@ import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, cleanup } from '@testing-library/react'
 import { setupMockEntropic, teardownMockEntropic } from '../helpers/mock-entropic'
 import PreviewCanvas from '../../renderer/components/preview/PreviewCanvas'
-import { FF } from '../../shared/feature-flags'
 
 afterEach(() => {
   cleanup()
@@ -66,7 +65,7 @@ function patchImageNaturalDims(naturalWidth: number, naturalHeight: number) {
 }
 
 describe('PreviewCanvas — F-0512-12/13 aspect ratio', () => {
-  it('locks canvas style.width/height to bitmap dimensions when fix is enabled', () => {
+  it('locks canvas style.width/height to bitmap dimensions', () => {
     setupMockEntropic()
     patchCanvasContext()
     patchImageNaturalDims(1280, 720)
@@ -85,26 +84,18 @@ describe('PreviewCanvas — F-0512-12/13 aspect ratio', () => {
     expect(canvas).toBeTruthy()
     if (!canvas) return
 
-    if (FF.F_0512_12_PREVIEW_ASPECT) {
-      // After draw, inline style locks display size to bitmap. Aspect must be
-      // the source aspect (16:9 ≈ 1.778), not the container's.
-      const styleW = parseFloat(canvas.style.width || '0')
-      const styleH = parseFloat(canvas.style.height || '0')
-      expect(styleW).toBeGreaterThan(0)
-      expect(styleH).toBeGreaterThan(0)
-      const ratio = styleW / styleH
-      expect(ratio).toBeGreaterThan(1.5)
-      expect(ratio).toBeLessThan(2.0)
-      // Bitmap dims must equal CSS dims so BoundingBoxOverlay's contain-fit
-      // math agrees with what the user sees.
-      expect(styleW).toBe(canvas.width)
-      expect(styleH).toBe(canvas.height)
-    } else {
-      // Legacy path explicitly leaves CSS sizing to global.css max-width/max-height.
-      // Inline style.width/height must remain empty so the buggy stretch path
-      // is re-exhibited when someone disables the flag for rollback testing.
-      expect(canvas.style.width).toBe('')
-      expect(canvas.style.height).toBe('')
-    }
+    // After draw, inline style locks display size to bitmap. Aspect must be
+    // the source aspect (16:9 ≈ 1.778), not the container's.
+    const styleW = parseFloat(canvas.style.width || '0')
+    const styleH = parseFloat(canvas.style.height || '0')
+    expect(styleW).toBeGreaterThan(0)
+    expect(styleH).toBeGreaterThan(0)
+    const ratio = styleW / styleH
+    expect(ratio).toBeGreaterThan(1.5)
+    expect(ratio).toBeLessThan(2.0)
+    // Bitmap dims must equal CSS dims so BoundingBoxOverlay's contain-fit
+    // math agrees with what the user sees.
+    expect(styleW).toBe(canvas.width)
+    expect(styleH).toBe(canvas.height)
   })
 })
