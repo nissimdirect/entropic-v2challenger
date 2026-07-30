@@ -76,9 +76,13 @@ test.describe('Shell visual baselines (exit gate)', () => {
     const mask = [
       window.locator('.preview-canvas__element'),
       window.locator('.preview-canvas__fps'),
-      window.locator('.uptime'),
+      // Widened from per-element masks (uptime/boot-line/memory-status) to the
+      // WHOLE status bar: adjudication of the F3 sweep caught a run-to-run flap
+      // in an unmasked readout segment (render-time/memory region) — every
+      // readout in this row is legitimately dynamic, so the row is masked
+      // wholesale. Chrome around it stays covered by the other five surfaces.
+      window.locator('.status-bar'),
       window.locator('[data-testid="boot-line"]'),
-      window.locator('.memory-status'),
     ]
     const SHOT = {
       mask,
