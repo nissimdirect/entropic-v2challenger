@@ -1,6 +1,7 @@
 @import './tokens.css';
 @import './select.css';
 @import './empty-state.css';
+@import './compositions.css';
 
 * {
   margin: 0;
@@ -2399,7 +2400,16 @@ body[data-disable-f-0512-36] .transform-panel {
   color: var(--cx-text-1);
 }
 
-/* --- Generic Dialog --- */
+/* --- Generic Dialog ---
+ * F3-C6: the canonical dialog/dialog__* primitive (COMPONENT-SPEC §3) opts
+ * into the `components` cascade layer declared in compositions.css. Its
+ * per-consumer compound overrides elsewhere in this file (`.dialog.foo`,
+ * `.dialog__header.foo__header`, etc. — the C1 dialog-unification deltas)
+ * stay UNLAYERED: per the CSS Cascade Layers spec, unlayered rules always
+ * win over layered ones regardless of specificity, so those higher-
+ * specificity overrides continue to win exactly as before — nothing about
+ * their behavior changes by layering the base rules they override. */
+@layer components {
 
 .dialog-overlay {
   position: fixed;
@@ -2484,6 +2494,8 @@ body[data-disable-f-0512-36] .transform-panel {
   outline: 2px solid var(--cx-focus-ring);
   outline-offset: 1px;
 }
+
+} /* @layer components */
 
 /* --- Icon kit (PK.H2) --- */
 
