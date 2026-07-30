@@ -14,6 +14,13 @@ export interface MenuItem {
    * and closes the menu. onClose is NOT called from the parent item.action().
    */
   swatches?: Array<{ hex: string; label: string; action: () => void }>
+  /**
+   * PK.C — optional stable test-id for consumers that need to target a
+   * specific item (e.g. lane curve-ops parity tests). Purely additive:
+   * omitted by every pre-existing caller, which keeps targeting
+   * `.context-menu__item` + label text as before.
+   */
+  testId?: string
 }
 
 interface ContextMenuProps {
@@ -183,6 +190,7 @@ export default function ContextMenu({ x, y, items, onClose }: ContextMenuProps) 
             // Roving tabIndex: only the focused item is in the tab order.
             tabIndex={focusedIndex === i ? 0 : -1}
             aria-disabled={item.disabled}
+            data-testid={item.testId}
             onClick={(e) => {
               // F-0512-9: stop propagation so the click on a menu item doesn't
               // bubble to the TrackLane underneath and re-seek the playhead.

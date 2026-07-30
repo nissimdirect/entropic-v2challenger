@@ -285,12 +285,21 @@ re-derives it differently.
   new divider rules, `.auto-toolbar__armed`/`.auto-toolbar__hint` reflow).
 - **Depends:** PK.A (consumes tokens). **Blocks:** none.
 - **Risk:** LOW.
-- **Hard oracle (amended for D8):** vitest — the strip renders exactly 8 buttons in exactly 2
-  grouping containers (Mode/Record) and contains NONE of Flatten/Ramp/Shape/Simplify/Clear;
-  each of the 5 curve ops is reachable from a lane (context affordance fires the same handler —
-  functional-parity assertion per op, targeting the clicked lane's id); `.auto-toolbar` computed
-  style has `flex-wrap: wrap`; at a constrained-width container, hint/armed text does not
-  overflow `scrollWidth`.
+- **Hard oracle (amended for D8, then re-amended by the STOP adjudication ruling below):** vitest
+  — the strip renders exactly 8 buttons in exactly 2 grouping containers (Mode/Record) and
+  contains NONE of Flatten/Ramp/Shape/Simplify/Clear. "5-op lane parity" reads as: Simplify/Clear/
+  Shape fire with the clicked lane's explicit ids (3 parity tests, unchanged handlers relocated
+  wholesale — `simplifyLane`/`clearLane`/`insertShapeIntoLane` already take an explicit laneId).
+  Flatten/Ramp assert BOTH branches instead of a plain "fires with laneId" parity test, because
+  their store actions (`flattenSelectedPoints`/`rampSelectedPoints`) have no laneId parameter and
+  only read the global point-selection state — ruling: standard menu grammar (Photoshop/Premiere
+  disable inapplicable items), pure relocation, zero new algorithms: (1) disabled when the clicked
+  lane has no qualifying same-lane selection (Flatten needs ≥1 selected point, Ramp needs ≥2, and
+  `selectedPoints.trackId`/`laneId` must match the clicked lane — a selection on a DIFFERENT lane
+  also disables), carrying the disabled BEM state + `aria-disabled`; (2) enabled and fires the
+  EXISTING handler unchanged when a qualifying same-lane selection exists (4 tests total for the
+  two ops' two branches). `.auto-toolbar` computed style has `flex-wrap: wrap`; at a
+  constrained-width container, hint/armed text does not overflow `scrollWidth`.
 - **Test plan:** component — strip membership + curve-ops-absent assertion, per-op lane-context
   parity (5 ops × handler fires with correct laneId), flex-wrap computed style, narrow-container
   overflow assertion (new or extended `AutomationToolbar.test.tsx` + lane-context test).

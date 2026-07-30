@@ -22,9 +22,16 @@ import { useAutomationStore } from '../../stores/automation'
 import { useLayoutStore } from '../../stores/layout'
 import { useProjectStore } from '../../stores/project'
 import { isTriggerLane, isModulationLane, MODULATION_LANE_COLOR } from '../../utils/automation-evaluate'
+import {
+  AUTOMATION_SHAPES,
+  defaultShapePointCount,
+  type AutomationShapeKind,
+} from '../../utils/automation-shapes'
 import AutomationNode from './AutomationNode'
 import AutomationTransformBox from './AutomationTransformBox'
 import CurveSegment from './CurveSegment'
+import ContextMenu from '../timeline/ContextMenu'
+import type { MenuItem } from '../timeline/ContextMenu'
 
 interface MarqueeRect {
   left: number
@@ -114,6 +121,22 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
   const marqueeStartRef = useRef({ x: 0, y: 0 })
   const selection = useAutomationStore((s) => s.selectedPoints)
 
+  // D8/PK.C — lane right-click context menu (Option A, user verdict
+  // 2026-07-30): Simplify/Clear/Shape/Flatten/Ramp moved here from the
+  // automation strip, targeting THIS lane explicitly (no armed-lane
+  // inference). Flatten/Ramp are a resolved STOP (team-lead adjudication):
+  // their store actions (flattenSelectedPoints/rampSelectedPoints) have no
+  // laneId parameter — they only read the global point-selection state — so
+  // they render disabled unless the clicked lane already owns a qualifying
+  // same-lane selection, same standard-menu-grammar treatment any
+  // selection-dependent item gets. See getLaneCurveMenuItems below.
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
+  const [shapePopoverOpen, setShapePopoverOpen] = useState(false)
+  const [shapePopoverPos, setShapePopoverPos] = useState({ x: 0, y: 0 })
+  const [shapeKind, setShapeKind] = useState<AutomationShapeKind>('sine')
+  const [shapeCycles, setShapeCycles] = useState(4)
+  const [shapeAmplitude, setShapeAmplitude] = useState(1)
+
   if (!lane.isVisible) return null
 
   const usableHeight = height - LANE_PADDING * 2
@@ -175,6 +198,90 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
     },
     [],
   )
+
+  // D8/PK.C — right-click opens the CURVE section context menu, targeting
+  // this exact lane (mirrors Track.tsx/Clip.tsx's handleContextMenu pattern
+  // — the canonical lane/track-level context-menu wiring in this codebase).
+  const handleLaneContextMenu = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCtxMenu({ x: e.clientX, y: e.clientY })
+  }, [])
+
+  // AA.3a relocated — bake the configured shape into THIS lane as ONE undo
+  // step. Same quantize-grid honoring as the original toolbar picker
+  // (Cmd+U / useLayoutStore.quantizeEnabled).
+  const handleInsertLaneShape = useCallback(() => {
+    const { quantizeEnabled, quantizeDivision } = useLayoutStore.getState()
+    const { bpm } = useProjectStore.getState()
+    useAutomationStore.getState().insertShapeIntoLane(trackId, lane.id, shapeKind, {
+      cycles: shapeCycles,
+      amplitude: shapeAmplitude,
+      count: defaultShapePointCount(shapeCycles),
+      quantize: { enabled: quantizeEnabled, bpm, division: quantizeDivision },
+    })
+    setShapePopoverOpen(false)
+  }, [trackId, lane.id, shapeKind, shapeCycles, shapeAmplitude])
+
+  // D8/PK.C — CURVE section, order matches D8's "Flatten · Ramp · Shape… ·
+  // Simplify · Clear". STOP adjudication ruling (team-lead, 2026-07-30):
+  // Flatten/Ramp relocate as-is — standard menu grammar (Photoshop/Premiere
+  // disable inapplicable items) rather than a new "select all in lane"
+  // behavior. Their store actions (flattenSelectedPoints/rampSelectedPoints)
+  // have no laneId param and only read the global point selection, so the
+  // menu item is disabled unless the CLICKED lane itself already owns a
+  // qualifying selection (matching trackId+laneId, >=1 point for Flatten,
+  // >=2 for Ramp — same thresholds the old strip buttons used); when
+  // enabled it fires the EXISTING handler completely unchanged. Simplify/
+  // Clear act immediately on THIS lane (simplifyLane/clearLane already take
+  // an explicit laneId — clean functional-parity relocation, same tolerance
+  // the toolbar used). Shape… opens a small config popover anchored at the
+  // click point instead of the old toolbar's "pick a target lane" list,
+  // since the lane is already fixed by the right-click.
+  const getLaneCurveMenuItems = useCallback((): MenuItem[] => {
+    const hasOwnSelection = selection?.trackId === trackId && selection?.laneId === lane.id
+    const selectedCount = hasOwnSelection ? selection!.indices.length : 0
+
+    const items: MenuItem[] = [
+      {
+        label: 'Flatten',
+        action: () => useAutomationStore.getState().flattenSelectedPoints('average'),
+        disabled: selectedCount < 1,
+        testId: 'lane-context-curve-flatten',
+      },
+      {
+        label: 'Ramp',
+        action: () => useAutomationStore.getState().rampSelectedPoints(),
+        disabled: selectedCount < 2,
+        testId: 'lane-context-curve-ramp',
+      },
+    ]
+    if (!trigger) {
+      items.push({
+        label: 'Shape…',
+        action: () => {
+          if (ctxMenu) setShapePopoverPos({ x: ctxMenu.x, y: ctxMenu.y })
+          setShapePopoverOpen(true)
+        },
+        testId: 'lane-context-curve-shape',
+      })
+    }
+    items.push(
+      {
+        label: 'Simplify',
+        action: () => useAutomationStore.getState().simplifyLane(trackId, lane.id, 0.01),
+        disabled: lane.points.length <= 2,
+        testId: 'lane-context-curve-simplify',
+      },
+      {
+        label: 'Clear',
+        action: () => useAutomationStore.getState().clearLane(trackId, lane.id),
+        disabled: lane.points.length === 0,
+        testId: 'lane-context-curve-clear',
+      },
+    )
+    return items
+  }, [trackId, lane.id, lane.points.length, trigger, ctxMenu, selection])
 
   // AA.4 — marquee-select: pointerdown/move/up rubber-bands a 2D (time ×
   // value) box over the lane background. Mirrors MarqueeOverlay.tsx's
@@ -298,6 +405,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
   const selectionSize = isThisLaneSelected ? selection!.indices.length : 0
 
   return (
+    <>
     <svg
       ref={svgRef}
       className={`auto-lane${trigger ? ' auto-lane--trigger' : ''}${isModulationLane(lane) ? ' auto-lane--modulation' : ''}`}
@@ -308,6 +416,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
       onPointerMove={handleLanePointerMove}
       onPointerUp={handleLanePointerUp}
       onPointerCancel={handleLanePointerCancel}
+      onContextMenu={handleLaneContextMenu}
       style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'all' }}
       data-testid={trigger ? 'trigger-lane' : 'automation-lane'}
     >
@@ -387,5 +496,74 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
         />
       )}
     </svg>
+    {ctxMenu && (
+      <ContextMenu
+        x={ctxMenu.x}
+        y={ctxMenu.y}
+        items={getLaneCurveMenuItems()}
+        onClose={() => setCtxMenu(null)}
+      />
+    )}
+    {shapePopoverOpen && (
+      <div
+        className="lane-shape-popover"
+        data-testid="lane-shape-popover"
+        style={{ left: `${shapePopoverPos.x}px`, top: `${shapePopoverPos.y}px` }}
+      >
+        <div className="lane-shape-popover__title">Insert Shape</div>
+        <label>
+          Shape:{' '}
+          <select
+            data-testid="lane-shape-kind-select"
+            value={shapeKind}
+            onChange={(e) => setShapeKind(e.target.value as AutomationShapeKind)}
+          >
+            {AUTOMATION_SHAPES.map((s) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </label>
+        <label title="Number of periods across the target range (ignored by Ramp Up/Down; used as the number of hold-steps for Random).">
+          Cycles:{' '}
+          <input
+            data-testid="lane-shape-cycles-input"
+            type="number"
+            min={0.25}
+            step={0.25}
+            value={shapeCycles}
+            onChange={(e) => setShapeCycles(Number(e.target.value))}
+          />
+        </label>
+        <label title="0 = flat line at the lane midpoint, 1 = full swing across the lane's value range.">
+          Amplitude:{' '}
+          <input
+            data-testid="lane-shape-amplitude-input"
+            type="number"
+            min={0}
+            max={1}
+            step={0.05}
+            value={shapeAmplitude}
+            onChange={(e) => setShapeAmplitude(Number(e.target.value))}
+          />
+        </label>
+        <div className="lane-shape-popover__actions">
+          <button
+            className="lane-shape-popover__insert-btn"
+            data-testid="lane-shape-insert-btn"
+            onClick={handleInsertLaneShape}
+          >
+            Insert
+          </button>
+          <button
+            className="lane-shape-popover__cancel-btn"
+            data-testid="lane-shape-cancel-btn"
+            onClick={() => setShapePopoverOpen(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   )
 }

@@ -1,14 +1,16 @@
 /**
- * Mode selector: Read / Latch / Touch / Draw (radio buttons).
- * Simplify button, clear button. Shows armed track name.
- * Add Lane / Add Trigger Lane buttons with param picker.
+ * Mode cluster (Read/Latch/Touch/Draw) + Record cluster (Overdub, +Lane,
+ * +Trigger, +Mod). Shows armed track name.
+ *
+ * D8/PK.C — curve ops (Flatten/Ramp/Shape/Simplify/Clear) are NOT here
+ * anymore: they act on a specific lane, so they moved to the lane's own
+ * right-click context menu (AutomationLane.tsx) instead of a global button
+ * that could only guess "which lane?". See RATIFIED-FOUNDATIONS.md D8.
  */
 import { useCallback, useState } from 'react'
 import { useAutomationStore, type AutomationMode } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
-import { useLayoutStore } from '../../stores/layout'
-import { useProjectStore } from '../../stores/project'
 import type { TriggerMode, BlendOp, AutomationLaneSource } from '../../../shared/types'
 import type { Axis } from '../../../shared/axis-binding'
 import { FF } from '../../../shared/feature-flags'
@@ -18,11 +20,6 @@ import {
   formatTransformLaneEffectId,
 } from '../../utils/transformLanes'
 import { isTriggerLane, MODULATION_LANE_COLOR } from '../../utils/automation-evaluate'
-import {
-  AUTOMATION_SHAPES,
-  defaultShapePointCount,
-  type AutomationShapeKind,
-} from '../../utils/automation-shapes'
 
 // PR-B Commit-2: Tier-1 selectable axis domains. P6.6 (C2/C3): Y/X now render
 // live — a Y/X-domain lane drives a per-band spatial gradient via the backend
@@ -93,8 +90,6 @@ export default function AutomationToolbar() {
   // A4 — continuous-lane overdub toggle (D2: 'replace'/punch-replace is the
   // locked default; 'overdub' additively layers new points instead).
   const recordMode = useAutomationStore((s) => s.recordMode)
-  // AA.4b — Flatten/Ramp act on the active breakpoint selection (AA.4).
-  const selectedPoints = useAutomationStore((s) => s.selectedPoints)
   const tracks = useTimelineStore((s) => s.tracks)
   // A1+A2: transform lanes target the SELECTED clip on the armed track. Subscribe
   // so the picker refreshes when the selection changes.
@@ -112,19 +107,9 @@ export default function AutomationToolbar() {
   // === 'operator'.
   const [modGeneratorType, setModGeneratorType] = useState<'lfo' | 'audio_follower'>('lfo')
 
-  // AA.3a — Insert Automation Shape: shape/cycles/amplitude config + the
-  // open/closed state of the target-lane picker (mirrors pickerMode above).
-  const [shapePickerOpen, setShapePickerOpen] = useState(false)
-  const [shapeKind, setShapeKind] = useState<AutomationShapeKind>('sine')
-  const [shapeCycles, setShapeCycles] = useState(4)
-  const [shapeAmplitude, setShapeAmplitude] = useState(1)
   // Subscribe to lanes so the target-lane list refreshes as lanes are added/removed.
   const lanesByTrack = useAutomationStore((s) => s.lanes)
   const armedTrackLanes = (armedTrackId ? lanesByTrack[armedTrackId] : undefined) ?? []
-  // Shapes only make sense on continuous lanes — trigger lanes are square-wave
-  // 0/1 envelopes with their own gate/oneShot semantics (mirrors
-  // AutomationTransformBox, which is also skipped for trigger lanes).
-  const shapeTargetLanes = armedTrackLanes.filter((l) => !isTriggerLane(l))
   // AA.2 — "+ Mod" targets: existing absolute (non-trigger, non-modulation)
   // lanes on the armed track. A modulation lane superimposes onto an
   // absolute lane sharing its paramPath (see evaluateAutomationOverrides.ts),
@@ -142,61 +127,6 @@ export default function AutomationToolbar() {
   const handleToggleRecordMode = useCallback(() => {
     const state = useAutomationStore.getState()
     state.setRecordMode(state.recordMode === 'overdub' ? 'replace' : 'overdub')
-  }, [])
-
-  const handleSimplify = useCallback(() => {
-    const state = useAutomationStore.getState()
-    if (!state.armedTrackId) return
-    const lanes = state.getLanesForTrack(state.armedTrackId)
-    for (const lane of lanes) {
-      if (lane.points.length > 2) {
-        state.simplifyLane(state.armedTrackId, lane.id, 0.01)
-      }
-    }
-  }, [])
-
-  // AA.4b — Flatten: collapse the active selection to its average value.
-  const handleFlatten = useCallback(() => {
-    useAutomationStore.getState().flattenSelectedPoints('average')
-  }, [])
-
-  // AA.4b — Ramp: replace the selection with a straight first->last line.
-  const handleRamp = useCallback(() => {
-    useAutomationStore.getState().rampSelectedPoints()
-  }, [])
-
-  // AA.3a — Insert Automation Shape: toggle the target-lane picker panel.
-  const handleToggleShapePicker = useCallback(() => {
-    setShapePickerOpen((prev) => !prev)
-  }, [])
-
-  // AA.3a — bake the configured shape into `laneId` as ONE undo step. Honors
-  // the SAME quantize grid toggle as clip editing (Cmd+U) — same
-  // useLayoutStore/useProjectStore read pattern as AutomationLane.tsx's
-  // getQuantizeOptions()/handleMoveSelection.
-  const handleInsertShape = useCallback(
-    (laneId: string) => {
-      if (!armedTrackId) return
-      const { quantizeEnabled, quantizeDivision } = useLayoutStore.getState()
-      const { bpm } = useProjectStore.getState()
-      useAutomationStore.getState().insertShapeIntoLane(armedTrackId, laneId, shapeKind, {
-        cycles: shapeCycles,
-        amplitude: shapeAmplitude,
-        count: defaultShapePointCount(shapeCycles),
-        quantize: { enabled: quantizeEnabled, bpm, division: quantizeDivision },
-      })
-      setShapePickerOpen(false)
-    },
-    [armedTrackId, shapeKind, shapeCycles, shapeAmplitude],
-  )
-
-  const handleClear = useCallback(() => {
-    const state = useAutomationStore.getState()
-    if (!state.armedTrackId) return
-    const lanes = state.getLanesForTrack(state.armedTrackId)
-    for (const lane of lanes) {
-      state.clearLane(state.armedTrackId, lane.id)
-    }
   }, [])
 
   const getAvailableParams = useCallback((): ParamOption[] => {
@@ -421,120 +351,70 @@ export default function AutomationToolbar() {
           </button>
         ))}
       </div>
-      {/* A4 — overdub toggle: 'replace' (default, D2 punch-replace) overwrites a
-          nearby point when recording; 'overdub' additively layers new points
-          on top of the existing lane instead. Not gated on armedTrackId — it's
-          a write-mode preference, consulted the next time a point is recorded. */}
-      <button
-        className={`auto-toolbar__btn${recordMode === 'overdub' ? ' auto-toolbar__btn--active' : ''}`}
-        onClick={handleToggleRecordMode}
-        title={recordMode === 'overdub'
-          ? 'Overdub — new points layer on top of existing automation (click for Replace)'
-          : 'Replace — recording overwrites nearby points (click for Overdub)'}
-        data-testid="overdub-toggle-btn"
-        aria-pressed={recordMode === 'overdub'}
-      >
-        Overdub
-      </button>
-      {/* F-0512-34: when no track is armed, the tooltips tell users HOW to
-          arm — previously they only mentioned the precondition and the user
-          had no way to discover the "R" button on the track header
-          (formerly "A" before F-0516-10 relabel). */}
-      <button
-        className="auto-toolbar__btn"
-        onClick={handleAddLane}
-        title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the R button on a track header'
-          : 'Add automation lane to armed track'}
-        disabled={!armedTrackId}
-        data-testid="add-lane-btn"
-      >
-        + Lane
-      </button>
-      <button
-        className="auto-toolbar__btn"
-        onClick={handleAddTrigger}
-        title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the R button on a track header'
-          : 'Add trigger automation lane (0/1 toggle) to armed track'}
-        disabled={!armedTrackId}
-        data-testid="add-trigger-btn"
-      >
-        + Trigger
-      </button>
-      {/* AA.2 — modulation lane: a standalone drawn relative envelope that
-          superimposes onto an EXISTING absolute lane sharing its paramPath
-          (not an operator reference — see AutomationLane.kind doc comment).
-          Disabled when the armed track has no eligible target lane yet. */}
-      <button
-        className="auto-toolbar__btn"
-        onClick={handleAddMod}
-        title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the R button on a track header'
-          : modTargetLanes.length === 0
-            ? 'Add an automation lane first — modulation superimposes onto an existing lane'
-            : 'Add a modulation lane superimposed on an existing lane\'s parameter'}
-        disabled={!armedTrackId || modTargetLanes.length === 0}
-        data-testid="add-mod-btn"
-      >
-        + Mod
-      </button>
-      {/* AA.4b — Flatten/Ramp: only meaningful with an active breakpoint
-          selection (AA.4); the transform box (drag handles) is the primary
-          gesture, these buttons are a discoverable one-click fallback. */}
-      <button
-        className="auto-toolbar__btn"
-        onClick={handleFlatten}
-        title="Flatten selected breakpoints to their average value"
-        disabled={!selectedPoints || selectedPoints.indices.length === 0}
-        data-testid="flatten-selection-btn"
-      >
-        Flatten
-      </button>
-      <button
-        className="auto-toolbar__btn"
-        onClick={handleRamp}
-        title="Replace selection with a straight line from first to last selected point"
-        disabled={!selectedPoints || selectedPoints.indices.length < 2}
-        data-testid="ramp-selection-btn"
-      >
-        Ramp
-      </button>
-      {/* AA.3a — Insert Automation Shape: one-click bake sine/triangle/saw/
-          square/ramp/random breakpoints into a lane. Standalone of AA.4 —
-          doesn't require a selection (falls back to the lane's own span, or
-          a default span, when none is active). */}
-      <button
-        className="auto-toolbar__btn"
-        onClick={handleToggleShapePicker}
-        title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the R button on a track header'
-          : 'Insert a generated shape (sine, triangle, saw, square, ramp, random) into a lane'}
-        disabled={!armedTrackId}
-        data-testid="insert-shape-btn"
-      >
-        Shape
-      </button>
-      <button
-        className="auto-toolbar__btn"
-        onClick={handleSimplify}
-        title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the R button on a track header'
-          : 'Simplify curves (RDP)'}
-        disabled={!armedTrackId}
-      >
-        Simplify
-      </button>
-      <button
-        className="auto-toolbar__btn auto-toolbar__btn--danger"
-        onClick={handleClear}
-        title={FF.F_0512_34_ARM_HINT && !armedTrackId
-          ? 'Arm a track first — click the R button on a track header'
-          : 'Clear all automation on armed track'}
-        disabled={!armedTrackId}
-      >
-        Clear
-      </button>
+      {/* D8/PK.C — Record cluster: write-mode + lane-creation controls,
+          divided from the Mode cluster (horizontal-divider convention,
+          automation.css `.auto-toolbar__record`). Curve ops used to live
+          here too; they're lane-contextual now (AutomationLane.tsx). */}
+      <div className="auto-toolbar__record" data-testid="auto-toolbar-record-cluster">
+        {/* A4 — overdub toggle: 'replace' (default, D2 punch-replace) overwrites a
+            nearby point when recording; 'overdub' additively layers new points
+            on top of the existing lane instead. Not gated on armedTrackId — it's
+            a write-mode preference, consulted the next time a point is recorded. */}
+        <button
+          className={`auto-toolbar__btn${recordMode === 'overdub' ? ' auto-toolbar__btn--active' : ''}`}
+          onClick={handleToggleRecordMode}
+          title={recordMode === 'overdub'
+            ? 'Overdub — new points layer on top of existing automation (click for Replace)'
+            : 'Replace — recording overwrites nearby points (click for Overdub)'}
+          data-testid="overdub-toggle-btn"
+          aria-pressed={recordMode === 'overdub'}
+        >
+          Overdub
+        </button>
+        {/* F-0512-34: when no track is armed, the tooltips tell users HOW to
+            arm — previously they only mentioned the precondition and the user
+            had no way to discover the "R" button on the track header
+            (formerly "A" before F-0516-10 relabel). */}
+        <button
+          className="auto-toolbar__btn"
+          onClick={handleAddLane}
+          title={FF.F_0512_34_ARM_HINT && !armedTrackId
+            ? 'Arm a track first — click the R button on a track header'
+            : 'Add automation lane to armed track'}
+          disabled={!armedTrackId}
+          data-testid="add-lane-btn"
+        >
+          + Lane
+        </button>
+        <button
+          className="auto-toolbar__btn"
+          onClick={handleAddTrigger}
+          title={FF.F_0512_34_ARM_HINT && !armedTrackId
+            ? 'Arm a track first — click the R button on a track header'
+            : 'Add trigger automation lane (0/1 toggle) to armed track'}
+          disabled={!armedTrackId}
+          data-testid="add-trigger-btn"
+        >
+          + Trigger
+        </button>
+        {/* AA.2 — modulation lane: a standalone drawn relative envelope that
+            superimposes onto an EXISTING absolute lane sharing its paramPath
+            (not an operator reference — see AutomationLane.kind doc comment).
+            Disabled when the armed track has no eligible target lane yet. */}
+        <button
+          className="auto-toolbar__btn"
+          onClick={handleAddMod}
+          title={FF.F_0512_34_ARM_HINT && !armedTrackId
+            ? 'Arm a track first — click the R button on a track header'
+            : modTargetLanes.length === 0
+              ? 'Add an automation lane first — modulation superimposes onto an existing lane'
+              : 'Add a modulation lane superimposed on an existing lane\'s parameter'}
+          disabled={!armedTrackId || modTargetLanes.length === 0}
+          data-testid="add-mod-btn"
+        >
+          + Mod
+        </button>
+      </div>
       {FF.F_0512_34_ARM_HINT && !armedTrackId && (
         <span className="auto-toolbar__hint">
           Click <kbd>R</kbd> on a track to arm
@@ -784,63 +664,6 @@ export default function AutomationToolbar() {
               )}
             </label>
           ))}
-        </div>
-      )}
-      {shapePickerOpen && armedTrackId && (
-        <div className="auto-toolbar__picker" data-testid="shape-picker">
-          <div className="auto-toolbar__picker-title">Insert Automation Shape</div>
-          <label>
-            Shape:{' '}
-            <select
-              data-testid="shape-kind-select"
-              value={shapeKind}
-              onChange={(e) => setShapeKind(e.target.value as AutomationShapeKind)}
-            >
-              {AUTOMATION_SHAPES.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </label>
-          <label title="Number of periods across the target range (ignored by Ramp Up/Down; used as the number of hold-steps for Random).">
-            Cycles:{' '}
-            <input
-              data-testid="shape-cycles-input"
-              type="number"
-              min={0.25}
-              step={0.25}
-              value={shapeCycles}
-              onChange={(e) => setShapeCycles(Number(e.target.value))}
-            />
-          </label>
-          <label title="0 = flat line at the lane midpoint, 1 = full swing across the lane's value range.">
-            Amplitude:{' '}
-            <input
-              data-testid="shape-amplitude-input"
-              type="number"
-              min={0}
-              max={1}
-              step={0.05}
-              value={shapeAmplitude}
-              onChange={(e) => setShapeAmplitude(Number(e.target.value))}
-            />
-          </label>
-          {shapeTargetLanes.length === 0 ? (
-            <div className="auto-toolbar__picker-empty">
-              No automation lanes to insert into — add a lane first
-            </div>
-          ) : (
-            shapeTargetLanes.map((lane) => (
-              <button
-                key={lane.id}
-                className="auto-toolbar__picker-item"
-                onClick={() => handleInsertShape(lane.id)}
-                data-testid={`insert-shape-target-${lane.id}`}
-                title={`Insert ${shapeKind} into ${lane.paramPath}`}
-              >
-                <span style={{ color: lane.color }}>&#9679;</span> {lane.paramPath}
-              </button>
-            ))
-          )}
         </div>
       )}
     </div>
