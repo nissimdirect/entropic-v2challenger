@@ -7,8 +7,16 @@
  *
  * The toolbar is fully implemented but had zero component test coverage.
  * This locks the button states (disabled when no track armed), the
- * arm-hint text (post-F-0516-10: hint now reads "R", not "A"), the
- * param-picker open/close flow, and the four button handlers.
+ * arm-hint text (post-F-0516-10: hint now reads "R", not "A"), and the
+ * param-picker open/close flow.
+ *
+ * D8/PK.C (2026-07-30): Simplify/Clear/Shape (and Flatten/Ramp, which never
+ * lived here as strip buttons in the first place — see AutomationLane's
+ * curve-ops test for why) moved OFF this strip onto the lane's own
+ * right-click context menu — see automation-lane-curve-ops.test.tsx for
+ * their (relocated) functional coverage. This file's "strip membership"
+ * block below is the negative-assertion half of that move: the strip must
+ * render exactly 8 buttons in exactly 2 clusters and contain NONE of them.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
@@ -136,28 +144,53 @@ describe('AutomationToolbar — arm hint references R (post-F-0516-10)', () => {
 })
 
 describe('AutomationToolbar — buttons disabled until track armed', () => {
-  it('all 4 action buttons are disabled when no track is armed', () => {
+  it('+ Lane and + Trigger are disabled when no track is armed', () => {
     const { container } = render(<AutomationToolbar />)
     expect((container.querySelector('[data-testid="add-lane-btn"]') as HTMLButtonElement).disabled).toBe(true)
     expect((container.querySelector('[data-testid="add-trigger-btn"]') as HTMLButtonElement).disabled).toBe(true)
-    // Simplify + Clear are by-text since they have no testid.
-    const buttons = Array.from(container.querySelectorAll('button'))
-    const simplify = buttons.find((b) => b.textContent === 'Simplify') as HTMLButtonElement
-    const clear = buttons.find((b) => b.textContent === 'Clear') as HTMLButtonElement
-    expect(simplify.disabled).toBe(true)
-    expect(clear.disabled).toBe(true)
   })
 
-  it('all 4 action buttons enable when a track is armed', () => {
+  it('+ Lane and + Trigger enable when a track is armed', () => {
     armATrack()
     const { container } = render(<AutomationToolbar />)
     expect((container.querySelector('[data-testid="add-lane-btn"]') as HTMLButtonElement).disabled).toBe(false)
     expect((container.querySelector('[data-testid="add-trigger-btn"]') as HTMLButtonElement).disabled).toBe(false)
-    const buttons = Array.from(container.querySelectorAll('button'))
-    const simplify = buttons.find((b) => b.textContent === 'Simplify') as HTMLButtonElement
-    const clear = buttons.find((b) => b.textContent === 'Clear') as HTMLButtonElement
-    expect(simplify.disabled).toBe(false)
-    expect(clear.disabled).toBe(false)
+  })
+})
+
+// D8/PK.C — the amended hard oracle: strip renders exactly 8 buttons in
+// exactly 2 grouping containers (Mode/Record) and contains NONE of
+// Flatten/Ramp/Shape/Simplify/Clear.
+describe('AutomationToolbar — strip membership (D8/PK.C)', () => {
+  it('renders exactly 8 buttons total, split 4/4 across .auto-toolbar__modes and .auto-toolbar__record', () => {
+    const { container } = render(<AutomationToolbar />)
+    const modeButtons = container.querySelectorAll('.auto-toolbar__modes > button')
+    const recordButtons = container.querySelectorAll('.auto-toolbar__record > button')
+    expect(modeButtons).toHaveLength(4)
+    expect(recordButtons).toHaveLength(4)
+    expect(modeButtons.length + recordButtons.length).toBe(8)
+  })
+
+  it('the record cluster carries its data-testid and sits in exactly 2 top-level grouping containers', () => {
+    const { container } = render(<AutomationToolbar />)
+    expect(container.querySelector('[data-testid="auto-toolbar-record-cluster"]')).toBeTruthy()
+    const root = container.querySelector('.auto-toolbar')!
+    const groups = root.querySelectorAll(':scope > .auto-toolbar__modes, :scope > .auto-toolbar__record')
+    expect(groups).toHaveLength(2)
+  })
+
+  it('contains NONE of Flatten/Ramp/Shape/Simplify/Clear — they moved to the lane context menu', () => {
+    armATrack()
+    const { container } = render(<AutomationToolbar />)
+    const labels = Array.from(container.querySelectorAll('button')).map((b) => b.textContent)
+    for (const removed of ['Flatten', 'Ramp', 'Shape', 'Simplify', 'Clear']) {
+      expect(labels).not.toContain(removed)
+    }
+    // Also gone: the picker/testids those buttons used to open.
+    expect(container.querySelector('[data-testid="insert-shape-btn"]')).toBeNull()
+    expect(container.querySelector('[data-testid="flatten-selection-btn"]')).toBeNull()
+    expect(container.querySelector('[data-testid="ramp-selection-btn"]')).toBeNull()
+    expect(container.querySelector('[data-testid="shape-picker"]')).toBeNull()
   })
 })
 
@@ -325,75 +358,6 @@ describe('AutomationToolbar — clip-transform lanes (A1+A2)', () => {
   })
 })
 
-describe('AutomationToolbar — Simplify (G.26 / P.14)', () => {
-  it('Simplify on a lane with >2 points reduces point count', () => {
-    const t = armATrack()
-    useAutomationStore.setState({
-      lanes: {
-        [t.id]: [
-          {
-            id: 'lane-1',
-            paramPath: 'fx1.amount',
-            // 5 collinear points → RDP should reduce to 2.
-            points: [
-              { time: 0, value: 0, curve: 0 },
-              { time: 1, value: 0.25, curve: 0 },
-              { time: 2, value: 0.5, curve: 0 },
-              { time: 3, value: 0.75, curve: 0 },
-              { time: 4, value: 1, curve: 0 },
-            ],
-            color: '#4ade80',
-            isVisible: true,
-            mode: 'smooth',
-          },
-        ],
-      },
-    })
-
-    const { container } = render(<AutomationToolbar />)
-    const buttons = Array.from(container.querySelectorAll('button'))
-    const simplify = buttons.find((b) => b.textContent === 'Simplify') as HTMLElement
-    fireEvent.click(simplify)
-
-    const after = useAutomationStore.getState().lanes[t.id][0].points
-    expect(after.length).toBeLessThan(5)
-  })
-})
-
-describe('AutomationToolbar — Clear (G.27 / P.15)', () => {
-  it('Clear empties all lanes on the armed track', () => {
-    const t = armATrack()
-    useAutomationStore.setState({
-      lanes: {
-        [t.id]: [
-          {
-            id: 'lane-1',
-            paramPath: 'fx1.amount',
-            points: [
-              { time: 0, value: 0, curve: 0 },
-              { time: 1, value: 1, curve: 0 },
-            ],
-            color: '#4ade80',
-            isVisible: true,
-            mode: 'smooth',
-          },
-        ],
-      },
-    })
-
-    const { container } = render(<AutomationToolbar />)
-    const buttons = Array.from(container.querySelectorAll('button'))
-    const clear = buttons.find((b) => b.textContent === 'Clear') as HTMLElement
-    fireEvent.click(clear)
-
-    const after = useAutomationStore.getState().lanes[t.id][0].points
-    expect(after).toHaveLength(0)
-  })
-
-  it('Clear has the --danger modifier class', () => {
-    const { container } = render(<AutomationToolbar />)
-    const buttons = Array.from(container.querySelectorAll('button'))
-    const clear = buttons.find((b) => b.textContent === 'Clear') as HTMLElement
-    expect(clear.className).toContain('auto-toolbar__btn--danger')
-  })
-})
+// G.26/P.14 (Simplify) and G.27/P.15 (Clear) functional coverage relocated
+// to automation-lane-curve-ops.test.tsx — they now act on an explicit lane
+// via the right-click CURVE menu, not this strip (D8/PK.C).

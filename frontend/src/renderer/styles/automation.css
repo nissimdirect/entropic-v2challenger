@@ -33,6 +33,7 @@
 
 .auto-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 4px 8px;
@@ -40,11 +41,26 @@
   border-top: 1px solid var(--cx-line-1);
   font-family: 'JetBrains Mono', monospace;
   font-size: var(--cx-text-label);
+  font-weight: var(--cx-weight-label);
 }
 
 .auto-toolbar__modes {
   display: flex;
   gap: 2px;
+}
+
+/* D8/PK.C — Record cluster (Overdub/+Lane/+Trigger/+Mod). Divider rotates
+   the tool-rail's stacked-group convention (tool-rail.css
+   `.tool-rail__group + .tool-rail__group`: margin-top/padding-top/border-top)
+   onto this row-direction toolbar's own axis: margin-left/padding-left/
+   border-left, same tokens. */
+.auto-toolbar__record {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: var(--cx-space-4);
+  padding-left: var(--cx-space-8);
+  border-left: 1px solid var(--cx-line-1);
 }
 
 .auto-toolbar__mode-btn {
@@ -105,9 +121,14 @@
   border-color: var(--cx-action);
 }
 
+/* D8/PK.C — flex-basis:100% always gives armed/hint their own row once
+   .auto-toolbar wraps (flex-wrap:wrap), instead of competing with the 8
+   buttons for leftover space on a partially-wrapped row — the reflow the
+   amended oracle's narrow-container/no-overflow assertion checks for. */
 .auto-toolbar__armed {
   color: var(--cx-action);
   margin-left: auto;
+  flex-basis: 100%;
 }
 
 /* F-0512-34: discoverability hint shown when no track is armed. */
@@ -115,6 +136,7 @@
   color: var(--cx-text-3);
   margin-left: auto;
   font-size: var(--cx-text-body);
+  flex-basis: 100%;
 }
 
 .auto-toolbar__hint kbd {
@@ -126,6 +148,59 @@
   font-size: var(--cx-text-data);
   color: var(--cx-text-1);
   font-family: inherit;
+}
+
+/* D8/PK.C — lane Shape… popover, opened from the lane's right-click CURVE
+   menu. Reuses the floating-panel convention already established by
+   ContextMenu (timeline.css `.context-menu`: fixed position, bg-raised,
+   line-2 border, same radius/shadow) rather than the toolbar's own
+   (unstyled) `.auto-toolbar__picker` — this is the only STYLED floating
+   panel precedent in the codebase. */
+.lane-shape-popover {
+  position: fixed;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cx-space-6);
+  min-width: 200px;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 4px;
+  padding: var(--cx-space-8);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--cx-text-body);
+  color: var(--cx-text-1);
+}
+
+.lane-shape-popover__title {
+  font-size: var(--cx-text-label);
+  font-weight: var(--cx-weight-label);
+  color: var(--cx-text-2);
+}
+
+.lane-shape-popover__actions {
+  display: flex;
+  gap: var(--cx-space-6);
+  margin-top: var(--cx-space-4);
+}
+
+.lane-shape-popover__insert-btn,
+.lane-shape-popover__cancel-btn {
+  background: var(--cx-bg-panel);
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-2);
+  font-family: inherit;
+  font-size: var(--cx-text-label);
+  padding: 2px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.lane-shape-popover__insert-btn:hover,
+.lane-shape-popover__cancel-btn:hover {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
 }
 
 /* --- Automation Draw Overlay --- */
