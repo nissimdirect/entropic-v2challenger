@@ -304,3 +304,52 @@ Build phases: PRD `docs/plans/2026-07-02-b3-layout-redesign-prd.md` (L0–L5).
 - Full markdown transcription of `design-system.html` §1–§9 (this section is the load-bearing
   subset + the locked decisions; the HTML remains the exhaustive visual reference).
 - Opacity-draggable-in-header (deferred; revisit after L3).
+
+### §10.1 Iconography — GLYPH GUIDELINES v1 (PK.H2, 2026-07-30)
+
+App-wide non-tool icons (everything outside the 14-tool rail — that's §5, now the
+WIRE direction per PK.H1, not the BLOCK direction described above) are governed
+by the CONVENTION-GROUNDED MANIFEST v4 + v4.1 addendum
+(`openspec/changes/ui-foundation/proposal.md`) and implemented in
+`frontend/src/renderer/assets/icon-kit.tsx`. Eleven standing rules, canonical
+copy on artifact afd223f3 §ADDENDUM v4.1:
+
+1. **Convention-first** — name the host app (Ableton/Photoshop/Premiere/Resolve/
+   Pro Tools/OS) whose convention a glyph borrows; don't invent when a standard
+   exists.
+2. **One glyph, one meaning** — no glyph does double duty across two different
+   actions (the R-collision — automation Read-mode vs. record-arm — is the
+   canonical example this rule exists to prevent; PK.H2 resolved it).
+3. **Text is a valid glyph** — M/S/Q track buttons, R-L-T-D automation modes,
+   ×N repeat badges are correct AS TEXT; do not iconize the pro-audio
+   single-letter convention.
+4. **Vector-only on the 24×24/stroke-2 grid, NO emoji** — emoji render
+   tofu/inconsistently cross-platform (root cause of "icons sometimes don't
+   show"); every icon is vendored SVG path data.
+5. **Legibility floor 14px**, ≈3-stroke visual-weight budget, test at 14/16/18px
+   before shipping a new glyph.
+6. **State-toggles show state** — a control with two states never renders the
+   identical glyph for both (freeze ❄/❄ was the bug; filled-vs-outline pairs
+   are the fix pattern: lock/unlock, eye/eye-off, link/unlink, filled/outline
+   snowflake, filled/outline record-dot, filled/outline star).
+7. **destroy(trash) ≠ dismiss(x) ≠ detach(unlink)** — three different meanings,
+   three different glyphs. Destroy = permanently removes the entity itself
+   (trash-2). Dismiss = closes/clears a UI surface (x), never destroys data.
+   Detach = disconnects a mapping/route while both endpoints keep existing
+   (unlink) — this is also the "unroute/unmap" rule for modulation routes.
+8. **Source order:** Lucide (ISC) → Tabler (MIT) → custom, registered with a
+   license comment in the vendoring file — never an npm dependency, never
+   traced Adobe artwork (concepts are unprotectable, artwork is not).
+9. **Live data gets a chip, not a glyph** — routing state (thumbnails,
+   sparklines, stage dots, bundle counts) is the TAP CHIP component's job;
+   a manifest glyph is for static, non-data meaning only.
+10. **No unregistered icons** — a new glyph lands with its manifest row +
+    grounding convention in the same PR, never freehanded.
+11. **The cursor is a glyph slot** — an acting tool changes the pointer, not
+    just a rail icon (PK.H1's per-tool cursor set is this rule's rail-side
+    implementation).
+
+Hard-oracle guards living in `frontend/src/__tests__/renderer/icon-kit.test.tsx`:
+a permanent no-raw-emoji sweep over `src/renderer/**/*.{ts,tsx}` (rule 4) and a
+one-close-glyph check that every dialog/panel close renders the shared
+`<CloseButton />` (rule 2, applied to the CLOSE meaning specifically).

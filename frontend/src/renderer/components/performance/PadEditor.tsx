@@ -4,6 +4,7 @@ import { useMIDIStore } from '../../stores/midi';
 import { ADSR_PRESETS, RESERVED_KEYS, codeToLabel } from '../../../shared/constants';
 import { midiNoteToName } from '../../../shared/midi-utils';
 import { useStableListener } from '../../hooks/useStableListener';
+import Icon, { CloseButton } from '../../assets/icon-kit';
 import type { EffectInstance, EffectInfo, ModulationRoute, PadMode } from '../../../shared/types';
 
 interface PadEditorProps {
@@ -84,7 +85,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
       <div className="export-dialog" onClick={(e) => e.stopPropagation()} style={{ width: 420 }}>
         <div className="export-dialog__header">
           <span>Edit Pad — {pad.label}</span>
-          <button className="export-dialog__close" onClick={onClose}>×</button>
+          <CloseButton className="export-dialog__close" onClick={onClose} ariaLabel="Close pad editor" />
         </div>
         <div className="export-dialog__body">
           {/* Key Binding */}
@@ -106,7 +107,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                 className="effect-card__remove"
                 onClick={() => setPadKeyBinding(padId, null)}
                 title="Unbind"
-              >×</button>
+              ><Icon name="unlink" size={12} /></button>
             )}
           </div>
           {keyError && (
@@ -132,7 +133,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                 className="effect-card__remove"
                 onClick={() => updatePad(padId, { midiNote: null })}
                 title="Clear MIDI note"
-              >×</button>
+              ><Icon name="unlink" size={12} /></button>
             )}
           </div>
 
@@ -305,7 +306,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                     className="effect-card__remove"
                     onClick={() => removePadMapping(padId, idx)}
                   >
-                    ×
+                    <Icon name="unlink" size={12} />
                   </button>
                   {isBroken && (
                     <span style={{ fontSize: 9, color: '#ef4444' }} title="Effect not in chain">!</span>

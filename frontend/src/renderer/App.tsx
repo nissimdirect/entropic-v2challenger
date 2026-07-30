@@ -163,6 +163,7 @@ import RenderQueue from './components/export/RenderQueue'
 import { RoutingCanvas } from './components/routing-canvas'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
+import { CloseButton } from './assets/icon-kit'
 
 /**
  * D4 (Epic 02): Pure helper — apply pad + CC modulation to ANY chain at a given frame.
@@ -4132,14 +4133,12 @@ function AppInner() {
       {showOperators && (
         <div className="floating-panel floating-panel--right">
           <div className="floating-panel__header" style={{ justifyContent: 'flex-end' }}>
-            <button
+            <CloseButton
               className="floating-panel__close-btn"
               onClick={() => setShowOperators(false)}
-              aria-label="Close operators panel"
+              ariaLabel="Close operators panel"
               title="Close (Cmd+Shift+O)"
-            >
-              ×
-            </button>
+            />
           </div>
           <div style={{ position: 'relative' }}>
             <RoutingLines operatorValues={operatorValues} />
@@ -4172,14 +4171,12 @@ function AppInner() {
         <div className="floating-panel floating-panel--left">
           <div className="floating-panel__header">
             <span className="floating-panel__title">Undo History</span>
-            <button
+            <CloseButton
               className="floating-panel__close-btn"
               onClick={() => setShowHistory(false)}
-              aria-label="Close history panel"
+              ariaLabel="Close history panel"
               title="Close (Edit → Undo History)"
-            >
-              ×
-            </button>
+            />
           </div>
           <HistoryPanel />
         </div>

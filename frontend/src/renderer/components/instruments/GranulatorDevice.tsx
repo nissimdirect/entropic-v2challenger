@@ -59,7 +59,7 @@ const AXIS_LABELS: Record<GranulatorAxis, string> = {
   x: 'X (column)',
   c: 'C (colour)',
   f: 'F (freq)',
-  l: 'L (latent) ⚑',
+  l: 'L (latent, experimental)',
 }
 
 /**
@@ -241,7 +241,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
     { value: 'random', label: 'Random (seeded)' },
     { value: 'onset', label: 'Onset (audio-transient)' },
     ...(latentFlagOn
-      ? [{ value: 'latentSimilarity', label: 'Latent Similarity ⚑' }]
+      ? [{ value: 'latentSimilarity', label: 'Latent Similarity (experimental)' }]
       : []),
   ]
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { CloseButton } from '../../assets/icon-kit'
 import '../../styles/update-banner.css'
 
 interface UpdateInfo {
@@ -52,9 +53,11 @@ export default function UpdateBanner() {
             Restart
           </button>
         )}
-        <button className="update-banner__dismiss" onClick={() => setDismissed(true)}>
-          ×
-        </button>
+        <CloseButton
+          className="update-banner__dismiss"
+          onClick={() => setDismissed(true)}
+          ariaLabel="Dismiss update banner"
+        />
       </div>
     </div>
   )

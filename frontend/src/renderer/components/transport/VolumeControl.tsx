@@ -1,3 +1,5 @@
+import Icon from '../../assets/icon-kit'
+
 interface VolumeControlProps {
   volume: number
   isMuted: boolean
@@ -5,10 +7,10 @@ interface VolumeControlProps {
   onToggleMute: () => void
 }
 
-function speakerIcon(volume: number, isMuted: boolean): string {
-  if (isMuted || volume === 0) return '\uD83D\uDD07' // 🔇
-  if (volume < 0.5) return '\uD83D\uDD09'            // 🔉
-  return '\uD83D\uDD0A'                               // 🔊
+function speakerIconName(volume: number, isMuted: boolean): 'volume-x' | 'volume-1' | 'volume-2' {
+  if (isMuted || volume === 0) return 'volume-x'
+  if (volume < 0.5) return 'volume-1'
+  return 'volume-2'
 }
 
 export default function VolumeControl({
@@ -32,7 +34,7 @@ export default function VolumeControl({
         aria-label={isMuted ? 'Unmute' : 'Mute'}
         title={isMuted ? 'Unmute' : 'Mute'}
       >
-        {speakerIcon(clamped, isMuted)}
+        <Icon name={speakerIconName(clamped, isMuted)} size={16} />
       </button>
       <input
         type="range"

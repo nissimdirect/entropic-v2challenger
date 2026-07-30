@@ -20,6 +20,7 @@
  * guard fires automatically on every call.
  */
 import type { EdgeInspectorInfo } from './OperatorTopologyGraph'
+import { CloseButton } from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import {
   TIER_1_BINDING_RULES,
@@ -212,14 +213,12 @@ export default function B9EdgeInspector({
         <span className="b9-edge-inspector__title">
           Edge: {info.operatorId} → {info.targetParamKey}
         </span>
-        <button
+        <CloseButton
           className="b9-edge-inspector__close"
-          aria-label="Close inspector"
+          ariaLabel="Close inspector"
           onClick={onClose}
-          data-testid="b9-edge-inspector-close"
-        >
-          ×
-        </button>
+          testId="b9-edge-inspector-close"
+        />
       </div>
 
       <div className="b9-edge-inspector__body">
@@ -290,7 +289,7 @@ export default function B9EdgeInspector({
             className="b9-edge-inspector__research-hint"
             data-testid="b9-research-hidden-hint"
           >
-            Research rules hidden (enable via ⚗ Research toggle)
+            Research rules hidden (enable via the Research toggle)
           </p>
         )}
 

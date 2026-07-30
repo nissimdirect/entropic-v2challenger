@@ -1,3 +1,4 @@
+import Icon from '../../assets/icon-kit';
 import { useMIDIStore } from '../../stores/midi';
 
 export default function MIDISettings() {
@@ -77,8 +78,8 @@ export default function MIDISettings() {
                 <button
                   className="effect-card__remove"
                   onClick={() => useMIDIStore.getState().removeCCMapping(idx)}
-                  title="Remove mapping"
-                >×</button>
+                  title="Unmap"
+                ><Icon name="unlink" size={12} /></button>
               </div>
             ))}
           </div>

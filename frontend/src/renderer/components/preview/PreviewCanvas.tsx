@@ -1,4 +1,5 @@
 import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react'
+import Icon from '../../assets/icon-kit'
 import { useLayoutStore } from '../../stores/layout'
 import { FF } from '../../../shared/feature-flags'
 
@@ -181,7 +182,7 @@ export default function PreviewCanvas({
           onClick={handlePopOut}
           title={isPopOutOpen ? 'Close pop-out preview' : 'Pop out preview'}
         >
-          {isPopOutOpen ? '↙' : '↗'}
+          <Icon name="external-link" size={13} />
         </button>
       </div>
       <canvas

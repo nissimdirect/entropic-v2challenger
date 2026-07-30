@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
+import Icon from '../../assets/icon-kit'
 import { randomUUID } from '../../utils'
 import type { EffectInfo, EffectInstance } from '../../../shared/types'
 import { LIMITS } from '../../../shared/limits'
@@ -504,7 +505,7 @@ export default function EffectBrowser({
               aria-label="Clear search"
               data-testid="browser-search-clear"
             >
-              ×
+              <Icon name="x" size={12} />
             </button>
           )}
         </div>

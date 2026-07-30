@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Icon from '../../assets/icon-kit'
 import type { Track as TrackType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
@@ -264,7 +265,7 @@ export function InspectorTrackLane({ track, isSelected }: InspectorTrackLaneProp
               title="Remove probe"
               aria-label={`Remove probe ${b.label}`}
             >
-              ×
+              <Icon name="trash-2" size={12} />
             </button>
           </div>
         ))

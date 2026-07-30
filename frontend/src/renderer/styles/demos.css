@@ -81,11 +81,13 @@
   background: none;
   border: none;
   color: var(--cx-text-2);
-  font-size: 18px;
   cursor: pointer;
   padding: 4px 8px;
   border-radius: var(--cx-radius-control);
   line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .demos-drawer__close:hover {

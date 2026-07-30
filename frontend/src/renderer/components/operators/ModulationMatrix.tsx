@@ -1,3 +1,4 @@
+import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import type { EffectInfo, MatteNode } from '../../../shared/types'
 import type { SamplerInstrumentV1 } from '../instruments/types'
@@ -213,8 +214,9 @@ export default function ModulationMatrix({
                             <button
                               className="mod-matrix__remove-btn"
                               onClick={() => removeMapping(op.id, mappingIndex)}
+                              title="Unroute"
                             >
-                              ×
+                              <Icon name="unlink" size={11} />
                             </button>
                           </div>
                         ) : (

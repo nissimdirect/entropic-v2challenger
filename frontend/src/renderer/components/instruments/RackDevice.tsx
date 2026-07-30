@@ -23,6 +23,7 @@
  * no crash) — mirrors the selectedRackPad stale-guard discipline (B4-pad-chain).
  */
 import { useState, useEffect, useRef } from 'react'
+import Icon from '../../assets/icon-kit'
 import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
@@ -278,7 +279,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
             className="rack-breadcrumb__up"
             onClick={() => setRackEditPathDepth(editPath.length - 1)}
           >
-            ↑ up
+            <Icon name="arrow-up" size={11} /> up
           </button>
         )}
         {/* B10.1b — Ableton-style FREEZE toggle. FROZEN plays the baked clip
@@ -300,7 +301,8 @@ export default function RackDevice({ trackId }: { trackId: string }) {
             else if (freezeFsm === 'idle') void freezePerformanceTrack(trackId)
           }}
         >
-          {freezeFsm === 'frozen' ? '❄ Unfreeze' : freezeFsm === 'freezing' ? '… Freezing' : '❄ Freeze'}
+          <Icon name="snowflake" size={12} filled={freezeFsm === 'frozen'} />
+          {freezeFsm === 'frozen' ? ' Unfreeze' : freezeFsm === 'freezing' ? ' Freezing…' : ' Freeze'}
         </button>
         {/* B10.2 — launch-quantize toggle: snaps pad triggers to the next
             division of the edit/slice grid. OFF by default. Uses the same
@@ -328,7 +330,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
           title="Retro-capture — dump recent triggers onto this Performance Track"
           onClick={() => captureRetroBuffer(trackId)}
         >
-          ⏺ Capture
+          <Icon name="circle" size={10} filled /> Capture
         </button>
       </div>
 
@@ -646,8 +648,9 @@ function MacroRow({
         type="button"
         data-testid="rack-macro-remove"
         onClick={() => onRemove(trackId, macro.id)}
+        title="Delete macro"
       >
-        ✕
+        <Icon name="trash-2" size={12} />
       </button>
 
       <div className="sampler-device__row">
@@ -689,8 +692,9 @@ function MacroRow({
             type="button"
             data-testid="rack-route-remove"
             onClick={() => onRemoveRoute(trackId, macro.id, i)}
+            title="Unroute"
           >
-            ✕
+            <Icon name="unlink" size={12} />
           </button>
         </div>
       ))}
