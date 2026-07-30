@@ -35,6 +35,7 @@ import { useInstrumentsStore } from '../../stores/instruments'
 import { clampFinite } from '../../../shared/numeric'
 import { instrumentLearnContextMenu } from './instrumentLearn'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 import {
   GRANULATOR_AXES,
   GRANULATOR_DENSITY_MIN,
@@ -287,7 +288,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
       {/* Window shape */}
       <label className="sampler-device__row">
         <span>Window</span>
-        <select
+        <Select
           data-testid="granulator-window"
           value={inst.window}
           onChange={(e) =>
@@ -297,13 +298,13 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
           {WINDOW_SHAPES.map((w) => (
             <option key={w.value} value={w.value}>{w.label}</option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {/* Selection rule picker — hides latentSimilarity when flag off. */}
       <label className="sampler-device__row">
         <span>Selection</span>
-        <select
+        <Select
           data-testid="granulator-selection"
           value={inst.selection}
           onChange={(e) =>
@@ -313,7 +314,7 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
           {selectionOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {/* L-axis gate toggle */}

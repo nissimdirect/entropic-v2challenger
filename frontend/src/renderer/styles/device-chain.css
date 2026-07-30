@@ -389,21 +389,19 @@ body[data-disable-f-0512-30] .device-card {
   flex-shrink: 0;
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/focus-ring (COMPONENT-SPEC §3), keeping
+ * this row's compact sizing/flex behavior. */
 .device-card__mask-select {
   flex: 1;
   min-width: 0;
-  font-size: 11px;
-  background: var(--cx-bg-raised);
-  color: var(--cx-text-2);
-  border: 1px solid var(--cx-bg-hover);
-  border-radius: 2px;
-  padding: 1px 2px;
-  outline: none;
 }
 
-.device-card__mask-select:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
+.device-card__mask-select .cx-select__control {
+  font-size: 11px;
+  height: auto;
+  padding: 1px 2px;
+  color: var(--cx-text-2);
 }
 
 .device-card__mask-invert {
@@ -429,22 +427,21 @@ body[data-disable-f-0512-30] .device-card {
   cursor: default;
 }
 
-/* P6.6 — field-param assignment control (image/video as a 2D field). */
+/* P6.6 — field-param assignment control (image/video as a 2D field).
+ * F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/focus-ring (COMPONENT-SPEC §3), keeping
+ * this row's compact sizing. */
 .device-card__field-assign {
+  display: flex;
   margin-top: 2px;
   width: 100%;
-  font-size: 11px;
-  background: var(--cx-bg-raised);
-  color: var(--cx-text-3);
-  border: 1px solid var(--cx-bg-hover);
-  border-radius: 2px;
-  padding: 1px 2px;
-  outline: none;
 }
 
-.device-card__field-assign:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
+.device-card__field-assign .cx-select__control {
+  font-size: 11px;
+  height: auto;
+  padding: 1px 2px;
+  color: var(--cx-text-3);
 }
 
 .device-card__param--field {

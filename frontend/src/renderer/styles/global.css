@@ -112,15 +112,17 @@ body {
   gap: 4px;
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/states (COMPONENT-SPEC §3), keeping the
+ * monospace transport look and shared --cx-control-h height (matches
+ * .app__transport-btn / .app__transport-bpm input, PK.E/F/G frame-bug
+ * fix). */
 .app__transport-select {
   height: var(--cx-control-h);
-  box-sizing: border-box;
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  color: var(--cx-text-1);
   font-size: var(--cx-text-label);
-  padding: 1px 4px;
-  border-radius: 2px;
+}
+
+.app__transport-select .cx-select__control {
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -1046,20 +1048,11 @@ body {
   color: var(--cx-text-2);
 }
 
-.param-choice__select {
-  padding: 4px 8px;
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 3px;
-  color: var(--cx-text-1);
-  font-family: inherit;
-  font-size: 12px;
-  outline: none;
-}
-
-.param-choice__select:focus {
-  border-color: var(--cx-action);
-}
+/* F3-C3: .param-choice__select wraps common/Select instead of a raw native
+ * <select> — its former background/border/padding duplicated the shared
+ * cx-select skin (COMPONENT-SPEC §3) almost exactly, so this rule is
+ * superseded rather than mirrored. The class name is kept as an inert
+ * wrapper marker (existing test/consumer references still resolve). */
 
 /* --- Param Toggle --- */
 
@@ -2359,19 +2352,12 @@ body[data-disable-f-0512-36] .transform-panel {
   flex: 1;
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/focus-ring (COMPONENT-SPEC §3), keeping
+ * this row's fixed width. */
 .preferences__select {
-  background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 4px;
-  color: var(--cx-text-1);
-  font-size: 13px;
-  padding: 5px 8px;
+  display: flex;
   width: 140px;
-}
-
-.preferences__select:focus {
-  outline: none;
-  border-color: var(--cx-action);
 }
 
 .preferences__browse-btn {

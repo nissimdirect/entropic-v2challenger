@@ -26,6 +26,7 @@ import { clampFinite } from '../../../shared/numeric'
 import type { BlendMode } from '../../../shared/types'
 import { instrumentLearnContextMenu } from './instrumentLearn'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 import {
   MAX_FRAMEBANK_SLOTS,
   FRAMEBANK_BYTE_BUDGET_MIN,
@@ -157,7 +158,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
 
       {/* Add-slot: pick a video clip + a frame index, append to the bank. */}
       <div className="sampler-device__row">
-        <select
+        <Select
           data-testid="framebank-add-slot-clip"
           value={newClipId}
           onChange={(e) => setNewClipId(e.target.value)}
@@ -166,7 +167,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
           {videoAssets.map((a) => (
             <option key={a.id} value={a.id}>{a.path.split('/').pop() ?? a.id}</option>
           ))}
-        </select>
+        </Select>
         <input
           type="number"
           data-testid="framebank-add-slot-frame"
@@ -205,7 +206,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
       {/* Interp mode. */}
       <label className="sampler-device__row">
         <span>Interp</span>
-        <select
+        <Select
           data-testid="framebank-interp"
           value={fb.interp}
           onChange={(e) =>
@@ -215,13 +216,13 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
           {INTERP_MODES.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {/* P5b.23 — B9 time-axis selector: t (time) / y (slit-scan rows) / x (cols). */}
       <label className="sampler-device__row">
         <span>Time axis</span>
-        <select
+        <Select
           data-testid="framebank-time-axis"
           value={fb.timeAxis ?? 't'}
           onChange={(e) =>
@@ -231,7 +232,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
           {TIME_AXIS_MODES.map((m) => (
             <option key={m.value} value={m.value}>{m.label}</option>
           ))}
-        </select>
+        </Select>
       </label>
 
       {/* Byte-budget / residency readout (the OOM ceiling). */}
@@ -278,7 +279,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
       {/* Blend mode — how the bank's frame composites onto the layer below. */}
       <label className="sampler-device__row">
         <span>Blend</span>
-        <select
+        <Select
           data-testid="framebank-blend"
           value={fb.blendMode ?? 'normal'}
           onChange={(e) => setFrameBankBlendMode(trackId, e.target.value as BlendMode)}
@@ -286,7 +287,7 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
           {BLEND_MODES.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
-        </select>
+        </Select>
       </label>
     </div>
   )

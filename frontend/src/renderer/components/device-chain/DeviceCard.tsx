@@ -4,6 +4,7 @@ import type { EffectInstance, EffectInfo, ParamDef, ParamValue, MatteNode, Matte
 import { isFieldRef, makeFieldRef, clampGain, type FieldKind } from '../../../shared/field-param'
 import Knob from '../common/Knob'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 import ParamChoice from '../effects/ParamChoice'
 import ParamToggle from '../effects/ParamToggle'
 import { useAutomationStore } from '../../stores/automation'
@@ -443,7 +444,7 @@ export default function DeviceCard({
                 />
               )}
               {isFieldCapable && (
-                <select
+                <Select
                   className="device-card__field-assign"
                   data-testid={`field-assign-${effect.id}-${key}`}
                   value=""
@@ -460,7 +461,7 @@ export default function DeviceCard({
                   {sources.map((s) => (
                     <option key={s.id} value={s.id}>{s.label}</option>
                   ))}
-                </select>
+                </Select>
               )}
             </div>
           )
@@ -549,7 +550,7 @@ export default function DeviceCard({
       {maskAssignable && (((maskNodes?.length ?? 0) > 0) || effect.maskRef) && (
         <div className="device-card__mask" data-testid="device-mask">
           <span className="device-card__mask-label">Mask</span>
-          <select
+          <Select
             className="device-card__mask-select"
             data-testid="device-mask-select"
             value={effect.maskRef?.nodeId ?? ''}
@@ -566,7 +567,7 @@ export default function DeviceCard({
             {effect.maskRef && !(maskNodes ?? []).some((n) => n.id === effect.maskRef!.nodeId) && (
               <option value={effect.maskRef.nodeId}>{effect.maskRef.nodeId} (missing)</option>
             )}
-          </select>
+          </Select>
           <button
             className={`device-card__mask-invert${effect.maskRef?.invert ? ' device-card__mask-invert--on' : ''}`}
             data-testid="device-mask-invert"

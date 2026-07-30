@@ -71,7 +71,7 @@ describe('Export — Dialog Structure', () => {
     render(<ExportDialog {...DIALOG_DEFAULTS} />)
 
     // Codec select defaults to h264
-    const codecSelect = document.querySelector('.export-dialog__select') as HTMLSelectElement
+    const codecSelect = document.querySelector('.export-dialog__select select') as HTMLSelectElement
     expect(codecSelect).toBeTruthy()
     expect(codecSelect.value).toBe('h264')
 
@@ -80,7 +80,7 @@ describe('Export — Dialog Structure', () => {
     expect(document.querySelector('.export-dialog__tab--active')?.textContent).toBe('Video')
 
     // Resolution select defaults to source
-    const selects = document.querySelectorAll('.export-dialog__select') as NodeListOf<HTMLSelectElement>
+    const selects = document.querySelectorAll('.export-dialog__select select') as NodeListOf<HTMLSelectElement>
     const resSelect = Array.from(selects).find((s) => s.value === 'source')
     expect(resSelect).toBeTruthy()
 
@@ -93,7 +93,7 @@ describe('Export — Dialog Structure', () => {
     render(<ExportDialog {...DIALOG_DEFAULTS} />)
 
     // Find the resolution select (second select after codec)
-    const selects = document.querySelectorAll('.export-dialog__select') as NodeListOf<HTMLSelectElement>
+    const selects = document.querySelectorAll('.export-dialog__select select') as NodeListOf<HTMLSelectElement>
     const resSelect = selects[1] // resolution is second select
     fireEvent.change(resSelect, { target: { value: 'custom' } })
 
@@ -123,7 +123,7 @@ describe('Export — Dialog Structure', () => {
     fireEvent.click(tabs[2]) // Image Sequence tab
 
     expect(document.querySelector('.export-dialog__tab--active')?.textContent).toBe('Image Sequence')
-    const formatSelect = document.querySelector('.export-dialog__select') as HTMLSelectElement
+    const formatSelect = document.querySelector('.export-dialog__select select') as HTMLSelectElement
     expect(formatSelect).toBeTruthy()
     expect(formatSelect.value).toBe('png')
   })

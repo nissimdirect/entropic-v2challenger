@@ -1,4 +1,5 @@
 import Icon from '../../assets/icon-kit';
+import Select from '../common/Select';
 import { useMIDIStore } from '../../stores/midi';
 
 export default function MIDISettings() {
@@ -22,7 +23,7 @@ export default function MIDISettings() {
     <div className="midi-settings">
       <div className="midi-settings__section">
         <label className="midi-settings__label">Device</label>
-        <select
+        <Select
           className="param-choice__select"
           value={activeDeviceId ?? ''}
           onChange={(e) => useMIDIStore.getState().setActiveDevice(e.target.value || null)}
@@ -33,12 +34,12 @@ export default function MIDISettings() {
               {d.name} ({d.manufacturer})
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="midi-settings__section">
         <label className="midi-settings__label">Channel</label>
-        <select
+        <Select
           className="param-choice__select"
           value={channelFilter ?? ''}
           onChange={(e) => {
@@ -50,7 +51,7 @@ export default function MIDISettings() {
           {Array.from({ length: 16 }, (_, i) => (
             <option key={i} value={i}>{i + 1}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="midi-settings__section">

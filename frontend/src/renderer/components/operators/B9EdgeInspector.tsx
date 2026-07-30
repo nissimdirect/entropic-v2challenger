@@ -21,6 +21,7 @@
  */
 import type { EdgeInspectorInfo } from './OperatorTopologyGraph'
 import { CloseButton } from '../../assets/icon-kit'
+import Select from '../common/Select'
 import { useOperatorStore } from '../../stores/operators'
 import {
   TIER_1_BINDING_RULES,
@@ -234,7 +235,7 @@ export default function B9EdgeInspector({
         <label className="b9-edge-inspector__label" htmlFor="b9-src-axis">
           Source axis
         </label>
-        <select
+        <Select
           id="b9-src-axis"
           className="b9-edge-inspector__select"
           value={info.srcAxis}
@@ -246,12 +247,12 @@ export default function B9EdgeInspector({
               {AXIS_LABELS[ax]}
             </option>
           ))}
-        </select>
+        </Select>
 
         <label className="b9-edge-inspector__label" htmlFor="b9-dst-axis">
           Destination axis
         </label>
-        <select
+        <Select
           id="b9-dst-axis"
           className="b9-edge-inspector__select"
           value={info.dstAxis}
@@ -263,13 +264,13 @@ export default function B9EdgeInspector({
               {AXIS_LABELS[ax]}
             </option>
           ))}
-        </select>
+        </Select>
 
         {/* Binding rule picker */}
         <label className="b9-edge-inspector__label" htmlFor="b9-binding-rule">
           Binding rule
         </label>
-        <select
+        <Select
           id="b9-binding-rule"
           className="b9-edge-inspector__select"
           value={info.bindingRule}
@@ -281,7 +282,7 @@ export default function B9EdgeInspector({
               {RULE_LABELS[rule]}
             </option>
           ))}
-        </select>
+        </Select>
 
         {/* Research rules hidden hint — shown only when toggle is off */}
         {!showResearchRules && (

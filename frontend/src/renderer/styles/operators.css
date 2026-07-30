@@ -240,13 +240,15 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
-.operator-card__param-select {
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome/states (COMPONENT-SPEC §3) but keeps this
+ * compact monospace look (10px vs the skin's larger default), since the
+ * operator editors are dense/small by design. */
+.operator-card__param-select .cx-select__control {
   font-size: 10px;
   padding: 2px 4px;
+  height: auto;
   background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 3px;
-  color: var(--cx-text-1);
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -286,13 +288,13 @@
   color: var(--cx-text-2);
 }
 
-.operator-editor__select {
+/* F3-C3: wraps common/Select instead of a raw native <select> — see
+ * .operator-card__param-select above (same compact-monospace rationale). */
+.operator-editor__select .cx-select__control {
   font-size: 10px;
   padding: 2px 4px;
+  height: auto;
   background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 3px;
-  color: var(--cx-text-1);
   font-family: 'JetBrains Mono', monospace;
 }
 
@@ -580,6 +582,8 @@
 }
 .operator-kentaro__lfo-map .operator-card__param-select {
   flex: 1;
+}
+.operator-kentaro__lfo-map .operator-card__param-select .cx-select__control {
   font-size: 9px;
 }
 .mod-matrix__source-key {

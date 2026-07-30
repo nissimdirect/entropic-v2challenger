@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import type { Preset, EffectInstance, MacroMapping, ModulationRoute } from '../../../shared/types'
 import { randomUUID } from '../../utils'
 import { useModalBehavior } from '../../hooks/useModalBehavior'
+import Select from '../common/Select'
 
 interface PresetSaveDialogProps {
   isOpen: boolean
@@ -149,7 +150,7 @@ export default function PresetSaveDialog({
                     onChange={(e) => updateMacro(i, 'label', e.target.value)}
                     placeholder="Label"
                   />
-                  <select
+                  <Select
                     className="preset-save__macro-select"
                     value={macro.effectId}
                     onChange={(e) => updateMacro(i, 'effectId', e.target.value)}
@@ -159,7 +160,7 @@ export default function PresetSaveDialog({
                         {eff.effectId}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <input
                     className="preset-save__macro-param"
                     value={macro.paramKey}

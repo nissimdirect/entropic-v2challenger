@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import ShortcutEditor from './ShortcutEditor'
+import Select from '../common/Select'
 import { FF } from '../../../shared/feature-flags'
 import { useModalBehavior } from '../../hooks/useModalBehavior'
 
@@ -95,7 +96,7 @@ export default function Preferences({ isOpen, onClose, initialTab }: Preferences
       </div>
       <div className="preferences__field">
         <label>Render quality</label>
-        <select
+        <Select
           className="preferences__select"
           value={renderQuality}
           onChange={(e) => setRenderQuality(e.target.value)}
@@ -103,7 +104,7 @@ export default function Preferences({ isOpen, onClose, initialTab }: Preferences
           <option value="low">Low</option>
           <option value="medium">Medium</option>
           <option value="high">High</option>
-        </select>
+        </Select>
       </div>
     </div>
   )

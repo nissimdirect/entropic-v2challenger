@@ -296,15 +296,17 @@
   border-color: var(--cx-action);
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin's chrome (COMPONENT-SPEC §3), keeping this row's
+ * compact sizing. */
 .preset-save__macro-select {
   flex: 1;
-  padding: 4px 6px;
-  background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 3px;
-  color: var(--cx-text-1);
-  font-family: inherit;
+}
+
+.preset-save__macro-select .cx-select__control {
   font-size: 11px;
+  height: auto;
+  padding: 4px 6px;
 }
 
 .preset-save__macro-remove {

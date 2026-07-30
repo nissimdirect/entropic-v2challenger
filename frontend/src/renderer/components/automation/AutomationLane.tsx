@@ -17,6 +17,7 @@
  *   SAME grid toggle (Cmd+U / useLayoutStore.quantizeEnabled) as clip editing.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Select from '../common/Select'
 import type { AutomationLane as LaneType, AutomationPoint } from '../../../shared/types'
 import { useAutomationStore } from '../../stores/automation'
 import { useLayoutStore } from '../../stores/layout'
@@ -513,7 +514,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
         <div className="lane-shape-popover__title">Insert Shape</div>
         <label>
           Shape:{' '}
-          <select
+          <Select
             data-testid="lane-shape-kind-select"
             value={shapeKind}
             onChange={(e) => setShapeKind(e.target.value as AutomationShapeKind)}
@@ -521,7 +522,7 @@ export default function AutomationLane({ lane, trackId, zoom, scrollX, height }:
             {AUTOMATION_SHAPES.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
             ))}
-          </select>
+          </Select>
         </label>
         <label title="Number of periods across the target range (ignored by Ramp Up/Down; used as the number of hold-steps for Random).">
           Cycles:{' '}

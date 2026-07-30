@@ -28,16 +28,14 @@
   color: var(--cx-text-1);
 }
 
-/* Select dropdowns */
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin (COMPONENT-SPEC §3) in place of the former custom
+ * background/border/padding, which duplicated it almost exactly. The
+ * wrapper just needs to fill the row (Select's own .cx-select is
+ * inline-flex, not full-width, by default). */
 .export-dialog__select {
-  background: var(--cx-bg-raised);
-  border: 1px solid var(--cx-line-2);
-  color: var(--cx-text-1);
-  border-radius: 4px;
-  padding: 6px 8px;
-  width: 100%;
-  font-family: inherit;
-  font-size: 13px;
+  display: flex;
+  flex: 1;
 }
 
 /* F3-C2: wraps common/Slider (showHeader=false) instead of a raw

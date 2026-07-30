@@ -18,6 +18,7 @@ import { clampFinite } from '../../../shared/numeric'
 import type { BlendMode } from '../../../shared/types'
 import { instrumentLearnContextMenu } from './instrumentLearn'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 
 const BLEND_MODES: BlendMode[] = [
   'normal', 'add', 'multiply', 'screen', 'overlay',
@@ -38,7 +39,7 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
     <div className="sampler-device" data-testid="sampler-device">
       <label className="sampler-device__row">
         <span>Source</span>
-        <select
+        <Select
           data-testid="sampler-source"
           value={inst.clipId}
           onChange={(e) => setSource(trackId, e.target.value)}
@@ -47,7 +48,7 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
           {videoAssets.map((a) => (
             <option key={a.id} value={a.id}>{a.path.split('/').pop() ?? a.id}</option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <label className="sampler-device__row">
@@ -102,7 +103,7 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
 
       <label className="sampler-device__row">
         <span>Blend</span>
-        <select
+        <Select
           data-testid="sampler-blend"
           value={inst.blendMode}
           onChange={(e) => updateSampler(trackId, { blendMode: e.target.value as BlendMode })}
@@ -110,7 +111,7 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
           {BLEND_MODES.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
-        </select>
+        </Select>
       </label>
     </div>
   )

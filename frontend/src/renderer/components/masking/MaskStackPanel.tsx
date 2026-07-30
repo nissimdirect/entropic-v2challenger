@@ -18,6 +18,7 @@
 import React, { useCallback, useId } from 'react'
 import Icon from '../../assets/icon-kit'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 import type { MatteNode, MatteOp } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
@@ -173,7 +174,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
       {/* Boolean op selector */}
       <div className="mask-stack-panel__param-row">
         <span className="mask-stack-panel__label">op</span>
-        <select
+        <Select
           className="mask-stack-panel__op-select"
           data-testid={`mask-node-op-${node.id}`}
           value={node.op}
@@ -182,7 +183,7 @@ function NodeCard({ clipId, node, index, totalCount }: NodeCardProps): React.Rea
           <option value="add">add</option>
           <option value="subtract">subtract</option>
           <option value="intersect">intersect</option>
-        </select>
+        </Select>
       </div>
 
       {/* Invert toggle */}

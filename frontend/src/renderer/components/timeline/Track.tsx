@@ -10,6 +10,7 @@ import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
 import ContextMenu from './ContextMenu'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 import type { MenuItem } from './ContextMenu'
 import { useProjectStore } from '../../stores/project'
 import { useAutomationStore } from '../../stores/automation'
@@ -660,7 +661,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                   {Math.round(compositing.opacity * 100)}%
                 </span>
               </div>
-              <select
+              <Select
                 className="track-header__blend"
                 value={compositing.mode}
                 onChange={handleBlendModeChange}
@@ -670,7 +671,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                 {BLEND_MODES.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
                 ))}
-              </select>
+              </Select>
             </>
           ) : (
             // P2.2b: no terminal composite yet — offer the creation path instead of

@@ -6,6 +6,7 @@ import { useCallback, useState, useRef, useEffect } from 'react'
 import type { TextClipConfig, TextAnimation } from '../../../shared/types'
 import { useFonts } from '../../hooks/useFonts'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 
 const ANIMATIONS: { value: TextAnimation; label: string }[] = [
   { value: 'none', label: 'None' },
@@ -85,7 +86,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
       {/* Font family */}
       <div className="text-panel__section">
         <label className="text-panel__label">Font</label>
-        <select
+        <Select
           className="text-panel__select"
           value={config.fontFamily}
           onChange={(e) => onUpdate({ fontFamily: e.target.value })}
@@ -95,7 +96,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
               {f.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Font size + Color row */}
@@ -214,7 +215,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
       {/* Animation */}
       <div className="text-panel__section">
         <label className="text-panel__label">Animation</label>
-        <select
+        <Select
           className="text-panel__select"
           value={config.animation}
           onChange={(e) => onUpdate({ animation: e.target.value as TextAnimation })}
@@ -224,7 +225,7 @@ export default function TextPanel({ config, onUpdate }: TextPanelProps) {
               {a.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {/* Animation duration */}

@@ -1,5 +1,6 @@
 import Icon from '../../assets/icon-kit'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 import { useOperatorStore } from '../../stores/operators'
 import type { Operator, FusionBlendMode } from '../../../shared/types'
 
@@ -61,7 +62,7 @@ export default function FusionEditor({ operator, availableOperators }: FusionEdi
     <div className="operator-editor operator-editor--fusion">
       <label className="operator-editor__label">
         Blend
-        <select
+        <Select
           className="operator-editor__select"
           value={blendMode}
           onChange={(e) =>
@@ -75,7 +76,7 @@ export default function FusionEditor({ operator, availableOperators }: FusionEdi
               {m.label}
             </option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <div className="operator-editor__sources">
@@ -111,7 +112,7 @@ export default function FusionEditor({ operator, availableOperators }: FusionEdi
       </div>
 
       {available.length > 0 && (
-        <select
+        <Select
           className="operator-editor__select"
           value=""
           onChange={(e) => {
@@ -124,7 +125,7 @@ export default function FusionEditor({ operator, availableOperators }: FusionEdi
               {o.label}
             </option>
           ))}
-        </select>
+        </Select>
       )}
 
       {sources.length === 0 && (

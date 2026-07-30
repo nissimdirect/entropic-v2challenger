@@ -716,28 +716,32 @@ body.clip-dragging .timeline__new-track-zone {
 
 /* --- Track Blend Mode Dropdown --- */
 
-/* PUX.5 — Track blend dropdown: height 20→24 for ≥24px effective hit target. */
+/* PUX.5 — Track blend dropdown: height 20→24 for ≥24px effective hit target.
+ * F3-C3: wraps common/Select instead of a raw native <select> — keeps this
+ * compact, borderless mini-dropdown look (overrides the shared cx-select
+ * skin's default border/height/padding). */
 .track-header__blend {
-  height: 24px;
   max-width: 48px;
+  margin-left: 2px;
+}
+
+.track-header__blend .cx-select__control {
+  height: 24px;
   background: var(--cx-bg-raised);
   border: none;
   border-radius: 2px;
   color: var(--cx-text-2);
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
-  cursor: pointer;
   padding: 0 2px;
-  margin-left: 2px;
-  outline: none;
 }
 
-.track-header__blend:hover {
+.track-header__blend .cx-select__control:hover {
   background: var(--cx-bg-hover);
   color: var(--cx-text-1);
 }
 
-.track-header__blend:focus-visible {
+.track-header__blend .cx-select__control:focus-visible {
   outline: 2px solid var(--cx-focus-ring);
   outline-offset: 1px;
   color: var(--cx-text-1);

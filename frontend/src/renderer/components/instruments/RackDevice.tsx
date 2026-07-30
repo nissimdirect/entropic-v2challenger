@@ -33,6 +33,7 @@ import { useMIDIStore } from '../../stores/midi'
 import { useLayoutStore } from '../../stores/layout'
 import { useAudioStore } from '../../stores/audio'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 import { clampFinite } from '../../../shared/numeric'
 import { quantizeFrame } from '../../utils/launch-quantize'
 import {
@@ -446,7 +447,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
             <>
               <label className="sampler-device__row">
                 <span>Source</span>
-                <select
+                <Select
                   data-testid="rack-pad-source"
                   value={selectedPad.instrument.clipId}
                   onChange={(e) => setRackPadSourceAt(trackId, editPath, selectedPad.id, e.target.value)}
@@ -455,7 +456,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
                   {videoAssets.map((a) => (
                     <option key={a.id} value={a.id}>{a.path.split('/').pop() ?? a.id}</option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <label className="sampler-device__row">
@@ -482,7 +483,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
 
               <label className="sampler-device__row">
                 <span>Blend</span>
-                <select
+                <Select
                   data-testid="rack-pad-blend"
                   value={selectedPad.blend}
                   onChange={(e) =>
@@ -492,7 +493,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
                   {BLEND_MODES.map((m) => (
                     <option key={m} value={m}>{m}</option>
                   ))}
-                </select>
+                </Select>
               </label>
 
               <label className="sampler-device__row">
@@ -517,7 +518,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
 
               <label className="sampler-device__row">
                 <span>Choke</span>
-                <select
+                <Select
                   data-testid="rack-pad-choke"
                   value={selectedPad.chokeGroup ?? ''}
                   onChange={(e) => {
@@ -532,7 +533,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
                   ).map((g) => (
                     <option key={g} value={g}>{g}</option>
                   ))}
-                </select>
+                </Select>
               </label>
             </>
           )}
@@ -654,7 +655,7 @@ function MacroRow({
       </button>
 
       <div className="sampler-device__row">
-        <select
+        <Select
           data-testid="rack-route-pad"
           value={routePadId}
           onChange={(e) => setRoutePadId(e.target.value)}
@@ -662,8 +663,8 @@ function MacroRow({
           {pads.map((p, i) => (
             <option key={p.id} value={p.id}>Pad {i + 1}</option>
           ))}
-        </select>
-        <select
+        </Select>
+        <Select
           data-testid="rack-route-param"
           value={routeParam}
           onChange={(e) => setRouteParam(e.target.value as MacroParam)}
@@ -671,7 +672,7 @@ function MacroRow({
           {MACRO_PARAMS.map((p) => (
             <option key={p} value={p}>{p}</option>
           ))}
-        </select>
+        </Select>
         <input
           type="number"
           data-testid="rack-route-depth"

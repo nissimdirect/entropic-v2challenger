@@ -6,6 +6,7 @@ import { midiNoteToName } from '../../../shared/midi-utils';
 import { useStableListener } from '../../hooks/useStableListener';
 import Icon, { CloseButton } from '../../assets/icon-kit';
 import Slider from '../common/Slider';
+import Select from '../common/Select';
 import type { EffectInstance, EffectInfo, ModulationRoute, PadMode } from '../../../shared/types';
 
 interface PadEditorProps {
@@ -157,7 +158,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
           {/* Choke Group */}
           <div className="export-dialog__field">
             <label style={{ color: '#aaa', fontSize: 12, minWidth: 70 }}>Choke:</label>
-            <select
+            <Select
               className="param-choice__select"
               value={pad.chokeGroup ?? ''}
               onChange={(e) => setChokeGroup(padId, e.target.value ? Number(e.target.value) : null)}
@@ -166,14 +167,14 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <option key={n} value={n}>Group {n}</option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* ADSR */}
           <div style={{ borderTop: '1px solid #333', paddingTop: 8, marginTop: 4 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <span style={{ fontSize: 11, color: '#888', fontWeight: 600, textTransform: 'uppercase' }}>ADSR</span>
-              <select
+              <Select
                 className="param-choice__select"
                 style={{ fontSize: 10, padding: '2px 4px' }}
                 value=""
@@ -186,7 +187,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                 {PRESET_NAMES.map((name) => (
                   <option key={name} value={name}>{name}</option>
                 ))}
-              </select>
+              </Select>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
               {(['attack', 'decay', 'sustain', 'release'] as const).map((param) => (
@@ -245,7 +246,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                     marginBottom: 2,
                   }}
                 >
-                  <select
+                  <Select
                     className="param-choice__select"
                     style={{ flex: 1, fontSize: 10 }}
                     value={mapping.effectId ?? ''}
@@ -264,8 +265,8 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                         </option>
                       );
                     })}
-                  </select>
-                  <select
+                  </Select>
+                  <Select
                     className="param-choice__select"
                     style={{ flex: 1, fontSize: 10 }}
                     value={mapping.paramKey ?? ''}
@@ -281,7 +282,7 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                       .map(([key, def]) => (
                         <option key={key} value={key}>{def.label}</option>
                       ))}
-                  </select>
+                  </Select>
                   <div style={{ width: 50 }}>
                     <Slider
                       value={mapping.depth}

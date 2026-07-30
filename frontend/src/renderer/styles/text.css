@@ -51,21 +51,14 @@
   border-color: var(--cx-action);
 }
 
+/* F3-C3: wraps common/Select instead of a raw native <select> — adopts the
+ * shared cx-select skin (COMPONENT-SPEC §3) in place of the former custom
+ * background/border/padding, which duplicated it almost exactly. The
+ * wrapper just needs to fill the row (Select's own .cx-select is
+ * inline-flex, not full-width, by default). */
 .text-panel__select {
+  display: flex;
   width: 100%;
-  padding: 5px 8px;
-  background: var(--cx-bg-panel);
-  border: 1px solid var(--cx-line-2);
-  border-radius: 4px;
-  color: var(--cx-text-1);
-  font-family: inherit;
-  font-size: 11px;
-  outline: none;
-  cursor: pointer;
-}
-
-.text-panel__select:focus {
-  border-color: var(--cx-action);
 }
 
 .text-panel__row {

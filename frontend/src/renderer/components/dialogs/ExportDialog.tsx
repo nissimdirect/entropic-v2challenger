@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useModalBehavior } from '../../hooks/useModalBehavior'
 import Slider from '../common/Slider'
+import Select from '../common/Select'
 
 export interface ExportSettings {
   outputPath: string
@@ -182,7 +183,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Region</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={region}
           onChange={(e) => setRegion(e.target.value)}
@@ -192,7 +193,7 @@ export default function ExportDialog({
             Loop Region{hasLoop ? ` (${loopIn}–${loopOut})` : ' (no loop set)'}
           </option>
           <option value="custom">Custom Range</option>
-        </select>
+        </Select>
       </div>
       {region === 'custom' && (
         <div className="export-dialog__field export-dialog__field--resolution">
@@ -223,7 +224,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Codec</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={codec}
           onChange={(e) => setCodec(e.target.value)}
@@ -231,12 +232,12 @@ export default function ExportDialog({
           {CODECS.map((c) => (
             <option key={c.value} value={c.value}>{c.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
         <label>Resolution</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={resolution}
           onChange={(e) => setResolution(e.target.value)}
@@ -246,7 +247,7 @@ export default function ExportDialog({
               {r.value === 'source' ? `Source (${sourceWidth}x${sourceHeight})` : r.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
       {resolution === 'custom' && (
         <div className="export-dialog__field export-dialog__field--resolution">
@@ -272,7 +273,7 @@ export default function ExportDialog({
 
       <div className="export-dialog__field">
         <label>Frame Rate</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={fps}
           onChange={(e) => setFps(e.target.value)}
@@ -282,12 +283,12 @@ export default function ExportDialog({
               {f.value === 'source' ? `Source (${sourceFps} fps)` : f.label}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
         <label>Quality Preset</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={qualityPreset}
           onChange={(e) => setQualityPreset(e.target.value)}
@@ -295,7 +296,7 @@ export default function ExportDialog({
           {QUALITY_PRESETS.map((q) => (
             <option key={q.value} value={q.value}>{q.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
@@ -369,7 +370,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Max Resolution</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={gifMaxWidth}
           onChange={(e) => setGifMaxWidth(parseInt(e.target.value, 10))}
@@ -377,7 +378,7 @@ export default function ExportDialog({
           {GIF_WIDTHS.map((g) => (
             <option key={g.value} value={g.value}>{g.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="export-dialog__field">
@@ -399,7 +400,7 @@ export default function ExportDialog({
     <>
       <div className="export-dialog__field">
         <label>Format</label>
-        <select
+        <Select
           className="export-dialog__select"
           value={imageFormat}
           onChange={(e) => setImageFormat(e.target.value)}
@@ -407,7 +408,7 @@ export default function ExportDialog({
           {IMAGE_FORMATS.map((f) => (
             <option key={f.value} value={f.value}>{f.label}</option>
           ))}
-        </select>
+        </Select>
       </div>
 
       {imageFormat === 'jpeg' && (

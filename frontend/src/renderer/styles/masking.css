@@ -209,22 +209,25 @@
   flex-shrink: 0;
 }
 
-/* Boolean op select */
+/* Boolean op select. F3-C3: wraps common/Select instead of a raw native
+ * <select> — keeps this ACID-accented look (overrides the shared cx-select
+ * skin's default bg/border/focus-ring color). */
 
 .mask-stack-panel__op-select {
   flex: 1;
+}
+
+.mask-stack-panel__op-select .cx-select__control {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
-  color: var(--cx-text-1);
   background: var(--cx-surface-3);
-  border: 1px solid var(--cx-line-1);
+  border-color: var(--cx-line-1);
   border-radius: 2px;
   padding: 2px 4px;
-  cursor: pointer;
   height: var(--cx-device-param-h);
 }
 
-.mask-stack-panel__op-select:focus {
+.mask-stack-panel__op-select .cx-select__control:focus-visible {
   outline: 2px solid var(--cx-acid);
   outline-offset: 1px;
 }
