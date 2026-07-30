@@ -33,9 +33,12 @@
     "electron": "^40.0.0",
     "electron-playwright-helpers": "^2.1.0",
     "electron-vite": "^5.0.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-jsx-a11y": "^6.10.2",
     "happy-dom": "^20.7.0",
     "node-addon-api": "^8.5.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.65.0",
     "vitest": "^3.0.0"
   }
 }
