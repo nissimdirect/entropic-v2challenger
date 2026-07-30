@@ -177,7 +177,7 @@ describe('Interactions — Effect Browser Categories', () => {
 // =============================================================================
 
 describe('Interactions — Preview Canvas', () => {
-  it('shows "No video loaded" in empty state', () => {
+  it('shows the import hint in empty state', () => {
     render(
       <PreviewCanvas
         frameDataUrl={null}
@@ -190,7 +190,7 @@ describe('Interactions — Preview Canvas', () => {
 
     const placeholder = document.querySelector('.preview-canvas__placeholder')
     expect(placeholder).toBeTruthy()
-    expect(placeholder!.textContent).toBe('No video loaded')
+    expect(placeholder!.textContent).toBe('Drag a clip here, or ⌘I to import.')
   })
 
   it('shows loading spinner in loading state', () => {
@@ -324,7 +324,7 @@ describe('Interactions — Empty State Constraints', () => {
         renderError={null}
       />,
     )
-    expect(document.querySelector('.preview-canvas__placeholder')!.textContent).toBe('No video loaded')
+    expect(document.querySelector('.preview-canvas__placeholder')!.textContent).toBe('Drag a clip here, or ⌘I to import.')
     u2()
 
     // 4. Scrub disabled — REMOVED (scrub slider no longer in PreviewControls;

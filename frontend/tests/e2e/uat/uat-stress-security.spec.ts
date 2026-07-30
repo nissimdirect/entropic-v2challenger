@@ -159,7 +159,7 @@ test.describe('UAT Section 19: Edge Cases', () => {
     // Initial state — no video
     await expect(window.locator('.preview-canvas__placeholder')).toBeVisible()
     const text = await window.locator('.preview-canvas__placeholder').textContent()
-    expect(text).toContain('No video loaded')
+    expect(text).toContain('Drag a clip here')
   })
 })
 

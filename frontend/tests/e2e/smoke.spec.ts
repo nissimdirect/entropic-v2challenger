@@ -34,9 +34,9 @@ test.describe('Smoke Test', () => {
     // 5. Initial UI state: upload container visible (post-UX-redesign — old .drop-zone replaced by .app__upload)
     await expect(window.locator('.app__upload')).toBeVisible()
 
-    // 6. No video loaded — placeholder shown
+    // 6. Empty state — PK.D minimal import hint shown
     await expect(window.locator('.preview-canvas__placeholder')).toBeVisible()
-    await expect(window.locator('.preview-canvas__placeholder')).toHaveText('No video loaded')
+    await expect(window.locator('.preview-canvas__placeholder')).toHaveText('Drag a clip here, or ⌘I to import.')
 
     // 7. Hermetic-launch contract (frontend-framework F0.2) — folded into
     // this test to keep the PR gate at ONE Electron launch. The fixture's

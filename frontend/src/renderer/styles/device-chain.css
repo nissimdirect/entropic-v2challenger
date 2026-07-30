@@ -2,13 +2,18 @@
 
 .device-chain {
   background: var(--cx-bg-panel);
-  border-top: 1px solid var(--cx-selection);
   display: flex;
   flex-direction: column;
   min-height: 100px;
   max-height: 600px;
   overflow: hidden;
   position: relative;
+}
+
+/* PK.D (design-spec §4): the ACID top border signals a POPULATED chain —
+   it was firing unconditionally, styling emptiness as if it were content. */
+.device-chain--populated {
+  border-top: 1px solid var(--cx-selection);
 }
 
 .device-chain__resize-handle {

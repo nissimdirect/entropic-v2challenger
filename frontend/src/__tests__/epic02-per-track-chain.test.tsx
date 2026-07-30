@@ -253,7 +253,7 @@ describe('DeviceChain display follows active track (D2)', () => {
     useTimelineStore.setState({ selectedTrackId: null })
 
     const { getByText, unmount } = render(<DeviceChain />)
-    expect(getByText(/Add effects from the browser/i)).toBeTruthy()
+    expect(getByText(/No effects yet/i)).toBeTruthy()
     unmount()
   })
 })
