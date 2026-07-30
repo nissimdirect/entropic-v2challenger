@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import type { OperatorType, EffectInfo } from '../../../shared/types'
 import LFOEditor from './LFOEditor'
@@ -304,7 +305,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
             onClick={() => setShowResearchRules((v) => !v)}
             data-testid="operator-rack-research-toggle"
           >
-            ⚗ Research
+            <Icon name="flask-conical" size={12} /> Research
           </button>
         </div>
         {showTopology && (

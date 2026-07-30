@@ -1,4 +1,5 @@
 import { useCallback, useState, useRef, useEffect } from 'react'
+import Icon from '../../assets/icon-kit'
 import type { Track as TrackType, BlendMode, TriggerMode } from '../../../shared/types'
 import { getTrackCompositing, getTerminalComposite, makeCompositeEffect, COMPOSITE_EFFECT_ID } from '../../../shared/types'
 import { randomUUID } from '../../utils'
@@ -377,7 +378,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               title={track.isMuted ? 'Layer hidden (muted)' : 'Layer visible'}
               onClick={handleMute}
             >
-              {track.isMuted ? '–' : '\u{1F441}'}
+              <Icon name={track.isMuted ? 'eye-off' : 'eye'} size={14} />
             </button>
             <span className="track-header__cc" style={{ background: track.color }} />
             <div className="track-header__info track-header__info--lean" onDoubleClick={isRenaming ? undefined : startRename}>
@@ -447,7 +448,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                 aria-label={track.locked === true ? 'Unlock track' : 'Lock track'}
                 aria-pressed={track.locked === true}
               >
-                {track.locked === true ? '\u{1F512}' : '\u{1F513}'}
+                <Icon name={track.locked === true ? 'lock' : 'unlock'} size={13} />
               </button>
             </div>
           </div>
@@ -631,7 +632,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               aria-label={track.locked === true ? 'Unlock track' : 'Lock track'}
               aria-pressed={track.locked === true}
             >
-              {track.locked === true ? '\u{1F512}' : '\u{1F513}'}
+              <Icon name={track.locked === true ? 'lock' : 'unlock'} size={13} />
             </button>
           </div>
         </div>

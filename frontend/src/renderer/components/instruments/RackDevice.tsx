@@ -23,6 +23,7 @@
  * no crash) — mirrors the selectedRackPad stale-guard discipline (B4-pad-chain).
  */
 import { useState, useEffect, useRef } from 'react'
+import Icon from '../../assets/icon-kit'
 import { useInstrumentsStore, resolveRackNode } from '../../stores/instruments'
 import { useProjectStore } from '../../stores/project'
 import { usePerformanceStore } from '../../stores/performance'
@@ -300,7 +301,8 @@ export default function RackDevice({ trackId }: { trackId: string }) {
             else if (freezeFsm === 'idle') void freezePerformanceTrack(trackId)
           }}
         >
-          {freezeFsm === 'frozen' ? '❄ Unfreeze' : freezeFsm === 'freezing' ? '… Freezing' : '❄ Freeze'}
+          <Icon name="snowflake" size={12} filled={freezeFsm === 'frozen'} />
+          {freezeFsm === 'frozen' ? ' Unfreeze' : freezeFsm === 'freezing' ? ' Freezing…' : ' Freeze'}
         </button>
         {/* B10.2 — launch-quantize toggle: snaps pad triggers to the next
             division of the edit/slice grid. OFF by default. Uses the same
@@ -328,7 +330,7 @@ export default function RackDevice({ trackId }: { trackId: string }) {
           title="Retro-capture — dump recent triggers onto this Performance Track"
           onClick={() => captureRetroBuffer(trackId)}
         >
-          ⏺ Capture
+          <Icon name="circle" size={10} filled /> Capture
         </button>
       </div>
 

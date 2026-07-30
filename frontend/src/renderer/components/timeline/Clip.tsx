@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Icon, { MaskCountBadge } from '../../assets/icon-kit'
 import type { Clip as ClipType } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useUndoStore } from '../../stores/undo'
@@ -743,13 +744,12 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
             Renders only when at least one matte node is present (maskStack?.length > 0).
             CSS in masking BEM namespace (no global.css grid edits). */}
         {(clip.maskStack?.length ?? 0) > 0 && (
-          <span
+          <MaskCountBadge
             className="masking__clip-badge"
-            data-testid="clip-mask-badge"
+            testId="clip-mask-badge"
             title={`${clip.maskStack!.length} matte node${clip.maskStack!.length !== 1 ? 's' : ''}`}
-          >
-            M{clip.maskStack!.length}
-          </span>
+            count={clip.maskStack!.length}
+          />
         )}
         {/* T3: padlock affordance — shown when the clip is locked (own flag) or its
             track is locked. Aria-hidden decorative glyph; the actionable toggle is
@@ -761,7 +761,7 @@ export default function ClipComponent({ clip, zoom, scrollX, isSelected, trackLo
             aria-hidden="true"
             title={clip.locked === true ? 'Clip locked' : 'Track locked'}
           >
-            {'\u{1F512}'}
+            <Icon name="lock" size={11} />
           </span>
         )}
         <div

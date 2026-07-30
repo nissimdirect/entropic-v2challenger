@@ -351,9 +351,19 @@ export function CloseButton({
  * button rendered on the same clip row). Two overlapping rounded squares
  * read as "stacked matte nodes."
  */
-export function MaskCountBadge({ count, className, testId }: { count: number; className?: string; testId?: string }) {
+export function MaskCountBadge({
+  count,
+  className,
+  testId,
+  title,
+}: {
+  count: number
+  className?: string
+  testId?: string
+  title?: string
+}) {
   return (
-    <span className={className ? `icon-kit__mask-badge ${className}` : 'icon-kit__mask-badge'} data-testid={testId}>
+    <span className={className ? `icon-kit__mask-badge ${className}` : 'icon-kit__mask-badge'} data-testid={testId} title={title}>
       <svg
         viewBox="0 0 24 24"
         width={12}
