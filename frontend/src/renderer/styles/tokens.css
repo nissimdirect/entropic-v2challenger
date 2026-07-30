@@ -94,13 +94,32 @@
   --cx-cat-enhance: #C9C9D2;
   --cx-cat-destruction: #C77DC0;
 
-  /* --- Typography (DESIGN-SPEC §3) --- */
-  /* TODO(plex-swap): replace stacks with IBM Plex Sans / IBM Plex Mono when font assets are bundled */
-  --cx-font-ui: 'JetBrains Mono', 'Courier New', monospace;  /* TODO(plex-swap): → 'IBM Plex Sans', sans-serif */
-  --cx-font-mono: 'JetBrains Mono', 'Courier New', monospace; /* TODO(plex-swap): → 'IBM Plex Mono', monospace */
-  --cx-text-body: 12.5px;          /* weight 450 (approximated as 400 until Plex variable) */
-  --cx-text-label: 12px;           /* weight 550 (approximated as 500) */
-  --cx-text-data: 11px;            /* mono, tabular-nums; floor — nothing smaller */
+  /* --- Typography — SCALE B+1, RATIFIED D6 2026-07-29 (docs/frontend/RATIFIED-FOUNDATIONS.md)
+       Mono-only identity is LAW (RATIFIED D5) — the old Plex two-voice plan is dead;
+       hierarchy comes from size/weight/color tiers of JetBrains Mono, never a soft UI font.
+       Floor: 12px, enforced by scripts/ui-ratchets.sh css_font_below_floor. --- */
+  --cx-font-ui: 'JetBrains Mono', 'Courier New', monospace;
+  --cx-font-mono: 'JetBrains Mono', 'Courier New', monospace;
+  --cx-text-heading: 16px;         /* panel/section titles (DEVICE CHAIN, empty-state primary) */
+  --cx-text-body: 14px;            /* hint/help text, panel copy */
+  --cx-text-label: 13px;           /* control/tab/group labels */
+  --cx-text-data: 12px;            /* mono, tabular-nums; THE floor — nothing smaller */
+  --cx-weight-heading: 650;
+  --cx-weight-body: 450;
+  --cx-weight-label: 600;          /* real separation from body (Schoger hierarchy) */
+  --cx-weight-data: 450;
+
+  /* --- Spacing rhythm (design-spec §3, PK.A) --- */
+  --cx-space-2: 2px;
+  --cx-space-4: 4px;
+  --cx-space-6: 6px;
+  --cx-space-8: 8px;
+  --cx-space-12: 12px;
+  --cx-space-16: 16px;
+  --cx-space-24: 24px;
+
+  /* --- Control height (OD-7, PK.A) — uniform transport control height --- */
+  --cx-control-h: 22px;
 
   /* --- Motion (DESIGN-SPEC §5) --- */
   --cx-ease: cubic-bezier(0.2, 0, 0, 1);

@@ -58,7 +58,7 @@ body {
   background: transparent;
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-1);
-  font-size: 12px;
+  font-size: var(--cx-text-label);
   padding: 2px 8px;
   border-radius: 3px;
   cursor: pointer;
@@ -77,7 +77,7 @@ body {
 
 .app__transport-timecode {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
+  font-size: var(--cx-text-data);
   color: var(--cx-text-2);
 }
 
@@ -85,7 +85,7 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--cx-text-data);
   color: var(--cx-text-2);
 }
 
@@ -94,7 +94,7 @@ body {
   background: var(--cx-bg-raised);
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-1);
-  font-size: 11px;
+  font-size: var(--cx-text-data);
   padding: 1px 4px;
   border-radius: 2px;
   font-family: 'JetBrains Mono', monospace;
@@ -110,7 +110,7 @@ body {
   background: var(--cx-bg-raised);
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-1);
-  font-size: 11px;
+  font-size: var(--cx-text-label);
   padding: 1px 4px;
   border-radius: 2px;
   font-family: 'JetBrains Mono', monospace;
@@ -600,8 +600,8 @@ body {
   border-radius: var(--cx-radius-control);
   color: var(--cx-text-3);
   font-family: inherit;
-  font-size: 11px;
-  font-weight: 500;
+  font-size: var(--cx-text-label);
+  font-weight: var(--cx-weight-label);
   line-height: 1.4;
   white-space: nowrap;
   cursor: pointer;
@@ -1140,7 +1140,7 @@ body {
 
 .preview-canvas__placeholder {
   position: absolute;
-  font-size: 14px;
+  font-size: var(--cx-text-body);
   color: var(--cx-text-3);
 }
 
