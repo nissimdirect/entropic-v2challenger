@@ -17,9 +17,12 @@ import { dirname, resolve } from 'node:path'
  * if anyone reverts the grid shell to a single `.app--creatrix` class.
  */
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const cssPath = resolve(__dirname, '../../renderer/styles/creatrix-layout.css')
+// F4a: creatrix-layout.css + b3-layout.css unified into creatrix-shell.css
+// (the F_CREATRIX_LAYOUT legacy branches in App.tsx were retired — this is
+// the only layout now, so the two flag-scoped stylesheets merged into one).
+const cssPath = resolve(__dirname, '../../renderer/styles/creatrix-shell.css')
 
-describe('creatrix-layout.css grid-shell specificity', () => {
+describe('creatrix-shell.css grid-shell specificity', () => {
   const css = readFileSync(cssPath, 'utf8')
 
   it('defines the grid shell with the compound .app.app--creatrix selector', () => {
