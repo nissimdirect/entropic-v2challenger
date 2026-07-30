@@ -2,7 +2,7 @@
 # ui-ratchets.sh — frontend-framework F0 gate #1: the debt-counter family
 #
 # Sibling of hex-ratchet.sh (which owns styles/*.css hex and stays untouched).
-# Counts SIX violation families that hex-ratchet's glob cannot see, and fails
+# Counts SEVEN violation families that hex-ratchet's glob cannot see, and fails
 # (exit 1) if any count exceeds its ceiling in frontend/.ui-ratchet-ceilings.
 #
 # Families (regex documented per counter below):
@@ -17,6 +17,9 @@
 #                           D6 "Scale B+1", user-ratified 2026-07-29)
 #   tsx_raw_range           <input type="range"> uses (adopt common/Slider)
 #   tsx_native_select       <select> opens (adopt the Select primitive)
+#   css_raw_rgba            raw rgba( in ANY renderer .css EXCLUDING
+#                           styles/tokens.css (primitive rgba values live in
+#                           tokens.css only — use the --cx-*-alpha families)
 #
 # Rules (same governance as hex-ratchet.sh, DESIGN-SPEC §7):
 #   (a) Ceilings = measured counts on main at gate introduction.
@@ -74,6 +77,12 @@ count_tsx_native_select() {
   # '<select' does not match '</select>' (the slash breaks the literal).
   { grep -roh '<select' "$SRC_DIR" --include='*.tsx' || true; } | wc -l
 }
+count_css_raw_rgba() {
+  # tokens.css is the ONLY legal home for primitive rgba values (the
+  # --cx-*-alpha families) — everything else counts as debt.
+  { find "$SRC_DIR" -name '*.css' -not -path "$SRC_DIR/styles/tokens.css" -print0 \
+    | xargs -0 grep -oh 'rgba(' 2>/dev/null || true; } | wc -l
+}
 
 FAILED=0
 
@@ -102,6 +111,7 @@ check tsx_inline_style
 check css_font_below_floor
 check tsx_raw_range
 check tsx_native_select
+check css_raw_rgba
 
 if [[ "$FAILED" -eq 1 ]]; then
   echo "FAIL: a debt counter exceeded its ceiling. Use tokens/primitives instead," >&2

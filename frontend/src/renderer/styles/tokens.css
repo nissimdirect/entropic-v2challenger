@@ -94,6 +94,73 @@
   --cx-cat-enhance: #C9C9D2;
   --cx-cat-destruction: #C77DC0;
 
+  /* --- Alpha families (UC1) — every raw rgba() in renderer CSS maps here.
+       Primitive rgba values live in THIS file only; scripts/ui-ratchets.sh
+       `css_raw_rgba` ratchets raw rgba( usage outside tokens.css toward 0.
+       The F3 sweep migrates usages; snap map for off-palette legacies:
+         rgba(0,0,0,.35)        → --cx-overlay-35 (exact)
+         rgba(74,222,128,.04/.05/.06) → --cx-green-alpha-05
+         rgba(74,222,128,.22)   → --cx-green-alpha-20
+         rgba(239,68,68,α)      → --cx-red-alpha-* (canonical #E5484D base;
+                                   ΔE invisible at these alphas)
+         rgba(155,123,181,.5)   → --cx-mod-alpha-50 (canonical MOD base)
+       --- */
+
+  /* Black overlays — dialog/menu scrims, shadows, text-shadow plates */
+  --cx-overlay-20: rgba(0, 0, 0, 0.2);
+  --cx-overlay-35: rgba(0, 0, 0, 0.35);
+  --cx-overlay-40: rgba(0, 0, 0, 0.4);
+  --cx-overlay-50: rgba(0, 0, 0, 0.5);
+  --cx-overlay-60: rgba(0, 0, 0, 0.6);
+  --cx-overlay-70: rgba(0, 0, 0, 0.7);
+  --cx-overlay-80: rgba(0, 0, 0, 0.8);
+
+  /* Surface-0 scrims — #0B0B10 at alpha (modal beds, canvas veils) */
+  --cx-scrim-50: rgba(11, 11, 16, 0.5);
+  --cx-scrim-62: rgba(11, 11, 16, 0.62);
+  --cx-scrim-66: rgba(11, 11, 16, 0.66);
+
+  /* White at alpha — light borders/fills on dark surfaces */
+  --cx-white-alpha-20: rgba(255, 255, 255, 0.2);
+  --cx-white-alpha-30: rgba(255, 255, 255, 0.3);
+  --cx-white-alpha-40: rgba(255, 255, 255, 0.4);
+  --cx-white-alpha-70: rgba(255, 255, 255, 0.7);
+
+  /* Green at alpha — base #4ade80 (= --cx-automation-active); legacy accent
+     used by timeline clips, meters, drop targets. */
+  --cx-green-alpha-05: rgba(74, 222, 128, 0.05);
+  --cx-green-alpha-08: rgba(74, 222, 128, 0.08);
+  --cx-green-alpha-10: rgba(74, 222, 128, 0.1);
+  --cx-green-alpha-15: rgba(74, 222, 128, 0.15);
+  --cx-green-alpha-20: rgba(74, 222, 128, 0.2);
+  --cx-green-alpha-30: rgba(74, 222, 128, 0.3);
+  --cx-green-alpha-40: rgba(74, 222, 128, 0.4);
+  --cx-green-alpha-50: rgba(74, 222, 128, 0.5);
+  --cx-green-alpha-80: rgba(74, 222, 128, 0.8);
+
+  /* RED at alpha — canonical #E5484D base (12% is --cx-red-wash) */
+  --cx-red-alpha-15: rgba(229, 72, 77, 0.15);
+  --cx-red-alpha-30: rgba(229, 72, 77, 0.3);
+  --cx-red-alpha-50: rgba(229, 72, 77, 0.5);
+  --cx-red-alpha-60: rgba(229, 72, 77, 0.6);
+
+  /* AMBER at alpha — canonical #D9A23C base (12% is --cx-amber-wash) */
+  --cx-amber-alpha-20: rgba(217, 162, 60, 0.2);
+  --cx-amber-alpha-28: rgba(217, 162, 60, 0.28);
+
+  /* Blue at alpha — legacy #3B82F6 (loop region, snap guides, MIDI-learn
+     banner). No solid-blue primitive exists; F3 may converge these on MOD. */
+  --cx-blue-alpha-12: rgba(59, 130, 246, 0.12);
+  --cx-blue-alpha-35: rgba(59, 130, 246, 0.35);
+  --cx-blue-alpha-50: rgba(59, 130, 246, 0.5);
+  --cx-blue-alpha-90: rgba(59, 130, 246, 0.9);
+
+  /* MOD at alpha — canonical #8F7DFF base (resize-handle grab affordance) */
+  --cx-mod-alpha-50: rgba(143, 125, 255, 0.5);
+
+  /* FREEZE wash — ice-blue tint for frozen-track overlays */
+  --cx-freeze-wash: rgba(100, 180, 255, 0.15);
+
   /* --- Typography — SCALE B+1, RATIFIED D6 2026-07-29 (docs/frontend/RATIFIED-FOUNDATIONS.md)
        Mono-only identity is LAW (RATIFIED D5) — the old Plex two-voice plan is dead;
        hierarchy comes from size/weight/color tiers of JetBrains Mono, never a soft UI font.
