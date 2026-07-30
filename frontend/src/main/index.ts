@@ -15,6 +15,20 @@ import { buildMenu } from './menu'
 import { logger } from './logger'
 import { migrateRuntimeDir } from './migrate-runtime-dir'
 
+// --- E2E hermetic mode (frontend-framework F0.2) ---
+// Set only by tests/e2e/fixtures/electron-app.fixture.ts. Guarantees
+// reproducible launches: no persisted window geometry read in, none written
+// out (e2e runs were silently overwriting the real ~/.creatrix window
+// state), userData in a throwaway dir, and device scale pinned to 1 so
+// future screenshot baselines are machine-independent.
+const IS_E2E = process.env.CREATRIX_E2E === '1'
+if (IS_E2E) {
+  app.commandLine.appendSwitch('force-device-scale-factor', '1')
+  if (process.env.CREATRIX_E2E_USER_DATA) {
+    app.setPath('userData', process.env.CREATRIX_E2E_USER_DATA)
+  }
+}
+
 // PII stripping for Sentry events — matches Python's strip_pii pattern
 const _homeDir = homedir()
 let _username = ''
@@ -71,6 +85,8 @@ const DEFAULT_WIDTH = 1280
 const DEFAULT_HEIGHT = 800
 
 function loadWindowState(): WindowState | null {
+  // Hermetic e2e: never inherit the developer machine's saved geometry.
+  if (IS_E2E) return null
   try {
     if (!existsSync(WINDOW_STATE_PATH)) return null
     const raw = readFileSync(WINDOW_STATE_PATH, 'utf8')
@@ -94,6 +110,8 @@ function loadWindowState(): WindowState | null {
 }
 
 function saveWindowState(win: BrowserWindow): void {
+  // Hermetic e2e: never clobber the real user's window-state.json.
+  if (IS_E2E) return
   try {
     const isMaximized = win.isMaximized()
     // Save the non-maximized bounds so restore works correctly
@@ -145,6 +163,12 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     ...winOpts,
     ...(winOpts.x === undefined ? { center: true } : {}),
+    // Hermetic e2e must get EXACTLY 1280×800 even when the display is
+    // smaller (CI runners expose a 1024×768 virtual display, and macOS
+    // clamps window bounds to the work area at creation — observed on the
+    // first CI run of this fixture). Larger-than-screen is fine for tests:
+    // Playwright captures the content buffer, not the physical screen.
+    ...(IS_E2E ? { enableLargerThanScreen: true } : {}),
     title: 'Creatrix',
     backgroundColor: '#1a1a1a',
     webPreferences: {
@@ -158,6 +182,12 @@ function createWindow(): BrowserWindow {
   // Restore maximized state after creation
   if (saved?.isMaximized) {
     win.maximize()
+  }
+
+  // Hermetic e2e: enforce the exact default bounds post-creation —
+  // creation-time clamping to a small display would otherwise win.
+  if (IS_E2E) {
+    win.setBounds({ x: 0, y: 0, width: DEFAULT_WIDTH, height: DEFAULT_HEIGHT })
   }
 
   // Debounced window state save on resize/move

@@ -11,7 +11,7 @@ import { test, expect } from './fixtures/electron-app.fixture'
 import { waitForEngineConnected } from './fixtures/test-helpers'
 
 test.describe('Smoke Test', () => {
-  test('app launches and sidecar connects within 30s', async ({ window }) => {
+  test('app launches and sidecar connects within 30s', async ({ window, electronApp }) => {
     test.setTimeout(30_000)
 
     // 1. Window exists
@@ -37,5 +37,20 @@ test.describe('Smoke Test', () => {
     // 6. No video loaded — placeholder shown
     await expect(window.locator('.preview-canvas__placeholder')).toBeVisible()
     await expect(window.locator('.preview-canvas__placeholder')).toHaveText('No video loaded')
+
+    // 7. Hermetic-launch contract (frontend-framework F0.2) — folded into
+    // this test to keep the PR gate at ONE Electron launch. The fixture's
+    // CREATRIX_E2E=1 must yield default 1280×800 bounds (no inherited
+    // window-state.json) and device scale 1 (machine-independent pixels).
+    // Prerequisite for any future screenshot-baseline work.
+    const bounds = await electronApp.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0]
+      return win.getBounds()
+    })
+    expect(bounds.width).toBe(1280)
+    expect(bounds.height).toBe(800)
+    // (globalThis: the fixture's `window` Page variable shadows the DOM global here)
+    const dpr = await window.evaluate(() => (globalThis as unknown as { devicePixelRatio: number }).devicePixelRatio)
+    expect(dpr).toBe(1)
   })
 })
