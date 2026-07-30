@@ -21,18 +21,11 @@ const TESTS_DIR = path.resolve(__dirname, '.')
 
 // --- Guard A: shared primitives must have component-addressed tests ---
 
-// Frozen 2026-07-30: 5 of the 7 existing primitives lack a name-matched
-// test (Knob and Toast have real ones — components/common/knob.test.ts,
-// toast.test.ts; the rest are covered only by ticket-named tests, if at
-// all). New files in common/ (or a future primitives/) MUST ship a test
-// whose filename starts with the component name.
-const PRIMITIVES_WITHOUT_TESTS_GRANDFATHERED = [
-  'NumberInput.tsx',
-  'ParamLabel.tsx',
-  'ParamTooltip.tsx',
-  'Slider.tsx',
-  'Tooltip.tsx',
-]
+// Paid down to ZERO 2026-07-30 (UC2): all 7 primitives now have
+// name-matched tests under components/common/. New files in common/ (or a
+// future primitives/) MUST ship a test whose filename starts with the
+// component name — this list stays empty (it only ever shrinks).
+const PRIMITIVES_WITHOUT_TESTS_GRANDFATHERED: string[] = []
 
 function allTestFilenames(): string[] {
   const out: string[] = []
