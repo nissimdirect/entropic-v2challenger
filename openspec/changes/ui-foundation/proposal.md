@@ -160,7 +160,7 @@ path-applicable) before merge, per this repo's standing campaign merge-autonomy 
 
 ## T1 Verdicts (LOCKED 2026-07-09)
 
-**ICON TRIAGE v3 (user correction, 2026-07-18 — "are these all intended to be x?" NO):** semantic re-triage shipped: track-visibility → lucide eye/eye-off pair · pop-out toggle → picture-in-picture-2 · toast ×N repeat badge → DELIBERATELY TEXT (it is multiplication, not a button) · add-operator picker toggle → plus (rotates 45° open) · ripple-delete rows → tool-set-governed · true dialog/panel closes → one lucide x. LIBRARY POLICY LOCKED: Lucide primary (ISC) → Tabler deep-catalog fallback (MIT, verified 24×24/stroke-2 compatible) → custom for domain-specific. PK.H triage = 76 pending rows w/ per-row defaults, user vetoes by exception. Wand W1/W2/W3 pick still open.
+**ICON TRIAGE v3 (user correction, 2026-07-18 — "are these all intended to be x?" NO):** semantic re-triage shipped: track-visibility → lucide eye/eye-off pair · pop-out toggle → picture-in-picture-2 · toast ×N repeat badge → DELIBERATELY TEXT (it is multiplication, not a button) · add-operator picker toggle → plus (rotates 45° open) · ripple-delete rows → tool-set-governed · true dialog/panel closes → one lucide x. LIBRARY POLICY LOCKED: Lucide primary (ISC) → Tabler deep-catalog fallback (MIT, verified 24×24/stroke-2 compatible) → custom for domain-specific. PK.H triage = 76 pending rows w/ per-row defaults, user vetoes by exception. Wand pick RESOLVED 2026-07-30 (G2 rod+star+dotted-region wake — see WAND RESOLUTION).
 
 **MASTER ICON ASSIGNMENT (2026-07-18, first-principles per user — "real glyphs assigned to EVERYTHING"):** ground truth: only ~20 real SVG icons exist app-wide (14 tool + 4 transport + 2 DUPLICATE 14x14 lasso glyphs in PreviewControls.tsx:63/78 — unify with tool set); all other census entries are letters/unicode. Assignment kit locked (Lucide ISC): x=close · chevrons=disclosure · plus=add · trash-2=delete · link/unlink · magnet=snap(S) · grid-2x2=quantize(Q) · circle-dot=arm/record(R) · volume-x=mute(M) · eye=visibility · pencil=draw · snowflake=freeze. Auto-assigned ~65; **93 PENDING rows = the PK.H worklist** (each: assign or mark deliberately-text). WAND small-size fix candidates W1/W2/W3 published (user flagged Block wand illegible at rail size — supersedes the earlier keep-current lock pending pick). PK.H scope = this master assignment manifest + the 7 meaning-clash unifications + R-collision rename + PreviewControls lasso dedup.
 
@@ -246,8 +246,20 @@ principle. Published: artifact afd223f3 "CONVENTION-GROUNDED MANIFEST — v4".
 Mute-M rendered on the same clip row); (2) rack up-one-level unified on lucide:corner-up-left
 (two judges split corner-up-left vs arrow-up; one glyph per meaning).
 
-**Still user-veto-open:** wand small-size fix W1/W2/W3 (candidates on the artifact); any
-per-row strike at manifest review.
+**Still user-veto-open:** any per-row strike at manifest review. ~~wand small-size fix W1/W2/W3~~
+→ RESOLVED, see WAND RESOLUTION below.
+
+**WAND RESOLUTION (user pick "G2", 2026-07-30 — LOCKED, supersedes W1/W2/W3 and the OD-3
+Block-wand exception):** 6 iteration rounds (W→C→D→E→F→G series, ~30 candidates) converged on
+**rod + star + dotted-region wake**: the wand rod and filled star kept from the current
+composition (mass-fixed), with four tapering marching-ants dots arcing under the tip —
+"wand hovers over the selection it creates." Verified legible at 18px rail cell and 25px
+worst-case beside the lasso (screenshot-gated). Exact 24×24 spec for `tool-icons.tsx` (PK.B/PK.H):
+- rod: `M5 19l6.5-6.5` stroke-width 2.4, round cap
+- star (filled, no stroke): `M15.5 3.5l1.4 3.6 3.6 1.4-3.6 1.4-1.4 3.6-1.4-3.6-3.6-1.4 3.6-1.4z`
+- region dots (filled circles, tapering): (13.3,20.6,r1.2) · (16.7,19.7,r1.05) · (19.4,17.5,r0.95) · (21,14.5,r0.85)
+Design rationale: dotted wake = marching-ants selection semantics (what the tool DOES), filled
+star + 2.4 rod = small-size mass (why W1/W2/W3 and the old Block wand failed at rail size).
 
 **PK.H (icon unification) implements this manifest.** Sources: Lucide (ISC) + Tabler (MIT)
 vendored with license lines; 13 customs drawn on the 24×24/stroke-2 grid; no traced Adobe artwork
