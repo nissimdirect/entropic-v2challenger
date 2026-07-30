@@ -1382,3 +1382,39 @@ body[data-disable-f-0512-8] .clip__thumb {
   padding: 0 var(--cx-space-8);
 }
 
+
+/* PK.H1 (iv) — per-tool cursors, proposal.md v4.1 addendum "Cursor
+   inventory". Keyed off `body[data-cursor-tool]`, written by ToolRail.tsx
+   and EffectBrowser.tsx on every cursorTool change (single existing write
+   site — see tool-cursors.ts for the full rationale + the JS-side map used
+   by MaskSelectOverlay.tsx, which sets its own cursor inline since that
+   component already owns per-mode inline cursor styles).
+
+   The razor/ripple-delete/loop-in/loop-out data URIs below are the same
+   glyphs as tool-icons.tsx's ICON_BODY entries, rendered as fixed-color
+   (white-on-black-halo) cursor images — `cursor` values can't resolve
+   currentColor, so a literal color pair is a technical requirement here,
+   not a token-law deviation. */
+body[data-cursor-tool="razor"] .clip {
+  /* Razor R2c ground truth (rotated bar + rivets) — hotspot = center rivet. */
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxnIHRyYW5zZm9ybT0icm90YXRlKC0yNCAxMiAxMikiPjxyZWN0IHg9IjQuNSIgeT0iOC42IiB3aWR0aD0iMTUiIGhlaWdodD0iNi44IiByeD0iMSIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTIiIHI9IjEuNCIvPjxjaXJjbGUgY3g9IjcuNCIgY3k9IjEyIiByPSIuOSIvPjxjaXJjbGUgY3g9IjE2LjYiIGN5PSIxMiIgcj0iLjkiLz48L2c+PC9nPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PGcgdHJhbnNmb3JtPSJyb3RhdGUoLTI0IDEyIDEyKSI+PHJlY3QgeD0iNC41IiB5PSI4LjYiIHdpZHRoPSIxNSIgaGVpZ2h0PSI2LjgiIHJ4PSIxIi8+PGNpcmNsZSBjeD0iMTIiIGN5PSIxMiIgcj0iMS40Ii8+PGNpcmNsZSBjeD0iNy40IiBjeT0iMTIiIHI9Ii45Ii8+PGNpcmNsZSBjeD0iMTYuNiIgY3k9IjEyIiByPSIuOSIvPjwvZz48L2c+PC9zdmc+") 12 12, crosshair;
+}
+body[data-cursor-tool="ripple-delete"] .clip {
+  /* Ripple Delete D5 ground truth (X between brackets, no dashed connector — cursor omits it, same X+brackets read). */
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxwYXRoIGQ9Ik02IDYuNXYxMU0xOCA2LjV2MTEiLz48cGF0aCBkPSJNOS41IDkuNWw1IDVNMTQuNSA5LjVsLTUgNSIvPjwvZz48ZyBzdHJva2U9IiNmZmZmZmYiIHN0cm9rZS13aWR0aD0iMS45IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiPjxwYXRoIGQ9Ik02IDYuNXYxMU0xOCA2LjV2MTEiLz48cGF0aCBkPSJNOS41IDkuNWw1IDVNMTQuNSA5LjVsLTUgNSIvPjwvZz48L3N2Zz4=") 12 12, crosshair;
+}
+body[data-cursor-tool="slip"] .clip,
+body[data-cursor-tool="slide"] .clip {
+  cursor: ew-resize;
+}
+body[data-cursor-tool="marker"] .time-ruler__canvas {
+  cursor: crosshair;
+}
+body[data-cursor-tool="loop-in"] .time-ruler__canvas {
+  /* Loop In ground truth: left-side "[" bracket + flow arrow. */
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxwYXRoIGQ9Ik05IDQuNUg0LjV2MTVIOSIvPjxwYXRoIGQ9Ik0xOSAxMmgtOC41TTEzLjUgOC41TDEwIDEybDMuNSAzLjUiLz48L2c+PGcgc3Ryb2tlPSIjZmZmZmZmIiBzdHJva2Utd2lkdGg9IjEuOSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNOSA0LjVINC41djE1SDkiLz48cGF0aCBkPSJNMTkgMTJoLTguNU0xMy41IDguNUwxMCAxMmwzLjUgMy41Ii8+PC9nPjwvc3ZnPg==") 9 12, crosshair;
+}
+body[data-cursor-tool="loop-out"] .time-ruler__canvas {
+  /* Loop Out ground truth: right-side "]" bracket + flow arrow. */
+  cursor: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyNCIgaGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0IiBmaWxsPSJub25lIj48ZyBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMy40IiBzdHJva2UtbGluZWNhcD0icm91bmQiIHN0cm9rZS1saW5lam9pbj0icm91bmQiIG9wYWNpdHk9IjAuNTUiPjxwYXRoIGQ9Ik0xNSA0LjVoNC41djE1SDE1Ii8+PHBhdGggZD0iTTUgMTJoOC41TTEwLjUgOC41TDE0IDEybC0zLjUgMy41Ii8+PC9nPjxnIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+PHBhdGggZD0iTTE1IDQuNWg0LjV2MTVIMTUiLz48cGF0aCBkPSJNNSAxMmg4LjVNMTAuNSA4LjVMMTQgMTJsLTMuNSAzLjUiLz48L2c+PC9zdmc+") 15 12, crosshair;
+}
