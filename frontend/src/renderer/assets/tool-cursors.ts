@@ -36,8 +36,8 @@ import type { CursorTool } from '../components/effects/EffectBrowser'
  * token-law violation (Frontend UI Law rule 1) — flagged here rather than
  * silently deviating.
  */
-function buildCursorSvg(paths: string[]): string {
-  const body = paths.map((d) => `<path d="${d}"/>`).join('')
+function buildCursorSvg(paths: string[], extra = ''): string {
+  const body = paths.map((d) => `<path d="${d}"/>`).join('') + extra
   const svg =
     `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">` +
     `<g stroke="#000000" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.55">${body}</g>` +
@@ -49,12 +49,19 @@ function buildCursorSvg(paths: string[]): string {
 }
 
 // Path data mirrors the matching ICON_BODY entry in tool-icons.tsx (same
-// 24x24 coordinate space) so the cursor reads as the same glyph the rail
+// 24x24 coordinate space, ground truth per openspec/changes/ui-foundation/
+// tool-glyphs-locked.js) so the cursor reads as the same glyph the rail
 // button shows, just rendered as a fixed-color OS cursor image.
-const RAZOR_SVG = buildCursorSvg(['M4.5 15.5L14 6l4 4-9.5 9.5H4.5v-4z', 'M7 15L14 8'])
-const RIPPLE_DELETE_SVG = buildCursorSvg(['M7 5v14M17 5v14', 'M9.5 9.5l5 5M14.5 9.5l-5 5'])
-const LOOP_IN_SVG = buildCursorSvg(['M15 5H9v14h6'])
-const LOOP_OUT_SVG = buildCursorSvg(['M9 5h6v14H9'])
+// Razor R2c is a rotated rect+rivets shape, not plain paths — passed as raw
+// extra markup rather than through the paths[] array.
+const RAZOR_SVG = buildCursorSvg(
+  [],
+  '<g transform="rotate(-24 12 12)"><rect x="4.5" y="8.6" width="15" height="6.8" rx="1"/>' +
+    '<circle cx="12" cy="12" r="1.4"/><circle cx="7.4" cy="12" r=".9"/><circle cx="16.6" cy="12" r=".9"/></g>',
+)
+const RIPPLE_DELETE_SVG = buildCursorSvg(['M6 6.5v11M18 6.5v11', 'M9.5 9.5l5 5M14.5 9.5l-5 5'])
+const LOOP_IN_SVG = buildCursorSvg(['M9 4.5H4.5v15H9', 'M19 12h-8.5M13.5 8.5L10 12l3.5 3.5'])
+const LOOP_OUT_SVG = buildCursorSvg(['M15 4.5h4.5v15H15', 'M5 12h8.5M10.5 8.5L14 12l-3.5 3.5'])
 const EYEDROPPER_SVG = buildCursorSvg([
   'm12 9-8.414 8.414A2 2 0 0 0 3 18.828v1.344a2 2 0 0 1-.586 1.414A2 2 0 0 1 3.828 21h1.344a2 2 0 0 0 1.414-.586L15 12',
   'm18 9 .4.4a1 1 0 1 1-3 3l-3.8-3.8a1 1 0 1 1 3-3l.4.4 3.4-3.4a1 1 0 1 1 3 3z',
@@ -65,7 +72,9 @@ const EYEDROPPER_SVG = buildCursorSvg([
 // pipette tip); fallback keyword renders while the custom cursor loads/if
 // unsupported.
 export const CURSOR_FOR_TOOL: Partial<Record<CursorTool, string>> = {
-  razor: `url("${RAZOR_SVG}") 14 6, crosshair`,
+  // Razor's hotspot is the center rivet (12,12) — the rotated-bar shape has
+  // no single "tip" the way the prior blade-silhouette design did.
+  razor: `url("${RAZOR_SVG}") 12 12, crosshair`,
   'ripple-delete': `url("${RIPPLE_DELETE_SVG}") 12 12, crosshair`,
   'loop-in': `url("${LOOP_IN_SVG}") 9 12, crosshair`,
   'loop-out': `url("${LOOP_OUT_SVG}") 15 12, crosshair`,

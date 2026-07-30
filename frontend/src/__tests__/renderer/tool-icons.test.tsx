@@ -168,4 +168,84 @@ describe('ToolIcon (PK.H1 wire direction, 17 tool names — 14 wired CursorTools
       expect(value).toMatch(/^url\("data:image\/svg\+xml;base64,[A-Za-z0-9+/=]+"\) \d+ \d+, \w+$/)
     }
   })
+
+  // ── PK.H1 reconciliation: diff every glyph against the recovered ground
+  // truth (openspec/changes/ui-foundation/tool-glyphs-locked.js). Read as
+  // raw text + regex-extracted (not `import`ed) so this test carries zero
+  // tsconfig/module-resolution risk for a plain .js reference file that
+  // lives outside src/. 'wand' is excluded — G2 (proposal.md, LOCKED
+  // 2026-07-30) explicitly supersedes the locked file's historical pre-G2
+  // Block wand entry, so wand is exempt from this diff by design.
+  describe('reconciliation vs. tool-glyphs-locked.js ground truth', () => {
+    const lockedFilePath = path.join(__dirname, '../../../../openspec/changes/ui-foundation/tool-glyphs-locked.js')
+    const lockedSrc = fs.readFileSync(lockedFilePath, 'utf-8')
+
+    // Matches `key:{...b:'...'}` entries (src/block flags may appear between
+    // the key and `b:`, in any order per the file's actual formatting).
+    const ENTRY_RE = /(\w+):\{[^}]*?b:'([^']*)'\}/g
+    const locked = new Map<string, string>()
+    for (const m of lockedSrc.matchAll(ENTRY_RE)) {
+      locked.set(m[1], m[2])
+    }
+
+    it('the ground-truth file parses to at least 17 entries (18 glyphs incl. paint + historical wand)', () => {
+      expect(locked.size).toBeGreaterThanOrEqual(17)
+    })
+
+    // Normalizes a DOM subtree (from either the rendered ToolIcon or the
+    // locked file's raw markup string, parsed through the SAME jsdom
+    // innerHTML setter) into an ordered [{tag, attrs}] shape. Comparing two
+    // DOM-parsed structures — rather than raw strings — sidesteps cosmetic
+    // differences (self-closing vs not, attribute order) that don't reflect
+    // an actual shape difference; numeric attributes compare with a small
+    // tolerance so "0.9" (React's Number->string) matches ".9" (the locked
+    // file's literal) as the same value.
+    function shapeOf(html: string): Array<{ tag: string; attrs: Record<string, string> }> {
+      const div = document.createElement('div')
+      div.innerHTML = html
+      return Array.from(div.querySelectorAll('*')).map((el) => {
+        const attrs: Record<string, string> = {}
+        for (const a of Array.from(el.attributes)) attrs[a.name] = a.value
+        return { tag: el.tagName.toLowerCase(), attrs }
+      })
+    }
+
+    function shapesEqual(a: ReturnType<typeof shapeOf>, b: ReturnType<typeof shapeOf>): boolean {
+      if (a.length !== b.length) return false
+      for (let i = 0; i < a.length; i++) {
+        if (a[i].tag !== b[i].tag) return false
+        const aKeys = Object.keys(a[i].attrs).sort()
+        const bKeys = Object.keys(b[i].attrs).sort()
+        if (aKeys.join(',') !== bKeys.join(',')) return false
+        for (const k of aKeys) {
+          const av = a[i].attrs[k]
+          const bv = b[i].attrs[k]
+          const an = Number(av)
+          const bn = Number(bv)
+          if (av === '' || bv === '' || Number.isNaN(an) || Number.isNaN(bn)) {
+            if (av !== bv) return false
+          } else if (Math.abs(an - bn) > 0.001) {
+            return false
+          }
+        }
+      }
+      return true
+    }
+
+    const EXCLUDED: ToolName[] = ['wand'] // G2 supersedes the locked file's pre-G2 entry.
+
+    for (const name of TOOL_NAMES) {
+      if (EXCLUDED.includes(name)) continue
+      const lockedBody = locked.get(name)
+      if (!lockedBody) continue // e.g. would skip a tool the locked file doesn't cover — none do today.
+
+      it(`'${name}' glyph is shape-identical to the ground truth`, () => {
+        const { container, unmount } = render(<ToolIcon name={name} />)
+        const rendered = shapeOf(container.querySelector('svg')!.innerHTML)
+        const expected = shapeOf(lockedBody)
+        expect(shapesEqual(rendered, expected), `'${name}' diverges from tool-glyphs-locked.js`).toBe(true)
+        unmount()
+      })
+    }
+  })
 })
