@@ -34,6 +34,8 @@
   flex-direction: column;
   align-items: center;
   gap: var(--cx-space-4);
+  /* PK.B2: positioning context for the flyout's anchor-relative geometry. */
+  position: relative;
 }
 
 .tool-rail__group + .tool-rail__group {
@@ -96,4 +98,72 @@
 
 .tool-rail__tool--active .tool-rail__hotkey {
   color: var(--cx-acid);
+}
+
+/* PK.B2 (Convention 1): bottom-right corner caret on multi-subtool groups —
+   distinct corner from .tool-rail__hotkey (top-right) so the two never overlap. */
+.tool-rail__caret {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 0;
+  height: 0;
+  border-style: solid;
+  border-width: 0 4px 4px 0;
+  border-color: transparent transparent var(--cx-text-3) transparent;
+}
+
+.tool-rail__tool--active .tool-rail__caret {
+  border-color: transparent transparent var(--cx-acid) transparent;
+}
+
+/* PK.B2 flyout — Photoshop-convention grouped-tool popup. position:fixed and
+   token reuse (bg/border/radius/shadow) match ContextMenu.tsx's proven
+   pattern (timeline.css .context-menu) rather than inventing a new panel look. */
+.tool-rail__flyout {
+  position: fixed;
+  z-index: 1000;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: var(--cx-radius-card);
+  padding: 4px 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.tool-rail__flyout-item {
+  display: flex;
+  align-items: center;
+  gap: var(--cx-space-8);
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--cx-text-1);
+  font-size: var(--cx-text-data);
+  font-family: inherit;
+  padding: 4px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tool-rail__flyout-item:hover,
+.tool-rail__flyout-item:focus-visible {
+  background: var(--cx-bg-hover);
+  outline: none;
+}
+
+.tool-rail__flyout-item--active {
+  color: var(--cx-acid);
+}
+
+.tool-rail__flyout-label {
+  flex: 1;
+}
+
+.tool-rail__flyout-hotkey {
+  color: var(--cx-text-3);
+  font-size: var(--cx-text-data);
+  flex-shrink: 0;
 }
