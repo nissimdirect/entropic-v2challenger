@@ -67,7 +67,7 @@ describe('DeviceChain', () => {
   it('renders empty state when no effects', () => {
     const { getByText } = render(<DeviceChain />)
     // F-0514-7 updated copy to advertise both click and drag.
-    expect(getByText(/Add effects from the browser/i)).toBeTruthy()
+    expect(getByText(/No effects yet/i)).toBeTruthy()
   })
 
   it('renders device cards for each effect in chain', () => {

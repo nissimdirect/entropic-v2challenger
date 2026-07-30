@@ -1180,6 +1180,9 @@ body {
   position: absolute;
   font-size: var(--cx-text-body);
   color: var(--cx-text-3);
+  /* PK.D (design-spec §4 anatomy): single centered hint line, no CTA. */
+  max-width: 280px;
+  text-align: center;
 }
 
 .preview-canvas__loading {

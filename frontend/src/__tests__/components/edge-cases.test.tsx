@@ -335,7 +335,7 @@ describe('Edge Cases — State Transitions', () => {
       />,
     )
 
-    expect(screen.getByText('No video loaded')).toBeInTheDocument()
+    expect(screen.getByText('Drag a clip here, or ⌘I to import.')).toBeInTheDocument()
   })
 
   test('effect rack: empty state message', () => {

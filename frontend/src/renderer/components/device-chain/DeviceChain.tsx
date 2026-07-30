@@ -511,7 +511,9 @@ export default function DeviceChain({
   // branch so a future third branch (e.g. error state) silently inherits the
   // drag affordance instead of having to remember to re-wire onDragOver/Drop.
   const rootProps = {
-    className: `device-chain${isDragOver ? ' device-chain--drag-over' : ''}`,
+    // PK.D: the ACID border-top is a populated-state signifier, not chrome —
+    // scoped to chain.length > 0 (was unconditional, design-spec §4).
+    className: `device-chain${effectChain.length > 0 ? ' device-chain--populated' : ''}${isDragOver ? ' device-chain--drag-over' : ''}`,
     'data-testid': 'device-chain',
     style: { height: `${height}px` },
     onDragOver: handleDragOver,
@@ -543,7 +545,7 @@ export default function DeviceChain({
           )}
         </div>
         <div className="device-chain__empty">
-          <span>{isDragOver ? 'Release to add effect' : 'Add effects from the browser (click or drag)'}</span>
+          <span>{isDragOver ? 'Release to add effect' : 'No effects yet — browse the EFFECTS tab to add one.'}</span>
         </div>
       </div>
     )

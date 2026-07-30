@@ -192,7 +192,7 @@ export default function PreviewCanvas({
       />
       {previewState === 'empty' && (
         <div className="preview-canvas__placeholder">
-          No video loaded
+          Drag a clip here, or ⌘I to import.
         </div>
       )}
       {previewState === 'loading' && (

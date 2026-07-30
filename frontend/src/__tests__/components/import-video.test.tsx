@@ -77,7 +77,7 @@ describe('Import Video — UI State', () => {
     expect(onFileSelect).not.toHaveBeenCalled()
   })
 
-  test('preview shows "No video loaded" before import', () => {
+  test('preview shows the import hint before import', () => {
     render(
       <PreviewCanvas
         frameDataUrl={null}
@@ -89,7 +89,7 @@ describe('Import Video — UI State', () => {
       />,
     )
 
-    expect(screen.getByText('No video loaded')).toBeInTheDocument()
+    expect(screen.getByText('Drag a clip here, or ⌘I to import.')).toBeInTheDocument()
   })
 })
 

@@ -436,7 +436,7 @@ test.describe('Edge Cases — State Transitions', () => {
     await expect(window.locator('.drop-zone')).toBeVisible()
 
     // Placeholder text
-    await expect(window.locator('.preview-canvas__placeholder')).toHaveText('No video loaded')
+    await expect(window.locator('.preview-canvas__placeholder')).toHaveText('Drag a clip here, or ⌘I to import.')
 
     // Scrub disabled
     expect(await window.locator('.preview-controls__scrub').isDisabled()).toBe(true)

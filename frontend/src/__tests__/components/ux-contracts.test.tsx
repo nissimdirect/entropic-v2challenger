@@ -85,7 +85,7 @@ function StatusBar({
 function PreviewPlaceholder() {
   return (
     <div className="preview-canvas">
-      <div className="preview-canvas__placeholder">No video loaded</div>
+      <div className="preview-canvas__placeholder">Drag a clip here, or ⌘I to import.</div>
     </div>
   )
 }
@@ -126,7 +126,7 @@ describe('UX Contracts — Visibility of System Status', () => {
 
     const placeholder = document.querySelector('.preview-canvas__placeholder')
     expect(placeholder).toBeTruthy()
-    expect(placeholder!.textContent).toBe('No video loaded')
+    expect(placeholder!.textContent).toBe('Drag a clip here, or ⌘I to import.')
     expect(placeholder!.textContent!.length).toBeGreaterThan(0)
   })
 })
