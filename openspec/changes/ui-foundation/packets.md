@@ -201,6 +201,71 @@ re-derives it differently.
 - **UAT unit (MANDATORY):** orchestrator visual pass at 1280×800 — flyout legibility, caret
   visibility at 16px, one screenshot per group open; plus CU click-through of all 8 groups.
 
+### PK.H1 — Tool-glyph wire set + G2 wand + locked picks + per-tool cursors — **NEW PACKET (2026-07-30; PK.H was referenced but never authored — same gap class as PK.B2)**
+- **Scope:** implement the LOCKED glyph verdicts on the 14 rail tools (proposal.md T1):
+  (i) **wire restyle set-wide** (OD-3 ROUND-2: 1.9 stroke, round caps, opened fills) across
+  `tool-icons.tsx`; (ii) **WAND = G2** (WAND RESOLUTION, proposal.md — rod+star+dotted-region
+  wake, exact path data given there; supersedes the old Block-wand exception); (iii) locked
+  picks: Razor R2c (angled classic blade, wire) · Ripple Delete D5 (X between timeline
+  brackets) · Slip (fixed-frame+inner-arrows) · Marker flag · Loop In/Out brackets · Lucide
+  swaps where locked (Select=cursor-arrow, Text=type [glyph stays for future], Slide, Mask
+  Rect/Ellipse dashed, Lasso, Hand/Zoom [glyphs stay unwired], Key Picker=pipette) — Lucide
+  path data VENDORED into tool-icons.tsx with an ISC license comment, NOT an npm dependency;
+  (iv) **per-tool cursors** (v4.1 addendum): razor/ripple-delete/loop/key-picker get custom
+  svg cursors from the locked set (`cursor: url(svg) hotspot, fallback`), slip/slide →
+  ew-resize, marker → crosshair, mask tools → crosshair; wire into the tool-switch path.
+- **Non-scope:** app-wide non-tool icons (PK.H2); rail structure/flyout (done, PK.B2);
+  any glyph not covered by a LOCKED verdict (keep current art, list in PR body).
+- **Files:** `frontend/src/renderer/assets/tool-icons.tsx` (the redraw); the cursor-apply
+  site (grep where CursorTool → canvas/preview className or style cursor); `tool-rail.css`
+  only if a stroke-width var is cleaner than per-path attrs; new/extended icon tests.
+- **Depends:** PK.B2 (merged). **Blocks:** PK.H2 (shared icon-module conventions).
+- **Risk:** MED (visual identity change; snapshot churn expected and legitimate).
+- **Hard oracle:** vitest — every one of the 14 tools has a glyph (no empty path); G2 wand
+  path present (grep its distinguishing path fragment); vendored-Lucide license comment
+  present; cursor mapping test (each tool id → expected cursor value); full suite green;
+  ratchets PASS; build passes. Existing tool-icon snapshots UPDATED with per-glyph
+  justification lines in the PR body (this packet's whole point is changing them).
+- **STOP semantics:** if a locked pick's spec (path data / description) is ambiguous or
+  missing for a specific tool, STOP and name the tool — never freehand a glyph.
+- **UAT unit (MANDATORY):** orchestrator visual pass at 1280×800 — full rail zoom at 16px
+  (legibility of the wire set), wand G2 read at rail size, cursor check per tool over the
+  preview (CU hover + screenshot).
+
+### PK.H2 — App-wide icon unification sweep (manifest v4.1) — **NEW PACKET (2026-07-30)**
+- **Scope:** the CONVENTION-GROUNDED MANIFEST v4 + v4.1 addendum (proposal.md): (i) ALL
+  emoji glyphs → vector (👁 🔒 ❄ ⚗ 📌 etc. — root cause of "icons sometimes don't show");
+  (ii) the 7 meaning-clash unifications (one glyph per meaning: close=✕ everywhere via one
+  shared component, disclosure=▸/▾ pair, delete=trash-2 vs dismiss=x vs detach=unlink,
+  add=plus, mute stays TEXT M, page ◀▶ pair); (iii) load-bearing rulings: M/S/Q + R-L-T-D
+  automation modes STAY TEXT · Snap S → magnet · record-arm → filled dot · pop-out →
+  external-link · freeze → filled/outline snowflake pair · aspect-lock = link/unlink ·
+  up-one-level = arrow-up vs back-reference = corner-up-left · mask-count badge → custom
+  glyph+count; (iv) **R-collision rename** (automation Read-mode R vs record-arm R —
+  record-arm becomes the filled dot, resolving it); (v) vendored assign-kit: new
+  `frontend/src/renderer/assets/icon-kit.tsx` (Lucide ISC + Tabler MIT path data + license
+  lines + the 13 customs on the 24×24/stroke-2 grid); (vi) GLYPH GUIDELINES v1 (11 rules)
+  appended to `docs/roadmap/DESIGN-SPEC.md` §10 area.
+- **Non-scope:** the 39 KEEP-TEXT rows (they stay text BY RULING — do not iconize);
+  KEEP-CURRENT rows; tool glyphs (PK.H1); routing chips (layertap's tap-chip system owns
+  routing state per v4.1 — only the four static routing glyphs apply).
+- **Files:** new `assets/icon-kit.tsx`; the component files holding the ~65 auto-assigned +
+  clash rows (census on artifact afd223f3 — enumerate by grepping the emoji/unicode chars);
+  DESIGN-SPEC.md §10 append. LARGE file count is expected; keep each swap mechanical.
+- **Depends:** PK.H1. **Blocks:** ui-foundation exit baselines.
+- **Risk:** MED-HIGH (breadth). Ship as ONE PR but commit per unification family so revert
+  is targeted.
+- **Hard oracle:** vitest — zero emoji glyphs remain in renderer TSX (grep-based test over
+  the census emoji set, committed as a permanent guard); one-close-glyph test (every dialog
+  close button renders the shared close icon component); icon-kit license comments present;
+  full suite green; ratchets PASS (tsx_inline_style ceiling may CLICK DOWN, never up);
+  build passes.
+- **STOP semantics:** any row where the manifest verdict conflicts with live code reality
+  (component gone, meaning changed) → skip the row, list it in the PR body's "manifest
+  drift" table — STOP only if >10 rows drift (contract rot signal).
+- **UAT unit (MANDATORY):** orchestrator visual pass — dialogs/panels/track-headers
+  screenshot sweep; freeze/record/mute state-pair checks live.
+
 ### PK.C — Automation strip: Mode+Record clusters; curve ops move to the lane — **RE-SCOPED by RATIFIED D8 (2026-07-30)**
 - **User verdict (D8):** *"curve ops i think are not actual buttons i think its more like in the
   lane."* Flatten/Ramp/Shape/Simplify/Clear LEAVE the strip — they act on a specific lane, so
