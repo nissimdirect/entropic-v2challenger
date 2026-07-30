@@ -172,6 +172,8 @@ import { loadRecentProjects, type RecentProject } from './project-persistence'
 import { CloseButton } from './assets/icon-kit'
 // F4b PR2: menu-action dispatch extraction (App.tsx decomposition, lowest-risk slice).
 import { useMenuActions } from './app/menuActions'
+// F4b PR3: close-requested / unsaved-changes gate extraction.
+import { useCloseGate } from './app/useCloseGate'
 
 /**
  * D4 (Epic 02): Pure helper — apply pad + CC modulation to ANY chain at a given frame.
@@ -2328,20 +2330,10 @@ function AppInner() {
     addEffect,
   })
 
-  // Unsaved work prompt on close
-  const [showCloseDialog, setShowCloseDialog] = useState(false)
-  useEffect(() => {
-    if (!window.entropic?.onCloseRequested) return
-    const cleanup = window.entropic.onCloseRequested(() => {
-      const dirty = useUndoStore.getState().isDirty
-      if (!dirty) {
-        window.entropic.confirmClose()
-        return
-      }
-      setShowCloseDialog(true)
-    })
-    return cleanup
-  }, [])
+  // Unsaved work prompt on close.
+  // F4b PR3: close-requested listener + dirty check + dialog state extracted
+  // to renderer/app/useCloseGate.ts (useCloseGate) — byte-identical behavior.
+  const { showCloseDialog, setShowCloseDialog } = useCloseGate()
 
   const handleRenderRetry = useCallback(() => {
     if (!activeAssetPath.current) return
