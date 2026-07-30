@@ -1,6 +1,8 @@
 import { test as base, type ElectronApplication, type Page } from '@playwright/test'
 import { _electron } from '@playwright/test'
 import path from 'path'
+import fs from 'fs'
+import os from 'os'
 
 /**
  * Shared Electron app fixture.
@@ -21,11 +23,17 @@ export const test = base.extend<ElectronFixtures>({
 
   electronApp: async ({ consoleMessages }, use) => {
     const mainPath = path.resolve(__dirname, '..', '..', '..', 'out', 'main', 'index.js')
+    // Hermetic launch (frontend-framework F0.2): throwaway userData dir,
+    // CREATRIX_E2E=1 makes main skip window-state read/write and pin
+    // device scale to 1 — launches render identically on any machine.
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'creatrix-e2e-'))
     const app = await _electron.launch({
       args: [mainPath],
       env: {
         ...process.env,
         NODE_ENV: 'test',
+        CREATRIX_E2E: '1',
+        CREATRIX_E2E_USER_DATA: userDataDir,
         ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
       },
       timeout: 30_000,
@@ -66,6 +74,13 @@ export const test = base.extend<ElectronFixtures>({
     try {
       const { execSync } = await import('child_process')
       execSync('pkill -f "backend/src/main.py" 2>/dev/null || true', { stdio: 'ignore' })
+    } catch {
+      // ignore
+    }
+
+    // Remove the throwaway userData dir
+    try {
+      fs.rmSync(userDataDir, { recursive: true, force: true })
     } catch {
       // ignore
     }
