@@ -304,7 +304,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
           >
             <Icon name={showTopology ? 'chevron-down' : 'chevron-right'} size={12} /> Topology
           </button>
-          {/* P5b.24 (B9): research toggle — hidden behind ⚗ so research rules
+          {/* P5b.24 (B9): research toggle — hidden behind the flask icon so research rules
               are not visible to general users by default. */}
           <button
             className={`operator-rack__research-toggle${showResearchRules ? ' operator-rack__research-toggle--active' : ''}`}
