@@ -17,6 +17,7 @@
  */
 
 import { useMemo } from 'react'
+import EmptyState from '../common/EmptyState'
 
 /** The MIME type carried by a source-item drag. */
 export const ROUTING_SOURCE_DRAG_TYPE = 'application/x-creatrix-routing-source'
@@ -124,9 +125,11 @@ export default function NodeColumn({
       </div>
       <div className="routing-column__list">
         {grouped.length === 0 && (
-          <div className="routing-column__empty">
-            {disabled ? 'no routings yet' : 'no matches'}
-          </div>
+          <EmptyState
+            testId="routing-column-empty"
+            hint={disabled ? 'no routings yet' : 'no matches'}
+            className="routing-column__empty"
+          />
         )}
         {grouped.map(({ group, items: groupItems }) => (
           <div className="routing-column__group" key={group}>

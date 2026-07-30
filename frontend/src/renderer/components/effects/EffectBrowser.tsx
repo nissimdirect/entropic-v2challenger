@@ -7,6 +7,7 @@ import { useBrowserStore, type BrowserTab, BROWSER_TABS } from '../../stores/bro
 import { useToastStore } from '../../stores/toast'
 import { useTimelineStore } from '../../stores/timeline'
 import Slider from '../common/Slider'
+import EmptyState from '../common/EmptyState'
 import { useLayoutStore } from '../../stores/layout'
 import { FF } from '../../../shared/feature-flags'
 import ToolIcon, { type ToolName } from '../../assets/tool-icons'
@@ -560,7 +561,7 @@ export default function EffectBrowser({
               </button>
             ))}
             {searchMatches.length === 0 && (
-              <div className="effect-browser__empty">No effects found</div>
+              <EmptyState testId="effect-browser-empty-search" hint="No effects found" className="effect-browser__empty" />
             )}
           </>
         ) : activeTab === 'fx' ? (
@@ -660,7 +661,7 @@ export default function EffectBrowser({
               <div className="effect-browser__folder-header effect-browser__folder-header--static">
                 <span>Composite</span>
               </div>
-              <div className="effect-browser__empty">No composite effects registered</div>
+              <EmptyState testId="effect-browser-empty-composite" hint="No composite effects registered" className="effect-browser__empty" />
             </div>
           )
         ) : activeTab === 'tool' ? (

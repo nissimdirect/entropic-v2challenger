@@ -19,6 +19,7 @@ import React, { useCallback, useId } from 'react'
 import Icon from '../../assets/icon-kit'
 import Slider from '../common/Slider'
 import Select from '../common/Select'
+import EmptyState from '../common/EmptyState'
 import type { MatteNode, MatteOp } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
@@ -280,9 +281,7 @@ export default function MaskStackPanel({ clipId }: MaskStackPanelProps): React.R
       </div>
 
       {visibleStack.length === 0 ? (
-        <div className="mask-stack-panel__empty" data-testid="mask-stack-empty">
-          no matte nodes
-        </div>
+        <EmptyState testId="mask-stack-empty" hint="no matte nodes" className="mask-stack-panel__empty" />
       ) : (
         <div className="mask-stack-panel__nodes" data-testid="mask-stack-nodes">
           {visibleStack.map((node, idx) => (

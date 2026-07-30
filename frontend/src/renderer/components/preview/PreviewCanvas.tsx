@@ -1,5 +1,6 @@
 import { useRef, useEffect, useLayoutEffect, useCallback, useState } from 'react'
 import Icon from '../../assets/icon-kit'
+import EmptyState from '../common/EmptyState'
 import { useLayoutStore } from '../../stores/layout'
 import { FF } from '../../../shared/feature-flags'
 
@@ -192,9 +193,11 @@ export default function PreviewCanvas({
         height={height || undefined}
       />
       {previewState === 'empty' && (
-        <div className="preview-canvas__placeholder">
-          Drag a clip here, or ⌘I to import.
-        </div>
+        <EmptyState
+          testId="preview-placeholder"
+          hint="Drag a clip here, or ⌘I to import."
+          className="preview-canvas__placeholder"
+        />
       )}
       {previewState === 'loading' && (
         <div className="preview-canvas__loading">

@@ -1,6 +1,7 @@
 import { useCallback, useState } from 'react'
 import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
+import EmptyState from '../common/EmptyState'
 import type { OperatorType, EffectInfo } from '../../../shared/types'
 import LFOEditor from './LFOEditor'
 import EnvelopeEditor from './EnvelopeEditor'
@@ -197,7 +198,7 @@ export default function OperatorRack({ effectChain, registry, operatorValues, ha
       )}
 
       {operators.length === 0 ? (
-        <div className="operator-rack__empty">No operators — click + Add to create one</div>
+        <EmptyState testId="operator-rack-empty" hint="No operators — click + Add to create one" className="operator-rack__empty" />
       ) : (
         <div className="operator-rack__cards">
           {operators.map((op, index) => {

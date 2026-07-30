@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { useUndoStore } from '../../stores/undo'
+import EmptyState from '../common/EmptyState'
 
 export default function HistoryPanel() {
   const past = useUndoStore((s) => s.past)
@@ -34,7 +35,7 @@ export default function HistoryPanel() {
     return (
       <div className="history-panel">
         <div className="history-panel__header">History</div>
-        <div className="history-panel__empty">No actions yet</div>
+        <EmptyState testId="history-panel-empty" hint="No actions yet" className="history-panel__empty" />
       </div>
     )
   }

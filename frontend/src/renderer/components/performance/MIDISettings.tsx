@@ -1,5 +1,6 @@
 import Icon from '../../assets/icon-kit';
 import Select from '../common/Select';
+import EmptyState from '../common/EmptyState';
 import { useMIDIStore } from '../../stores/midi';
 
 export default function MIDISettings() {
@@ -67,9 +68,11 @@ export default function MIDISettings() {
           )}
         </div>
         {ccMappings.length === 0 ? (
-          <div className="midi-settings__empty">
-            No CC mappings — right-click a knob to learn
-          </div>
+          <EmptyState
+            testId="midi-settings-empty"
+            hint="No CC mappings — right-click a knob to learn"
+            className="midi-settings__empty"
+          />
         ) : (
           <div className="midi-settings__mapping-list">
             {ccMappings.map((m, idx) => (
