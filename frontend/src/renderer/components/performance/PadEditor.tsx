@@ -5,6 +5,7 @@ import { ADSR_PRESETS, RESERVED_KEYS, codeToLabel } from '../../../shared/consta
 import { midiNoteToName } from '../../../shared/midi-utils';
 import { useStableListener } from '../../hooks/useStableListener';
 import Icon, { CloseButton } from '../../assets/icon-kit';
+import Slider from '../common/Slider';
 import type { EffectInstance, EffectInfo, ModulationRoute, PadMode } from '../../../shared/types';
 
 interface PadEditorProps {
@@ -190,22 +191,16 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 8 }}>
               {(['attack', 'decay', 'sustain', 'release'] as const).map((param) => (
                 <div key={param} className="param-slider">
-                  <div className="param-slider__label">
-                    <span>{param[0].toUpperCase()}</span>
-                    <span className="param-slider__value">
-                      {param === 'sustain' ? pad.envelope[param].toFixed(2) : pad.envelope[param].toFixed(1)}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    className="param-slider__input"
+                  <Slider
+                    value={pad.envelope[param]}
                     min={0}
                     max={param === 'sustain' ? 1 : 300}
-                    step={param === 'sustain' ? 0.01 : 0.1}
-                    value={pad.envelope[param]}
-                    onChange={(e) => {
+                    default={param === 'sustain' ? 1 : 0}
+                    label={param[0].toUpperCase()}
+                    type="float"
+                    onChange={(v) => {
                       updatePad(padId, {
-                        envelope: { ...pad.envelope, [param]: parseFloat(e.target.value) },
+                        envelope: { ...pad.envelope, [param]: v },
                       });
                     }}
                   />
@@ -287,21 +282,23 @@ export default function PadEditor({ padId, effectChain, registry, onClose }: Pad
                         <option key={key} value={key}>{def.label}</option>
                       ))}
                   </select>
-                  <input
-                    type="range"
-                    style={{ width: 50 }}
-                    className="param-slider__input"
-                    min={0}
-                    max={1}
-                    step={0.01}
-                    value={mapping.depth}
-                    title={`Depth: ${mapping.depth.toFixed(2)}`}
-                    onChange={(e) => {
-                      const newMappings = [...pad.modRoutes];
-                      newMappings[idx] = { ...mapping, depth: parseFloat(e.target.value) };
-                      updatePad(padId, { modRoutes: newMappings });
-                    }}
-                  />
+                  <div style={{ width: 50 }}>
+                    <Slider
+                      value={mapping.depth}
+                      min={0}
+                      max={1}
+                      default={0}
+                      label="Depth"
+                      description={`Depth: ${mapping.depth.toFixed(2)}`}
+                      type="float"
+                      showHeader={false}
+                      onChange={(v) => {
+                        const newMappings = [...pad.modRoutes];
+                        newMappings[idx] = { ...mapping, depth: v };
+                        updatePad(padId, { modRoutes: newMappings });
+                      }}
+                    />
+                  </div>
                   <button
                     className="effect-card__remove"
                     onClick={() => removePadMapping(padId, idx)}

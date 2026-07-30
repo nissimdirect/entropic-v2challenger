@@ -187,14 +187,16 @@
   /* lowercase — text is already lowercase in JSX */
 }
 
-/* Flat slider-bars per DESIGN-SPEC §8 Ableton idiom.
-   ACID fill (var(--cx-acid)) via accent-color — avoids a custom track hack. */
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — flex sizing carries over onto the wrapper; the
+ * ACID fill/thumb carry onto the Slider's own .hslider__fill/__thumb. */
 .mask-stack-panel__slider {
   flex: 1;
-  height: var(--cx-device-param-h);
-  cursor: pointer;
-  accent-color: var(--cx-acid);
-  background: transparent;
+}
+
+.mask-stack-panel__slider .hslider__fill,
+.mask-stack-panel__slider .hslider__track:hover .hslider__thumb {
+  background: var(--cx-acid);
 }
 
 .mask-stack-panel__value {

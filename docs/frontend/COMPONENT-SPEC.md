@@ -33,7 +33,7 @@ This is the structural fix for the selector rot that killed the old 132-spec Pla
 
 | Need | Use | Adoption ratchet |
 |---|---|---|
-| Slider | `components/common/Slider` | `ui-ratchets.sh` `tsx_raw_range` (34 → 0) |
+| Slider | `components/common/Slider` | `ui-ratchets.sh` `tsx_raw_range` (34 → 0, F3-C2, hard ban) |
 | Select | Select skin (F3) | `tsx_native_select` (56 → 0) |
 | Dialog | `dialog`/`dialog__*` root (`UnsavedChangesDialog` pattern) | conformance guard (below) + F3 sweep (10 dialogs, 7 roots → 1) |
 | Empty state | `EmptyState` (F3; RATIFIED D7: minimal hint, WCAG AA contrast) | PK.D UAT contrast oracle |

@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
 import { useModalBehavior } from '../../hooks/useModalBehavior'
+import Slider from '../common/Slider'
 
 export interface ExportSettings {
   outputPath: string
@@ -318,26 +319,34 @@ export default function ExportDialog({
       {bitrateMode === 'crf' ? (
         <div className="export-dialog__field">
           <label>CRF: {crf}</label>
-          <input
-            type="range"
-            className="export-dialog__slider"
-            min={0}
-            max={51}
-            value={crf}
-            onChange={(e) => setCrf(parseInt(e.target.value, 10))}
-          />
+          <div className="export-dialog__slider">
+            <Slider
+              value={crf}
+              min={0}
+              max={51}
+              default={23}
+              label="CRF"
+              type="int"
+              showHeader={false}
+              onChange={setCrf}
+            />
+          </div>
         </div>
       ) : (
         <div className="export-dialog__field">
           <label>Bitrate: {bitrate} Mbps</label>
-          <input
-            type="range"
-            className="export-dialog__slider"
-            min={1}
-            max={50}
-            value={bitrate}
-            onChange={(e) => setBitrate(parseInt(e.target.value, 10))}
-          />
+          <div className="export-dialog__slider">
+            <Slider
+              value={bitrate}
+              min={1}
+              max={50}
+              default={10}
+              label="Bitrate"
+              type="int"
+              showHeader={false}
+              onChange={setBitrate}
+            />
+          </div>
         </div>
       )}
 
@@ -404,14 +413,18 @@ export default function ExportDialog({
       {imageFormat === 'jpeg' && (
         <div className="export-dialog__field">
           <label>JPEG Quality: {jpegQuality}</label>
-          <input
-            type="range"
-            className="export-dialog__slider"
-            min={1}
-            max={100}
-            value={jpegQuality}
-            onChange={(e) => setJpegQuality(parseInt(e.target.value, 10))}
-          />
+          <div className="export-dialog__slider">
+            <Slider
+              value={jpegQuality}
+              min={1}
+              max={100}
+              default={95}
+              label="JPEG Quality"
+              type="int"
+              showHeader={false}
+              onChange={setJpegQuality}
+            />
+          </div>
         </div>
       )}
 

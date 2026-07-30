@@ -65,8 +65,13 @@ describe('RackDevice — Macros section (B4-macro-editor)', () => {
     fireEvent.click(screen.getByTestId('rack-add-macro'))
     fireEvent.change(screen.getByTestId('rack-macro-name'), { target: { value: 'Chaos' } })
     expect(useInstrumentsStore.getState().racks[T].macros![0].name).toBe('Chaos')
-    fireEvent.change(screen.getByTestId('rack-macro-value'), { target: { value: '0.75' } })
-    expect(useInstrumentsStore.getState().racks[T].macros![0].value).toBe(0.75)
+    // F3-C2: value is now the common/Slider primitive (ARIA track driven by
+    // pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). Shift+ArrowRight is
+    // Slider's tested keyboard interaction (slider.test.tsx) — one press
+    // moves by 10% of the [0,1] range from the 0 default, landing at 0.1.
+    fireEvent.keyDown(screen.getByTestId('rack-macro-value'), { key: 'ArrowRight', shiftKey: true })
+    expect(useInstrumentsStore.getState().racks[T].macros![0].value).toBe(0.1)
   })
 
   it('remove-macro button deletes the macro', () => {
@@ -148,7 +153,12 @@ describe('RackDevice — Macros section (B4-macro-editor)', () => {
 
     // FAIL-BEFORE: a macro at value 1.0 but with NO route leaves scrub un-driven.
     fireEvent.click(screen.getByTestId('rack-add-macro'))
-    fireEvent.change(screen.getByTestId('rack-macro-value'), { target: { value: '1' } })
+    // F3-C2: value is now the common/Slider primitive — this test cares
+    // about the resolver's behavior at value=1.0, not the slider interaction
+    // itself (covered above), so set it directly via the store the slider
+    // writes through.
+    const macroId = useInstrumentsStore.getState().racks[T].macros![0].id
+    useInstrumentsStore.getState().updateRackMacro(T, macroId, { value: 1 })
     const before = resolveRackMacros(useInstrumentsStore.getState().racks[T])!
     const scrubBefore =
       (before.pads[0].instrument as unknown as Record<string, unknown>).scrub

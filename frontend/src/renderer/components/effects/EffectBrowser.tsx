@@ -6,6 +6,7 @@ import { LIMITS } from '../../../shared/limits'
 import { useBrowserStore, type BrowserTab, BROWSER_TABS } from '../../stores/browser'
 import { useToastStore } from '../../stores/toast'
 import { useTimelineStore } from '../../stores/timeline'
+import Slider from '../common/Slider'
 import { useLayoutStore } from '../../stores/layout'
 import { FF } from '../../../shared/feature-flags'
 import ToolIcon, { type ToolName } from '../../assets/tool-icons'
@@ -726,14 +727,16 @@ export default function EffectBrowser({
                 data-testid="wand-tolerance-control"
               >
                 <span>Tolerance</span>
-                <input
-                  type="range"
-                  data-testid="wand-tolerance"
+                <Slider
+                  testId="wand-tolerance"
                   value={wandTolerance}
                   min={0}
                   max={441.67}
-                  step={1}
-                  onChange={(e) => setWandTolerance(Number(e.target.value))}
+                  default={30}
+                  label="Tolerance"
+                  type="int"
+                  showHeader={false}
+                  onChange={setWandTolerance}
                 />
                 <span data-testid="wand-tolerance-readout">{Math.round(wandTolerance)}</span>
               </label>

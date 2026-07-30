@@ -220,13 +220,18 @@ describe('ModulationMatrix — active cell interaction', () => {
       />,
     )
 
-    const slider = container.querySelector('.mod-matrix__depth-slider') as HTMLInputElement
+    // F3-C2: depth is now the common/Slider primitive (ARIA track driven by
+    // pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). Shift+ArrowRight is
+    // Slider's tested keyboard interaction (slider.test.tsx) — one press
+    // moves by 10% of the [-1,1] range (delta 0.2) from the 0.25 seed.
+    const slider = container.querySelector('[data-testid^="mod-matrix-depth-"]') as HTMLElement
     expect(slider).toBeTruthy()
 
-    fireEvent.change(slider, { target: { value: '0.9' } })
+    fireEvent.keyDown(slider, { key: 'ArrowRight', shiftKey: true })
 
     const newDepth = useOperatorStore.getState().operators[0].mappings[0].depth
-    expect(newDepth).toBeCloseTo(0.9, 2)
+    expect(newDepth).toBeCloseTo(0.45, 2)
   })
 
   it('remove button calls removeMapping and the cell deactivates', () => {

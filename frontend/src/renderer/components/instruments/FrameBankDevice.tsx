@@ -25,6 +25,7 @@ import { useProjectStore } from '../../stores/project'
 import { clampFinite } from '../../../shared/numeric'
 import type { BlendMode } from '../../../shared/types'
 import { instrumentLearnContextMenu } from './instrumentLearn'
+import Slider from '../common/Slider'
 import {
   MAX_FRAMEBANK_SLOTS,
   FRAMEBANK_BYTE_BUDGET_MIN,
@@ -187,15 +188,16 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
       {/* Position knob — the modulation destination the backend scans. */}
       <label className="sampler-device__row">
         <span>Position</span>
-        <input
-          type="range"
-          data-testid="framebank-position"
+        <Slider
+          testId="framebank-position"
           value={fb.position}
           min={0}
           max={1}
-          step={0.001}
+          label="position"
+          type="float"
+          showHeader={false}
           onContextMenu={instrumentLearnContextMenu(trackId, 'position')}
-          onChange={(e) => setFrameBankPosition(trackId, Number(e.target.value))}
+          onChange={(v) => setFrameBankPosition(trackId, v)}
         />
         <span data-testid="framebank-position-readout">{fb.position.toFixed(3)}</span>
       </label>
@@ -259,16 +261,16 @@ export default function FrameBankDevice({ trackId }: { trackId: string }) {
       {/* Opacity — per-bank layer opacity the backend compositor reads ([0,1]). */}
       <label className="sampler-device__row">
         <span>Opacity</span>
-        <input
-          type="range"
-          data-testid="framebank-opacity"
+        <Slider
+          testId="framebank-opacity"
           value={fb.opacity ?? 1}
           min={0}
           max={1}
-          step={0.01}
-          onChange={(e) =>
-            setFrameBankOpacity(trackId, clampFinite(Number(e.target.value), 0, 1, 1))
-          }
+          default={1}
+          label="opacity"
+          type="float"
+          showHeader={false}
+          onChange={(v) => setFrameBankOpacity(trackId, v)}
         />
         <span data-testid="framebank-opacity-readout">{(fb.opacity ?? 1).toFixed(2)}</span>
       </label>

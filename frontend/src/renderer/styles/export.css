@@ -40,10 +40,11 @@
   font-size: 13px;
 }
 
-/* Slider inputs */
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width carries over onto the wrapper; the fill/thumb
+ * already default to --cx-action (COMPONENT-SPEC §3). */
 .export-dialog__slider {
   width: 100%;
-  accent-color: var(--cx-action);
 }
 .export-dialog__slider-value {
   display: inline-block;

@@ -296,10 +296,10 @@
   font-family: 'JetBrains Mono', monospace;
 }
 
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width carries over onto the wrapper. */
 .operator-editor__slider {
   width: 60px;
-  height: 12px;
-  accent-color: var(--cx-action);
 }
 
 .operator-editor__hint {
@@ -453,10 +453,20 @@
   gap: 2px;
 }
 
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .mod-matrix__depth-slider {
   width: 40px;
-  height: 10px;
-  accent-color: var(--cx-action);
+}
+
+.mod-matrix__depth-slider .hslider__track {
+  height: 4px;
+}
+
+.mod-matrix__depth-slider .hslider__thumb {
+  width: 8px;
+  height: 8px;
 }
 
 .mod-matrix__depth-value {

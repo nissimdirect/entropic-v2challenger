@@ -334,15 +334,19 @@ describe('GranulatorDevice — gate 7: full chain: density knob change → store
     useInstrumentsStore.getState().addGranulator(T)
     render(<GranulatorDevice trackId={T} />)
 
-    // Fire change on the T-axis grain range input.
-    fireEvent.change(screen.getByTestId('granulator-t-grain'), { target: { value: '0.75' } })
+    // F3-C2: grain is now the common/Slider primitive (ARIA track driven by
+    // pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). ArrowRight is Slider's
+    // tested keyboard interaction (slider.test.tsx) — one press moves by 1%
+    // of the [0,1] range from the default grain of 0.5, landing on 0.51.
+    fireEvent.keyDown(screen.getByTestId('granulator-t-grain'), { key: 'ArrowRight' })
 
     const inst = useInstrumentsStore.getState().granulators[T]
-    expect(inst.axes['t'].grain).toBe(0.75)
+    expect(inst.axes['t'].grain).toBe(0.51)
 
     const dict = buildGranulatorLayer(inst)!
     // Backend key is uppercase 'T' and uses snake_case field `grain`.
-    expect(dict.axes['T'].grain).toBe(0.75)
+    expect(dict.axes['T'].grain).toBe(0.51)
   })
 
   it('full chain: selection change → store → layer payload carries the new rule', () => {

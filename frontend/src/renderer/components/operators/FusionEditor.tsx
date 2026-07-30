@@ -1,4 +1,5 @@
 import Icon from '../../assets/icon-kit'
+import Slider from '../common/Slider'
 import { useOperatorStore } from '../../stores/operators'
 import type { Operator, FusionBlendMode } from '../../../shared/types'
 
@@ -84,15 +85,18 @@ export default function FusionEditor({ operator, availableOperators }: FusionEdi
           return (
             <div key={src.operatorId} className="operator-editor__source-row">
               <span className="operator-editor__source-label">{opLabel}</span>
-              <input
-                type="range"
-                className="operator-editor__slider"
-                min={0}
-                max={2}
-                step={0.05}
-                value={src.weight}
-                onChange={(e) => setWeight(i, parseFloat(e.target.value))}
-              />
+              <div className="operator-editor__slider">
+                <Slider
+                  value={src.weight}
+                  min={0}
+                  max={2}
+                  default={1}
+                  label={`${opLabel} weight`}
+                  type="float"
+                  showHeader={false}
+                  onChange={(v) => setWeight(i, v)}
+                />
+              </div>
               <span className="operator-editor__source-weight">{src.weight.toFixed(2)}</span>
               <button
                 className="operator-editor__remove-btn"

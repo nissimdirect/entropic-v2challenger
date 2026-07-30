@@ -58,7 +58,7 @@ describe('C15 — ModulationMatrix depth slider matches EdgeInspector [-1,1] sem
       curve: 'linear',
     })
 
-    const { getByDisplayValue } = render(
+    const { getByRole } = render(
       <ModulationMatrix
         effectChain={effectChain}
         registry={registry}
@@ -66,12 +66,16 @@ describe('C15 — ModulationMatrix depth slider matches EdgeInspector [-1,1] sem
       />,
     )
 
+    // F3-C2: the slider is now the common/Slider primitive — an ARIA
+    // role="slider" track, not a native <input type="range">, so its
+    // negative value is read via aria-value* rather than .min/.max/.value.
     // The slider's own value is negative — pre-fix this would have been
     // clamped into [0,1] by the `min={0}` HTML range constraint.
-    const slider = getByDisplayValue('-0.5') as HTMLInputElement
-    expect(slider.min).toBe('-1')
-    expect(slider.max).toBe('1')
-    expect(slider.value).toBe('-0.5')
+    const slider = getByRole('slider')
+    expect(slider.getAttribute('aria-valuemin')).toBe('-1')
+    expect(slider.getAttribute('aria-valuemax')).toBe('1')
+    expect(slider.getAttribute('aria-valuenow')).toBe('-0.5')
+    expect(slider.getAttribute('aria-valuetext')).toBe('-0.50')
   })
 
   it('editing the Matrix slider to a negative value round-trips through the SAME store field EdgeInspector edits', () => {
@@ -80,7 +84,11 @@ describe('C15 — ModulationMatrix depth slider matches EdgeInspector [-1,1] sem
     useOperatorStore.getState().addMapping(opId, {
       targetEffectId: 'inst-1',
       targetParamKey: 'amount',
-      depth: 0.2,
+      // F3-C2: seeded at 0.1 (was 0.2) so a single Shift+ArrowLeft press
+      // (Slider's tested keyboard interaction, slider.test.tsx — 10% of the
+      // [-1,1] range, delta 0.2) lands cleanly on a negative value (-0.1)
+      // without relying on whether two presses would accumulate.
+      depth: 0.1,
       min: 0,
       max: 1,
       curve: 'linear',
@@ -94,10 +102,13 @@ describe('C15 — ModulationMatrix depth slider matches EdgeInspector [-1,1] sem
       />,
     )
 
-    const slider = getByRole('slider') as HTMLInputElement
-    fireEvent.change(slider, { target: { value: '-0.5' } })
+    // F3-C2: the slider is now the common/Slider primitive (ARIA track
+    // driven by pointer-drag or keyboard, not a native <input type="range">,
+    // so a synthetic `change` event no longer applies).
+    const slider = getByRole('slider')
+    fireEvent.keyDown(slider, { key: 'ArrowLeft', shiftKey: true })
 
-    expect(useOperatorStore.getState().operators[0].mappings[0].depth).toBe(-0.5)
+    expect(useOperatorStore.getState().operators[0].mappings[0].depth).toBe(-0.1)
 
     // The SAME mapping.depth, when surfaced to EdgeInspector as `edge.amount`
     // (per RoutingCanvas.tsx:398's `updateMapping(..., { depth: result.amount })`
@@ -120,8 +131,8 @@ describe('C15 — ModulationMatrix depth slider matches EdgeInspector [-1,1] sem
         onDelete={() => {}}
       />,
     )
-    expect(getByTestId('routing-depth-value').textContent).toBe('×-0.50')
-    expect(clampAmount(edge.amount)).toBe(-0.5)
+    expect(getByTestId('routing-depth-value').textContent).toBe('×-0.10')
+    expect(clampAmount(edge.amount)).toBe(-0.1)
   })
 
   it('clampAmount is shared: an out-of-range depth (-2) clamps to -1 in both the Matrix render and EdgeInspector', () => {
@@ -143,8 +154,9 @@ describe('C15 — ModulationMatrix depth slider matches EdgeInspector [-1,1] sem
         operatorValues={{ [opId]: 0.5 }}
       />,
     )
-    const slider = getByRole('slider') as HTMLInputElement
-    expect(slider.value).toBe('-1')
+    // F3-C2: read via aria-valuenow (ARIA slider), not .value (native input).
+    const slider = getByRole('slider')
+    expect(slider.getAttribute('aria-valuenow')).toBe('-1')
     expect(clampAmount(-2)).toBe(-1)
   })
 })

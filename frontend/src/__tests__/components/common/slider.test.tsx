@@ -86,6 +86,56 @@ describe('Slider core interaction', () => {
   })
 })
 
+describe('Slider F3-C2 compact-adoption extensions', () => {
+  it('showHeader=false omits the header row but keeps the aria-labeled track', () => {
+    const { container, track } = setup({ showHeader: false })
+    expect(container.querySelector('.hslider__header')).toBeNull()
+    expect(track).not.toBeNull()
+    expect(track.getAttribute('aria-label')).toBe('Cutoff')
+  })
+
+  it('showHeader=false disables double-click-to-edit (no header to host the NumberInput)', () => {
+    const { container, track } = setup({ showHeader: false })
+    fireEvent.doubleClick(track)
+    expect(container.querySelector('input.number-input')).toBeNull()
+  })
+
+  it('onContextMenu override replaces the default reset-to-default behavior', () => {
+    const onContextMenu = vi.fn()
+    const { track, onChange } = setup({ onContextMenu, default: 25 })
+    fireEvent.contextMenu(track)
+    expect(onContextMenu).toHaveBeenCalledTimes(1)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('default is optional — right-click resets to min when omitted', () => {
+    const { track, onChange } = setup({ default: undefined, min: 10 })
+    fireEvent.contextMenu(track)
+    expect(onChange).toHaveBeenCalledWith(10)
+  })
+
+  it('testId lands data-testid on the track (the interactive element)', () => {
+    const { container } = setup({ testId: 'granulator-x-grain' })
+    expect(container.querySelector('[data-testid="granulator-x-grain"]')).not.toBeNull()
+  })
+
+  it('onClick passthrough lands on the track (role="slider", so it stays exempt from static-element-interaction a11y checks)', () => {
+    const onClick = vi.fn()
+    const { track } = setup({ onClick })
+    fireEvent.click(track)
+    expect(onClick).toHaveBeenCalledTimes(1)
+  })
+
+  it('disabled blocks pointer, keyboard, and context-menu interaction', () => {
+    const { track, onChange } = setup({ disabled: true })
+    expect(track.getAttribute('aria-disabled')).toBe('true')
+    expect(track.getAttribute('tabindex')).toBe('-1')
+    fireEvent.keyDown(track, { key: 'ArrowRight' })
+    fireEvent.contextMenu(track)
+    expect(onChange).not.toHaveBeenCalled()
+  })
+})
+
 describe('Slider edge cases', () => {
   it('clamps keyboard increments at max (no overshoot)', () => {
     const { track, onChange } = setup({ value: 100 })

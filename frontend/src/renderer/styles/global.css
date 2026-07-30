@@ -1022,51 +1022,15 @@ body {
   margin: 12px 0;
 }
 
-/* --- Param Slider --- */
-
+/* --- Param Slider ---
+ * F3-C2: ParamSlider.tsx is now a thin adapter over common/Slider — its
+ * former label/value/track markup was a near-exact duplicate of the shared
+ * .hslider/.hslider__header/.hslider__track styles (same flex-column/gap,
+ * same label+value header, same thumb), so this block is superseded rather
+ * than mirrored. .param-slider stays as the width-constraining wrapper the
+ * grid layouts around it expect. */
 .param-slider {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.param-slider__label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--cx-text-2);
-}
-
-.param-slider__value {
-  color: var(--cx-text-1);
-  font-weight: 500;
-}
-
-.param-slider__input {
-  -webkit-appearance: none;
   width: 100%;
-  height: 4px;
-  background: var(--cx-bg-hover);
-  border-radius: 2px;
-  outline: none;
-}
-
-.param-slider__input:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.param-slider__input::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 12px;
-  height: 12px;
-  background: var(--cx-text-1);
-  border-radius: 50%;
-  cursor: pointer;
-}
-
-.param-slider__input::-webkit-slider-thumb:hover {
-  background: var(--cx-action);
 }
 
 /* --- Param Choice --- */
@@ -1390,6 +1354,13 @@ body[data-disable-f-0512-36] .transform-panel {
 .transform-panel__input:focus {
   outline: none;
   border-color: var(--cx-action);
+}
+
+/* F3-C2: opacity is common/Slider (showHeader=false), not the boxed
+ * .transform-panel__input text-field look used by the numeric fields above
+ * — it gets its own unboxed wrapper. */
+.transform-panel__opacity-slider {
+  width: 100%;
 }
 
 /* --- Preview Controls --- */
@@ -1742,6 +1713,14 @@ body[data-disable-f-0512-36] .transform-panel {
   flex-direction: column;
   gap: 4px;
   user-select: none;
+}
+
+.hslider--disabled {
+  opacity: 0.5;
+}
+
+.hslider--disabled .hslider__track {
+  cursor: default;
 }
 
 .hslider__header {

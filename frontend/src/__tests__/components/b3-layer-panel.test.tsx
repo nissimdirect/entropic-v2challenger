@@ -84,10 +84,16 @@ describe('B3 LAYER panel', () => {
   it('opacity slider reflects + writes composite opacity', () => {
     const id = selectTrackWithComposite('normal', 0.6)
     const { container } = render(<LayerPanel />)
-    const slider = container.querySelector('[data-testid="layer-opacity"]') as HTMLInputElement
-    expect(slider.value).toBe('0.6')
-    fireEvent.change(slider, { target: { value: '0.25' } })
-    expect(compositingOf(id).opacity).toBeCloseTo(0.25, 5)
+    // F3-C2: opacity is now the common/Slider primitive — an ARIA
+    // role="slider" track, not a native <input type="range">, so its value
+    // is read via aria-valuenow rather than .value, and a synthetic
+    // `change` event no longer applies. Shift+ArrowLeft is Slider's tested
+    // keyboard interaction (slider.test.tsx) — one press moves by 10% of
+    // the [0,1] range (delta 0.1).
+    const slider = container.querySelector('[data-testid="layer-opacity"]') as HTMLElement
+    expect(slider.getAttribute('aria-valuenow')).toBe('0.6')
+    fireEvent.keyDown(slider, { key: 'ArrowLeft', shiftKey: true })
+    expect(compositingOf(id).opacity).toBeCloseTo(0.5, 5)
   })
 
   it('auto-creates a composite on first blend edit when the track has none', () => {
@@ -117,13 +123,19 @@ describe('B3 LAYER panel', () => {
     useTimelineStore.getState().selectTrack(id)
 
     const { container } = render(<LayerPanel />)
-    const rotate = container.querySelector('[data-testid="layer-rotate"]') as HTMLInputElement
+    const rotate = container.querySelector('[data-testid="layer-rotate"]') as HTMLElement
     expect(rotate).toBeTruthy()
-    fireEvent.change(rotate, { target: { value: '30' } })
+    // F3-C2: rotate is now the common/Slider primitive (ARIA track driven
+    // by pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). Shift+ArrowRight is
+    // Slider's tested keyboard interaction (slider.test.tsx) — one press
+    // moves by 10% of the [-180,180] range (delta 36) from the 0 default;
+    // int-typed rounds the result (already exact here).
+    fireEvent.keyDown(rotate, { key: 'ArrowRight', shiftKey: true })
 
     const clip = useTimelineStore.getState().tracks
       .flatMap((t) => t.clips)
       .find((c) => c.id === 'clip-1')!
-    expect(clip.transform?.rotation).toBeCloseTo(30, 5)
+    expect(clip.transform?.rotation).toBeCloseTo(36, 5)
   })
 })

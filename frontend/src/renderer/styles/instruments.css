@@ -134,6 +134,14 @@
   max-width: 120px;
 }
 
+/* F3-C2: rows that wrap common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — a bare .hslider has no intrinsic width, so give it
+ * the same flexible sizing the native range input got for free in a flex row. */
+.sampler-device__row .hslider {
+  flex: 1;
+  min-width: 60px;
+}
+
 /* B8 — Granulator device (P5b.19). BEM, dark theme tokens. */
 
 .granulator-device {
@@ -212,14 +220,14 @@
   color: var(--cx-text-3);
 }
 
-.granulator-device__knob-label input[type="range"] {
+/* F3-C2: knob-label wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — flex sizing carries over onto the .hslider root. */
+.granulator-device__knob-label .hslider {
   flex: 1;
   min-width: 60px;
-  max-width: none;
-  accent-color: var(--cx-action);
 }
 
-.granulator-device__knob-label input[type="range"]:disabled {
+.granulator-device__knob-label .hslider--disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }

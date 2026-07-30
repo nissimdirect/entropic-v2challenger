@@ -31,6 +31,7 @@ import Icon from '../../assets/icon-kit'
 import { useOperatorStore } from '../../stores/operators'
 import type { Operator, LFOWaveform, OperatorMapping, EffectInfo } from '../../../shared/types'
 import OperatorDepthArc from './OperatorDepthArc'
+import Slider from '../common/Slider'
 
 const WAVEFORMS: LFOWaveform[] = ['sine', 'saw', 'square', 'triangle', 'random', 'noise', 'sample_hold']
 
@@ -278,16 +279,18 @@ export default function OperatorKentaroCluster({
         </div>
         <div className="operator-card__param-row">
           <span className="operator-card__param-label">M.Depth</span>
-          <input
-            type="range"
-            className="operator-kentaro__master-depth"
-            min={0}
-            max={1}
-            step={0.01}
-            value={masterDepth}
-            onChange={(e) => setMasterDepth(parseFloat(e.target.value))}
-            aria-label="master depth"
-          />
+          <div className="operator-kentaro__master-depth">
+            <Slider
+              value={masterDepth}
+              min={0}
+              max={1}
+              default={1}
+              label="master depth"
+              type="float"
+              showHeader={false}
+              onChange={setMasterDepth}
+            />
+          </div>
           <OperatorDepthArc depth={masterEffective} color={ARC_COLOR} radius={9} />
         </div>
         <div className="operator-card__param-row">

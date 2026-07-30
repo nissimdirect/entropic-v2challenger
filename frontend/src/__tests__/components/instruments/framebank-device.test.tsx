@@ -147,8 +147,13 @@ describe('FrameBankDevice — render + edit (gate 2: anti-dead-flag)', () => {
   it('the position slider WRITES frameBanks[trackId].position (drives serialization → backend)', () => {
     useInstrumentsStore.getState().addFrameBank(T, ['a1'])
     render(<FrameBankDevice trackId={T} />)
-    fireEvent.change(screen.getByTestId('framebank-position'), { target: { value: '0.25' } })
-    expect(useInstrumentsStore.getState().frameBanks[T].position).toBe(0.25)
+    // F3-C2: position is now the common/Slider primitive (ARIA track driven
+    // by pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). Shift+ArrowLeft is
+    // Slider's tested keyboard interaction (slider.test.tsx) — one press
+    // moves by 10% of the [0,1] range from the 0.5 default, landing at 0.4.
+    fireEvent.keyDown(screen.getByTestId('framebank-position'), { key: 'ArrowLeft', shiftKey: true })
+    expect(useInstrumentsStore.getState().frameBanks[T].position).toBe(0.4)
   })
 
   it('interp dropdown writes the store', () => {
@@ -180,11 +185,17 @@ describe('FrameBankDevice — render + edit (gate 2: anti-dead-flag)', () => {
   it('position slider cannot exceed [0,1] (gate 3: UI trust boundary)', () => {
     useInstrumentsStore.getState().addFrameBank(T, ['a1'])
     render(<FrameBankDevice trackId={T} />)
-    const slider = screen.getByTestId('framebank-position') as HTMLInputElement
-    expect(slider.min).toBe('0')
-    expect(slider.max).toBe('1')
-    // Even a forced out-of-range value is clamped by the store action.
-    fireEvent.change(slider, { target: { value: '99' } })
+    // F3-C2: position is now the common/Slider primitive — its own pointer/
+    // keyboard interaction paths are structurally bounded to [min,max]
+    // (clampAndRound), so there is no longer a UI path that can even attempt
+    // to submit a raw out-of-range value (this is a strict tightening of the
+    // trust boundary, not a loosening — see aria-valuemin/max below for the
+    // remaining UI-side check). The store action's OWN defensive clamp
+    // (for any non-UI caller) is still exercised directly here.
+    const slider = screen.getByTestId('framebank-position')
+    expect(slider.getAttribute('aria-valuemin')).toBe('0')
+    expect(slider.getAttribute('aria-valuemax')).toBe('1')
+    useInstrumentsStore.getState().setFrameBankPosition(T, 99)
     expect(useInstrumentsStore.getState().frameBanks[T].position).toBe(1)
   })
 })
@@ -357,8 +368,13 @@ describe('Frame-Bank opacity + blendMode store actions (cohesion: WIRE)', () => 
   it('the opacity slider WRITES frameBanks[trackId].opacity', () => {
     useInstrumentsStore.getState().addFrameBank(T, ['a1'])
     render(<FrameBankDevice trackId={T} />)
-    fireEvent.change(screen.getByTestId('framebank-opacity'), { target: { value: '0.42' } })
-    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0.42)
+    // F3-C2: opacity is now the common/Slider primitive (ARIA track driven
+    // by pointer-drag or keyboard, not a native <input type="range">, so a
+    // synthetic `change` event no longer applies). Shift+ArrowLeft is
+    // Slider's tested keyboard interaction (slider.test.tsx) — one press
+    // moves by 10% of the [0,1] range from the 1 default, landing at 0.9.
+    fireEvent.keyDown(screen.getByTestId('framebank-opacity'), { key: 'ArrowLeft', shiftKey: true })
+    expect(useInstrumentsStore.getState().frameBanks[T].opacity).toBe(0.9)
   })
 
   it('the blend dropdown WRITES frameBanks[trackId].blendMode', () => {

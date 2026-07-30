@@ -144,28 +144,21 @@
   border-color: var(--cx-action);
 }
 
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .text-panel__slider {
   width: 100%;
+}
+
+.text-panel__slider .hslider__track {
   height: 4px;
-  -webkit-appearance: none;
-  appearance: none;
   background: var(--cx-bg-raised);
-  border-radius: 2px;
-  outline: none;
 }
 
-.text-panel__slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.text-panel__slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.text-panel__slider .hslider__thumb {
   width: 12px;
   height: 12px;
-  background: var(--cx-action);
-  border-radius: 50%;
-  cursor: pointer;
 }
 
 .text-panel__divider {

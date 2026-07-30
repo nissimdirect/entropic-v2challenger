@@ -34,6 +34,7 @@ import { useEffect, useRef } from 'react'
 import { useInstrumentsStore } from '../../stores/instruments'
 import { clampFinite } from '../../../shared/numeric'
 import { instrumentLearnContextMenu } from './instrumentLearn'
+import Slider from '../common/Slider'
 import {
   GRANULATOR_AXES,
   GRANULATOR_DENSITY_MIN,
@@ -348,21 +349,17 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
               {/* Grain (base position) */}
               <label className="granulator-device__knob-label">
                 <span>Grain</span>
-                <input
-                  type="range"
-                  data-testid={`granulator-${ax}-grain`}
+                <Slider
+                  testId={`granulator-${ax}-grain`}
                   value={axParams.grain}
                   min={0}
                   max={1}
-                  step={0.01}
+                  label={`${AXIS_LABELS[ax]} grain`}
+                  type="float"
+                  showHeader={false}
                   disabled={disabled}
                   onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.grain`)}
-                  onChange={(e) =>
-                    setGranulatorAxisParam(
-                      trackId, ax, 'grain',
-                      clampFinite(Number(e.target.value), 0, 1, axParams.grain),
-                    )
-                  }
+                  onChange={(v) => setGranulatorAxisParam(trackId, ax, 'grain', v)}
                 />
                 <span>{axParams.grain.toFixed(2)}</span>
               </label>
@@ -370,21 +367,17 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
               {/* Jitter */}
               <label className="granulator-device__knob-label">
                 <span>Jitter</span>
-                <input
-                  type="range"
-                  data-testid={`granulator-${ax}-jitter`}
+                <Slider
+                  testId={`granulator-${ax}-jitter`}
                   value={axParams.jitter}
                   min={0}
                   max={1}
-                  step={0.01}
+                  label={`${AXIS_LABELS[ax]} jitter`}
+                  type="float"
+                  showHeader={false}
                   disabled={disabled}
                   onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.jitter`)}
-                  onChange={(e) =>
-                    setGranulatorAxisParam(
-                      trackId, ax, 'jitter',
-                      clampFinite(Number(e.target.value), 0, 1, axParams.jitter),
-                    )
-                  }
+                  onChange={(v) => setGranulatorAxisParam(trackId, ax, 'jitter', v)}
                 />
                 <span>{axParams.jitter.toFixed(2)}</span>
               </label>
@@ -392,21 +385,17 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
               {/* Position */}
               <label className="granulator-device__knob-label">
                 <span>Position</span>
-                <input
-                  type="range"
-                  data-testid={`granulator-${ax}-position`}
+                <Slider
+                  testId={`granulator-${ax}-position`}
                   value={axParams.position}
                   min={0}
                   max={1}
-                  step={0.01}
+                  label={`${AXIS_LABELS[ax]} position`}
+                  type="float"
+                  showHeader={false}
                   disabled={disabled}
                   onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.position`)}
-                  onChange={(e) =>
-                    setGranulatorAxisParam(
-                      trackId, ax, 'position',
-                      clampFinite(Number(e.target.value), 0, 1, axParams.position),
-                    )
-                  }
+                  onChange={(v) => setGranulatorAxisParam(trackId, ax, 'position', v)}
                 />
                 <span>{axParams.position.toFixed(2)}</span>
               </label>
@@ -414,21 +403,17 @@ export default function GranulatorDevice({ trackId }: { trackId: string }) {
               {/* Envelope */}
               <label className="granulator-device__knob-label">
                 <span>Env</span>
-                <input
-                  type="range"
-                  data-testid={`granulator-${ax}-envelope`}
+                <Slider
+                  testId={`granulator-${ax}-envelope`}
                   value={axParams.envelope}
                   min={0}
                   max={1}
-                  step={0.01}
+                  label={`${AXIS_LABELS[ax]} envelope`}
+                  type="float"
+                  showHeader={false}
                   disabled={disabled}
                   onContextMenu={instrumentLearnContextMenu(trackId, `axis.${ax}.envelope`)}
-                  onChange={(e) =>
-                    setGranulatorAxisParam(
-                      trackId, ax, 'envelope',
-                      clampFinite(Number(e.target.value), 0, 1, axParams.envelope),
-                    )
-                  }
+                  onChange={(v) => setGranulatorAxisParam(trackId, ax, 'envelope', v)}
                 />
                 <span>{axParams.envelope.toFixed(2)}</span>
               </label>

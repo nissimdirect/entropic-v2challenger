@@ -17,6 +17,7 @@ import { SAMPLER_SPEED_MAX, SAMPLER_SPEED_MIN } from './types'
 import { clampFinite } from '../../../shared/numeric'
 import type { BlendMode } from '../../../shared/types'
 import { instrumentLearnContextMenu } from './instrumentLearn'
+import Slider from '../common/Slider'
 
 const BLEND_MODES: BlendMode[] = [
   'normal', 'add', 'multiply', 'screen', 'overlay',
@@ -83,21 +84,21 @@ export default function SamplerDevice({ trackId }: { trackId: string }) {
         />
       </label>
 
-      <label className="sampler-device__row">
+      <div className="sampler-device__row">
         <span>Opacity</span>
-        <input
-          type="range"
-          data-testid="sampler-opacity"
+        <Slider
+          testId="sampler-opacity"
           value={inst.opacity}
           min={0}
           max={1}
-          step={0.01}
+          default={1}
+          label="opacity"
+          type="float"
+          showHeader={false}
           onContextMenu={instrumentLearnContextMenu(trackId, 'opacity')}
-          onChange={(e) =>
-            updateSampler(trackId, { opacity: clampFinite(Number(e.target.value), 0, 1, 1) })
-          }
+          onChange={(v) => updateSampler(trackId, { opacity: v })}
         />
-      </label>
+      </div>
 
       <label className="sampler-device__row">
         <span>Blend</span>

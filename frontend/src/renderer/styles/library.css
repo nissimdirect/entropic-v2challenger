@@ -374,36 +374,21 @@
   color: var(--cx-text-2);
 }
 
-/* PUX.5 — Macro-knob slider: thumb 10×10→12×12, track height→24px transparent.
- * Electron = Chromium, -moz- skipped. */
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .macro-knob__slider {
-  -webkit-appearance: none;
   width: 60px;
-  height: 24px;
-  background: transparent;
-  border-radius: 2px;
-  outline: none;
 }
 
-.macro-knob__slider::-webkit-slider-runnable-track {
+.macro-knob__slider .hslider__track {
   height: 4px;
-  background: var(--cx-bg-hover);
-  border-radius: 2px;
 }
 
-.macro-knob__slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.macro-knob__slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.macro-knob__slider .hslider__thumb {
   width: 12px;
   height: 12px;
   background: var(--cx-action);
-  border-radius: 50%;
-  cursor: pointer;
-  margin-top: -4px;
 }
 
 .macro-knob__value {

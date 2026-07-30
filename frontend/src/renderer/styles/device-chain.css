@@ -338,30 +338,26 @@ body[data-disable-f-0512-30] .device-card {
   flex-shrink: 0;
 }
 
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — sizing/colors carried over onto the Slider's own
+ * .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .device-card__mix-slider {
   flex: 1;
-  -webkit-appearance: none;
+}
+
+.device-card__mix-slider .hslider__track {
   height: 2px;
   background: var(--cx-bg-raised);
   border-radius: 1px;
-  outline: none;
 }
 
-.device-card__mix-slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.device-card__mix-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.device-card__mix-slider .hslider__thumb {
   width: 8px;
   height: 8px;
   background: var(--cx-text-2);
-  border-radius: 50%;
-  cursor: pointer;
 }
 
-.device-card__mix-slider::-webkit-slider-thumb:hover {
+.device-card__mix-slider .hslider__track:hover .hslider__thumb {
   background: var(--cx-selection);
 }
 

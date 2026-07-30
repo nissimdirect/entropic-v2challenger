@@ -253,24 +253,29 @@ describe('RoutingCanvas — edge create / inspect / delete', () => {
     })
     fireEvent.click(routedDest)
 
-    // The edge inspector depth slider should appear.
+    // The edge inspector depth slider should appear. F3-C2: it's now the
+    // common/Slider primitive — selected by its data-testid (COMPONENT-SPEC
+    // §2 tests target test-ids only), not the old input's `id` attribute.
     const slider = await waitFor(() => {
-      const s = container.querySelector('#routing-edge-depth') as HTMLInputElement
+      const s = container.querySelector('[data-testid="routing-edge-depth"]') as HTMLElement
       expect(s).not.toBeNull()
       return s
     })
 
+    // F3-C2: Shift+ArrowLeft is Slider's tested keyboard interaction
+    // (slider.test.tsx) — one press moves by 10% of the [-1,1] range (delta
+    // 0.2) from the seeded 0.7 depth, landing at 0.5.
     await act(async () => {
-      fireEvent.change(slider, { target: { value: '0.3' } })
+      fireEvent.keyDown(slider, { key: 'ArrowLeft', shiftKey: true })
       await Promise.resolve()
     })
 
     // routing_edge_update should have been called, and the store committed.
     const updateCall = sendCommand.mock.calls.find((c) => c[0].cmd === 'routing_edge_update')
     expect(updateCall).toBeTruthy()
-    expect(updateCall![0].amount).toBeCloseTo(0.3, 5)
+    expect(updateCall![0].amount).toBeCloseTo(0.5, 5)
     await waitFor(() => {
-      expect(useOperatorStore.getState().operators[0].mappings[0].depth).toBeCloseTo(0.3, 5)
+      expect(useOperatorStore.getState().operators[0].mappings[0].depth).toBeCloseTo(0.5, 5)
     })
   })
 

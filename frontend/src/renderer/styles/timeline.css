@@ -452,40 +452,20 @@
   flex-shrink: 0;
 }
 
-/* PUX.5 — Zoom-scroll slider: thumb 10×10→12×12, track height→24px transparent.
- * Electron = Chromium, -moz- skipped. */
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
 .zoom-scroll__slider {
-  -webkit-appearance: none;
   width: 100px;
-  height: 24px;
-  background: transparent;
-  border-radius: 2px;
-  outline: none;
 }
 
-.zoom-scroll__slider::-webkit-slider-runnable-track {
+.zoom-scroll__slider .hslider__track {
   height: 4px;
-  background: var(--cx-bg-hover);
-  border-radius: 2px;
 }
 
-.zoom-scroll__slider:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.zoom-scroll__slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
+.zoom-scroll__slider .hslider__thumb {
   width: 12px;
   height: 12px;
-  background: var(--cx-text-1);
-  border-radius: 50%;
-  cursor: pointer;
-  margin-top: -4px;
-}
-
-.zoom-scroll__slider::-webkit-slider-thumb:hover {
-  background: var(--cx-action);
 }
 
 .zoom-scroll__value {
@@ -709,40 +689,21 @@ body.clip-dragging .timeline__new-track-zone {
   margin-left: 4px;
 }
 
-/* PUX.5 — Track opacity slider: thumb 10×10→12×12, track height 4px→24px
- * (transparent track padding gives ≥24px effective target). Electron = Chromium,
- * -moz- pseudo skipped intentionally. */
-.track-header__opacity input[type="range"] {
+/* F3-C2: wraps common/Slider (showHeader=false) instead of a raw
+ * <input type="range"> — width/track/thumb sizing carried over onto the
+ * Slider's own .hslider__track/.hslider__thumb (COMPONENT-SPEC §3). */
+.track-header__opacity .hslider {
   width: 40px;
-  height: 24px;
-  -webkit-appearance: none;
-  appearance: none;
-  background: transparent;
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
 }
 
-.track-header__opacity input[type="range"]::-webkit-slider-runnable-track {
+.track-header__opacity .hslider__track {
   height: 4px;
   background: var(--cx-bg-raised);
-  border-radius: 2px;
 }
 
-.track-header__opacity input[type="range"]:focus-visible {
-  outline: 2px solid var(--cx-focus-ring);
-  outline-offset: 1px;
-}
-
-.track-header__opacity input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
+.track-header__opacity .hslider__thumb {
   width: 12px;
   height: 12px;
-  border-radius: 50%;
-  background: var(--cx-action);
-  cursor: pointer;
-  margin-top: -4px;
 }
 
 .track-header__opacity-label {

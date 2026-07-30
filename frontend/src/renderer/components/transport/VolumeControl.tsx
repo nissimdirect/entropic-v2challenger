@@ -1,4 +1,5 @@
 import Icon from '../../assets/icon-kit'
+import Slider from '../common/Slider'
 
 interface VolumeControlProps {
   volume: number
@@ -21,11 +22,6 @@ export default function VolumeControl({
 }: VolumeControlProps) {
   const clamped = Math.max(0, Math.min(1, volume))
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = parseFloat(e.target.value)
-    onVolumeChange(Math.max(0, Math.min(1, raw)))
-  }
-
   return (
     <div className="volume-control">
       <button
@@ -36,16 +32,18 @@ export default function VolumeControl({
       >
         <Icon name={speakerIconName(clamped, isMuted)} size={16} />
       </button>
-      <input
-        type="range"
-        className="volume-control__slider"
-        min={0}
-        max={1}
-        step={0.01}
-        value={isMuted ? 0 : clamped}
-        onChange={handleChange}
-        aria-label="Volume"
-      />
+      <div className="volume-control__slider">
+        <Slider
+          value={isMuted ? 0 : clamped}
+          min={0}
+          max={1}
+          default={1}
+          label="Volume"
+          type="float"
+          showHeader={false}
+          onChange={(v) => onVolumeChange(Math.max(0, Math.min(1, v)))}
+        />
+      </div>
       <span className="volume-control__label">
         {Math.round((isMuted ? 0 : clamped) * 100)}%
       </span>

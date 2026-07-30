@@ -32,6 +32,7 @@ import { useToastStore } from '../../stores/toast'
 import { useMIDIStore } from '../../stores/midi'
 import { useLayoutStore } from '../../stores/layout'
 import { useAudioStore } from '../../stores/audio'
+import Slider from '../common/Slider'
 import { clampFinite } from '../../../shared/numeric'
 import { quantizeFrame } from '../../utils/launch-quantize'
 import {
@@ -624,13 +625,14 @@ function MacroRow({
         value={macro.name}
         onChange={(e) => onUpdate(trackId, macro.id, { name: e.target.value })}
       />
-      <input
-        type="range"
-        data-testid="rack-macro-value"
+      <Slider
+        testId="rack-macro-value"
+        value={macro.value}
         min={0}
         max={1}
-        step={0.01}
-        value={macro.value}
+        label="macro value"
+        type="float"
+        showHeader={false}
         // H3 — right-click arms MIDI-learn for this rack macro. The next CC
         // binds a CCSlotMapping with a {kind:'macro', trackId, macroId} target.
         onContextMenu={(e) => {
@@ -640,9 +642,7 @@ function MacroRow({
             target: { kind: 'macro', trackId, macroId: macro.id },
           })
         }}
-        onChange={(e) =>
-          onUpdate(trackId, macro.id, { value: clampFinite(Number(e.target.value), 0, 1, 0) })
-        }
+        onChange={(v) => onUpdate(trackId, macro.id, { value: v })}
       />
       <button
         type="button"
