@@ -2,6 +2,22 @@
 
 **Author:** Fable (CDO pass), 2026-06-11 · **Status:** canonical — supersedes Pop Chaos v1.0 *and* the UX-SPEC purple *and* the incumbent Tailwind-green for all Creatrix UI. PUX.1–PUX.6 implement THIS spec. Visual reference: [`style-guide.html`](./style-guide.html).
 
+> ## CANON STATUS (2026-07-30, frontend framework F1 — three recorded corrections)
+> 1. **Typography: the §3 two-voice IBM Plex Sans/Mono plan is REVERSED and dead.** The
+>    mono-only identity (JetBrains Mono everywhere, hierarchy via weight/size/color) was
+>    locked as a design principle (learning #245) and **user-ratified 2026-07-29**
+>    (`docs/frontend/RATIFIED-FOUNDATIONS.md` D5). The `TODO(plex-swap)` comments in
+>    `tokens.css` are historical residue — do not act on them.
+> 2. **Type scale: governed by RATIFIED D6 "Scale B+1"** — heading 16/650 · body 14/450 ·
+>    label 13/600 · data 12/450, **floor 12px** — superseding this doc's §3 sizes AND the
+>    earlier "Scale B (15/13/12/11)" verdict. Lands as tokens via ui-foundation PK.A;
+>    enforced by `frontend/scripts/ui-ratchets.sh` (`css_font_below_floor`).
+> 3. **Framework home:** component contract, SDLC, and ratified decisions live at
+>    `docs/frontend/` (COMPONENT-SPEC.md · FRONTEND-SDLC.md · RATIFIED-FOUNDATIONS.md ·
+>    LEARNING-PATH.md), indexed from `CONTRIBUTING.md` §Frontend UI Law. This doc remains
+>    canon for color/surface/motion/per-surface application; where it conflicts with a
+>    RATIFIED row, the ratified row wins.
+
 ## 0. Why Pop Chaos v1.0 is retired
 
 Six max-chroma neons (#39FF14, #FF00FF, #00FFF7, #FF2D2D, #FFBF00, #7B61FF) on black is a moodboard, not a system: hues at full saturation vibrate on dark surfaces, glows-as-decoration read as costume, all-caps mono everywhere flattens hierarchy into shouting, and 9–10px captions sit below the legibility floor. Fatal for a video tool: saturated chrome around the preview shifts perceived color of the user's footage. The one good instinct — cold undertone in the blacks — survives below, tuned in OKLCH.

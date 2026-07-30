@@ -94,6 +94,18 @@ CSS custom properties (`:root` in `global.css`):
 - `--sidebar-width`, `--sidebar-width-collapsed`, `--statusbar-height`, `--params-max-height`
 - `--timeline-default-height`, `--timeline-min-height`, `--panel-collapsed-height`, `--resize-handle-height`
 
+## Frontend Framework (READ BEFORE ANY UI WORK)
+
+Law lives at `docs/frontend/` — **RATIFIED-FOUNDATIONS.md** (user-ratified design
+decisions; specs must trace to rows here) · **COMPONENT-SPEC.md** (state contract,
+test-ids, primitives, token tiers) · **FRONTEND-SDLC.md** (pipeline, visual cadence
+L1–L5, baseline lifecycle, testing pyramid) · **LEARNING-PATH.md** (owner fluency).
+One-page index: `CONTRIBUTING.md` §Frontend UI Law. Every rule is script-enforced
+(`frontend/scripts/hex-ratchet.sh`, `ui-ratchets.sh`, the vitest guards) — CI is the
+law; the docs are the index. Hard rules: screenshot every visual edit before the next
+(cadence L1) · no Playwright journey suites · tests target `data-testid` only ·
+UI PRs fill the template's TRACEABILITY section.
+
 ## IPC Trace Fields
 
 - `_token`: Auth token (injected by relay, validated by Python)

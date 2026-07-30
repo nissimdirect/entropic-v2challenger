@@ -1,0 +1,22 @@
+# RATIFIED FOUNDATIONS — Creatrix Frontend
+**Ratified 2026-07-29 by nissimdirect, F-1 walkthrough (live app + B3 mockup + frame mock side by side).**
+**This file is the canonical copy (landed via F1). New load-bearing decisions append a row here in the same PR that implements them — never retroactively.**
+Standing rule: specs trace to rows in this table; new load-bearing decisions get a row at the moment they're made, never retroactively.
+
+| # | Decision | Verdict | Detail |
+|---|----------|---------|--------|
+| D1 | "Ableton for video effects" × Photoshop direction | ✅ RATIFIED | Market frame + mental model for every future feature. |
+| D2 | Track = Layer; arrangement IS the layers panel; row order = z-order | ✅ RATIFIED | Permanent law: no feature may ever add a separate layers panel. |
+| D3 | Lean track headers + right-dock selection-driven LAYER panel | ✅ RATIFIED | Deep controls (blend/opacity/matte/transform) live in the panel, never the header. |
+| D4 | Icons: wire-restyle set (wand-as-Block exception) + locked glyphs (razor R2c, ripple D5) + grouped rail Convention 1 (8 groups, cycle hotkeys) | ✅ RATIFIED | Wand W1/W2/W3 small-size pick remains OPEN (comet variants in progress, parallel session). |
+| D5 | Mono-only identity: JetBrains Mono everywhere; hierarchy via weight/size/color; Plex two-voice plan formally dead | ✅ RATIFIED | Canon (DESIGN-SPEC.md) must record the Plex reversal. |
+| D6 | Type scale | 🔧 **AMENDED → SCALE B+1** | User: "make text a bit bigger than min" → bump everything +1: **heading 16/650 · body 14/450 · label 13/600 · data 12/450. App floor = 12px** (was 11). Supersedes "Scale B locked 2026-07-10". Final values confirmed by eye on a REAL-DIMENSIONS mock during PK.A. **Downstream: PK.A token values change; type-floor ratchet target = 12px (recount violations: all <12px); ui-foundation proposal.md/design-spec.md need an amendment commit on PR #447.** |
+| D7 | Empty states: minimal styled hint text, no CTA buttons | 🔧 **RATIFIED w/ CONTRAST GUARANTEE** | User: "concerned about contrast." Hint text must meet WCAG AA (4.5:1) on its surface — bind to a token pairing verified in DESIGN-SPEC §9's computed table, and PK.D's UAT row gains a screenshot+PIL contrast oracle. Quiet ≠ illegible. |
+| D8 | Automation strip grouping | 🔧 **AMENDED — curve ops leave the strip** | User: "curve ops i think are not actual buttons i think its more like in the lane." Strip keeps **Mode (R/L/T/D)** and **Record (Overdub/+Lane/+Trigger/+Mod)** clusters + wrap-safe layout. **Flatten/Ramp/Shape/Simplify/Clear move to lane-contextual actions** (on-lane affordance or lane context menu — action lives at the object it acts on, which also kills the "which lane?" ambiguity of a global button). Exact interaction decided at PK.C's real-dims mock review. **Downstream: PK.C re-scoped; OD-6 superseded.** |
+| D9 | Build order: ui-foundation before every queued feature change | ✅ RATIFIED | Framework phases wrap around it, never ahead of it. |
+
+## New rule ratified in passing
+**REAL-DIMENSIONS-ONLY** (sibling of REAL-INVENTORY-ONLY): mocks are authored inside the app's default window (1280×800) and sanity-checked at minimum supported size. Enforced by a fixed-shell-width grep in the mock-registry verification script. Trigger: user caught `ui-foundation-frame.html` hard-coded at 1600px (25% wider than the app's default window), plus a malformed media query — width-sensitive judgments made on it (rail collisions, strip wrapping) must be re-checked at 1280×800 before PK.B/PK.C build. Pixel-type-size judgments survive.
+
+## Provenance (the user's own words behind D1–D5, for the record)
+"Ableton mixed with Photoshop" · "the second" · "each track IS a layer" · "oof this is worse" (B2) · "the actual tracks in the arrangement view are the layers" · "too much info to squeeze into a track header — maybe a panel that links to it on the right; just not the layer order" · "definitely block is best" → wire dictations (07-15/18) · "i legit cant use anything like this" (07-09).
