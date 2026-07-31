@@ -3505,6 +3505,7 @@ function AppInner() {
             max={300}
             value={effectiveBpm}
             onChange={(e) => useProjectStore.getState().setBpm(Number(e.target.value))}
+            data-testid="transport-bpm-input"
           />
         </div>
         <div className="app__transport-quant">
@@ -3523,6 +3524,7 @@ function AppInner() {
             className={`app__transport-btn ${quantizeEnabled ? 'app__transport-btn--active' : ''}`}
             onClick={() => useLayoutStore.getState().toggleQuantize()}
             title="Toggle quantize grid (Cmd+U)"
+            data-testid="quantize-toggle"
           >
             Q
           </button>
@@ -3545,16 +3547,23 @@ function AppInner() {
               className={`app__transport-btn ${isPlaying ? 'app__transport-btn--active' : ''}`}
               onClick={handlePlayPause}
               title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+              data-testid="transport-play"
             >
               <TransportIcon name={isPlaying ? 'pause' : 'play'} />
             </button>
-            <button className="app__transport-btn" onClick={handleStop} title="Stop">
+            <button
+              className="app__transport-btn"
+              onClick={handleStop}
+              title="Stop"
+              data-testid="transport-stop"
+            >
               <TransportIcon name="stop" />
             </button>
             <button
               className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
               onClick={() => useTimelineStore.getState().toggleLooping()}
               title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
+              data-testid="transport-loop"
             >
               <TransportIcon name="loop" />
             </button>

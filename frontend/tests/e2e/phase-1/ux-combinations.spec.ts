@@ -46,7 +46,7 @@ async function importAndWaitForFrame(electronApp: any, window: any): Promise<voi
 // removed from PreviewControls.tsx long ago (58647bb) — "Play/pause and
 // scrubbing handled by timeline" (see PreviewControls.tsx's own comment).
 // Play/pause now lives in the global transport bar (.app__transport-btn,
-// first of the three play/stop/loop buttons — App.tsx ~3200). Scrubbing now
+// targeted via data-testid=transport-play since the W1-11 reorder — positional .first() would now hit the snap toggle). Scrubbing now
 // happens via TimeRuler's click-to-seek on `.time-ruler__canvas` (a canvas,
 // not an <input type="range">) or by dragging `.playhead__head` — there is
 // no numeric frame readout in the DOM, so frame position is derived from the
@@ -55,7 +55,7 @@ async function importAndWaitForFrame(electronApp: any, window: any): Promise<voi
 /** Check play/pause state via the button's title (toggles Play<->Pause),
  *  more robust than the glyph (▶/⏸) which can render inconsistently. */
 async function isPlaying(window: any): Promise<boolean> {
-  const title = await window.locator('.app__transport-btn').first().getAttribute('title')
+  const title = await window.getByTestId('transport-play').getAttribute('title')
   return title === 'Pause (Space)'
 }
 
@@ -68,7 +68,7 @@ async function isPlaying(window: any): Promise<boolean> {
 async function startPlayback(window: any): Promise<void> {
   await expect(async () => {
     if (!(await isPlaying(window))) {
-      await window.locator('.app__transport-btn').first().click()
+      await window.getByTestId('transport-play').click()
     }
     expect(await isPlaying(window)).toBe(true)
   }).toPass({ timeout: 8_000 })
@@ -79,7 +79,7 @@ async function startPlayback(window: any): Promise<void> {
 async function pausePlayback(window: any): Promise<void> {
   await expect(async () => {
     if (await isPlaying(window)) {
-      await window.locator('.app__transport-btn').first().click()
+      await window.getByTestId('transport-play').click()
     }
     expect(await isPlaying(window)).toBe(false)
   }).toPass({ timeout: 8_000 })
@@ -580,7 +580,7 @@ test.describe('UX Combos — Group 8: State Machine Transitions', () => {
     // above) — the glyph (▶/⏸) is checked via title instead, which is
     // stable across font rendering. startPlayback/pausePlayback poll for
     // the state flip rather than assuming a fixed settle time.
-    const playBtn = window.locator('.app__transport-btn').first()
+    const playBtn = window.getByTestId('transport-play')
 
     // Cycle 1: play
     await startPlayback(window)
