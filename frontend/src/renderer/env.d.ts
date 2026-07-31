@@ -9,6 +9,11 @@ interface ImportMeta {
   readonly env: ImportMetaEnv
 }
 
+// QF5 (W1.5a owner walk): build-time constant from package.json's version,
+// injected via the `define` block in electron.vite.config.ts (renderer) and
+// vitest.config.ts (tests) — never hardcode an app version string again.
+declare const __APP_VERSION__: string
+
 interface Window {
   entropic: {
     isTestMode: boolean

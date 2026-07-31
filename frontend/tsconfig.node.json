@@ -19,6 +19,7 @@
     "src/__tests__/main/**/*",
     "src/shared/**/*",
     "src/shared/**/*.json",
-    "electron.vite.config.ts"
+    "electron.vite.config.ts",
+    "package.json"
   ]
 }
