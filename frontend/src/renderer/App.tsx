@@ -169,7 +169,7 @@ import RenderQueue from './components/export/RenderQueue'
 import { RoutingCanvas } from './components/routing-canvas'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
-import { CloseButton } from './assets/icon-kit'
+import Icon, { CloseButton } from './assets/icon-kit'
 // F4b PR2: menu-action dispatch extraction (App.tsx decomposition, lowest-risk slice).
 import { useMenuActions } from './app/menuActions'
 // F4b PR3: close-requested / unsaved-changes gate extraction.
@@ -3537,14 +3537,16 @@ function AppInner() {
           />
         </div>
         <div className="app__transport-quant">
-          {/* UE.1: Snap toggle — clip-edge/playhead/marker snapping. Store-shape change → kill+relaunch required (not HMR). */}
+          {/* UE.1: Snap toggle — clip-edge/playhead/marker snapping. Store-shape change → kill+relaunch required (not HMR).
+              W1-3: magnet glyph replaces the bare "S" (collided with the track Solo "S" button). */}
           <button
             className={`app__transport-btn ${snapEnabled ? 'app__transport-btn--active' : ''}`}
             onClick={() => useLayoutStore.getState().toggleSnap()}
             title="Toggle snapping (clip edges, playhead, markers)"
+            aria-label="Snap"
             data-testid="snap-toggle"
           >
-            S
+            <Icon name="magnet" size={13} />
           </button>
           <button
             className={`app__transport-btn ${quantizeEnabled ? 'app__transport-btn--active' : ''}`}

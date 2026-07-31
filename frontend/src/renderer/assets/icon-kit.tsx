@@ -47,6 +47,8 @@ import type { ReactElement } from 'react'
  *   circle          -> record-arm dot (fill-state pair via `filled` prop —
  *                      resolves the R-collision: automation Read-mode keeps
  *                      the text "R"; record-arm is now this glyph, never text)
+ *   magnet          -> snap-to-grid toggle (W1-3; replaces the bare text "S",
+ *                      which collided with the Solo "S" button on tracks)
  *
  * CUSTOMS (2 of the manifest's 13, scoped to this packet's file set):
  *   snowflake -> freeze state pair (fill-state pair via `filled` prop —
@@ -87,6 +89,7 @@ export type KitIconName =
   | 'trash-2'
   | 'circle'
   | 'snowflake'
+  | 'magnet'
 
 interface IconProps {
   name: KitIconName
@@ -271,6 +274,14 @@ const ICON_BODY: Record<KitIconName, ReactElement> = {
       <g transform="rotate(120 12 12)">
         <line x1={12} y1={3} x2={12} y2={21} />
       </g>
+    </>
+  ),
+  // LUCIDE magnet (v1.28 — matches this kit's vendored source version)
+  magnet: (
+    <>
+      <path d="m12 15 4 4" />
+      <path d="M2.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l6.029-6.029a1 1 0 1 1 3 3l-6.029 6.029a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l6.365-6.367A1 1 0 0 0 8.716 4.282z" />
+      <path d="m5 8 4 4" />
     </>
   ),
 }
