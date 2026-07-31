@@ -9,6 +9,7 @@
  */
 import { useCallback, useState } from 'react'
 import Select from '../common/Select'
+import Icon from '../../assets/icon-kit'
 import { useAutomationStore, type AutomationMode } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useEffectsStore } from '../../stores/effects'
@@ -379,7 +380,7 @@ export default function AutomationToolbar() {
           className="auto-toolbar__btn"
           onClick={handleAddLane}
           title={!armedTrackId
-            ? 'Arm a track first — click the R button on a track header'
+            ? 'Arm a track first — click the record-arm dot on a track header'
             : 'Add automation lane to armed track'}
           disabled={!armedTrackId}
           data-testid="add-lane-btn"
@@ -390,7 +391,7 @@ export default function AutomationToolbar() {
           className="auto-toolbar__btn"
           onClick={handleAddTrigger}
           title={!armedTrackId
-            ? 'Arm a track first — click the R button on a track header'
+            ? 'Arm a track first — click the record-arm dot on a track header'
             : 'Add trigger automation lane (0/1 toggle) to armed track'}
           disabled={!armedTrackId}
           data-testid="add-trigger-btn"
@@ -405,7 +406,7 @@ export default function AutomationToolbar() {
           className="auto-toolbar__btn"
           onClick={handleAddMod}
           title={!armedTrackId
-            ? 'Arm a track first — click the R button on a track header'
+            ? 'Arm a track first — click the record-arm dot on a track header'
             : modTargetLanes.length === 0
               ? 'Add an automation lane first — modulation superimposes onto an existing lane'
               : 'Add a modulation lane superimposed on an existing lane\'s parameter'}
@@ -416,8 +417,11 @@ export default function AutomationToolbar() {
         </button>
       </div>
       {!armedTrackId && (
+        // W1-2: the record-arm affordance is icon-kit's dot glyph (Track.tsx /
+        // MasterTrack.tsx), not the letter "R" — the hint now shows the same
+        // glyph instead of a stale text reference.
         <span className="auto-toolbar__hint">
-          Click <kbd>R</kbd> on a track to arm
+          Click <Icon name="circle" size={10} className="auto-toolbar__hint-dot" /> on a track to arm
         </span>
       )}
       {armedTrack && (

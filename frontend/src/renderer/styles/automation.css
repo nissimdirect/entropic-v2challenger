@@ -150,6 +150,14 @@
   font-family: inherit;
 }
 
+/* W1-2: inline record-arm dot glyph inside .auto-toolbar__hint, replacing
+   the old <kbd>R</kbd> text reference — vertical-align keeps it on the
+   text baseline instead of dropping to the icon's own box bottom. */
+.auto-toolbar__hint-dot {
+  vertical-align: -1px;
+  margin: 0 1px;
+}
+
 /* D8/PK.C — lane Shape… popover, opened from the lane's right-click CURVE
    menu. Reuses the floating-panel convention already established by
    ContextMenu (timeline.css `.context-menu`: fixed position, bg-raised,

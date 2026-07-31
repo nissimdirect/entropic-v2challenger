@@ -7,7 +7,8 @@
  *
  * The toolbar is fully implemented but had zero component test coverage.
  * This locks the button states (disabled when no track armed), the
- * arm-hint text (post-F-0516-10: hint now reads "R", not "A"), and the
+ * arm-hint text (post-F-0516-10: hint referenced "R", not "A"; W1-2:
+ * "R" itself was replaced by icon-kit's record-arm dot glyph), and the
  * param-picker open/close flow.
  *
  * D8/PK.C (2026-07-30): Simplify/Clear/Shape (and Flatten/Ramp, which never
@@ -123,22 +124,24 @@ describe('AutomationToolbar — overdub toggle', () => {
   })
 })
 
-describe('AutomationToolbar — arm hint references R (post-F-0516-10)', () => {
-  it('when no track is armed, hint label reads "Click R on a track"', () => {
+describe('AutomationToolbar — arm hint references the record-arm dot (W1-2)', () => {
+  it('when no track is armed, hint renders the record-arm dot glyph, not the letter R', () => {
     const { container } = render(<AutomationToolbar />)
     const hint = container.querySelector('.auto-toolbar__hint')
     expect(hint).toBeTruthy()
-    expect(hint!.textContent).toContain('R')
-    // F-0516-10: must NOT reference the old "A" label.
-    // textContent of the hint is "Click R on a track to arm" — assert "R" exists
-    // and that the literal "A on a track" phrasing is gone.
+    // W1-2: the record-arm affordance is icon-kit's dot glyph — the hint no
+    // longer spells out a bare "R" (which collided with the Read-mode label).
+    expect(hint!.querySelector('svg')).toBeTruthy()
+    expect(hint!.textContent).not.toContain('R')
+    // F-0516-10: must still NOT reference the old "A" label either.
     expect(hint!.textContent).not.toContain('A on a track')
   })
 
-  it('when no track is armed, "Add Lane" tooltip references R', () => {
+  it('when no track is armed, "Add Lane" tooltip references the record-arm dot, not the letter R', () => {
     const { container } = render(<AutomationToolbar />)
     const btn = container.querySelector('[data-testid="add-lane-btn"]') as HTMLElement
-    expect(btn.getAttribute('title')).toContain('R button')
+    expect(btn.getAttribute('title')).toContain('record-arm dot')
+    expect(btn.getAttribute('title')).not.toContain('R button')
     expect(btn.getAttribute('title')).not.toContain('A button')
   })
 })
