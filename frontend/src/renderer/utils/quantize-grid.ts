@@ -108,3 +108,22 @@ export function formatQuantizeReadout(bpm: number, quantizeDivision: number): st
   const label = QUANT_LABELS[quantizeDivision] ?? `1/${quantizeDivision}`
   return `${label} · bar ${barSeconds.toFixed(1)}s @ ${Math.round(safeBpm)}`
 }
+
+/**
+ * PK.A4 — snap a raw timeline-seconds position to the CURRENTLY VISIBLE grid
+ * level (whatever selectQuantizeGridLevel/PK.A2 is rendering at this zoom —
+ * "snap in/out to active grid level", proposal.md Workstream A). Deliberately
+ * distinct from Clip.tsx's snapPosition (which also considers clip edges/
+ * playhead/markers via the separate `snapEnabled` toggle) — this is quantize-
+ * grid-only, matching what the user can actually see.
+ */
+export function snapTimeToGridLevel(
+  time: number,
+  bpm: number,
+  quantizeDivision: number,
+  zoom: number,
+): number {
+  const { fineIntervalSeconds } = selectQuantizeGridLevel(bpm, quantizeDivision, zoom)
+  if (!Number.isFinite(fineIntervalSeconds) || fineIntervalSeconds <= 0) return time
+  return Math.round(time / fineIntervalSeconds) * fineIntervalSeconds
+}

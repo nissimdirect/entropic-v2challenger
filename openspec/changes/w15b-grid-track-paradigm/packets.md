@@ -111,6 +111,15 @@
   by testid, never position (W1-11 lesson).
 - Oracle: vitest — mode change from transport reflects in store + lane UI;
   baseline REDESIGN regen; A5 CU pass mandatory before merge.
+- **Owner rulings (2026-07-31 evening, docs-only amendment, C1 still GATED/
+  unbuilt):** (1) the transport bar's far-right position is RESERVED for
+  CPU/MEM meters — the MODES/Overdub right-aligned group above must NOT
+  claim that slot; place it to the left of the reserved meter region. (2)
+  the timecode readout MOVES OUT of the transport bar entirely, to under
+  the preview window — it is no longer part of this packet's transport-bar
+  layout and must not be treated as displaced by the MODES/Overdub move.
+  Both constraints apply whenever C1 is picked up; they do not change the
+  GATED status or authorize building C1 now.
 
 ## Sequencing
 

@@ -252,12 +252,18 @@ describe('Timeline UI — Master track (M.2)', () => {
     expect(document.querySelector('[data-testid="master-track-lane"]')).toBeTruthy()
   })
 
-  test('master track lane has NO clip content (no .clip nodes, no marquee overlay)', () => {
+  // W1.5b PK.A4 (D12 unification, orchestrator ruling 2026-07-31, PR #488):
+  // MasterTrackLane now mounts MarqueeOverlay so the master lane participates
+  // in the arrangement-wide selectionRegion band (D12: "any lane bed incl.
+  // master"). The master track still has NO clips and never will (M.2) — the
+  // clip-selection half of the unified gesture is always a no-op here, but
+  // the marquee-overlay element itself is legitimately present now.
+  test('master track lane has NO clip content (no .clip nodes); marquee overlay IS mounted for PK.A4 selectionRegion', () => {
     useTimelineStore.getState().addMasterTrack()
     render(<Timeline onSeek={() => {}} />)
     const masterLane = document.querySelector('[data-testid="master-track-lane"]')!
     expect(masterLane.querySelector('.clip')).toBeNull()
-    expect(masterLane.querySelector('.marquee-overlay')).toBeNull()
+    expect(masterLane.querySelector('.marquee-overlay')).not.toBeNull()
   })
 
   // QUARANTINED (CI-flaky 3×): the last-in-DOM-order assertion is nondeterministic

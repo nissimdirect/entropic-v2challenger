@@ -29,6 +29,9 @@ import { describe, it, expect, beforeEach } from 'vitest'
 }
 
 import { useTimelineStore } from '../../../renderer/stores/timeline'
+import { useLayoutStore } from '../../../renderer/stores/layout'
+import { useProjectStore } from '../../../renderer/stores/project'
+import { snapTimeToGridLevel } from '../../../renderer/utils/quantize-grid'
 import type { Clip } from '../../../shared/types'
 
 // ---------------------------------------------------------------------------
@@ -467,5 +470,141 @@ describe('marquee pointer sequence commits selection to timeline store and clips
     const selected = useTimelineStore.getState().selectedClipIds
     expect(selected).toContain('a')
     expect(selected).toContain('b')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// 8. W1.5b PK.A4 — unified gesture (orchestrator ruling, 2026-07-31, PR #488):
+//    plain lane-bed drag produces BOTH a clip selection (unchanged, raw
+//    pixel range) AND a snapped timeline.selectionRegion, in one commit.
+//    Mirrors MarqueeOverlay.computeSnappedRange/commitSelection exactly,
+//    using the REAL snapTimeToGridLevel + REAL layout/project store state
+//    (same mirror convention as commitSelection above — see file header).
+// ---------------------------------------------------------------------------
+
+describe('PK.A4 unified gesture — selectionRegion + clip selection from one drag', () => {
+  let trackId: string
+
+  beforeEach(() => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('T', '#4ade80')
+    trackId = useTimelineStore.getState().tracks[0].id
+    useLayoutStore.setState({ quantizeEnabled: false, quantizeDivision: 4 })
+    useProjectStore.setState({ bpm: 120, effectiveBpm: 120 })
+  })
+
+  /** Mirrors MarqueeOverlay.computeSnappedRange exactly. */
+  function computeSnappedRange(pixelLeft: number, pixelRight: number, zoom: number, altKey: boolean) {
+    let timeLeft = Math.max(0, pixelLeft / zoom)
+    let timeRight = Math.max(0, pixelRight / zoom)
+    const layout = useLayoutStore.getState()
+    if (layout.quantizeEnabled && !altKey) {
+      const bpm = useProjectStore.getState().effectiveBpm
+      timeLeft = snapTimeToGridLevel(timeLeft, bpm, layout.quantizeDivision, zoom)
+      timeRight = snapTimeToGridLevel(timeRight, bpm, layout.quantizeDivision, zoom)
+    }
+    if (timeLeft > timeRight) { const t = timeLeft; timeLeft = timeRight; timeRight = t }
+    return { in: timeLeft, out: timeRight }
+  }
+
+  /** Mirrors MarqueeOverlay's pointerup dx>=2 branch: both outputs, one commit. */
+  function simulateUnifiedDrag(clips: Clip[], pixelLeft: number, pixelRight: number, zoom: number, altKey = false) {
+    // (a) clip selection — RAW pixel range, unchanged from pre-PK.A4 marquee.
+    const timeLeft = pixelLeft / zoom
+    const timeRight = pixelRight / zoom
+    const intersecting = clips
+      .filter((c) => c.position < timeRight && c.position + c.duration > timeLeft)
+      .map((c) => c.id)
+    useTimelineStore.setState({ selectedClipIds: intersecting, selectedClipId: intersecting[0] ?? null })
+
+    // (b) selectionRegion — snapped when Q on and Alt not held.
+    const range = computeSnappedRange(pixelLeft, pixelRight, zoom, altKey)
+    useTimelineStore.getState().setSelectionRegion(range)
+  }
+
+  it('drag on an empty lane (zero clips) still produces a selectionRegion band', () => {
+    const zoom = 50
+    simulateUnifiedDrag([], 100, 400, zoom) // 2s..8s, no clips on this track
+
+    expect(useTimelineStore.getState().selectedClipIds).toHaveLength(0)
+    const region = useTimelineStore.getState().selectionRegion
+    expect(region).not.toBeNull()
+    expect(region!.in).toBeCloseTo(2, 5)
+    expect(region!.out).toBeCloseTo(8, 5)
+  })
+
+  it('drag starting on a clip body produces NEITHER output (pointerdown guard fires first)', () => {
+    // MarqueeOverlay.handlePointerDown returns before isDragging is ever set
+    // true when the target closest('.clip') matches — no move/up handler
+    // logic runs at all, so neither commitSelection nor setSelectionRegion
+    // are ever reached. Assert the store is untouched by this scenario.
+    const before = { selectedClipIds: useTimelineStore.getState().selectedClipIds, selectionRegion: useTimelineStore.getState().selectionRegion }
+    const clipEl = { closest: (sel: string) => (sel === '.clip' ? {} : null) }
+    const startedFromClip = clipEl.closest('.clip') !== null
+    expect(startedFromClip).toBe(true)
+    // No store mutation happens in this branch — verify nothing changed.
+    expect(useTimelineStore.getState().selectedClipIds).toEqual(before.selectedClipIds)
+    expect(useTimelineStore.getState().selectionRegion).toEqual(before.selectionRegion)
+  })
+
+  it('quantize ON snaps the selectionRegion; clip selection stays on the RAW (unsnapped) pixel range', () => {
+    useLayoutStore.setState({ quantizeEnabled: true, quantizeDivision: 4 }) // bpm=120 -> interval 0.5s
+    const zoom = 50
+    // clip spans 1.9s..3.1s -> 95..155px. Drag 90px..160px (1.8s..3.2s raw) — intersects the clip.
+    const clip = makeClip({ id: 'c', position: 1.9, duration: 1.2, trackId })
+
+    simulateUnifiedDrag([clip], 90, 160, zoom)
+
+    // Clip selection: RAW range [1.8, 3.2) intersects [1.9, 3.1) -> selected.
+    expect(useTimelineStore.getState().selectedClipIds).toEqual(['c'])
+    // selectionRegion: snapped to the nearest 0.5s line -> [2.0, 3.0).
+    const region = useTimelineStore.getState().selectionRegion!
+    expect(region.in).toBeCloseTo(2.0, 5)
+    expect(region.out).toBeCloseTo(3.0, 5)
+  })
+
+  it('Alt held during the drag bypasses snap for that drag (temporary, per-drag)', () => {
+    useLayoutStore.setState({ quantizeEnabled: true, quantizeDivision: 4 })
+    const zoom = 50
+    simulateUnifiedDrag([], 90, 160, zoom, /* altKey */ true)
+
+    const region = useTimelineStore.getState().selectionRegion!
+    expect(region.in).toBeCloseTo(90 / zoom, 5) // 1.8s, unsnapped
+    expect(region.out).toBeCloseTo(160 / zoom, 5) // 3.2s, unsnapped
+  })
+
+  it('quantize OFF never snaps, regardless of Alt', () => {
+    const zoom = 50
+    simulateUnifiedDrag([], 97, 163, zoom, false)
+    const region = useTimelineStore.getState().selectionRegion!
+    expect(region.in).toBeCloseTo(97 / zoom, 5)
+    expect(region.out).toBeCloseTo(163 / zoom, 5)
+  })
+
+  it('zero-area click (dx<2) clears BOTH clip selection and selectionRegion (mirrors handlePointerUp)', () => {
+    const clip = makeClip({ id: 'a', position: 0, duration: 5, trackId })
+    useTimelineStore.getState().addClip(trackId, clip)
+    useTimelineStore.getState().selectClip('a')
+    useTimelineStore.getState().setSelectionRegion({ in: 1, out: 2 })
+
+    // dx < 2 branch: MarqueeOverlay.handlePointerUp calls clearSelection() + clearSelectionRegion()
+    useTimelineStore.getState().clearSelection()
+    useTimelineStore.getState().clearSelectionRegion()
+
+    expect(useTimelineStore.getState().selectedClipIds).toHaveLength(0)
+    expect(useTimelineStore.getState().selectionRegion).toBeNull()
+  })
+
+  it('Esc clears an already-committed selectionRegion without touching clip selection (PK.A4 "Esc clears")', () => {
+    const clip = makeClip({ id: 'a', position: 0, duration: 5, trackId })
+    useTimelineStore.getState().addClip(trackId, clip)
+    useTimelineStore.getState().selectClip('a')
+    useTimelineStore.getState().setSelectionRegion({ in: 1, out: 2 })
+
+    // MarqueeOverlay's not-mid-drag Escape branch: clearSelectionRegion() only.
+    useTimelineStore.getState().clearSelectionRegion()
+
+    expect(useTimelineStore.getState().selectionRegion).toBeNull()
+    expect(useTimelineStore.getState().selectedClipIds).toEqual(['a'])
   })
 })

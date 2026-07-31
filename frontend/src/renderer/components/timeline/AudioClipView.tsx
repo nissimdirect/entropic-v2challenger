@@ -161,9 +161,9 @@ export default function AudioClipView({ clip, zoom, isSelected, waveformPeaks }:
         width: `${width}px`,
         height: `${TRACK_HEIGHT - 2}px`,
         top: 1,
-        // W1.5b PK.A1: keep audio clips above .timeline__grid-overlay (z-index:1),
-        // matching .clip's same-purpose z-index in timeline.css.
-        zIndex: 2,
+        // W1.5b PK.A1/A4: keep audio clips above .timeline__grid-overlay (1) and
+        // .marquee-overlay__band (2), matching .clip's z-index in timeline.css.
+        zIndex: 3,
         background: clip.missing ? '#3f1f1f' : '#1a3320',
         border: `1px solid ${isSelected ? '#86efac' : '#2d5a3a'}`,
         borderRadius: 2,

@@ -1,9 +1,35 @@
 /**
- * MarqueeOverlay — rubber-band clip selection for the timeline track lane.
+ * MarqueeOverlay — unified lane-bed drag gesture (rubber-band clip select +
+ * PK.A4 arrangement time-range selection).
  *
- * UE.3: Drag-rectangle on track background area selects every clip whose
- * time-range intersects the marquee rect. Shift held at pointer-up adds
- * to the existing selection (union). Escape mid-drag cancels.
+ * UE.3 (original): drag-rectangle on track background selects every clip
+ * whose time-range intersects the marquee rect. Shift held at pointer-up
+ * adds to the existing selection (union). Escape mid-drag cancels.
+ *
+ * W1.5b PK.A4 (orchestrator ruling, 2026-07-31 — see PR #488): this was
+ * originally going to be a SEPARATE, modifier-gated gesture (proposed
+ * Alt+drag) to avoid clobbering the marquee above. The ruling instead
+ * UNIFIES them: this component's own header already established that the
+ * marquee's vertical span is meaningless ("full lane height is always
+ * selected since the overlay covers a single track's lane") — i.e. it was
+ * ALREADY a horizontal-only, time-range gesture whose only visible output
+ * happened to be clip selection. That is exactly Ableton's arrangement-drag
+ * grammar: dragging creates a TIME selection; clips inside it become
+ * selected as a byproduct. So one plain drag now produces BOTH outputs:
+ *   (a) writes `timeline.selectionRegion` to the dragged range, snapped to
+ *       the currently-visible grid level (PK.A2) when quantize is on, free
+ *       when off (D12) — LIVE during the drag, so every mounted
+ *       MarqueeOverlay (one per lane) renders the same global region as a
+ *       full-lane-height band (see the render at the bottom), collectively
+ *       reading as one spanning band across the arrangement.
+ *   (b) selects clips intersecting the RAW (unsnapped) dragged pixels on
+ *       THIS lane — unchanged predicate/inputs from the original marquee,
+ *       so every pre-existing clip-selection test stays valid unmodified.
+ * Alt held during the drag bypasses snap for that drag (temporary,
+ * standard DAW idiom) — distinct from Clip.tsx's meta/ctrl-bypass on clip
+ * drag, which is a different gesture on a different element.
+ * `Cmd+L` (App.tsx `copy_selection_to_loop`) copies the committed
+ * selectionRegion into loopRegion.
  *
  * Design references:
  * - Coordinate idiom from BoundingBoxOverlay.tsx + SnapGuides.tsx (pointer
@@ -17,8 +43,9 @@
  *   in flight to avoid divergent implementations.
  *
  * Pointer event model:
- *   pointerdown on track background → setPointerCapture → move draws rect →
- *   pointerup commits selection → click is suppressed by isDragging flag.
+ *   pointerdown on track background → setPointerCapture → move updates
+ *   selectionRegion live (snapped) → pointerup commits clip selection
+ *   (raw range) → click is suppressed by isDragging flag.
  *
  * Clip intersection: a clip at [clipStart, clipEnd] intersects
  * [rectLeft, rectRight] when clipStart < rectRight && clipEnd > rectLeft.
@@ -28,7 +55,8 @@
  *
  * NOTE: This component attaches pointer handlers to the track background.
  * The Clip component calls stopPropagation on pointerdown, so clicks/drags
- * that start ON a clip body never reach this overlay.
+ * that start ON a clip body never reach this overlay — neither clip
+ * selection nor selectionRegion are touched.
  *
  * T1 (2026-07-02) investigation — 'range-select' cursor tool (EffectBrowser
  * [tool] tab): this overlay is mounted unconditionally in TrackLane (Track.tsx)
@@ -47,17 +75,11 @@
  * docs/plans/2026-07-02-master-tuneup-plan.md WS1 (T1) / T5 packet.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useTimelineStore } from '../../stores/timeline'
-
-interface MarqueeRect {
-  /** Left edge in pixels (CSS left relative to the lane container). */
-  left: number
-  /** Width in pixels (always ≥0). */
-  width: number
-  top: number
-  height: number
-}
+import { useLayoutStore } from '../../stores/layout'
+import { useProjectStore } from '../../stores/project'
+import { snapTimeToGridLevel } from '../../utils/quantize-grid'
 
 interface Props {
   /** Zoom level: pixels per second. */
@@ -77,10 +99,48 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
   const isDragging = useRef(false)
   const startX = useRef(0) // client X at pointer-down
   const startY = useRef(0)
-  const [rect, setRect] = useState<MarqueeRect | null>(null)
   // Ref mirrors isDragging for click-suppression access in the click handler
   const isDraggingRef = useRef(false)
 
+  // Global selection-region state — every mounted MarqueeOverlay (one per
+  // lane) subscribes to the SAME value, so a drag in any one lane renders a
+  // full-lane-height band in every lane simultaneously (collectively reads
+  // as one spanning arrangement-wide band).
+  const selectionRegion = useTimelineStore((s) => s.selectionRegion)
+
+  /**
+   * PK.A4: raw pixel positions -> a snapped time range, in/out independently
+   * snapped to whatever grid level PK.A2 is currently rendering (matches
+   * what the user can see). altKey bypasses snap for this drag.
+   */
+  const computeSnappedRange = useCallback(
+    (currentX: number, altKey: boolean): { in: number; out: number } | null => {
+      const container = containerRef.current
+      if (!container) return null
+      const containerRect = container.getBoundingClientRect()
+      const rawLeft = Math.min(startX.current, currentX) - containerRect.left + scrollX
+      const rawRight = Math.max(startX.current, currentX) - containerRect.left + scrollX
+      let timeLeft = Math.max(0, rawLeft / zoom)
+      let timeRight = Math.max(0, rawRight / zoom)
+
+      const layout = useLayoutStore.getState()
+      if (layout.quantizeEnabled && !altKey) {
+        const bpm = useProjectStore.getState().effectiveBpm
+        timeLeft = snapTimeToGridLevel(timeLeft, bpm, layout.quantizeDivision, zoom)
+        timeRight = snapTimeToGridLevel(timeRight, bpm, layout.quantizeDivision, zoom)
+      }
+      // Snapping in/out independently can invert a short drag at a coarse
+      // grid level (both edges land on the same line) — normalize rather
+      // than emit a negative-width region.
+      if (timeLeft > timeRight) { const t = timeLeft; timeLeft = timeRight; timeRight = t }
+      return { in: timeLeft, out: timeRight }
+    },
+    [containerRef, scrollX, zoom],
+  )
+
+  /** Unchanged clip-intersection predicate — RAW (unsnapped) pixel range,
+   *  same inputs as before the PK.A4 unification, so every pre-existing
+   *  test stays valid. */
   const commitSelection = useCallback(
     (currentX: number, shiftKey: boolean) => {
       const container = containerRef.current
@@ -139,39 +199,19 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
       isDraggingRef.current = true
       startX.current = e.clientX
       startY.current = e.clientY
-
-      const container = containerRef.current
-      if (!container) return
-      const containerRect = container.getBoundingClientRect()
-      const laneLeft = e.clientX - containerRect.left
-      const laneTop = e.clientY - containerRect.top
-
-      setRect({ left: laneLeft, width: 0, top: laneTop, height: 0 })
     },
-    [containerRef],
+    [],
   )
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!isDragging.current) return
-
-      const container = containerRef.current
-      if (!container) return
-      const containerRect = container.getBoundingClientRect()
-
-      const x0 = startX.current - containerRect.left
-      const y0 = startY.current - containerRect.top
-      const x1 = e.clientX - containerRect.left
-      const y1 = e.clientY - containerRect.top
-
-      setRect({
-        left: Math.min(x0, x1),
-        width: Math.abs(x1 - x0),
-        top: Math.min(y0, y1),
-        height: Math.abs(y1 - y0),
-      })
+      // Live preview: update the global selectionRegion on every move so
+      // every mounted overlay's band tracks the drag in real time.
+      const range = computeSnappedRange(e.clientX, e.altKey)
+      if (range) useTimelineStore.getState().setSelectionRegion(range)
     },
-    [containerRef],
+    [computeSnappedRange],
   )
 
   const handlePointerUp = useCallback(
@@ -179,18 +219,17 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
       if (!isDragging.current) return
 
       isDragging.current = false
-      setRect(null)
 
-      const container = containerRef.current
-      if (!container) return
-      const containerRect = container.getBoundingClientRect()
       const dx = Math.abs(e.clientX - startX.current)
 
-      // Zero-area click (no meaningful drag distance): clear selection
+      // Zero-area click (no meaningful drag distance): clear both outputs.
       if (dx < 2) {
         useTimelineStore.getState().clearSelection()
+        useTimelineStore.getState().clearSelectionRegion()
       } else {
         commitSelection(e.clientX, e.shiftKey)
+        const range = computeSnappedRange(e.clientX, e.altKey)
+        if (range) useTimelineStore.getState().setSelectionRegion(range)
       }
 
       // Suppress the synthetic click from pointerup so the TrackLane's
@@ -208,28 +247,42 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
         isDraggingRef.current = false
       })
     },
-    [commitSelection, containerRef],
+    [commitSelection, computeSnappedRange],
   )
 
   const handlePointerCancel = useCallback(() => {
     isDragging.current = false
     isDraggingRef.current = false
-    setRect(null)
+    // No proper commit happened — matches the zero-area-click clear.
+    useTimelineStore.getState().clearSelectionRegion()
   }, [])
 
-  // Escape mid-drag cancels without changing selection
+  // Escape: mid-drag cancels WITHOUT changing clip selection (unchanged
+  // NEGATIVE behavior) but DOES clear the in-progress selectionRegion.
+  // Not-mid-drag: PK.A4 "Esc clears" an already-committed selectionRegion
+  // (clip selection has its own, separate clear path — untouched here).
+  // Mounted once per lane; redundant across instances but idempotent.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isDragging.current) {
+      if (e.key !== 'Escape') return
+      if (isDragging.current) {
         isDragging.current = false
         isDraggingRef.current = false
-        setRect(null)
-        // Do NOT change selection
+        useTimelineStore.getState().clearSelectionRegion()
+        return
+      }
+      if (useTimelineStore.getState().selectionRegion) {
+        useTimelineStore.getState().clearSelectionRegion()
       }
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  // This lane's pixel projection of the global selectionRegion.
+  const band = selectionRegion
+    ? { left: selectionRegion.in * zoom - scrollX, width: (selectionRegion.out - selectionRegion.in) * zoom }
+    : null
 
   return (
     <div
@@ -245,7 +298,7 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
         // events. The overlay only catches events that fall through the gaps
         // between clips (i.e., empty track background).
         zIndex: 0,
-        // The overlay itself is transparent — only the rect is visible
+        // The overlay itself is transparent — only the band is visible
         background: 'transparent',
       }}
       onPointerDown={handlePointerDown}
@@ -253,20 +306,11 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerCancel}
     >
-      {rect && rect.width > 1 && (
+      {band && band.width > 0 && (
         <div
-          className="marquee-overlay__rect"
-          style={{
-            position: 'absolute',
-            left: `${rect.left}px`,
-            top: `${rect.top}px`,
-            width: `${rect.width}px`,
-            height: `${rect.height}px`,
-            border: '1px solid #4ade80',
-            background: 'rgba(74, 222, 128, 0.08)',
-            pointerEvents: 'none',
-            boxSizing: 'border-box',
-          }}
+          className="marquee-overlay__band"
+          data-testid="selection-region-band"
+          style={{ left: `${band.left}px`, width: `${band.width}px` }}
         />
       )}
     </div>

@@ -155,6 +155,11 @@ interface TimelineState {
   duration: number
   markers: Marker[]
   loopRegion: { in: number; out: number } | null
+  /** W1.5b PK.A4: arrangement time-range selection (Ableton grammar) — the
+   *  byproduct-selection unification of MarqueeOverlay's drag gesture.
+   *  Undo-transparent (see setSelectionRegion) — same tier as scrollX/zoom,
+   *  not an editorial change. */
+  selectionRegion: { in: number; out: number } | null
   isLooping: boolean
   zoom: number
   scrollX: number
@@ -314,6 +319,11 @@ interface TimelineState {
   // View
   setZoom: (pxPerSec: number) => void
   setScrollX: (px: number) => void
+
+  // W1.5b PK.A4: transient time-range selection — plain set(), not undoable
+  // (matches selectTrack/setScrollX/setZoom below, per R3 reconciliation).
+  setSelectionRegion: (region: { in: number; out: number } | null) => void
+  clearSelectionRegion: () => void
 
   // Selection
   selectTrack: (id: string | null) => void
@@ -830,6 +840,7 @@ const INITIAL_STATE = {
   duration: 0,
   markers: [] as Marker[],
   loopRegion: null as { in: number; out: number } | null,
+  selectionRegion: null as { in: number; out: number } | null,
   isLooping: false,
   zoom: 50,
   scrollX: 0,
@@ -2430,6 +2441,10 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
     const maxScroll = Math.max(0, (duration + 1) * zoom)
     set({ scrollX: Math.max(0, Math.min(maxScroll, px)) })
   },
+
+  // W1.5b PK.A4: NOT undoable — same tier as scrollX/zoom/selectedTrackId.
+  setSelectionRegion: (region) => set({ selectionRegion: region }),
+  clearSelectionRegion: () => set({ selectionRegion: null }),
 
   // --- Selection (NOT undoable — UI state) ---
 
