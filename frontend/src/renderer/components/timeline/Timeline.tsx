@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
 import TimeRuler from './TimeRuler'
@@ -9,6 +9,8 @@ import { InspectorTrackHeader, InspectorTrackLane } from './InspectorTrack'
 import { MasterTrackHeader, MasterTrackLane } from './MasterTrack'
 import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
+import ContextMenu from './ContextMenu'
+import type { MenuItem } from './ContextMenu'
 
 interface TimelineProps {
   onSeek: (time: number) => void
@@ -107,6 +109,33 @@ export default function Timeline({
     const id = useTimelineStore.getState().addInspectorTrack()
     if (id) useTimelineStore.getState().selectTrack(id)
   }, [])
+
+  // QF3 (W1.5a owner walk): "I should be able to right-click and then add a
+  // track." Mirrors App.tsx's handleAddTextTrack (Cmd+T) — the same
+  // addTextTrack store action, since the empty-area menu is the only place
+  // in Timeline.tsx a text track can be added (no dedicated + button here).
+  const handleAddTextTrack = useCallback(() => {
+    const textCount = tracks.filter((t) => t.type === 'text').length
+    useTimelineStore.getState().addTextTrack(`Text ${textCount + 1}`, '#6366f1')
+  }, [tracks])
+
+  // QF3: right-click on the empty lane bed (track-list background, below or
+  // between existing tracks — NOT a track header, which already owns its own
+  // context menu via TrackHeader.handleContextMenu) opens an Add Track menu.
+  // Attached to the lanes scroll container so it also catches clicks on the
+  // empty space of the sizing div below the last track row; clip/track-lane
+  // interactions that need their own handling already stopPropagation on
+  // their own onContextMenu (Clip.tsx:206-207), so this never fires over them.
+  const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
+  const handleLaneBedContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
+  }, [])
+  const emptyAreaMenuItems: MenuItem[] = [
+    { label: 'Add Track', action: handleAddTrack, testId: 'empty-area-menu-add-track' },
+    { label: 'Add MIDI Track', action: handleAddMidiTrack, testId: 'empty-area-menu-add-midi-track' },
+    { label: 'Add Text Track', action: handleAddTextTrack, testId: 'empty-area-menu-add-text-track' },
+  ]
 
   // Track-headers column needs to follow the lanes' vertical scroll so the
   // left/right halves of each row stay aligned when the user has more tracks
@@ -295,7 +324,7 @@ export default function Timeline({
               <TimeRuler zoom={zoom} scrollX={0} duration={duration} onSeek={onSeek} />
             </div>
           </div>
-          <div className="timeline__tracks-scroll" onScroll={handleScroll}>
+          <div className="timeline__tracks-scroll" onScroll={handleScroll} onContextMenu={handleLaneBedContextMenu}>
             <div style={{
               width: `${contentWidth}px`,
               position: 'relative',
@@ -382,6 +411,16 @@ export default function Timeline({
           </div>
         </div>
       </div>
+      {/* QF3: empty lane-bed right-click menu — Add Track / Add MIDI Track /
+          Add Text Track, same handlers as the + buttons above. */}
+      {emptyAreaMenu && (
+        <ContextMenu
+          x={emptyAreaMenu.x}
+          y={emptyAreaMenu.y}
+          items={emptyAreaMenuItems}
+          onClose={() => setEmptyAreaMenu(null)}
+        />
+      )}
       {/* Transport bar moved to timeline__toolbar above the body */}
     </div>
   )
