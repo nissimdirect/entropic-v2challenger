@@ -1,38 +1,44 @@
 /**
  * w15a-owner-walk.test.tsx — W1.5a owner-directed quick-fix oracle (A2
  * row-level pattern, one block per item — see w1-first-light.test.ts for
- * the shape this follows). QF1/QF2/QF3 are markup/CSS/config changes with
- * no interesting render-time behavior beyond "the fix is actually in
- * source," so those use the same source-grep pattern as w1-first-light.
- * QF4 is store-logic behavior (a state leak, not markup), so it gets a real
- * render/store test instead of a grep — proving the bug is actually fixed,
- * not just that some string appears in a file.
+ * the shape this follows). QF1/QF2 are pure markup/CSS changes with no
+ * interesting render-time behavior beyond "the fix is actually in source,"
+ * so those use the same source-grep pattern as w1-first-light. QF3 (amended
+ * mid-session), QF4, and QF6 (added mid-session) are all real behavior — a
+ * unified menu replacing per-type buttons, a cross-store state leak, and an
+ * interaction-model change — so those get real render/store/event tests
+ * instead of grep, proving the bug/feature is actually fixed/shipped, not
+ * just that some string appears in a file.
  */
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { render, cleanup } from '@testing-library/react'
+import { render, cleanup, fireEvent } from '@testing-library/react'
+import { setupMockEntropic, teardownMockEntropic } from './helpers/mock-entropic'
 
 const RENDERER = path.join(__dirname, '../renderer')
 const read = (rel: string) => fs.readFileSync(path.join(RENDERER, rel), 'utf-8')
 
-// Mock entropic + zustand stores BEFORE importing renderer components.
-const mockEntropic = {
-  sendCommand: () => Promise.resolve({ ok: true }),
-  onEngineStatus: () => () => {},
-}
-;(globalThis as unknown as { window: unknown }).window = { entropic: mockEntropic }
-
 import { TrackHeader } from '../renderer/components/timeline/Track'
 import { MasterTrackHeader } from '../renderer/components/timeline/MasterTrack'
+import Timeline from '../renderer/components/timeline/Timeline'
 import WelcomeScreen from '../renderer/components/layout/WelcomeScreen'
 import { useTimelineStore } from '../renderer/stores/timeline'
 import { useAutomationStore } from '../renderer/stores/automation'
 
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8')) as { version: string }
 
+// setupMockEntropic installs window.entropic on the REAL happy-dom window
+// (Object.defineProperty), unlike the simpler `window = {...}` stub some
+// sibling suites use — Timeline mounts MarqueeOverlay, which calls real
+// window.addEventListener, so the full window must stay intact.
+beforeEach(() => {
+  setupMockEntropic()
+})
+
 afterEach(() => {
   cleanup()
+  teardownMockEntropic()
 })
 
 describe('W1.5a owner walk — row-level oracle (one assertion block per quick fix)', () => {
@@ -80,15 +86,68 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
     expect(tokens).not.toContain('--cx-master-bg: #352D23')
   })
 
-  it('QF3: right-clicking the empty lane bed opens an Add Track / Add MIDI Track / Add Text Track menu', () => {
+  // QF3 AMENDED (2026-07-31 second owner walk): "not three separate buttons
+  // for three separate types" — ONE unified menu (Video/MIDI/Text, no
+  // Inspector — see QF6), reachable by right-clicking the empty lane bed OR
+  // the QF6 "+ Track" button. Behavioral (not source-grep): mount the real
+  // Timeline, right-click the empty lane bed, and drive the actual menu.
+  it('QF3 (amended): right-clicking the empty lane bed opens ONE unified Add Track menu (Video/MIDI/Text, no Inspector)', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    const laneBed = container.querySelector('.timeline__tracks-scroll')
+    expect(laneBed).toBeTruthy()
+    fireEvent.contextMenu(laneBed!)
+
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')?.textContent).toBe('Add Video Track')
+    expect(document.querySelector('[data-testid="add-track-menu-item-midi"]')?.textContent).toBe('Add MIDI Track')
+    expect(document.querySelector('[data-testid="add-track-menu-item-text"]')?.textContent).toBe('Add Text Track')
+    // No Inspector option in this menu (QF6 removed its creation path entirely).
+    expect(document.querySelector('[data-testid="add-track-menu-item-inspector"]')).toBeNull()
+    expect(container.textContent).not.toContain('Inspector')
+
+    const beforeCount = useTimelineStore.getState().tracks.length
+    fireEvent.click(document.querySelector('[data-testid="add-track-menu-item-video"]')!)
+    expect(useTimelineStore.getState().tracks.length).toBe(beforeCount + 1)
+    // Menu closes after picking an item.
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')).toBeNull()
+  })
+
+  // QF6 (NEW, 2026-07-31 second owner walk): owner directive collapsed the
+  // headers-spacer's + Track / + MIDI / + Inspector three-button row into a
+  // single "+ Track" button opening the SAME unified menu as QF3's
+  // right-click, and removed Inspector's creation entry point entirely
+  // (feature code / store action / saved-project load path stay untouched —
+  // only the UI affordance to CREATE a new one goes).
+  it('QF6: the headers-spacer has ONE "+ Track" button (no Inspector button) that opens the same unified menu', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    const spacer = container.querySelector('.timeline__headers-spacer')
+    expect(spacer).toBeTruthy()
+    const spacerButtons = spacer!.querySelectorAll('.timeline__add-track-btn')
+    expect(spacerButtons.length).toBe(1)
+    expect(spacer!.textContent).not.toContain('Inspector')
+    expect(spacer!.textContent).not.toContain('MIDI')
+
+    const addTrackBtn = document.querySelector('[data-testid="add-track-button"]') as HTMLElement
+    expect(addTrackBtn).toBeTruthy()
+    const beforeCount = useTimelineStore.getState().tracks.length
+    fireEvent.click(addTrackBtn)
+    fireEvent.click(document.querySelector('[data-testid="add-track-menu-item-midi"]')!)
+    expect(useTimelineStore.getState().tracks.length).toBe(beforeCount + 1)
+    expect(useTimelineStore.getState().tracks[useTimelineStore.getState().tracks.length - 1].type).toBe('performance')
+
+    // Inspector's creation entry point is gone from the component, not just
+    // relabeled — the store action (used by project-load) stays untouched.
     const src = read('components/timeline/Timeline.tsx')
-    expect(src).toContain("import ContextMenu from './ContextMenu'")
-    expect(src).toContain('onContextMenu={handleLaneBedContextMenu}')
-    expect(src).toMatch(/label:\s*'Add Track',\s*action:\s*handleAddTrack,\s*testId:\s*'empty-area-menu-add-track'/)
-    expect(src).toMatch(/label:\s*'Add MIDI Track',\s*action:\s*handleAddMidiTrack,\s*testId:\s*'empty-area-menu-add-midi-track'/)
-    expect(src).toMatch(/label:\s*'Add Text Track',\s*action:\s*handleAddTextTrack,\s*testId:\s*'empty-area-menu-add-text-track'/)
-    // Add Text Track uses the same store action as App.tsx's Cmd+T handler.
-    expect(src).toContain("useTimelineStore.getState().addTextTrack(")
+    expect(src).not.toContain('handleAddInspectorTrack')
+    const storeSrc = read('stores/timeline.ts')
+    expect(storeSrc).toContain('addInspectorTrack:')
+    const persistSrc = read('project-persistence.ts')
+    expect(persistSrc).toContain('addInspectorTrack(')
   })
 
   it('QF4: deleting a SELECTED + ARMED track clears both selection and the automation arm state (no stale-track leak)', () => {

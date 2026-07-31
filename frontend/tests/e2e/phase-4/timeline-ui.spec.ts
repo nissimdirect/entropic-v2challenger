@@ -39,6 +39,10 @@ test.describe('Phase 4 — Timeline UI', () => {
     await expect(window.locator('.track-lane')).toBeVisible({ timeout: 5_000 })
   })
 
+  // QF6 (W1.5a owner walk, second walk 2026-07-31): the headers-spacer's
+  // three direct-add buttons (video/MIDI/inspector, each its own modifier
+  // class) collapsed into ONE "+ Track" button that opens a unified Add
+  // Track menu — updated to the new button-then-menu-item interaction.
   test('adding multiple tracks shows correct count', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
@@ -46,12 +50,13 @@ test.describe('Phase 4 — Timeline UI', () => {
     const addBtn = window.locator('.timeline__add-track-btn').first()
     await addBtn.click()
 
-    // After first track is added, the add-track buttons live in the headers spacer.
-    // That spacer holds THREE add-track buttons (video / MIDI / inspector), each with
-    // its own distinct modifier class — target the video add-track directly.
-    const headerAddBtn = window.locator('.timeline__headers-spacer .timeline__add-track-btn--video')
+    // After first track is added, the headers-spacer holds ONE "+ Track"
+    // button that opens the unified Add Track menu.
+    const headerAddBtn = window.locator('[data-testid="add-track-button"]')
     await headerAddBtn.click()
+    await window.locator('[data-testid="add-track-menu-item-video"]').click()
     await headerAddBtn.click()
+    await window.locator('[data-testid="add-track-menu-item-video"]').click()
 
     // Should have 3 track headers
     const headers = window.locator('.track-header')

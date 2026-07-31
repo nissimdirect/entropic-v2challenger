@@ -75,15 +75,24 @@ describe('Timeline UI — With Tracks', () => {
     expect(document.querySelector('.track-lane')).toBeTruthy()
   })
 
+  // QF6 (W1.5a owner walk, second walk 2026-07-31): the headers-spacer's
+  // three direct-add buttons collapsed into ONE "+ Track" button that opens
+  // a unified Add Track menu — clicking it no longer adds a track directly,
+  // it has to be followed by a menu-item click. Updated to the new
+  // two-step interaction instead of asserting the removed direct-click
+  // behavior.
   test('adding multiple tracks shows correct count', () => {
     render(<Timeline onSeek={() => {}} />)
 
-    // Click add in empty state
+    // Click add in empty state (untouched by QF6 — still direct-add)
     fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
 
-    // After first track, button moves to headers-spacer
-    fireEvent.click(document.querySelector('.timeline__headers-spacer .timeline__add-track-btn')!)
-    fireEvent.click(document.querySelector('.timeline__headers-spacer .timeline__add-track-btn')!)
+    // After first track, the headers-spacer's single "+ Track" button opens
+    // the unified Add Track menu — pick "Add Video Track" twice.
+    fireEvent.click(document.querySelector('[data-testid="add-track-button"]')!)
+    fireEvent.click(document.querySelector('[data-testid="add-track-menu-item-video"]')!)
+    fireEvent.click(document.querySelector('[data-testid="add-track-button"]')!)
+    fireEvent.click(document.querySelector('[data-testid="add-track-menu-item-video"]')!)
 
     const headers = document.querySelectorAll('.track-header')
     expect(headers.length).toBe(3)

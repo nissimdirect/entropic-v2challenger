@@ -114,20 +114,31 @@ describe('W1 First-Light — row-level oracle (one assertion per punch-list item
     expect(labelBlock).toMatch(/text-overflow:\s*ellipsis/)
   })
 
-  it('W1-10: timeline add-track buttons read as clear text labels, not bare +/+M/+I glyphs', () => {
+  // W1-10 ORIGINALLY asserted three distinct labeled buttons (+ Track /
+  // + MIDI / + Inspector) in the headers-spacer. SUPERSEDED by QF6 (W1.5a
+  // owner walk, second walk 2026-07-31): owner directive collapsed that row
+  // to a single "+ Track" button opening a unified Add Track menu, and
+  // removed the Inspector creation entry point entirely (see
+  // w15a-owner-walk.test.tsx for the QF6 row-level oracle). This row is
+  // rewritten to assert the NEW single-button + menu contract rather than
+  // the shipped-then-superseded three-button behavior — a stale assertion
+  // here would be testing a UI that no longer exists.
+  it('W1-10 (superseded by QF6): headers-spacer has ONE "+ Track" button, no Inspector button, opening the unified Add Track menu', () => {
     const src = read('components/timeline/Timeline.tsx')
     const spacerStart = src.indexOf('timeline__headers-spacer')
     const spacerEnd = src.indexOf('timeline__track-headers', spacerStart)
     const spacer = src.slice(spacerStart, spacerEnd)
     expect(spacer).toContain('+ Track')
-    expect(spacer).toContain('+ MIDI')
-    // DEVIATION (documented in the W1-10 commit): the third button's real
-    // mechanism is handleAddInspectorTrack, not Import — "+ Import" would
-    // be a false affordance, so it reads "+ Inspector" instead.
-    expect(spacer).toContain('+ Inspector')
-    expect(spacer).not.toMatch(/>\s*\+M\s*</)
-    expect(spacer).not.toMatch(/>\s*\+I\s*</)
-    expect(spacer).toContain('title="Add inspector track"')
+    expect(spacer).toContain('data-testid="add-track-button"')
+    expect(spacer).toContain('onClick={handleAddTrackButtonClick}')
+    // The old per-type buttons/labels must be gone from this region.
+    expect(spacer).not.toContain('+ MIDI')
+    expect(spacer).not.toContain('+ Inspector')
+    expect(spacer).not.toContain('handleAddInspectorTrack')
+    // Inspector's creation entry point is gone from the component entirely
+    // (not just this row) — the store action + project-load path stay.
+    expect(src).not.toContain('handleAddInspectorTrack')
+    expect(src).toContain('addTrackMenuItems')
   })
 
   it('W1-11: transport DOM order is BPM/tempo cluster then the centered playback cluster', () => {
