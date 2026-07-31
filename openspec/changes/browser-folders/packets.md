@@ -4,6 +4,8 @@
 anchors; do not re-derive). **Proposal:** `proposal.md` — OD-1..OD-8, **T1 Verdicts LOCKED
 2026-07-03** ("Accept all 33 defaults") — do not re-open any OD. **Route:** /eng Phase 3M.
 
+**Anchors refreshed vs main @ 927eeb0 (2026-07-31, W2 preflight).**
+
 **Branching rule (every packet):** cut from `origin/main` only, never from a local checkout that may
 be owned by a parallel session — check `~/.claude/.locks/` and `git stash list` for
 `parallel-session-*` markers before creating a worktree/branch; if found, do not touch that
@@ -91,7 +93,7 @@ merge.
 - **Test plan:** unit — new `frontend/src/__tests__/stores/browser-tree.test.ts`: full 29-category
   fixture; debug-present vs debug-absent; composite lands in EFFECTS (not special-cased, OD-7);
   OPERATORS/INSTRUMENTS pass through `OPERATOR_GROUPS`/`RACKS` unchanged.
-- **STOP:** if `list_all()`'s live shape (`shared/types.ts:529-539` `EffectInfo`) has drifted from
+- **STOP:** if `list_all()`'s live shape (`shared/types.ts:529-541` `EffectInfo`) has drifted from
   `{id,name,category,params,fieldParams}` since plan.md was written, STOP and report before building
   the mapping against a stale shape.
 - **Executor brief:** Sonnet. Inline verbatim — Core Rule 1 (read before edit). Gate 5: "wrote or
@@ -110,7 +112,7 @@ merge.
   folder body contents (P4); mounting as the app's sole sidebar (P9 — this packet's mount is additive/
   dev-visible only, existing switchers stay live until P9).
 - **Note on tool-zone sequencing:** plan.md's own packet table doesn't assign the `[tool]`-tab-body
-  relocation (cursor + mask tools, `EffectBrowser.tsx:98-163,638-714`) to a numbered packet — its §1
+  relocation (cursor + mask tools, `EffectBrowser.tsx:98-176,667-745`) to a numbered packet — its §1
   file table only says the move happens "per §2½" without naming which packet. To avoid silently
   dropping it, it is explicitly folded into **P4** (see P4 scope) rather than assumed here.
 - **Files:** new `frontend/src/renderer/components/browser/BrowserRail.tsx`,
@@ -149,17 +151,17 @@ merge.
   crash." Last line: PR # + screenshot paths for the UAT journey above.
 
 ### P4 — Wire EFFECTS/GENERATORS/OPERATORS/UTILITIES/INSTRUMENTS bodies + MODE/TOOL zone into drawers
-- **Scope:** relocate `EffectBrowser.tsx`'s per-tab body render logic (line 538-719) into P3's drawer
+- **Scope:** relocate `EffectBrowser.tsx`'s per-tab body render logic (line 540-751) into P3's drawer
   shell, one folder per category bucket from P2's mapping. `operator-drag.ts`/`InstrumentsBrowser.tsx`
   themselves stay unchanged — only their render call-sites move (currently
-  `EffectBrowser.tsx:586-608` for operators, `App.tsx:3753-3754` + `EffectBrowser.tsx:718` for
+  `EffectBrowser.tsx:610-637` for operators, `App.tsx:3666` + `EffectBrowser.tsx:749` for
   instruments — collapse to ONE call site inside the OPERATORS/INSTRUMENTS drawers respectively, per
   OD-1's "no duplicate entry point" requirement). **Also relocates the MODE/TOOL bottom zone**
   (folded in from P3's note above): `CursorTool`/`TOOL_ENTRIES`/`MASK_TOOL_ENTRIES`/`TOOL_ICON`
-  (`EffectBrowser.tsx:98-163,638-714`) move into the rail's bottom monochrome/radio-select zone per
+  (`EffectBrowser.tsx:98-176,667-745`) move into the rail's bottom monochrome/radio-select zone per
   plan.md §0's drawer contract (corner-dot = has-drawer, zero-option tools drawerless). Drag-channel
   exports (`EFFECT_DRAG_TYPE`/`CREATRIX_NONCE_TYPE`/`SESSION_NONCE`/`DragPayload`/`parseDragPayload`,
-  line 22-82) **must keep exact export names and shapes** — `operator-drag.ts` and
+  line 22-85) **must keep exact export names and shapes** — `operator-drag.ts` and
   `InstrumentsBrowser.tsx` import them by name. **Non-scope:** search field (P5); PRESETS (P6);
   favorites star (P7); deleting the old tab bar chrome itself (P9 — old and new render paths coexist
   until P9 flips the mount).
@@ -196,14 +198,14 @@ merge.
 
 ### P5 — One search field spanning everything
 - **Scope:** new top-of-browser search component, full browser width, above rail+drawer. Reuses
-  `EffectBrowser.tsx:358-384`'s scoring function verbatim (proposal §3: "closest existing analog...
+  `EffectBrowser.tsx:387-411`'s scoring function verbatim (proposal §3: "closest existing analog...
   reused, not reinvented"), extended to also score OPERATORS/INSTRUMENTS/PRESETS entries (not just
   registry effects) into one ranked, folder-grouped result list. Typing expands every folder's
   matching rows grouped under folder headers. **Non-scope:** USER LIBRARY search (P8 lands after;
   add USER LIBRARY to the scored set in P8 if the shell exists by then, otherwise a fast-follow —
   call out explicitly in P5's PR if USER LIBRARY isn't in scope yet, do not silently omit it forever).
 - **Files:** new search component (e.g. `frontend/src/renderer/components/browser/BrowserSearch.tsx`);
-  extends (does not fork) the scoring function from `EffectBrowser.tsx:358-384` — extract to a
+  extends (does not fork) the scoring function from `EffectBrowser.tsx:387-411` — extract to a
   shared util if that avoids duplicating it across two files.
 - **Depends:** P2 (folder data shape). Parallel-safe with P4 (disjoint: body-wiring vs. search-UI).
   **Blocks:** none hard, but P9's full-reachability check should include search-triggered discovery.
@@ -238,7 +240,7 @@ merge.
   embeddable PresetBrowser). **Blocks:** none.
 - **Risk:** STD (depends on external-change sequencing, not on this change's own complexity).
 - **Hard oracle:** preset drag/apply regression — the existing preset-apply flow
-  (`App.tsx:3756-3778`'s `onApplyPreset` callback) still fires correctly when triggered from inside
+  (`App.tsx:3669-3690`'s `onApplyPreset` callback) still fires correctly when triggered from inside
   the tree (run pre-packet to confirm current behavior, then confirm identical post-packet
   behavior from the new mount point). Drop-target accepts BOTH `EFFECT_DRAG_TYPE` and the
   pre-existing `application/entropic-preset` MIME channel (grep-confirm the exact constant name
@@ -341,10 +343,10 @@ merge.
 
 ### P9 — Delete outer `sidebarTab` + inner `activeTab` (OD-1) — the "flip the switch" packet
 - **Scope:** per OD-1's LOCKED default ("the new tree/rail replaces both layers in one motion"):
-  delete `App.tsx:433`'s `sidebarTab` `useState` + the 3-button tab bar + conditional render block
-  (`App.tsx:3725-3779`); delete `browser.ts`'s `BrowserTab`/`BROWSER_TABS`/`activeTab`/`setActiveTab`
+  delete `App.tsx:455`'s `sidebarTab` `useState` + the 3-button tab bar + conditional render block
+  (`App.tsx:3637-3691`); delete `browser.ts`'s `BrowserTab`/`BROWSER_TABS`/`activeTab`/`setActiveTab`
   (`browser.ts:8-9,18-20,82-86`); delete `EffectBrowser.tsx`'s remaining 5-tab bar chrome
-  (line 487-501) since P4 already relocated every tab's body content. Mount the new tree/rail (P3-P8)
+  (line 517-529) since P4 already relocated every tab's body content. Mount the new tree/rail (P3-P8)
   as the sole sidebar content, replacing the additive/dev-visible mount from P3. **Non-scope:** any
   new feature work — this packet is pure deletion + one mount-point swap. `layout.ts`'s
   `sidebarCollapsed` binary toggle and the `meta+b` shortcut binding are explicitly UNCHANGED (plan.md
