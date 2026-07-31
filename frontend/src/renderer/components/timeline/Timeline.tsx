@@ -221,12 +221,20 @@ export default function Timeline({
       <div className="timeline__body" ref={bodyRef}>
         {/* Left: track headers */}
         <div className="timeline__headers">
+          {/* W1-10: bare "+"/"+M"/"+I" glyphs read as cryptic — swapped for
+              label-tier text buttons per the manifest's '+ Add {noun}'
+              KEEP-TEXT convention. NOTE: the punch list's suggested third
+              label was "+ Import" but this button's actual mechanism is
+              handleAddInspectorTrack (creates an Inspector track — see
+              title, unchanged) — "+ Import" would misdescribe it, so it
+              reads "+ Inspector" instead. Import stays reachable via
+              Cmd+I / drag / File > Import Media (W1-12). */}
           <div className="timeline__headers-spacer">
             <button className="timeline__add-track-btn timeline__add-track-btn--video" onClick={handleAddTrack} title="Add video track">
-              +
+              + Track
             </button>
             <button className="timeline__add-track-btn timeline__add-track-btn--midi" onClick={handleAddMidiTrack} title="Add MIDI track">
-              +M
+              + MIDI
             </button>
             <button
               className="timeline__add-track-btn timeline__add-track-btn--inspector"
@@ -234,7 +242,7 @@ export default function Timeline({
               disabled={tracks.some((t) => t.type === 'inspector')}
               title="Add inspector track"
             >
-              +I
+              + Inspector
             </button>
           </div>
           <div

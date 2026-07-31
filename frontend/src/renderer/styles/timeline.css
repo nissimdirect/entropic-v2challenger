@@ -176,11 +176,18 @@
 }
 
 .timeline__headers-spacer {
-  height: 24px;
+  /* W1-10: three label-tier text buttons ("+ Track"/"+ MIDI"/"+ Inspector")
+     no longer fit a fixed 24px single line inside the 180px header column
+     (.timeline__headers) at every width — wrap instead of clipping/
+     overflowing (REAL-DIMENSIONS-ONLY: verified against the 1280x800
+     default window). */
+  min-height: 24px;
   border-bottom: 1px solid var(--cx-line-1);
   display: flex;
   align-items: center;
-  padding: 0 8px;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  padding: 4px 8px;
 }
 
 .timeline__add-track-btn {
@@ -189,6 +196,7 @@
   color: var(--cx-text-2);
   font-family: inherit;
   font-size: 11px;
+  white-space: nowrap;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 2px;
