@@ -5,7 +5,6 @@ import { useEffectsStore } from './stores/effects'
 import { useAudioStore } from './stores/audio'
 import { useUndoStore } from './stores/undo'
 import { useTimelineStore, isVisualTrackHidden } from './stores/timeline'
-import FileDialog from './components/upload/FileDialog'
 import IngestProgress from './components/upload/IngestProgress'
 import EffectBrowser from './components/effects/EffectBrowser'
 // Phase 13C: EffectRack + ParamPanel removed — replaced by DeviceChain
@@ -3579,9 +3578,12 @@ function AppInner() {
       </div>
       <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />
       <div className="app__sidebar cx-left-col" style={sidebarCollapsed ? { display: 'none' } : undefined}>
+        {/* W1-12: the sidebar "Browse..." button (FileDialog) removed — import
+            stays reachable via Cmd+I, drag-and-drop, and File > Import Media.
+            IngestProgress stays mounted (it's fed by handleFileIngest from
+            ALL import paths, not just this one) and renders null when idle. */}
         {!hasAssets && (
           <div className="app__upload">
-            <FileDialog onFileSelect={handleFileIngest} disabled={isIngesting} />
             <IngestProgress isIngesting={isIngesting} error={ingestError} />
           </div>
         )}
