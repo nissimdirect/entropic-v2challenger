@@ -232,13 +232,33 @@ export default function Timeline({
           <div className="timeline__empty-hint">
             Drag media here, press <kbd>Cmd</kbd>+<kbd>I</kbd>, or use File &rarr; Import
           </div>
-          <button className="timeline__add-track-btn timeline__add-track-btn--video" onClick={handleAddTrack}>
-            + Add Track
-          </button>
-          <button className="timeline__add-track-btn timeline__add-track-btn--midi" onClick={handleAddMidiTrack}>
-            + MIDI Track
+          {/* QF7 (W1.5a owner walk, third pass): this zero-track early-return
+              branch had its OWN, older two-button (+ Add Track / + MIDI
+              Track) creation surface — a second, unrelated pattern that
+              predates QF6 and violated "one way to create tracks" (no Text
+              option, no testids, different labels). Real sessions rarely
+              hit this branch (persistence always injects the Master track),
+              but a master-less state or a hermetic e2e session does. Now
+              reuses the literal same button + menu QF6 built, not a second
+              implementation — same data-testid, same handler, same
+              addTrackMenuItems array. */}
+          <button
+            className="timeline__add-track-btn"
+            onClick={handleAddTrackButtonClick}
+            data-testid="add-track-button"
+            title="Add a track"
+          >
+            + Track
           </button>
         </div>
+        {addTrackMenu && (
+          <ContextMenu
+            x={addTrackMenu.x}
+            y={addTrackMenu.y}
+            items={addTrackMenuItems}
+            onClose={() => setAddTrackMenu(null)}
+          />
+        )}
       </div>
     )
   }
