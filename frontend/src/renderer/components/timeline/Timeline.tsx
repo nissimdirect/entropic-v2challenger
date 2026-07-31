@@ -172,8 +172,16 @@ export default function Timeline({
     el.addEventListener('gesturestart', (e) => e.preventDefault())  // prevent native zoom
   }, [])
 
-  // Width = exactly clip duration + 1s buffer. No wasted space.
-  const contentWidth = (duration + 1) * zoom
+  // W1-8: an empty/near-empty session (duration near 0 — the Master track
+  // always exists, so tracks.length===0 below is rare) rendered a near-
+  // invisible sliver of a ruler/lane area: (0 + 1) * zoom(50) = 50px. This
+  // is a DISPLAY-ONLY floor — `duration` itself (the persisted/derived
+  // field) is untouched; only the on-screen content width gets a ~60s
+  // minimum span so the ruler and Master lane render at a usable size.
+  const EMPTY_SESSION_DISPLAY_SECONDS = 60
+  const displayDuration = Math.max(duration, EMPTY_SESSION_DISPLAY_SECONDS)
+  // Width = exactly clip duration + 1s buffer (or the empty-session floor above). No wasted space.
+  const contentWidth = (displayDuration + 1) * zoom
 
   if (tracks.length === 0) {
     return (
