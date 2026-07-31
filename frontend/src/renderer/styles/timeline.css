@@ -1279,7 +1279,11 @@ body.clip-dragging .timeline__new-track-zone {
    ====================================================================== */
 
 .master-track-header {
-  background: var(--cx-warn-wash);
+  /* W1-6 / RATIFIED D11: opaque identity color at rest — a translucent wash
+     here made the Master row's amber "Ableton master" identity read as a
+     tint of whatever sat behind it instead of a stable color. Hover/
+     selected below stay translucent washes (state, not identity). */
+  background: var(--cx-master-bg);
   border-top: 2px solid var(--cx-warn);
   border-bottom: none;
   cursor: pointer;
@@ -1314,7 +1318,8 @@ body.clip-dragging .timeline__new-track-zone {
   height: 76px;
   border-top: 2px solid var(--cx-warn);
   border-bottom: none;
-  background: var(--cx-warn-wash);
+  /* W1-6 / RATIFIED D11: opaque identity color — see .master-track-header. */
+  background: var(--cx-master-bg);
   display: flex;
   align-items: center;
   justify-content: center;
