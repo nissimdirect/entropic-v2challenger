@@ -9,10 +9,10 @@
  * with no interesting render-time behavior to assert beyond "the markup
  * exists."
  *
- * W1-10 and W1-12 each ship with a DOCUMENTED DEVIATION from the punch
- * list's literal wording (see the item's own commit message); the
- * assertions below test the actual shipped behavior, not the original
- * (in one case factually wrong) suggestion.
+ * W1-10 ships with a DOCUMENTED DEVIATION from the punch list's literal
+ * wording (see its commit message); the assertions below test the actual
+ * shipped behavior, not the original (factually wrong) suggestion.
+ * W1-12 is DEFERRED to W2 — its row is skipped below with the rationale.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
@@ -142,7 +142,14 @@ describe('W1 First-Light — row-level oracle (one assertion per punch-list item
     expect(block(css, '.app__transport-playback')).toMatch(/margin:\s*0 auto/)
   })
 
-  it('W1-12: the sidebar Browse... button (FileDialog) is no longer imported/mounted in App.tsx', () => {
+  // W1-12 DEFERRED to W2 (red-team finding 2): 11 e2e spec files bootstrap
+  // media import by clicking .file-dialog-btn, so removing the Browse button
+  // without migrating that bootstrap turns main red post-merge (the PR gate
+  // only runs smoke.spec.ts). The removal rides the W2 browser-folders wave
+  // (P9 reworks this sidebar region) after the import bootstrap migrates to
+  // the menu:action('import-media') + dialog:open-stub path. When that lands,
+  // un-skip and restore the removal assertions.
+  it.skip('W1-12 (deferred to W2): the sidebar Browse... button (FileDialog) is no longer imported/mounted in App.tsx', () => {
     const src = read('App.tsx')
     expect(src).not.toMatch(/import FileDialog/)
     expect(src).not.toMatch(/<FileDialog\b/)
