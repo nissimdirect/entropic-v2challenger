@@ -29,6 +29,22 @@ Every shared primitive ships a stable **`data-testid`** as part of its anatomy. 
 test-ids ONLY — never CSS classes (classes change with styling; test-ids are versioned API).
 This is the structural fix for the selector rot that killed the old 132-spec Playwright suite.
 
+## 2½ · Learnability contract (A3, 2026-07-31)
+
+Every interactive component declares **`infoText`** — one plain sentence saying what it does,
+written for the owner ("Arm this track to record automation moves"). Consumed by the Info View
+(inspector hover) once its plumbing lands (v4.1 W3); until then the field is the documentation.
+Guard: when Info View lands, the component-spec-guard gains "new interactive primitive must
+declare infoText" with the then-current set grandfathered. A control nobody can explain is a
+defect, not a style choice.
+
+## 2¾ · Translucency convention (user-ratified 2026-07-31, RATIFIED D11)
+
+**Opacity = identity. Translucency = transient state** (selection, drag-ghost, live preview,
+wash feedback). A resting surface never wears an alpha wash as its identity color — the user:
+"see-through selections usually indicate a selection." The wash token families (`--cx-*-wash`,
+`--cx-*-alpha-*`) are for states; identity colors are opaque.
+
 ## 3 · Primitives — adopt, don't reinvent
 
 | Need | Use | Adoption ratchet |
