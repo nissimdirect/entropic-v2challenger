@@ -237,11 +237,17 @@ export default function UnifiedTrackHeader({
               className="track-header__bchip"
               data-testid="track-bchip"
               data-slot="blend"
-              title="Edit blend & opacity in the LAYER panel"
+              // Adjudication fix (W1.5b PK.B1, 2026-07-31): "Normal 100%" was
+              // wide enough to push the eye slot past the headers column's
+              // right edge on every blend-capable track — measured overflow
+              // ~23px on a live Text track (headers column ~262px). Opacity
+              // moves to title/aria-label (the LayerPanel already owns
+              // opacity editing); the visible chip is mode-only.
+              title={`Blend ${blendLabel}, opacity ${opacityPct}% — open LAYER panel`}
               aria-label={`Blend ${blendLabel}, opacity ${opacityPct}% — open LAYER panel`}
               onClick={onBchipClick}
             >
-              {blendLabel} <span className="track-header__bchip-o">{opacityPct}%</span>
+              {blendLabel}
             </button>
           )}
           {caps.mute && (
