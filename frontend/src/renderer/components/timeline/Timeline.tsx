@@ -104,37 +104,43 @@ export default function Timeline({
     if (id) useTimelineStore.getState().selectTrack(id)
   }, [tracks])
 
-  // P6.8 (I1): create the single inspector track (max 1) and select it.
-  const handleAddInspectorTrack = useCallback(() => {
-    const id = useTimelineStore.getState().addInspectorTrack()
-    if (id) useTimelineStore.getState().selectTrack(id)
-  }, [])
-
-  // QF3 (W1.5a owner walk): "I should be able to right-click and then add a
-  // track." Mirrors App.tsx's handleAddTextTrack (Cmd+T) — the same
-  // addTextTrack store action, since the empty-area menu is the only place
-  // in Timeline.tsx a text track can be added (no dedicated + button here).
+  // QF3 (W1.5a owner walk, second walk 2026-07-31 AMENDED): "I should be
+  // able to right-click and then add a track." — AMENDED same day: "It's
+  // not just three buttons where you pick one of them... not three separate
+  // buttons for three separate types." One unified menu, not per-type
+  // buttons. handleAddTextTrack mirrors App.tsx's Cmd+T handler (the same
+  // addTextTrack store action) — this menu is the only place in Timeline.tsx
+  // a text track can be added (no dedicated + button here; the sidebar's
+  // own "+ Add Text Track" in EffectBrowser.tsx is a separate, untouched
+  // entry point).
   const handleAddTextTrack = useCallback(() => {
     const textCount = tracks.filter((t) => t.type === 'text').length
     useTimelineStore.getState().addTextTrack(`Text ${textCount + 1}`, '#6366f1')
   }, [tracks])
 
-  // QF3: right-click on the empty lane bed (track-list background, below or
-  // between existing tracks — NOT a track header, which already owns its own
-  // context menu via TrackHeader.handleContextMenu) opens an Add Track menu.
-  // Attached to the lanes scroll container so it also catches clicks on the
-  // empty space of the sizing div below the last track row; clip/track-lane
-  // interactions that need their own handling already stopPropagation on
-  // their own onContextMenu (Clip.tsx:206-207), so this never fires over them.
-  const [emptyAreaMenu, setEmptyAreaMenu] = useState<{ x: number; y: number } | null>(null)
+  // QF3/QF6 (2026-07-31 second owner walk): ONE menu, reached two ways —
+  // right-click the empty lane bed (track-list background, below/between
+  // tracks — NOT a track header, which already owns its own context menu
+  // via TrackHeader.handleContextMenu), or click the single "+ Track"
+  // button in the headers-spacer (QF6 — replaces the old three-button row).
+  // Deliberately excludes Inspector (QF6: its creation entry point is
+  // removed entirely — see handleAddTrackButtonClick's neighboring comment
+  // in the JSX below for what stays vs. goes).
+  const [addTrackMenu, setAddTrackMenu] = useState<{ x: number; y: number } | null>(null)
   const handleLaneBedContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    setEmptyAreaMenu({ x: e.clientX, y: e.clientY })
+    setAddTrackMenu({ x: e.clientX, y: e.clientY })
   }, [])
-  const emptyAreaMenuItems: MenuItem[] = [
-    { label: 'Add Track', action: handleAddTrack, testId: 'empty-area-menu-add-track' },
-    { label: 'Add MIDI Track', action: handleAddMidiTrack, testId: 'empty-area-menu-add-midi-track' },
-    { label: 'Add Text Track', action: handleAddTextTrack, testId: 'empty-area-menu-add-text-track' },
+  // QF6: anchor the dropdown below the button that opened it (standard
+  // menu-button pattern), rather than at the click point inside the button.
+  const handleAddTrackButtonClick = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect()
+    setAddTrackMenu({ x: rect.left, y: rect.bottom + 4 })
+  }, [])
+  const addTrackMenuItems: MenuItem[] = [
+    { label: 'Add Video Track', action: handleAddTrack, testId: 'add-track-menu-item-video' },
+    { label: 'Add MIDI Track', action: handleAddMidiTrack, testId: 'add-track-menu-item-midi' },
+    { label: 'Add Text Track', action: handleAddTextTrack, testId: 'add-track-menu-item-text' },
   ]
 
   // Track-headers column needs to follow the lanes' vertical scroll so the
@@ -250,28 +256,25 @@ export default function Timeline({
       <div className="timeline__body" ref={bodyRef}>
         {/* Left: track headers */}
         <div className="timeline__headers">
-          {/* W1-10: bare "+"/"+M"/"+I" glyphs read as cryptic — swapped for
-              label-tier text buttons per the manifest's '+ Add {noun}'
-              KEEP-TEXT convention. NOTE: the punch list's suggested third
-              label was "+ Import" but this button's actual mechanism is
-              handleAddInspectorTrack (creates an Inspector track — see
-              title, unchanged) — "+ Import" would misdescribe it, so it
-              reads "+ Inspector" instead. Import stays reachable via
-              Cmd+I / drag / File > Import Media (W1-12). */}
+          {/* QF6 (2026-07-31 second owner walk) — SUPERSEDES W1-10's three-
+              button row (+ Track / + MIDI / + Inspector). Owner: "not three
+              separate buttons for three separate types." One button opens
+              the same unified Add Track menu right-click reaches (QF3).
+              Inspector's creation entry point is REMOVED entirely (not
+              relabeled, not folded into the menu) — feature code
+              (addInspectorTrack in stores/timeline.ts) and existing
+              inspector tracks in saved projects (project-persistence.ts's
+              load path) are untouched; only this button, its only creation
+              entry point, goes. W1-12's Import note still applies: Import
+              stays reachable via Cmd+I / drag / File > Import Media. */}
           <div className="timeline__headers-spacer">
-            <button className="timeline__add-track-btn timeline__add-track-btn--video" onClick={handleAddTrack} title="Add video track">
-              + Track
-            </button>
-            <button className="timeline__add-track-btn timeline__add-track-btn--midi" onClick={handleAddMidiTrack} title="Add MIDI track">
-              + MIDI
-            </button>
             <button
-              className="timeline__add-track-btn timeline__add-track-btn--inspector"
-              onClick={handleAddInspectorTrack}
-              disabled={tracks.some((t) => t.type === 'inspector')}
-              title="Add inspector track"
+              className="timeline__add-track-btn"
+              onClick={handleAddTrackButtonClick}
+              data-testid="add-track-button"
+              title="Add a track"
             >
-              + Inspector
+              + Track
             </button>
           </div>
           <div
@@ -411,14 +414,15 @@ export default function Timeline({
           </div>
         </div>
       </div>
-      {/* QF3: empty lane-bed right-click menu — Add Track / Add MIDI Track /
-          Add Text Track, same handlers as the + buttons above. */}
-      {emptyAreaMenu && (
+      {/* QF3/QF6: unified Add Track menu — Add Video Track / Add MIDI Track /
+          Add Text Track — reached via right-click on the empty lane bed or
+          the single "+ Track" button above. */}
+      {addTrackMenu && (
         <ContextMenu
-          x={emptyAreaMenu.x}
-          y={emptyAreaMenu.y}
-          items={emptyAreaMenuItems}
-          onClose={() => setEmptyAreaMenu(null)}
+          x={addTrackMenu.x}
+          y={addTrackMenu.y}
+          items={addTrackMenuItems}
+          onClose={() => setAddTrackMenu(null)}
         />
       )}
       {/* Transport bar moved to timeline__toolbar above the body */}
