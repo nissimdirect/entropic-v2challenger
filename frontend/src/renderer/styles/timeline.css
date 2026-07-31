@@ -1342,7 +1342,12 @@ body.clip-dragging .timeline__new-track-zone {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  min-width: 0;
+  /* W1-9: at extreme zoom-out the lane itself can still shrink well below
+     a readable width even with W1-8's 60s display floor (e.g. zoom=0.5 ->
+     ~30px). A hard min-width keeps the label an ellipsized PHRASE (never a
+     1-2 char shard) instead of shrinking to nothing — text-overflow still
+     activates normally above this floor. */
+  min-width: 220px;
   padding: 0 var(--cx-space-8);
 }
 
