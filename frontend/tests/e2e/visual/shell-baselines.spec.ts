@@ -98,8 +98,13 @@ test.describe('Shell visual baselines (exit gate)', () => {
     await expect(window).toHaveScreenshot('01-empty-shell.png', SHOT)
 
     // ── Surface 2: shell with one track added ───────────────────────────────
-    // Empty-state add-track button (phase-4/timeline-ui.spec.ts precedent).
-    await window.locator('.timeline__add-track-btn').first().click()
+    // QF7 (W1.5a owner walk, third pass): the empty-state's add-track button
+    // now opens the unified Add Track menu instead of adding directly (same
+    // two-step flow phase-4/timeline-ui.spec.ts drives) — a direct click no
+    // longer produces a track, so this setup step must follow through the
+    // menu or every subsequent surface silently never gets its track.
+    await window.locator('[data-testid="add-track-button"]').first().click()
+    await window.locator('[data-testid="add-track-menu-item-video"]').click()
     await expect(window.locator('[data-testid="lean-track-header"]')).toBeVisible()
     await expect(window).toHaveScreenshot('02-one-track.png', SHOT)
 

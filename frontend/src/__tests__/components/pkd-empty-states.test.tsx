@@ -65,8 +65,17 @@ describe('PK.D — device-chain border-top scoping', () => {
   })
 })
 
-describe('PK.D — timeline empty state untouched (regression guard)', () => {
-  it('Timeline keeps its pre-existing richer empty state (hint + both buttons)', () => {
+describe('PK.D — timeline empty state richer-than-bare-hint (regression guard)', () => {
+  // QF7 (W1.5a owner walk, third pass, 2026-07-31) legitimately collapsed
+  // Timeline's empty-state creation surface from two direct-add buttons
+  // (+ Add Track / + MIDI Track) to ONE unified "+ Track" button opening
+  // the same Add Track menu QF6 built for the headers-spacer — the owner's
+  // "one way to create tracks" directive applies here too. The underlying
+  // PK.D intent this guard protects (Timeline's empty state is NOT reduced
+  // to the OD-4 bare-hint-only pattern preview-canvas uses — it still has
+  // a real creation affordance) still holds; only the button count/testid
+  // changed, so the assertions are rewritten, not deleted.
+  it('Timeline keeps its pre-existing richer empty state (hint + a real creation button)', () => {
     const fs = require('fs') as typeof import('fs')
     const path = require('path') as typeof import('path')
     const src = fs.readFileSync(
@@ -74,7 +83,6 @@ describe('PK.D — timeline empty state untouched (regression guard)', () => {
       'utf8',
     )
     expect(src).toContain('timeline__empty-hint')
-    expect(src).toContain('timeline__add-track-btn--video')
-    expect(src).toContain('+ MIDI Track')
+    expect(src).toMatch(/data-testid="add-track-button"[\s\S]{0,400}\+ Track/)
   })
 })

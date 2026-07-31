@@ -4,11 +4,13 @@
  * the shape this follows). QF1/QF2 are pure markup/CSS changes with no
  * interesting render-time behavior beyond "the fix is actually in source,"
  * so those use the same source-grep pattern as w1-first-light. QF3 (amended
- * mid-session), QF4, and QF6 (added mid-session) are all real behavior — a
- * unified menu replacing per-type buttons, a cross-store state leak, and an
+ * mid-session), QF4, QF6, and QF7 (added across two later owner walks) are
+ * all real behavior — a unified menu replacing per-type buttons in TWO
+ * separate creation surfaces, a cross-store state leak, and an
  * interaction-model change — so those get real render/store/event tests
  * instead of grep, proving the bug/feature is actually fixed/shipped, not
- * just that some string appears in a file.
+ * just that some string appears in a file. QF8 (a second stale version
+ * string) is back to source-grep, same reasoning as QF1/QF2.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
@@ -203,5 +205,56 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
     const src = read('components/layout/WelcomeScreen.tsx')
     expect(src).not.toContain('v3.0.0')
     expect(src).toContain('__APP_VERSION__')
+  })
+
+  // QF7 (NEW, 2026-07-31 third owner walk): Timeline's zero-track
+  // early-return branch had its OWN, older two-button (+ Add Track /
+  // + MIDI Track) creation surface — a second, unrelated pattern that
+  // predated QF6 and violated "one way to create tracks" (no Text option,
+  // no testids). Behavioral, mirroring QF3/QF6's render+event pattern: mount
+  // Timeline with ZERO tracks (the empty-state branch), click its add-track
+  // button, and verify it opens the SAME unified menu.
+  it('QF7: the empty-state (zero tracks) add-track button opens the same unified menu as QF6/QF3, not its own older two-button surface', () => {
+    useTimelineStore.getState().reset()
+    // A fresh reset() has zero tracks — Timeline's tracks.length===0 branch.
+    expect(useTimelineStore.getState().tracks.length).toBe(0)
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    const emptyState = container.querySelector('.timeline__empty')
+    expect(emptyState).toBeTruthy()
+    // Exactly one creation button, the shared testid — not the old
+    // two-button (+ Add Track / + MIDI Track) surface.
+    const emptyButtons = emptyState!.querySelectorAll('.timeline__add-track-btn')
+    expect(emptyButtons.length).toBe(1)
+    expect(emptyState!.textContent).not.toContain('MIDI Track')
+    const addBtn = document.querySelector('[data-testid="add-track-button"]') as HTMLElement
+    expect(addBtn).toBeTruthy()
+    expect(addBtn.textContent).toBe('+ Track')
+
+    fireEvent.click(addBtn)
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')?.textContent).toBe('Add Video Track')
+    expect(document.querySelector('[data-testid="add-track-menu-item-midi"]')?.textContent).toBe('Add MIDI Track')
+    expect(document.querySelector('[data-testid="add-track-menu-item-text"]')?.textContent).toBe('Add Text Track')
+
+    fireEvent.click(document.querySelector('[data-testid="add-track-menu-item-text"]')!)
+    expect(useTimelineStore.getState().tracks.length).toBe(1)
+    expect(useTimelineStore.getState().tracks[0].type).toBe('text')
+  })
+
+  // QF8 (NEW, 2026-07-31 third owner walk): a SECOND stale version string
+  // survived QF5 — the status bar's boot line composed "creatrix v3.0.0 —
+  // N effects loaded" from a hardcoded prop in App.tsx (boot.line template
+  // lives in i18n/onboarding-strings.ts; QF5's grep only caught
+  // WelcomeScreen.tsx's own literal). Source-grep (App.tsx isn't cheaply
+  // renderable here — it pulls in the whole app shell/every store); traced
+  // and fixed the actual prop, not the template.
+  it('QF8: the status bar boot-line no longer hardcodes an app version — same __APP_VERSION__ constant as QF5', () => {
+    const appSrc = read('App.tsx')
+    expect(appSrc).toContain('appVersion={__APP_VERSION__}')
+    expect(appSrc).not.toMatch(/appVersion="3\.0\.0"/)
+    // The composed template itself is untouched — {appVersion} is filled by
+    // BootLine.tsx from the (now-correct) prop, not hardcoded in the string.
+    const stringsSrc = read('i18n/onboarding-strings.ts')
+    expect(stringsSrc).toContain('{appVersion}')
   })
 })
