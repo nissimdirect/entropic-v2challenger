@@ -49,6 +49,17 @@ body {
   z-index: 50;
 }
 
+/* W1-11: playback cluster (play/stop/loop + timecode) — centered in the
+ * remaining space via auto margins, which (since the BPM+quant cluster
+ * anchors the left edge) lands it center-RIGHT of the full transport bar,
+ * matching Ableton's transport grammar. */
+.app__transport-playback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+}
+
 .app__transport-controls {
   display: flex;
   gap: 4px;
@@ -1406,6 +1417,49 @@ body {
   background: var(--cx-text-1);
   border-radius: 50%;
   cursor: pointer;
+}
+
+/* W1-4: mask-edit chips (freehand/polygon lasso mode toggles) — previously
+ * had zero rules and rendered as unstyled native buttons (white/grey
+ * platform chrome). Mirrors .preview-controls__play-btn's chip sizing/tokens;
+ * --active uses --cx-mod (masking.css's established MOD-violet accent for
+ * every other mask affordance: matte chips, clip badges, marching ants).
+ * State contract (COMPONENT-SPEC §1): rest/hover/focus-visible/active —
+ * these buttons have no disabled state to declare. */
+.preview-controls__lasso-tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.preview-controls__lasso-btn {
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cx-bg-raised);
+  border: 1px solid var(--cx-line-2);
+  border-radius: 4px;
+  color: var(--cx-text-2);
+  cursor: pointer;
+}
+
+.preview-controls__lasso-btn:hover {
+  background: var(--cx-bg-hover);
+  color: var(--cx-text-1);
+}
+
+.preview-controls__lasso-btn:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
+.preview-controls__lasso-btn--active {
+  background: var(--cx-mod-wash);
+  border-color: var(--cx-mod);
+  color: var(--cx-mod);
 }
 
 .preview-controls__counter {

@@ -14,12 +14,13 @@ const ALL_ICON_NAMES: KitIconName[] = [
   'volume-1', 'volume-2', 'volume-x',
   'settings', 'triangle-alert', 'flask-conical', 'flag',
   'star', 'trash-2', 'circle', 'snowflake',
+  'magnet',
 ]
 
-describe('icon-kit (PK.H2 — manifest v4.1)', () => {
-  it('has exactly 26 icon names, all unique', () => {
-    expect(ALL_ICON_NAMES.length).toBe(26)
-    expect(new Set(ALL_ICON_NAMES).size).toBe(26)
+describe('icon-kit (PK.H2 — manifest v4.1; W1-3 adds magnet)', () => {
+  it('has exactly 27 icon names, all unique', () => {
+    expect(ALL_ICON_NAMES.length).toBe(27)
+    expect(new Set(ALL_ICON_NAMES).size).toBe(27)
   })
 
   it('renders every icon name without error, each producing an <svg> with a non-empty body', () => {

@@ -169,7 +169,7 @@ import RenderQueue from './components/export/RenderQueue'
 import { RoutingCanvas } from './components/routing-canvas'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
-import { CloseButton } from './assets/icon-kit'
+import Icon, { CloseButton } from './assets/icon-kit'
 // F4b PR2: menu-action dispatch extraction (App.tsx decomposition, lowest-risk slice).
 import { useMenuActions } from './app/menuActions'
 // F4b PR3: close-requested / unsaved-changes gate extraction.
@@ -3490,41 +3490,13 @@ function AppInner() {
       onDrop={handleGlobalDrop}
     >
       <UpdateBanner />
+      {/* W1-11: Ableton transport grammar — tempo/grid cluster (BPM + snap/
+          quantize) anchored LEFT; playback (play/stop/loop + timecode)
+          grouped and centered in the remaining space, which — since the
+          left cluster consumes real width — lands it center-RIGHT of the
+          full bar rather than dead-center. Pure reorder + CSS (margin:auto
+          centering); no button behavior changed. */}
       <div className="app__transport-bar">
-        <div className="app__transport-controls">
-          <button
-            className={`app__transport-btn ${isPlaying ? 'app__transport-btn--active' : ''}`}
-            onClick={handlePlayPause}
-            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-          >
-            <TransportIcon name={isPlaying ? 'pause' : 'play'} />
-          </button>
-          <button className="app__transport-btn" onClick={handleStop} title="Stop">
-            <TransportIcon name="stop" />
-          </button>
-          <button
-            className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
-            onClick={() => useTimelineStore.getState().toggleLooping()}
-            title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
-          >
-            <TransportIcon name="loop" />
-          </button>
-        </div>
-        <span className="app__transport-timecode">
-          {(() => {
-            const t = useTimelineStore.getState().playheadTime
-            const m = Math.floor(t / 60)
-            const s = t % 60
-            return `${m}:${s.toFixed(1).padStart(4, '0')}`
-          })()}
-          {' / '}
-          {(() => {
-            const t = useTimelineStore.getState().duration
-            const m = Math.floor(t / 60)
-            const s = t % 60
-            return `${m}:${s.toFixed(1).padStart(4, '0')}`
-          })()}
-        </span>
         <div className="app__transport-bpm">
           <label>BPM</label>
           {/* P2.1: displays effectiveBpm (modulation-derived); edits write to persisted bpm baseline. */}
@@ -3534,22 +3506,26 @@ function AppInner() {
             max={300}
             value={effectiveBpm}
             onChange={(e) => useProjectStore.getState().setBpm(Number(e.target.value))}
+            data-testid="transport-bpm-input"
           />
         </div>
         <div className="app__transport-quant">
-          {/* UE.1: Snap toggle — clip-edge/playhead/marker snapping. Store-shape change → kill+relaunch required (not HMR). */}
+          {/* UE.1: Snap toggle — clip-edge/playhead/marker snapping. Store-shape change → kill+relaunch required (not HMR).
+              W1-3: magnet glyph replaces the bare "S" (collided with the track Solo "S" button). */}
           <button
             className={`app__transport-btn ${snapEnabled ? 'app__transport-btn--active' : ''}`}
             onClick={() => useLayoutStore.getState().toggleSnap()}
             title="Toggle snapping (clip edges, playhead, markers)"
+            aria-label="Snap"
             data-testid="snap-toggle"
           >
-            S
+            <Icon name="magnet" size={13} />
           </button>
           <button
             className={`app__transport-btn ${quantizeEnabled ? 'app__transport-btn--active' : ''}`}
             onClick={() => useLayoutStore.getState().toggleQuantize()}
             title="Toggle quantize grid (Cmd+U)"
+            data-testid="quantize-toggle"
           >
             Q
           </button>
@@ -3565,6 +3541,49 @@ function AppInner() {
             <option value={16}>1/16</option>
             <option value={32}>1/32</option>
           </Select>
+        </div>
+        <div className="app__transport-playback">
+          <div className="app__transport-controls">
+            <button
+              className={`app__transport-btn ${isPlaying ? 'app__transport-btn--active' : ''}`}
+              onClick={handlePlayPause}
+              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+              data-testid="transport-play"
+            >
+              <TransportIcon name={isPlaying ? 'pause' : 'play'} />
+            </button>
+            <button
+              className="app__transport-btn"
+              onClick={handleStop}
+              title="Stop"
+              data-testid="transport-stop"
+            >
+              <TransportIcon name="stop" />
+            </button>
+            <button
+              className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
+              onClick={() => useTimelineStore.getState().toggleLooping()}
+              title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
+              data-testid="transport-loop"
+            >
+              <TransportIcon name="loop" />
+            </button>
+          </div>
+          <span className="app__transport-timecode">
+            {(() => {
+              const t = useTimelineStore.getState().playheadTime
+              const m = Math.floor(t / 60)
+              const s = t % 60
+              return `${m}:${s.toFixed(1).padStart(4, '0')}`
+            })()}
+            {' / '}
+            {(() => {
+              const t = useTimelineStore.getState().duration
+              const m = Math.floor(t / 60)
+              const s = t % 60
+              return `${m}:${s.toFixed(1).padStart(4, '0')}`
+            })()}
+          </span>
         </div>
       </div>
       <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />

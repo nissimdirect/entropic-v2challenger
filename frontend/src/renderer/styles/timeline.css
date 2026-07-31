@@ -176,11 +176,18 @@
 }
 
 .timeline__headers-spacer {
-  height: 24px;
+  /* W1-10: three label-tier text buttons ("+ Track"/"+ MIDI"/"+ Inspector")
+     no longer fit a fixed 24px single line inside the 180px header column
+     (.timeline__headers) at every width — wrap instead of clipping/
+     overflowing (REAL-DIMENSIONS-ONLY: verified against the 1280x800
+     default window). */
+  min-height: 24px;
   border-bottom: 1px solid var(--cx-line-1);
   display: flex;
   align-items: center;
-  padding: 0 8px;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  padding: 4px 8px;
 }
 
 .timeline__add-track-btn {
@@ -189,6 +196,7 @@
   color: var(--cx-text-2);
   font-family: inherit;
   font-size: 11px;
+  white-space: nowrap;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 2px;
@@ -1279,7 +1287,11 @@ body.clip-dragging .timeline__new-track-zone {
    ====================================================================== */
 
 .master-track-header {
-  background: var(--cx-warn-wash);
+  /* W1-6 / RATIFIED D11: opaque identity color at rest — a translucent wash
+     here made the Master row's amber "Ableton master" identity read as a
+     tint of whatever sat behind it instead of a stable color. Hover/
+     selected below stay translucent washes (state, not identity). */
+  background: var(--cx-master-bg);
   border-top: 2px solid var(--cx-warn);
   border-bottom: none;
   cursor: pointer;
@@ -1314,7 +1326,8 @@ body.clip-dragging .timeline__new-track-zone {
   height: 76px;
   border-top: 2px solid var(--cx-warn);
   border-bottom: none;
-  background: var(--cx-warn-wash);
+  /* W1-6 / RATIFIED D11: opaque identity color — see .master-track-header. */
+  background: var(--cx-master-bg);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1337,7 +1350,12 @@ body.clip-dragging .timeline__new-track-zone {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
-  min-width: 0;
+  /* W1-9: at extreme zoom-out the lane itself can still shrink well below
+     a readable width even with W1-8's 60s display floor (e.g. zoom=0.5 ->
+     ~30px). A hard min-width keeps the label an ellipsized PHRASE (never a
+     1-2 char shard) instead of shrinking to nothing — text-overflow still
+     activates normally above this floor. */
+  min-width: 220px;
   padding: 0 var(--cx-space-8);
 }
 

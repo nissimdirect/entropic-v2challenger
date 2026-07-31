@@ -194,6 +194,8 @@ interface TimelineState {
   toggleMute: (id: string) => void
   toggleSolo: (id: string) => void
   renameTrack: (id: string, name: string) => void
+  /** W1-7: track context-menu Color row (mirrors setClipColor's pattern). */
+  setTrackColor: (id: string, color: string) => void
 
   // Text track actions
   addTextTrack: (name: string, color: string) => void
@@ -1234,6 +1236,19 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
       `Rename track`,
       () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, name } : t)) }),
       () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, name: oldName } : t)) }),
+    )
+  },
+
+  // W1-7: track context-menu Color row. Mirrors setClipColor's undoable pattern.
+  setTrackColor: (id, color) => {
+    const track = get().tracks.find((t) => t.id === id)
+    if (!track) return
+    const oldColor = track.color
+
+    undoable(
+      'Set track color',
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, color } : t)) }),
+      () => set({ tracks: get().tracks.map((t) => (t.id === id ? { ...t, color: oldColor } : t)) }),
     )
   },
 

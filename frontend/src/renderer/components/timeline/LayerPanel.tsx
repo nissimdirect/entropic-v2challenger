@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import Icon from '../../assets/icon-kit'
+import EmptyState from '../common/EmptyState'
 import type { BlendMode, Track as TrackType, Clip } from '../../../shared/types'
 import {
   getTrackCompositing,
@@ -118,12 +119,14 @@ export default function LayerPanel() {
   )
 
   if (!track) {
+    // W1-5: shared EmptyState primitive (RATIFIED D7 — quiet hint, no CTA,
+    // WCAG AA contrast) replaces the bare "LAYER" heading + ghost hint text.
     return (
       <div className="b3-layer b3-layer--empty" data-testid="layer-panel-empty">
-        <div className="b3-layer__head">
-          <b>LAYER</b>
-          <span className="b3-layer__hint">select a track</span>
-        </div>
+        <EmptyState
+          testId="layer-panel-empty-hint"
+          hint="Select a track to edit its blend, opacity, and mattes."
+        />
       </div>
     )
   }

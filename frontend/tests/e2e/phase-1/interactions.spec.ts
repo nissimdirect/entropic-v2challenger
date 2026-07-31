@@ -48,9 +48,10 @@ test.describe('Interactions — Preview Controls', () => {
     await waitForEngineConnected(window, 20_000)
     await importAndWaitForFrame(electronApp, window)
 
-    // Migrated from .preview-controls__play-btn → .app__transport-btn (play is first transport btn)
+    // Migrated from .preview-controls__play-btn → data-testid=transport-play (W1-11: the transport
+    // reorder put the snap/quantize cluster first, so positional .first() no longer finds Play)
     // The app transport bar replaced the preview-controls play button.
-    const playBtn = window.locator('.app__transport-btn').first()
+    const playBtn = window.getByTestId('transport-play')
     await expect(playBtn).toBeVisible()
 
     // Initial state: paused (title contains "Play")

@@ -83,6 +83,15 @@
   --cx-amber-wash: rgba(217, 162, 60, 0.12);
   --cx-amber-on: #0B0B10;
 
+  /* --- Master-bus identity (W1-6 / RATIFIED D11: opacity=identity,
+       translucency=state) — the Master track's resting background must be
+       an OPAQUE color, not a wash, so it never visually shifts with
+       whatever sits behind the timeline bed. #352D23 = --cx-amber (15%)
+       flat-mixed into --cx-surface-2 (85%): 217*.15+24*.85=53, 162*.15+
+       24*.85=45, 60*.15+31*.85=35 -> #352D23. Hover/selected states keep
+       using the existing translucent amber washes on top of this. --- */
+  --cx-master-bg: #352D23;
+
   /* --- Category ticks — device rack 3px left tick only (DESIGN-SPEC §2)
        These are tick colors ONLY; never fill/text. --- */
   --cx-cat-glitch: #D06A6A;

@@ -21,7 +21,7 @@ import { useToastStore } from '../../stores/toast'
 import { INSTRUMENT_DRAG_TYPE } from '../instruments/InstrumentsBrowser'
 import { shortcutRegistry } from '../../utils/shortcuts'
 import { prettyShortcut } from '../../utils/pretty-shortcut'
-import ClipComponent from './Clip'
+import ClipComponent, { CLIP_COLOR_SWATCHES } from './Clip'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
 import { FF } from '../../../shared/feature-flags'
@@ -138,6 +138,17 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
         label: 'Rename Track',
         action: startRename,
         shortcut: prettyShortcut(shortcutRegistry.getEffectiveKey('rename_track')),
+      },
+      // W1-7: Color row — same 8-swatch equal-luminance palette + ContextMenu
+      // swatch mechanism (UE.7) Clip.tsx's own "Color" row already uses.
+      {
+        label: 'Color',
+        action: () => {},   // action not used when swatches are present
+        swatches: CLIP_COLOR_SWATCHES.map((sw) => ({
+          hex: sw.hex,
+          label: sw.label,
+          action: () => store.setTrackColor(track.id, sw.hex),
+        })),
       },
       { label: '', action: () => {}, separator: true },
       {

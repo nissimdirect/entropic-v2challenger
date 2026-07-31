@@ -172,8 +172,16 @@ export default function Timeline({
     el.addEventListener('gesturestart', (e) => e.preventDefault())  // prevent native zoom
   }, [])
 
-  // Width = exactly clip duration + 1s buffer. No wasted space.
-  const contentWidth = (duration + 1) * zoom
+  // W1-8: an empty/near-empty session (duration near 0 — the Master track
+  // always exists, so tracks.length===0 below is rare) rendered a near-
+  // invisible sliver of a ruler/lane area: (0 + 1) * zoom(50) = 50px. This
+  // is a DISPLAY-ONLY floor — `duration` itself (the persisted/derived
+  // field) is untouched; only the on-screen content width gets a ~60s
+  // minimum span so the ruler and Master lane render at a usable size.
+  const EMPTY_SESSION_DISPLAY_SECONDS = 60
+  const displayDuration = Math.max(duration, EMPTY_SESSION_DISPLAY_SECONDS)
+  // Width = exactly clip duration + 1s buffer (or the empty-session floor above). No wasted space.
+  const contentWidth = (displayDuration + 1) * zoom
 
   if (tracks.length === 0) {
     return (
@@ -213,12 +221,20 @@ export default function Timeline({
       <div className="timeline__body" ref={bodyRef}>
         {/* Left: track headers */}
         <div className="timeline__headers">
+          {/* W1-10: bare "+"/"+M"/"+I" glyphs read as cryptic — swapped for
+              label-tier text buttons per the manifest's '+ Add {noun}'
+              KEEP-TEXT convention. NOTE: the punch list's suggested third
+              label was "+ Import" but this button's actual mechanism is
+              handleAddInspectorTrack (creates an Inspector track — see
+              title, unchanged) — "+ Import" would misdescribe it, so it
+              reads "+ Inspector" instead. Import stays reachable via
+              Cmd+I / drag / File > Import Media (W1-12). */}
           <div className="timeline__headers-spacer">
             <button className="timeline__add-track-btn timeline__add-track-btn--video" onClick={handleAddTrack} title="Add video track">
-              +
+              + Track
             </button>
             <button className="timeline__add-track-btn timeline__add-track-btn--midi" onClick={handleAddMidiTrack} title="Add MIDI track">
-              +M
+              + MIDI
             </button>
             <button
               className="timeline__add-track-btn timeline__add-track-btn--inspector"
@@ -226,7 +242,7 @@ export default function Timeline({
               disabled={tracks.some((t) => t.type === 'inspector')}
               title="Add inspector track"
             >
-              +I
+              + Inspector
             </button>
           </div>
           <div

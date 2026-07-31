@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react'
+import Icon from '../../assets/icon-kit'
 import type { Track as TrackType, TriggerMode } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useAutomationStore } from '../../stores/automation'
@@ -163,7 +164,9 @@ export function MasterTrackHeader({ track, isSelected }: MasterTrackHeaderProps)
             title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
             aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
           >
-            R
+            {/* W1-1: match Track.tsx's record-arm dot (icon-kit's R-collision
+                resolution) — Master previously lagged behind with a bare "R". */}
+            <Icon name="circle" size={10} filled={isArmed} />
           </button>
         </div>
       </div>
