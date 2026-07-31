@@ -250,6 +250,18 @@
   background: var(--cx-text-3);
 }
 
+/* W1.5b PK.A1: grid overlay — sits above lane-row backgrounds (z-index:auto)
+   and below clip content (.clip/.audio-clip claim z-index:2 below). Explicit
+   width/height come from GridOverlay.tsx (not top:0/bottom:0 — see its doc
+   comment for why). */
+.timeline__grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .timeline__empty {
   display: flex;
   flex-direction: column;
@@ -810,6 +822,12 @@ body.clip-dragging .timeline__new-track-zone {
   overflow: hidden;
   user-select: none;
   transition: border-color 0.15s;
+  /* W1.5b PK.A1: explicit z-index so clip content stays above the new
+     .timeline__grid-overlay (z-index:1) — previously relied on implicit
+     z-index:auto/DOM-order, which put clips at the same paint tier as lane
+     backgrounds. Stays below loop-region(3)/marker-flag(4)/playhead(10),
+     matching the ordering that already existed. */
+  z-index: 2;
 }
 
 .clip:hover {

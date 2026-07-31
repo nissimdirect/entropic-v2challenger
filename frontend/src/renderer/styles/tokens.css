@@ -257,4 +257,11 @@
 
   /* Focus ring — ACID per DESIGN-SPEC §4 */
   --cx-focus-ring: var(--cx-acid);
+
+  /* Quantize grid lines (W1.5b PK.A1) — replaces the hardcoded #333 that
+     lived inline in Timeline.tsx. Aliases the existing hairline/strong-
+     border primitives rather than new hex: grid lines are structural
+     dividers, the same visual role as --cx-line-1/2. */
+  --cx-grid-beat: var(--cx-line-1);   /* subtle — sub-bar divisions */
+  --cx-grid-bar: var(--cx-line-2);    /* stronger — bar boundaries */
 }
