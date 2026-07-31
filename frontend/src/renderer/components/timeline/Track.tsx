@@ -28,6 +28,8 @@ import { FF } from '../../../shared/feature-flags'
 import MarqueeOverlay from './MarqueeOverlay'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
 import { useTrackHeaderView, useLaneBadgesView, useTrackLaneView } from '../../selectors/trackView'
+import UnifiedTrackHeader from './UnifiedTrackHeader'
+import type { KitIconName } from '../../assets/icon-kit'
 
 interface TrackHeaderProps {
   track: TrackType
@@ -275,12 +277,13 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
   ].filter(Boolean).join(' ')
 
   // ── B3 / L2 + L4: lean track header + twirl ─────────────────────────────
-  // Behind F_CREATRIX_LAYOUT. The header shrinks to name · eye · color ·
-  // compact blend·opacity readout chip · M/S · twirl; the deep blend/opacity/
-  // blending-options controls move OUT to the right-dock LAYER panel (L3). The
-  // twirl reveals the track's nested fx + automation lanes ("arrangement-is-
-  // the-layers" AE model). Rendered as an early return so the legacy two-row
-  // header (flag OFF) is untouched — both paths stay shippable (flag divergence).
+  // Behind F_CREATRIX_LAYOUT. Rendered as an early return so the legacy
+  // two-row header (flag OFF) is untouched below — both paths stay
+  // shippable (flag divergence). W1.5b PK.B1: the lean row markup now lives
+  // in the shared UnifiedTrackHeader — this branch keeps every hook/handler
+  // (rename flow, drag-reorder, compositing, context menu, arm/mute/solo/
+  // lock) exactly as before and only delegates the JSX to the unified
+  // 8-slot shell ([arm][swatch][name][badge][blend][M][S][eye]).
   if (FF.F_CREATRIX_LAYOUT) {
     const isExpanded = expandedTrackIds.includes(track.id)
     const modeLabel = compositing.mode.charAt(0).toUpperCase() + compositing.mode.slice(1)
@@ -288,204 +291,142 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
     // Nested fx = the chain minus its terminal composite (compositing is the
     // LAYER panel's job, not a nested-fx row).
     const nestedFx = track.effectChain.filter((e) => e.id !== terminalComposite?.id)
-    const leanHeaderClasses = [
-      'track-header',
-      'track-header--lean',
-      isSelected ? 'track-header--selected' : '',
-      dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
-    ].filter(Boolean).join(' ')
+    const typeBadge: KitIconName = track.type === 'performance' ? 'midi' : track.type === 'text' ? 'text' : 'video'
+    const typeBadgeLabel = track.type === 'performance' ? 'MIDI track' : track.type === 'text' ? 'Text track' : 'Video track'
+
+    // B2/P2.2b/P4.6: same drag-accept logic as the legacy header (ported,
+    // not refactored — see the identical block in the legacy header return
+    // below for the canonical version + comments).
+    const handleDragOver = (e: React.DragEvent) => {
+      if (dragHasOperatorChannel(e.dataTransfer)) {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        return
+      }
+      if (track.type === 'performance' && e.dataTransfer.types.includes(INSTRUMENT_DRAG_TYPE)) {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+        return
+      }
+      if (
+        track.type !== 'performance' &&
+        track.type !== 'audio' &&
+        e.dataTransfer.types.includes(EFFECT_DRAG_TYPE)
+      ) {
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'copy'
+      }
+    }
+    const handleDrop = (e: React.DragEvent) => {
+      const opType = parseOperatorDrop(e.dataTransfer)
+      if (opType) {
+        e.preventDefault()
+        useTimelineStore.getState().selectTrack(track.id)
+        useOperatorStore.getState().addOperator(opType)
+        return
+      }
+      const effectId = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
+      if (effectId) {
+        if (effectId.length > 64) return
+        if (effectId !== COMPOSITE_EFFECT_ID) return
+        e.preventDefault()
+        if (track.type === 'performance') {
+          useToastStore.getState().addToast({ level: 'warning', message: 'Composite cannot be dropped on a MIDI track', source: 'composite-ui' })
+          return
+        }
+        useTimelineStore.getState().selectTrack(track.id)
+        handleAddComposite()
+        return
+      }
+      const id = e.dataTransfer.getData(INSTRUMENT_DRAG_TYPE)
+      if (!id) return
+      e.preventDefault()
+      if (track.type !== 'performance') {
+        useToastStore.getState().addToast({ level: 'warning', message: 'Instruments can only be dropped on a MIDI track', source: 'instruments' })
+        return
+      }
+      if (id === 'sampler') {
+        useInstrumentsStore.getState().addSampler(track.id)
+        useTimelineStore.getState().selectTrack(track.id)
+      } else if (id === 'drum-rack') {
+        useInstrumentsStore.getState().addRack(track.id)
+        useTimelineStore.getState().selectTrack(track.id)
+      }
+    }
+
     return (
-      <>
-        <div
-          className={leanHeaderClasses}
-          data-track-idx={drag.ownIdx}
-          data-testid="lean-track-header"
-          onClick={handleClick}
-          onContextMenu={handleContextMenu}
-          onPointerDown={drag.onPointerDown}
-          // B2/P2.2b/P4.6: same drag-accept logic as the legacy header (ported,
-          // not refactored — see the identical block in the legacy header
-          // return below for the canonical version + comments).
-          onDragOver={(e) => {
-            if (dragHasOperatorChannel(e.dataTransfer)) {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = 'copy'
-              return
-            }
-            if (track.type === 'performance' && e.dataTransfer.types.includes(INSTRUMENT_DRAG_TYPE)) {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = 'copy'
-              return
-            }
-            if (
-              track.type !== 'performance' &&
-              track.type !== 'audio' &&
-              e.dataTransfer.types.includes(EFFECT_DRAG_TYPE)
-            ) {
-              e.preventDefault()
-              e.dataTransfer.dropEffect = 'copy'
-            }
-          }}
-          onDrop={(e) => {
-            const opType = parseOperatorDrop(e.dataTransfer)
-            if (opType) {
-              e.preventDefault()
-              useTimelineStore.getState().selectTrack(track.id)
-              useOperatorStore.getState().addOperator(opType)
-              return
-            }
-            const effectId = e.dataTransfer.getData(EFFECT_DRAG_TYPE)
-            if (effectId) {
-              if (effectId.length > 64) return
-              if (effectId !== COMPOSITE_EFFECT_ID) return
-              e.preventDefault()
-              if (track.type === 'performance') {
-                useToastStore.getState().addToast({ level: 'warning', message: 'Composite cannot be dropped on a MIDI track', source: 'composite-ui' })
-                return
-              }
-              useTimelineStore.getState().selectTrack(track.id)
-              handleAddComposite()
-              return
-            }
-            const id = e.dataTransfer.getData(INSTRUMENT_DRAG_TYPE)
-            if (!id) return
-            e.preventDefault()
-            if (track.type !== 'performance') {
-              useToastStore.getState().addToast({ level: 'warning', message: 'Instruments can only be dropped on a MIDI track', source: 'instruments' })
-              return
-            }
-            if (id === 'sampler') {
-              useInstrumentsStore.getState().addSampler(track.id)
-              useTimelineStore.getState().selectTrack(track.id)
-            } else if (id === 'drum-rack') {
-              useInstrumentsStore.getState().addRack(track.id)
-              useTimelineStore.getState().selectTrack(track.id)
-            }
-          }}
-        >
-          <div className="track-header__lean-row">
-            <button
-              className="track-header__twirl"
-              data-testid="track-twirl"
-              aria-label={isExpanded ? 'Collapse track' : 'Expand track'}
-              aria-expanded={isExpanded}
-              onClick={(e) => { e.stopPropagation(); useLayoutStore.getState().toggleTrackExpanded(track.id) }}
-            >
-              <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} size={12} />
-            </button>
-            <button
-              className={`track-header__eye${track.isMuted ? ' track-header__eye--off' : ''}`}
-              data-testid="track-eye"
-              aria-label={track.isMuted ? 'Show layer' : 'Hide layer'}
-              aria-pressed={!track.isMuted}
-              title={track.isMuted ? 'Layer hidden (muted)' : 'Layer visible'}
-              onClick={handleMute}
-            >
-              <Icon name={track.isMuted ? 'eye-off' : 'eye'} size={14} />
-            </button>
-            <span className="track-header__cc" style={{ background: track.color }} />
-            {/* QF1 (W1.5a owner walk): record-arm dot moved LEFT of the track
-                name — same element/testid/handler, reordered placement only
-                (was inside track-header__controls--lean, after M/S). */}
-            <button
-              className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-              onClick={handleArmToggle}
-              title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-              aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
-            >
-              <Icon name="circle" size={10} filled={isArmed} />
-            </button>
-            <div className="track-header__info track-header__info--lean" onDoubleClick={isRenaming ? undefined : startRename}>
-              {isRenaming ? (
-                <input
-                  ref={renameInputRef}
-                  className="track-header__rename-input"
-                  type="text"
-                  value={renameText}
-                  onChange={(e) => setRenameText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') confirmRename()
-                    else if (e.key === 'Escape') cancelRename()
-                    e.stopPropagation()
-                  }}
-                  onBlur={confirmRename}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <div className="track-header__name" data-testid="lean-track-name">
-                  {track.type === 'text' && <span className="timeline-track__icon--text">T</span>}
-                  {' '}{track.name}
-                </div>
-              )}
-            </div>
-            {track.type !== 'audio' && track.type !== 'performance' && (
-              <button
-                className="track-header__bchip"
-                data-testid="track-bchip"
-                title="Edit blend & opacity in the LAYER panel"
-                aria-label={`Blend ${modeLabel}, opacity ${opacityPct}% — open LAYER panel`}
-                onClick={(e) => { e.stopPropagation(); useTimelineStore.getState().selectTrack(track.id) }}
-              >
-                {modeLabel} <span className="track-header__bchip-o">{opacityPct}%</span>
-              </button>
+      <UnifiedTrackHeader
+        track={track}
+        isSelected={isSelected}
+        capabilities={{
+          arm: true,
+          blend: track.type !== 'performance' && track.type !== 'audio',
+          mute: true,
+          solo: true,
+          visibility: true,
+          lock: true,
+          twirl: true,
+          drag: true,
+        }}
+        typeBadge={typeBadge}
+        typeBadgeLabel={typeBadgeLabel}
+        rootTestId="lean-track-header"
+        ownIdx={drag.ownIdx}
+        isDragging={dragFromIdx !== null && dragFromIdx === drag.ownIdx}
+        onPointerDown={drag.onPointerDown}
+        onClick={handleClick}
+        onContextMenu={handleContextMenu}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        isArmed={isArmed}
+        onArmToggle={handleArmToggle}
+        isRenaming={isRenaming}
+        renameText={renameText}
+        onRenameChange={(e) => setRenameText(e.target.value)}
+        onRenameKeyDown={(e) => {
+          if (e.key === 'Enter') confirmRename()
+          else if (e.key === 'Escape') cancelRename()
+          e.stopPropagation()
+        }}
+        onRenameBlur={confirmRename}
+        renameInputRef={renameInputRef}
+        onNameDoubleClick={startRename}
+        onMute={handleMute}
+        onSolo={handleSolo}
+        isLocked={track.locked === true}
+        onLockToggle={handleLockToggle}
+        isExpanded={isExpanded}
+        onTwirlToggle={(e) => { e.stopPropagation(); useLayoutStore.getState().toggleTrackExpanded(track.id) }}
+        blendLabel={modeLabel}
+        opacityPct={opacityPct}
+        onBchipClick={(e) => { e.stopPropagation(); useTimelineStore.getState().selectTrack(track.id) }}
+        laneBadges={<LaneBadges trackId={track.id} />}
+        nestedContent={isExpanded && (
+          <div className="track-header__nested" data-testid="track-nested">
+            {nestedFx.length === 0 && leanAutoLanes.length === 0 && (
+              <div className="track-header__nested-empty">no fx or automation</div>
             )}
-            <div className="track-header__controls track-header__controls--lean">
-              <button
-                className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
-                onClick={handleMute}
-                title="Mute"
-              >
-                M
-              </button>
-              <button
-                className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
-                onClick={handleSolo}
-                title="Solo"
-              >
-                S
-              </button>
-              {/* T3: track lock toggle. Padlock glyph; --active when locked. Guards
-                  all clips on this track + rejects reorder/drops onto it. */}
-              <button
-                className={`track-header__btn${track.locked === true ? ' track-header__btn--active' : ''}`}
-                onClick={handleLockToggle}
-                data-testid="track-lock-btn"
-                title={track.locked === true ? 'Unlock track' : 'Lock track'}
-                aria-label={track.locked === true ? 'Unlock track' : 'Lock track'}
-                aria-pressed={track.locked === true}
-              >
-                <Icon name={track.locked === true ? 'lock' : 'unlock'} size={13} />
-              </button>
-            </div>
-          </div>
-          <LaneBadges trackId={track.id} />
-          {isExpanded && (
-            <div className="track-header__nested" data-testid="track-nested">
-              {nestedFx.length === 0 && leanAutoLanes.length === 0 && (
-                <div className="track-header__nested-empty">no fx or automation</div>
-              )}
-              {nestedFx.map((fx) => {
-                const info = registry.find((r) => r.id === fx.effectId)
-                return (
-                  <div
-                    key={fx.id}
-                    className={`track-header__nested-fx${fx.isEnabled === false ? ' track-header__nested-fx--off' : ''}`}
-                    data-testid="nested-fx-row"
-                  >
-                    <span className="track-header__nested-pwr" />
-                    {info?.name ?? fx.effectId}
-                  </div>
-                )
-              })}
-              {leanAutoLanes.map((lane) => (
-                <div key={lane.id} className="track-header__nested-auto" data-testid="nested-auto-row">
-                  {'└'} {isTriggerLane(lane) ? 'TRIG' : 'AUTO'} · {lane.paramPath}
+            {nestedFx.map((fx) => {
+              const info = registry.find((r) => r.id === fx.effectId)
+              return (
+                <div
+                  key={fx.id}
+                  className={`track-header__nested-fx${fx.isEnabled === false ? ' track-header__nested-fx--off' : ''}`}
+                  data-testid="nested-fx-row"
+                >
+                  <span className="track-header__nested-pwr" />
+                  {info?.name ?? fx.effectId}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-        {ctxMenu && (
+              )
+            })}
+            {leanAutoLanes.map((lane) => (
+              <div key={lane.id} className="track-header__nested-auto" data-testid="nested-auto-row">
+                {'└'} {isTriggerLane(lane) ? 'TRIG' : 'AUTO'} · {lane.paramPath}
+              </div>
+            ))}
+          </div>
+        )}
+        ctxMenu={ctxMenu && (
           <ContextMenu
             x={ctxMenu.x}
             y={ctxMenu.y}
@@ -493,7 +434,7 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
             onClose={() => setCtxMenu(null)}
           />
         )}
-      </>
+      />
     )
   }
 

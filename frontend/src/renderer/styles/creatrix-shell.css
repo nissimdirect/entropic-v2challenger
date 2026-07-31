@@ -505,6 +505,20 @@
   font-size: 11.5px;
 }
 
+/* W1.5b PK.B1 — unified type-badge slot: a small icon-kit glyph identifying
+   the track's type (video/midi/text/audio/scope/master), replacing the
+   ad hoc per-type text prefixes ("T"/"A"/"⊙") the four separate headers
+   used to render inline with the name. */
+.track-header__type-badge {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cx-text-3);
+}
+
 /* Compact blend·opacity readout chip — glanceable, click opens LAYER panel */
 .track-header__bchip {
   flex: none;
