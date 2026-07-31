@@ -20,6 +20,12 @@
    2026-07-29 after the frame mock shipped at 1600px). Registry: `docs/mockups/INDEX.md`.
 7. **Packets** — ≤4h one-shot units per `docs/roadmap/EXECUTION-PLAN.md` §1, each with a
    hard oracle and a UAT unit (rows + method + trap).
+7½. **Cross-lane coherence check (A4):** before packets dispatch, grep every OTHER planning
+   lane's proposals for the surfaces/components this change names. Any overlap gets a row in
+   `docs/frontend/RECONCILIATIONS.md` (what transfers, what supersedes, who rules) BEFORE
+   either side builds. (Origin: the Convention-1 rail and Rail-v12 both claimed the tool
+   strip from different lanes, undetected until post-build.) Also refresh the change's
+   file:line cites against current main — cites rot under intervening sweeps.
 8. **Build with the visual cadence** (§2) and merge gates (§4).
 9. **Live visual pass** (PUX.6 protocol) every ~5 merged UI packets.
 
@@ -70,6 +76,21 @@ The gate never forbids change — it forbids **undeclared** change.
 **Standing prohibition: no Playwright journey suites.** The 132-test suite encoded click
 choreography into a layout-blind tier — broke on every UI shift at 50–70 min per CI run.
 E2E stays for launch/lifecycle/security/drag-proofs, each with a `// WHY E2E:` comment.
+
+## 4½ · Presentation & exit rules (v4.1 amendments A1/A2/A5, 2026-07-31)
+
+- **A1 — the owner's first look BLOCKS exit.** For any visual change-set, a live walk by the
+  owner is a non-deferrable exit-gate step. If the owner is unavailable, the change-set stays
+  OPEN — never close a ledger row with the human gate deferred. (Origin: the v4 exit closed
+  with the walk deferred; the walk then surfaced ~17 items.)
+- **A2 — row-level sweep oracles.** Any packet executing a manifest/checklist (icon sweeps,
+  adoption sweeps) commits its row list AS A TEST — one assertion per row — in the same PR.
+  Aggregate counts (e.g. "emoji → 0") are necessary but insufficient: three manifest rows
+  escaped the v4 icon sweep under aggregate-only oracles.
+- **A5 — CU-look before presenting.** Before any UI change is presented to the owner (or a
+  "done" claim made), the orchestrator launches the built app and inspects the changed
+  surfaces live via computer use — own eyes first, owner's second. Per-edit screenshots (L1)
+  do not satisfy this; it is a per-presentation gate. (Owner instruction, 2026-07-31.)
 
 ## 5 · Traceability (the control-surface-gap cure)
 
