@@ -314,6 +314,19 @@ body {
   color: var(--cx-mod);
 }
 
+/* W1.5b PK.A3 — quantize-grid readout chip. Same understated statusbar
+   footprint as the mapping-context chip; tabular-nums since it carries a
+   bar-length number that updates live with BPM. Held at the type floor
+   (RATIFIED D6 — 12px, nothing smaller) rather than matching its 11px
+   siblings, so this new rule doesn't add a below-floor ratchet violation. */
+.status-bar__quantize-readout {
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  color: var(--cx-text-2);
+}
+
 /* H7 (2026-07-02 master-tuneup WS5) — bank-paging HUD. Same understated
    statusbar footprint as the mapping-context chip it sits next to; the L/R
    buttons are the actual paging control (the physical MIDImix BANK L/R
