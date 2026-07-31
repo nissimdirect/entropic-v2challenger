@@ -151,23 +151,24 @@ export function MasterTrackHeader({ track, isSelected }: MasterTrackHeaderProps)
         onContextMenu={handleContextMenu}
       >
         <div className="track-header__color master-track-header__color" style={{ background: track.color }} />
+        {/* QF1 (W1.5a owner walk): record-arm dot moved LEFT of the track
+            name — same element/testid/handler, reordered placement only (was
+            in a trailing track-header__controls wrapper, which is dropped now
+            that this was its only child). W1-1: match Track.tsx's record-arm
+            dot (icon-kit's R-collision resolution). */}
+        <button
+          className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
+          onClick={handleArmToggle}
+          data-testid="master-track-auto-btn"
+          title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+          aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
+        >
+          <Icon name="circle" size={10} filled={isArmed} />
+        </button>
         <div className="track-header__info">
           <div className="track-header__name master-track-header__name">
             <span className="master-track-header__badge">MASTER</span>
           </div>
-        </div>
-        <div className="track-header__controls">
-          <button
-            className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-            onClick={handleArmToggle}
-            data-testid="master-track-auto-btn"
-            title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-            aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
-          >
-            {/* W1-1: match Track.tsx's record-arm dot (icon-kit's R-collision
-                resolution) — Master previously lagged behind with a bare "R". */}
-            <Icon name="circle" size={10} filled={isArmed} />
-          </button>
         </div>
       </div>
       {ctxMenu && (
