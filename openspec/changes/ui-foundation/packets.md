@@ -526,12 +526,20 @@ design-spec §9c mid-roadmap design review checkpoint (OD-2/5/6/7 revisit) → e
 
 ## Ledger
 
+> **Ledger back-filled 2026-07-31 (tiger 12: this file showed ⬜ while the queue showed COMPLETE —
+> two artifacts, one truth).** PR numbers below match `openspec/PLANNING-QUEUE.md` row 10's
+> `✅ COMPLETE (2026-07-30)` entry — this table was never updated as each packet merged; the queue
+> was. Backfilled from the queue's per-packet PR list, not re-derived.
+
 | Packet | Status | PR | Oracle evidence |
 |--------|--------|----|-----------------|
-| PK.A | ⬜ | — | — |
-| PK.B | ⬜ | — | — |
-| PK.C | ⬜ | — | — |
-| PK.D | ⬜ | — | — |
-| PK.E | ⬜ | — | — |
-| PK.F | ⬜ | — | — |
-| PK.G | ⬜ | — | — |
+| PK.A | ✅ | #457 | Merged per PLANNING-QUEUE row 10 (Scale B+1 type tokens) |
+| PK.B | ✅ | #460 | Merged per PLANNING-QUEUE row 10 (rail dims) |
+| PK.B2 | ✅ | #464 | Merged per PLANNING-QUEUE row 10 (grouped rail, 6 groups, D4a) |
+| PK.C | ✅ | #474 | Merged per PLANNING-QUEUE row 10 (strip Mode+Record; curve ops → lane menu, D8/A) |
+| PK.D | ✅ | #461 | Merged per PLANNING-QUEUE row 10 (minimal-hint empty states) |
+| PK.E | ✅ | #458 | Merged per PLANNING-QUEUE row 10 (4 frame bugs, shared PR w/ F, G) |
+| PK.F | ✅ | #458 | Merged per PLANNING-QUEUE row 10 (4 frame bugs, shared PR w/ E, G) |
+| PK.G | ✅ | #458 | Merged per PLANNING-QUEUE row 10 (4 frame bugs, shared PR w/ E, F) |
+| PK.H1 | ✅ | #466 | Merged per PLANNING-QUEUE row 10 (wire glyphs + G2 wand + cursors) |
+| PK.H2 | ✅ | #475 | Merged per PLANNING-QUEUE row 10 (emoji→vector 16→0, one-close-glyph, R-collision resolved) |
