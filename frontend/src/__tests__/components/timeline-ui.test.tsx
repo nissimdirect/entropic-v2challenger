@@ -35,11 +35,15 @@ describe('Timeline UI — Empty State', () => {
     expect(document.querySelector('.timeline')).toBeTruthy()
   })
 
-  test('empty timeline shows add-track button', () => {
+  // QF7 (W1.5a owner walk, third pass): the empty-state's own two-button
+  // (+ Add Track / + MIDI Track) creation surface — a second, unrelated
+  // pattern that predated QF6 — is now the SAME single "+ Track" button
+  // QF6 built for the headers-spacer, opening the same unified menu.
+  test('empty timeline shows the unified add-track button', () => {
     render(<Timeline onSeek={() => {}} />)
-    const addBtn = document.querySelector('.timeline__add-track-btn')
+    const addBtn = document.querySelector('[data-testid="add-track-button"]')
     expect(addBtn).toBeTruthy()
-    expect(addBtn?.textContent).toContain('Add')
+    expect(addBtn?.textContent).toBe('+ Track')
   })
 
   test('resize handle is present', () => {
@@ -54,6 +58,16 @@ describe('Timeline UI — Empty State', () => {
   })
 })
 
+// QF6/QF7 (W1.5a owner walk): every add-track button — empty-state and
+// headers-spacer alike — now opens the same unified menu instead of adding
+// directly. Shared two-step helper so each test doesn't repeat the click
+// sequence; picks the Video item by default (matches every prior test's
+// implicit track type).
+function addTrackViaMenu(testId: 'add-track-menu-item-video' | 'add-track-menu-item-midi' | 'add-track-menu-item-text' = 'add-track-menu-item-video') {
+  fireEvent.click(document.querySelector('[data-testid="add-track-button"]')!)
+  fireEvent.click(document.querySelector(`[data-testid="${testId}"]`)!)
+}
+
 describe('Timeline UI — With Tracks', () => {
   beforeEach(() => {
     setupMockEntropic()
@@ -65,11 +79,10 @@ describe('Timeline UI — With Tracks', () => {
     teardownMockEntropic()
   })
 
-  test('clicking add-track creates a track', () => {
+  test('clicking add-track then a menu item creates a track', () => {
     render(<Timeline onSeek={() => {}} />)
 
-    const addBtn = document.querySelector('.timeline__add-track-btn')!
-    fireEvent.click(addBtn)
+    addTrackViaMenu()
 
     expect(document.querySelector('.track-header')).toBeTruthy()
     expect(document.querySelector('.track-lane')).toBeTruthy()
@@ -78,12 +91,12 @@ describe('Timeline UI — With Tracks', () => {
   test('adding multiple tracks shows correct count', () => {
     render(<Timeline onSeek={() => {}} />)
 
-    // Click add in empty state
-    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
-
-    // After first track, button moves to headers-spacer
-    fireEvent.click(document.querySelector('.timeline__headers-spacer .timeline__add-track-btn')!)
-    fireEvent.click(document.querySelector('.timeline__headers-spacer .timeline__add-track-btn')!)
+    // First track from the empty state's unified button (QF7).
+    addTrackViaMenu()
+    // Two more from the headers-spacer's unified button (QF6) — same
+    // button/menu, just a different render branch once tracks exist.
+    addTrackViaMenu()
+    addTrackViaMenu()
 
     const headers = document.querySelectorAll('.track-header')
     expect(headers.length).toBe(3)
@@ -92,7 +105,7 @@ describe('Timeline UI — With Tracks', () => {
   test('track header shows mute, solo and lock buttons', () => {
     render(<Timeline onSeek={() => {}} />)
 
-    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+    addTrackViaMenu()
 
     const btns = document.querySelectorAll('.track-header__btn')
     // T3: mute + solo + lock (padlock toggle)
@@ -107,7 +120,7 @@ describe('Timeline UI — With Tracks', () => {
   test('time ruler is visible after adding a track', () => {
     render(<Timeline onSeek={() => {}} />)
 
-    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+    addTrackViaMenu()
 
     expect(document.querySelector('.time-ruler')).toBeTruthy()
   })
@@ -135,7 +148,7 @@ describe.skip('Timeline UI — Transport Controls (moved to app__transport-bar)'
       />
     )
     // Add a track to show the footer
-    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+    addTrackViaMenu()
 
     const transport = document.querySelector('.timeline__transport')
     expect(transport).toBeTruthy()
@@ -153,7 +166,7 @@ describe.skip('Timeline UI — Transport Controls (moved to app__transport-bar)'
         onStop={() => {}}
       />
     )
-    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+    addTrackViaMenu()
 
     const timecode = document.querySelector('.timeline__timecode')
     expect(timecode).toBeTruthy()
@@ -168,7 +181,7 @@ describe.skip('Timeline UI — Transport Controls (moved to app__transport-bar)'
         onBpmChange={() => {}}
       />
     )
-    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+    addTrackViaMenu()
 
     const bpmInput = document.querySelector('.timeline__bpm-input') as HTMLInputElement
     expect(bpmInput).toBeTruthy()
@@ -184,7 +197,7 @@ describe.skip('Timeline UI — Transport Controls (moved to app__transport-bar)'
         onQuantizeDivisionChange={() => {}}
       />
     )
-    fireEvent.click(document.querySelector('.timeline__add-track-btn')!)
+    addTrackViaMenu()
 
     const qBtn = document.querySelector('.timeline__quant .timeline__transport-btn')
     expect(qBtn).toBeTruthy()

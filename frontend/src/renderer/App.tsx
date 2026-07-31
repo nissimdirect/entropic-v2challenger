@@ -4181,10 +4181,15 @@ function AppInner() {
           )}
         </div>
         <div className="status-bar__right">
-          {/* P3.5: Boot line — types on every launch per ONBOARDING-SPEC §2 */}
+          {/* P3.5: Boot line — types on every launch per ONBOARDING-SPEC §2.
+              QF8 (W1.5a owner walk, third pass): the status bar composed a
+              stale hardcoded version into the boot.line template
+              (i18n/onboarding-strings.ts) via this prop — QF5 only fixed
+              WelcomeScreen.tsx's own literal, missing this second call
+              site. Same __APP_VERSION__ build-time constant as QF5. */}
           {!bootLineDone && (
             <BootLine
-              appVersion="3.0.0"
+              appVersion={__APP_VERSION__}
               effectCount={registry.length}
             />
           )}

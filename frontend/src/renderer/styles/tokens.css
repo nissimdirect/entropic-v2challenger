@@ -86,11 +86,14 @@
   /* --- Master-bus identity (W1-6 / RATIFIED D11: opacity=identity,
        translucency=state) — the Master track's resting background must be
        an OPAQUE color, not a wash, so it never visually shifts with
-       whatever sits behind the timeline bed. #352D23 = --cx-amber (15%)
-       flat-mixed into --cx-surface-2 (85%): 217*.15+24*.85=53, 162*.15+
-       24*.85=45, 60*.15+31*.85=35 -> #352D23. Hover/selected states keep
-       using the existing translucent amber washes on top of this. --- */
-  --cx-master-bg: #352D23;
+       whatever sits behind the timeline bed. QF2 (W1.5a owner walk): the
+       original 15% mix read as "still pretty see-through" even though it
+       IS opaque — raised to a 30% flat-mix for a visibly stronger identity.
+       #524128 = --cx-amber (30%) flat-mixed into --cx-surface-2 (70%):
+       217*.3+24*.7=82, 162*.3+24*.7=65, 60*.3+31*.7=40 -> #524128.
+       Hover/selected states keep using the existing translucent amber
+       washes on top of this. --- */
+  --cx-master-bg: #524128;
 
   /* --- Category ticks — device rack 3px left tick only (DESIGN-SPEC §2)
        These are tick colors ONLY; never fill/text. --- */

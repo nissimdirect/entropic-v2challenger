@@ -384,6 +384,17 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               <Icon name={track.isMuted ? 'eye-off' : 'eye'} size={14} />
             </button>
             <span className="track-header__cc" style={{ background: track.color }} />
+            {/* QF1 (W1.5a owner walk): record-arm dot moved LEFT of the track
+                name — same element/testid/handler, reordered placement only
+                (was inside track-header__controls--lean, after M/S). */}
+            <button
+              className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
+              onClick={handleArmToggle}
+              title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+              aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
+            >
+              <Icon name="circle" size={10} filled={isArmed} />
+            </button>
             <div className="track-header__info track-header__info--lean" onDoubleClick={isRenaming ? undefined : startRename}>
               {isRenaming ? (
                 <input
@@ -432,17 +443,6 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
                 title="Solo"
               >
                 S
-              </button>
-              <button
-                className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-                onClick={handleArmToggle}
-                title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-                aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
-              >
-                {/* PK.H2 R-collision resolution: automation Read-mode keeps the
-                    text "R" (AutomationToolbar.tsx); record-arm is now this dot,
-                    never text, so the two "R" meanings no longer share a glyph. */}
-                <Icon name="circle" size={10} filled={isArmed} />
               </button>
               {/* T3: track lock toggle. Padlock glyph; --active when locked. Guards
                   all clips on this track + rejects reorder/drops onto it. */}
@@ -581,6 +581,20 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
       >
         <div className="track-header__row track-header__row--top">
           <div className="track-header__color" style={{ background: track.color }} />
+          {/* QF1 (W1.5a owner walk): record-arm dot moved LEFT of the track
+              name — same element/testid/handler, reordered placement only
+              (was inside track-header__controls, after M/S). PK.H2
+              R-collision resolution: automation Read-mode keeps the text "R"
+              (AutomationToolbar.tsx); record-arm is this dot, never text, so
+              the two "R" meanings never share a glyph. */}
+          <button
+            className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
+            onClick={handleArmToggle}
+            title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+            aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
+          >
+            <Icon name="circle" size={10} filled={isArmed} />
+          </button>
           <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>
             {isRenaming ? (
               <input
@@ -619,14 +633,6 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
               title="Solo"
             >
               S
-            </button>
-            <button
-              className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-              onClick={handleArmToggle}
-              title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-              aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
-            >
-              <Icon name="circle" size={10} filled={isArmed} />
             </button>
             {/* T3: track lock toggle. Padlock glyph; --active when locked. Guards
                 all clips on this track + rejects reorder/drops onto it. */}

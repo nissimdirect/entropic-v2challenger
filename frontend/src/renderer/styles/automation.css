@@ -220,6 +220,12 @@
 /* --- Track automation toggle --- */
 
 .track-header__auto-btn {
+  /* QF1 (W1.5a owner walk): flex:none — the button is now a direct flex
+     child of three header rows (legacy row--top, lean-row, Master header),
+     not always wrapped in a flex-shrink:0 __controls group, so it needs its
+     own shrink guard alongside the other fixed-size header controls
+     (twirl/eye/cc). */
+  flex: none;
   background: transparent;
   border: 1px solid var(--cx-line-2);
   color: var(--cx-text-3);

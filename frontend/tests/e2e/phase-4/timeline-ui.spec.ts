@@ -12,7 +12,17 @@
  */
 // WHY E2E: Window title test needs real BrowserWindow API; preload bridge test needs real Electron context
 
+import type { Page } from '@playwright/test'
 import { test, expect } from '../fixtures/electron-app.fixture'
+
+// QF6/QF7 (W1.5a owner walk): every add-track button — empty-state and
+// headers-spacer alike — now opens the same unified Add Track menu instead
+// of adding directly. Shared two-step helper; picks the Video item by
+// default (matches every prior test's implicit track type).
+async function addTrackViaMenu(window: Page, item: 'video' | 'midi' | 'text' = 'video') {
+  await window.locator('[data-testid="add-track-button"]').first().click()
+  await window.locator(`[data-testid="add-track-menu-item-${item}"]`).click()
+}
 
 test.describe('Phase 4 — Timeline UI', () => {
   test('timeline panel is visible on launch', async ({ window }) => {
@@ -20,19 +30,20 @@ test.describe('Phase 4 — Timeline UI', () => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
   })
 
-  test('empty timeline shows add-track button', async ({ window }) => {
+  // QF7 (W1.5a owner walk, third pass): the empty-state's own two-button
+  // (+ Add Track / + MIDI Track) creation surface is now the SAME single
+  // "+ Track" button QF6 built for the headers-spacer.
+  test('empty timeline shows the unified add-track button', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
-    const addBtn = window.locator('.timeline__add-track-btn').first()
+    const addBtn = window.locator('[data-testid="add-track-button"]').first()
     await expect(addBtn).toBeVisible()
-    await expect(addBtn).toContainText('Add')
+    await expect(addBtn).toHaveText('+ Track')
   })
 
-  test('clicking add-track creates a track', async ({ window }) => {
+  test('clicking add-track then a menu item creates a track', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
-    // Click the add track button (in empty state it says "+ Add Track")
-    const addBtn = window.locator('.timeline__add-track-btn').first()
-    await addBtn.click()
+    await addTrackViaMenu(window)
 
     // Track header and lane should appear
     await expect(window.locator('.track-header')).toBeVisible({ timeout: 5_000 })
@@ -42,16 +53,12 @@ test.describe('Phase 4 — Timeline UI', () => {
   test('adding multiple tracks shows correct count', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
-    // Find and click the add-track button
-    const addBtn = window.locator('.timeline__add-track-btn').first()
-    await addBtn.click()
-
-    // After first track is added, the add-track buttons live in the headers spacer.
-    // That spacer holds THREE add-track buttons (video / MIDI / inspector), each with
-    // its own distinct modifier class — target the video add-track directly.
-    const headerAddBtn = window.locator('.timeline__headers-spacer .timeline__add-track-btn--video')
-    await headerAddBtn.click()
-    await headerAddBtn.click()
+    // First track from the empty state's unified button (QF7); two more
+    // from the headers-spacer's unified button (QF6) — same button/menu,
+    // just a different render branch once tracks exist.
+    await addTrackViaMenu(window)
+    await addTrackViaMenu(window)
+    await addTrackViaMenu(window)
 
     // Should have 3 track headers
     const headers = window.locator('.track-header')
@@ -61,8 +68,7 @@ test.describe('Phase 4 — Timeline UI', () => {
   test('track header shows mute and solo buttons', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
-    const addBtn = window.locator('.timeline__add-track-btn').first()
-    await addBtn.click()
+    await addTrackViaMenu(window)
 
     // Track header should have M and S buttons
     const muteBtn = window.locator('.track-header__btn', { hasText: 'M' })
@@ -74,8 +80,7 @@ test.describe('Phase 4 — Timeline UI', () => {
   test('time ruler is visible after adding a track', async ({ window }) => {
     await expect(window.locator('.timeline')).toBeVisible({ timeout: 10_000 })
 
-    const addBtn = window.locator('.timeline__add-track-btn').first()
-    await addBtn.click()
+    await addTrackViaMenu(window)
 
     await expect(window.locator('.time-ruler')).toBeVisible({ timeout: 5_000 })
   })

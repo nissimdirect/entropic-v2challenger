@@ -34,7 +34,12 @@ export default function WelcomeScreen({
     <div className="welcome-screen">
       <div className="welcome-screen__content">
         <div className="welcome-screen__logo">CREATRIX</div>
-        <div className="welcome-screen__version">v3.0.0</div>
+        {/* QF5 (W1.5a owner walk): this used to hardcode a stale "v" prefix
+            plus a literal three-part version number (package.json has since
+            moved on). __APP_VERSION__ is a build-time constant sourced from
+            package.json (electron.vite.config.ts / vitest.config.ts
+            `define`), so this tracks future version bumps automatically. */}
+        <div className="welcome-screen__version">v{__APP_VERSION__}</div>
 
         <div className="welcome-screen__actions">
           <button
