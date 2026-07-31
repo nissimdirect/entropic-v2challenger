@@ -3490,41 +3490,13 @@ function AppInner() {
       onDrop={handleGlobalDrop}
     >
       <UpdateBanner />
+      {/* W1-11: Ableton transport grammar — tempo/grid cluster (BPM + snap/
+          quantize) anchored LEFT; playback (play/stop/loop + timecode)
+          grouped and centered in the remaining space, which — since the
+          left cluster consumes real width — lands it center-RIGHT of the
+          full bar rather than dead-center. Pure reorder + CSS (margin:auto
+          centering); no button behavior changed. */}
       <div className="app__transport-bar">
-        <div className="app__transport-controls">
-          <button
-            className={`app__transport-btn ${isPlaying ? 'app__transport-btn--active' : ''}`}
-            onClick={handlePlayPause}
-            title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
-          >
-            <TransportIcon name={isPlaying ? 'pause' : 'play'} />
-          </button>
-          <button className="app__transport-btn" onClick={handleStop} title="Stop">
-            <TransportIcon name="stop" />
-          </button>
-          <button
-            className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
-            onClick={() => useTimelineStore.getState().toggleLooping()}
-            title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
-          >
-            <TransportIcon name="loop" />
-          </button>
-        </div>
-        <span className="app__transport-timecode">
-          {(() => {
-            const t = useTimelineStore.getState().playheadTime
-            const m = Math.floor(t / 60)
-            const s = t % 60
-            return `${m}:${s.toFixed(1).padStart(4, '0')}`
-          })()}
-          {' / '}
-          {(() => {
-            const t = useTimelineStore.getState().duration
-            const m = Math.floor(t / 60)
-            const s = t % 60
-            return `${m}:${s.toFixed(1).padStart(4, '0')}`
-          })()}
-        </span>
         <div className="app__transport-bpm">
           <label>BPM</label>
           {/* P2.1: displays effectiveBpm (modulation-derived); edits write to persisted bpm baseline. */}
@@ -3567,6 +3539,42 @@ function AppInner() {
             <option value={16}>1/16</option>
             <option value={32}>1/32</option>
           </Select>
+        </div>
+        <div className="app__transport-playback">
+          <div className="app__transport-controls">
+            <button
+              className={`app__transport-btn ${isPlaying ? 'app__transport-btn--active' : ''}`}
+              onClick={handlePlayPause}
+              title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
+            >
+              <TransportIcon name={isPlaying ? 'pause' : 'play'} />
+            </button>
+            <button className="app__transport-btn" onClick={handleStop} title="Stop">
+              <TransportIcon name="stop" />
+            </button>
+            <button
+              className={`app__transport-btn ${isLooping ? 'app__transport-btn--active' : ''}`}
+              onClick={() => useTimelineStore.getState().toggleLooping()}
+              title={isLooping ? 'Loop: on (click to disable)' : 'Loop: off (click to enable)'}
+            >
+              <TransportIcon name="loop" />
+            </button>
+          </div>
+          <span className="app__transport-timecode">
+            {(() => {
+              const t = useTimelineStore.getState().playheadTime
+              const m = Math.floor(t / 60)
+              const s = t % 60
+              return `${m}:${s.toFixed(1).padStart(4, '0')}`
+            })()}
+            {' / '}
+            {(() => {
+              const t = useTimelineStore.getState().duration
+              const m = Math.floor(t / 60)
+              const s = t % 60
+              return `${m}:${s.toFixed(1).padStart(4, '0')}`
+            })()}
+          </span>
         </div>
       </div>
       <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />

@@ -49,6 +49,17 @@ body {
   z-index: 50;
 }
 
+/* W1-11: playback cluster (play/stop/loop + timecode) — centered in the
+ * remaining space via auto margins, which (since the BPM+quant cluster
+ * anchors the left edge) lands it center-RIGHT of the full transport bar,
+ * matching Ableton's transport grammar. */
+.app__transport-playback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 auto;
+}
+
 .app__transport-controls {
   display: flex;
   gap: 4px;
