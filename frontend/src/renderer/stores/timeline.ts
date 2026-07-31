@@ -1124,6 +1124,10 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
     // Closure var: populated by pruneEffectDependents in forward, consumed by inverse. (D3)
     let pruneSnap: PruneSnapshot | undefined
+    // QF4 (W1.5a owner walk): capture pre-delete armedTrackId so the inverse
+    // can restore it symmetrically with the track itself, mirroring
+    // selectedTrackId's capture-and-restore pattern below.
+    const prevArmedTrackId = useAutomationStore.getState().armedTrackId
 
     undoable(
       `Remove track "${track.name}"`,
@@ -1145,6 +1149,17 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         // both are no-ops when the track has no instrument (safe to call unconditionally).
         useInstrumentsStore.getState().removeFrameBank(id)
         useInstrumentsStore.getState().removeGranulator(id)
+        // QF4: armedTrackId lived in a DIFFERENT store than selectedTrackId
+        // (useAutomationStore, not this one) and pruneEffectDependents never
+        // touched it (it only prunes lanes/operators/CC/device-groups keyed
+        // by effect id, not this track-scoped id) — so deleting an armed
+        // track left armedTrackId pointing at a track that no longer exists.
+        // AutomationToolbar/Track/MasterTrack all gate on armedTrackId's
+        // truthiness (not on the resolved track being found), so the stale
+        // id kept "arm" UI enabled/visible for a phantom track.
+        if (prevArmedTrackId === id) {
+          useAutomationStore.setState({ armedTrackId: null })
+        }
       },
       () => {
         const tracks = [...get().tracks]
@@ -1153,6 +1168,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         set({ tracks, duration: recalcDuration(tracks) })
         // D3: restore all cross-store state from snapshot
         if (pruneSnap) restoreEffectDependents(pruneSnap)
+        // QF4: symmetric restore — only reapplies if THIS delete was the one
+        // that cleared it (avoids clobbering a DIFFERENT track armed after
+        // the delete but before an undo).
+        if (prevArmedTrackId === id) {
+          useAutomationStore.setState({ armedTrackId: id })
+        }
       },
     )
   },
