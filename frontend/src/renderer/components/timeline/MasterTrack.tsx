@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { Track as TrackType, TriggerMode } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useAutomationStore } from '../../stores/automation'
@@ -7,6 +7,7 @@ import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
+import MarqueeOverlay from './MarqueeOverlay'
 import UnifiedTrackHeader from './UnifiedTrackHeader'
 
 /**
@@ -187,6 +188,12 @@ export function MasterTrackLane({ track, isSelected, zoom, scrollX }: MasterTrac
   const automationLanes = useAutomationStore((s) => s.lanes[track.id]) ?? EMPTY_LANES
   const automationMode = useAutomationStore((s) => s.mode)
   const TRACK_HEIGHT = 60
+  // W1.5b PK.A4: proposal.md Workstream A — "click-drag on any lane bed
+  // (empty or not, any track incl. master) creates a visible time-range
+  // selection." Master has no clips (M.2, "no clips, ever") so the
+  // clip-selection half of MarqueeOverlay's unified gesture is always a
+  // no-op here — only the selectionRegion half applies.
+  const laneRef = useRef<HTMLDivElement>(null)
 
   const handleClick = useCallback(() => {
     useTimelineStore.getState().selectTrack(track.id)
@@ -201,12 +208,14 @@ export function MasterTrackLane({ track, isSelected, zoom, scrollX }: MasterTrac
 
   return (
     <div
+      ref={laneRef}
       className={laneClasses}
       data-testid="master-track-lane"
       data-track-type="master"
       onClick={handleClick}
       style={{ position: 'relative' }}
     >
+      <MarqueeOverlay zoom={zoom} scrollX={scrollX} trackId={track.id} containerRef={laneRef} />
       <span className="master-track-lane__label">
         Master bus — effects &amp; automation only, no clips
       </span>

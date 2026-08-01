@@ -80,7 +80,13 @@ export const DEFAULT_SHORTCUTS: ShortcutBinding[] = [
   // New action — bare 'e' was previously unbound (meta+e is 'export', a
   // different combo).
   { action: 'tool_key',              keys: 'e',              category: 'mask', label: 'Tool: Key group (cycle)', context: 'normal' },
-  { action: 'loop_toggle',           keys: 'meta+l',         category: 'timeline', label: 'Toggle Loop',        context: 'normal' },
+  // W1.5b PK.A4 (D12, owner-ratified 2026-07-31): 'loop_toggle' (was here,
+  // 'Toggle Loop') was declared but never registered with a handler in
+  // App.tsx — meta+l did nothing. Repurposed for the ratified OD-2 grammar:
+  // copies the arrangement time-range selection into the loop region
+  // (Ableton convention). No prior user-facing behavior lost — the key was
+  // dead.
+  { action: 'copy_selection_to_loop', keys: 'meta+l',        category: 'timeline', label: 'Copy Selection to Loop', context: 'normal' },
   { action: 'grid_up',               keys: ']',              category: 'view', label: 'Grid: Finer Division',   context: 'normal' },
   { action: 'grid_down',             keys: '[',              category: 'view', label: 'Grid: Coarser Division', context: 'normal' },
   { action: 'toggle_popout',         keys: 'meta+shift+p',   category: 'view', label: 'Toggle Pop-out Preview', context: 'normal' },

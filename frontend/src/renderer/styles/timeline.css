@@ -250,6 +250,18 @@
   background: var(--cx-text-3);
 }
 
+/* W1.5b PK.A1: grid overlay — sits above lane-row backgrounds (z-index:auto)
+   and below the PK.A4 selection band (z-index:2) and clip content
+   (.clip/.audio-clip claim z-index:3 below). Explicit width/height come
+   from GridOverlay.tsx (not top:0/bottom:0 — see its doc comment for why). */
+.timeline__grid-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
 .timeline__empty {
   display: flex;
   flex-direction: column;
@@ -794,6 +806,27 @@ body.clip-dragging .timeline__new-track-zone {
   background: var(--cx-green-alpha-05);
 }
 
+/* --- Selection band (W1.5b PK.A4) ---
+   Full-lane-height time-range selection, byproduct-unified with
+   MarqueeOverlay's rubber-band clip select (orchestrator ruling — marquee
+   was already horizontal-only in effect, "full lane height is always
+   selected" per MarqueeOverlay.tsx's own header). Sits above the grid
+   overlay (z-index:1), below clip content (.clip/.audio-clip bumped to
+   z-index:3 below to make room) — packets.md PK.A4: "same overlay stack as
+   A1 (above grid, below clips)". Selection wash per COMPONENT-SPEC §2¾
+   (translucency = transient state) — --cx-selection family, distinct from
+   loop-region's blue so the two bands read as different things. */
+.marquee-overlay__band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 2;
+  background: var(--cx-selection-wash);
+  border-left: 1px solid var(--cx-selection);
+  border-right: 1px solid var(--cx-selection);
+  pointer-events: none;
+}
+
 /* --- Clip --- */
 
 .clip {
@@ -810,6 +843,13 @@ body.clip-dragging .timeline__new-track-zone {
   overflow: hidden;
   user-select: none;
   transition: border-color 0.15s;
+  /* W1.5b PK.A1: explicit z-index so clip content stays above
+     .timeline__grid-overlay (z-index:1) and .marquee-overlay__band
+     (z-index:2) — previously relied on implicit z-index:auto/DOM-order.
+     Bumped 2->3 (PK.A4) to make room for the selection band; loop-
+     region/marker-flag/playhead bumped correspondingly below, preserving
+     their existing relative order. */
+  z-index: 3;
 }
 
 .clip:hover {
@@ -959,7 +999,9 @@ body.clip-dragging .timeline__new-track-zone {
   border-left: 1px solid var(--cx-blue-alpha-50);
   border-right: 1px solid var(--cx-blue-alpha-50);
   pointer-events: none;
-  z-index: 3;
+  /* W1.5b PK.A4: bumped 3->4 (was clip+1) to keep its place above .clip,
+     now that .clip itself moved 2->3 to make room for .marquee-overlay__band. */
+  z-index: 4;
 }
 
 /* --- Marker Flag --- */
@@ -968,7 +1010,8 @@ body.clip-dragging .timeline__new-track-zone {
   position: absolute;
   top: 0;
   bottom: 0;
-  z-index: 4;
+  /* W1.5b PK.A4: bumped 4->5, same cascade as .loop-region above. */
+  z-index: 5;
   cursor: pointer;
   width: 1px;
 }

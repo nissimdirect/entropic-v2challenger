@@ -129,6 +129,9 @@ import MappingContextChip from './components/layout/MappingContextChip'
 import MIDIMapOverlay from './components/performance/MIDIMapOverlay'
 import { useMIDIMapModeStore } from './stores/midiMapMode'
 import BankPagingHUD from './components/layout/BankPagingHUD'
+// W1.5b PK.A3: quantize-grid granularity readout — same understated
+// statusbar-chip pattern as MappingContextChip/BankPagingHUD above.
+import QuantizeReadout from './components/layout/QuantizeReadout'
 import { buildAxisLanes } from '../shared/axis-lanes'
 import AutomationToolbar from './components/automation/AutomationToolbar'
 import PresetBrowser from './components/library/PresetBrowser'
@@ -722,6 +725,13 @@ function AppInner() {
       if (timeline.playheadTime > currentIn) {
         timeline.setLoopRegion(currentIn, timeline.playheadTime)
       }
+    })
+    // W1.5b PK.A4 (D12): Cmd+L copies the arrangement selection -> loop region.
+    // No-op with no active selection (nothing to copy).
+    shortcutRegistry.register('copy_selection_to_loop', () => {
+      const timeline = useTimelineStore.getState()
+      const region = timeline.selectionRegion
+      if (region) timeline.setLoopRegion(region.in, region.out)
     })
     shortcutRegistry.register('export', () => setShowExportDialog(true))
     shortcutRegistry.register('preferences', () => setShowPreferences(true))
@@ -4198,6 +4208,8 @@ function AppInner() {
           )}
           {/* P3.2: cursor tool chip — reads data-cursor-tool set by EffectBrowser tool tab */}
           <CursorToolChip />
+          {/* W1.5b PK.A3: quantize-grid granularity readout (Ableton-style, owner walk 2026-07-31) */}
+          <QuantizeReadout />
           {/* H1: focused-mapping-context chip — foundation for hardware-bank (H2+) targeting */}
           <MappingContextChip />
           {/* H-UI: MIDI Map mode toggle — opens the visual hardware-mapping overlay */}

@@ -12,6 +12,12 @@
  * 'range-select' cursor tool was a no-op duplicate of 'select' (see
  * MarqueeOverlay.tsx header comment). Table is now 11 entries; counts below
  * updated accordingly.
+ *
+ * W1.5b PK.A4 (D12, orchestrator ruling 2026-07-31, PR #488): the 'loop_toggle'
+ * action (bound to meta+l, never had a registered handler) was repurposed to
+ * 'copy_selection_to_loop' — same key, same slot in this table, only the
+ * action name changed. Renamed here to match; the entry count and
+ * conflict-freedom this table verifies are unaffected.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { shortcutRegistry, keyEventToString } from '../../renderer/utils/shortcuts'
@@ -25,7 +31,7 @@ const TOOL_SHORTCUT_ACTIONS = [
   'tool_slide',
   'tool_ripple_delete',
   'tool_marker',
-  'loop_toggle',
+  'copy_selection_to_loop',
   'grid_up',
   'grid_down',
   'toggle_popout',
@@ -122,10 +128,11 @@ describe('P3.4 tool shortcuts — 11/11 conflict-check (post-T5)', () => {
   it('table contains exactly 11 tool-category entries (the 11-entry count, post-T5)', () => {
     const allBindings = shortcutRegistry.getAllBindings()
     // Count entries matching either category 'tool' OR the specific P3.4 non-tool categories
-    // that were added in P3.4 (loop_toggle, grid_up, grid_down, toggle_popout).
+    // that were added in P3.4 (copy_selection_to_loop [renamed from loop_toggle
+    // per PK.A4/D12 — same meta+l slot], grid_up, grid_down, toggle_popout).
     const toolCategoryEntries = allBindings.filter((b) => b.category === 'tool')
     const p34NonToolEntries = allBindings.filter((b) =>
-      ['loop_toggle', 'grid_up', 'grid_down', 'toggle_popout'].includes(b.action),
+      ['copy_selection_to_loop', 'grid_up', 'grid_down', 'toggle_popout'].includes(b.action),
     )
     const totalP34 = toolCategoryEntries.length + p34NonToolEntries.length
 

@@ -7,6 +7,7 @@ import { TrackHeader, TrackLane } from './Track'
 import { AudioTrackHeader, AudioTrackLane } from './AudioTrack'
 import { InspectorTrackHeader, InspectorTrackLane } from './InspectorTrack'
 import { MasterTrackHeader, MasterTrackLane } from './MasterTrack'
+import GridOverlay from './GridOverlay'
 import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
 import ContextMenu from './ContextMenu'
@@ -50,9 +51,6 @@ function formatTimecode(seconds: number): string {
   const s = seconds % 60
   return `${m}:${s.toFixed(1).padStart(4, '0')}`
 }
-
-const QUANT_DIVISIONS = [1, 2, 4, 8, 16, 32]
-const QUANT_LABELS: Record<number, string> = { 1: '1/1', 2: '1/2', 4: '1/4', 8: '1/8', 16: '1/16', 32: '1/32' }
 
 export default function Timeline({
   onSeek, isDragOver, isPlaying, onPlayPause, onStop, loopEnabled, onToggleLoop,
@@ -385,16 +383,17 @@ export default function Timeline({
             <div style={{
               width: `${contentWidth}px`,
               position: 'relative',
-              ...(quantizeEnabled && bpm ? (() => {
-                const gridInterval = (60 / bpm) * (4 / quantizeDivision)
-                const gridPx = gridInterval * zoom
-                // Only show grid when lines are at least 10px apart
-                if (gridPx < 10) return {}
-                return {
-                  backgroundImage: `repeating-linear-gradient(90deg, transparent, transparent ${gridPx - 1}px, #333 ${gridPx - 1}px, #333 ${gridPx}px)`,
-                }
-              })() : {}),
             }}>
+              {/* PK.A1/A2: dedicated grid overlay — see GridOverlay.tsx doc for
+                  the stacking rationale (above lane backgrounds, below clips). */}
+              <GridOverlay
+                quantizeEnabled={quantizeEnabled}
+                bpm={bpm}
+                quantizeDivision={quantizeDivision}
+                zoom={zoom}
+                contentWidth={contentWidth}
+                rowCount={orderedTracks.length + (masterTrack ? 1 : 0)}
+              />
               {loopRegion && (
                 <LoopRegion
                   loopIn={loopRegion.in}
