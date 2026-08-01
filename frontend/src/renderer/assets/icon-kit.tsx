@@ -49,6 +49,21 @@ import type { ReactElement } from 'react'
  *                      the text "R"; record-arm is now this glyph, never text)
  *   magnet          -> snap-to-grid toggle (W1-3; replaces the bare text "S",
  *                      which collided with the Solo "S" button on tracks)
+ *   video           -> track type badge: Video (W1.5b PK.B1, lucide-static v0.462.0)
+ *   music           -> track type badge: MIDI/Performance, exposed as 'midi'
+ *                      (W1.5b PK.B1, lucide-static v0.462.0)
+ *   type            -> track type badge: Text, exposed as 'text' (W1.5b PK.B1,
+ *                      lucide-static v0.462.0) — distinct from the KitIconName
+ *                      union member name, which is also 'text' (no collision:
+ *                      this is the SOURCE glyph name, matches by coincidence)
+ *   activity        -> track type badge: Inspector, exposed as 'scope' (it
+ *                      renders live signal scopes — W1.5b PK.B1, OD-1 pending;
+ *                      badge glyph choice is independent of the track's
+ *                      displayed name, which stays "Inspector" until OD-1
+ *                      rules) (lucide-static v0.462.0)
+ *   disc            -> track type badge: Master, exposed as 'master' (final
+ *                      mixdown/bounce-to-disc metaphor — W1.5b PK.B1,
+ *                      lucide-static v0.462.0)
  *
  * CUSTOMS (2 of the manifest's 13, scoped to this packet's file set):
  *   snowflake -> freeze state pair (fill-state pair via `filled` prop —
@@ -90,6 +105,13 @@ export type KitIconName =
   | 'circle'
   | 'snowflake'
   | 'magnet'
+  // W1.5b PK.B1 — track-header type badges (audio reuses 'volume-2' above,
+  // no new glyph needed for it).
+  | 'video'
+  | 'midi'
+  | 'text'
+  | 'scope'
+  | 'master'
 
 interface IconProps {
   name: KitIconName
@@ -282,6 +304,38 @@ const ICON_BODY: Record<KitIconName, ReactElement> = {
       <path d="m12 15 4 4" />
       <path d="M2.352 10.648a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l6.029-6.029a1 1 0 1 1 3 3l-6.029 6.029a1.205 1.205 0 0 0 0 1.704l2.296 2.296a1.205 1.205 0 0 0 1.704 0l6.365-6.367A1 1 0 0 0 8.716 4.282z" />
       <path d="m5 8 4 4" />
+    </>
+  ),
+  // LUCIDE video (v0.462.0) — track-header type badge: Video
+  video: (
+    <>
+      <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" />
+      <rect width={14} height={12} x={2} y={6} rx={2} />
+    </>
+  ),
+  // LUCIDE music (v0.462.0) — track-header type badge: MIDI/Performance
+  midi: (
+    <>
+      <path d="M9 18V5l12-2v13" />
+      <circle cx={6} cy={18} r={3} />
+      <circle cx={18} cy={16} r={3} />
+    </>
+  ),
+  // LUCIDE type (v0.462.0) — track-header type badge: Text
+  text: (
+    <>
+      <polyline points="4 7 4 4 20 4 20 7" />
+      <line x1={9} x2={15} y1={20} y2={20} />
+      <line x1={12} x2={12} y1={4} y2={20} />
+    </>
+  ),
+  // LUCIDE activity (v0.462.0) — track-header type badge: Inspector (Scope)
+  scope: <path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" />,
+  // LUCIDE disc (v0.462.0) — track-header type badge: Master
+  master: (
+    <>
+      <circle cx={12} cy={12} r={10} />
+      <circle cx={12} cy={12} r={2} />
     </>
   ),
 }

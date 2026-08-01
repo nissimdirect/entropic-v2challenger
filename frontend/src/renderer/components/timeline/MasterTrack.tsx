@@ -1,5 +1,4 @@
 import { useCallback, useRef, useState } from 'react'
-import Icon from '../../assets/icon-kit'
 import type { Track as TrackType, TriggerMode } from '../../../shared/types'
 import { useTimelineStore } from '../../stores/timeline'
 import { useAutomationStore } from '../../stores/automation'
@@ -9,6 +8,7 @@ import type { MenuItem } from './ContextMenu'
 import AutomationLaneComponent from '../automation/AutomationLane'
 import AutomationDraw from '../automation/AutomationDraw'
 import MarqueeOverlay from './MarqueeOverlay'
+import UnifiedTrackHeader from './UnifiedTrackHeader'
 
 /**
  * M.2 (Master-Out Bus PRD) — Master track row. Renders the permanent Master
@@ -134,45 +134,30 @@ export function MasterTrackHeader({ track, isSelected }: MasterTrackHeaderProps)
       : [{ label: 'All Master params already automated', action: () => {}, disabled: true }]
   }, [track.id])
 
-  const headerClasses = [
-    'track-header',
-    'master-track-header',
-    isSelected ? 'track-header--selected' : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
-
+  // W1.5b PK.B1: delegates to the shared 8-slot shell. Amber identity
+  // (RATIFIED D11 — opaque, not a translucency wash) + top border stay via
+  // `.master-track-header` (rootClassNameExtra); no drag (pinned, never
+  // reordered), no rename, no mute/solo (deliberately minimal — M.2 PRD).
+  // `master-track-auto-btn` / `master-track-header`/`__name`/`__color`
+  // testids+classes are applied inside UnifiedTrackHeader from `track.type`.
   return (
-    <>
-      <div
-        className={headerClasses}
-        data-testid="master-track-header"
-        data-track-type="master"
-        onClick={handleClick}
-        onContextMenu={handleContextMenu}
-      >
-        <div className="track-header__color master-track-header__color" style={{ background: track.color }} />
-        {/* QF1 (W1.5a owner walk): record-arm dot moved LEFT of the track
-            name — same element/testid/handler, reordered placement only (was
-            in a trailing track-header__controls wrapper, which is dropped now
-            that this was its only child). W1-1: match Track.tsx's record-arm
-            dot (icon-kit's R-collision resolution). */}
-        <button
-          className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-          onClick={handleArmToggle}
-          data-testid="master-track-auto-btn"
-          title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-          aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
-        >
-          <Icon name="circle" size={10} filled={isArmed} />
-        </button>
-        <div className="track-header__info">
-          <div className="track-header__name master-track-header__name">
-            <span className="master-track-header__badge">MASTER</span>
-          </div>
-        </div>
-      </div>
-      {ctxMenu && (
+    <UnifiedTrackHeader
+      track={track}
+      isSelected={isSelected}
+      capabilities={{ arm: true, blend: false, mute: false, solo: false, visibility: false, lock: false, twirl: false, drag: false }}
+      typeBadge="master"
+      typeBadgeLabel="Master track"
+      rootTestId="master-track-header"
+      rootClassNameExtra="master-track-header"
+      armTestId="master-track-auto-btn"
+      nameClassNameExtra="master-track-header__name"
+      swatchClassNameExtra="master-track-header__color"
+      badgeClassNameExtra="master-track-header__badge"
+      onClick={handleClick}
+      onContextMenu={handleContextMenu}
+      isArmed={isArmed}
+      onArmToggle={handleArmToggle}
+      ctxMenu={ctxMenu && (
         <ContextMenu
           x={ctxMenu.x}
           y={ctxMenu.y}
@@ -180,7 +165,7 @@ export function MasterTrackHeader({ track, isSelected }: MasterTrackHeaderProps)
           onClose={() => setCtxMenu(null)}
         />
       )}
-    </>
+    />
   )
 }
 

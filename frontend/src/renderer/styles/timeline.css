@@ -1238,10 +1238,9 @@ body.clip-dragging .timeline__new-track-zone {
      comes from track-header__color via the track's probe-mint color. */
 }
 
-.timeline-track__icon--inspector {
-  color: var(--cx-probe);
-  font-weight: 700;
-}
+/* W1.5b PK.B1: the "⊙" inline name-prefix this rule styled is gone — the
+   Inspector's type identity now renders via the unified track-header__type-
+   badge slot (icon-kit 'scope'), which inherits the default badge color. */
 
 .inspector-track-lane {
   height: 76px;
@@ -1357,11 +1356,10 @@ body.clip-dragging .timeline__new-track-zone {
   align-items: center;
 }
 
+/* W1.5b PK.B1: repurposed from a text "MASTER" badge to the unified
+   type-badge slot's icon color — the amber/warn identity now lives on the
+   glyph (icon-kit 'master') instead of a bespoke text label. */
 .master-track-header__badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 1px;
   color: var(--cx-warn);
 }
 

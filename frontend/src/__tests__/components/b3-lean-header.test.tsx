@@ -67,13 +67,20 @@ describe('B3 lean track header', () => {
     expect(container.querySelector('select.track-header__blend')).toBeNull()
   })
 
-  it('bchip reflects the terminal composite blend + opacity', () => {
+  // W1.5b PK.B1 adjudication fix (2026-07-31): a live-Electron measurement
+  // found "Normal 100%" wide enough to push the eye slot past the headers
+  // column's right edge on every blend-capable track. The visible chip is
+  // now mode-only; opacity moved to title/aria-label (the LayerPanel
+  // already owns opacity editing) instead of the chip's textContent.
+  it('bchip reflects the terminal composite blend mode; opacity moved to title/aria-label', () => {
     const t = trackWithComposite('screen', 0.45)
     const { container } = render(<TrackHeader track={t} isSelected={false} />)
     const bchip = container.querySelector('[data-testid="track-bchip"]') as HTMLElement
     expect(bchip).toBeTruthy()
     expect(bchip.textContent).toContain('Screen')
-    expect(bchip.textContent).toContain('45%')
+    expect(bchip.textContent).not.toContain('45%')
+    expect(bchip.getAttribute('title')).toContain('45%')
+    expect(bchip.getAttribute('aria-label')).toContain('45%')
   })
 
   it('bchip click selects the track (focuses the LAYER panel)', () => {

@@ -14,9 +14,14 @@
  * shipped behavior, not the original (factually wrong) suggestion.
  * W1-12 is DEFERRED to W2 — its row is skipped below with the rationale.
  */
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
+import { render, cleanup } from '@testing-library/react'
+import { MasterTrackHeader } from '../renderer/components/timeline/MasterTrack'
+import { useTimelineStore } from '../renderer/stores/timeline'
+
+afterEach(() => cleanup())
 
 const RENDERER = path.join(__dirname, '../renderer')
 const read = (rel: string) => fs.readFileSync(path.join(RENDERER, rel), 'utf-8')
@@ -29,14 +34,26 @@ function block(src: string, selector: string): string {
 }
 
 describe('W1 First-Light — row-level oracle (one assertion per punch-list item)', () => {
+  // W1.5b PK.B1 (openspec/changes/w15b-grid-track-paradigm): the record-arm
+  // button's markup moved out of MasterTrack.tsx into the shared
+  // UnifiedTrackHeader — MasterTrackHeader now delegates its JSX there
+  // (passing `armTestId="master-track-auto-btn"`) rather than rendering the
+  // `<Icon>` inline itself, so the original source-grep no longer finds the
+  // literal strings in this file. Rewritten to a render-based assertion,
+  // which is a strictly stronger proof of the original W1-1 intent (the dot
+  // actually renders, filled-state included) than static text matching was.
   it('W1-1: MasterTrack record-arm renders the icon-kit dot, not a bare ">R<"', () => {
-    const src = read('components/timeline/MasterTrack.tsx')
-    expect(src).toContain('data-testid="master-track-auto-btn"')
-    // toContain (not toMatch/regex) — the literal string has unescaped { }
-    // from JSX prop syntax, which a regex would misparse as a quantifier.
-    expect(src).toContain('<Icon name="circle" size={10} filled={isArmed} />')
-    // The old bare-text button body must be gone.
-    expect(src).not.toMatch(/>\s*R\s*<\/button>/)
+    useTimelineStore.getState().reset()
+    const id = useTimelineStore.getState().addMasterTrack()!
+    const t = useTimelineStore.getState().tracks.find((tt) => tt.id === id)!
+    const { container } = render(<MasterTrackHeader track={t} isSelected={false} />)
+    const armBtn = container.querySelector('[data-testid="master-track-auto-btn"]') as HTMLElement
+    expect(armBtn).toBeTruthy()
+    const dot = armBtn.querySelector('svg circle')
+    expect(dot).toBeTruthy()
+    // The old bare-text button body must be gone — the button's only visible
+    // content is the icon-kit svg, never a literal "R".
+    expect(armBtn.textContent).not.toBe('R')
   })
 
   it('W1-2: automation hint + tooltips reference the record-arm dot, not letter R', () => {
