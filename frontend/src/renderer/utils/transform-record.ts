@@ -23,7 +23,6 @@
 import type { ClipTransform } from '../../shared/types'
 import { useAutomationStore } from '../stores/automation'
 import { useTimelineStore } from '../stores/timeline'
-import { recordPointWithMode } from './automation-record'
 import { TRANSFORM_FIELD_META, TRANSFORM_FIELDS, formatTransformLanePath, type TransformField } from './transformLanes'
 
 /** Find the track that owns `clipId`, or null if the clip isn't on any track. */
@@ -71,16 +70,15 @@ export function recordTransformField(
   if (clipTrackId === null || clipTrackId !== autoStore.armedTrackId) return
 
   const paramPath = formatTransformLanePath(clipId, field)
-  const lanes = autoStore.getLanesForTrack(autoStore.armedTrackId)
-  const lane = lanes.find((l) => l.paramPath === paramPath)
-  if (!lane) return
-
   const time = useTimelineStore.getState().playheadTime
   const meta = TRANSFORM_FIELD_META[field]
   const normalized = normalizeToLane(value, meta.displayMin, meta.displayMax)
 
-  const newPoints = recordPointWithMode(lane.points, time, normalized, autoStore.recordMode)
-  autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
+  // D13.1 (PK.C2): recordAutomationValue is the SINGLE choke point for the
+  // global write-behavior toggle (replace/overdub/add_lane) — see
+  // stores/automation.ts. No lane on the armed track for this field = no-op,
+  // same as before D13.1.
+  autoStore.recordAutomationValue(autoStore.armedTrackId, paramPath, time, normalized)
 }
 
 /**

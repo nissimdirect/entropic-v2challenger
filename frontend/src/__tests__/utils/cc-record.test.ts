@@ -109,6 +109,27 @@ describe('recordCCMove — bank-bound effectParam', () => {
     expect(getLane(trackId, lane.id).points).toHaveLength(1)
     expect(getLane(trackId, lane.id).points[0].value).toBeCloseTo(0.8, 5)
   })
+
+  // D13.1 (PK.C2) — a hardware CC move goes through the SAME
+  // recordAutomationValue choke point as a manual knob drag, so 'add_lane'
+  // must behave identically here: a fresh lane, existing lane untouched.
+  it('recordMode "add_lane" creates a fresh lane, leaving the pre-existing lane untouched', () => {
+    const trackId = setupArmedTrack()
+    const lane = addEffectLane(trackId, 'fxA', 'gain')
+    focusTrack(trackId)
+    useMIDIStore.getState().addCCMapping({ cc: 42, effectId: 'fxA', paramKey: 'gain' })
+    useAutomationStore.getState().setRecordMode('add_lane')
+
+    recordCCMove(42, 0.6, true)
+
+    const lanes = useAutomationStore.getState().lanes[trackId]
+    expect(lanes).toHaveLength(2)
+    expect(getLane(trackId, lane.id).points).toHaveLength(0) // untouched
+    const addLane = lanes.find((l) => l.id !== lane.id)!
+    expect(addLane.blendOp).toBe('add')
+    expect(addLane.points).toHaveLength(1)
+    expect(addLane.points[0].value).toBeCloseTo(0.6, 5)
+  })
 })
 
 describe('recordCCMove — focus-follows-records proof', () => {

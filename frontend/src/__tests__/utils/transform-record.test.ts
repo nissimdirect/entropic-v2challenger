@@ -171,6 +171,26 @@ describe('recordTransformField — gate matrix', () => {
 
     expect(getLane(trackId, lane.id).points).toHaveLength(0)
   })
+
+  // D13.1 (PK.C2) — clip-transform recording goes through the SAME
+  // recordAutomationValue choke point as a manual knob drag, so 'add_lane'
+  // must behave identically here too: a fresh lane, existing lane untouched.
+  it('recordMode "add_lane" creates a fresh lane, leaving the pre-existing lane untouched', () => {
+    const { trackId, clipId } = setupClip()
+    const lane = addTransformLane(trackId, clipId, 'x')
+    useAutomationStore.getState().setMode('latch')
+    useAutomationStore.getState().armTrack(trackId)
+    useAutomationStore.getState().setRecordMode('add_lane')
+
+    recordTransformField(clipId, 'x', 500, true)
+
+    const lanes = useAutomationStore.getState().lanes[trackId]
+    expect(lanes).toHaveLength(2)
+    expect(getLane(trackId, lane.id).points).toHaveLength(0) // untouched
+    const addLane = lanes.find((l) => l.id !== lane.id)!
+    expect(addLane.blendOp).toBe('add')
+    expect(addLane.points).toHaveLength(1)
+  })
 })
 
 describe('recordTransformField — punch semantics (delegates to recordPoint)', () => {

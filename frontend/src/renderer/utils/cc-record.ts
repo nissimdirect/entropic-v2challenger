@@ -91,12 +91,12 @@ function resolveCCTarget(cc: number): SlotTarget | null {
  * same as a manual knob drag whose param isn't automated.
  */
 function recordEffectParam(armedTrackId: string, paramPath: string, value: number): void {
-  const autoStore = useAutomationStore.getState()
-  const lane = autoStore.getLanesForTrack(armedTrackId).find((l) => l.paramPath === paramPath)
-  if (!lane) return
   const time = useTimelineStore.getState().playheadTime
-  const newPoints = recordPointWithMode(lane.points, time, clamp01(value), autoStore.recordMode)
-  autoStore.setPoints(armedTrackId, lane.id, newPoints)
+  // D13.1 (PK.C2): recordAutomationValue is the SINGLE choke point for the
+  // global write-behavior toggle (replace/overdub/add_lane) — see
+  // stores/automation.ts. No lane on the armed track for this param = no-op,
+  // same as a manual knob drag whose param isn't automated.
+  useAutomationStore.getState().recordAutomationValue(armedTrackId, paramPath, time, clamp01(value))
 }
 
 /**
@@ -105,6 +105,13 @@ function recordEffectParam(armedTrackId: string, paramPath: string, value: numbe
  * not currently own automation lanes anywhere in the app, so today this is
  * effectively always the warn-once no-op branch — kept faithful to the packet's
  * "record the macro's value lane if one exists (else no-op+warn)".
+ *
+ * D13.1: deliberately NOT routed through recordAutomationValue — that
+ * choke point auto-CREATES a lane on 'add_lane', which would contradict the
+ * "macros never own automation lanes" contract above. recordPointWithMode
+ * is called directly instead, so 'add_lane' degrades to its 'replace'-style
+ * fallback (recordPointWithMode only special-cases 'overdub') on the rare
+ * pre-existing macro lane, same as before this write-mode existed.
  */
 function recordMacro(armedTrackId: string, macroId: string, value: number): void {
   const autoStore = useAutomationStore.getState()

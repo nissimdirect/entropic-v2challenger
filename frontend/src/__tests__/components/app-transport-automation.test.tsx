@@ -1,17 +1,24 @@
 /**
- * PK.C1 (W1.5b, C2 mock ruling — artifact cf8ac3c1 "draw-omitted-overdub-truth",
- * RATIFIED-FOUNDATIONS.md D13): the automation Mode selector + Overdub toggle
- * moved from AutomationToolbar.tsx into the transport bar (App.tsx), attached
- * to the playback cluster. This locks:
- *   - full-word Read/Touch/Latch chips in that DOM order (owner: single
- *     letters were cryptic)
- *   - Draw is never offered here (owner ruling — stays a lane-level pencil),
- *     and when the store's mode is 'draw' none of the three chips light up
- *     (never crashes, never coerces the store value)
- *   - Overdub sits beside the mode selector, wired to the same store action
- *   - hover text (title) matches COMPONENT-SPEC §2½'s legend verbatim
- *   - the old transport-bar timecode is gone; a new one lives under the
- *     preview window with the same current/total format
+ * D13.1 (W1.5b, C2 ROUND-2 owner ruling, live walk-through 2026-08-01,
+ * RATIFIED-FOUNDATIONS.md D13.1): the transport bar's automation Mode
+ * selector is now ONE dropdown (was a fused 3-chip segmented control,
+ * D13/PK.C1) and the Overdub toggle is now a cycling 3-state glyph — Replace
+ * / Overdub / Add (was a boolean text chip). This locks:
+ *   - ONE `automation-mode-select` dropdown, Read/Touch/Latch options in
+ *     that order (owner: "since they're mutually exclusive I think that it
+ *     should be a drop down")
+ *   - Draw is never an option (owner ruling carried over from D13 — stays a
+ *     lane-level pencil); when the store's mode is 'draw' the dropdown's
+ *     CLOSED display falls back to a blank state (never crashes, never
+ *     coerces the store value to a real mode)
+ *   - ONE `write-mode-toggle` glyph beside the mode selector, cycling
+ *     Replace -> Overdub -> Add -> Replace on click (owner: "like a record
+ *     button but hollowed out... adjacent to the arm glyph")
+ *   - hover text (title) + aria-label match D13.1's legend verbatim
+ *   - the retired testids (automation-mode-{read|touch|latch}, overdub-
+ *     toggle) are gone
+ *   - the old transport-bar timecode is still gone; the preview-window one
+ *     from D13/PK.C1 is untouched by this round
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, cleanup, waitFor, fireEvent, act } from '@testing-library/react'
@@ -39,88 +46,101 @@ async function renderShell() {
   return container
 }
 
-describe('Transport bar — automation cluster (PK.C1)', () => {
-  it('renders exactly 3 mode chips, full words, in Read/Touch/Latch order', async () => {
+describe('Transport bar — automation cluster (D13.1)', () => {
+  it('renders exactly one mode dropdown with Read/Touch/Latch options, in that order', async () => {
     const container = await renderShell()
     const cluster = container.querySelector('[data-testid="transport-automation-cluster"]')
     expect(cluster).toBeTruthy()
-    const chips = cluster!.querySelectorAll('[data-testid^="automation-mode-"]')
-    expect(chips).toHaveLength(3)
-    expect(Array.from(chips).map((c) => c.textContent)).toEqual(['Read', 'Touch', 'Latch'])
-    expect(container.querySelector('[data-testid="automation-mode-read"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="automation-mode-touch"]')).toBeTruthy()
-    expect(container.querySelector('[data-testid="automation-mode-latch"]')).toBeTruthy()
-    // Draw is never offered as a transport chip.
-    expect(container.querySelector('[data-testid="automation-mode-draw"]')).toBeNull()
+    const select = cluster!.querySelector('[data-testid="automation-mode-select"]') as HTMLSelectElement
+    expect(select).toBeTruthy()
+    expect(select.tagName).toBe('SELECT')
+    // The blank placeholder option (value="") plus the 3 real modes.
+    const optionValues = Array.from(select.options).map((o) => o.value)
+    expect(optionValues).toEqual(['', 'read', 'touch', 'latch'])
+    const optionLabels = Array.from(select.options).filter((o) => o.value !== '').map((o) => o.textContent)
+    expect(optionLabels).toEqual(['Read', 'Touch', 'Latch'])
+    // Draw is never offered as a selectable option.
+    expect(optionValues).not.toContain('draw')
   })
 
-  it('default mode "read" is the only lit chip', async () => {
+  it('default mode "read" is the dropdown\'s selected value', async () => {
     const container = await renderShell()
     expect(useAutomationStore.getState().mode).toBe('read')
-    const read = container.querySelector('[data-testid="automation-mode-read"]')!
-    const touch = container.querySelector('[data-testid="automation-mode-touch"]')!
-    const latch = container.querySelector('[data-testid="automation-mode-latch"]')!
-    expect(read.className).toContain('app__transport-automation-btn--active')
-    expect(touch.className).not.toContain('app__transport-automation-btn--active')
-    expect(latch.className).not.toContain('app__transport-automation-btn--active')
+    const select = container.querySelector('[data-testid="automation-mode-select"]') as HTMLSelectElement
+    expect(select.value).toBe('read')
   })
 
-  it('clicking Touch/Latch sets the store mode and moves the lit chip', async () => {
+  it('changing the dropdown sets the store mode', async () => {
     const container = await renderShell()
-    const touch = container.querySelector('[data-testid="automation-mode-touch"]') as HTMLElement
-    fireEvent.click(touch)
-    expect(useAutomationStore.getState().mode).toBe('touch')
-    expect(touch.className).toContain('app__transport-automation-btn--active')
+    const select = container.querySelector('[data-testid="automation-mode-select"]') as HTMLSelectElement
 
-    const latch = container.querySelector('[data-testid="automation-mode-latch"]') as HTMLElement
-    fireEvent.click(latch)
+    fireEvent.change(select, { target: { value: 'touch' } })
+    expect(useAutomationStore.getState().mode).toBe('touch')
+    expect(select.value).toBe('touch')
+
+    fireEvent.change(select, { target: { value: 'latch' } })
     expect(useAutomationStore.getState().mode).toBe('latch')
-    expect(latch.className).toContain('app__transport-automation-btn--active')
-    expect(touch.className).not.toContain('app__transport-automation-btn--active')
+    expect(select.value).toBe('latch')
   })
 
-  it('when the store mode is "draw" (set via lane UI), no transport chip is lit — never crashes', async () => {
+  it('when the store mode is "draw" (set via lane UI), the dropdown shows a blank value — never crashes, never coerces', async () => {
     const container = await renderShell()
     act(() => {
       useAutomationStore.setState({ mode: 'draw' })
     })
-    const read = container.querySelector('[data-testid="automation-mode-read"]')!
-    const touch = container.querySelector('[data-testid="automation-mode-touch"]')!
-    const latch = container.querySelector('[data-testid="automation-mode-latch"]')!
-    expect(read.className).not.toContain('app__transport-automation-btn--active')
-    expect(touch.className).not.toContain('app__transport-automation-btn--active')
-    expect(latch.className).not.toContain('app__transport-automation-btn--active')
-    // The store value itself is untouched — the transport never coerces it.
+    const select = container.querySelector('[data-testid="automation-mode-select"]') as HTMLSelectElement
+    expect(select.value).toBe('')
+    // The store value itself is untouched — the dropdown never coerces it.
     expect(useAutomationStore.getState().mode).toBe('draw')
   })
 
-  it('renders the Overdub toggle beside the mode selector, wired to setRecordMode', async () => {
+  it('renders the write-mode glyph beside the mode selector, cycling Replace -> Overdub -> Add -> Replace', async () => {
     const container = await renderShell()
-    const btn = container.querySelector('[data-testid="overdub-toggle"]') as HTMLElement
+    const btn = container.querySelector('[data-testid="write-mode-toggle"]') as HTMLElement
     expect(btn).toBeTruthy()
-    expect(btn.textContent).toBe('Overdub')
-    expect(btn.getAttribute('aria-pressed')).toBe('false')
+    expect(useAutomationStore.getState().recordMode).toBe('replace')
+    expect(btn.getAttribute('aria-label')).toBe('Write mode: Replace')
 
     fireEvent.click(btn)
     expect(useAutomationStore.getState().recordMode).toBe('overdub')
-    expect(btn.getAttribute('aria-pressed')).toBe('true')
-    expect(btn.className).toContain('app__transport-automation-btn--active')
+    expect(btn.getAttribute('aria-label')).toBe('Write mode: Overdub')
+
+    fireEvent.click(btn)
+    expect(useAutomationStore.getState().recordMode).toBe('add_lane')
+    expect(btn.getAttribute('aria-label')).toBe('Write mode: Add')
 
     fireEvent.click(btn)
     expect(useAutomationStore.getState().recordMode).toBe('replace')
-    expect(btn.getAttribute('aria-pressed')).toBe('false')
+    expect(btn.getAttribute('aria-label')).toBe('Write mode: Replace')
   })
 
-  it('hover text matches COMPONENT-SPEC §2½\'s legend verbatim', async () => {
+  it('the retired D13/PK.C1 testids are gone', async () => {
     const container = await renderShell()
-    expect(container.querySelector('[data-testid="automation-mode-read"]')!.getAttribute('title'))
-      .toBe('Playback only — knob moves are not recorded.')
-    expect(container.querySelector('[data-testid="automation-mode-touch"]')!.getAttribute('title'))
-      .toBe('Writes only while you hold the knob — release snaps back to the existing curve.')
-    expect(container.querySelector('[data-testid="automation-mode-latch"]')!.getAttribute('title'))
-      .toBe('Starts writing at first touch and keeps writing until you stop playback.')
-    expect(container.querySelector('[data-testid="overdub-toggle"]')!.getAttribute('title'))
-      .toBe('ON: new points weave into the existing curve without erasing it. OFF: recording replaces the curve where you write.')
+    expect(container.querySelector('[data-testid="automation-mode-read"]')).toBeNull()
+    expect(container.querySelector('[data-testid="automation-mode-touch"]')).toBeNull()
+    expect(container.querySelector('[data-testid="automation-mode-latch"]')).toBeNull()
+    expect(container.querySelector('[data-testid="overdub-toggle"]')).toBeNull()
+  })
+
+  it('hover text matches D13.1\'s legend verbatim, per mode and per write-mode state', async () => {
+    const container = await renderShell()
+    const select = container.querySelector('[data-testid="automation-mode-select"]') as HTMLSelectElement
+    expect(select.getAttribute('title')).toBe('Playback only — knob moves are not recorded.')
+
+    fireEvent.change(select, { target: { value: 'touch' } })
+    expect(select.getAttribute('title')).toBe('Writes only while you hold the knob — release snaps back to the existing curve.')
+
+    fireEvent.change(select, { target: { value: 'latch' } })
+    expect(select.getAttribute('title')).toBe('Starts writing at first touch and keeps writing until you stop playback.')
+
+    const writeBtn = container.querySelector('[data-testid="write-mode-toggle"]') as HTMLElement
+    expect(writeBtn.getAttribute('title')).toBe('Recording replaces the curve where you write')
+
+    fireEvent.click(writeBtn)
+    expect(writeBtn.getAttribute('title')).toBe('New points weave into the existing curve without erasing it')
+
+    fireEvent.click(writeBtn)
+    expect(writeBtn.getAttribute('title')).toBe('Each recording pass goes to a NEW lane stacked on top (Add blend)')
   })
 
   it('play/stop/loop testids are preserved in the bar (W1-11 migration-by-testid)', async () => {

@@ -13,7 +13,6 @@ import { useMIDIStore } from '../../stores/midi'
 import { useOperatorStore } from '../../stores/operators'
 import { useToastStore } from '../../stores/toast'
 import { LIMITS } from '../../../shared/limits'
-import { recordPointWithMode } from '../../utils/automation-record'
 import { isParamAutomated } from '../../utils/automation-evaluate'
 import { parseOperatorDrop, dragHasOperatorChannel } from '../effects/operator-drag'
 import ABSwitch from './ABSwitch'
@@ -146,19 +145,26 @@ export default function DeviceCard({
       if (!autoStore.armedTrackId) return
 
       const paramPath = `${effect.id}.${key}`
-      const lanes = autoStore.getLanesForTrack(autoStore.armedTrackId)
-      const lane = lanes.find((l) => l.paramPath === paramPath)
-      if (!lane) return
-
       const time = useTimelineStore.getState().playheadTime
       const pMin = def.min ?? 0
       const pMax = def.max ?? 1
       const normalized = pMax > pMin ? (value - pMin) / (pMax - pMin) : 0
-      const newPoints = recordPointWithMode(lane.points, time, Math.max(0, Math.min(1, normalized)), autoStore.recordMode)
-      autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
+      // D13.1 (PK.C2): recordAutomationValue is the SINGLE choke point for
+      // the global write-behavior toggle (replace/overdub/add_lane) — see
+      // stores/automation.ts (mirrors ParamPanel.tsx's handleKnobChange).
+      autoStore.recordAutomationValue(autoStore.armedTrackId, paramPath, time, normalized)
     },
     [effect.id, onUpdateParam],
   )
+
+  // D13.1 (PK.C2) — Touch-mode 'add_lane' pass boundary, mirrors
+  // ParamPanel.tsx's handleKnobDragEnd.
+  const handleKnobDragEnd = useCallback((key: string) => {
+    const autoStore = useAutomationStore.getState()
+    if (autoStore.mode !== 'touch') return
+    if (!autoStore.armedTrackId) return
+    autoStore.endAddLanePass(autoStore.armedTrackId, `${effect.id}.${key}`)
+  }, [effect.id])
 
   // P6.6: assign a media source as a 2D field on a field-capable param.
   // The param value becomes {__field__: {kind, source_id, gain, invert}}.
@@ -434,6 +440,7 @@ export default function DeviceCard({
                 description={def.description}
                 ghostValue={ghostValue}
                 onChange={(v) => handleKnobChange(key, def, v)}
+                onDragEnd={() => handleKnobDragEnd(key)}
               />
               {hasCCMapping && <span className="device-card__cc-badge">CC</span>}
               {isAutomated && (

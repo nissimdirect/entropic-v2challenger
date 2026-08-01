@@ -156,6 +156,44 @@
 > (transport-icons.test.tsx), and AutomationToolbar's negative assertions
 > (automation-toolbar.test.tsx). Baseline REDESIGN regen (transport bar
 > shows in every shell-baselines.spec.ts surface). A5 CU pass before merge.
+>
+> **PK.C2 — ROUND 2 AMENDMENT (owner, 2026-08-01 live walk-through, LOCKED —
+> see RATIFIED-FOUNDATIONS.md D13.1 for the full ratified contract and owner
+> quotes):** point 2 above is superseded for the Mode selector and Overdub
+> chip specifically (points 1/3/4/5/6/7 are unchanged):
+>
+> 1. The fused Read/Touch/Latch segmented control is replaced by ONE
+>    dropdown (house `Select` primitive). Same Read/Touch/Latch order and
+>    hover legend. `mode === 'draw'` shows a blank closed-state (disabled
+>    hidden `<option value="">`) — never coerces the store.
+> 2. The boolean Overdub chip is replaced by a THREE-STATE write-behavior
+>    glyph — Replace / Overdub / **Add** (new) — cycling on click. Icon-kit
+>    glyphs only (`write-replace`/`write-overdub`/`write-add`, icon-kit.tsx),
+>    no emoji.
+> 3. **NEW: Add mode.** `AutomationRecordMode` gains `'add_lane'`. Each
+>    Touch/Latch recording pass writes into a FRESH modulation lane (blend
+>    `'add'`) on the armed track instead of the pre-existing lane for that
+>    param; pre-existing lanes are untouched. Take-style — each pass is its
+>    own lane, born visible (D13 curve-visibility contract holds). See
+>    `stores/automation.ts`'s `recordAutomationValue` (new single choke
+>    point for every latch/touch recorder: param knobs — ParamPanel/
+>    DeviceCard, MIDI CC — cc-record.ts, clip transform — transform-
+>    record.ts) and `endAddLanePass`/`addLanePasses` (pass-boundary
+>    bookkeeping: Touch ends on knob release via `Knob`'s new `onDragEnd`
+>    prop; Latch ends on playback stop via an `isPlaying` watcher in
+>    `App.tsx`).
+> 4. Testids `automation-mode-{read|touch|latch}` and `overdub-toggle` are
+>    RETIRED, replaced by `automation-mode-select` and `write-mode-toggle`
+>    (migrated by testid, not position — W1-11 lesson, same discipline
+>    point 6 above already established for AutomationToolbar.tsx).
+>
+> Oracle tally (round 2): app-transport-automation.test.tsx rewritten for
+> the dropdown + cycling glyph (dead testids removed); store-level tests
+> for `recordAutomationValue`/`endAddLanePass` (add_lane creates exactly one
+> new lane with blend 'add', writes land there, existing lane bytes
+> untouched; a second pass creates a second lane; replace/overdub unchanged
+> when not add_lane). Baseline REDESIGN regen (transport shows in every
+> shell-baselines.spec.ts surface).
 
 ## Sequencing
 

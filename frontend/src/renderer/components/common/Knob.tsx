@@ -18,6 +18,14 @@ interface KnobProps {
   /** Resolved value after modulation (Phase 6). Defaults to value. */
   ghostValue?: number
   onChange: (value: number) => void
+  /**
+   * D13.1 (PK.C2, Add mode) — fires on pointer-up after a drag. Callers use
+   * this to end a Touch-mode 'add_lane' recording pass (see
+   * stores/automation.ts's endAddLanePass) so the NEXT touch starts a fresh
+   * take/lane instead of silently continuing the same one. Optional — knobs
+   * with no recording concept simply don't pass it.
+   */
+  onDragEnd?: () => void
 }
 
 /** Arc geometry — 270-degree sweep with gap at bottom. */
@@ -82,6 +90,7 @@ export default function Knob({
   description,
   ghostValue,
   onChange,
+  onDragEnd,
 }: KnobProps) {
   const [isEditing, setIsEditing] = useState(false)
   const svgRef = useRef<SVGSVGElement>(null)
@@ -128,8 +137,10 @@ export default function Knob({
   }, [min, max, curve, onChange, clampAndRound])
 
   const handlePointerUp = useCallback(() => {
+    const wasDragging = isDragging.current
     isDragging.current = false
-  }, [])
+    if (wasDragging) onDragEnd?.()
+  }, [onDragEnd])
 
   const handleDoubleClick = useCallback(() => {
     setIsEditing(true)

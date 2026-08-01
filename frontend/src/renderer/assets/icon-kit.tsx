@@ -73,6 +73,14 @@ import type { ReactElement } from 'react'
  *                 "M{n}" overturned — collides with the Mute "M" button on
  *                 the same clip row). Exported as <MaskCountBadge count={n}/>,
  *                 not a bare Icon name, since it always pairs glyph + count.
+ *   write-replace / write-overdub / write-add -> D13.1 (PK.C2) transport
+ *                 write-behavior tri-state (owner: "overdub should be a
+ *                 glyph... like a record button but hollowed out... adjacent
+ *                 to the arm glyph"). All three compose the SAME hollow ring
+ *                 body as 'circle' unfilled (the arm-glyph family) with a
+ *                 different inner mark: none (Replace) / filled dot
+ *                 (Overdub) / small plus, reusing 'plus's cross shape at
+ *                 half scale (Add). Vendored composition, not new artwork.
  *
  * 24x24 grid, stroke-2, currentColor only (GLYPH GUIDELINES v1 rule 4) — the
  * enclosing button/element supplies state color, never the icon itself.
@@ -112,6 +120,10 @@ export type KitIconName =
   | 'text'
   | 'scope'
   | 'master'
+  // D13.1 (PK.C2) — transport write-behavior tri-state (Replace/Overdub/Add)
+  | 'write-replace'
+  | 'write-overdub'
+  | 'write-add'
 
 interface IconProps {
   name: KitIconName
@@ -336,6 +348,25 @@ const ICON_BODY: Record<KitIconName, ReactElement> = {
     <>
       <circle cx={12} cy={12} r={10} />
       <circle cx={12} cy={12} r={2} />
+    </>
+  ),
+  // CUSTOM (D13.1/PK.C2) — write-mode tri-state, composed from the SAME
+  // hollow ring as 'circle' unfilled (arm-glyph family) + a per-state inner
+  // mark. Replace: bare ring (no mark — "replaces the curve where you write").
+  'write-replace': <circle cx={12} cy={12} r={9} />,
+  // Overdub: ring + filled inner dot ("weaves into the existing curve").
+  'write-overdub': (
+    <>
+      <circle cx={12} cy={12} r={9} />
+      <circle cx={12} cy={12} r={3} fill="currentColor" stroke="none" />
+    </>
+  ),
+  // Add: ring + small plus, 'plus's cross at half scale ("each pass -> a new lane").
+  'write-add': (
+    <>
+      <circle cx={12} cy={12} r={9} />
+      <path d="M12 9v6" />
+      <path d="M9 12h6" />
     </>
   ),
 }

@@ -71,6 +71,21 @@ describe('recordPointWithMode', () => {
     recordPointWithMode(existing, 0.5, 0.9, 'overdub')
     expect(existing).toEqual(snapshot)
   })
+
+  // D13.1 (PK.C2) — 'add_lane' is a store-level concern (WHICH lane to
+  // write to; see stores/automation.ts's recordAutomationValue). This
+  // module only knows how to place a point inside ONE already-resolved
+  // lane, so it has no special case for 'add_lane' — it falls through to
+  // the same 'replace' behavior as an omitted/unrecognized mode. Documented
+  // here because cc-record.ts's recordMacro relies on exactly this fallback
+  // (it deliberately never routes through recordAutomationValue, so it
+  // still calls this function directly with the raw recordMode).
+  it('"add_lane" mode falls back to replace-style behavior (not a recognized case here)', () => {
+    const existing = [pt(0, 0), pt(1.0, 0.3), pt(2, 1)]
+    const result = recordPointWithMode(existing, 1.02, 0.8, 'add_lane', 0.033)
+    expect(result).toHaveLength(3) // replaced, not appended
+    expect(result[1]).toEqual(pt(1.02, 0.8))
+  })
 })
 
 describe('recordDrawStroke', () => {
