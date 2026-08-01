@@ -44,6 +44,25 @@
   top: 32px;
   right: 0;
   width: 360px;
+  /* W1.6 owner walk 3, item 2 — max-width: 100vw. Owner report: "a vertical
+     strip of clipped text fragments (single letters/partial words) along
+     the app's far-left edge." Root cause: this drawer is `position: fixed;
+     right: 0` with a fixed 360px width and no viewport clamp — on any
+     window narrower than 360px CSS px, the drawer's LEFT edge (viewport
+     width - 360px) goes negative, so every line of drawer text gets cut off
+     exactly at the window's x=0 boundary, showing only each line's tail
+     ("Demos" -> "s", "one idea." -> "dea.", "y_is_time" -> "_time",
+     "painted_blur" -> "ted_blur") — reproduced via a real-Electron geometry
+     harness (window.setBounds down to 250-300px). Every descendant
+     (.demos-card etc.) is flex/percentage-sized off this drawer's own width
+     (no independent fixed px), so clamping just this one rule fixes the
+     whole chain: below 360px viewport width the drawer now shrinks to
+     exactly 100vw (right:0 still pins its right edge flush with the window,
+     so its left edge lands at x=0 — properly clipped/reflowed, not bled
+     past the window). overflow-x:hidden is defense-in-depth against any
+     future descendant regaining a hardcoded width. */
+  max-width: 100vw;
+  overflow-x: hidden;
   height: calc(100% - 32px);
   background: var(--cx-bg-panel);
   border-left: 1px solid var(--cx-bg-hover);
