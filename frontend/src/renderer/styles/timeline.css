@@ -700,6 +700,22 @@ body.clip-dragging .timeline__new-track-zone {
   color: var(--cx-bg-panel);
 }
 
+/* P2.10 — keyboard-focus rings for UnifiedTrackHeader's interactive slots
+   (arm, mute/solo/lock/eye's shared .__btn, eye, twirl, blend chip, and the
+   swatch), consolidated here regardless of which stylesheet owns each
+   class's base rule (automation.css/__auto-btn, creatrix-shell.css/__twirl,
+   __eye, __bchip, __cc, this file's own __btn). Matches the repo's standard
+   pattern (global.css: outline 2px solid var(--cx-focus-ring); outline-offset: 1px). */
+.track-header__auto-btn:focus-visible,
+.track-header__btn:focus-visible,
+.track-header__eye:focus-visible,
+.track-header__twirl:focus-visible,
+.track-header__bchip:focus-visible,
+.track-header__cc:focus-visible {
+  outline: 2px solid var(--cx-focus-ring);
+  outline-offset: 1px;
+}
+
 /* --- Track Opacity Slider --- */
 
 .track-header__opacity {
