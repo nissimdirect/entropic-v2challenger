@@ -27,6 +27,7 @@ import Timeline from '../renderer/components/timeline/Timeline'
 import WelcomeScreen from '../renderer/components/layout/WelcomeScreen'
 import { useTimelineStore } from '../renderer/stores/timeline'
 import { useAutomationStore } from '../renderer/stores/automation'
+import { useUndoStore } from '../renderer/stores/undo'
 
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8')) as { version: string }
 
@@ -184,6 +185,42 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
 
     expect(useTimelineStore.getState().selectedTrackId).toBe(t2.id)
     expect(useAutomationStore.getState().armedTrackId).toBe(t2.id)
+  })
+
+  it('P2.6: undo after deleting an armed track does NOT clobber a DIFFERENT track armed in the meantime', () => {
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    useAutomationStore.getState().resetAutomation()
+    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+    useTimelineStore.getState().addTrack('Track 2', '#00ff00')
+    const [t1, t2] = useTimelineStore.getState().tracks
+    useAutomationStore.getState().armTrack(t1.id)
+
+    useTimelineStore.getState().removeTrack(t1.id) // clears armedTrackId (QF4)
+    expect(useAutomationStore.getState().armedTrackId).toBeNull()
+
+    useAutomationStore.getState().armTrack(t2.id) // user arms a DIFFERENT track post-delete
+    useUndoStore.getState().undo() // restores t1
+
+    // Must stay on t2 — the inverse restoring t1's old arm state would
+    // clobber the user's subsequent, unrelated choice to arm t2.
+    expect(useAutomationStore.getState().armedTrackId).toBe(t2.id)
+  })
+
+  it('P2.6: undo after deleting an armed track with nothing armed since DOES re-arm the restored track', () => {
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    useAutomationStore.getState().resetAutomation()
+    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+    const t1 = useTimelineStore.getState().tracks[0]
+    useAutomationStore.getState().armTrack(t1.id)
+
+    useTimelineStore.getState().removeTrack(t1.id)
+    expect(useAutomationStore.getState().armedTrackId).toBeNull()
+
+    useUndoStore.getState().undo() // restores t1, nothing armed since -> re-arm t1
+
+    expect(useAutomationStore.getState().armedTrackId).toBe(t1.id)
   })
 
   it('QF5: welcome screen renders the real package.json app version, not a hardcoded string', () => {
