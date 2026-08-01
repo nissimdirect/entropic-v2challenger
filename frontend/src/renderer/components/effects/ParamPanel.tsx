@@ -50,6 +50,14 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
       const lane = lanes.find((l) => l.paramPath === paramPath)
       if (!lane) return
 
+      // PK.C1 curve-visibility contract (RATIFIED-FOUNDATIONS.md D13):
+      // recording must never write to an invisible lane — auto-reveal it at
+      // the moment a recording pass starts writing. Guarded on !isVisible so
+      // this only fires once per hide/reveal cycle, not on every point.
+      if (!lane.isVisible) {
+        autoStore.setLaneVisible(autoStore.armedTrackId, lane.id, true)
+      }
+
       const time = useTimelineStore.getState().playheadTime
       const pMin = def.min ?? 0
       const pMax = def.max ?? 1

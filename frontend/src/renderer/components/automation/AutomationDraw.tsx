@@ -34,6 +34,16 @@ export default function AutomationDraw({ trackId, laneId, zoom, scrollX, height 
     if (!overlayRef.current) return
     isDrawingRef.current = true
     strokeRef.current = []
+
+    // PK.C1 curve-visibility contract (RATIFIED-FOUNDATIONS.md D13): a
+    // drawing pass must never write to an invisible lane — reveal it the
+    // moment the stroke starts, mirroring ParamPanel.tsx's touch/latch fix.
+    const store = useAutomationStore.getState()
+    const lane = store.lanes[trackId]?.find((l) => l.id === laneId)
+    if (lane && !lane.isVisible) {
+      store.setLaneVisible(trackId, laneId, true)
+    }
+
     const rect = overlayRef.current.getBoundingClientRect()
     const x = e.clientX - rect.left
     const y = e.clientY - rect.top
