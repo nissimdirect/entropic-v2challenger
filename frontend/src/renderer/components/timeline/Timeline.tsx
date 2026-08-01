@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTimelineStore } from '../../stores/timeline'
 import { useLayoutStore } from '../../stores/layout'
 import TimeRuler from './TimeRuler'
@@ -11,6 +11,21 @@ import LoopRegion from './LoopRegion'
 import MarkerFlag from './MarkerFlag'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
+import type { Track as TrackType } from '../../../shared/types'
+
+// W1.5b PK.B1: the render fork over track headers collapses to a single
+// capability lookup by track.type — each entry is one of the four thin
+// per-type wrapper components (all now delegate their JSX to the shared
+// UnifiedTrackHeader; see Track.tsx/AudioTrack.tsx/InspectorTrack.tsx/
+// MasterTrack.tsx). Lanes are untouched (out of PK.B1's scope — headers only).
+const TRACK_HEADER_BY_TYPE: Record<TrackType['type'], (props: { track: TrackType; isSelected: boolean }) => React.ReactElement> = {
+  video: TrackHeader,
+  text: TrackHeader,
+  performance: TrackHeader,
+  audio: AudioTrackHeader,
+  inspector: InspectorTrackHeader,
+  master: MasterTrackHeader,
+}
 
 interface TimelineProps {
   onSeek: (time: number) => void
@@ -154,6 +169,42 @@ export default function Timeline({
       headers.scrollTop = e.currentTarget.scrollTop
     }
   }, [])
+
+  // W1.5b PK.B2 — scroll the selected track's header row into view within
+  // the track-headers column whenever selection changes from ANY surface
+  // (LayerPanel, status bar, etc.) — not just clicking the header itself,
+  // which is already visible when clicked (the geometry check below is a
+  // no-op in that case: delta stays 0). Target semantics are
+  // scrollIntoView({block:'nearest'}), but native scrollIntoView is not
+  // deterministically testable under happy-dom (no real layout engine), so
+  // "nearest" is computed manually here — same getBoundingClientRect-based
+  // approach useTrackDragReorder.ts already uses for row geometry — and
+  // applied as a direct scrollTop mutation. That mutation is always
+  // instant, never smooth-animated, which satisfies "respect
+  // prefers-reduced-motion: instant, no smooth scroll" for every user (this
+  // container has no CSS smooth-scroll behavior to suppress in the first
+  // place).
+  useEffect(() => {
+    const container = headersRef.current
+    if (!container || !selectedTrackId) return
+    const row = container.querySelector<HTMLElement>('.track-header--selected')
+    if (!row) return
+    const containerRect = container.getBoundingClientRect()
+    const rowRect = row.getBoundingClientRect()
+    let delta = 0
+    if (rowRect.top < containerRect.top) {
+      delta = rowRect.top - containerRect.top
+    } else if (rowRect.bottom > containerRect.bottom) {
+      delta = rowRect.bottom - containerRect.bottom
+    }
+    if (delta === 0) return
+    const newScrollTop = container.scrollTop + delta
+    container.scrollTop = newScrollTop
+    // Keep the lanes column in sync (same manual mirror handleScroll already
+    // does for the reverse direction).
+    const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+    if (lanes) lanes.scrollTop = newScrollTop
+  }, [selectedTrackId])
 
   const handleDeleteMarker = useCallback((id: string) => {
     useTimelineStore.getState().removeMarker(id)
@@ -309,27 +360,10 @@ export default function Timeline({
               }
             }}
           >
-            {orderedTracks.map((track) =>
-              track.type === 'audio' ? (
-                <AudioTrackHeader
-                  key={track.id}
-                  track={track}
-                  isSelected={track.id === selectedTrackId}
-                />
-              ) : track.type === 'inspector' ? (
-                <InspectorTrackHeader
-                  key={track.id}
-                  track={track}
-                  isSelected={track.id === selectedTrackId}
-                />
-              ) : (
-                <TrackHeader
-                  key={track.id}
-                  track={track}
-                  isSelected={track.id === selectedTrackId}
-                />
-              ),
-            )}
+            {orderedTracks.map((track) => {
+              const Header = TRACK_HEADER_BY_TYPE[track.type]
+              return <Header key={track.id} track={track} isSelected={track.id === selectedTrackId} />
+            })}
             {masterTrack && (
               <MasterTrackHeader
                 key={masterTrack.id}

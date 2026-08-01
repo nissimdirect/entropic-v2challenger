@@ -426,9 +426,25 @@
    rightmost buttons (arm-R, lock) were pushed past the 180px column and
    silently clipped by .timeline__track-headers' overflow-x: hidden.
    Widen the column only under the B3 flag — the legacy header already
-   fits its controls in 180px, so this is scoped rather than a global bump. */
+   fits its controls in 180px, so this is scoped rather than a global bump.
+
+   W1.5b PK.B1 adjudication fix (2026-07-31): the unified 8-slot order
+   ([arm][swatch][name][badge][blend][M][S][eye]) reintroduced the same
+   overflow on every blend-capable (video/text) row — measured live via a
+   real Electron window at this same 262px width: eye's right edge landed
+   ~23px past the column's right edge with the original "Normal 100%"
+   blend chip, and still ~9px past it after shrinking the chip to mode-only
+   text (see UnifiedTrackHeader.tsx's blend-slot comment — that fix alone
+   wasn't enough). Widened 262 → 284px (+22px, comfortably covering both
+   measured overflows) and re-verified live: eye's right edge now sits
+   inside the column with margin. `.timeline__lanes` is a plain `flex: 1`
+   sibling in `.timeline__body` (timeline.css) with no other rule
+   referencing this pixel value, so the ruler/lane column absorbs the
+   +22px automatically — no coupled offset to update elsewhere (verified:
+   grep for "262px" and "180px" across styles/ and the timeline
+   components turned up no other reference). */
 .app--creatrix .timeline__headers {
-  width: 262px;
+  width: 284px;
 }
 
 .track-header--lean {
@@ -505,6 +521,20 @@
   font-size: 11.5px;
 }
 
+/* W1.5b PK.B1 — unified type-badge slot: a small icon-kit glyph identifying
+   the track's type (video/midi/text/audio/scope/master), replacing the
+   ad hoc per-type text prefixes ("T"/"A"/"⊙") the four separate headers
+   used to render inline with the name. */
+.track-header__type-badge {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cx-text-3);
+}
+
 /* Compact blend·opacity readout chip — glanceable, click opens LAYER panel */
 .track-header__bchip {
   flex: none;
@@ -532,15 +562,15 @@
   color: var(--cx-mod);
 }
 
-.track-header__bchip-o {
-  color: var(--cx-text-3);
-}
-
-.track-header__controls--lean {
-  flex: none;
-  display: flex;
-  gap: 3px;
-}
+/* W1.5b PK.B1 (2026-07-31): two rules removed here as dead CSS —
+   .track-header__bchip-o styled the opacity-percent span that used to sit
+   inside the bchip; that span is gone now (opacity moved to title/
+   aria-label to fix a header-column overflow — see UnifiedTrackHeader.tsx's
+   blend-slot comment). .track-header__controls--lean wrapped the M/S
+   buttons in the pre-unification lean header; UnifiedTrackHeader renders
+   them as direct row children instead, so no element ever carried this
+   class after the original PK.B1 refactor — caught during this same
+   adjudication pass. */
 
 /* Nested fx + automation rows revealed by the twirl */
 .track-header__nested {

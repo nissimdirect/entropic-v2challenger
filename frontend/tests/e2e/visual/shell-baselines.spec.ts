@@ -5,11 +5,26 @@
 // ─── Screenshot-baseline lifecycle (FRONTEND-SDLC.md §3 — the law) ──────────
 // The gate never forbids change — it forbids UNDECLARED change.
 //
-// • BIRTH: baselines are generated ON the CI runner (hermetic fixture:
-//   1280×800, DPR 1 — F0.2) via a future workflow_dispatch job (a USER-merge
-//   item; `.github/workflows/**` edits are owner-merge only). NEVER generate
-//   canonical baselines on a dev Mac. `scripts/regen-baselines.sh` exists for
-//   emergencies only and prints exactly this warning.
+// • BIRTH / REGEN — CORRECTED 2026-07-31 (W1.5b PK.B1 STOP ruling): the
+//   "future CI workflow_dispatch job, never on a dev Mac" language below was
+//   aspirational and had gone stale against actual practice — every baseline
+//   PNG committed to this dir (the W1 regen at 86f0e0b, the W15a regens at
+//   #486) was rendered locally, on a dev Mac, because the workflow_dispatch
+//   job and the emergency `scripts/regen-baselines.sh` this comment
+//   described were never built. A CI-runner-rendered baseline would
+//   therefore currently MISMATCH its already-local-rendered siblings, so
+//   until that CI job exists, LOCAL REGEN IS THE CANONICAL PATH, not an
+//   emergency exception. Regen procedure: `npm run build` FIRST (the
+//   prebuilt-bundle trap — this spec launches the built `out/` bundle, not a
+//   dev server), then `CREATRIX_REGEN_BASELINES=1 npx playwright test
+//   tests/e2e/visual/shell-baselines.spec.ts --update-snapshots=all` (`=all`
+//   is REQUIRED — the bare `--update-snapshots` flag silently no-ops on
+//   Playwright 1.58.2), then TWO consecutive plain runs green as the
+//   verification gate (per-PR CI comparison is post-merge-on-main only, per
+//   the ROLLOUT note below, so local ×2 is the only pre-merge check there
+//   is). CI-birthed baselines remain the long-term goal — tracked as a
+//   deferred owner item, since the workflow_dispatch job needs a
+//   `.github/workflows/**` edit, which is owner-merge only.
 // • DECLARED CHANGE: a PR whose packet scope names surface X regenerates X's
 //   baseline in the SAME PR; the before/after diff rides the PR for owner
 //   approval.
@@ -42,20 +57,22 @@ import { test, expect } from '../fixtures/electron-app.fixture'
 import { waitForEngineConnected } from '../fixtures/test-helpers'
 
 // Playwright's default snapshot dir for this file. Baselines are committed
-// like a lockfile once the CI workflow_dispatch generates them (SDLC §3
-// "Birth"); until that dir exists this spec self-skips — running it locally
-// must never fabricate baselines as a side effect.
+// like a lockfile; until that dir exists this spec self-skips — running it
+// locally must never fabricate baselines as a side effect of an unrelated
+// run. See the lifecycle comment above (2026-07-31 correction): local regen
+// via CREATRIX_REGEN_BASELINES=1 is the current canonical regen path, not
+// an emergency-only exception.
 const SNAPSHOT_DIR = path.join(__dirname, 'shell-baselines.spec.ts-snapshots')
 
-// Escape hatch for the (documented, warned) emergency regen script and the
-// future CI generation job: CREATRIX_REGEN_BASELINES=1 bypasses the guard so
-// `--update-snapshots` can write the first baselines.
+// CREATRIX_REGEN_BASELINES=1 bypasses the skip guard below so
+// `--update-snapshots=all` can (re)write baselines. See the lifecycle
+// comment above for the full regen procedure.
 const REGEN_MODE = process.env.CREATRIX_REGEN_BASELINES === '1'
 
 test.describe('Shell visual baselines (exit gate)', () => {
   test.skip(
     !REGEN_MODE && !fs.existsSync(SNAPSHOT_DIR),
-    'No baseline snapshots yet — baselines are generated ON CI via workflow_dispatch (USER-merge item), never on a dev Mac. See FRONTEND-SDLC.md §3.',
+    'No baseline snapshots yet — run CREATRIX_REGEN_BASELINES=1 npx playwright test tests/e2e/visual/shell-baselines.spec.ts --update-snapshots=all after npm run build. See the lifecycle comment at the top of this file.',
   )
 
   test('six shell surfaces match their baselines', async ({ window, electronApp }) => {

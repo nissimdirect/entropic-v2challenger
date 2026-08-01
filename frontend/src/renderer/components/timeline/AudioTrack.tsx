@@ -8,6 +8,7 @@ import GainMeter from '../audio/GainMeter'
 import AudioClipView from './AudioClipView'
 import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
 import { useTrackDragStore } from '../../stores/trackDrag'
+import UnifiedTrackHeader from './UnifiedTrackHeader'
 
 interface AudioTrackHeaderProps {
   track: TrackType
@@ -73,76 +74,55 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
   const gainDb = track.gainDb ?? 0
 
   const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
-  const headerClasses = [
-    'track-header',
-    'audio-track-header',
-    isSelected ? 'track-header--selected' : '',
-    dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
-  ].filter(Boolean).join(' ')
 
+  // W1.5b PK.B1: delegates to the shared 8-slot shell — same rename flow,
+  // drag-reorder, and mute/solo handlers as before; gain knob + meter ride
+  // along as extraContent (not part of the capability-slot contract).
   return (
-    <div
-      className={headerClasses}
-      data-track-idx={drag.ownIdx}
-      onClick={handleClick}
+    <UnifiedTrackHeader
+      track={track}
+      isSelected={isSelected}
+      capabilities={{ arm: false, blend: false, mute: true, solo: true, visibility: false, lock: false, twirl: false, drag: true }}
+      typeBadge="volume-2"
+      typeBadgeLabel="Audio track"
+      rootClassNameExtra="audio-track-header"
+      ownIdx={drag.ownIdx}
+      isDragging={dragFromIdx !== null && dragFromIdx === drag.ownIdx}
       onPointerDown={drag.onPointerDown}
-    >
-      <div className="track-header__color" style={{ background: track.color }} />
-      <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>
-        {isRenaming ? (
-          <input
-            ref={renameInputRef}
-            className="track-header__rename-input"
-            type="text"
-            value={renameText}
-            onChange={(e) => setRenameText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') confirmRename()
-              else if (e.key === 'Escape') cancelRename()
-              e.stopPropagation()
-            }}
-            onBlur={confirmRename}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <div className="track-header__name">
-            <span className="timeline-track__icon--audio">A</span>
-            {' '}{track.name}
+      onClick={handleClick}
+      isRenaming={isRenaming}
+      renameText={renameText}
+      onRenameChange={(e) => setRenameText(e.target.value)}
+      onRenameKeyDown={(e) => {
+        if (e.key === 'Enter') confirmRename()
+        else if (e.key === 'Escape') cancelRename()
+        e.stopPropagation()
+      }}
+      onRenameBlur={confirmRename}
+      renameInputRef={renameInputRef}
+      onNameDoubleClick={startRename}
+      onMute={handleMute}
+      onSolo={handleSolo}
+      extraContent={
+        <>
+          <div className="audio-track-header__gain" onClick={(e) => e.stopPropagation()}>
+            <Knob
+              value={gainDb}
+              min={AUDIO_LIMITS.MIN_GAIN_DB}
+              max={AUDIO_LIMITS.MAX_GAIN_DB}
+              default={0}
+              label="Gain"
+              type="float"
+              unit=" dB"
+              curve="linear"
+              description="Track gain — applied to every clip on this track"
+              onChange={handleGainChange}
+            />
           </div>
-        )}
-      </div>
-      <div className="track-header__controls">
-        <button
-          className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
-          onClick={handleMute}
-          title="Mute audio track"
-        >
-          M
-        </button>
-        <button
-          className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
-          onClick={handleSolo}
-          title="Solo audio track"
-        >
-          S
-        </button>
-        <div className="audio-track-header__gain" onClick={(e) => e.stopPropagation()}>
-          <Knob
-            value={gainDb}
-            min={AUDIO_LIMITS.MIN_GAIN_DB}
-            max={AUDIO_LIMITS.MAX_GAIN_DB}
-            default={0}
-            label="Gain"
-            type="float"
-            unit=" dB"
-            curve="linear"
-            description="Track gain — applied to every clip on this track"
-            onChange={handleGainChange}
-          />
-        </div>
-        <AudioTrackMeter />
-      </div>
-    </div>
+          <AudioTrackMeter />
+        </>
+      }
+    />
   )
 }
 

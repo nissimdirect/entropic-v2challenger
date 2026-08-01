@@ -7,6 +7,7 @@ import { useTrackDragReorder } from '../../hooks/useTrackDragReorder'
 import { useTrackDragStore } from '../../stores/trackDrag'
 import { PARAM_PROBE_DRAG_TYPE } from '../effects/ParamPanel'
 import ProbeScope from './ProbeScope'
+import UnifiedTrackHeader from './UnifiedTrackHeader'
 import {
   registerProbe,
   unregisterProbe,
@@ -79,65 +80,36 @@ export function InspectorTrackHeader({ track, isSelected }: InspectorTrackHeader
   )
 
   const dragFromIdx = useTrackDragStore((s) => s.fromIdx)
-  const headerClasses = [
-    'track-header',
-    'inspector-track-header',
-    isSelected ? 'track-header--selected' : '',
-    dragFromIdx !== null && dragFromIdx === drag.ownIdx ? 'track-header--dragging' : '',
-  ]
-    .filter(Boolean)
-    .join(' ')
 
+  // W1.5b PK.B1: delegates to the shared 8-slot shell. `data-track-type`
+  // (checked by qf4-inspector-track-hypothesis.test.tsx) is set generically
+  // by UnifiedTrackHeader from `track.type`.
   return (
-    <div
-      className={headerClasses}
-      data-track-idx={drag.ownIdx}
-      data-track-type="inspector"
-      onClick={handleClick}
+    <UnifiedTrackHeader
+      track={track}
+      isSelected={isSelected}
+      capabilities={{ arm: false, blend: false, mute: true, solo: true, visibility: false, lock: false, twirl: false, drag: true }}
+      typeBadge="scope"
+      typeBadgeLabel="Inspector track"
+      rootClassNameExtra="inspector-track-header"
+      ownIdx={drag.ownIdx}
+      isDragging={dragFromIdx !== null && dragFromIdx === drag.ownIdx}
       onPointerDown={drag.onPointerDown}
-    >
-      <div className="track-header__color" style={{ background: track.color }} />
-      <div className="track-header__info" onDoubleClick={isRenaming ? undefined : startRename}>
-        {isRenaming ? (
-          <input
-            ref={renameInputRef}
-            className="track-header__rename-input"
-            type="text"
-            value={renameText}
-            onChange={(e) => setRenameText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') confirmRename()
-              else if (e.key === 'Escape') cancelRename()
-              e.stopPropagation()
-            }}
-            onBlur={confirmRename}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <div className="track-header__name">
-            <span className="timeline-track__icon--inspector">⊙</span>
-            {' '}
-            {track.name}
-          </div>
-        )}
-      </div>
-      <div className="track-header__controls">
-        <button
-          className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
-          onClick={handleMute}
-          title="Mute inspector probes"
-        >
-          M
-        </button>
-        <button
-          className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
-          onClick={handleSolo}
-          title="Solo inspector probes"
-        >
-          S
-        </button>
-      </div>
-    </div>
+      onClick={handleClick}
+      isRenaming={isRenaming}
+      renameText={renameText}
+      onRenameChange={(e) => setRenameText(e.target.value)}
+      onRenameKeyDown={(e) => {
+        if (e.key === 'Enter') confirmRename()
+        else if (e.key === 'Escape') cancelRename()
+        e.stopPropagation()
+      }}
+      onRenameBlur={confirmRename}
+      renameInputRef={renameInputRef}
+      onNameDoubleClick={startRename}
+      onMute={handleMute}
+      onSolo={handleSolo}
+    />
   )
 }
 
