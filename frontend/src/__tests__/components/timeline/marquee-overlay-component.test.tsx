@@ -129,4 +129,27 @@ describe('MarqueeOverlay — real component drag gesture (DOM-level oracle)', ()
     expect(useTimelineStore.getState().selectionRegion).toBeNull()
     expect(queryByTestId('selection-region-band')).toBeNull()
   })
+
+  it('P2.4: a drag that clears the 2px floor but snaps in/out to the SAME grid line commits no region (not a zero-width one)', () => {
+    const trackId = useTimelineStore.getState().addTrack('T', '#4ade80') as string
+    // zoom=1, bpm=120: even the coarsest '4bar' candidate (8s interval) is
+    // under the 10px floor at this zoom, so selectQuantizeGridLevel falls
+    // back to it anyway (grid must never vanish) — interval = 8s = 8px here.
+    // 100px and 103px (dx=3, clears the floor) both round to the 104s line.
+    const zoom = 1
+    useLayoutStore.setState({ quantizeEnabled: true, quantizeDivision: 4 })
+
+    const { container, getByTestId, queryByTestId } = render(<Harness trackId={trackId} zoom={zoom} scrollX={0} />)
+    const laneEl = getByTestId('lane-container')
+    stubRect(laneEl, 0, 1000)
+    const overlayEl = container.querySelector('.marquee-overlay') as HTMLElement
+
+    fireEvent.pointerDown(overlayEl, { clientX: 100, clientY: 10, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(overlayEl, { clientX: 103, clientY: 10, pointerId: 1 })
+    fireEvent.pointerUp(overlayEl, { clientX: 103, clientY: 10, pointerId: 1 })
+
+    // Not a {in:104, out:104} phantom region — a real clear.
+    expect(useTimelineStore.getState().selectionRegion).toBeNull()
+    expect(queryByTestId('selection-region-band')).toBeNull()
+  })
 })

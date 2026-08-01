@@ -229,7 +229,14 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
       } else {
         commitSelection(e.clientX, e.shiftKey)
         const range = computeSnappedRange(e.clientX, e.altKey)
-        if (range) useTimelineStore.getState().setSelectionRegion(range)
+        // A raw drag can still clear the 2px floor yet snap in/out to the
+        // SAME grid line at a coarse LOD (e.g. '4bar' at low zoom) — commit
+        // a zero-width region as a clear, not a degenerate range.
+        if (range && range.in !== range.out) {
+          useTimelineStore.getState().setSelectionRegion(range)
+        } else {
+          useTimelineStore.getState().clearSelectionRegion()
+        }
       }
 
       // Suppress the synthetic click from pointerup so the TrackLane's

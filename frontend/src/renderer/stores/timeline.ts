@@ -2410,6 +2410,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   // --- Loop ---
 
   setLoopRegion: (inTime, outTime) => {
+    // Guard against zero/negative-width loop regions (defense in depth —
+    // callers like App.tsx's copy_selection_to_loop already guard too, but
+    // this is the single choke point every caller routes through).
+    if (!(inTime < outTime)) return
+
     const oldRegion = get().loopRegion
 
     undoable(

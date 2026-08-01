@@ -727,11 +727,12 @@ function AppInner() {
       }
     })
     // W1.5b PK.A4 (D12): Cmd+L copies the arrangement selection -> loop region.
-    // No-op with no active selection (nothing to copy).
+    // No-op with no active selection (nothing to copy) or a zero-width
+    // selection (nothing meaningful to loop).
     shortcutRegistry.register('copy_selection_to_loop', () => {
       const timeline = useTimelineStore.getState()
       const region = timeline.selectionRegion
-      if (region) timeline.setLoopRegion(region.in, region.out)
+      if (region && region.out - region.in > 0) timeline.setLoopRegion(region.in, region.out)
     })
     shortcutRegistry.register('export', () => setShowExportDialog(true))
     shortcutRegistry.register('preferences', () => setShowPreferences(true))
