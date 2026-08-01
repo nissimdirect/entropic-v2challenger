@@ -28,7 +28,7 @@ import WelcomeScreen from '../renderer/components/layout/WelcomeScreen'
 import { useTimelineStore } from '../renderer/stores/timeline'
 import { useAutomationStore } from '../renderer/stores/automation'
 import { useUndoStore } from '../renderer/stores/undo'
-import type { AudioClip } from '../shared/types'
+import type { AudioClip, Track as TrackType } from '../shared/types'
 
 function baseAudioClip(overrides: Partial<Omit<AudioClip, 'id' | 'trackId'>> = {}): Omit<AudioClip, 'id' | 'trackId'> {
   return {
@@ -154,6 +154,22 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
     const laneBed = container.querySelector('.timeline__tracks-scroll')
     fireEvent.contextMenu(laneBed!)
     expect(document.querySelector('[data-testid="add-track-menu-item-video"]')?.textContent).toBe('Add Video Track')
+  })
+
+  it('P3.12: an unrecognized track.type (e.g. corrupted/future project data) falls back to the generic header instead of crashing the whole timeline', () => {
+    useTimelineStore.getState().reset()
+    const id = useTimelineStore.getState().addTrack('V1', '#4ade80', 'video')!
+    // Simulate data TypeScript can't see at compile time: a track.type this
+    // build's TRACK_HEADER_BY_TYPE map doesn't recognize.
+    useTimelineStore.setState({
+      tracks: useTimelineStore.getState().tracks.map((t) =>
+        t.id === id ? { ...t, type: 'holographic-projection' as TrackType['type'] } : t,
+      ),
+    })
+
+    expect(() => render(<Timeline onSeek={() => {}} />)).not.toThrow()
+    // Falls back to the generic lean header, not a blank/missing row.
+    expect(document.querySelector('[data-testid="lean-track-header"]')).toBeTruthy()
   })
 
   // QF6 (NEW, 2026-07-31 second owner walk): owner directive collapsed the

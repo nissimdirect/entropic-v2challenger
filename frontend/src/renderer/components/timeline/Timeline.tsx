@@ -28,6 +28,17 @@ const TRACK_HEADER_BY_TYPE: Record<TrackType['type'], (props: { track: TrackType
   master: MasterTrackHeader,
 }
 
+// P3.12: TrackType['type'] is exhaustive at the TYPE level, but a runtime
+// track.type can still miss the map — e.g. a persisted project from a
+// future app version with a track type this build doesn't know, or
+// corrupted/hand-edited project JSON. TRACK_HEADER_BY_TYPE[track.type]
+// returning undefined there would render `<undefined ... />`, which React
+// throws on (white screen for the whole timeline, not just one row).
+// Fall back to the generic TrackHeader rather than crash.
+function getTrackHeaderComponent(type: TrackType['type']): (props: { track: TrackType; isSelected: boolean }) => React.ReactElement {
+  return TRACK_HEADER_BY_TYPE[type] ?? TrackHeader
+}
+
 interface TimelineProps {
   onSeek: (time: number) => void
   isDragOver?: boolean
@@ -365,7 +376,7 @@ export default function Timeline({
             }}
           >
             {orderedTracks.map((track) => {
-              const Header = TRACK_HEADER_BY_TYPE[track.type]
+              const Header = getTrackHeaderComponent(track.type)
               return <Header key={track.id} track={track} isSelected={track.id === selectedTrackId} />
             })}
             {masterTrack && (
