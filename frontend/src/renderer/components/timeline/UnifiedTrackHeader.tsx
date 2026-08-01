@@ -189,7 +189,18 @@ export default function UnifiedTrackHeader({
         onDrop={onDrop}
       >
         <div className="track-header__lean-row">
-          {twirl && (
+          {/* Leading-slot gutters (W1.6 owner walk 3): twirl and arm sit BEFORE
+              swatch/name/badge, so a type that lacks either capability (master
+              has no twirl; audio/inspector have neither) would otherwise render
+              those slots at a different x-offset than a type that has them —
+              the owner-reported "master doesn't left-align with the track
+              rows" bug. Absent capabilities still render the identical
+              button markup, invisible + inert (track-header__*--placeholder,
+              visibility:hidden), so every row type's slot rail occupies IDENTICAL
+              x-positions. Trailing slots (blend/M/S/eye) stay presence-gated
+              with no reserved space — they come AFTER name, so their absence
+              doesn't shift anything earlier in the row. */}
+          {twirl ? (
             <button
               className="track-header__twirl"
               data-testid="track-twirl"
@@ -199,8 +210,17 @@ export default function UnifiedTrackHeader({
             >
               <Icon name={twirl.isExpanded ? 'chevron-down' : 'chevron-right'} size={12} />
             </button>
+          ) : (
+            <button
+              className="track-header__twirl track-header__twirl--placeholder"
+              aria-hidden="true"
+              tabIndex={-1}
+              disabled
+            >
+              <Icon name="chevron-right" size={12} />
+            </button>
           )}
-          {arm && (
+          {arm ? (
             <button
               className={`track-header__auto-btn${arm.isArmed ? ' track-header__auto-btn--active' : ''}`}
               data-testid={arm.testId}
@@ -210,6 +230,15 @@ export default function UnifiedTrackHeader({
               aria-label={arm.isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
             >
               <Icon name="circle" size={10} filled={arm.isArmed} />
+            </button>
+          ) : (
+            <button
+              className="track-header__auto-btn track-header__auto-btn--placeholder"
+              aria-hidden="true"
+              tabIndex={-1}
+              disabled
+            >
+              <Icon name="circle" size={10} />
             </button>
           )}
           <span
