@@ -74,7 +74,7 @@ export interface UnifiedTrackHeaderProps {
   badgeClassNameExtra?: string
   isDragging?: boolean
   ownIdx?: number | null
-  onPointerDown?: (e: React.PointerEvent) => void
+  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
   onClick: () => void
   onContextMenu?: (e: React.MouseEvent) => void
   onDragOver?: (e: React.DragEvent) => void
@@ -86,7 +86,7 @@ export interface UnifiedTrackHeaderProps {
   onRenameChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
   onRenameKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
   onRenameBlur?: () => void
-  renameInputRef?: React.RefObject<HTMLInputElement>
+  renameInputRef?: React.RefObject<HTMLInputElement | null>
   onNameDoubleClick?: () => void
   onMute?: (e: React.MouseEvent) => void
   onSolo?: (e: React.MouseEvent) => void
