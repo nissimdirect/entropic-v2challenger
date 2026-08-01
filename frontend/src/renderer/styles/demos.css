@@ -37,10 +37,14 @@
 
 .demos-drawer {
   position: fixed;
-  top: 0;
+  /* PK.C1 adjudication: start below the global transport bar (32px, global.css
+     .app__transport-bar) — a content drawer must never cover global chrome.
+     The widened automation cluster + the reserved meters zone (far right)
+     made the old top:0 overlap user-visible on first launch. */
+  top: 32px;
   right: 0;
   width: 360px;
-  height: 100%;
+  height: calc(100% - 32px);
   background: var(--cx-bg-panel);
   border-left: 1px solid var(--cx-bg-hover);
   display: flex;
