@@ -15,9 +15,15 @@
  * lived here as strip buttons in the first place — see AutomationLane's
  * curve-ops test for why) moved OFF this strip onto the lane's own
  * right-click context menu — see automation-lane-curve-ops.test.tsx for
- * their (relocated) functional coverage. This file's "strip membership"
- * block below is the negative-assertion half of that move: the strip must
- * render exactly 8 buttons in exactly 2 clusters and contain NONE of them.
+ * their (relocated) functional coverage.
+ *
+ * PK.C1 (W1.5b, C2 mock ruling, 2026-07-31): the Mode selector
+ * (Read/Latch/Touch/Draw) and the Overdub toggle also moved OFF this
+ * strip, into the transport bar (App.tsx) as global controls — see
+ * app-transport-automation.test.tsx for their (relocated) functional
+ * coverage. This file's "strip membership" block below is the
+ * negative-assertion half of both moves: the strip must render exactly 3
+ * buttons in exactly 1 cluster and contain NONE of the relocated controls.
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
@@ -62,67 +68,9 @@ function armATrack() {
   return t
 }
 
-describe('AutomationToolbar — mode selector', () => {
-  it('renders all four mode buttons R / L / T / D', () => {
-    const { container } = render(<AutomationToolbar />)
-    const modeButtons = Array.from(container.querySelectorAll('.auto-toolbar__mode-btn'))
-    const labels = modeButtons.map((b) => b.textContent)
-    expect(labels).toEqual(['R', 'L', 'T', 'D'])
-  })
-
-  it('default mode is "read" — R has active modifier class', () => {
-    const { container } = render(<AutomationToolbar />)
-    // Scope to the mode-button group so we don't also match the "R" in the
-    // hint text ("Click R on a track to arm").
-    const modeButtons = container.querySelectorAll('.auto-toolbar__mode-btn')
-    const r = Array.from(modeButtons).find((b) => b.textContent === 'R') as HTMLElement
-    expect(r).toBeTruthy()
-    expect(r.className).toContain('auto-toolbar__mode-btn--active')
-  })
-
-  it('clicking a mode button sets that mode in the store', () => {
-    const { container } = render(<AutomationToolbar />)
-    const modeButtons = Array.from(container.querySelectorAll('.auto-toolbar__mode-btn'))
-    const findMode = (label: string) =>
-      modeButtons.find((b) => b.textContent === label) as HTMLElement
-    fireEvent.click(findMode('L'))
-    expect(useAutomationStore.getState().mode).toBe('latch')
-    fireEvent.click(findMode('D'))
-    expect(useAutomationStore.getState().mode).toBe('draw')
-  })
-})
-
-// A4 — continuous-lane overdub toggle.
-describe('AutomationToolbar — overdub toggle', () => {
-  it('renders the Overdub toggle button, inactive by default (replace mode)', () => {
-    const { container } = render(<AutomationToolbar />)
-    const btn = container.querySelector('[data-testid="overdub-toggle-btn"]') as HTMLElement
-    expect(btn).toBeTruthy()
-    expect(btn.textContent).toBe('Overdub')
-    expect(btn.className).not.toContain('auto-toolbar__btn--active')
-    expect(btn.getAttribute('aria-pressed')).toBe('false')
-  })
-
-  it('is NOT gated on armedTrackId — clickable with no track armed', () => {
-    const { container } = render(<AutomationToolbar />)
-    const btn = container.querySelector('[data-testid="overdub-toggle-btn"]') as HTMLButtonElement
-    expect(btn.disabled).toBe(false)
-  })
-
-  it('clicking toggles recordMode to "overdub" and back to "replace"', () => {
-    const { container } = render(<AutomationToolbar />)
-    const btn = container.querySelector('[data-testid="overdub-toggle-btn"]') as HTMLElement
-    fireEvent.click(btn)
-    expect(useAutomationStore.getState().recordMode).toBe('overdub')
-    expect(btn.className).toContain('auto-toolbar__btn--active')
-    expect(btn.getAttribute('aria-pressed')).toBe('true')
-
-    fireEvent.click(btn)
-    expect(useAutomationStore.getState().recordMode).toBe('replace')
-    expect(btn.className).not.toContain('auto-toolbar__btn--active')
-    expect(btn.getAttribute('aria-pressed')).toBe('false')
-  })
-})
+// PK.C1 (W1.5b, C2 mock ruling): the Mode selector and Overdub toggle moved
+// to the transport bar — see app-transport-automation.test.tsx for their
+// functional coverage. This strip no longer renders either.
 
 describe('AutomationToolbar — arm hint references the record-arm dot (W1-2)', () => {
   it('when no track is armed, hint renders the record-arm dot glyph, not the letter R', () => {
@@ -161,25 +109,24 @@ describe('AutomationToolbar — buttons disabled until track armed', () => {
   })
 })
 
-// D8/PK.C — the amended hard oracle: strip renders exactly 8 buttons in
-// exactly 2 grouping containers (Mode/Record) and contains NONE of
-// Flatten/Ramp/Shape/Simplify/Clear.
-describe('AutomationToolbar — strip membership (D8/PK.C)', () => {
-  it('renders exactly 8 buttons total, split 4/4 across .auto-toolbar__modes and .auto-toolbar__record', () => {
+// D8/PK.C + PK.C1 — the amended hard oracle: strip renders exactly 3 buttons
+// (+Lane/+Trigger/+Mod) in exactly 1 grouping container and contains NONE of
+// Flatten/Ramp/Shape/Simplify/Clear (D8, lane context menu) or the Mode
+// selector/Overdub toggle (PK.C1, transport bar).
+describe('AutomationToolbar — strip membership (D8/PK.C + PK.C1)', () => {
+  it('renders exactly 3 buttons total (+Lane/+Trigger/+Mod), all inside .auto-toolbar__record', () => {
     const { container } = render(<AutomationToolbar />)
-    const modeButtons = container.querySelectorAll('.auto-toolbar__modes > button')
     const recordButtons = container.querySelectorAll('.auto-toolbar__record > button')
-    expect(modeButtons).toHaveLength(4)
-    expect(recordButtons).toHaveLength(4)
-    expect(modeButtons.length + recordButtons.length).toBe(8)
+    expect(recordButtons).toHaveLength(3)
   })
 
-  it('the record cluster carries its data-testid and sits in exactly 2 top-level grouping containers', () => {
+  it('the record cluster carries its data-testid and is the strip\'s only top-level grouping container', () => {
     const { container } = render(<AutomationToolbar />)
     expect(container.querySelector('[data-testid="auto-toolbar-record-cluster"]')).toBeTruthy()
     const root = container.querySelector('.auto-toolbar')!
-    const groups = root.querySelectorAll(':scope > .auto-toolbar__modes, :scope > .auto-toolbar__record')
-    expect(groups).toHaveLength(2)
+    const groups = root.querySelectorAll(':scope > .auto-toolbar__record')
+    expect(groups).toHaveLength(1)
+    expect(root.querySelector(':scope > .auto-toolbar__modes')).toBeNull()
   })
 
   it('contains NONE of Flatten/Ramp/Shape/Simplify/Clear — they moved to the lane context menu', () => {
@@ -194,6 +141,17 @@ describe('AutomationToolbar — strip membership (D8/PK.C)', () => {
     expect(container.querySelector('[data-testid="flatten-selection-btn"]')).toBeNull()
     expect(container.querySelector('[data-testid="ramp-selection-btn"]')).toBeNull()
     expect(container.querySelector('[data-testid="shape-picker"]')).toBeNull()
+  })
+
+  it('contains NONE of the Mode selector or Overdub toggle — they moved to the transport bar (PK.C1)', () => {
+    const { container } = render(<AutomationToolbar />)
+    const labels = Array.from(container.querySelectorAll('button')).map((b) => b.textContent)
+    for (const removed of ['Read', 'Latch', 'Touch', 'Draw', 'Overdub']) {
+      expect(labels).not.toContain(removed)
+    }
+    expect(container.querySelector('[data-testid="overdub-toggle-btn"]')).toBeNull()
+    expect(container.querySelector('.auto-toolbar__modes')).toBeNull()
+    expect(container.querySelector('.auto-toolbar__mode-btn')).toBeNull()
   })
 })
 

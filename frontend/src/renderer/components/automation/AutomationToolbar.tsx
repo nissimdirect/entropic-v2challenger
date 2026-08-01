@@ -1,11 +1,18 @@
 /**
- * Mode cluster (Read/Latch/Touch/Draw) + Record cluster (Overdub, +Lane,
- * +Trigger, +Mod). Shows armed track name.
+ * Record cluster (+ Lane / + Trigger / + Mod, armed-track-scoped). Shows
+ * armed track name.
  *
  * D8/PK.C — curve ops (Flatten/Ramp/Shape/Simplify/Clear) are NOT here
  * anymore: they act on a specific lane, so they moved to the lane's own
  * right-click context menu (AutomationLane.tsx) instead of a global button
  * that could only guess "which lane?". See RATIFIED-FOUNDATIONS.md D8.
+ *
+ * PK.C1 (W1.5b, C2 mock ruling, RATIFIED-FOUNDATIONS.md D13) — the Mode
+ * cluster (Read/Latch/Touch/Draw) and the Overdub toggle are NOT here
+ * anymore either: they're global state (armed-track-independent), so they
+ * moved into the transport bar's automation cluster (App.tsx), attached to
+ * the playback controls. This strip keeps only the armed-track-scoped
+ * record actions.
  */
 import { useCallback, useState } from 'react'
 import Select from '../common/Select'
@@ -29,13 +36,6 @@ const TIER1_DOMAINS: { value: Axis; label: string }[] = [
   { value: 't', label: 'Time' },
   { value: 'y', label: 'Y (scanline)' },
   { value: 'x', label: 'X (scanline)' },
-]
-
-const MODES: { value: AutomationMode; label: string; title: string }[] = [
-  { value: 'read', label: 'R', title: 'Read — playback only' },
-  { value: 'latch', label: 'L', title: 'Latch — record while playing' },
-  { value: 'touch', label: 'T', title: 'Touch — record while knob held' },
-  { value: 'draw', label: 'D', title: 'Draw — paint freehand' },
 ]
 
 const LANE_COLORS = ['#4ade80', '#f59e0b', '#ef4444', '#3b82f6', '#a855f7', '#ec4899']
@@ -86,11 +86,7 @@ const PROJECT_PARAM_OPTIONS: ParamOption[] = [
 ]
 
 export default function AutomationToolbar() {
-  const mode = useAutomationStore((s) => s.mode)
   const armedTrackId = useAutomationStore((s) => s.armedTrackId)
-  // A4 — continuous-lane overdub toggle (D2: 'replace'/punch-replace is the
-  // locked default; 'overdub' additively layers new points instead).
-  const recordMode = useAutomationStore((s) => s.recordMode)
   const tracks = useTimelineStore((s) => s.tracks)
   // A1+A2: transform lanes target the SELECTED clip on the armed track. Subscribe
   // so the picker refreshes when the selection changes.
@@ -120,15 +116,6 @@ export default function AutomationToolbar() {
   // Existing modulation lanes on the armed track — listed with an inline
   // blendOp selector so it's editable after creation, not just at add-time.
   const armedModulationLanes = armedTrackLanes.filter((l) => l.kind === 'modulation')
-
-  const handleModeChange = useCallback((newMode: AutomationMode) => {
-    useAutomationStore.getState().setMode(newMode)
-  }, [])
-
-  const handleToggleRecordMode = useCallback(() => {
-    const state = useAutomationStore.getState()
-    state.setRecordMode(state.recordMode === 'overdub' ? 'replace' : 'overdub')
-  }, [])
 
   const getAvailableParams = useCallback((): ParamOption[] => {
     if (!armedTrack) return []
@@ -340,38 +327,13 @@ export default function AutomationToolbar() {
 
   return (
     <div className="auto-toolbar">
-      <div className="auto-toolbar__modes">
-        {MODES.map((m) => (
-          <button
-            key={m.value}
-            className={`auto-toolbar__mode-btn${mode === m.value ? ' auto-toolbar__mode-btn--active' : ''}`}
-            onClick={() => handleModeChange(m.value)}
-            title={m.title}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
-      {/* D8/PK.C — Record cluster: write-mode + lane-creation controls,
-          divided from the Mode cluster (horizontal-divider convention,
-          automation.css `.auto-toolbar__record`). Curve ops used to live
-          here too; they're lane-contextual now (AutomationLane.tsx). */}
+      {/* D8/PK.C — Record cluster: lane-creation controls (armed-track-scoped).
+          PK.C1: the Mode cluster and Overdub toggle that used to sit here
+          moved to the transport bar (global state, App.tsx) — this is now
+          the strip's only top-level grouping container. Curve ops
+          (Flatten/Ramp/Shape/Simplify/Clear) are lane-contextual
+          (AutomationLane.tsx), not here either. */}
       <div className="auto-toolbar__record" data-testid="auto-toolbar-record-cluster">
-        {/* A4 — overdub toggle: 'replace' (default, D2 punch-replace) overwrites a
-            nearby point when recording; 'overdub' additively layers new points
-            on top of the existing lane instead. Not gated on armedTrackId — it's
-            a write-mode preference, consulted the next time a point is recorded. */}
-        <button
-          className={`auto-toolbar__btn${recordMode === 'overdub' ? ' auto-toolbar__btn--active' : ''}`}
-          onClick={handleToggleRecordMode}
-          title={recordMode === 'overdub'
-            ? 'Overdub — new points layer on top of existing automation (click for Replace)'
-            : 'Replace — recording overwrites nearby points (click for Overdub)'}
-          data-testid="overdub-toggle-btn"
-          aria-pressed={recordMode === 'overdub'}
-        >
-          Overdub
-        </button>
         {/* F-0512-34: when no track is armed, the tooltips tell users HOW to
             arm — previously they only mentioned the precondition and the user
             had no way to discover the "R" button on the track header

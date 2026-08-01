@@ -742,8 +742,13 @@ export function TrackLane({ track, zoom, scrollX, isSelected, selectedClipIds, w
           height={TRACK_HEIGHT}
         />
       ))}
-      {/* Draw mode overlay for first visible lane */}
-      {automationMode === 'draw' && automationLanes.length > 0 && automationLanes[0].isVisible && (
+      {/* Draw mode overlay for the first lane. PK.C1 curve-visibility
+          contract (RATIFIED-FOUNDATIONS.md D13): this used to also require
+          automationLanes[0].isVisible, which meant a hidden lane could never
+          be drawn on at all (no overlay to catch the pointer). Now the
+          overlay always mounts when a lane exists, and AutomationDraw
+          reveals the lane itself the moment a stroke starts. */}
+      {automationMode === 'draw' && automationLanes.length > 0 && (
         <AutomationDraw
           trackId={track.id}
           laneId={automationLanes[0].id}

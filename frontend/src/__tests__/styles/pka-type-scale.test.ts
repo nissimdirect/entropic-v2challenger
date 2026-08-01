@@ -34,13 +34,18 @@ describe('PK.A — Scale B+1 tokens', () => {
     ['tool-rail.css', '.tool-rail__group-label'],
     ['tool-rail.css', '.tool-rail__hotkey'],
     ['tool-rail.css', '.tool-rail__fallback-label'],
-    ['automation.css', '.auto-toolbar__mode-btn'],
     ['automation.css', '.auto-toolbar__btn'],
     ['automation.css', '.auto-toolbar__hint'],
     ['automation.css', '.track-header__badge'],
     ['timeline.css', '.master-track-lane__label'],
     ['global.css', '.app__transport-btn'],
-    ['global.css', '.app__transport-timecode'],
+    // PK.C1 (W1.5b, C2 mock ruling): .auto-toolbar__mode-btn moved out of
+    // AutomationToolbar into the transport bar as .app__transport-automation-btn;
+    // .app__transport-timecode moved out of the transport bar to
+    // .app__preview-timecode under the preview window. Both new selectors
+    // still route through --cx-text-label (same tier the originals used).
+    ['global.css', '.app__transport-automation-btn'],
+    ['global.css', '.app__preview-timecode'],
     ['global.css', '.app__transport-select'],
     ['global.css', '.effect-browser__tab'],
     ['global.css', '.preview-canvas__placeholder'],
