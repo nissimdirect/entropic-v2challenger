@@ -217,3 +217,22 @@ curve-visibility reveal-on-stroke, `handleMouseDown` only) — App.tsx is
 ALSO claimed by the unmerged browser-folders change (sidebar render switch
 + ToolRail mount): non-overlapping regions, reconciled in
 RECONCILIATIONS.md row R2.
+
+## Ledger (closed 2026-08-01)
+
+| Packet | Status | Evidence |
+|---|---|---|
+| PK.A1 grid overlay | ✅ | PR #488 (2115a16) |
+| PK.A2 LOD coarsening | ✅ | PR #488 (+ 4bar-tier fix PR #491 item 2) |
+| PK.A3 readout chip | ✅ | PR #488 (703884a) |
+| PK.A4 unified drag-selection | ✅ | PR #488 (954aa75, unification ruling; D12) |
+| PK.B1 unified track header | ✅ | PR #489 (+ eye-clip fix a33ac51; master alignment PR #493) |
+| PK.B2 scroll-into-view | ✅ | PR #489 |
+| PK.C1 transport re-layout | ✅ | PR #490 (D13) — superseded in part by C2 round 2 |
+| C2 round 2 (dropdown · write-mode glyph · Add mode) | ✅ | PR #494 (D13.1) |
+| Gate-fix (19 review findings) | ✅ | PR #491 |
+| tsc-ratchet | ✅ | PR #492 |
+| W1.6 walk-3 fixes | ✅ | PR #493 |
+
+Remaining owner-visible queue lives in PLANNING-QUEUE.md (W2 recon + rulings,
+W3 system-monitor/Info View, dead legacy TrackHeader flag-flip).
