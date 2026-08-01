@@ -52,9 +52,14 @@ export default function GridOverlay({ quantizeEnabled, bpm, quantizeDivision, zo
 
   // Bar layer listed first (painted on top) so bar-boundary pixels always
   // resolve to --cx-grid-bar even where a fine line coincides with a bar line.
+  // Single-layer branch (level 'bar' or '4bar') must render at `finePx`, not
+  // `barPx`: for 'bar' the two are identical (chosen beatsPerLine ===
+  // BAR_BEATS_PER_LINE), but for '4bar' `finePx` is the coarser 16-beat
+  // spacing that actually cleared the 10px floor — rendering `barPx` here
+  // painted 4-beat lines, i.e. the exact spacing '4bar' was chosen to avoid.
   const backgroundImage = showFineLayer
     ? `${buildGridGradient(barPx, '--cx-grid-bar')}, ${buildGridGradient(finePx, '--cx-grid-beat')}`
-    : buildGridGradient(barPx, '--cx-grid-bar')
+    : buildGridGradient(finePx, '--cx-grid-bar')
 
   // Named variable rather than an inline object literal on the JSX attribute
   // itself — ui-ratchets.sh's tsx_inline_style counter greps source text for

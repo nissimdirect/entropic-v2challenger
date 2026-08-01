@@ -27,6 +27,22 @@ import Timeline from '../renderer/components/timeline/Timeline'
 import WelcomeScreen from '../renderer/components/layout/WelcomeScreen'
 import { useTimelineStore } from '../renderer/stores/timeline'
 import { useAutomationStore } from '../renderer/stores/automation'
+import { useUndoStore } from '../renderer/stores/undo'
+import type { AudioClip, Track as TrackType } from '../shared/types'
+
+function baseAudioClip(overrides: Partial<Omit<AudioClip, 'id' | 'trackId'>> = {}): Omit<AudioClip, 'id' | 'trackId'> {
+  return {
+    path: '/tmp/kick.wav',
+    inSec: 0,
+    outSec: 4,
+    startSec: 0,
+    gainDb: 0,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+    muted: false,
+    ...overrides,
+  }
+}
 
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8')) as { version: string }
 
@@ -116,6 +132,106 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
     expect(document.querySelector('[data-testid="add-track-menu-item-video"]')).toBeNull()
   })
 
+  it('P2.7: right-clicking an audio clip or the loop region does NOT open the lane-bed add-track menu; the empty bed still does', () => {
+    useTimelineStore.getState().reset()
+    const audioTrackId = useTimelineStore.getState().addAudioTrack('A1', '#4ade80')!
+    useTimelineStore.getState().addAudioClip(audioTrackId, baseAudioClip())
+    useTimelineStore.getState().setLoopRegion(1, 5)
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+
+    const audioClipEl = container.querySelector('[data-testid="audio-clip"]')
+    expect(audioClipEl).toBeTruthy()
+    fireEvent.contextMenu(audioClipEl!)
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')).toBeNull()
+
+    const loopRegionEl = container.querySelector('[data-testid="loop-region"]')
+    expect(loopRegionEl).toBeTruthy()
+    fireEvent.contextMenu(loopRegionEl!)
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')).toBeNull()
+
+    // The lane bed itself (the surface this menu is FOR) still works.
+    const laneBed = container.querySelector('.timeline__tracks-scroll')
+    fireEvent.contextMenu(laneBed!)
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')?.textContent).toBe('Add Video Track')
+  })
+
+  it('P3.12: an unrecognized track.type (e.g. corrupted/future project data) falls back to the generic header instead of crashing the whole timeline', () => {
+    useTimelineStore.getState().reset()
+    const id = useTimelineStore.getState().addTrack('V1', '#4ade80', 'video')!
+    // Simulate data TypeScript can't see at compile time: a track.type this
+    // build's TRACK_HEADER_BY_TYPE map doesn't recognize.
+    useTimelineStore.setState({
+      tracks: useTimelineStore.getState().tracks.map((t) =>
+        t.id === id ? { ...t, type: 'holographic-projection' as TrackType['type'] } : t,
+      ),
+    })
+
+    expect(() => render(<Timeline onSeek={() => {}} />)).not.toThrow()
+    // Falls back to the generic lean header, not a blank/missing row.
+    expect(document.querySelector('[data-testid="lean-track-header"]')).toBeTruthy()
+  })
+
+  it('P3.13b: Escape while focus is in a text input (e.g. the BPM field) does NOT clear an active selectionRegion', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('T', '#4ade80')
+    useTimelineStore.getState().setSelectionRegion({ in: 1, out: 5 })
+
+    render(<Timeline onSeek={() => {}} />)
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(useTimelineStore.getState().selectionRegion).toEqual({ in: 1, out: 5 })
+    document.body.removeChild(input)
+  })
+
+  it('P3.13b: Escape NOT in a text input DOES clear an active selectionRegion (hoisted single-listener regression guard)', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('T', '#4ade80')
+    useTimelineStore.getState().setSelectionRegion({ in: 1, out: 5 })
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    fireEvent.keyDown(container, { key: 'Escape' })
+
+    expect(useTimelineStore.getState().selectionRegion).toBeNull()
+  })
+
+  it('P3.15: headers <-> lanes scroll sync uses a ref, not a global querySelector — stays correct even with a stray .timeline__tracks-scroll element elsewhere in the document', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('T1', '#4ade80')
+
+    // A decoy sharing the class name, inserted BEFORE Timeline mounts.
+    // document.querySelector('.timeline__tracks-scroll') returns the FIRST
+    // match in document order — this decoy — if the ref fix regressed back
+    // to a global selector.
+    const decoy = document.createElement('div')
+    decoy.className = 'timeline__tracks-scroll'
+    document.body.insertBefore(decoy, document.body.firstChild)
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    const headers = container.querySelector('.timeline__track-headers') as HTMLElement
+    const lanes = container.querySelector('.timeline__tracks-scroll') as HTMLElement
+    expect(headers).toBeTruthy()
+    expect(lanes).toBeTruthy()
+    expect(lanes).not.toBe(decoy)
+
+    // Scrolling the lanes column syncs the headers column (handleScroll).
+    lanes.scrollTop = 42
+    fireEvent.scroll(lanes)
+    expect(headers.scrollTop).toBe(42)
+    expect(decoy.scrollTop).toBe(0) // decoy untouched, not mistaken for the real lanes column
+
+    // Scrolling the headers column syncs the lanes column (reverse direction).
+    headers.scrollTop = 17
+    fireEvent.scroll(headers)
+    expect(lanes.scrollTop).toBe(17)
+    expect(decoy.scrollTop).toBe(0)
+
+    document.body.removeChild(decoy)
+  })
+
   // QF6 (NEW, 2026-07-31 second owner walk): owner directive collapsed the
   // headers-spacer's + Track / + MIDI / + Inspector three-button row into a
   // single "+ Track" button opening the SAME unified menu as QF3's
@@ -184,6 +300,42 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
 
     expect(useTimelineStore.getState().selectedTrackId).toBe(t2.id)
     expect(useAutomationStore.getState().armedTrackId).toBe(t2.id)
+  })
+
+  it('P2.6: undo after deleting an armed track does NOT clobber a DIFFERENT track armed in the meantime', () => {
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    useAutomationStore.getState().resetAutomation()
+    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+    useTimelineStore.getState().addTrack('Track 2', '#00ff00')
+    const [t1, t2] = useTimelineStore.getState().tracks
+    useAutomationStore.getState().armTrack(t1.id)
+
+    useTimelineStore.getState().removeTrack(t1.id) // clears armedTrackId (QF4)
+    expect(useAutomationStore.getState().armedTrackId).toBeNull()
+
+    useAutomationStore.getState().armTrack(t2.id) // user arms a DIFFERENT track post-delete
+    useUndoStore.getState().undo() // restores t1
+
+    // Must stay on t2 — the inverse restoring t1's old arm state would
+    // clobber the user's subsequent, unrelated choice to arm t2.
+    expect(useAutomationStore.getState().armedTrackId).toBe(t2.id)
+  })
+
+  it('P2.6: undo after deleting an armed track with nothing armed since DOES re-arm the restored track', () => {
+    useTimelineStore.getState().reset()
+    useUndoStore.getState().clear()
+    useAutomationStore.getState().resetAutomation()
+    useTimelineStore.getState().addTrack('Track 1', '#ff0000')
+    const t1 = useTimelineStore.getState().tracks[0]
+    useAutomationStore.getState().armTrack(t1.id)
+
+    useTimelineStore.getState().removeTrack(t1.id)
+    expect(useAutomationStore.getState().armedTrackId).toBeNull()
+
+    useUndoStore.getState().undo() // restores t1, nothing armed since -> re-arm t1
+
+    expect(useAutomationStore.getState().armedTrackId).toBe(t1.id)
   })
 
   it('QF5: welcome screen renders the real package.json app version, not a hardcoded string', () => {

@@ -15,6 +15,7 @@ export default function LoopRegion({ loopIn, loopOut, zoom, scrollX }: LoopRegio
   return (
     <div
       className="loop-region"
+      data-testid="loop-region"
       style={{
         left: `${left}px`,
         width: `${width}px`,

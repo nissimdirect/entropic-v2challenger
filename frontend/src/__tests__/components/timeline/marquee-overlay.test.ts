@@ -13,6 +13,13 @@
  *
  * The intersection math (clip time-range vs marquee time-range) is exercised
  * at two zoom levels (50 px/s and 100 px/s) to satisfy the acceptance gate.
+ *
+ * NOTE: every test in this file is a LOGIC MIRROR — it re-implements
+ * MarqueeOverlay's math inline and never mounts the real component (see the
+ * section-8 comment below for how that was proven to miss a real
+ * regression). For a DOM-level oracle that mounts the actual component and
+ * drives it via fireEvent.pointerDown/Move/Up, see
+ * marquee-overlay-component.test.tsx.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest'
@@ -480,9 +487,19 @@ describe('marquee pointer sequence commits selection to timeline store and clips
 //    Mirrors MarqueeOverlay.computeSnappedRange/commitSelection exactly,
 //    using the REAL snapTimeToGridLevel + REAL layout/project store state
 //    (same mirror convention as commitSelection above — see file header).
+//
+//    LOGIC MIRROR — NOT A COMPONENT ORACLE (gate-fix packet P1.3): this
+//    section re-implements the component's math inline via
+//    simulateUnifiedDrag/computeSnappedRange and never mounts MarqueeOverlay
+//    itself, so a broken component (e.g. handlePointerDown never setting
+//    isDragging) still passes every test here — verified by hand during the
+//    P1.3 fix. Fast unit coverage for the math is still valuable, so these
+//    stay, but the real DOM-level oracle for the drag gesture is
+//    marquee-overlay-component.test.tsx (mounts the actual component and
+//    drives it with fireEvent.pointerDown/Move/Up).
 // ---------------------------------------------------------------------------
 
-describe('PK.A4 unified gesture — selectionRegion + clip selection from one drag', () => {
+describe('PK.A4 unified gesture — logic mirror (selectionRegion + clip selection math, not a component oracle)', () => {
   let trackId: string
 
   beforeEach(() => {

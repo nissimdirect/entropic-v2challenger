@@ -9,6 +9,7 @@ import { InspectorTrackHeader, InspectorTrackLane } from './InspectorTrack'
 import { MasterTrackHeader, MasterTrackLane } from './MasterTrack'
 import GridOverlay from './GridOverlay'
 import LoopRegion from './LoopRegion'
+import { cancelActiveMarqueeDrag } from './MarqueeOverlay'
 import MarkerFlag from './MarkerFlag'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
@@ -26,6 +27,17 @@ const TRACK_HEADER_BY_TYPE: Record<TrackType['type'], (props: { track: TrackType
   audio: AudioTrackHeader,
   inspector: InspectorTrackHeader,
   master: MasterTrackHeader,
+}
+
+// P3.12: TrackType['type'] is exhaustive at the TYPE level, but a runtime
+// track.type can still miss the map — e.g. a persisted project from a
+// future app version with a track type this build doesn't know, or
+// corrupted/hand-edited project JSON. TRACK_HEADER_BY_TYPE[track.type]
+// returning undefined there would render `<undefined ... />`, which React
+// throws on (white screen for the whole timeline, not just one row).
+// Fall back to the generic TrackHeader rather than crash.
+function getTrackHeaderComponent(type: TrackType['type']): (props: { track: TrackType; isSelected: boolean }) => React.ReactElement {
+  return TRACK_HEADER_BY_TYPE[type] ?? TrackHeader
 }
 
 interface TimelineProps {
@@ -75,6 +87,33 @@ export default function Timeline({
   const selectedClipIds = useTimelineStore((s) => s.selectedClipIds)
   const markers = useTimelineStore((s) => s.markers)
   const loopRegion = useTimelineStore((s) => s.loopRegion)
+
+  // P3.13b: ONE Escape listener for the whole timeline, replacing what used
+  // to be one window.addEventListener('keydown', ...) registered PER MOUNTED
+  // MarqueeOverlay instance (one per lane/track — N identical listeners for
+  // N tracks, all doing the same thing redundantly). Text-input guard
+  // mirrors shortcutRegistry.handleKeyEvent's isTextInput check (shortcuts.ts)
+  // so Escape inside e.g. the BPM input still lets the browser/input handle
+  // it normally instead of also clearing the arrangement selection region.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const target = e.target as HTMLElement | null
+      const isTextInput =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      if (isTextInput) return
+      // Mid-drag cancel (unchanged NEGATIVE behavior: does NOT touch clip
+      // selection) takes priority over clearing an already-committed region.
+      if (cancelActiveMarqueeDrag()) return
+      if (useTimelineStore.getState().selectionRegion) {
+        useTimelineStore.getState().clearSelectionRegion()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const height = useLayoutStore((s) => s.timelineHeight)
   const setHeight = useCallback((h: number) => useLayoutStore.getState().setTimelineHeight(h), [])
@@ -141,6 +180,12 @@ export default function Timeline({
   // in the JSX below for what stays vs. goes).
   const [addTrackMenu, setAddTrackMenu] = useState<{ x: number; y: number } | null>(null)
   const handleLaneBedContextMenu = useCallback((e: React.MouseEvent) => {
+    // P2.7: this handler is bound on .timeline__tracks-scroll, which
+    // contains clips, audio clips, and the loop region as descendants — a
+    // right-click on any of THOSE should open their OWN context menu (or
+    // none), not the lane-bed's add-track menu. Guard against those
+    // surfaces explicitly rather than relying on stopPropagation elsewhere.
+    if ((e.target as HTMLElement).closest('.clip, [data-testid="audio-clip"], [data-testid="loop-region"]')) return
     e.preventDefault()
     setAddTrackMenu({ x: e.clientX, y: e.clientY })
   }, [])
@@ -160,6 +205,13 @@ export default function Timeline({
   // left/right halves of each row stay aligned when the user has more tracks
   // than fit in the visible area.
   const headersRef = useRef<HTMLDivElement | null>(null)
+  // P3.15: the counterpart ref for .timeline__tracks-scroll — replaces two
+  // document.querySelector('.timeline__tracks-scroll') call sites (this
+  // effect below, and the headers column's onScroll handler further down).
+  // A global selector query is both wasteful on every scroll tick and
+  // fragile: querySelector returns the FIRST match in document order, which
+  // is not necessarily THIS Timeline instance's own lanes column.
+  const lanesRef = useRef<HTMLDivElement | null>(null)
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     useTimelineStore.getState().setScrollX(e.currentTarget.scrollLeft)
     const headers = headersRef.current
@@ -200,7 +252,7 @@ export default function Timeline({
     container.scrollTop = newScrollTop
     // Keep the lanes column in sync (same manual mirror handleScroll already
     // does for the reverse direction).
-    const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+    const lanes = lanesRef.current
     if (lanes) lanes.scrollTop = newScrollTop
   }, [selectedTrackId])
 
@@ -352,14 +404,14 @@ export default function Timeline({
             onScroll={(e) => {
               // Reverse direction: user wheel-scrolls the headers column →
               // keep the lanes in sync so each row's left + right stay matched.
-              const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+              const lanes = lanesRef.current
               if (lanes && lanes.scrollTop !== e.currentTarget.scrollTop) {
                 lanes.scrollTop = e.currentTarget.scrollTop
               }
             }}
           >
             {orderedTracks.map((track) => {
-              const Header = TRACK_HEADER_BY_TYPE[track.type]
+              const Header = getTrackHeaderComponent(track.type)
               return <Header key={track.id} track={track} isSelected={track.id === selectedTrackId} />
             })}
             {masterTrack && (
@@ -379,7 +431,7 @@ export default function Timeline({
               <TimeRuler zoom={zoom} scrollX={0} duration={duration} onSeek={onSeek} />
             </div>
           </div>
-          <div className="timeline__tracks-scroll" onScroll={handleScroll} onContextMenu={handleLaneBedContextMenu}>
+          <div className="timeline__tracks-scroll" ref={lanesRef} onScroll={handleScroll} onContextMenu={handleLaneBedContextMenu}>
             <div style={{
               width: `${contentWidth}px`,
               position: 'relative',

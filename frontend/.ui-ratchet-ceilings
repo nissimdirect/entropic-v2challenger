@@ -3,7 +3,7 @@
 # Rule (d): a counter at 0 is a hard ban — never raise a ceiling.
 css_hex_outside_styles=0
 tsx_hex=178
-tsx_inline_style=138
+tsx_inline_style=134
 css_font_below_floor=225
 tsx_raw_range=0
 tsx_native_select=0

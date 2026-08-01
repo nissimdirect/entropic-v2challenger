@@ -263,7 +263,7 @@ describe('Timeline UI — Master track (M.2)', () => {
     render(<Timeline onSeek={() => {}} />)
     const masterLane = document.querySelector('[data-testid="master-track-lane"]')!
     expect(masterLane.querySelector('.clip')).toBeNull()
-    expect(masterLane.querySelector('.marquee-overlay')).not.toBeNull()
+    expect(masterLane.querySelector('[data-testid="marquee-overlay"]')).not.toBeNull()
   })
 
   // QUARANTINED (CI-flaky 3×): the last-in-DOM-order assertion is nondeterministic

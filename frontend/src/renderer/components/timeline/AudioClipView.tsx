@@ -154,6 +154,7 @@ export default function AudioClipView({ clip, zoom, isSelected, waveformPeaks }:
   return (
     <div
       className={`audio-clip${isSelected ? ' audio-clip--selected' : ''}${clip.muted ? ' audio-clip--muted' : ''}${clip.missing ? ' audio-clip--missing' : ''}`}
+      data-testid="audio-clip"
       data-clip-id={clip.id}
       style={{
         position: 'absolute',

@@ -95,12 +95,39 @@ interface Props {
   containerRef: React.RefObject<HTMLElement | null>
 }
 
+// P3.13b: module-level (NOT per-instance) — pointer capture means only ONE
+// mounted MarqueeOverlay can ever be mid-drag at a time, regardless of how
+// many lanes/tracks exist. Sharing this flag here (instead of each
+// instance's own useRef) is what lets Timeline.tsx register a SINGLE
+// Escape listener instead of one per lane (previously N identical
+// window.addEventListener('keydown', ...) registrations for N tracks).
+const activeDrag = { current: false }
+
+/**
+ * P3.13b: called by Timeline.tsx's single hoisted Escape listener.
+ * Mirrors this component's former per-instance mid-drag Escape branch
+ * exactly: cancels the in-progress drag and clears the in-progress
+ * selectionRegion, WITHOUT touching clip selection (unchanged NEGATIVE
+ * behavior). Returns true if a drag WAS in progress and got cancelled —
+ * the caller should not also run its "clear an already-committed region"
+ * branch in that case (this already cleared it).
+ */
+export function cancelActiveMarqueeDrag(): boolean {
+  if (!activeDrag.current) return false
+  activeDrag.current = false
+  useTimelineStore.getState().clearSelectionRegion()
+  return true
+}
+
 export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }: Props) {
-  const isDragging = useRef(false)
   const startX = useRef(0) // client X at pointer-down
   const startY = useRef(0)
-  // Ref mirrors isDragging for click-suppression access in the click handler
-  const isDraggingRef = useRef(false)
+  // P3.13d: the {capture,once} click-suppressor added in handlePointerUp
+  // only self-removes once it FIRES — if this instance unmounts before the
+  // next click happens (e.g. the track is deleted right after a drag), the
+  // listener leaked on `window` forever. Stored here so unmount cleanup can
+  // remove it explicitly.
+  const pendingClickSuppressorRef = useRef<((ev: MouseEvent) => void) | null>(null)
 
   // Global selection-region state — every mounted MarqueeOverlay (one per
   // lane) subscribes to the SAME value, so a drag in any one lane renders a
@@ -195,8 +222,7 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
       e.stopPropagation()
       ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
 
-      isDragging.current = true
-      isDraggingRef.current = true
+      activeDrag.current = true
       startX.current = e.clientX
       startY.current = e.clientY
     },
@@ -205,20 +231,27 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isDragging.current) return
-      // Live preview: update the global selectionRegion on every move so
-      // every mounted overlay's band tracks the drag in real time.
+      if (!activeDrag.current) return
       const range = computeSnappedRange(e.clientX, e.altKey)
-      if (range) useTimelineStore.getState().setSelectionRegion(range)
+      if (!range) return
+      // P3.13a: equality-bail — many raw pixel positions can snap to the
+      // SAME range (quantize grid buckets, or simply sub-pixel mouse jitter
+      // when not snapping), and every mounted MarqueeOverlay (one per lane)
+      // re-renders on every setSelectionRegion call. Skip the store write
+      // (and the resulting N-lane re-render) when the snapped range hasn't
+      // actually changed since the last update.
+      const current = useTimelineStore.getState().selectionRegion
+      if (current && current.in === range.in && current.out === range.out) return
+      useTimelineStore.getState().setSelectionRegion(range)
     },
     [computeSnappedRange],
   )
 
   const handlePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
-      if (!isDragging.current) return
+      if (!activeDrag.current) return
 
-      isDragging.current = false
+      activeDrag.current = false
 
       const dx = Math.abs(e.clientX - startX.current)
 
@@ -229,55 +262,50 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
       } else {
         commitSelection(e.clientX, e.shiftKey)
         const range = computeSnappedRange(e.clientX, e.altKey)
-        if (range) useTimelineStore.getState().setSelectionRegion(range)
+        // A raw drag can still clear the 2px floor yet snap in/out to the
+        // SAME grid line at a coarse LOD (e.g. '4bar' at low zoom) — commit
+        // a zero-width region as a clear, not a degenerate range.
+        if (range && range.in !== range.out) {
+          useTimelineStore.getState().setSelectionRegion(range)
+        } else {
+          useTimelineStore.getState().clearSelectionRegion()
+        }
       }
 
       // Suppress the synthetic click from pointerup so the TrackLane's
       // onClick (which calls clearSelection) doesn't immediately undo our
       // selection commit. We use a one-shot click capture on the window.
       // Pattern from feedback_drag-end-suppresses-click.md.
-      window.addEventListener(
-        'click',
-        (ev) => ev.stopPropagation(),
-        { capture: true, once: true },
-      )
-
-      // Reset the ref one animation frame later (after the click fires)
-      requestAnimationFrame(() => {
-        isDraggingRef.current = false
-      })
+      // P3.13d: stored so unmount cleanup can remove it even if it never fires.
+      const suppressClick = (ev: MouseEvent) => ev.stopPropagation()
+      pendingClickSuppressorRef.current = suppressClick
+      window.addEventListener('click', suppressClick, { capture: true, once: true })
     },
     [commitSelection, computeSnappedRange],
   )
 
   const handlePointerCancel = useCallback(() => {
-    isDragging.current = false
-    isDraggingRef.current = false
+    activeDrag.current = false
     // No proper commit happened — matches the zero-area-click clear.
     useTimelineStore.getState().clearSelectionRegion()
   }, [])
 
-  // Escape: mid-drag cancels WITHOUT changing clip selection (unchanged
-  // NEGATIVE behavior) but DOES clear the in-progress selectionRegion.
-  // Not-mid-drag: PK.A4 "Esc clears" an already-committed selectionRegion
-  // (clip selection has its own, separate clear path — untouched here).
-  // Mounted once per lane; redundant across instances but idempotent.
+  // P3.13d: guarantee the click-suppressor never outlives this instance,
+  // even if it hasn't fired yet when we unmount (e.g. the track is deleted
+  // immediately after a drag, before the user's next click).
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape') return
-      if (isDragging.current) {
-        isDragging.current = false
-        isDraggingRef.current = false
-        useTimelineStore.getState().clearSelectionRegion()
-        return
-      }
-      if (useTimelineStore.getState().selectionRegion) {
-        useTimelineStore.getState().clearSelectionRegion()
+    return () => {
+      if (pendingClickSuppressorRef.current) {
+        window.removeEventListener('click', pendingClickSuppressorRef.current, { capture: true })
+        pendingClickSuppressorRef.current = null
       }
     }
-    window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  // P3.13b: Escape handling moved to Timeline.tsx's single hoisted listener
+  // (calls cancelActiveMarqueeDrag, exported above) — this used to be a
+  // window.addEventListener('keydown', ...) registered once PER MOUNTED
+  // INSTANCE (one per lane/track), all doing the same thing redundantly.
 
   // This lane's pixel projection of the global selectionRegion.
   const band = selectionRegion
@@ -287,20 +315,7 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
   return (
     <div
       className="marquee-overlay"
-      style={{
-        position: 'absolute',
-        inset: 0,
-        // Pointer events enabled so we catch pointerdown on the background.
-        // Clip.tsx calls stopPropagation so clip-body gestures never reach here.
-        pointerEvents: 'all',
-        // z-index: 0 so that clips (rendered AFTER this in DOM order, same
-        // stacking context) naturally sit above and receive their own pointer
-        // events. The overlay only catches events that fall through the gaps
-        // between clips (i.e., empty track background).
-        zIndex: 0,
-        // The overlay itself is transparent — only the band is visible
-        background: 'transparent',
-      }}
+      data-testid="marquee-overlay"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

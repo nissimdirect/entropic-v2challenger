@@ -12,6 +12,7 @@ import { setupMockEntropic, teardownMockEntropic } from '../../helpers/mock-entr
 import { useTimelineStore } from '../../../renderer/stores/timeline'
 import GridOverlay, { TRACK_ROW_HEIGHT_PX } from '../../../renderer/components/timeline/GridOverlay'
 import Timeline from '../../../renderer/components/timeline/Timeline'
+import { selectQuantizeGridLevel, snapTimeToGridLevel } from '../../../renderer/utils/quantize-grid'
 
 describe('GridOverlay — direct', () => {
   afterEach(() => cleanup())
@@ -55,6 +56,34 @@ describe('GridOverlay — direct', () => {
     const bg = (getByTestId('quantize-grid-overlay') as HTMLElement).style.backgroundImage
     expect(bg).toContain('var(--cx-grid-bar)')
     expect(bg).not.toMatch(/#[0-9a-fA-F]{3,6}/)
+  })
+
+  test('4bar LOD renders at the fine (16-beat) spacing, not the bar (4-beat) spacing — GridOverlay.tsx single-layer branch', () => {
+    const bpm = 120
+    const quantizeDivision = 4
+    // barPx = 4 beats * 0.5s/beat * zoom = 4 (fails 10px floor);
+    // finePx (4bar) = 16 beats * 0.5s/beat * zoom = 16 (clears floor) — forces level '4bar'.
+    const zoom = 2
+    const { level, fineIntervalSeconds } = selectQuantizeGridLevel(bpm, quantizeDivision, zoom)
+    expect(level).toBe('4bar')
+
+    const { getByTestId } = render(
+      <GridOverlay quantizeEnabled bpm={bpm} quantizeDivision={quantizeDivision} zoom={zoom} contentWidth={1000} rowCount={2} />,
+    )
+    const bg = (getByTestId('quantize-grid-overlay') as HTMLElement).style.backgroundImage
+    const match = bg.match(/var\(--cx-grid-bar\)\s*([\d.]+)px\)/)
+    expect(match).toBeTruthy()
+    const renderedPx = Number(match![1])
+    // Must equal fineIntervalSeconds*zoom (16px) — NOT barIntervalSeconds*zoom (4px, the bug).
+    expect(renderedPx).toBeCloseTo(fineIntervalSeconds * zoom, 5)
+
+    // The snap helper must agree with what's actually painted: rounding to
+    // the nearest multiple of the on-screen spacing (in seconds) matches
+    // snapTimeToGridLevel's output at the same bpm/division/zoom.
+    const renderedIntervalSeconds = renderedPx / zoom
+    const t = 5.3
+    const expectedSnap = Math.round(t / renderedIntervalSeconds) * renderedIntervalSeconds
+    expect(snapTimeToGridLevel(t, bpm, quantizeDivision, zoom)).toBeCloseTo(expectedSnap, 5)
   })
 })
 

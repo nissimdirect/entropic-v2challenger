@@ -144,19 +144,16 @@ export function MasterTrackHeader({ track, isSelected }: MasterTrackHeaderProps)
     <UnifiedTrackHeader
       track={track}
       isSelected={isSelected}
-      capabilities={{ arm: true, blend: false, mute: false, solo: false, visibility: false, lock: false, twirl: false, drag: false }}
       typeBadge="master"
       typeBadgeLabel="Master track"
       rootTestId="master-track-header"
       rootClassNameExtra="master-track-header"
-      armTestId="master-track-auto-btn"
       nameClassNameExtra="master-track-header__name"
       swatchClassNameExtra="master-track-header__color"
       badgeClassNameExtra="master-track-header__badge"
       onClick={handleClick}
       onContextMenu={handleContextMenu}
-      isArmed={isArmed}
-      onArmToggle={handleArmToggle}
+      arm={{ isArmed, onToggle: handleArmToggle, testId: 'master-track-auto-btn' }}
       ctxMenu={ctxMenu && (
         <ContextMenu
           x={ctxMenu.x}

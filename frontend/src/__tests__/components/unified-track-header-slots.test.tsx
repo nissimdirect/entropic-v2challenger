@@ -105,4 +105,35 @@ describe('UnifiedTrackHeader — PK.B1 slot-order oracle', () => {
       expect(new Set(seq).size).toBe(seq.length)
     }
   })
+
+  // P2.8: AudioTrackHeader and InspectorTrackHeader passed rootClassNameExtra
+  // but not rootTestId, so their root <div> had NO data-testid attribute at
+  // all — every other wrapper (Track.tsx's TrackHeader, MasterTrackHeader)
+  // does pass one. video/text/performance share Track.tsx's TrackHeader and
+  // its single "lean-track-header" testid by design (one generic component).
+  it('every wrapper\'s UnifiedTrackHeader root carries a data-testid (video/text/performance share "lean-track-header")', () => {
+    const videoId = useTimelineStore.getState().addTrack('V1', '#4ade80', 'video')!
+    const textId = useTimelineStore.getState().addTrack('T1', '#6366f1', 'text')!
+    const midiId = useTimelineStore.getState().addTrack('M1', '#3b82f6', 'performance')!
+    const audioId = useTimelineStore.getState().addAudioTrack('A1', '#f59e0b')!
+    const inspectorId = useTimelineStore.getState().addInspectorTrack('I1', '#5fd7a8')!
+    const masterId = useTimelineStore.getState().addMasterTrack()!
+    const tracks = useTimelineStore.getState().tracks
+    const byId = (id: string) => tracks.find((t) => t.id === id)!
+
+    const cases: Array<[TrackType['type'], HTMLElement, string]> = [
+      ['video', render(<TrackHeader track={byId(videoId)} isSelected={false} />).container, 'lean-track-header'],
+      ['text', render(<TrackHeader track={byId(textId)} isSelected={false} />).container, 'lean-track-header'],
+      ['performance', render(<TrackHeader track={byId(midiId)} isSelected={false} />).container, 'lean-track-header'],
+      ['audio', render(<AudioTrackHeader track={byId(audioId)} isSelected={false} />).container, 'audio-track-header'],
+      ['inspector', render(<InspectorTrackHeader track={byId(inspectorId)} isSelected={false} />).container, 'inspector-track-header'],
+      ['master', render(<MasterTrackHeader track={byId(masterId)} isSelected={false} />).container, 'master-track-header'],
+    ]
+
+    for (const [type, container, expectedTestId] of cases) {
+      const root = container.querySelector('.track-header')
+      expect(root, `${type} header root`).toBeTruthy()
+      expect(root!.getAttribute('data-testid'), `${type} header root data-testid`).toBe(expectedTestId)
+    }
+  })
 })

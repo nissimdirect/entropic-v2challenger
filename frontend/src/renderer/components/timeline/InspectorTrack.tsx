@@ -88,27 +88,29 @@ export function InspectorTrackHeader({ track, isSelected }: InspectorTrackHeader
     <UnifiedTrackHeader
       track={track}
       isSelected={isSelected}
-      capabilities={{ arm: false, blend: false, mute: true, solo: true, visibility: false, lock: false, twirl: false, drag: true }}
       typeBadge="scope"
       typeBadgeLabel="Inspector track"
+      rootTestId="inspector-track-header"
       rootClassNameExtra="inspector-track-header"
       ownIdx={drag.ownIdx}
       isDragging={dragFromIdx !== null && dragFromIdx === drag.ownIdx}
-      onPointerDown={drag.onPointerDown}
+      drag={{ onPointerDown: drag.onPointerDown }}
       onClick={handleClick}
-      isRenaming={isRenaming}
-      renameText={renameText}
-      onRenameChange={(e) => setRenameText(e.target.value)}
-      onRenameKeyDown={(e) => {
-        if (e.key === 'Enter') confirmRename()
-        else if (e.key === 'Escape') cancelRename()
-        e.stopPropagation()
+      rename={{
+        isRenaming,
+        text: renameText,
+        onChange: (e) => setRenameText(e.target.value),
+        onKeyDown: (e) => {
+          if (e.key === 'Enter') confirmRename()
+          else if (e.key === 'Escape') cancelRename()
+          e.stopPropagation()
+        },
+        onBlur: confirmRename,
+        inputRef: renameInputRef,
+        onDoubleClick: startRename,
       }}
-      onRenameBlur={confirmRename}
-      renameInputRef={renameInputRef}
-      onNameDoubleClick={startRename}
-      onMute={handleMute}
-      onSolo={handleSolo}
+      mute={{ onToggle: handleMute }}
+      solo={{ onToggle: handleSolo }}
     />
   )
 }

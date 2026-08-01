@@ -1181,8 +1181,13 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
         if (pruneSnap) restoreEffectDependents(pruneSnap)
         // QF4: symmetric restore — only reapplies if THIS delete was the one
         // that cleared it (avoids clobbering a DIFFERENT track armed after
-        // the delete but before an undo).
-        if (prevArmedTrackId === id) {
+        // the delete but before an undo). The prevArmedTrackId===id check
+        // alone isn't enough: it only proves THIS delete cleared armedTrackId
+        // at delete-time, not that nothing else has armed a track SINCE —
+        // e.g. delete armed A -> arm B -> undo must leave B armed, not
+        // clobber it back to A. Also require the CURRENT armedTrackId to
+        // still be null (i.e. nothing armed itself in between).
+        if (prevArmedTrackId === id && useAutomationStore.getState().armedTrackId === null) {
           useAutomationStore.setState({ armedTrackId: id })
         }
       },
@@ -2410,6 +2415,11 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   // --- Loop ---
 
   setLoopRegion: (inTime, outTime) => {
+    // Guard against zero/negative-width loop regions (defense in depth —
+    // callers like App.tsx's copy_selection_to_loop already guard too, but
+    // this is the single choke point every caller routes through).
+    if (!(inTime < outTime)) return
+
     const oldRegion = get().loopRegion
 
     undoable(

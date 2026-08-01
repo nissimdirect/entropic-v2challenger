@@ -16,17 +16,20 @@
  * TWO OR MORE unmerged changes that lacks a RECONCILIATIONS.md row mentioning
  * both change names together.
  *
- * FINDING (2026-07-31, W2 preflight): the live sweep below turned up 18
- * already-existing, undocumented collisions across the Lane-2/Lane-4 campaign
+ * FINDING (2026-07-31, W2 preflight): the live sweep below originally turned up
+ * 18 already-existing, undocumented collisions across the Lane-2/Lane-4 campaign
  * (mostly App.tsx and a handful of shared stores — expected in a multi-lane repo,
- * but exactly the class of silent overlap A4 exists to catch). Resolving all 18
- * is out of scope for this preflight packet (it touches proposals this session
- * didn't author). Per the Rule Admission Law's ratchet convention (this repo's
- * own hex-ratchet.sh / type-histogram-guard.sh precedent), the live-tree test
- * below is a ratchet: it commits today's count as a ceiling and fails only if
- * NEW undocumented collisions are introduced, rather than gating on a
- * zero-violations state that does not honestly exist yet. See the PR body for
- * the full 18-row list.
+ * but exactly the class of silent overlap A4 exists to catch); that count has
+ * since dropped to 10 as other lanes' Ledgers completed. Resolving all of them
+ * is out of scope for this packet (it touches proposals this session didn't
+ * author). Per the Rule Admission Law's ratchet convention (this repo's own
+ * hex-ratchet.sh / type-histogram-guard.sh precedent), the live-tree test below
+ * is a ratchet — but P3.14 (gate-fix packet) upgraded it from a bare COUNT
+ * ceiling to an IDENTITY baseline (VIOLATION_BASELINE below): a count-only
+ * ceiling can pass even when a brand-new, unreviewed collision replaces a
+ * resolved one in the same window (count stays flat or drops, but the new pair
+ * was never reviewed). The identity check catches that; existing baseline
+ * entries are retired individually as RECONCILIATIONS rows land for each pairing.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -41,10 +44,49 @@ const REPO_ROOT = path.resolve(__dirname, '../../..')
 const CHANGES_DIR = path.join(REPO_ROOT, 'openspec', 'changes')
 const RECONCILIATIONS_PATH = path.join(REPO_ROOT, 'docs', 'frontend', 'RECONCILIATIONS.md')
 
-// Pre-existing, undocumented collisions discovered on 2026-07-31 (W2 preflight).
-// This is a RATCHET ceiling, not a target — it must not increase; it should only
-// ever decrease as RECONCILIATIONS rows land for each pairing. See PR body.
-const LIVE_VIOLATION_CEILING = 18
+/**
+ * P3.14 — RATCHET IDENTITY, not a count. Baselined 2026-07-31 (gate-fix
+ * packet). A count-only ceiling (`violations.length <= N`) can pass even
+ * when a genuinely NEW, unreviewed collision appears, as long as some OTHER
+ * pre-existing violation got resolved in the same window and the total
+ * stays flat or drops — the new pair would never get caught. Asserting
+ * every live violation is a MEMBER of this exact baseline set means any
+ * NOVEL {path, changes} pair fails regardless of the total count; existing
+ * baseline entries may still be individually retired as RECONCILIATIONS
+ * rows land (remove the entry here in the same commit that adds the row).
+ */
+const VIOLATION_BASELINE: Violation[] = [
+  { path: 'frontend/src/__tests__/stores/ledger-lint.test.ts', changes: ['history-panel-delta', 'wave0-prerouted-presets'] },
+  { path: 'frontend/src/main/menu.ts', changes: ['history-panel-delta', 'multiwindow-stage-a', 'system-monitor-v1'] },
+  { path: 'frontend/src/renderer', changes: ['browser-folders', 'history-panel-delta'] },
+  {
+    path: 'frontend/src/renderer/App.tsx',
+    changes: [
+      'browser-folders', 'history-panel-delta', 'layertap-matte-v1', 'multiwindow-stage-a',
+      'system-monitor-v1', 'util-transform', 'w15b-grid-track-paradigm', 'wave0-prerouted-presets',
+    ],
+  },
+  { path: 'frontend/src/renderer/components/layout/HistoryPanel.tsx', changes: ['history-panel-delta', 'multiwindow-stage-a'] },
+  {
+    path: 'frontend/src/renderer/stores/operators.ts',
+    changes: ['browser-folders', 'layertap-matte-v1', 'multiwindow-stage-a', 'util-transform', 'wave0-prerouted-presets'],
+  },
+  { path: 'frontend/src/renderer/stores/project.ts', changes: ['history-panel-delta', 'wave0-prerouted-presets'] },
+  { path: 'frontend/src/renderer/stores/undo.ts', changes: ['fx-backspin', 'history-panel-delta', 'system-monitor-v1'] },
+  {
+    path: 'frontend/src/renderer/utils/default-shortcuts.ts',
+    changes: ['browser-folders', 'history-panel-delta', 'multiwindow-stage-a', 'system-monitor-v1'],
+  },
+  {
+    path: 'frontend/src/shared/types.ts',
+    changes: ['browser-folders', 'history-panel-delta', 'layertap-matte-v1', 'util-transform', 'wave0-prerouted-presets'],
+  },
+]
+
+/** Canonical key for a {path, changes} pair — order-independent on `changes`. */
+function violationKey(v: Violation): string {
+  return `${v.path}::${[...v.changes].sort().join(',')}`
+}
 
 // --- Core parsing (tolerant: never throws, skips what it can't read) ---
 
@@ -93,7 +135,17 @@ function isUnmerged(changeDir: string): boolean {
   if (ledgerIdx === -1) return true
 
   const ledgerSection = text.slice(ledgerIdx)
-  const rowRe = /^\|\s*([^\s|][^|]*?)\s*\|\s*([^|]+?)\s*\|/gm
+  // [^|] (unbounded) matches newlines, and with the /m flag + surrounding
+  // \s* boundaries that lets both capture groups backtrack across line
+  // boundaries in a way that's ambiguous with each other — superlinear
+  // blowup on pathological input (redteam-reported: 9.6s at 3KB; this
+  // repo's own repro at frontend/src/__tests__/cross-change-file-claims.
+  // test.ts's P2.5 test measured ~300ms at 20KB / ~8.8s at 80KB pre-fix vs
+  // ~1-8ms post-fix at every size tried, confirming the same class of bug —
+  // exact multiplier depends on the pathological input's construction).
+  // [^|\n] confines each group to a single line, which a markdown table row
+  // always is anyway.
+  const rowRe = /^\|\s*([^\s|][^|\n]*?)\s*\|\s*([^|\n]+?)\s*\|/gm
   let sawDataRow = false
   let match: RegExpExecArray | null
   // eslint-disable-next-line no-cond-assign
@@ -124,10 +176,28 @@ function extractClaims(changeDir: string): Set<string> {
   return claims
 }
 
-/** Does any single RECONCILIATIONS.md row mention every one of `changeNames`? */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * Does any single RECONCILIATIONS.md row mention every one of `changeNames`?
+ *
+ * P3.14: `row.includes(name)` was a plain substring test — a row mentioning
+ * change "grid-v2" would ALSO satisfy `row.includes('grid')` for an
+ * unrelated change literally named "grid", since change names are hyphenated
+ * identifiers and JS `\b` word boundaries treat `-` as already non-word (so
+ * `\bgrid\b` matches inside "grid-v2" too — that would NOT have fixed this).
+ * Requires the match not be immediately adjacent to another identifier
+ * character (letters/digits/underscore/hyphen) on EITHER side, treating the
+ * whole hyphenated name as one atomic token.
+ */
 function reconciliationCovers(reconciliationsText: string, changeNames: string[]): boolean {
   const rows = reconciliationsText.split('\n').filter((l) => l.trim().startsWith('|'))
-  return rows.some((row) => changeNames.every((name) => row.includes(name)))
+  const patterns = changeNames.map(
+    (name) => new RegExp(`(?<![A-Za-z0-9_-])${escapeRegExp(name)}(?![A-Za-z0-9_-])`),
+  )
+  return rows.some((row) => patterns.every((pattern) => pattern.test(row)))
 }
 
 export interface Violation {
@@ -270,6 +340,28 @@ describe('cross-change-file-claims guard', () => {
     }
   })
 
+  it('P3.14: reconciliationCovers requires an exact identifier match, not a substring — a row about "grid-v2" does not cover a collision named "grid"', () => {
+    const { changesDir, reconciliationsPath, cleanup } = createFixtureChanges({
+      changes: {
+        grid: { planTable: ['| `frontend/src/renderer/Foo.tsx` | shared | edits |'] },
+        other: { planTable: ['| `frontend/src/renderer/Foo.tsx` | shared | edits |'] },
+      },
+      reconciliations:
+        '# RECONCILIATIONS\n\n| # | Surfaces | Lanes | Ruling | Status |\n|---|---|---|---|---|\n' +
+        // "grid-v2" contains "grid" as a substring — the pre-fix
+        // row.includes('grid') check would have falsely treated this row
+        // (about an unrelated pairing) as covering the real grid×other collision.
+        '| R1 | Foo.tsx | grid-v2 × other | unrelated ruling for a DIFFERENT pairing | OPEN |\n',
+    })
+    try {
+      const violations = findCrossChangeViolations(changesDir, reconciliationsPath)
+      expect(violations).toHaveLength(1)
+      expect(violations[0].changes).toEqual(['grid', 'other'])
+    } finally {
+      cleanup()
+    }
+  })
+
   it('does not flag a merged change (Ledger all-✅) that overlaps an unmerged one', () => {
     const { changesDir, reconciliationsPath, cleanup } = createFixtureChanges({
       changes: {
@@ -366,17 +458,56 @@ describe('cross-change-file-claims guard', () => {
     },
   )
 
+  it('P2.5: a ~20KB pathological Ledger tail (one unclosed leading pipe, many whitespace-only lines) parses in well under 100ms (ReDoS regression)', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cross-change-guard-redos-'))
+    try {
+      const changeDir = path.join(root, 'redos-change')
+      fs.mkdirSync(changeDir, { recursive: true })
+
+      // A single leading `|` starts an attempted row match that never
+      // closes, followed by many whitespace-only lines with no other pipe
+      // anywhere. Pre-fix, [^|] treats every `\n` as just more matchable
+      // filler (identical to a space) — group1's lazy expansion hunts for a
+      // nonexistent second `|` across the ENTIRE remaining multi-line tail,
+      // and /m's `^` gives it one retry-worthy anchor per line. Verified by
+      // hand (not asserted here, to keep this suite fast): this exact shape
+      // takes ~300ms at 20KB and ~8.8s at 80KB pre-fix (clean superlinear
+      // blowup) vs ~1-8ms post-fix at every size up to 80KB, because
+      // [^|\n] can't step over the very first `\n` — group1's search is
+      // bounded to line 1's length no matter how much text follows.
+      const lineLen = 60
+      let tail = '|x' + ' '.repeat(lineLen - 2)
+      while (tail.length < 20 * 1024) tail += '\n' + ' '.repeat(lineLen)
+      const packetsText = `## Ledger\n\n| Packet | Status | PR | Oracle evidence |\n|---|---|---|---|\n${tail}\n`
+      fs.writeFileSync(path.join(changeDir, 'packets.md'), packetsText)
+
+      const start = performance.now()
+      const result = isUnmerged(changeDir)
+      const elapsedMs = performance.now() - start
+
+      expect(elapsedMs, `isUnmerged took ${elapsedMs}ms on the pathological fixture`).toBeLessThan(100)
+      // No parseable data row (the pathological tail never closes) -> can't
+      // prove merged -> treated as unmerged, same conservative default as
+      // "Ledger heading with no data rows".
+      expect(result).toBe(true)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it(
-    `LIVE RATCHET: unresolved cross-change file claims across ALL of openspec/changes/ must not exceed ` +
-      `the committed ceiling (${LIVE_VIOLATION_CEILING}, baselined 2026-07-31 W2 preflight — see PR body ` +
-      'for the full list). This is a ceiling, not a target: it must only ever go down as RECONCILIATIONS ' +
-      'rows land for each pairing, never silently up.',
+    'LIVE RATCHET (identity, P3.14): every unresolved cross-change file claim across ALL of ' +
+      'openspec/changes/ must be a MEMBER of the committed VIOLATION_BASELINE — any NOVEL, ' +
+      'unreviewed {path, changes} pair fails this test regardless of the total count (a count-only ' +
+      'ceiling could pass while silently swapping one violation for a different, never-reviewed one).',
     () => {
       const violations = findCrossChangeViolations(CHANGES_DIR, RECONCILIATIONS_PATH)
+      const baselineKeys = new Set(VIOLATION_BASELINE.map(violationKey))
+      const novel = violations.filter((v) => !baselineKeys.has(violationKey(v)))
       expect(
-        violations.length,
-        `New undocumented cross-change file claim(s) appeared:\n${JSON.stringify(violations, null, 2)}`,
-      ).toBeLessThanOrEqual(LIVE_VIOLATION_CEILING)
+        novel,
+        `New undocumented cross-change file claim(s) not in VIOLATION_BASELINE:\n${JSON.stringify(novel, null, 2)}`,
+      ).toEqual([])
     },
   )
 })
