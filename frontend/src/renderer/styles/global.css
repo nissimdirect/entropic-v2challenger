@@ -91,10 +91,64 @@ body {
   border-color: var(--cx-action);
 }
 
-.app__transport-timecode {
+/* PK.C1 (W1.5b, C2 mock ruling): automation cluster attached to the
+ * playback cluster — fused Read/Touch/Latch segmented control (adjoining
+ * buttons, no gap) + a separate Overdub chip. Reuses .app__transport-btn's
+ * visual language (border/active-fill) at the segment level. */
+.app__transport-automation {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.app__transport-automation-modes {
+  display: flex;
+}
+
+.app__transport-automation-btn {
+  height: var(--cx-control-h);
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--cx-line-2);
+  color: var(--cx-text-1);
   font-family: 'JetBrains Mono', monospace;
-  font-size: var(--cx-text-data);
-  color: var(--cx-text-2);
+  font-size: var(--cx-text-label);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+/* Fused segment styling: adjoining border, radius only on the outer edges. */
+.app__transport-automation-modes .app__transport-automation-btn {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.app__transport-automation-modes .app__transport-automation-btn:first-child {
+  border-radius: 3px 0 0 3px;
+  margin-left: 0;
+}
+
+.app__transport-automation-modes .app__transport-automation-btn:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.app__transport-automation-btn--overdub {
+  border-radius: 3px;
+}
+
+.app__transport-automation-btn:hover {
+  background: var(--cx-bg-raised);
+  color: var(--cx-text-1);
+}
+
+.app__transport-automation-btn--active {
+  background: var(--cx-action);
+  color: var(--cx-action-on);
+  border-color: var(--cx-action);
 }
 
 .app__transport-bpm {
@@ -1383,6 +1437,17 @@ body {
   padding: 8px 12px;
   background: var(--cx-bg-panel);
   border-top: 1px solid var(--cx-line-1);
+}
+
+/* PK.C1 (W1.5b, C2 mock ruling): timecode relocated here from the transport
+ * bar — centered under the preview, larger type than its old --cx-text-data
+ * home (label tier, not data tier — there's room for it now). */
+.app__preview-timecode {
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--cx-text-label);
+  color: var(--cx-text-2);
+  padding: 2px 0 4px;
 }
 
 .preview-controls__play-btn {

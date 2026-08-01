@@ -100,26 +100,62 @@
 - Oracle: vitest with a scrolled container — selecting an out-of-view track
   updates scrollTop; in-view selection leaves scrollTop unchanged.
 
-## PK.C1 — R/L/T/D + Overdub → transport (GATED on the C2 mock ruling)
+## PK.C1 — R/L/T/D + Overdub → transport (BUILT — C2 mock ruling locked)
 
-- Move the MODES segmented control + Overdub toggle from
-  `AutomationToolbar.tsx` into the transport bar as a right-aligned group;
-  wiring unchanged (`useAutomationStore` setMode/setRecordMode). Testids:
-  `automation-mode-{read|latch|touch|draw}`, `overdub-toggle`.
-- AutomationToolbar keeps: arm hint, `+ Lane / + Trigger / + Mod`, lane list.
-- e2e: grep tests targeting the toolbar's mode buttons before moving; migrate
-  by testid, never position (W1-11 lesson).
-- Oracle: vitest — mode change from transport reflects in store + lane UI;
-  baseline REDESIGN regen; A5 CU pass mandatory before merge.
-- **Owner rulings (2026-07-31 evening, docs-only amendment, C1 still GATED/
-  unbuilt):** (1) the transport bar's far-right position is RESERVED for
-  CPU/MEM meters — the MODES/Overdub right-aligned group above must NOT
-  claim that slot; place it to the left of the reserved meter region. (2)
-  the timecode readout MOVES OUT of the transport bar entirely, to under
-  the preview window — it is no longer part of this packet's transport-bar
-  layout and must not be treated as displaced by the MODES/Overdub move.
-  Both constraints apply whenever C1 is picked up; they do not change the
-  GATED status or authorize building C1 now.
+> **SUPERSEDES the original packet text above this note.** The C2 mock
+> ruling (owner, 2026-07-31 evening, artifact cf8ac3c1
+> "draw-omitted-overdub-truth") is now LOCKED — see
+> RATIFIED-FOUNDATIONS.md D13 for the full ratified contract and owner
+> quotes. Every point below is what actually shipped:
+>
+> 1. **Timecode moves OUT of the transport bar** to under the preview
+>    window — centered beneath the preview canvas, `--cx-text-label` (13px,
+>    was `--cx-text-data` 12px), same current/total `m:ss.s` format
+>    (`App.tsx` `formatTimecode`, `.app__preview-timecode`).
+> 2. **Automation cluster joins the transport bar** attached to the
+>    playback cluster (Option B), NOT right-aligned as the original text
+>    said: play ■ loop, then a fused segmented control with full words —
+>    **Read · Touch · Latch** (that order, not the store's internal
+>    read/latch/touch/draw order) — plus an Overdub toggle chip beside it.
+>    **Draw is omitted** from the selector (owner: "omit draw") — the
+>    `'draw'` `AutomationMode` stays in the store and lane-level painting
+>    keeps working; the transport just doesn't offer it. When `mode ===
+>    'draw'`, none of the three chips match it, so the segmented control
+>    shows none lit — falls out of the plain equality check, no
+>    special-casing, never crashes, never coerces the store value.
+>    Testids: `automation-mode-{read|touch|latch}` (no `draw` chip),
+>    `overdub-toggle` (new — the old `overdub-toggle-btn` in
+>    AutomationToolbar.tsx is gone, migrated by testid per the note below).
+> 3. **Loop glyph replaced**: owner called the old orbit-arrows glyph
+>    "wonky af" (read as refresh). New glyph is a bracketed-cycle — two
+>    rounded brackets with chasing arrows — geometry ported verbatim from
+>    the mock's `svg.loopb` (`transport-icons.tsx`).
+> 4. **Far right of the bar stays empty/reserved** for `system-monitor-v1`'s
+>    future CPU/MEM meters — a code comment marks the reservation; no meter
+>    markup ships here. The centered playback+automation cluster's existing
+>    `margin: 0 auto` already leaves this space empty structurally.
+> 5. **Curve-visibility contract** (owner condition: "as long as the
+>    resultant curves and stuff will be visible"): a recording pass (Touch,
+>    Latch, or lane-level draw) must never write to an invisible lane — it
+>    auto-reveals the armed track's lane the moment it starts writing
+>    (`ParamPanel.tsx` `handleKnobChange`; `AutomationDraw.tsx`
+>    `handleMouseDown`; `Track.tsx`'s draw-overlay mount no longer requires
+>    `automationLanes[0].isVisible`, since that gate blocked ever drawing on
+>    a hidden lane in the first place).
+> 6. AutomationToolbar.tsx keeps: arm hint + `+ Lane / + Trigger / + Mod`
+>    (armed-track-scoped). The Mode selector and Overdub button are REMOVED
+>    from it — migrated by testid, not position (W1-11 lesson); its tests
+>    updated honestly (automation-toolbar.test.tsx).
+> 7. Hover text on every mode chip + Overdub is COMPONENT-SPEC §2½'s legend,
+>    verbatim (see D13 for the exact strings).
+>
+> Oracle tally: vitest component tests for the transport cluster
+> (app-transport-automation.test.tsx), the curve-visibility contract
+> (param-panel-recording-visibility.test.tsx,
+> automation-draw-visibility.test.tsx), the loop glyph
+> (transport-icons.test.tsx), and AutomationToolbar's negative assertions
+> (automation-toolbar.test.tsx). Baseline REDESIGN regen (transport bar
+> shows in every shell-baselines.spec.ts surface). A5 CU pass before merge.
 
 ## Sequencing
 
@@ -131,7 +167,15 @@ C1. B and A are independent lanes. File-claim map (full paths, for the cross-cha
 `frontend/src/renderer/components/automation/AutomationToolbar.tsx` ·
 `frontend/src/renderer/stores/timeline.ts` ·
 `frontend/src/renderer/styles/tokens.css` ·
-`frontend/src/renderer/App.tsx` (PK.C1: transport-bar region ONLY —
-App.tsx:3498-3577) — App.tsx is ALSO claimed by the unmerged
-browser-folders change (sidebar render switch + preview-row regions):
-non-overlapping regions, reconciled in RECONCILIATIONS.md row R2.
+`frontend/src/renderer/App.tsx` (PK.C1: transport-bar region PLUS the
+preview-window timecode addition the C2 ruling required — the timecode
+moved OUT of the transport-bar region into the `app__preview` region,
+immediately after the `<PreviewControls>` mount; disjoint from
+browser-folders' claimed `<ToolRail />` mount line in that same region) ·
+`frontend/src/renderer/components/effects/ParamPanel.tsx` (PK.C1: curve-
+visibility reveal-on-record, `handleKnobChange` only) ·
+`frontend/src/renderer/components/automation/AutomationDraw.tsx` (PK.C1:
+curve-visibility reveal-on-stroke, `handleMouseDown` only) — App.tsx is
+ALSO claimed by the unmerged browser-folders change (sidebar render switch
++ ToolRail mount): non-overlapping regions, reconciled in
+RECONCILIATIONS.md row R2.

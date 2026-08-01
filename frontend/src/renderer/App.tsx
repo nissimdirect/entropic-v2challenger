@@ -115,7 +115,7 @@ import OperatorRack from './components/operators/OperatorRack'
 import ModulationMatrix from './components/operators/ModulationMatrix'
 import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
-import { useAutomationStore } from './stores/automation'
+import { useAutomationStore, type AutomationMode } from './stores/automation'
 import { evaluateAutomationOverrides, applyAutomationOverridesToChain } from './utils/evaluateAutomationOverrides'
 import { buildSyntheticLaneOperators, buildOperatorLaneSpecs } from './utils/operatorLaneSpecs'
 import { evaluateTransformOverrides, mergeTransformOverride, formatTransformLanePath, parseTransformLanePath, type TransformField } from './utils/transformLanes'
@@ -304,6 +304,31 @@ function SpeedDialogHost() {
 
 const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
 const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
+
+// PK.C1 (W1.5b, C2 mock ruling B1 — full words, Draw omitted): the transport
+// bar's automation mode selector. Order is Read, Touch, Latch — the owner's
+// ruled order, not the store's internal read/latch/touch/draw enum order.
+// 'draw' has no chip here (painting stays a lane-level pencil, per the
+// owner's ruling); when the store's mode is 'draw' none of these three match
+// it, so the segmented control naturally shows none lit — no special-casing
+// needed. infoText is verbatim from COMPONENT-SPEC §2½'s legend and doubles
+// as the `title` hover text until Info View (W3) lands.
+const TRANSPORT_AUTOMATION_MODES: { value: AutomationMode; label: string; infoText: string }[] = [
+  { value: 'read', label: 'Read', infoText: 'Playback only — knob moves are not recorded.' },
+  { value: 'touch', label: 'Touch', infoText: 'Writes only while you hold the knob — release snaps back to the existing curve.' },
+  { value: 'latch', label: 'Latch', infoText: 'Starts writing at first touch and keeps writing until you stop playback.' },
+]
+
+const TRANSPORT_OVERDUB_INFO_TEXT =
+  'ON: new points weave into the existing curve without erasing it. OFF: recording replaces the curve where you write.'
+
+// PK.C1: shared m:ss.s formatter — was two inline IIFEs in the transport bar
+// (current/total), now also used by the preview-window timecode it moved to.
+function formatTimecode(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = seconds % 60
+  return `${m}:${s.toFixed(1).padStart(4, '0')}`
+}
 
 function AppInner() {
   const { status, uptime } = useEngineStore()
@@ -3444,6 +3469,12 @@ function AppInner() {
   const quantizeEnabled = useLayoutStore((s) => s.quantizeEnabled)
   const quantizeDivision = useLayoutStore((s) => s.quantizeDivision)
   const snapEnabled = useLayoutStore((s) => s.snapEnabled)
+  // PK.C1: reactive reads for the transport bar's automation cluster (mode
+  // selector + Overdub) — everywhere else in this file reads automation
+  // state imperatively via .getState(), but rendering active-chip state
+  // needs a subscription.
+  const automationMode = useAutomationStore((s) => s.mode)
+  const automationRecordMode = useAutomationStore((s) => s.recordMode)
 
   const selectedClip = useTimelineStore((s) => {
     if (s.selectedClipIds.length !== 1) return null
@@ -3501,11 +3532,14 @@ function AppInner() {
     >
       <UpdateBanner />
       {/* W1-11: Ableton transport grammar — tempo/grid cluster (BPM + snap/
-          quantize) anchored LEFT; playback (play/stop/loop + timecode)
-          grouped and centered in the remaining space, which — since the
-          left cluster consumes real width — lands it center-RIGHT of the
+          quantize) anchored LEFT; playback (play/stop/loop) + automation
+          (PK.C1) grouped and centered in the remaining space, which — since
+          the left cluster consumes real width — lands it center-RIGHT of the
           full bar rather than dead-center. Pure reorder + CSS (margin:auto
-          centering); no button behavior changed. */}
+          centering); no button behavior changed.
+          PK.C1 (W1.5b, C2 mock ruling): timecode moved OUT of this bar to
+          under the preview window (see app__preview-timecode below); the
+          automation mode/Overdub cluster moved IN, attached to playback. */}
       <div className="app__transport-bar">
         <div className="app__transport-bpm">
           <label>BPM</label>
@@ -3579,22 +3613,42 @@ function AppInner() {
               <TransportIcon name="loop" />
             </button>
           </div>
-          <span className="app__transport-timecode">
-            {(() => {
-              const t = useTimelineStore.getState().playheadTime
-              const m = Math.floor(t / 60)
-              const s = t % 60
-              return `${m}:${s.toFixed(1).padStart(4, '0')}`
-            })()}
-            {' / '}
-            {(() => {
-              const t = useTimelineStore.getState().duration
-              const m = Math.floor(t / 60)
-              const s = t % 60
-              return `${m}:${s.toFixed(1).padStart(4, '0')}`
-            })()}
-          </span>
+          {/* PK.C1 (W1.5b, C2 mock ruling, Option B): automation cluster
+              joins the playback cluster — a fused Read/Touch/Latch segmented
+              control (Draw omitted, owner ruling — painting stays a
+              lane-level pencil; the store's 'draw' mode still exists and
+              still works, this control just never shows it lit) plus an
+              Overdub toggle chip. D8/PK.C1 supersedes the old
+              auto-toolbar__modes strip location (AutomationToolbar.tsx). */}
+          <div className="app__transport-automation" data-testid="transport-automation-cluster">
+            <div className="app__transport-automation-modes">
+              {TRANSPORT_AUTOMATION_MODES.map((m) => (
+                <button
+                  key={m.value}
+                  className={`app__transport-automation-btn${automationMode === m.value ? ' app__transport-automation-btn--active' : ''}`}
+                  onClick={() => useAutomationStore.getState().setMode(m.value)}
+                  title={m.infoText}
+                  data-testid={`automation-mode-${m.value}`}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+            <button
+              className={`app__transport-automation-btn app__transport-automation-btn--overdub${automationRecordMode === 'overdub' ? ' app__transport-automation-btn--active' : ''}`}
+              onClick={() => useAutomationStore.getState().setRecordMode(automationRecordMode === 'overdub' ? 'replace' : 'overdub')}
+              title={TRANSPORT_OVERDUB_INFO_TEXT}
+              aria-pressed={automationRecordMode === 'overdub'}
+              data-testid="overdub-toggle"
+            >
+              Overdub
+            </button>
+          </div>
         </div>
+        {/* PK.C1 far-right reservation: system-monitor-v1 mounts CPU/MEM
+            meters here in a later change. The centered playback+automation
+            cluster's auto margins already leave this space empty on both
+            sides — no meter markup lands here until that change ships. */}
       </div>
       <div className={`app__drop-overlay ${isGlobalDragOver ? 'app__drop-overlay--active' : ''}`} />
       <div className="app__sidebar cx-left-col" style={sidebarCollapsed ? { display: 'none' } : undefined}>
@@ -3893,6 +3947,14 @@ function AppInner() {
             onVolumeChange={(v) => audioStore.setVolume(v)}
             onToggleMute={() => audioStore.toggleMute()}
           />
+          {/* PK.C1 (W1.5b, C2 mock ruling): timecode moved here from the
+              transport bar — centered under the preview, larger type, same
+              current/total format. */}
+          <div className="app__preview-timecode" data-testid="preview-timecode">
+            {formatTimecode(useTimelineStore.getState().playheadTime)}
+            {' / '}
+            {formatTimecode(useTimelineStore.getState().duration)}
+          </div>
         </div>
         </div>
         {/* Phase 13C: ParamPanel removed — replaced by inline params in DeviceChain */}
