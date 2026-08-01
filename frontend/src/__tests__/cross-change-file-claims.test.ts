@@ -93,7 +93,17 @@ function isUnmerged(changeDir: string): boolean {
   if (ledgerIdx === -1) return true
 
   const ledgerSection = text.slice(ledgerIdx)
-  const rowRe = /^\|\s*([^\s|][^|]*?)\s*\|\s*([^|]+?)\s*\|/gm
+  // [^|] (unbounded) matches newlines, and with the /m flag + surrounding
+  // \s* boundaries that lets both capture groups backtrack across line
+  // boundaries in a way that's ambiguous with each other — superlinear
+  // blowup on pathological input (redteam-reported: 9.6s at 3KB; this
+  // repo's own repro at frontend/src/__tests__/cross-change-file-claims.
+  // test.ts's P2.5 test measured ~300ms at 20KB / ~8.8s at 80KB pre-fix vs
+  // ~1-8ms post-fix at every size tried, confirming the same class of bug —
+  // exact multiplier depends on the pathological input's construction).
+  // [^|\n] confines each group to a single line, which a markdown table row
+  // always is anyway.
+  const rowRe = /^\|\s*([^\s|][^|\n]*?)\s*\|\s*([^|\n]+?)\s*\|/gm
   let sawDataRow = false
   let match: RegExpExecArray | null
   // eslint-disable-next-line no-cond-assign
@@ -365,6 +375,43 @@ describe('cross-change-file-claims guard', () => {
       ).toHaveLength(0)
     },
   )
+
+  it('P2.5: a ~20KB pathological Ledger tail (one unclosed leading pipe, many whitespace-only lines) parses in well under 100ms (ReDoS regression)', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'cross-change-guard-redos-'))
+    try {
+      const changeDir = path.join(root, 'redos-change')
+      fs.mkdirSync(changeDir, { recursive: true })
+
+      // A single leading `|` starts an attempted row match that never
+      // closes, followed by many whitespace-only lines with no other pipe
+      // anywhere. Pre-fix, [^|] treats every `\n` as just more matchable
+      // filler (identical to a space) — group1's lazy expansion hunts for a
+      // nonexistent second `|` across the ENTIRE remaining multi-line tail,
+      // and /m's `^` gives it one retry-worthy anchor per line. Verified by
+      // hand (not asserted here, to keep this suite fast): this exact shape
+      // takes ~300ms at 20KB and ~8.8s at 80KB pre-fix (clean superlinear
+      // blowup) vs ~1-8ms post-fix at every size up to 80KB, because
+      // [^|\n] can't step over the very first `\n` — group1's search is
+      // bounded to line 1's length no matter how much text follows.
+      const lineLen = 60
+      let tail = '|x' + ' '.repeat(lineLen - 2)
+      while (tail.length < 20 * 1024) tail += '\n' + ' '.repeat(lineLen)
+      const packetsText = `## Ledger\n\n| Packet | Status | PR | Oracle evidence |\n|---|---|---|---|\n${tail}\n`
+      fs.writeFileSync(path.join(changeDir, 'packets.md'), packetsText)
+
+      const start = performance.now()
+      const result = isUnmerged(changeDir)
+      const elapsedMs = performance.now() - start
+
+      expect(elapsedMs, `isUnmerged took ${elapsedMs}ms on the pathological fixture`).toBeLessThan(100)
+      // No parseable data row (the pathological tail never closes) -> can't
+      // prove merged -> treated as unmerged, same conservative default as
+      // "Ledger heading with no data rows".
+      expect(result).toBe(true)
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
 
   it(
     `LIVE RATCHET: unresolved cross-change file claims across ALL of openspec/changes/ must not exceed ` +
