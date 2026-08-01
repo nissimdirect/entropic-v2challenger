@@ -115,7 +115,7 @@ import OperatorRack from './components/operators/OperatorRack'
 import ModulationMatrix from './components/operators/ModulationMatrix'
 import RoutingLines from './components/operators/RoutingLines'
 import { useOperatorStore } from './stores/operators'
-import { useAutomationStore, type AutomationMode } from './stores/automation'
+import { useAutomationStore, type AutomationMode, type AutomationRecordMode } from './stores/automation'
 import { evaluateAutomationOverrides, applyAutomationOverridesToChain } from './utils/evaluateAutomationOverrides'
 import { buildSyntheticLaneOperators, buildOperatorLaneSpecs } from './utils/operatorLaneSpecs'
 import { evaluateTransformOverrides, mergeTransformOverride, formatTransformLanePath, parseTransformLanePath, type TransformField } from './utils/transformLanes'
@@ -172,7 +172,7 @@ import RenderQueue from './components/export/RenderQueue'
 import { RoutingCanvas } from './components/routing-canvas'
 import ErrorBoundary from './components/layout/ErrorBoundary'
 import { loadRecentProjects, type RecentProject } from './project-persistence'
-import Icon, { CloseButton } from './assets/icon-kit'
+import Icon, { CloseButton, type KitIconName } from './assets/icon-kit'
 // F4b PR2: menu-action dispatch extraction (App.tsx decomposition, lowest-risk slice).
 import { useMenuActions } from './app/menuActions'
 // F4b PR3: close-requested / unsaved-changes gate extraction.
@@ -305,22 +305,46 @@ function SpeedDialogHost() {
 const ALLOWED_EXTENSIONS = ['.mp4', '.mov', '.avi', '.webm', '.mkv', '.mxf', '.ts', '.png', '.jpg', '.jpeg', '.tiff', '.tif', '.webp', '.bmp', '.heic', '.heif', '.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
 const AUDIO_EXTENSIONS = ['.wav', '.mp3', '.m4a', '.aif', '.aiff', '.ogg', '.flac']
 
-// PK.C1 (W1.5b, C2 mock ruling B1 — full words, Draw omitted): the transport
-// bar's automation mode selector. Order is Read, Touch, Latch — the owner's
-// ruled order, not the store's internal read/latch/touch/draw enum order.
-// 'draw' has no chip here (painting stays a lane-level pencil, per the
-// owner's ruling); when the store's mode is 'draw' none of these three match
-// it, so the segmented control naturally shows none lit — no special-casing
-// needed. infoText is verbatim from COMPONENT-SPEC §2½'s legend and doubles
-// as the `title` hover text until Info View (W3) lands.
+// D13.1 (W1.5b, C2 ROUND-2 ruling — owner: "read touch latch since they're
+// mutually exclusive I think that it should be a drop down"): the transport
+// bar's automation mode selector, now ONE dropdown instead of 3 fused chips.
+// Order is Read, Touch, Latch — the owner's ruled order (D13/PK.C1), not the
+// store's internal read/latch/touch/draw enum order. 'draw' has no entry here
+// (painting stays a lane-level pencil, per the D13 ruling); when the store's
+// mode is 'draw' none of these three match it, so the dropdown's closed
+// display falls back to a neutral blank state (see automationModeSelectValue
+// below) rather than coercing the store to a real mode. infoText is verbatim
+// from COMPONENT-SPEC §2½'s legend and doubles as the `title` hover text
+// until Info View (W3) lands.
 const TRANSPORT_AUTOMATION_MODES: { value: AutomationMode; label: string; infoText: string }[] = [
   { value: 'read', label: 'Read', infoText: 'Playback only — knob moves are not recorded.' },
   { value: 'touch', label: 'Touch', infoText: 'Writes only while you hold the knob — release snaps back to the existing curve.' },
   { value: 'latch', label: 'Latch', infoText: 'Starts writing at first touch and keeps writing until you stop playback.' },
 ]
 
-const TRANSPORT_OVERDUB_INFO_TEXT =
-  'ON: new points weave into the existing curve without erasing it. OFF: recording replaces the curve where you write.'
+// D13.1 (C2 ROUND-2 ruling — owner: "overdub should be a glyph... like a
+// record button but hollowed out... adjacent to the arm glyph"): the write-
+// behavior control is now a 3-state glyph (Replace/Overdub/Add) that CYCLES
+// on click, replacing the old boolean Overdub text chip. Cycle order matches
+// the owner's own spoken order: "Replace→Overdub→Add→Replace".
+const WRITE_MODE_CYCLE: AutomationRecordMode[] = ['replace', 'overdub', 'add_lane']
+const WRITE_MODE_META: Record<AutomationRecordMode, { icon: KitIconName; label: string; infoText: string }> = {
+  replace: {
+    icon: 'write-replace',
+    label: 'Replace',
+    infoText: 'Recording replaces the curve where you write',
+  },
+  overdub: {
+    icon: 'write-overdub',
+    label: 'Overdub',
+    infoText: 'New points weave into the existing curve without erasing it',
+  },
+  add_lane: {
+    icon: 'write-add',
+    label: 'Add',
+    infoText: 'Each recording pass goes to a NEW lane stacked on top (Add blend)',
+  },
+}
 
 // PK.C1: shared m:ss.s formatter — was two inline IIFEs in the transport bar
 // (current/total), now also used by the preview-window timecode it moved to.
@@ -3499,6 +3523,22 @@ function AppInner() {
   // Determine playback state: audio-driven or timer-driven
   const isPlaying = hasAudio ? audioStore.isPlaying : isTimerPlaying
 
+  // D13.1 (PK.C2, Add mode) — Latch's own legend promises it "keeps writing
+  // until you stop playback," so an add_lane Latch pass stays open across
+  // knob releases (unlike Touch — see ParamPanel/DeviceCard's
+  // handleKnobDragEnd) and only closes here, on the SINGLE choke point every
+  // stop/pause path (space, Stop button, Escape, JKL) already funnels
+  // through: this reactive isPlaying flag going from true -> false. Clears
+  // every open pass everywhere (not just the armed track) — defensive, since
+  // a pass can't legitimately survive a full transport stop.
+  const wasPlayingRef = useRef(false)
+  useEffect(() => {
+    if (wasPlayingRef.current && !isPlaying) {
+      useAutomationStore.getState().endAddLanePass()
+    }
+    wasPlayingRef.current = isPlaying
+  }, [isPlaying])
+
   const statusColor: Record<string, string> = {
     connected: '#4ade80',
     disconnected: '#ef4444',
@@ -3614,35 +3654,49 @@ function AppInner() {
               <TransportIcon name="loop" />
             </button>
           </div>
-          {/* PK.C1 (W1.5b, C2 mock ruling, Option B): automation cluster
-              joins the playback cluster — a fused Read/Touch/Latch segmented
-              control (Draw omitted, owner ruling — painting stays a
-              lane-level pencil; the store's 'draw' mode still exists and
-              still works, this control just never shows it lit) plus an
-              Overdub toggle chip. D8/PK.C1 supersedes the old
-              auto-toolbar__modes strip location (AutomationToolbar.tsx). */}
+          {/* D13.1 (W1.5b, C2 ROUND-2 ruling): automation cluster joins the
+              playback cluster — a Read/Touch/Latch MODE DROPDOWN (owner:
+              "since they're mutually exclusive I think that it should be a
+              drop down"; Draw still omitted per D13 — painting stays a
+              lane-level pencil, the store's 'draw' mode still exists and
+              still works, the dropdown just shows a blank closed state for
+              it) plus a cycling write-behavior GLYPH (Replace/Overdub/Add,
+              owner: "like a record button but hollowed out... adjacent to
+              the arm glyph"). Supersedes D13/PK.C1's fused 3-chip + boolean
+              Overdub-chip design and the older auto-toolbar__modes strip
+              location (AutomationToolbar.tsx). */}
           <div className="app__transport-automation" data-testid="transport-automation-cluster">
-            <div className="app__transport-automation-modes">
-              {TRANSPORT_AUTOMATION_MODES.map((m) => (
-                <button
-                  key={m.value}
-                  className={`app__transport-automation-btn${automationMode === m.value ? ' app__transport-automation-btn--active' : ''}`}
-                  onClick={() => useAutomationStore.getState().setMode(m.value)}
-                  title={m.infoText}
-                  data-testid={`automation-mode-${m.value}`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-            <button
-              className={`app__transport-automation-btn app__transport-automation-btn--overdub${automationRecordMode === 'overdub' ? ' app__transport-automation-btn--active' : ''}`}
-              onClick={() => useAutomationStore.getState().setRecordMode(automationRecordMode === 'overdub' ? 'replace' : 'overdub')}
-              title={TRANSPORT_OVERDUB_INFO_TEXT}
-              aria-pressed={automationRecordMode === 'overdub'}
-              data-testid="overdub-toggle"
+            <Select
+              className="app__transport-automation-select"
+              // Blank closed-state when mode === 'draw' (no matching option)
+              // — the store is NEVER coerced to a real mode just to make the
+              // dropdown display something; it stays 'draw' until the user
+              // explicitly picks Read/Touch/Latch.
+              value={TRANSPORT_AUTOMATION_MODES.some((m) => m.value === automationMode) ? automationMode : ''}
+              onChange={(e) => useAutomationStore.getState().setMode(e.target.value as AutomationMode)}
+              title={TRANSPORT_AUTOMATION_MODES.find((m) => m.value === automationMode)?.infoText
+                ?? 'Automation mode — lane-level Draw is active (not selectable here)'}
+              data-testid="automation-mode-select"
             >
-              Overdub
+              <option value="" disabled hidden>—</option>
+              {TRANSPORT_AUTOMATION_MODES.map((m) => (
+                <option key={m.value} value={m.value} title={m.infoText}>
+                  {m.label}
+                </option>
+              ))}
+            </Select>
+            <button
+              className="app__transport-automation-btn app__transport-automation-btn--write-mode"
+              onClick={() => {
+                const idx = WRITE_MODE_CYCLE.indexOf(automationRecordMode)
+                const next = WRITE_MODE_CYCLE[(idx + 1) % WRITE_MODE_CYCLE.length]
+                useAutomationStore.getState().setRecordMode(next)
+              }}
+              title={WRITE_MODE_META[automationRecordMode].infoText}
+              aria-label={`Write mode: ${WRITE_MODE_META[automationRecordMode].label}`}
+              data-testid="write-mode-toggle"
+            >
+              <Icon name={WRITE_MODE_META[automationRecordMode].icon} size={14} />
             </button>
           </div>
         </div>

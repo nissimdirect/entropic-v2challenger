@@ -91,10 +91,11 @@ body {
   border-color: var(--cx-action);
 }
 
-/* PK.C1 (W1.5b, C2 mock ruling): automation cluster attached to the
- * playback cluster — fused Read/Touch/Latch segmented control (adjoining
- * buttons, no gap) + a separate Overdub chip. Reuses .app__transport-btn's
- * visual language (border/active-fill) at the segment level. */
+/* D13.1 (W1.5b, C2 ROUND-2 ruling): automation cluster attached to the
+ * playback cluster — a Read/Touch/Latch MODE DROPDOWN (owner: "since
+ * they're mutually exclusive I think that it should be a drop down") +
+ * a cycling write-behavior GLYPH button (Replace/Overdub/Add). Supersedes
+ * D13/PK.C1's fused 3-chip segmented control + boolean Overdub chip. */
 .app__transport-automation {
   display: flex;
   align-items: center;
@@ -102,8 +103,16 @@ body {
   margin-left: 8px;
 }
 
-.app__transport-automation-modes {
-  display: flex;
+/* Mirrors .app__transport-select (quantize division) — shared cx-select
+ * skin, monospace transport look, shared --cx-control-h height. */
+.app__transport-automation-select {
+  height: var(--cx-control-h);
+  font-size: var(--cx-text-label);
+  min-width: 76px;
+}
+
+.app__transport-automation-select .cx-select__control {
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .app__transport-automation-btn {
@@ -114,30 +123,12 @@ body {
   justify-content: center;
   background: transparent;
   border: 1px solid var(--cx-line-2);
+  border-radius: 3px;
   color: var(--cx-text-1);
   font-family: 'JetBrains Mono', monospace;
   font-size: var(--cx-text-label);
   padding: 2px 8px;
   cursor: pointer;
-}
-
-/* Fused segment styling: adjoining border, radius only on the outer edges. */
-.app__transport-automation-modes .app__transport-automation-btn {
-  border-radius: 0;
-  margin-left: -1px;
-}
-
-.app__transport-automation-modes .app__transport-automation-btn:first-child {
-  border-radius: 3px 0 0 3px;
-  margin-left: 0;
-}
-
-.app__transport-automation-modes .app__transport-automation-btn:last-child {
-  border-radius: 0 3px 3px 0;
-}
-
-.app__transport-automation-btn--overdub {
-  border-radius: 3px;
 }
 
 .app__transport-automation-btn:hover {
@@ -149,6 +140,13 @@ body {
   background: var(--cx-action);
   color: var(--cx-action-on);
   border-color: var(--cx-action);
+}
+
+/* D13.1 — write-behavior glyph toggle: never shows the segmented control's
+ * "active/lit" fill (it's a 3-state cycle, not an on/off toggle) — the icon
+ * itself (hollow ring vs ring+dot vs ring+plus) IS the state indicator. */
+.app__transport-automation-btn--write-mode {
+  padding: 2px 6px;
 }
 
 .app__transport-bpm {

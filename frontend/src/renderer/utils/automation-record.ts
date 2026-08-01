@@ -8,8 +8,17 @@ import type { AutomationPoint } from '../../shared/types'
  * layered on top of the existing lane WITHOUT removing any nearby point
  * (mirrors recordTriggerPoint's trigger-lane overdub semantics below, now
  * available for continuous/numeric lanes too).
+ *
+ * D13.1 (PK.C2, owner: "confirmed on the add feature") — 'add_lane' is a
+ * THIRD write behavior, mutually exclusive with 'replace'/'overdub': each
+ * Touch/Latch recording pass creates a FRESH modulation lane (blendOp 'add')
+ * on the armed track and writes only into that lane; every pre-existing lane
+ * for the param is left completely untouched. See
+ * stores/automation.ts's recordAutomationValue/endAddLanePass for the pass ->
+ * lane resolution, which happens ABOVE this file (this module still only
+ * knows how to place a point inside ONE already-resolved lane).
  */
-export type AutomationRecordMode = 'replace' | 'overdub'
+export type AutomationRecordMode = 'replace' | 'overdub' | 'add_lane'
 
 /**
  * Insert a single recorded point into a sorted automation array.

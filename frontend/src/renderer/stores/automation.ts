@@ -5,7 +5,7 @@
  */
 import { create } from 'zustand'
 import type { AutomationLane, AutomationLaneOperator, AutomationLaneSource, AutomationPoint, TriggerMode, ADSREnvelope, InterpolationMode, BlendOp } from '../../shared/types'
-import { isTriggerLane } from '../utils/automation-evaluate'
+import { isTriggerLane, MODULATION_LANE_COLOR } from '../utils/automation-evaluate'
 import { validateLaneAxisBinding, type LaneAxisBinding, type Axis } from '../../shared/axis-binding'
 
 // PR-B Commit-2: SPEC-2 Tier-1 also restricts the DOMAIN to t/y/x (c/f/l are
@@ -36,7 +36,7 @@ function triggerModeToInterp(mode: TriggerMode): InterpolationMode {
 import { undoable } from './undo'
 import { useToastStore } from './toast'
 import { simplifyPoints } from '../utils/automation-simplify'
-import type { AutomationRecordMode } from '../utils/automation-record'
+import { recordPointWithMode, type AutomationRecordMode } from '../utils/automation-record'
 import {
   generateShapePoints,
   defaultShapePointCount,
@@ -240,8 +240,26 @@ interface AutomationState {
   // ones instead of overwriting a nearby point). Session-only, like `mode` and
   // `armedTrackId` above — not persisted to the project file.
   recordMode: AutomationRecordMode
-  /** Toggle between 'replace' (default, D2) and 'overdub' (additive) write mode. */
+  /** Cycle between 'replace' (default, D2) / 'overdub' (additive) / 'add_lane' (D13.1) write modes. */
   setRecordMode: (mode: AutomationRecordMode) => void
+
+  // D13.1 (PK.C2, Add mode) — active recording-pass -> lane mapping, keyed by
+  // `${trackId}::${paramPath}`. Transient/session-only (not persisted), like
+  // `mode`/`armedTrackId`/`recordMode` above. Populated lazily by
+  // recordAutomationValue on the FIRST write of an 'add_lane' pass; cleared
+  // (per-pass) by endAddLanePass, and defensively cleared in full by
+  // setMode/setRecordMode/armTrack — a mode/write-mode/arm change always
+  // ends whatever pass was in progress.
+  addLanePasses: Record<string, string>
+  /**
+   * End the active add-lane recording pass(es), so the NEXT write to that
+   * (trackId, paramPath) starts a fresh lane (take-style). Omitting
+   * `paramPath` ends every open pass on `trackId`; omitting `trackId` too
+   * ends EVERY open pass everywhere (used when playback stops — Latch keeps
+   * a pass open across the whole play-through, regardless of which param
+   * last wrote to it).
+   */
+  endAddLanePass: (trackId?: string, paramPath?: string) => void
 
   // SG-3 clause-3: muted lane IDs from the sentinel's lane_aborted reply field.
   // lane_id in the backend reply is "unknown" (the output gate cannot identify
@@ -308,6 +326,27 @@ interface AutomationState {
   // Recording state
   setMode: (mode: AutomationMode) => void
   armTrack: (trackId: string | null) => void
+  /**
+   * D13.1 (PK.C2) — SINGLE choke point for every latch/touch continuous-lane
+   * write: param knobs (ParamPanel/DeviceCard), MIDI CC (cc-record.ts), clip
+   * transform (transform-record.ts). Each caller runs its OWN mode/armed/
+   * (isPlaying) gate first; this just resolves WHICH lane `value` lands in
+   * given the global write-behavior toggle (`recordMode`) and commits it —
+   * centralized so 'add_lane' behaves identically everywhere the toggle
+   * applies, instead of 4 near-duplicate branches drifting apart.
+   *
+   * - 'replace' / 'overdub': writes into the EXISTING lane at paramPath on
+   *   trackId (auto-revealing it if hidden — D13 curve-visibility contract).
+   *   No lane for this param on this track = no-op, same as before D13.1.
+   * - 'add_lane': resolves (creating on the pass's first write) THIS pass's
+   *   own fresh modulation lane (blendOp 'add', born visible) and writes
+   *   there with 'replace' semantics internally; every pre-existing lane for
+   *   the param is left byte-for-byte untouched.
+   *
+   * `value` is the lane's normalized [0,1] domain — callers already scaled
+   * their own param range down to that before calling in.
+   */
+  recordAutomationValue: (trackId: string, paramPath: string, time: number, value: number) => void
   /** Record a trigger event (key-down/up) to the appropriate trigger lane during overdub */
   recordTriggerEvent: (trackId: string, laneId: string, time: number, eventType: 'trigger' | 'release') => void
   /** Merge retro-captured trigger points into a lane */
@@ -936,9 +975,73 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
     undoable(`Set automation points`, forward, inverse)
   },
 
-  setMode: (mode) => set({ mode }),
-  armTrack: (trackId) => set({ armedTrackId: trackId }),
-  setRecordMode: (recordMode) => set({ recordMode }),
+  // D13.1: a mode / arm / write-mode change always ends whatever add_lane
+  // pass was in progress (clearing addLanePasses) — the NEXT write starts
+  // fresh rather than silently resuming a take under different conditions.
+  setMode: (mode) => set({ mode, addLanePasses: {} }),
+  armTrack: (trackId) => set({ armedTrackId: trackId, addLanePasses: {} }),
+  setRecordMode: (recordMode) => set({ recordMode, addLanePasses: {} }),
+
+  addLanePasses: {},
+
+  recordAutomationValue: (trackId, paramPath, time, value) => {
+    const clamped = Math.max(0, Math.min(1, value))
+    const state = get()
+
+    if (state.recordMode === 'add_lane') {
+      const key = `${trackId}::${paramPath}`
+      let laneId = state.addLanePasses[key]
+      const laneStillExists = !!laneId && (state.lanes[trackId] ?? []).some((l) => l.id === laneId)
+      if (!laneStillExists) {
+        // First write of a new pass (or the prior pass's lane was deleted
+        // out from under it) — start a fresh take via the SAME machinery
+        // the "+ Mod" picker uses, so add-mode lanes are indistinguishable
+        // from a manually-added modulation lane in every other respect.
+        laneId = state.addModulationLane(trackId, paramPath, MODULATION_LANE_COLOR, 'add')
+        set({ addLanePasses: { ...get().addLanePasses, [key]: laneId } })
+      }
+      const lane = (get().lanes[trackId] ?? []).find((l) => l.id === laneId)
+      if (!lane) return // defensive — addModulationLane just created it synchronously
+      const newPoints = recordPointWithMode(lane.points, time, clamped, 'replace')
+      get().setPoints(trackId, laneId, newPoints)
+      return
+    }
+
+    const lane = (state.lanes[trackId] ?? []).find((l) => l.paramPath === paramPath)
+    if (!lane) return
+    // PK.C1 curve-visibility contract (RATIFIED-FOUNDATIONS.md D13):
+    // recording must never write to an invisible lane — auto-reveal it at
+    // the moment a recording pass starts writing. Guarded on !isVisible so
+    // this only fires once per hide/reveal cycle, not on every point.
+    if (!lane.isVisible) {
+      state.setLaneVisible(trackId, lane.id, true)
+    }
+    const newPoints = recordPointWithMode(lane.points, time, clamped, state.recordMode)
+    state.setPoints(trackId, lane.id, newPoints)
+  },
+
+  endAddLanePass: (trackId, paramPath) => {
+    const current = get().addLanePasses
+    if (Object.keys(current).length === 0) return
+    if (trackId === undefined) {
+      set({ addLanePasses: {} })
+      return
+    }
+    if (paramPath === undefined) {
+      const prefix = `${trackId}::`
+      const next: Record<string, string> = {}
+      for (const [k, v] of Object.entries(current)) {
+        if (!k.startsWith(prefix)) next[k] = v
+      }
+      set({ addLanePasses: next })
+      return
+    }
+    const key = `${trackId}::${paramPath}`
+    if (!(key in current)) return
+    const next = { ...current }
+    delete next[key]
+    set({ addLanePasses: next })
+  },
 
   recordTriggerEvent: (trackId, laneId, time, eventType) => {
     const trackLanes = get().lanes[trackId]
@@ -1396,6 +1499,7 @@ export const useAutomationStore = create<AutomationState>((set, get) => ({
       armedTrackId: null,
       clipboard: null,
       recordMode: 'replace',
+      addLanePasses: {},
       sg3AbortedLaneIds: new Set<string>(),
       selectedPoints: null,
     }),

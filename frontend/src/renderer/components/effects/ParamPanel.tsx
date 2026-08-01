@@ -7,7 +7,6 @@ import ParamMix from './ParamMix'
 import { useAutomationStore } from '../../stores/automation'
 import { useTimelineStore } from '../../stores/timeline'
 import { useMIDIStore } from '../../stores/midi'
-import { recordPointWithMode } from '../../utils/automation-record'
 import { isParamAutomated } from '../../utils/automation-evaluate'
 
 /**
@@ -46,27 +45,30 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
       if (!autoStore.armedTrackId) return
 
       const paramPath = `${effectId}.${key}`
-      const lanes = autoStore.getLanesForTrack(autoStore.armedTrackId)
-      const lane = lanes.find((l) => l.paramPath === paramPath)
-      if (!lane) return
-
-      // PK.C1 curve-visibility contract (RATIFIED-FOUNDATIONS.md D13):
-      // recording must never write to an invisible lane — auto-reveal it at
-      // the moment a recording pass starts writing. Guarded on !isVisible so
-      // this only fires once per hide/reveal cycle, not on every point.
-      if (!lane.isVisible) {
-        autoStore.setLaneVisible(autoStore.armedTrackId, lane.id, true)
-      }
-
       const time = useTimelineStore.getState().playheadTime
       const pMin = def.min ?? 0
       const pMax = def.max ?? 1
       const normalized = pMax > pMin ? (value - pMin) / (pMax - pMin) : 0
-      const newPoints = recordPointWithMode(lane.points, time, Math.max(0, Math.min(1, normalized)), autoStore.recordMode)
-      autoStore.setPoints(autoStore.armedTrackId, lane.id, newPoints)
+      // D13.1 (PK.C2): recordAutomationValue is the SINGLE choke point for
+      // the global write-behavior toggle (replace/overdub/add_lane) — see
+      // stores/automation.ts. It owns the D13 curve-visibility auto-reveal
+      // and (in 'add_lane' mode) the pass -> fresh-lane resolution; no lane
+      // on the armed track for this param = no-op, same as before D13.1.
+      autoStore.recordAutomationValue(autoStore.armedTrackId, paramPath, time, normalized)
     },
     [onUpdateParam],
   )
+
+  // D13.1 (PK.C2) — Touch-mode 'add_lane' pass boundary: a knob release ends
+  // the pass so the NEXT touch starts a fresh take/lane. Latch keeps a pass
+  // open across releases (it "keeps writing until you stop playback" per the
+  // mode's own legend) — App.tsx's isPlaying watcher ends those instead.
+  const handleKnobDragEnd = useCallback((effectId: string, key: string) => {
+    const autoStore = useAutomationStore.getState()
+    if (autoStore.mode !== 'touch') return
+    if (!autoStore.armedTrackId) return
+    autoStore.endAddLanePass(autoStore.armedTrackId, `${effectId}.${key}`)
+  }, [])
 
   // AA.6 — read-only subscription to automation lanes (Ableton parity §25.1).
   // We only READ lane state here to drive the per-control automated-dot
@@ -147,6 +149,7 @@ export default function ParamPanel({ effect, effectInfo, onUpdateParam, onSetMix
           description={def.description}
           ghostValue={ghostValue}
           onChange={(v) => handleKnobChange(effect.id, key, def, v)}
+          onDragEnd={() => handleKnobDragEnd(effect.id, key)}
         />
         {hasCCMapping && (
           <span className="param-panel__cc-badge">CC</span>
