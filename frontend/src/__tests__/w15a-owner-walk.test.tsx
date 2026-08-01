@@ -28,6 +28,21 @@ import WelcomeScreen from '../renderer/components/layout/WelcomeScreen'
 import { useTimelineStore } from '../renderer/stores/timeline'
 import { useAutomationStore } from '../renderer/stores/automation'
 import { useUndoStore } from '../renderer/stores/undo'
+import type { AudioClip } from '../shared/types'
+
+function baseAudioClip(overrides: Partial<Omit<AudioClip, 'id' | 'trackId'>> = {}): Omit<AudioClip, 'id' | 'trackId'> {
+  return {
+    path: '/tmp/kick.wav',
+    inSec: 0,
+    outSec: 4,
+    startSec: 0,
+    gainDb: 0,
+    fadeInSec: 0,
+    fadeOutSec: 0,
+    muted: false,
+    ...overrides,
+  }
+}
 
 const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8')) as { version: string }
 
@@ -115,6 +130,30 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
     expect(useTimelineStore.getState().tracks.length).toBe(beforeCount + 1)
     // Menu closes after picking an item.
     expect(document.querySelector('[data-testid="add-track-menu-item-video"]')).toBeNull()
+  })
+
+  it('P2.7: right-clicking an audio clip or the loop region does NOT open the lane-bed add-track menu; the empty bed still does', () => {
+    useTimelineStore.getState().reset()
+    const audioTrackId = useTimelineStore.getState().addAudioTrack('A1', '#4ade80')!
+    useTimelineStore.getState().addAudioClip(audioTrackId, baseAudioClip())
+    useTimelineStore.getState().setLoopRegion(1, 5)
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+
+    const audioClipEl = container.querySelector('[data-testid="audio-clip"]')
+    expect(audioClipEl).toBeTruthy()
+    fireEvent.contextMenu(audioClipEl!)
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')).toBeNull()
+
+    const loopRegionEl = container.querySelector('[data-testid="loop-region"]')
+    expect(loopRegionEl).toBeTruthy()
+    fireEvent.contextMenu(loopRegionEl!)
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')).toBeNull()
+
+    // The lane bed itself (the surface this menu is FOR) still works.
+    const laneBed = container.querySelector('.timeline__tracks-scroll')
+    fireEvent.contextMenu(laneBed!)
+    expect(document.querySelector('[data-testid="add-track-menu-item-video"]')?.textContent).toBe('Add Video Track')
   })
 
   // QF6 (NEW, 2026-07-31 second owner walk): owner directive collapsed the

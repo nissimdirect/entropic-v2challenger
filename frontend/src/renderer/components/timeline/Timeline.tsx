@@ -141,6 +141,12 @@ export default function Timeline({
   // in the JSX below for what stays vs. goes).
   const [addTrackMenu, setAddTrackMenu] = useState<{ x: number; y: number } | null>(null)
   const handleLaneBedContextMenu = useCallback((e: React.MouseEvent) => {
+    // P2.7: this handler is bound on .timeline__tracks-scroll, which
+    // contains clips, audio clips, and the loop region as descendants — a
+    // right-click on any of THOSE should open their OWN context menu (or
+    // none), not the lane-bed's add-track menu. Guard against those
+    // surfaces explicitly rather than relying on stopPropagation elsewhere.
+    if ((e.target as HTMLElement).closest('.clip, [data-testid="audio-clip"], [data-testid="loop-region"]')) return
     e.preventDefault()
     setAddTrackMenu({ x: e.clientX, y: e.clientY })
   }, [])
