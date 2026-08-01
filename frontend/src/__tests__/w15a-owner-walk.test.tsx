@@ -172,6 +172,32 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
     expect(document.querySelector('[data-testid="lean-track-header"]')).toBeTruthy()
   })
 
+  it('P3.13b: Escape while focus is in a text input (e.g. the BPM field) does NOT clear an active selectionRegion', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('T', '#4ade80')
+    useTimelineStore.getState().setSelectionRegion({ in: 1, out: 5 })
+
+    render(<Timeline onSeek={() => {}} />)
+
+    const input = document.createElement('input')
+    document.body.appendChild(input)
+    fireEvent.keyDown(input, { key: 'Escape' })
+
+    expect(useTimelineStore.getState().selectionRegion).toEqual({ in: 1, out: 5 })
+    document.body.removeChild(input)
+  })
+
+  it('P3.13b: Escape NOT in a text input DOES clear an active selectionRegion (hoisted single-listener regression guard)', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('T', '#4ade80')
+    useTimelineStore.getState().setSelectionRegion({ in: 1, out: 5 })
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    fireEvent.keyDown(container, { key: 'Escape' })
+
+    expect(useTimelineStore.getState().selectionRegion).toBeNull()
+  })
+
   // QF6 (NEW, 2026-07-31 second owner walk): owner directive collapsed the
   // headers-spacer's + Track / + MIDI / + Inspector three-button row into a
   // single "+ Track" button opening the SAME unified menu as QF3's

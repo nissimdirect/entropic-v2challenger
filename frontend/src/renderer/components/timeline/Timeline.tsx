@@ -9,6 +9,7 @@ import { InspectorTrackHeader, InspectorTrackLane } from './InspectorTrack'
 import { MasterTrackHeader, MasterTrackLane } from './MasterTrack'
 import GridOverlay from './GridOverlay'
 import LoopRegion from './LoopRegion'
+import { cancelActiveMarqueeDrag } from './MarqueeOverlay'
 import MarkerFlag from './MarkerFlag'
 import ContextMenu from './ContextMenu'
 import type { MenuItem } from './ContextMenu'
@@ -86,6 +87,33 @@ export default function Timeline({
   const selectedClipIds = useTimelineStore((s) => s.selectedClipIds)
   const markers = useTimelineStore((s) => s.markers)
   const loopRegion = useTimelineStore((s) => s.loopRegion)
+
+  // P3.13b: ONE Escape listener for the whole timeline, replacing what used
+  // to be one window.addEventListener('keydown', ...) registered PER MOUNTED
+  // MarqueeOverlay instance (one per lane/track — N identical listeners for
+  // N tracks, all doing the same thing redundantly). Text-input guard
+  // mirrors shortcutRegistry.handleKeyEvent's isTextInput check (shortcuts.ts)
+  // so Escape inside e.g. the BPM input still lets the browser/input handle
+  // it normally instead of also clearing the arrangement selection region.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      const target = e.target as HTMLElement | null
+      const isTextInput =
+        target?.tagName === 'INPUT' ||
+        target?.tagName === 'TEXTAREA' ||
+        target?.isContentEditable
+      if (isTextInput) return
+      // Mid-drag cancel (unchanged NEGATIVE behavior: does NOT touch clip
+      // selection) takes priority over clearing an already-committed region.
+      if (cancelActiveMarqueeDrag()) return
+      if (useTimelineStore.getState().selectionRegion) {
+        useTimelineStore.getState().clearSelectionRegion()
+      }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const height = useLayoutStore((s) => s.timelineHeight)
   const setHeight = useCallback((h: number) => useLayoutStore.getState().setTimelineHeight(h), [])

@@ -20,7 +20,7 @@
  * structure rather than re-testing the guard predicate in isolation.
  */
 import { useRef } from 'react'
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import { setupMockEntropic, teardownMockEntropic } from '../../helpers/mock-entropic'
 
@@ -151,5 +151,57 @@ describe('MarqueeOverlay — real component drag gesture (DOM-level oracle)', ()
     // Not a {in:104, out:104} phantom region — a real clear.
     expect(useTimelineStore.getState().selectionRegion).toBeNull()
     expect(queryByTestId('selection-region-band')).toBeNull()
+  })
+
+  it('P3.13a: a pointermove that snaps to the SAME range as the current selectionRegion does not write a new object to the store', () => {
+    const trackId = useTimelineStore.getState().addTrack('T', '#4ade80') as string
+    const zoom = 50
+    const { container, getByTestId } = render(<Harness trackId={trackId} zoom={zoom} scrollX={0} />)
+    const laneEl = getByTestId('lane-container')
+    stubRect(laneEl, 0, 1000)
+    const overlayEl = container.querySelector('.marquee-overlay') as HTMLElement
+
+    fireEvent.pointerDown(overlayEl, { clientX: 100, clientY: 10, button: 0, pointerId: 1 })
+    fireEvent.pointerMove(overlayEl, { clientX: 400, clientY: 10, pointerId: 1 })
+    const regionAfterFirstMove = useTimelineStore.getState().selectionRegion
+    expect(regionAfterFirstMove).not.toBeNull()
+
+    // Same clientX (quantize off -> identical snapped range) — a second,
+    // redundant pointermove (e.g. sub-pixel mouse jitter with the same
+    // rounded position) must NOT call setSelectionRegion again. If it did,
+    // the store would hold a NEW (deep-equal but not reference-equal)
+    // object, since setSelectionRegion always does `set({selectionRegion:
+    // region})` with a freshly-built object.
+    fireEvent.pointerMove(overlayEl, { clientX: 400, clientY: 11, pointerId: 1 })
+    const regionAfterSecondMove = useTimelineStore.getState().selectionRegion
+    expect(regionAfterSecondMove).toBe(regionAfterFirstMove)
+  })
+
+  it('P3.13d: unmounting mid-drag before the click-suppressor fires removes the window click listener (no leak)', () => {
+    const trackId = useTimelineStore.getState().addTrack('T', '#4ade80') as string
+    const zoom = 50
+    const { container, getByTestId, unmount } = render(<Harness trackId={trackId} zoom={zoom} scrollX={0} />)
+    const laneEl = getByTestId('lane-container')
+    stubRect(laneEl, 0, 1000)
+    const overlayEl = container.querySelector('.marquee-overlay') as HTMLElement
+
+    const addSpy = vi.spyOn(window, 'addEventListener')
+    const removeSpy = vi.spyOn(window, 'removeEventListener')
+
+    fireEvent.pointerDown(overlayEl, { clientX: 100, clientY: 10, button: 0, pointerId: 1 })
+    // dx >= 2 -> handlePointerUp registers the {capture,once} click-suppressor.
+    fireEvent.pointerUp(overlayEl, { clientX: 400, clientY: 10, pointerId: 1 })
+
+    const clickAddCall = addSpy.mock.calls.find(([type]) => type === 'click')
+    expect(clickAddCall, 'expected a window click listener to be registered').toBeTruthy()
+    const suppressorFn = clickAddCall![1]
+
+    // Unmount BEFORE the suppressor's one-shot click ever fires.
+    unmount()
+
+    expect(removeSpy).toHaveBeenCalledWith('click', suppressorFn, { capture: true })
+
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
   })
 })
