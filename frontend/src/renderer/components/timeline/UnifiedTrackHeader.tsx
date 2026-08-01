@@ -39,23 +39,23 @@ import type { Track as TrackType } from '../../../shared/types'
  * (w15a-owner-walk.test.tsx QF1 source-inspects that exact block; the flag
  * has been ON by default for 11+ weeks with no reported regression, so the
  * legacy path is frozen dead code, out of this packet's scope to touch).
+ *
+ * CAPABILITY CONFIG OBJECTS (gate-fix packet P2.11): each optional slot
+ * below is a single config-object prop rather than a separate boolean flag
+ * plus N loose data/handler props. PRESENCE OF THE PROP IS THE CAPABILITY
+ * FLAG — passing `arm={{...}}` turns the arm slot on; omitting it (or
+ * passing `undefined`) turns it off, and TypeScript then requires every
+ * field the slot's markup actually reads (no separate `capabilities.arm:
+ * true` to keep in sync with a same-named data prop that could
+ * theoretically be passed while the flag says off). Only 4 wrapper callers
+ * exist (Track.tsx, AudioTrack.tsx, InspectorTrack.tsx, MasterTrack.tsx),
+ * so this reshape is purely mechanical at every call site — no behavior
+ * change, no new capability, nothing renders differently.
  */
-
-export interface UnifiedTrackHeaderCapabilities {
-  arm: boolean
-  blend: boolean
-  mute: boolean
-  solo: boolean
-  visibility: boolean
-  lock: boolean
-  twirl: boolean
-  drag: boolean
-}
 
 export interface UnifiedTrackHeaderProps {
   track: TrackType
   isSelected: boolean
-  capabilities: UnifiedTrackHeaderCapabilities
   typeBadge: KitIconName
   typeBadgeLabel: string
   /** e.g. 'lean-track-header' for video/text/performance — omit for other types. */
@@ -68,82 +68,95 @@ export interface UnifiedTrackHeaderProps {
    * MasterTrackHeader with a fixture track whose `.type` is 'video', to test
    * the component in isolation from real master-track data).
    */
-  armTestId?: string
   nameClassNameExtra?: string
   swatchClassNameExtra?: string
   badgeClassNameExtra?: string
   isDragging?: boolean
   ownIdx?: number | null
-  onPointerDown?: (e: React.PointerEvent<HTMLDivElement>) => void
   onClick: () => void
   onContextMenu?: (e: React.MouseEvent) => void
+  /** Drop-target for EXTERNAL drag payloads (effects/instruments) — independent
+   *  of the `drag` (reorder) capability below; already presence-gated as-is. */
   onDragOver?: (e: React.DragEvent) => void
   onDrop?: (e: React.DragEvent) => void
-  isArmed?: boolean
-  onArmToggle?: (e: React.MouseEvent) => void
-  isRenaming?: boolean
-  renameText?: string
-  onRenameChange?: (e: React.ChangeEvent<HTMLInputElement>) => void
-  onRenameKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void
-  onRenameBlur?: () => void
-  renameInputRef?: React.RefObject<HTMLInputElement | null>
-  onNameDoubleClick?: () => void
-  onMute?: (e: React.MouseEvent) => void
-  onSolo?: (e: React.MouseEvent) => void
-  isLocked?: boolean
-  onLockToggle?: (e: React.MouseEvent) => void
-  isExpanded?: boolean
-  onTwirlToggle?: (e: React.MouseEvent) => void
-  blendLabel?: string
-  opacityPct?: number
-  onBchipClick?: (e: React.MouseEvent) => void
   extraContent?: ReactNode
   laneBadges?: ReactNode
   nestedContent?: ReactNode
   ctxMenu?: ReactNode
+
+  /** Presence = drag-REORDER capability on (pointerdown -> useTrackDragReorder). */
+  drag?: {
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void
+  }
+  /** Presence = twirl (nested fx/automation disclosure) capability on. */
+  twirl?: {
+    isExpanded: boolean
+    onToggle: (e: React.MouseEvent) => void
+  }
+  /** Presence = arm capability on. */
+  arm?: {
+    isArmed: boolean
+    onToggle: (e: React.MouseEvent) => void
+    testId?: string
+  }
+  /** Presence = rename capability on (double-click name to start renaming). */
+  rename?: {
+    isRenaming: boolean
+    text: string
+    onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+    onBlur: () => void
+    inputRef: React.RefObject<HTMLInputElement | null>
+    onDoubleClick: () => void
+  }
+  /** Presence = blend chip capability on. */
+  blend?: {
+    label: string
+    opacityPct: number
+    onClick: (e: React.MouseEvent) => void
+  }
+  /** Presence = mute capability on. */
+  mute?: { onToggle: (e: React.MouseEvent) => void }
+  /** Presence = solo capability on. */
+  solo?: { onToggle: (e: React.MouseEvent) => void }
+  /** Presence = lock capability on. */
+  lock?: {
+    isLocked: boolean
+    onToggle: (e: React.MouseEvent) => void
+  }
+  /** Presence = visibility (eye) capability on. */
+  visibility?: { onToggle: (e: React.MouseEvent) => void }
 }
 
 export default function UnifiedTrackHeader({
   track,
   isSelected,
-  capabilities: caps,
   typeBadge,
   typeBadgeLabel,
   rootTestId,
   rootClassNameExtra,
-  armTestId,
   nameClassNameExtra,
   swatchClassNameExtra,
   badgeClassNameExtra,
   isDragging,
   ownIdx,
-  onPointerDown,
   onClick,
   onContextMenu,
   onDragOver,
   onDrop,
-  isArmed,
-  onArmToggle,
-  isRenaming,
-  renameText,
-  onRenameChange,
-  onRenameKeyDown,
-  onRenameBlur,
-  renameInputRef,
-  onNameDoubleClick,
-  onMute,
-  onSolo,
-  isLocked,
-  onLockToggle,
-  isExpanded,
-  onTwirlToggle,
-  blendLabel,
-  opacityPct,
-  onBchipClick,
   extraContent,
   laneBadges,
   nestedContent,
   ctxMenu,
+  drag,
+  twirl,
+  arm,
+  rename,
+  blend,
+  mute,
+  solo,
+  lock,
+  visibility,
 }: UnifiedTrackHeaderProps) {
   const rootClasses = [
     'track-header',
@@ -160,6 +173,8 @@ export default function UnifiedTrackHeader({
     nameClassNameExtra ?? '',
   ].filter(Boolean).join(' ')
 
+  const isRenaming = rename?.isRenaming ?? false
+
   return (
     <>
       <div
@@ -169,32 +184,32 @@ export default function UnifiedTrackHeader({
         data-testid={rootTestId}
         onClick={onClick}
         onContextMenu={onContextMenu}
-        onPointerDown={caps.drag ? onPointerDown : undefined}
+        onPointerDown={drag?.onPointerDown}
         onDragOver={onDragOver}
         onDrop={onDrop}
       >
         <div className="track-header__lean-row">
-          {caps.twirl && (
+          {twirl && (
             <button
               className="track-header__twirl"
               data-testid="track-twirl"
-              aria-label={isExpanded ? 'Collapse track' : 'Expand track'}
-              aria-expanded={isExpanded}
-              onClick={onTwirlToggle}
+              aria-label={twirl.isExpanded ? 'Collapse track' : 'Expand track'}
+              aria-expanded={twirl.isExpanded}
+              onClick={twirl.onToggle}
             >
-              <Icon name={isExpanded ? 'chevron-down' : 'chevron-right'} size={12} />
+              <Icon name={twirl.isExpanded ? 'chevron-down' : 'chevron-right'} size={12} />
             </button>
           )}
-          {caps.arm && (
+          {arm && (
             <button
-              className={`track-header__auto-btn${isArmed ? ' track-header__auto-btn--active' : ''}`}
-              data-testid={armTestId}
+              className={`track-header__auto-btn${arm.isArmed ? ' track-header__auto-btn--active' : ''}`}
+              data-testid={arm.testId}
               data-slot="arm"
-              onClick={onArmToggle}
-              title={isArmed ? 'Disarm automation' : 'Arm for automation recording'}
-              aria-label={isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
+              onClick={arm.onToggle}
+              title={arm.isArmed ? 'Disarm automation' : 'Arm for automation recording'}
+              aria-label={arm.isArmed ? 'Disarm automation recording' : 'Arm for automation recording'}
             >
-              <Icon name="circle" size={10} filled={isArmed} />
+              <Icon name="circle" size={10} filled={arm.isArmed} />
             </button>
           )}
           <span
@@ -205,17 +220,17 @@ export default function UnifiedTrackHeader({
           <div
             className="track-header__info--lean"
             data-slot="name"
-            onDoubleClick={isRenaming || !onNameDoubleClick ? undefined : onNameDoubleClick}
+            onDoubleClick={isRenaming || !rename ? undefined : rename.onDoubleClick}
           >
-            {isRenaming ? (
+            {rename && isRenaming ? (
               <input
-                ref={renameInputRef}
+                ref={rename.inputRef}
                 className="track-header__rename-input"
                 type="text"
-                value={renameText}
-                onChange={onRenameChange}
-                onKeyDown={onRenameKeyDown}
-                onBlur={onRenameBlur}
+                value={rename.text}
+                onChange={rename.onChange}
+                onKeyDown={rename.onKeyDown}
+                onBlur={rename.onBlur}
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
@@ -232,7 +247,7 @@ export default function UnifiedTrackHeader({
           >
             <Icon name={typeBadge} size={12} />
           </span>
-          {caps.blend && (
+          {blend && (
             <button
               className="track-header__bchip"
               data-testid="track-bchip"
@@ -243,47 +258,47 @@ export default function UnifiedTrackHeader({
               // ~23px on a live Text track (headers column ~262px). Opacity
               // moves to title/aria-label (the LayerPanel already owns
               // opacity editing); the visible chip is mode-only.
-              title={`Blend ${blendLabel}, opacity ${opacityPct}% — open LAYER panel`}
-              aria-label={`Blend ${blendLabel}, opacity ${opacityPct}% — open LAYER panel`}
-              onClick={onBchipClick}
+              title={`Blend ${blend.label}, opacity ${blend.opacityPct}% — open LAYER panel`}
+              aria-label={`Blend ${blend.label}, opacity ${blend.opacityPct}% — open LAYER panel`}
+              onClick={blend.onClick}
             >
-              {blendLabel}
+              {blend.label}
             </button>
           )}
-          {caps.mute && (
+          {mute && (
             <button
               className={`track-header__btn${track.isMuted ? ' track-header__btn--active' : ''}`}
               data-slot="mute"
-              onClick={onMute}
+              onClick={mute.onToggle}
               title="Mute"
             >
               M
             </button>
           )}
-          {caps.solo && (
+          {solo && (
             <button
               className={`track-header__btn${track.isSoloed ? ' track-header__btn--active' : ''}`}
               data-slot="solo"
-              onClick={onSolo}
+              onClick={solo.onToggle}
               title="Solo"
             >
               S
             </button>
           )}
           {extraContent}
-          {caps.lock && (
+          {lock && (
             <button
-              className={`track-header__btn${isLocked ? ' track-header__btn--active' : ''}`}
-              onClick={onLockToggle}
+              className={`track-header__btn${lock.isLocked ? ' track-header__btn--active' : ''}`}
+              onClick={lock.onToggle}
               data-testid="track-lock-btn"
-              title={isLocked ? 'Unlock track' : 'Lock track'}
-              aria-label={isLocked ? 'Unlock track' : 'Lock track'}
-              aria-pressed={isLocked}
+              title={lock.isLocked ? 'Unlock track' : 'Lock track'}
+              aria-label={lock.isLocked ? 'Unlock track' : 'Lock track'}
+              aria-pressed={lock.isLocked}
             >
-              <Icon name={isLocked ? 'lock' : 'unlock'} size={13} />
+              <Icon name={lock.isLocked ? 'lock' : 'unlock'} size={13} />
             </button>
           )}
-          {caps.visibility && (
+          {visibility && (
             <button
               className={`track-header__eye${track.isMuted ? ' track-header__eye--off' : ''}`}
               data-testid="track-eye"
@@ -291,7 +306,7 @@ export default function UnifiedTrackHeader({
               aria-label={track.isMuted ? 'Show layer' : 'Hide layer'}
               aria-pressed={!track.isMuted}
               title={track.isMuted ? 'Layer hidden (muted)' : 'Layer visible'}
-              onClick={onMute}
+              onClick={visibility.onToggle}
             >
               <Icon name={track.isMuted ? 'eye-off' : 'eye'} size={14} />
             </button>

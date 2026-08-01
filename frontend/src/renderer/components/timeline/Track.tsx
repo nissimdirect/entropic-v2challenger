@@ -354,52 +354,49 @@ export function TrackHeader({ track, isSelected }: TrackHeaderProps) {
       }
     }
 
+    const isBlendCapable = track.type !== 'performance' && track.type !== 'audio'
+
     return (
       <UnifiedTrackHeader
         track={track}
         isSelected={isSelected}
-        capabilities={{
-          arm: true,
-          blend: track.type !== 'performance' && track.type !== 'audio',
-          mute: true,
-          solo: true,
-          visibility: true,
-          lock: true,
-          twirl: true,
-          drag: true,
-        }}
         typeBadge={typeBadge}
         typeBadgeLabel={typeBadgeLabel}
         rootTestId="lean-track-header"
         ownIdx={drag.ownIdx}
         isDragging={dragFromIdx !== null && dragFromIdx === drag.ownIdx}
-        onPointerDown={drag.onPointerDown}
+        drag={{ onPointerDown: drag.onPointerDown }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        isArmed={isArmed}
-        onArmToggle={handleArmToggle}
-        isRenaming={isRenaming}
-        renameText={renameText}
-        onRenameChange={(e) => setRenameText(e.target.value)}
-        onRenameKeyDown={(e) => {
-          if (e.key === 'Enter') confirmRename()
-          else if (e.key === 'Escape') cancelRename()
-          e.stopPropagation()
+        arm={{ isArmed, onToggle: handleArmToggle }}
+        rename={{
+          isRenaming,
+          text: renameText,
+          onChange: (e) => setRenameText(e.target.value),
+          onKeyDown: (e) => {
+            if (e.key === 'Enter') confirmRename()
+            else if (e.key === 'Escape') cancelRename()
+            e.stopPropagation()
+          },
+          onBlur: confirmRename,
+          inputRef: renameInputRef,
+          onDoubleClick: startRename,
         }}
-        onRenameBlur={confirmRename}
-        renameInputRef={renameInputRef}
-        onNameDoubleClick={startRename}
-        onMute={handleMute}
-        onSolo={handleSolo}
-        isLocked={track.locked === true}
-        onLockToggle={handleLockToggle}
-        isExpanded={isExpanded}
-        onTwirlToggle={(e) => { e.stopPropagation(); useLayoutStore.getState().toggleTrackExpanded(track.id) }}
-        blendLabel={modeLabel}
-        opacityPct={opacityPct}
-        onBchipClick={(e) => { e.stopPropagation(); useTimelineStore.getState().selectTrack(track.id) }}
+        mute={{ onToggle: handleMute }}
+        solo={{ onToggle: handleSolo }}
+        lock={{ isLocked: track.locked === true, onToggle: handleLockToggle }}
+        visibility={{ onToggle: handleMute }}
+        twirl={{
+          isExpanded,
+          onToggle: (e) => { e.stopPropagation(); useLayoutStore.getState().toggleTrackExpanded(track.id) },
+        }}
+        blend={isBlendCapable ? {
+          label: modeLabel,
+          opacityPct,
+          onClick: (e) => { e.stopPropagation(); useTimelineStore.getState().selectTrack(track.id) },
+        } : undefined}
         laneBadges={<LaneBadges trackId={track.id} />}
         nestedContent={isExpanded && (
           <div className="track-header__nested" data-testid="track-nested">
