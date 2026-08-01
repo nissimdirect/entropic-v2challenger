@@ -85,6 +85,7 @@ export function AudioTrackHeader({ track, isSelected }: AudioTrackHeaderProps) {
       capabilities={{ arm: false, blend: false, mute: true, solo: true, visibility: false, lock: false, twirl: false, drag: true }}
       typeBadge="volume-2"
       typeBadgeLabel="Audio track"
+      rootTestId="audio-track-header"
       rootClassNameExtra="audio-track-header"
       ownIdx={drag.ownIdx}
       isDragging={dragFromIdx !== null && dragFromIdx === drag.ownIdx}

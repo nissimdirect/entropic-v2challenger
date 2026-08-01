@@ -91,6 +91,7 @@ export function InspectorTrackHeader({ track, isSelected }: InspectorTrackHeader
       capabilities={{ arm: false, blend: false, mute: true, solo: true, visibility: false, lock: false, twirl: false, drag: true }}
       typeBadge="scope"
       typeBadgeLabel="Inspector track"
+      rootTestId="inspector-track-header"
       rootClassNameExtra="inspector-track-header"
       ownIdx={drag.ownIdx}
       isDragging={dragFromIdx !== null && dragFromIdx === drag.ownIdx}
