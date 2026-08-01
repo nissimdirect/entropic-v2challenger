@@ -294,20 +294,7 @@ export default function MarqueeOverlay({ zoom, scrollX, trackId, containerRef }:
   return (
     <div
       className="marquee-overlay"
-      style={{
-        position: 'absolute',
-        inset: 0,
-        // Pointer events enabled so we catch pointerdown on the background.
-        // Clip.tsx calls stopPropagation so clip-body gestures never reach here.
-        pointerEvents: 'all',
-        // z-index: 0 so that clips (rendered AFTER this in DOM order, same
-        // stacking context) naturally sit above and receive their own pointer
-        // events. The overlay only catches events that fall through the gaps
-        // between clips (i.e., empty track background).
-        zIndex: 0,
-        // The overlay itself is transparent — only the band is visible
-        background: 'transparent',
-      }}
+      data-testid="marquee-overlay"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
