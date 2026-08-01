@@ -34,6 +34,31 @@ describe('Automation Persistence', () => {
     expect(restored[0].points[0].value).toBe(0.5)
   })
 
+  // D13.1 (PK.C2) — a lane born via recordAutomationValue's 'add_lane' path
+  // is a plain modulation lane (kind 'modulation', blendOp 'add') with no
+  // special-cased persisted shape — it must round-trip exactly like a lane
+  // created through the "+ Mod" picker.
+  it('round-trip: an add-mode-born lane (blend "add") preserves kind/blendOp/points', () => {
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.5)
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 2.0, 0.8)
+
+    const snapshot = JSON.parse(JSON.stringify(useAutomationStore.getState().lanes))
+    useAutomationStore.getState().resetAutomation()
+    expect(useAutomationStore.getState().getAllLanes()).toHaveLength(0)
+
+    useAutomationStore.getState().loadAutomation(snapshot)
+    const restored = useAutomationStore.getState().lanes['track-1']
+    expect(restored).toHaveLength(1)
+    expect(restored[0].paramPath).toBe('fx-abc.amount')
+    expect(restored[0].kind).toBe('modulation')
+    expect(restored[0].blendOp).toBe('add')
+    expect(restored[0].isVisible).toBe(true)
+    expect(restored[0].points).toHaveLength(2)
+    expect(restored[0].points[0].value).toBe(0.5)
+    expect(restored[0].points[1].value).toBe(0.8)
+  })
+
   it('missing automation data loads as empty (backward compat)', () => {
     useAutomationStore.getState().loadAutomation({})
     expect(useAutomationStore.getState().getAllLanes()).toHaveLength(0)

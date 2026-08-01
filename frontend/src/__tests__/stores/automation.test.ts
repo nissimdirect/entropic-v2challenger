@@ -127,11 +127,130 @@ describe('Automation Store', () => {
     expect(useAutomationStore.getState().recordMode).toBe('replace')
   })
 
-  it('setRecordMode switches between replace and overdub', () => {
+  it('setRecordMode switches between replace, overdub, and add_lane', () => {
     useAutomationStore.getState().setRecordMode('overdub')
     expect(useAutomationStore.getState().recordMode).toBe('overdub')
+    useAutomationStore.getState().setRecordMode('add_lane')
+    expect(useAutomationStore.getState().recordMode).toBe('add_lane')
     useAutomationStore.getState().setRecordMode('replace')
     expect(useAutomationStore.getState().recordMode).toBe('replace')
+  })
+
+  // --- D13.1 (PK.C2) — Add mode: recordAutomationValue / endAddLanePass ---
+
+  it('recordAutomationValue with recordMode "replace" writes into the existing lane (regression, unchanged from pre-D13.1)', () => {
+    const lane = addTestLane()
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.5)
+    const updated = useAutomationStore.getState().getLanesForTrack('track-1').find((l) => l.id === lane.id)!
+    expect(updated.points).toEqual([{ time: 1.0, value: 0.5, curve: 0 }])
+    expect(useAutomationStore.getState().getAllLanes()).toHaveLength(1) // no new lane created
+  })
+
+  it('recordAutomationValue with recordMode "replace" is a no-op when no lane exists for the param', () => {
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.5)
+    expect(useAutomationStore.getState().getAllLanes()).toHaveLength(0)
+  })
+
+  it('recordAutomationValue auto-reveals a hidden lane before writing (D13 curve-visibility contract)', () => {
+    const lane = addTestLane()
+    useAutomationStore.getState().setLaneVisible('track-1', lane.id, false)
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.5)
+    const updated = useAutomationStore.getState().getLanesForTrack('track-1').find((l) => l.id === lane.id)!
+    expect(updated.isVisible).toBe(true)
+  })
+
+  it('recordAutomationValue with recordMode "add_lane" creates exactly ONE new lane (blend "add") on the first write of a pass, and writes land there', () => {
+    const existing = addTestLane()
+    useAutomationStore.getState().setRecordMode('add_lane')
+
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.7)
+
+    const allLanes = useAutomationStore.getState().getLanesForTrack('track-1')
+    expect(allLanes).toHaveLength(2) // existing lane + the new add-mode lane
+    const addLane = allLanes.find((l) => l.id !== existing.id)!
+    expect(addLane.kind).toBe('modulation')
+    expect(addLane.blendOp).toBe('add')
+    expect(addLane.paramPath).toBe('fx-abc.amount')
+    expect(addLane.points).toEqual([{ time: 1.0, value: 0.7, curve: 0 }])
+    // D13: a fresh add-mode lane is born visible — no separate reveal needed.
+    expect(addLane.isVisible).toBe(true)
+  })
+
+  it('recordAutomationValue with recordMode "add_lane" leaves the pre-existing lane completely untouched', () => {
+    const existing = addTestLane()
+    useAutomationStore.getState().addPoint('track-1', existing.id, 0.5, 0.2)
+    const beforePoints = useAutomationStore.getState().getLanesForTrack('track-1').find((l) => l.id === existing.id)!.points
+
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.7)
+
+    const afterPoints = useAutomationStore.getState().getLanesForTrack('track-1').find((l) => l.id === existing.id)!.points
+    expect(afterPoints).toEqual(beforePoints)
+  })
+
+  it('recordAutomationValue with recordMode "add_lane" reuses the SAME lane for further writes within one pass', () => {
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.3)
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.1, 0.4)
+
+    const lanes = useAutomationStore.getState().getLanesForTrack('track-1')
+    expect(lanes).toHaveLength(1) // still just the one take
+    expect(lanes[0].points).toHaveLength(2)
+  })
+
+  it('endAddLanePass ends the current pass, so the NEXT write starts a SECOND lane (take-style)', () => {
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.3)
+    const firstLaneId = useAutomationStore.getState().getLanesForTrack('track-1')[0].id
+
+    useAutomationStore.getState().endAddLanePass('track-1', 'fx-abc.amount')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 2.0, 0.9)
+
+    const lanes = useAutomationStore.getState().getLanesForTrack('track-1')
+    expect(lanes).toHaveLength(2)
+    expect(lanes.map((l) => l.id)).toContain(firstLaneId)
+    expect(lanes.every((l) => l.blendOp === 'add')).toBe(true)
+  })
+
+  it('endAddLanePass(trackId) with no paramPath ends every open pass on that track', () => {
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-a.amount', 1.0, 0.3)
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-b.amount', 1.0, 0.3)
+    expect(Object.keys(useAutomationStore.getState().addLanePasses)).toHaveLength(2)
+
+    useAutomationStore.getState().endAddLanePass('track-1')
+    expect(useAutomationStore.getState().addLanePasses).toEqual({})
+  })
+
+  it('endAddLanePass() with no args ends every open pass everywhere', () => {
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-a.amount', 1.0, 0.3)
+    useAutomationStore.getState().recordAutomationValue('track-2', 'fx-b.amount', 1.0, 0.3)
+
+    useAutomationStore.getState().endAddLanePass()
+    expect(useAutomationStore.getState().addLanePasses).toEqual({})
+  })
+
+  it('setMode / armTrack / setRecordMode defensively end any open add-lane pass', () => {
+    useAutomationStore.getState().armTrack('track-1')
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.3)
+    expect(Object.keys(useAutomationStore.getState().addLanePasses)).toHaveLength(1)
+
+    useAutomationStore.getState().setMode('touch')
+    expect(useAutomationStore.getState().addLanePasses).toEqual({})
+  })
+
+  it('recordMode "overdub" (not add_lane) writes into the existing lane, unchanged — no new lane created', () => {
+    const lane = addTestLane()
+    useAutomationStore.getState().addPoint('track-1', lane.id, 0.5, 0.2)
+    useAutomationStore.getState().setRecordMode('overdub')
+
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.5)
+
+    const lanes = useAutomationStore.getState().getLanesForTrack('track-1')
+    expect(lanes).toHaveLength(1)
+    expect(lanes[0].points).toHaveLength(2) // overdub layers additively, same lane
   })
 
   // --- Undo/Redo ---
@@ -176,13 +295,15 @@ describe('Automation Store', () => {
     addTestLane()
     useAutomationStore.getState().setMode('latch')
     useAutomationStore.getState().armTrack('track-1')
-    useAutomationStore.getState().setRecordMode('overdub')
+    useAutomationStore.getState().setRecordMode('add_lane')
+    useAutomationStore.getState().recordAutomationValue('track-1', 'fx-abc.amount', 1.0, 0.5)
     useAutomationStore.getState().resetAutomation()
     const s = useAutomationStore.getState()
     expect(s.getAllLanes()).toHaveLength(0)
     expect(s.mode).toBe('read')
     expect(s.armedTrackId).toBeNull()
     expect(s.recordMode).toBe('replace')
+    expect(s.addLanePasses).toEqual({})
   })
 
   it('loadAutomation hydrates lanes', () => {

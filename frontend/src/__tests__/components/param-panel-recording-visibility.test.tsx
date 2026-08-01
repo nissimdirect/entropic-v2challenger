@@ -21,6 +21,20 @@ import ParamPanel from '../../renderer/components/effects/ParamPanel'
 import { useAutomationStore } from '../../renderer/stores/automation'
 import { useTimelineStore } from '../../renderer/stores/timeline'
 
+// happy-dom does not implement the PointerEvent capture methods (see
+// marquee-overlay-component.test.tsx's header comment for the prior art).
+// Knob.tsx's handlePointerDown calls `(e.target as HTMLElement).setPointerCapture(...)`
+// unconditionally on its `<svg>` root — an SVGElement, NOT an HTMLElement —
+// so firing a real pointerdown (this file's Add-mode pass-boundary tests)
+// throws without patching SVGElement.prototype too.
+for (const proto of [HTMLElement.prototype, SVGElement.prototype] as const) {
+  if (typeof (proto as any).setPointerCapture !== 'function') {
+    ;(proto as any).setPointerCapture = () => {}
+    ;(proto as any).releasePointerCapture = () => {}
+    ;(proto as any).hasPointerCapture = () => false
+  }
+}
+
 const mockEffectInfo: EffectInfo = {
   id: 'fx.vhs',
   name: 'VHS',
@@ -126,5 +140,44 @@ describe('ParamPanel — curve-visibility contract (PK.C1 / D13)', () => {
     const lane = useAutomationStore.getState().lanes[trackId].find((l) => l.id === laneId)!
     expect(lane.isVisible).toBe(false)
     expect(lane.points.length).toBe(0)
+  })
+})
+
+// D13.1 (PK.C2) — Add mode via a real ParamPanel knob: a Touch-mode pass
+// writes into a fresh add-mode lane (not the pre-existing lane), and a
+// pointer release ends the pass so the NEXT drag starts a second take.
+describe('ParamPanel — Add mode (D13.1)', () => {
+  it('Touch-mode recording under recordMode "add_lane" creates a new lane, leaving the existing one untouched', () => {
+    const { trackId, laneId: existingLaneId } = armTrackWithLane(true)
+    useAutomationStore.setState({ recordMode: 'add_lane' })
+
+    const slider = renderKnob()
+    fireEvent.keyDown(slider, { key: 'ArrowUp' })
+
+    const lanes = useAutomationStore.getState().lanes[trackId]
+    expect(lanes).toHaveLength(2)
+    const existing = lanes.find((l) => l.id === existingLaneId)!
+    expect(existing.points).toHaveLength(0) // untouched
+    const addLane = lanes.find((l) => l.id !== existingLaneId)!
+    expect(addLane.blendOp).toBe('add')
+    expect(addLane.points.length).toBeGreaterThan(0)
+  })
+
+  it('a pointer drag release ends the pass — a second drag starts a second lane', () => {
+    const { trackId } = armTrackWithLane(true)
+    useAutomationStore.setState({ recordMode: 'add_lane' })
+    const slider = renderKnob()
+
+    fireEvent.pointerDown(slider, { clientY: 100 })
+    fireEvent.pointerMove(slider, { clientY: 90 })
+    fireEvent.pointerUp(slider)
+    const afterFirstPass = useAutomationStore.getState().lanes[trackId].length
+
+    fireEvent.pointerDown(slider, { clientY: 100 })
+    fireEvent.pointerMove(slider, { clientY: 80 })
+    fireEvent.pointerUp(slider)
+    const afterSecondPass = useAutomationStore.getState().lanes[trackId].length
+
+    expect(afterSecondPass).toBe(afterFirstPass + 1)
   })
 })
