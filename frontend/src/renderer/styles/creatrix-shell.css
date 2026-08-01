@@ -447,19 +447,36 @@
   width: 284px;
 }
 
-.track-header--lean {
+.track-header.track-header--lean {
   display: flex;
   flex-direction: column;
-  /* Explicit stretch — .track-header (timeline.css, loaded AFTER this file)
-     sets `align-items: center` for the legacy single-row header. Same
-     specificity (0,1,0 each) + later source order means it silently wins
-     for any property this rule doesn't also set. In a row-direction header
-     that's harmless, but flex-direction:column flips align-items to the
-     CROSS (horizontal) axis: without this override the lean-row rendered
-     at its own natural width, centered, instead of stretched to the
-     header's width — so .track-header__info--lean's flex:1/min-width:0
+  /* W1.6 owner walk 3 adjudication fix: this rule's OWN comment (below,
+     preserved for history) claimed `align-items: stretch` here already beat
+     .track-header's `align-items: center` (timeline.css, loaded AFTER this
+     file) because this rule "also sets" the property — that reasoning is
+     wrong. Two equal-specificity rules (both were single-class selectors,
+     0,1,0 each) setting the SAME property on the SAME element: the LATER
+     one in source order always wins, full stop, whether or not the earlier
+     rule "also" set it. There's no such carve-out in the CSS cascade. So
+     `align-items: center` silently won here all along — EVERY lean row was
+     being horizontally CENTERED in its 267px gutter, not left-aligned. Wide
+     rows (video/text, content ~288px) barely showed it (centering an
+     overflowing item shifts it ~3px). Master's row (content ~128px, far
+     narrower) got centered ~69px to the right — the owner-reported "master
+     reads centered/floating vs the track rows" bug, proven via a real-DOM
+     e2e geometry harness (tests/e2e/regression/w16-master-header-alignment.
+     spec.ts). Fixed by compounding the selector to `.track-header.
+     track-header--lean` (0,2,0) — every element with this modifier class
+     always also carries the base `.track-header` class (UnifiedTrackHeader.
+     tsx's rootClasses), so this is a safe, unconditional specificity bump
+     that makes stretch win regardless of import order.
+     Original comment, preserved: "Explicit stretch — .track-header
+     (timeline.css, loaded AFTER this file) sets `align-items: center` for
+     the legacy single-row header ... without this override the lean-row
+     rendered at its own natural width, centered, instead of stretched to
+     the header's width — so .track-header__info--lean's flex:1/min-width:0
      never got a chance to shrink, and the row overflowed both edges
-     regardless of column width. Found via the issue-424 geometry harness. */
+     regardless of column width. Found via the issue-424 geometry harness." */
   align-items: stretch;
   gap: 4px;
   padding: 6px 8px;
@@ -494,6 +511,17 @@
 .track-header__twirl:hover,
 .track-header__eye:hover {
   color: var(--cx-text-1);
+}
+
+/* W1.6 owner walk 3 — invisible gutter reservation for the twirl/arm leading
+   slots when a track type lacks that capability (master has no twirl;
+   audio/inspector have neither). Same markup/classes as the real button so
+   the reserved width is pixel-identical, just non-rendering + non-interactive,
+   so every row type's swatch/name/badge starts at the same x-offset. */
+.track-header__twirl--placeholder,
+.track-header__auto-btn--placeholder {
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .track-header__eye--off {
