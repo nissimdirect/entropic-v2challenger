@@ -205,6 +205,13 @@ export default function Timeline({
   // left/right halves of each row stay aligned when the user has more tracks
   // than fit in the visible area.
   const headersRef = useRef<HTMLDivElement | null>(null)
+  // P3.15: the counterpart ref for .timeline__tracks-scroll — replaces two
+  // document.querySelector('.timeline__tracks-scroll') call sites (this
+  // effect below, and the headers column's onScroll handler further down).
+  // A global selector query is both wasteful on every scroll tick and
+  // fragile: querySelector returns the FIRST match in document order, which
+  // is not necessarily THIS Timeline instance's own lanes column.
+  const lanesRef = useRef<HTMLDivElement | null>(null)
   const handleScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
     useTimelineStore.getState().setScrollX(e.currentTarget.scrollLeft)
     const headers = headersRef.current
@@ -245,7 +252,7 @@ export default function Timeline({
     container.scrollTop = newScrollTop
     // Keep the lanes column in sync (same manual mirror handleScroll already
     // does for the reverse direction).
-    const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+    const lanes = lanesRef.current
     if (lanes) lanes.scrollTop = newScrollTop
   }, [selectedTrackId])
 
@@ -397,7 +404,7 @@ export default function Timeline({
             onScroll={(e) => {
               // Reverse direction: user wheel-scrolls the headers column →
               // keep the lanes in sync so each row's left + right stay matched.
-              const lanes = document.querySelector<HTMLElement>('.timeline__tracks-scroll')
+              const lanes = lanesRef.current
               if (lanes && lanes.scrollTop !== e.currentTarget.scrollTop) {
                 lanes.scrollTop = e.currentTarget.scrollTop
               }
@@ -424,7 +431,7 @@ export default function Timeline({
               <TimeRuler zoom={zoom} scrollX={0} duration={duration} onSeek={onSeek} />
             </div>
           </div>
-          <div className="timeline__tracks-scroll" onScroll={handleScroll} onContextMenu={handleLaneBedContextMenu}>
+          <div className="timeline__tracks-scroll" ref={lanesRef} onScroll={handleScroll} onContextMenu={handleLaneBedContextMenu}>
             <div style={{
               width: `${contentWidth}px`,
               position: 'relative',

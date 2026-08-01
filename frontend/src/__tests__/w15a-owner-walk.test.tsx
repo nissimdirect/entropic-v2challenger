@@ -198,6 +198,40 @@ describe('W1.5a owner walk — row-level oracle (one assertion block per quick f
     expect(useTimelineStore.getState().selectionRegion).toBeNull()
   })
 
+  it('P3.15: headers <-> lanes scroll sync uses a ref, not a global querySelector — stays correct even with a stray .timeline__tracks-scroll element elsewhere in the document', () => {
+    useTimelineStore.getState().reset()
+    useTimelineStore.getState().addTrack('T1', '#4ade80')
+
+    // A decoy sharing the class name, inserted BEFORE Timeline mounts.
+    // document.querySelector('.timeline__tracks-scroll') returns the FIRST
+    // match in document order — this decoy — if the ref fix regressed back
+    // to a global selector.
+    const decoy = document.createElement('div')
+    decoy.className = 'timeline__tracks-scroll'
+    document.body.insertBefore(decoy, document.body.firstChild)
+
+    const { container } = render(<Timeline onSeek={() => {}} />)
+    const headers = container.querySelector('.timeline__track-headers') as HTMLElement
+    const lanes = container.querySelector('.timeline__tracks-scroll') as HTMLElement
+    expect(headers).toBeTruthy()
+    expect(lanes).toBeTruthy()
+    expect(lanes).not.toBe(decoy)
+
+    // Scrolling the lanes column syncs the headers column (handleScroll).
+    lanes.scrollTop = 42
+    fireEvent.scroll(lanes)
+    expect(headers.scrollTop).toBe(42)
+    expect(decoy.scrollTop).toBe(0) // decoy untouched, not mistaken for the real lanes column
+
+    // Scrolling the headers column syncs the lanes column (reverse direction).
+    headers.scrollTop = 17
+    fireEvent.scroll(headers)
+    expect(lanes.scrollTop).toBe(17)
+    expect(decoy.scrollTop).toBe(0)
+
+    document.body.removeChild(decoy)
+  })
+
   // QF6 (NEW, 2026-07-31 second owner walk): owner directive collapsed the
   // headers-spacer's + Track / + MIDI / + Inspector three-button row into a
   // single "+ Track" button opening the SAME unified menu as QF3's
