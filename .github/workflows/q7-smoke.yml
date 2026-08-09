@@ -1,0 +1,51 @@
+name: q7-smoke
+
+on:
+  push:
+    branches:
+      - "feat/q7-**"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/scripts/q7_benchmark/**"
+      - "backend/tests/test_q7_benchmark/**"
+      - ".github/workflows/q7-smoke.yml"
+      - "Makefile"
+  workflow_dispatch:
+
+# Q7 benchmark smoke gate. See docs/decisions/q7/DEC-Q7-002-ci-matrix.md.
+# Runs mock mode only (no GPU, no model load) — Apple silicon integration is
+# manual via `make q7-measure` once PR #3+ lands.
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/scripts/q7_benchmark/requirements-q7.txt
+
+      - name: Install Q7 deps
+        run: pip install -r backend/scripts/q7_benchmark/requirements-q7.txt
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run mock benchmark + schema validation
+        run: make q7-smoke
+
+      - name: Run harness unit tests
+        # --confcutdir stops pytest from walking up to backend/tests/conftest.py
+        # (which imports numpy/zmq — heavy deps not needed for Q7 smoke).
+        # -o addopts="" overrides pyproject.toml's xdist/rerunfailures opts.
+        run: |
+          cd backend
+          PYTHONPATH=scripts pytest tests/test_q7_benchmark/ \
+            -m smoke -q \
+            --confcutdir=tests/test_q7_benchmark \
+            -o addopts=""
