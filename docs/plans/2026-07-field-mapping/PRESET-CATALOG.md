@@ -90,3 +90,7 @@
 - **Related-preset suggestions** draw from these: a chain containing `kuwahara` surfaces Pack 1 + #28 (Paint-Then-Glitch) + the "＋ Structure Tensor = self-steering" one-more-move.
 - Audio-reactive variants ⟨audio⟩ reuse the existing `audio_follower` operator — no new tech.
 - Everything here is inspectable after apply (open the chain + Matrix) — presets teach.
+
+---
+
+**Implementation Reference — Noise Canvas** (added 2026-08-23, additive, non-normative): reference patterns informing this change live in `docs/plans/noise-canvas-implementation-references.md` section "field-mapping Wave-0 preset docs". Locked verdicts above are unaffected; on any conflict, this file wins.

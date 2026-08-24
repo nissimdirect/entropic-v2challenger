@@ -41,3 +41,5 @@ Plan §5. Statusbar aggregate warn; `docs/perf/` baseline rows; nightly picks th
 ---
 
 **Suggested dispatch:** [OD-1 check] → P1 ∥ P4 → P2 (Opus, redteam) → P3 → P5.
+
+> **REF (non-normative, added 2026-08-23):** implementation reference patterns for this change: `docs/plans/noise-canvas-implementation-references.md` section "device-monitors-v1 · multiwindow-stage-a" — consult before the first packet; locked contracts in THIS file win on any conflict.

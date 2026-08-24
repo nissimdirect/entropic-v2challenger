@@ -257,3 +257,7 @@ orchestrator to locate if they exist elsewhere.
 ## T1 Verdicts (LOCKED 2026-07-03 — COMBO verdict, do not re-open)
 - **OD-1 user verdict: "figure out combo" → BOTH models survive under one id.** `fx.afterimage` = the banked echo-line model (spec verbatim: delay_frames/feedback/opacity/echo_transform/color_drift + vaporwave preset) PLUS a `style` choice param: `echo` (default, new model) | `ghost` (the existing opponent-process model preserved verbatim — adaptation_rate/strength become style-scoped params). One effect, two engines, style-switched; DEPENDENT_PARAMS entries scope each style's params. Old projects (no `style` param) default to `echo` — acceptable clean-break per project.md; note in PR body.
 - OD-2..OD-5: defaults ACCEPTED (oracle → nth_frame_l1_distance(n=10); max/lighten aliasing documented; mode governs outer composite only; local ring cap 30, SG-8 registration deferred).
+
+---
+
+**Implementation Reference — Noise Canvas** (added 2026-08-23, additive, non-normative): reference patterns informing this change live in `docs/plans/noise-canvas-implementation-references.md` §fx-afterimage. Locked verdicts above are unaffected; on any conflict, this file wins.

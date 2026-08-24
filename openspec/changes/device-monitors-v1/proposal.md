@@ -84,3 +84,7 @@ only; the large FrameStrip editor is a separate panel body) · shared-memory tra
 - System Monitor self-accounting precedent: windows/panels show their own cost
   (multiwindow PRD §7).
 - JPEG transport drops alpha (Rule 1) — matte monitors composite checkerboard backend-side.
+
+---
+
+**Implementation Reference — Noise Canvas** (added 2026-08-23, additive, non-normative): reference patterns informing this change live in `docs/plans/noise-canvas-implementation-references.md` section "device-monitors-v1 · multiwindow-stage-a". Locked verdicts above are unaffected; on any conflict, this file wins.

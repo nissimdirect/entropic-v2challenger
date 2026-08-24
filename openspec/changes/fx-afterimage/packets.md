@@ -416,3 +416,5 @@ preset persistence) that is flagged forward rather than dropped.
 | PK.2 | ⬜ | — | — |
 | PK.3 | ⬜ | — | — |
 | PK.4 | ⬜ | — | — |
+
+> **REF (non-normative, added 2026-08-23):** implementation reference patterns for this change: `docs/plans/noise-canvas-implementation-references.md` §fx-afterimage — consult before the first packet; locked contracts in THIS file win on any conflict.

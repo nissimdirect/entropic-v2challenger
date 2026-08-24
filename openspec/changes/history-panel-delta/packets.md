@@ -313,3 +313,5 @@ Nothing silently narrowed.
 | P4 | ⬜ | — | — |
 | P5 | ⬜ | — | — |
 | P6 | ⬜ | — | — |
+
+> **REF (non-normative, added 2026-08-23):** implementation reference patterns for this change: `docs/plans/noise-canvas-implementation-references.md` §history-panel-delta — consult before the first packet; locked contracts in THIS file win on any conflict.

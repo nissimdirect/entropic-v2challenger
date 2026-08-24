@@ -180,3 +180,7 @@ and every call site can be threaded through in one pass.
 
 ## T1 Verdicts (LOCKED 2026-07-03, /marathon chunked T1 — do not re-open)
 All Open Decisions above: **defaults ACCEPTED as written** (user: "Accept all 33 defaults"). Hotkey ODs additionally governed by the global verdict: menu-entry-only now, accelerator picked at build/UAT.
+
+---
+
+**Implementation Reference — Noise Canvas** (added 2026-08-23, additive, non-normative): reference patterns informing this change live in `docs/plans/noise-canvas-implementation-references.md` §history-panel-delta. Locked verdicts above are unaffected; on any conflict, this file wins.
