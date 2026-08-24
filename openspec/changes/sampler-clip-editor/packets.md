@@ -58,3 +58,5 @@ rack breadcrumb navigation (test with 16-pad rack fixture).
 
 **Suggested dispatch:** P1 → {P2+P3 as one PR, P4, P6 in parallel} → P5. All Sonnet except
 P5 (Opus + qa-redteam, RISK:HIGH).
+
+> **REF (non-normative, added 2026-08-23):** implementation reference patterns for this change: `docs/plans/noise-canvas-implementation-references.md` §sampler-clip-editor — consult before the first packet; locked contracts in THIS file win on any conflict.

@@ -144,3 +144,7 @@ any heavier panel (preview/matrix/timeline, Stage C) depends on it.
 
 ## T1 Verdicts (LOCKED 2026-07-03, /marathon chunked T1 — do not re-open)
 All Open Decisions above: **defaults ACCEPTED as written** (user: "Accept all 33 defaults"). Hotkey ODs additionally governed by the global verdict: menu-entry-only now, accelerator picked at build/UAT. Clarification: accelerator assignment is deferred to the separate system-monitor-v1 change (its own execution/UAT phase) — no packet in THIS change carries a hotkey decision point.
+
+---
+
+**Implementation Reference — Noise Canvas** (added 2026-08-23, additive, non-normative): reference patterns informing this change live in `docs/plans/noise-canvas-implementation-references.md` section "device-monitors-v1 · multiwindow-stage-a". Locked verdicts above are unaffected; on any conflict, this file wins.

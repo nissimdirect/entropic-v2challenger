@@ -53,3 +53,7 @@ Creatrix can already route a scalar operator (LFO, video_analyzer) to an effect 
 
 ## 8. Ancillary wins
 Once this lands, every utility is "just" a new source; every striking destination (hue/blur/…) is already mappable; compositions become shareable saved edges; and agents get a routing API for free (each preset/suggestion = an agent action).
+
+---
+
+**Implementation Reference — Noise Canvas** (added 2026-08-23, additive, non-normative): reference patterns informing this change live in `docs/plans/noise-canvas-implementation-references.md` section "field-mapping K1". Locked verdicts above are unaffected; on any conflict, this file wins.

@@ -93,3 +93,7 @@ changes) · melodic piano-roll · any backend playback-engine change (the loop e
 - Drag/draw canvas rows CANNOT be verified by synthetic computer-use — Playwright
   `_electron` OS-pointer e2e is the proven method (confirmed 4×; templates: #439 mask-draw,
   `gh393-aa4-breakpoint-marquee.spec.ts`).
+
+---
+
+**Implementation Reference — Noise Canvas** (added 2026-08-23, additive, non-normative): reference patterns informing this change live in `docs/plans/noise-canvas-implementation-references.md` §sampler-clip-editor. Locked verdicts above are unaffected; on any conflict, this file wins.
