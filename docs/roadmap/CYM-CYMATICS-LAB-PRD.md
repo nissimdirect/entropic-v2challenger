@@ -230,8 +230,21 @@ timeline position. A 128² float32 field is 64KB, so 30 checkpoints ≈ 2MB per 
 instance; this belongs in the ONE global temporal-buffer budget the routing PRD defines
 (alongside afterimage/feedback buffers), not a private cache.
 
+**⚠ REVIEW FINDING (2026-09-07) — per-frame normalization causes brightness pumping.**
+The field's peak amplitude swings ~2.6× under normal drive. Renderers that normalize by
+the *current frame's* max therefore auto-gain, which reads as flicker on video (fine for
+stills, wrong for a video app). Fixed in the prototype by carrying a smoothed peak
+reference (EMA) **in sim state** — so it re-simulates deterministically — and normalizing
+against that: brightness swing 19.7 → 3.4, stddev 5.37 → 0.64 (measured). **The port must
+do the same; any renderer normalizing per frame is a defect.** Regression tests:
+`TestTemporalStability` (2 cases, incl. the reference surviving re-sim identically).
+
 Visual evidence: `out/grid.png` (vessel shapes × complexity), `out/refract.png`
 (split-screen through the surface), `out/liquid.mp4`, `out/refract.mp4`.
+
+**Prototype status:** 18 tests green (vessel containment, determinism incl. no-wall-clock,
+long-run stability, decay-to-silence, render/refract contracts, temporal stability,
+out-of-bounds clamping).
 
 ## 8. Traceability
 
