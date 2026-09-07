@@ -242,7 +242,38 @@ do the same; any renderer normalizing per frame is a defect.** Regression tests:
 Visual evidence: `out/grid.png` (vessel shapes × complexity), `out/refract.png`
 (split-screen through the surface), `out/liquid.mp4`, `out/refract.mp4`.
 
-**Prototype status:** 18 tests green (vessel containment, determinism incl. no-wall-clock,
+**⚠ SECOND REVIEW ROUND (user: "refract isn't effective, kernel is a bit blurry and
+undefined") — three defects found and fixed. All are NORMATIVE for the port:**
+
+1. **Caustics were the wrong model.** `-laplacian(h)` put **93% of the image in one
+   mid-gray band** (std 0.059) — measured, and exactly the "blurry mush" the user saw.
+   Replaced with real optical ray convergence: intensity = 1/|det(J)|, J = I + k·Hessian(h).
+   That spikes where rays focus, producing the thin bright filaments caustics actually have.
+   **Contrast std 0.059 → 0.215 (3.6×)**, histogram spread across bands instead of one.
+2. **`focus` was resolution-dependent.** Second differences shrink with grid spacing, so a
+   fixed k means something different at every sim size. Now scaled by (size/64)² — one
+   resolution-independent knob, same discipline as the cycles-per-frame law.
+3. **Refraction upsampled its displacement map with NEAREST.** At a 7.5× upscale every sim
+   texel became a ~7×4 block, so the warp read as stepped tiles — the main reason refraction
+   looked ineffective. Now bilinear (cached weights). Regression test asserts neighbour-pixel
+   jumps stay small on a smooth ramp.
+
+**Also added:** a caustic brightness term in `refract` (`caustic_light`) — geometric warping
+alone reads as a rubber sheet; real water also *focuses* light, brightening and darkening
+what is behind it. And `vessel="none"` for a full-frame liquid, which is the right default
+for the effect face (a visible circular dish is a generator look, not an effect look).
+
+**Sim default raised 128² → 192²** — the sim is ~free (0.51ms) and 128 did not carry enough
+spatial detail.
+
+**Revised perf after the quality work (honest trade — the caustic pass is new work):**
+`render_surface` 7.4ms @1080p (GREEN). `refract` 12–14ms @960×540 (YELLOW), 56ms @1080p (RED,
+vs 38.9ms for the earlier lower-quality version; ~1.4× shipped `fx.wave_distort`). Preview is
+the interactive path; 1080p is export. Two further optimizations already applied: cached
+bilinear weights, and per-channel chroma gathering (gathering full RGB three times and
+keeping one channel each moved 3× the bytes).
+
+**Prototype status:** 20 tests green (vessel containment, determinism incl. no-wall-clock,
 long-run stability, decay-to-silence, render/refract contracts, temporal stability,
 out-of-bounds clamping).
 
