@@ -277,6 +277,41 @@ keeping one channel each moved 3× the bytes).
 long-run stability, decay-to-silence, render/refract contracts, temporal stability,
 out-of-bounds clamping).
 
+## 10. P0 AUDIO BINDING — prototyped, and it surfaced a backend bug (2026-09-07)
+
+`audio_drive.py` implements `AudioSourceRef` + per-frame windowing against a REAL track
+(4 min drum & bass, 48kHz). Analysis functions mirror `modulation/audio_follower.py`
+exactly so the port is a move, not a rewrite. Result: all four drive params track the
+music (amplitude std 0.29, wave_speed 0.17, complexity 0.28, impulse 0.26 over full 0..1).
+
+**Getting there required three fixes, and two of them are defects in the SHIPPED backend
+follower — worth fixing in `audio_follower.py` independently of this feature:**
+
+1. **🔴 `_evaluate_frequency_band` saturates on any musical signal.** It returns
+   `mean(band²)/mean(all²)` — a ratio of PER-BIN MEANS. Because high frequencies are
+   near-silent, that ratio exceeds 1.0 for essentially every musically-relevant band, and
+   the 0..1 clamp then pins it at exactly 1.000. Measured against a real track: bass
+   mean 0.979, low_mid 0.995, **mid 1.000 with std 0.000 — a completely dead control.**
+   The bounded form is the energy FRACTION, `sum(band²)/sum(all²)`, which is 0..1 by
+   construction. Anything relying on `frequency_band` today (sidechain, operator lanes)
+   is likely pinned and nobody noticed.
+2. **🟡 Default sensitivities clip before anything can normalize.** `frequency_band`
+   defaults to sensitivity 4.0 and `onset` to threshold 0.5; `evaluate_audio` clamps to
+   0..1 INTERNALLY, so headroom is destroyed inside the function. Raw spectral flux
+   measures mean 603 / max 2406 on real audio — with the default scale it is always
+   above threshold, i.e. a constant 1.0. Onset needs ~0.0005 to stay in range.
+3. **Auto-ranging is required for musical material.** Even with correct measures, absolute
+   levels vary hugely by track and section, so `AudioSourceRef` carries `auto_range`
+   (running floor/ceiling, instant expand + slow relax) and `smoothing`. State advances
+   strictly by frame order and `reset()` clears it, so re-simulation reproduces the drive
+   exactly — the determinism guarantee holds end to end, audio included.
+
+**Recommendation:** fix (1) and (2) in `audio_follower.py` as a small standalone PR
+(with a real-audio test asserting a band control is not pinned), rather than inside this
+feature — other consumers are affected today.
+
+Evidence: `out/audio-driven.mp4` (liquid driven by a real track, audio muxed).
+
 ## 8. Traceability
 
 UI entry point on ship: browser → **GENERATORS** folder → `Chladni` / `Liquid Cymatics`
