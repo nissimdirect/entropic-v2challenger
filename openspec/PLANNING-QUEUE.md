@@ -50,6 +50,17 @@ device-monitors-v1,chain-tap-preview}/`.
 | 12 | PRD F2/T2 + tap primitive | device-monitors-v1 | READY (5 packets + 2 pre-dispatch gates) | OD-1 registry ownership (supersede-check vs system-monitor-v1) · OD-2/3/4 defaults | **BLOCKING: joint tap-schema review w/ layertap-matte-v1 §9 before P2**; zmq_server.py single-flight; sub-part-addressing monitor policy via new `monitor_default` registry field |
 | 13 | PRD T3 | chain-tap-preview | READY (2 packets) | OD-1 id-anchored taps (recommended) | Thin cap; deps device-monitors-v1 P2+P3; closes field-mapping ARCHITECTURE.md:99 tap-point 🌱 for the preview consumer |
 
+## Lane 5 — generators (added 2026-09-07)
+
+| # | target | change-name | stage | decisions-pending | notes |
+|---|--------|-------------|-------|-------------------|-------|
+| 14 | `docs/roadmap/CYM-CYMATICS-LAB-PRD.md` | cymatics-lab | ⬜ SPEC | OD-3 sim res · OD-4 caustic fidelity · OD-5 vessel source · OD-6 reference purchase (**OD-1 + OD-2 LOCKED by user 2026-09-07**) | Answers `browser-folders` OD-5 (GENERATORS-real-leaves) with real leaves. Ships `gen.liquid_cymatics` + `fx.liquid_refract` off one `_liquid.py` kernel (`gen.chladni` port follows). **`AudioSourceRef` finishes the RESERVED `source_track_id`** (`modulation/sidechain.py:56-71`, `modulation/engine.py:562`) — generic, also retires sidechain/granulator debt. Reuses `wave_distort`/`flow_distort` offset-map sampling + mask-stack as vessel + `audio_follower` bands (rms/frequency_band/onset). Source math = user's own `~/Development/cymatics/`; BioTemple is CLOSED-SOURCE PAID — technique only, never decompile, no imported ring assets. ⚠ per-track audio intersects default-OFF `_experimental_audio_tracks_enabled()` (`zmq_server.py:51-54`). CPF law: frame-indexed, never Hz. |
+
+**Lane-5 build slot:** unscheduled — queues behind Lane-4 per D9. User verdicts 2026-09-07:
+**OD-2 = liquid sim FIRST** (not the cheap chladni port), **OD-1 = yes, per-track audio
+source binding is in scope**. Kernel prototype + perf/determinism evidence:
+`~/Development/liquid-cymatics-proto/`.
+
 **Lane-4 build slot (user-locked):** after wave0 PK.00 → ui-foundation; then 11 → 12 → 13.
 **Cross-lane:** rows 12/13 share MonitorPanel/tap infra with layertap (joint schema) and the
 panel registry with system-monitor-v1 (OD-1 supersede-check); Lane-4 rows touch NEITHER
