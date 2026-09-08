@@ -79,16 +79,28 @@ def _evaluate_frequency_band(pcm: np.ndarray, params: dict, sample_rate: int) ->
     if not np.any(mask):
         return 0.0
 
-    band_energy = float(np.mean(spectrum[mask] ** 2))
-    total_energy = float(np.mean(spectrum**2))
+    # Share of total energy that falls inside the band. Bounded 0..1 by
+    # construction, so disjoint bands behave like shares of one whole.
+    #
+    # This previously divided the band's MEAN per-bin energy by the spectrum's
+    # MEAN per-bin energy. That is a bin-density ratio, not a proportion, and it
+    # is unbounded: because the high end of a musical spectrum is nearly silent,
+    # it dragged the denominator down until every musically-relevant band
+    # exceeded 1.0 and clamped. Every band then read a constant 1.000 — a dead
+    # modulation control. Pure-tone tests missed it (one bin holds all the energy,
+    # so the ratio is large either way); broadband material exposed it.
+    band_energy = float(np.sum(spectrum[mask] ** 2))
+    total_energy = float(np.sum(spectrum**2))
 
     if total_energy <= 0:
         return 0.0
 
-    # Normalize: band proportion * sensitivity
-    sensitivity = float(params.get("sensitivity", 4.0))
-    ratio = band_energy / total_energy
-    return ratio * sensitivity
+    # sensitivity is a plain gain on the proportion. Default 1.0 maps "all the
+    # energy is in this band" to full scale; the old 4.0 exists only to
+    # compensate for the broken denominator above and would re-introduce
+    # saturation for any band holding more than a quarter of the energy.
+    sensitivity = float(params.get("sensitivity", 1.0))
+    return (band_energy / total_energy) * sensitivity
 
 
 def _evaluate_onset(
@@ -111,10 +123,22 @@ def _evaluate_onset(
     diff = spectrum - prev
     flux = float(np.sum(np.maximum(diff, 0)))
 
-    # Normalize
-    sensitivity = float(params.get("sensitivity", 0.1))
+    # Express flux as a PROPORTION of the frame's own magnitude, so the reading
+    # is "how much of this frame is new energy" rather than "how loud is it".
+    #
+    # Raw flux scales with absolute level: measured on real audio it runs in the
+    # hundreds (mean 603, max 2406), so the old `flux * 0.1` sat far above the
+    # 0.5 threshold on every frame and the detector reported a constant 1.000 —
+    # it fired continuously, carrying no transient information. Normalizing also
+    # makes a quiet passage's transients register the same as a loud one's.
+    magnitude = float(np.sum(spectrum))
+    if magnitude <= 0.0:
+        state["prev_spectrum"] = spectrum.tolist()
+        return 0.0, state
+
+    sensitivity = float(params.get("sensitivity", 1.0))
     threshold = float(params.get("threshold", 0.5))
-    value = flux * sensitivity
+    value = (flux / magnitude) * sensitivity
 
     # Apply threshold: below threshold = 0
     if value < threshold:
