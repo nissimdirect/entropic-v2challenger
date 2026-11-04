@@ -73,6 +73,8 @@ Common contract: all branches cut from `origin/main` of `nissimdirect/entropic-v
 ---
 
 ### PUX.1 — Design-token foundation: implement "Live Signal" (DESIGN-SPEC v1.1) + hex-ratchet CI
+
+> ⚠ **SUPERSEDED IN PART (spec-pass 2026-11-04, docs/spec/01-FEATURE-MAP.md §S1):** type tokens here (12.5px body / 11px data) are superseded by RATIFIED **D6** Scale B+1 (body 14 · label 13 · data 12, floor 12px).
 - **ID:** PUX.1 · **branch:** `ux/pux-1-design-tokens` · **base:** `origin/main` · **depends-on:** `docs/roadmap/DESIGN-SPEC.md` readable (NOT yet on `origin/main` — verified absent at d821ae8; read it from `origin/docs/consolidated-roadmap-2026-06-11` until the docs PR merges). FIRST packet — everything else consumes it.
 - **Model:** Sonnet. **No USER-TOUCH remains:** the palette decision is LOCKED by DESIGN-SPEC v1.1 §0-§2 (ACID/MOD/RED/AMBER; Pop Chaos v1.0, UX-SPEC purple `#a855f7`, and incumbent Tailwind green are all retired by that spec). Do not re-litigate it.
 - **Goal:** Create `frontend/src/renderer/styles/tokens.css` implementing **Live Signal** (DESIGN-SPEC §2/§3/§4/§5) as a three-tier system (Tier 1 `--cx-*` primitives → Tier 2 semantic → Tier 3 component), import it first in `global.css`, migrate the **top-20 hexes (830 of 895 instances = 93%, verified distribution below)**, and land the **hex-ratchet CI gate**. NOT a full 895-hex migration; the ~65-instance tail burns down under the ratchet.
@@ -338,4 +340,6 @@ Rubric: (1) anchors git-verified · (2) full 11-field contract + model tier · (
 ---
 
 ## PUX.7 (stub — JIT-expand per EXECUTION-PLAN §1 contract)
+
+> ⚠ **SUPERSEDED IN PART (spec-pass 2026-11-04, docs/spec/01-FEATURE-MAP.md §S1):** **DEAD** — IBM Plex bundling contradicts RATIFIED **D5** (mono-only; Plex plan formally dead). Do not execute.
 IBM Plex Sans + Plex Mono font bundling and swap (DESIGN-SPEC §3) — exceeds the 4h budget of any existing PUX packet, so it ships as its own packet. Scope: bundle WOFF2 (2 weights each, subsetted), `@font-face` in tokens.css, replace JetBrains Mono references, `font-display: swap`, license files vendored (OFL — verify). Depends-on: PUX.1. Model: Sonnet.

@@ -9,6 +9,8 @@ audio-lfo-stripes}.mp4` — resolved at runtime from the ONE runtime-dir constan
 live under `~/.entropic/` until PT.4/PD.10 unifies the split — the resolver, not this spec, owns
 that reconciliation. Never hardcode both paths).
 
+> ⚠ **SUPERSEDED IN PART (spec-pass 2026-11-04, docs/spec/01-FEATURE-MAP.md §S1):** Plex Mono/Plex Sans voice rules are dead — RATIFIED **D5**: JetBrains Mono everywhere; hierarchy via weight/size/color (D6 scale). Case rules below still apply.
+
 **Voice rules (from DESIGN-SPEC §3/§8, applied to every string below):**
 - Device/data/identity strings: **IBM Plex Mono, lowercase** (`y_is_time`, `open`, `skip`).
 - Dialog/UI prose: **IBM Plex Sans, sentence case** ("Don't show demos on launch").

@@ -39,6 +39,12 @@ Progress metric: **X of Y areas specced** (Y fixed at end of phase 1).
 - Adjudicated (orchestrator, grep): orphan detector initially false-flagged TrackHeader (used as map value, Timeline.tsx:24) → fixed by counting import specifiers. ParamPanel orphan CONFIRMED (App.tsx:4015 "ParamPanel removed").
 - Semantic layer: 5 sonnet readers, brief `docs/spec/tools/semantic-brief.md`, outputs `docs/spec/inventory/semantic/*.json` (clusters: roadmap-packets-specs, roadmap-core, openspec-a, openspec-b-fieldmap, plans-legacy). Each claim needs one orchestrator spot-check before it enters 01-FEATURE-MAP.md.
 
+## ★1 owner verdicts (2026-11-04)
+- Areas (Y): NOT locked — owner asked "what else could they be / what are the other options" → alternatives presented; awaiting pick.
+- LFO/modulation addressing bug: **fold into A08 spec** (one identity key + e2e oracle).
+- Doc supersede sweep: **yes, headers only, this branch** → done (DESIGN-SPEC §3, ONBOARDING-SPEC, MASKING-INTERACTIONS ×2, ux-audit PUX.1/PUX.7, roadmap INDEX authority, mockups INDEX scale, RATIFIED D13 cite note, RECONCILIATIONS R4 stale note).
+- Lost plans: **use memory + openspec, and look for Claude app chat logs.** Searched: ~/.claude/projects/**/*.jsonl (183 transcripts, oldest Oct 17 — Jul–Sep sessions aged out), Claude desktop IndexedDB/Local Storage/Session Storage/claude-code-sessions, git log --all, stashes (3), reflog, unreachable blobs, ~ name search (maxdepth 6), ~/Development/cam-stitch (README only). **Not recoverable locally.** claude.ai chats are server-side → owner can export (claude.ai Settings → Privacy → Export data) for me to search.
+
 ## Open items for the owner (accumulate; flushed at each ★)
 
 1. Brief names `~/.claude/plans/creatrix-*.md` sources. `~/.claude/plans/` holds 5 entries, none match. Name-search of repo + ~/Development + ~/.claude + ~/Documents found none of: `creatrix-layertap-routing-prd`, `creatrix-moire-generator-bdd`, `creatrix-clip-editor-device-monitors-prd`, `creatrix-multicam-performance-brief`. Downstream content exists (openspec/changes/layertap-matte-v1, sampler-clip-editor, device-monitors-v1, chain-tap-preview; memory notes). **Multicam has no in-repo artifact.** Synth paradigm vision IS in repo: `docs/roadmap/plans/entropic-synth-paradigm-vision.md`. Ask: where do the four live now?

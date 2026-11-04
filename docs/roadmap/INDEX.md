@@ -4,6 +4,8 @@
 
 ## Authority order (when docs disagree)
 
+> ⚠ **SUPERSEDED IN PART (spec-pass 2026-11-04, docs/spec/01-FEATURE-MAP.md §S1):** this list omits `docs/frontend/RATIFIED-FOUNDATIONS.md`, which outranks every doc below item 1 for frontend/UI decisions (incl. **D9**: ui-foundation before every queued feature change).
+
 1. The user's verbatim ask
 2. **`ROADMAP.md`** (this dir) — current state ledger (built/in-flight/not-built), phased plan, gap register
 3. **`plans/entropic-creatrix-MASTER-SEQUENCE-2026-06-04.md`** — tier/PR sequencing detail

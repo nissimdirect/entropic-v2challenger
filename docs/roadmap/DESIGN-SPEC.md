@@ -74,6 +74,8 @@ glitch `#D06A6A` · distortion `#9A8BE8` · color `#5FB8C4`* · temporal `#D4A86
 
 ## 3. Typography — two voices, not one
 
+> ⚠ **SUPERSEDED IN PART (spec-pass 2026-11-04, docs/spec/01-FEATURE-MAP.md §S1):** the two-voice IBM Plex plan and the 11px floor below are dead. Law: RATIFIED-FOUNDATIONS **D5** (JetBrains Mono only) and **D6** (Scale B+1: heading 16/650 · body 14/450 · label 13/600 · data 12/450, floor **12px**). Any 11px value in this file (incl. §6 ② tool-name row) reads as 12px.
+
 | Role | Face | Size/weight | Case |
 |---|---|---|---|
 | UI labels, body, dialogs, menus | **IBM Plex Sans** | 12.5px/450 body · 12px/550 labels | Sentence case |
