@@ -1,32 +1,51 @@
-# Feature areas — DRAFT taxonomy (owner confirms at the phase-1 ★; then Y is fixed)
+# Spec structure — LOCKED 2026-11-04 — FOUR LENSES + a coverage guard (v2, owner ★1: "be as extra as possible — no contradictions or gaps")
 
-Derived from `frontend/src/renderer/components/*` dirs + `openspec/changes/*` + `docs/roadmap/` subjects.
-Each area gets exactly one spec in `docs/spec/features/<id>.md` (phase 4).
+v1 (23 code areas) is kept as lens A below. Every inventory item must be accounted for in EVERY lens;
+`docs/spec/tools/coverage.mjs` (phase 3 deliverable) fails on any gap or double-ownership.
 
-| id | Area | Code anchors (dirs/stores) | Planned changes feeding it |
+## The rule that makes it gap-proof
+
+| Lens | Unit | Owns | Guard (script, fails CI-style) |
 |---|---|---|---|
-| A01 | App shell, layout, panels, focus mode, statusbar | components/layout, statusbar · stores/layout | ui-foundation, layout-session |
-| A02 | Tool rail + tool modes | layout rail, tool-icons · default-shortcuts tool_* | ui-foundation, D4/D4a/D10, w15b |
-| A03 | Browser / library / presets | components/library, effects browser · stores/browser, library | browser-folders, wave0-prerouted-presets |
-| A04 | Timeline: tracks (Track=Layer), clips, edit ops, markers, loop, zoom/scroll | components/timeline · stores/timeline, trackDrag | 01/02/03 per-track, w15b-grid-track-paradigm |
-| A05 | LAYER panel / inspector (right dock, selection-driven, D3) | components/inspector | ui-foundation, util-transform |
-| A06 | Device chain + effects (cards, params, groups/racks, mix) | components/device-chain, effects · stores/effects | fx-afterimage, fx-backspin |
-| A07 | Automation (lanes, modes, record, curve ops, triggers) | components/automation · stores/automation | D8, D13, D13.1, automation-* plans |
-| A08 | Modulation, operators, routing (LFO, matrix, sidechain, routing canvas, LayerTap, field mapping) | components/operators, routing-canvas · stores/operators | layertap-matte-v1, chain-tap-preview, 2026-07-field-mapping |
-| A09 | Masking, mattes, selection tools, keying, AI matte | components/masking · stores/aiMatte | MASKING-INTERACTIONS, SELECTION-MASKING-SPEC, MK12 |
-| A10 | Instruments + sampler (drum rack, frame bank, granulator, clip editor) | components/instruments · stores/instruments | sampler-clip-editor, synth-paradigm vision |
-| A11 | Performance mode (pads, perform track, multicam switcher) | components/performance · stores/performance, performanceFreeze | B2 performance-track-sampler, multicam brief |
-| A12 | Preview, monitors, pop-out, multiwindow | components/preview · pop-out-entry | device-monitors-v1, multiwindow-stage-a, chain-tap-preview |
-| A13 | Transport + playback | components/transport · stores/engine | D13 transport cluster |
-| A14 | Audio (tracks, waveform, bake, master bus) | components/audio · stores/audio | master-out-bus PRD, audio bake checklist |
-| A15 | Text tracks | components/text | — |
-| A16 | Export (dialog, per-track, current frame) | components/export, dialogs/ExportDialog · stores/export | 05-export-pertrack |
-| A17 | Project lifecycle + persistence (new/open/save, autosave, unsaved gate, onboarding) | project-persistence.ts · stores/project, onboarding | 06-persistence-cleanup, ONBOARDING-SPEC |
-| A18 | History / undo panel | stores/undo | history-panel-delta |
-| A19 | MIDI (mapping, learn, CC record) | stores/midi, midiMapMode | — |
-| A20 | Preferences, about, feedback, support bundle, system monitor | components/dialogs | system-monitor-v1 |
-| A21 | Freeze / render cache / memory pressure | stores/freeze, memoryPressure | 04-freeze-pertrack |
-| A22 | Generators (live generators, moire) | backend generators surfaced in browser | aa3-live-generators, moire BDD |
-| A23 | Transform gizmo (on-canvas) | — | util-transform |
+| **D · Objects** (PRIMARY — one spec each, owner template) | `features/O<nn>-<object>.md` | states + every action on the object | every Zustand action, menu command, hotkey, context-menu item, drag source/target, dialog, empty state in `inventory.json` is claimed by **exactly one** object spec (0 = gap, 2 = contradiction risk) |
+| **B · Surfaces** (index) | `surfaces/S<nn>-<surface>.md` | what is visible/where, density, empty/loading/error per region | every component in `inventory.json` mounts in **≥1** surface; every object action has **≥1** surface entry point (FRONTEND-SDLC §5 "UI unreachable" cure) |
+| **C · Jobs** (acceptance journeys) | `journeys/J<nn>-<job>.md` | end-to-end task as an ordered list of object actions with oracles | every object action appears in **≥1** journey, or is listed as `journey-exempt` with a reason |
+| **A · Code areas** (cross-check) | the 23 rows below | — | every source file in `frontend/src/renderer` maps to ≥1 object spec |
+| **Systems** (phase 3) | `systems/<system>.md` | one rule per interaction class | every hotkey/gesture/drag/context-menu row in object specs is checked against the global maps: one key+context+surface = one meaning |
 
-Cross-cutting systems (phase 3, not counted in Y): selection · focus/keyboard · undo granularity · drag-drop · zoom/scroll · context menus · docking/workspaces · empty/loading/error · tokens/density.
+Progress is reported per lens: **X of Y object specs · S of 10 surfaces · J of 8 journeys · systems 0 of 9**.
+
+## D · Objects — **LOCKED by owner 2026-11-04 (★1). Y = 17.**
+
+| id | Object | Sub-types / parts | Main code anchors |
+|---|---|---|---|
+| O01 | Project | settings, autosave, unsaved gate, onboarding state | project-persistence.ts · stores/project, onboarding, settings |
+| O02 | Track = Layer (D2) | video, text, audio, performance, inspector, master; z-order, lock, mute/solo, color, blend/opacity (D3 panel) | stores/timeline · components/timeline (headers) |
+| O03 | Clip | video/image, text, audio; trim/slip/slide/split/ripple, speed, reverse, gain, color, transform | stores/timeline · Clip.tsx, AudioClipView.tsx |
+| O04 | Device | effect, instrument (sampler, frame bank, granulator, drum/sample rack), generator, group/rack, mix | stores/effects, instruments · components/device-chain, instruments |
+| O05 | Parameter | knob/slider/number/select; MIDI-learn target; probe | components/common, DeviceCard |
+| O06 | Automation lane | points, curves, modes (D13.1), record/write modes, triggers, curve ops (D8) | stores/automation · components/automation |
+| O07 | Modulation route | operators (LFO, sidechain, Kentaro…), matrix edges, routing canvas, LayerTap, field mapping | stores/operators · components/operators, routing-canvas |
+| O08 | Selection & mask | preview selection tools, mask stack nodes, mattes, AI matte, keys | stores/timeline (mask fields), aiMatte · components/masking, preview overlays |
+| O09 | Marker & loop region | markers, loop in/out, selection region | stores/timeline |
+| O10 | Library item | effect/preset/generator/media entries, folders, favorites, search | stores/browser, library · components/library, effects browser |
+| O11 | Tool | the 14 rail tools in 6 groups (D4a), modes, cycle keys | ToolRail.tsx · default-shortcuts tool_* |
+| O12 | Pad & performance | pads, perform mode, switcher group (multicam) | stores/performance, performanceFreeze · components/performance |
+| O13 | MIDI mapping | CC map, banks/slots, learn mode, controller profiles | stores/midi, midiMapMode |
+| O14 | Freeze / render cache | freeze prefix, flatten, memory pressure | stores/freeze, memoryPressure |
+| O15 | Export job | dialog, per-track, current frame, queue | stores/export · dialogs/ExportDialog |
+| O16 | History entry | undo stack, history panel, branches | stores/undo |
+| O17 | Panel / window / workspace | dock regions, pop-out, monitors, system monitor, layout persistence | stores/layout · pop-out-entry, components/layout |
+
+## B · Surfaces (index, 1280×800 REAL-DIMENSIONS)
+
+S01 Unified rail (D10) · S02 Browser/drawer · S03 Preview + overlays · S04 Transport bar (D13) · S05 Arrangement (tracks=layers, lanes) · S06 LAYER panel right dock (D3) · S07 Device chain · S08 Floating windows/monitors/pop-out · S09 Menus, context menus, dialogs · S10 Statusbar + toasts
+
+## C · Jobs (acceptance journeys)
+
+J01 Start/open/save/recover a project · J02 Import & organize media · J03 Arrange layers in time · J04 Add & tweak effects/instruments · J05 Animate (automation + modulation) · J06 Select, mask & composite · J07 Perform live · J08 Render & export
+
+## A · Code areas (v1, retained as cross-check)
+
+A01 shell/layout · A02 tool rail · A03 browser/library/presets · A04 timeline · A05 LAYER panel · A06 device chain/effects · A07 automation · A08 modulation/routing · A09 masking · A10 instruments/sampler · A11 performance/multicam · A12 preview/monitors/multiwindow · A13 transport · A14 audio · A15 text tracks · A16 export · A17 project/persistence · A18 history · A19 MIDI · A20 prefs/about/feedback/system monitor · A21 freeze/cache · A22 generators · A23 transform gizmo.
+(Reader outputs in `inventory/semantic/*.json` are keyed by these ids; `coverage.mjs` maps A → O.)

@@ -19,14 +19,14 @@ These become RATIFIED-FOUNDATIONS rows in phase 5 (process verdicts, recorded wi
 | Phase | Status | Output |
 |---|---|---|
 | 1 Inventory ★ | IN PROGRESS | `docs/spec/tools/inventory.mjs` → `docs/spec/inventory/` ; `docs/spec/01-FEATURE-MAP.md` |
-| 2 Reference teardown | — | `docs/spec/patterns/` |
+| 2 Reference teardown | NEXT | `docs/spec/patterns/` |
 | 3 Cross-cutting systems ★ | — | `docs/spec/systems/` |
 | 4 Feature specs | — | `docs/spec/features/` |
 | 5 Decision batches ★ | — | RATIFIED-FOUNDATIONS rows |
 | 6 Walkthrough prototype ★ | — | 1280×800 clickable |
 | 7 /packetize | after sign-off only | — |
 
-Progress metric: **X of Y areas specced** (Y fixed at end of phase 1).
+Progress metric: **X of 17 object specs · S of 10 surfaces · J of 8 journeys · systems N of 9** (AREAS.md v2).
 
 ## External dependencies (re-check at every ★)
 
@@ -40,7 +40,7 @@ Progress metric: **X of Y areas specced** (Y fixed at end of phase 1).
 - Semantic layer: 5 sonnet readers, brief `docs/spec/tools/semantic-brief.md`, outputs `docs/spec/inventory/semantic/*.json` (clusters: roadmap-packets-specs, roadmap-core, openspec-a, openspec-b-fieldmap, plans-legacy). Each claim needs one orchestrator spot-check before it enters 01-FEATURE-MAP.md.
 
 ## ★1 owner verdicts (2026-11-04)
-- Areas (Y): NOT locked — owner asked "what else could they be / what are the other options" → alternatives presented; awaiting pick.
+- Areas: owner asked for alternatives, then "as extra as possible to make sure there's no contradictions or gaps" → AREAS.md v2 four-lens structure + coverage guard; **LOCKED. Y = 17 object specs** (+10 surfaces, 8 journeys, 9 systems).
 - LFO/modulation addressing bug: **fold into A08 spec** (one identity key + e2e oracle).
 - Doc supersede sweep: **yes, headers only, this branch** → done (DESIGN-SPEC §3, ONBOARDING-SPEC, MASKING-INTERACTIONS ×2, ux-audit PUX.1/PUX.7, roadmap INDEX authority, mockups INDEX scale, RATIFIED D13 cite note, RECONCILIATIONS R4 stale note).
 - Lost plans: **use memory + openspec, and look for Claude app chat logs.** Searched: ~/.claude/projects/**/*.jsonl (183 transcripts, oldest Oct 17 — Jul–Sep sessions aged out), Claude desktop IndexedDB/Local Storage/Session Storage/claude-code-sessions, git log --all, stashes (3), reflog, unreachable blobs, ~ name search (maxdepth 6), ~/Development/cam-stitch (README only). **Not recoverable locally.** claude.ai chats are server-side → owner can export (claude.ai Settings → Privacy → Export data) for me to search.
