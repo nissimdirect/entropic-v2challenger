@@ -72,3 +72,9 @@ Progress metric: **X of 17 object specs · S of 10 surfaces · J of 8 journeys �
   - ✔ CONFIRMED: clip move/trim push one undoable entry per pointermove — `moveClip` called inside `moveHandler` (Clip.tsx:486-539, call :524), `trimClipIn` inside `onMove` (:621-627); store actions wrap `undoable` (stores/timeline.ts:1379 comment "Guard before the undoable").
   - ✔ CONFIRMED: `application/entropic-preset` drag payload set (PresetCard.tsx:22), never read anywhere → dead drag.
   - Owner decisions surfaced: freeze-undo option A/B; ripple-trim wire vs retire; preset drag target vs remove; global edit-mode toggle vs D4a.
+- interaction-core reader (selection, keyboard-focus incl. conflict-check design, context-menus, command-palette; 54 patterns, 15 additions):
+  - ✔ CONFIRMED: `shortcutRegistry.setContext()` has zero callers outside utils/shortcuts.ts → all registry `context` values are inert (perform/text contexts dead).
+  - ✔ CONFIRMED: App keydown returns early for INPUT/TEXTAREA/SELECT (App.tsx:1058-1059) → Cmd+S etc. dead while a field has focus.
+  - ✔ CONFIRMED: no `isComposing` IME guard anywhere in src/renderer.
+  - Open: OQ1 cross-track range-select (flat order vs rectangle); conflict-check 3 open questions; pointerdown-selection-collapse claim (Clip.tsx:476-485) flagged by reader as UNVERIFIED — verify in O03 spec.
+  - Reader deviation: OBSERVE tier (reaper-kb.ini, Ableton) not read — deferred to OBSERVE pass.
