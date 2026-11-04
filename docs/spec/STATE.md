@@ -19,7 +19,7 @@ These become RATIFIED-FOUNDATIONS rows in phase 5 (process verdicts, recorded wi
 | Phase | Status | Output |
 |---|---|---|
 | 1 Inventory ★ | IN PROGRESS | `docs/spec/tools/inventory.mjs` → `docs/spec/inventory/` ; `docs/spec/01-FEATURE-MAP.md` |
-| 2 Reference teardown | NEXT | `docs/spec/patterns/` |
+| 2 Reference teardown | IN PROGRESS — 3 sonnet readers on ADOPT/READ tier (13 topic files); DEFERRED: preview-compositing, performance-midi, OBSERVE tier (REAPER/CapCut config + computer use) — budget window at 86% on 2026-11-04 | `docs/spec/patterns/` |
 | 3 Cross-cutting systems ★ | — | `docs/spec/systems/` |
 | 4 Feature specs | — | `docs/spec/features/` |
 | 5 Decision batches ★ | — | RATIFIED-FOUNDATIONS rows |
