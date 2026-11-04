@@ -66,3 +66,9 @@ Progress metric: **X of 17 object specs · S of 10 surfaces · J of 8 journeys �
 - openspec-b-fieldmap (58 feat / 7 half / 8 contra (0 blocking) / 13 OD; proposals/plans/packets full, PRDs header-only):
   - ✔ CONFIRMED LIVE BUG (not a spec item — bug fixes continue under the freeze): modulation is TYPE-addressed on the wire (`frontend/src/shared/ipc-serialize.ts:45` sends `effect_id: effect.effectId`), backend drops unknown keys silently (`backend/src/modulation/routing.py:310-311` bare `continue`), and `LFOEditor.tsx:33` writes the instance UUID (`firstEffect.id`) → LFOEditor mappings are silent no-ops. Reader also cites ModulationMatrix.tsx:123,131 + OperatorKentaroCluster.tsx:188,201 (not independently checked). → owner: fix as bug now, or fold into A08 spec?
   - ✔ CONFIRMED: freeze/unfreeze create no undo entry (App.tsx:2420-2452, stores/freeze.ts) → open decision for undo-granularity system spec, not a bug.
+
+## Phase-2 adjudication log
+- edit-data-model reader (undo, timeline-edit, drag-drop, zoom-scroll; 44 patterns, 16 candidate additions):
+  - ✔ CONFIRMED: clip move/trim push one undoable entry per pointermove — `moveClip` called inside `moveHandler` (Clip.tsx:486-539, call :524), `trimClipIn` inside `onMove` (:621-627); store actions wrap `undoable` (stores/timeline.ts:1379 comment "Guard before the undoable").
+  - ✔ CONFIRMED: `application/entropic-preset` drag payload set (PresetCard.tsx:22), never read anywhere → dead drag.
+  - Owner decisions surfaced: freeze-undo option A/B; ripple-trim wire vs retire; preset drag target vs remove; global edit-mode toggle vs D4a.
