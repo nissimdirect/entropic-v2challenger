@@ -1,6 +1,6 @@
 # INVENTORY (generated — do not hand-edit)
 
-Source: `4dc01de` · regenerate: `node docs/spec/tools/inventory.mjs` · full data: `inventory.json`
+Source: `2d52d82` · regenerate: `node docs/spec/tools/inventory.mjs` · full data: `inventory.json`
 
 ## Counts
 
@@ -25,6 +25,8 @@ Source: `4dc01de` · regenerate: `node docs/spec/tools/inventory.mjs` · full da
 | dndPayloadSites | 31 |
 | contextMenus | 40 |
 | emptyStates | 20 |
+| doubleClickSites | 22 |
+| modifierChecks | 54 |
 | panels | 22 |
 | featureFlags | 2 |
 | testids | 284 |
@@ -120,7 +122,7 @@ Source: `4dc01de` · regenerate: `node docs/spec/tools/inventory.mjs` · full da
 | frontend/src/renderer/components/demos/DemosDrawer.tsx:109 | JSX onKeyDown | DemoCard | key:  key:Enter |
 | frontend/src/renderer/components/demos/DemosDrawer.tsx:189 | addEventListener(keydown) on document | DemosDrawer | key:Escape |
 | frontend/src/renderer/components/effects/EffectBrowser.tsx:497 | JSX onKeyDown | EffectBrowser | key:Escape |
-| frontend/src/renderer/components/effects/ParamPanel.tsx:204 | JSX onKeyDown | ParamPanel |  |
+| frontend/src/renderer/components/effects/ParamPanel.tsx:204 | JSX onKeyDown | ParamPanel | key:Tab |
 | frontend/src/renderer/components/inline-actions/InlineActionMenu.tsx:111 | addEventListener(keydown) on document | InlineActionMenu | key:ArrowDown key:ArrowUp key:Enter key:Escape |
 | frontend/src/renderer/components/layout/ShortcutEditor.tsx:53 | addEventListener(keydown) on window | ShortcutEditor | key:Escape |
 | frontend/src/renderer/components/layout/ToolRail.tsx:152 | addEventListener(keydown) on document | ToolFlyout | key:Escape |
@@ -134,7 +136,7 @@ Source: `4dc01de` · regenerate: `node docs/spec/tools/inventory.mjs` · full da
 | frontend/src/renderer/components/timeline/ContextMenu.tsx:157 | JSX onKeyDown | ContextMenu | key:ArrowDown key:ArrowUp key:End key:Home |
 | frontend/src/renderer/components/timeline/MarkerFlag.tsx:90 | JSX onKeyDown | MarkerFlag | key:Enter key:Escape |
 | frontend/src/renderer/components/timeline/SpeedDialog.tsx:69 | JSX onKeyDown | SpeedDialog | key:Enter key:Escape |
-| frontend/src/renderer/components/timeline/Timeline.tsx:114 | addEventListener(keydown) on window | Timeline |  |
+| frontend/src/renderer/components/timeline/Timeline.tsx:114 | addEventListener(keydown) on window | Timeline | key:Escape |
 | frontend/src/renderer/components/timeline/Track.tsx:544 | JSX onKeyDown | TrackHeader | key:Enter key:Escape |
 | frontend/src/renderer/components/timeline/UnifiedTrackHeader.tsx:261 | JSX onKeyDown | UnifiedTrackHeader |  |
 | frontend/src/renderer/hooks/useHoverDelegation.ts:123 | addEventListener(keydown) on document | (module) | key:Escape |
@@ -599,6 +601,53 @@ Source: `4dc01de` · regenerate: `node docs/spec/tools/inventory.mjs` · full da
 | TransformPanel | frontend/src/renderer/components/timeline/TransformPanel.tsx:182 | input |
 | TransformPanel | frontend/src/renderer/components/timeline/TransformPanel.tsx:219 | Slider |
 | UnifiedTrackHeader | frontend/src/renderer/components/timeline/UnifiedTrackHeader.tsx:180 | div |
+
+## Modifier-key checks by component (gesture-table input)
+
+| component (file) | modifiers tested |
+|---|---|
+| (module) (components/common/Knob.tsx) | ctrlKey metaKey shiftKey |
+| (module) (hooks/useModalBehavior.ts) | shiftKey |
+| (module) (utils/shortcuts.ts) | altKey ctrlKey metaKey shiftKey |
+| ABSwitch (components/device-chain/ABSwitch.tsx) | shiftKey |
+| AppInner (App.tsx) | ctrlKey metaKey |
+| AutomationLane (components/automation/AutomationLane.tsx) | shiftKey |
+| AutomationNode (components/automation/AutomationNode.tsx) | altKey shiftKey |
+| BoundingBoxOverlay (components/preview/BoundingBoxOverlay.tsx) | shiftKey |
+| ClipComponent (components/timeline/Clip.tsx) | ctrlKey metaKey shiftKey |
+| Knob (components/common/Knob.tsx) | ctrlKey metaKey shiftKey |
+| MarqueeOverlay (components/timeline/MarqueeOverlay.tsx) | altKey shiftKey |
+| MaskSelectOverlay (components/preview/MaskSelectOverlay.tsx) | altKey shiftKey |
+| Slider (components/common/Slider.tsx) | shiftKey |
+| TextOverlay (components/text/TextOverlay.tsx) | shiftKey |
+| Timeline (components/timeline/Timeline.tsx) | ctrlKey metaKey |
+
+## Double-click sites
+
+| component | at | tag |
+|---|---|---|
+| AppInner | frontend/src/renderer/App.tsx:3896 | div |
+| AutomationNode | frontend/src/renderer/components/automation/AutomationNode.tsx:278 | circle |
+| AutomationTransformBox | frontend/src/renderer/components/automation/AutomationTransformBox.tsx:324 | rect |
+| Knob | frontend/src/renderer/components/common/Knob.tsx:206 | svg |
+| Knob | frontend/src/renderer/components/common/Knob.tsx:270 | div |
+| Slider | frontend/src/renderer/components/common/Slider.tsx:148 | span |
+| Slider | frontend/src/renderer/components/common/Slider.tsx:152 | div |
+| InstrumentsBrowser | frontend/src/renderer/components/instruments/InstrumentsBrowser.tsx:167 | div |
+| RackDevice | frontend/src/renderer/components/instruments/RackDevice.tsx:342 | div |
+| PadCell | frontend/src/renderer/components/performance/PadCell.tsx:31 | div |
+| MaskSelectOverlay | frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:790 | svg |
+| TextOverlay | frontend/src/renderer/components/text/TextOverlay.tsx:117 | div |
+| ClipComponent | frontend/src/renderer/components/timeline/Clip.tsx:736 | span |
+| MarkerFlag | frontend/src/renderer/components/timeline/MarkerFlag.tsx:73 | div |
+| MarkerFlag | frontend/src/renderer/components/timeline/MarkerFlag.tsx:84 | input |
+| TrackHeader | frontend/src/renderer/components/timeline/Track.tsx:536 | div |
+| TransformPanel | frontend/src/renderer/components/timeline/TransformPanel.tsx:118 | span |
+| TransformPanel | frontend/src/renderer/components/timeline/TransformPanel.tsx:129 | span |
+| TransformPanel | frontend/src/renderer/components/timeline/TransformPanel.tsx:143 | span |
+| TransformPanel | frontend/src/renderer/components/timeline/TransformPanel.tsx:164 | span |
+| TransformPanel | frontend/src/renderer/components/timeline/TransformPanel.tsx:181 | span |
+| UnifiedTrackHeader | frontend/src/renderer/components/timeline/UnifiedTrackHeader.tsx:249 | div |
 
 ## Empty states
 

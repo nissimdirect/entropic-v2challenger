@@ -1,5 +1,5 @@
 {
- "generatedFrom": "4dc01de",
+ "generatedFrom": "2d52d82",
  "roots": [
   "frontend/src",
   "docs/plans",
@@ -28,6 +28,8 @@
   "dndPayloadSites": 31,
   "contextMenus": 40,
   "emptyStates": 20,
+  "doubleClickSites": 22,
+  "modifierChecks": 54,
   "panels": 22,
   "featureFlags": 2,
   "testids": 284,
@@ -6399,7 +6401,9 @@
     "at": "frontend/src/renderer/components/effects/ParamPanel.tsx:204",
     "kind": "JSX onKeyDown",
     "component": "ParamPanel",
-    "keys": []
+    "keys": [
+     "key:Tab"
+    ]
    },
    {
     "at": "frontend/src/renderer/components/inline-actions/InlineActionMenu.tsx:111",
@@ -6524,7 +6528,9 @@
     "at": "frontend/src/renderer/components/timeline/Timeline.tsx:114",
     "kind": "addEventListener(keydown) on window",
     "component": "Timeline",
-    "keys": []
+    "keys": [
+     "key:Escape"
+    ]
    },
    {
     "at": "frontend/src/renderer/components/timeline/Track.tsx:544",
@@ -7854,6 +7860,390 @@
    "type": "INSTRUMENT_DRAG_TYPE",
    "at": "frontend/src/renderer/components/timeline/Track.tsx:502",
    "component": "TrackHeader"
+  }
+ ],
+ "doubleClick": [
+  {
+   "at": "frontend/src/renderer/App.tsx:3896",
+   "component": "AppInner",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationNode.tsx:278",
+   "component": "AutomationNode",
+   "tag": "circle"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationTransformBox.tsx:324",
+   "component": "AutomationTransformBox",
+   "tag": "rect"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:206",
+   "component": "Knob",
+   "tag": "svg"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:270",
+   "component": "Knob",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Slider.tsx:148",
+   "component": "Slider",
+   "tag": "span"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Slider.tsx:152",
+   "component": "Slider",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/instruments/InstrumentsBrowser.tsx:167",
+   "component": "InstrumentsBrowser",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/instruments/RackDevice.tsx:342",
+   "component": "RackDevice",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/performance/PadCell.tsx:31",
+   "component": "PadCell",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:790",
+   "component": "MaskSelectOverlay",
+   "tag": "svg"
+  },
+  {
+   "at": "frontend/src/renderer/components/text/TextOverlay.tsx:117",
+   "component": "TextOverlay",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:736",
+   "component": "ClipComponent",
+   "tag": "span"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/MarkerFlag.tsx:73",
+   "component": "MarkerFlag",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/MarkerFlag.tsx:84",
+   "component": "MarkerFlag",
+   "tag": "input"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Track.tsx:536",
+   "component": "TrackHeader",
+   "tag": "div"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/TransformPanel.tsx:118",
+   "component": "TransformPanel",
+   "tag": "span"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/TransformPanel.tsx:129",
+   "component": "TransformPanel",
+   "tag": "span"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/TransformPanel.tsx:143",
+   "component": "TransformPanel",
+   "tag": "span"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/TransformPanel.tsx:164",
+   "component": "TransformPanel",
+   "tag": "span"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/TransformPanel.tsx:181",
+   "component": "TransformPanel",
+   "tag": "span"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/UnifiedTrackHeader.tsx:249",
+   "component": "UnifiedTrackHeader",
+   "tag": "div"
+  }
+ ],
+ "modifierSites": [
+  {
+   "at": "frontend/src/renderer/App.tsx:1068",
+   "modifier": "metaKey",
+   "component": "AppInner"
+  },
+  {
+   "at": "frontend/src/renderer/App.tsx:1068",
+   "modifier": "ctrlKey",
+   "component": "AppInner"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationLane.tsx:355",
+   "modifier": "shiftKey",
+   "component": "AutomationLane"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationNode.tsx:91",
+   "modifier": "altKey",
+   "component": "AutomationNode"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationNode.tsx:108",
+   "modifier": "shiftKey",
+   "component": "AutomationNode"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationNode.tsx:136",
+   "modifier": "shiftKey",
+   "component": "AutomationNode"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationNode.tsx:145",
+   "modifier": "shiftKey",
+   "component": "AutomationNode"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationNode.tsx:176",
+   "modifier": "shiftKey",
+   "component": "AutomationNode"
+  },
+  {
+   "at": "frontend/src/renderer/components/automation/AutomationNode.tsx:232",
+   "modifier": "altKey",
+   "component": "AutomationNode"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:64",
+   "modifier": "shiftKey",
+   "component": "(module)"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:65",
+   "modifier": "metaKey",
+   "component": "(module)"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:65",
+   "modifier": "ctrlKey",
+   "component": "(module)"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:155",
+   "modifier": "shiftKey",
+   "component": "Knob"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:170",
+   "modifier": "shiftKey",
+   "component": "Knob"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:171",
+   "modifier": "metaKey",
+   "component": "Knob"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Knob.tsx:171",
+   "modifier": "ctrlKey",
+   "component": "Knob"
+  },
+  {
+   "at": "frontend/src/renderer/components/common/Slider.tsx:121",
+   "modifier": "shiftKey",
+   "component": "Slider"
+  },
+  {
+   "at": "frontend/src/renderer/components/device-chain/ABSwitch.tsx:18",
+   "modifier": "shiftKey",
+   "component": "ABSwitch"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/BoundingBoxOverlay.tsx:76",
+   "modifier": "shiftKey",
+   "component": "BoundingBoxOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/BoundingBoxOverlay.tsx:91",
+   "modifier": "shiftKey",
+   "component": "BoundingBoxOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/BoundingBoxOverlay.tsx:123",
+   "modifier": "shiftKey",
+   "component": "BoundingBoxOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/BoundingBoxOverlay.tsx:199",
+   "modifier": "shiftKey",
+   "component": "BoundingBoxOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:494",
+   "modifier": "shiftKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:494",
+   "modifier": "altKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:495",
+   "modifier": "shiftKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:496",
+   "modifier": "altKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:564",
+   "modifier": "shiftKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:564",
+   "modifier": "altKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:565",
+   "modifier": "shiftKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:566",
+   "modifier": "altKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:604",
+   "modifier": "shiftKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:604",
+   "modifier": "altKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:605",
+   "modifier": "shiftKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/preview/MaskSelectOverlay.tsx:606",
+   "modifier": "altKey",
+   "component": "MaskSelectOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/text/TextOverlay.tsx:104",
+   "modifier": "shiftKey",
+   "component": "TextOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:477",
+   "modifier": "metaKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:477",
+   "modifier": "ctrlKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:479",
+   "modifier": "shiftKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:499",
+   "modifier": "metaKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:499",
+   "modifier": "ctrlKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:625",
+   "modifier": "metaKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:625",
+   "modifier": "ctrlKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:651",
+   "modifier": "metaKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Clip.tsx:651",
+   "modifier": "ctrlKey",
+   "component": "ClipComponent"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/MarqueeOverlay.tsx:235",
+   "modifier": "altKey",
+   "component": "MarqueeOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/MarqueeOverlay.tsx:263",
+   "modifier": "shiftKey",
+   "component": "MarqueeOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/MarqueeOverlay.tsx:264",
+   "modifier": "altKey",
+   "component": "MarqueeOverlay"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Timeline.tsx:285",
+   "modifier": "metaKey",
+   "component": "Timeline"
+  },
+  {
+   "at": "frontend/src/renderer/components/timeline/Timeline.tsx:285",
+   "modifier": "ctrlKey",
+   "component": "Timeline"
+  },
+  {
+   "at": "frontend/src/renderer/hooks/useModalBehavior.ts:121",
+   "modifier": "shiftKey",
+   "component": "(module)"
+  },
+  {
+   "at": "frontend/src/renderer/utils/shortcuts.ts:25",
+   "modifier": "ctrlKey",
+   "component": "(module)"
+  },
+  {
+   "at": "frontend/src/renderer/utils/shortcuts.ts:26",
+   "modifier": "altKey",
+   "component": "(module)"
+  },
+  {
+   "at": "frontend/src/renderer/utils/shortcuts.ts:27",
+   "modifier": "shiftKey",
+   "component": "(module)"
+  },
+  {
+   "at": "frontend/src/renderer/utils/shortcuts.ts:28",
+   "modifier": "metaKey",
+   "component": "(module)"
   }
  ],
  "contextMenus": [

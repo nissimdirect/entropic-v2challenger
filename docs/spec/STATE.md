@@ -44,3 +44,19 @@ Progress metric: **X of Y areas specced** (Y fixed at end of phase 1).
 1. Brief names `~/.claude/plans/creatrix-*.md` sources. `~/.claude/plans/` holds 5 entries, none match. Name-search of repo + ~/Development + ~/.claude + ~/Documents found none of: `creatrix-layertap-routing-prd`, `creatrix-moire-generator-bdd`, `creatrix-clip-editor-device-monitors-prd`, `creatrix-multicam-performance-brief`. Downstream content exists (openspec/changes/layertap-matte-v1, sampler-clip-editor, device-monitors-v1, chain-tap-preview; memory notes). **Multicam has no in-repo artifact.** Synth paradigm vision IS in repo: `docs/roadmap/plans/entropic-synth-paradigm-vision.md`. Ask: where do the four live now?
 2. RATIFIED D13 cites `ParamPanel.tsx handleKnobChange` as an auto-reveal site; ParamPanel is unmounted dead code (App.tsx:4015). Pending reader verification of the live site.
 3. Draft area taxonomy `docs/spec/AREAS.md` (23 areas) — owner confirms → fixes Y.
+
+## Reader adjudication log
+- roadmap-packets-specs (84 feat / 8 half / 3 contra / 4 OD; reader self-reports THIN coverage — headings + ground-truth tables, ~30 spot-greps):
+  - ✔ CONFIRMED blocking: `docs/roadmap/packets/ux-audit.md:341` PUX.7 IBM Plex bundling vs RATIFIED D5 (verified text).
+  - ✘ REFUTED half-built "Lasso: enum only, no overlay": lasso-freehand/polygon implemented in `components/preview/MaskSelectOverlay.tsx:19-25,391-436`, mounted `App.tsx:16`. Item dropped.
+  - Caution: reader used `file:1` as existence cites; those are not line-level evidence and get re-cited in phase 4.
+- openspec-a (43 feat / 4 half / 7 contra / 31 OD; read proposals+packets fully, skimmed plan/design-spec/uat):
+  - ✔ CONFIRMED material: browser-folders `plan.md:12` "NO wells (rejected)" vs `plan.md:16` "container WELLS" — same banked "do not redesign" verdict block contradicts itself → owner question.
+  - ✔ CONFIRMED OD-2: system-monitor avoids Cmd+Shift+A because `mask_deselect_all` holds it (actual line `default-shortcuts.ts:102`; proposal cites stale :86).
+  - Consistent with orchestrator M4: browser folder ops store-only.
+- roadmap-core (38 feat / 4 half / 24 contra (7 blocking) / 9 OD; full read of law docs, DESIGN-SPEC, ROADMAP, INDEX; skim of MASKING/SELECTION/ONBOARDING/PERF/vision):
+  - ✔ CONFIRMED D13 live path: contract holds via store choke point `stores/automation.ts:1012-1018` (auto-reveal), reached from `DeviceCard.tsx:155`. D13's ParamPanel cite is stale (material doc fix, not a behavior bug).
+  - ✔ CONFIRMED blocking: `MASKING-INTERACTIONS.md:236-239` hotkeys (w=wand, g=lasso, c=key) vs code+D4a (`default-shortcuts.ts:100` lasso=w; wand via KEY group `e`, `ToolRail.tsx:61`, `default-shortcuts.ts:82`).
+- openspec-b-fieldmap (58 feat / 7 half / 8 contra (0 blocking) / 13 OD; proposals/plans/packets full, PRDs header-only):
+  - ✔ CONFIRMED LIVE BUG (not a spec item — bug fixes continue under the freeze): modulation is TYPE-addressed on the wire (`frontend/src/shared/ipc-serialize.ts:45` sends `effect_id: effect.effectId`), backend drops unknown keys silently (`backend/src/modulation/routing.py:310-311` bare `continue`), and `LFOEditor.tsx:33` writes the instance UUID (`firstEffect.id`) → LFOEditor mappings are silent no-ops. Reader also cites ModulationMatrix.tsx:123,131 + OperatorKentaroCluster.tsx:188,201 (not independently checked). → owner: fix as bug now, or fold into A08 spec?
+  - ✔ CONFIRMED: freeze/unfreeze create no undo entry (App.tsx:2420-2452, stores/freeze.ts) → open decision for undo-granularity system spec, not a bug.

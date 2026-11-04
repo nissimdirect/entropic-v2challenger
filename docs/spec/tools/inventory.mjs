@@ -74,7 +74,7 @@ function enclosingComponent(node) {
 const components = []
 const jsxUsage = new Map() // tag -> Set(file)
 const testids = []
-const attrSites = { contextMenu: [], dragSource: [], dropTarget: [], keyDown: [], pointerDown: [], dialog: [], emptyState: [] }
+const attrSites = { doubleClick: [], contextMenu: [], dragSource: [], dropTarget: [], keyDown: [], pointerDown: [], dialog: [], emptyState: [] }
 const classTokens = new Map() // token -> [loc]
 
 for (const [f, { sf }] of sources) {
@@ -109,6 +109,7 @@ for (const [f, { sf }] of sources) {
     const site = { at: loc(f, sf, node), component: comp, tag }
     if (attrs['data-testid'] !== undefined) testids.push({ id: String(attrs['data-testid']), ...site })
     if (attrs.onContextMenu) attrSites.contextMenu.push(site)
+    if (attrs.onDoubleClick) attrSites.doubleClick.push(site)
     if (attrs.draggable || attrs.onDragStart) attrSites.dragSource.push({ ...site, draggable: attrs.draggable ?? null })
     if (attrs.onDrop || attrs.onDragOver || attrs.onDragEnter) attrSites.dropTarget.push({ ...site, handlers: ['onDrop', 'onDragOver', 'onDragEnter'].filter((k) => attrs[k]) })
     if (attrs.onKeyDown || attrs.onKeyUp) attrSites.keyDown.push(site)
@@ -212,9 +213,11 @@ const rawKeyHandlers = []
 function keysTested(fnNode, sf) {
   const keys = new Set()
   visit(fnNode, (n) => {
-    if (ts.isBinaryExpression(n) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken].includes(n.operatorToken.kind)) {
+    if (ts.isBinaryExpression(n) && [ts.SyntaxKind.EqualsEqualsEqualsToken, ts.SyntaxKind.EqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsEqualsToken, ts.SyntaxKind.ExclamationEqualsToken].includes(n.operatorToken.kind)) {
       for (const [a, b] of [[n.left, n.right], [n.right, n.left]]) {
-        if (ts.isPropertyAccessExpression(a) && ['key', 'code'].includes(a.name.text) && strVal(b) !== undefined) keys.add(`${a.name.text}:${strVal(b)}`)
+        let pa = a
+        if (ts.isCallExpression(pa) && ts.isPropertyAccessExpression(pa.expression) && ['toLowerCase', 'toUpperCase'].includes(pa.expression.name.text)) pa = pa.expression.expression
+        if (ts.isPropertyAccessExpression(pa) && ['key', 'code'].includes(pa.name.text) && strVal(b) !== undefined) keys.add(`${pa.name.text}:${strVal(b)}`)
       }
     }
     if (ts.isSwitchStatement(n) && ts.isPropertyAccessExpression(n.expression) && ['key', 'code'].includes(n.expression.name.text)) {
@@ -251,6 +254,14 @@ for (const [f, { sf }] of sources) {
     }
   })
 }
+
+// ---------- 4b. modifier checks (gesture table input) ----------
+const modifierSites = []
+for (const [f, { sf }] of sources) visit(sf, (n) => {
+  if (ts.isPropertyAccessExpression(n) && ['altKey', 'shiftKey', 'metaKey', 'ctrlKey'].includes(n.name.text)) modifierSites.push({ at: loc(f, sf, n), modifier: n.name.text, component: enclosingComponent(n) })
+})
+const modifierByComponent = {}
+for (const m of modifierSites) { const k = `${m.component} (${m.at.split(':')[0].replace('frontend/src/renderer/', '')})`; (modifierByComponent[k] ??= new Set()).add(m.modifier) }
 
 // ---------- 5. menu commands + renderer dispatch ----------
 const menu = [], menuHandled = []
@@ -389,7 +400,7 @@ const inv = {
     rawKeyHandlers: rawKeyHandlers.length, menuItems: menu.length, menuUnhandled: menuUnhandled.length,
     dialogs: attrSites.dialog.length, dragSources: attrSites.dragSource.length, dropTargets: attrSites.dropTarget.length,
     pointerDragCandidates: pointerDrag.length, dndPayloadSites: dndPayloads.length, contextMenus: attrSites.contextMenu.length,
-    emptyStates: attrSites.emptyState.length, panels: panels.length, featureFlags: flags.size, testids: testidSet.size,
+    emptyStates: attrSites.emptyState.length, doubleClickSites: attrSites.doubleClick.length, modifierChecks: modifierSites.length, panels: panels.length, featureFlags: flags.size, testids: testidSet.size,
     planningDocs: docs.length, docsWithStaleCites: docs.filter((d) => d.staleCites.length).length,
     citesNotInRepo: docs.reduce((n, d) => n + d.staleCites.filter((s) => s.problem === 'not-in-repo').length, 0),
     citesPlannedNotInRepo: docs.reduce((n, d) => n + d.staleCites.filter((s) => s.problem.startsWith('not-in-repo:')).length, 0),
@@ -402,7 +413,7 @@ const inv = {
     handlersWithoutDefault: registered.filter((r) => !defSet.has(r.action)), conflicts: hotkeyConflicts, rawKeyHandlers },
   menu: { items: menu, handled: menuHandled, prefixes: [...new Set(menuPrefixes)].sort(), unhandled: menuUnhandled, acceleratorAudit: menuAccelAudit },
   dialogs: attrSites.dialog, dragSources: attrSites.dragSource, dropTargets: attrSites.dropTarget, pointerDragCandidates: pointerDrag, dndPayloads,
-  contextMenus: attrSites.contextMenu, emptyStates: attrSites.emptyState, panels,
+  doubleClick: attrSites.doubleClick, modifierSites, contextMenus: attrSites.contextMenu, emptyStates: attrSites.emptyState, panels,
   featureFlags: Object.fromEntries([...flags].sort().map(([k, v]) => [k, v])),
   testids: [...testidSet].sort(), docs,
 }
@@ -429,6 +440,8 @@ md.push('### HTML5 drop targets', ''); t(['component', 'at', 'tag', 'handlers'],
 md.push('### DataTransfer payload types', ''); t(['op', 'type', 'component', 'at'], dndPayloads.map((d) => [d.op, d.type, d.component, d.at]))
 md.push('### Pointer-drag candidates (pointer/mouse-down in files with move listeners)', ''); t(['component', 'at', 'tag'], pointerDrag.map((d) => [d.component, d.at, d.tag]))
 md.push('## Context menus (onContextMenu)', ''); t(['component', 'at', 'tag'], attrSites.contextMenu.map((d) => [d.component, d.at, d.tag]))
+md.push('## Modifier-key checks by component (gesture-table input)', ''); t(['component (file)', 'modifiers tested'], Object.entries(modifierByComponent).sort().map(([k, v]) => [k, [...v].sort().join(' ')]))
+md.push('## Double-click sites', ''); t(['component', 'at', 'tag'], attrSites.doubleClick.map((d) => [d.component, d.at, d.tag]))
 md.push('## Empty states', ''); t(['component', 'at', 'tag', 'className', 'text'], attrSites.emptyState.map((d) => [d.component, d.at, d.tag, d.className, d.text]))
 md.push('## Feature flags', ''); t(['flag', 'sites'], [...flags].sort().map(([k, v]) => [k, `${v.length}: ${v.slice(0, 4).join(', ')}${v.length > 4 ? ' …' : ''}`]))
 md.push('## Planning docs', ''); t(['doc', 'title', 'lines', 'last commit', 'decision ids', 'open markers', 'stale cites', 'doc testids not in code'], docs.map((d) => [d.path, d.title.slice(0, 70), d.lines, d.lastCommit, d.decisions.length, d.openMarkers, d.staleCites.length, d.missingTestids.length]))
