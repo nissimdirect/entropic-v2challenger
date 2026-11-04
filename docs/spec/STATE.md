@@ -19,7 +19,7 @@ These become RATIFIED-FOUNDATIONS rows in phase 5 (process verdicts, recorded wi
 | Phase | Status | Output |
 |---|---|---|
 | 1 Inventory ★ | IN PROGRESS | `docs/spec/tools/inventory.mjs` → `docs/spec/inventory/` ; `docs/spec/01-FEATURE-MAP.md` |
-| 2 Reference teardown | IN PROGRESS — 3 sonnet readers on ADOPT/READ tier (13 topic files); DEFERRED: preview-compositing, performance-midi, OBSERVE tier (REAPER/CapCut config + computer use) — budget window at 86% on 2026-11-04 | `docs/spec/patterns/` |
+| 2 Reference teardown | IN PROGRESS — ADOPT/READ tier DONE: 13 topic files, 161 patterns, 51 candidate additions; DEFERRED: preview-compositing, performance-midi, OBSERVE tier (REAPER/CapCut config + computer use) — budget window at 86% on 2026-11-04 | `docs/spec/patterns/` |
 | 3 Cross-cutting systems ★ | — | `docs/spec/systems/` |
 | 4 Feature specs | — | `docs/spec/features/` |
 | 5 Decision batches ★ | — | RATIFIED-FOUNDATIONS rows |
@@ -78,3 +78,13 @@ Progress metric: **X of 17 object specs · S of 10 surfaces · J of 8 journeys �
   - ✔ CONFIRMED: no `isComposing` IME guard anywhere in src/renderer.
   - Open: OQ1 cross-track range-select (flat order vs rectangle); conflict-check 3 open questions; pointerdown-selection-collapse claim (Clip.tsx:476-485) flagged by reader as UNVERIFIED — verify in O03 spec.
   - Reader deviation: OBSERVE tier (reaper-kb.ini, Ableton) not read — deferred to OBSERVE pass.
+- surfaces-devices reader (docking-workspaces, states, tokens-density, devices-params, automation-modulation; 63 patterns, 20 additions):
+  - ✔ CONFIRMED: backend `effect_map` keyed by effect TYPE (`backend/src/modulation/routing.py:214-218`) → two same-type effects: second overwrites first. Reference evidence (Ardour/Surge) favors ONE instance-scoped ParamAddress {ownerKind, ownerId, paramKey[, subKey]}; counter-case (preset portability) recorded. Feeds O07 spec + phase-5 decision.
+  - dockview evidence recorded neutrally (verdict c); open spikes: popout vs Electron BrowserWindow relay, `file:` URL popout restriction, bundle size.
+  - Unverified reader claims to check in specs: Knob right-click reset + param context menu double-fire (Knob.tsx:149, DeviceCard.tsx:418); first-vs-last-dot param path split (routing-graph-ipc.ts:117 vs routing.py:696-711).
+
+## NEXT SESSION — resume here
+1. Re-read this file, `git log --oneline -8` on docs/spec-pass, PR #500.
+2. Phase 2 remainder: patterns/preview-compositing.md, patterns/performance-midi.md (ADOPT/READ), then OBSERVE tier — REAPER on-disk config (`reaper-kb.ini`, `reaper.ini`) + CapCut, computer use only after checking ~/.claude/.locks/ for other holders.
+3. Merge all 'Candidate additions' sections → docs/spec/ADDITIONS.md (owner approval list).
+4. Phase 3: systems specs (9) incl. tools/coverage.mjs guard + hotkey conflict checker design from patterns/keyboard-focus.md. Run /plan-check (scratchpad config: copy configs/creatrix.json with repo_root → ~/Development/entropic-spec-pass) on each before ★2.

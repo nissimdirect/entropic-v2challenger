@@ -39,7 +39,6 @@ Legal: GPL repos were read for behavior and structure. Everything below is descr
 | 9 | Folder = collapsible group with persisted open state | Tweakpane `packages/core/lib/sass/view/_folder.scss` (title button with marker, an indent bar down the left edge, expanded class); `blade/common/api/blade.ts:41-46` (`importState`/`exportState`) | Groups of params collapse under a title. A blade can export and import its state. | **Fits** device cards with many params and the LAYER panel's long lists. Group definitions would come from the effect registry. Out of v1 unless a registry carries groups. | O04 · A05 |
 | 10 | Per-parameter menu with routing management | Surge `src/surge-xt/gui/SurgeGUIEditorValueCallbacks.cpp:1200-1250` (the control's menu lists each modulation routing on that param with mute and clear actions, `isModulationMuted`) | A param's context menu lists *what is modulating it*, and each entry can be muted or removed. | **Fits.** Creatrix's param menu offers Automate only (`DeviceChain.tsx:566`). The spec's param menu should list lanes and mappings that target the param. See automation-modulation.md #9. | O05 · O07 |
 | 11 | Macro knob = a named source with the same identity as its control | Vital `src/interface/editor_sections/macro_knob_section.cpp:47-61` (each macro makes a knob named `macro_control_N` and a modulation source button with that *same* name, plus an editable label) | A macro is both a control and a modulation source. | **Fits** the existing instrument-rack macros (`RackMacro`, 8 per rack, 32 routes per macro, `components/instruments/types.ts:380-415, 458-459`). Creatrix macros target `pad.<padId>.<param>`, a different address form than operators (Problem 9). | O05 · O07 |
-| 12 | Device bypass, mix and error states on the card | Creatrix-only (no reference reads this pass). Ableton device chain is OBSERVE tier, not yet observed. | — | **No reference evidence this pass.** The card-level states (enabled, error `device-card--error` at `DeviceCard.tsx:298`, frozen, A/B) are described in Problem 8 and need observation of Ableton or REAPER FX chains. | O04 |
 
 ## Recommendation for the spec
 
@@ -50,7 +49,7 @@ Legal: GPL repos were read for behavior and structure. Everything below is descr
 5. **(#7)** Specify typed-entry validation: accepted formats, units, out-of-range handling (clamp vs reject), error text and focus return.
 6. **(#8)** State the authored/effective split: the knob arc shows authored, the ghost shows effective. Only authored is saved.
 7. **(Problem 5)** List the adornments in a fixed order with visibility rules: CC badge, automated dot, modulation indicator, field badge. One row per adornment in the component spec.
-8. **(#10)** The per-param context menu contains the param's lanes and mappings with remove and mute. Link to the automation-modulation spec.
+8. **(#10)** Specify the current per-param context menu (Automate only, track chains only). Listing and managing the param's lanes and mappings is Candidate 3, pending owner approval.
 9. **(#11)** Treat instrument macros and operators as two producers of the same "modulation source" concept in the O07 spec, even if the UI stays separate.
 10. **(Problem 7, #10)** Specify the drag-to-assign contract for an *existing* operator, not just a new one (see automation-modulation.md recs 4-5).
 11. **(#9)** If the registry gets param groups, folders are the display mechanism. Otherwise skip.
@@ -66,4 +65,3 @@ Legal: GPL repos were read for behavior and structure. Everything below is descr
 1. **Param groups / folders** in device cards driven by the effect registry (#9).
 2. **Drag readout bubble** with modulation delta (#6), if D6 sizing allows.
 3. **Param menu that lists and manages its modulation routings** (#10), beyond the current Automate-only menu. (The menu itself exists, so this extends it.)
-4. **A shared "ParamAddress" value type** is a spec matter and not a feature: see automation-modulation.md. It is not listed as an addition.
