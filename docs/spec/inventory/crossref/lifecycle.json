@@ -1,0 +1,412 @@
+{
+  "cluster": "lifecycle",
+  "objects": ["O01", "O14", "O15", "O16"],
+  "docsRead": [
+    "docs/spec/tools/crossref-brief.md",
+    "docs/spec/AREAS.md",
+    "docs/spec/STATE.md",
+    "docs/spec/patterns/undo.md",
+    "docs/spec/inventory/SEMANTIC.md (Contradictions, rows A-lifecycle)",
+    "docs/spec/01-FEATURE-MAP.md",
+    "docs/spec/inventory/crossref.json (objectDocs O01/O14/O15/O16, hotkeys)",
+    "openspec/changes/04-freeze-pertrack/{proposal,design,tasks}.md + specs/*",
+    "openspec/changes/05-export-pertrack/{proposal,design,tasks}.md + specs/*",
+    "openspec/changes/06-persistence-cleanup/{proposal,design,tasks}.md + specs/*",
+    "openspec/changes/history-panel-delta/{proposal,plan,packets,uat}.md (targeted greps + P1/P2/P3 packets)",
+    "openspec/DECISIONS-PENDING.md (system-monitor OD-4/OD-5, history-panel OD-1..5)",
+    "openspec/changes/system-monitor-v1/packets.md (PK.4)",
+    "openspec/changes/multiwindow-stage-a/proposal.md (command-forwarding / undo)",
+    "docs/plans/2026-03-15-phase10-freeze-library-plan.md",
+    "docs/plans/2026-03-15-phase11-export-polish-plan.md (greps)",
+    "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md (F-0514-16/17/18)",
+    "docs/phases/PHASE-4.md, docs/phases/PHASE-10.md (greps)",
+    "docs/PHASE4-TEST-PLAN.md (greps)",
+    "docs/decisions/composite-export-design.md",
+    "docs/roadmap/ONBOARDING-SPEC.md",
+    "docs/roadmap/specs/entropic-spec-4-demo-trilogy.md (greps)",
+    "docs/roadmap/packets/undo-history.md (UH.1-UH.5)",
+    "docs/roadmap/EXECUTION-PLAN.md (P2.3 / backfill rows, greps)",
+    "docs/roadmap/ROADMAP.md (freeze/onboarding greps)",
+    "docs/UAT-CU-COMBINED-2026-07-03.md, docs/UAT-RESULTS-2026-04-09.md (greps for freeze/export/undo/dirty/autosave)",
+    "docs/PRD.md, docs/ARCHITECTURE.md (undo cap greps)"
+  ],
+  "trace": [
+    {"object": "O01", "item": "Per-track effectChain round-trips through save/load; no masterEffectChain", "law": "none", "plan": "openspec/changes/06-persistence-cleanup/specs/persistence/spec.md:5", "packet": "openspec/changes/06-persistence-cleanup/tasks.md:9", "code": "frontend/src/renderer/project-persistence.ts:1229", "test": "frontend/src/__tests__/stores/project-persistence.test.ts:138", "status": "traced", "note": "Landed (hydrate restore :1229, serialize comment :745). Test at :138 asserts serialize shape; the two-track hydrate round-trip scenario test not individually located (unverified)."},
+    {"object": "O01", "item": "Unsaved-changes gate on New/Open/Close (3-option dialog)", "law": "none", "plan": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:118", "packet": null, "code": "frontend/src/renderer/app/menuActions.ts:57", "test": "frontend/src/__tests__/characterization/close-unsaved-gate.test.tsx:1", "status": "traced", "note": "pendingNav gate (App.tsx:726,730,4515-4525) + separate close gate (app/useCloseGate.ts:26). isDirty is owned by the undo store, not the project store."},
+    {"object": "O01", "item": "isDirty lives in undo store (dirty == undoable action happened)", "law": "none", "plan": null, "packet": null, "code": "frontend/src/renderer/stores/undo.ts:81", "test": "frontend/src/__tests__/stores/undo.test.ts:1", "status": "no-law", "note": "Load-bearing: gate, title asterisk (App.tsx:686), close gate and autosave (project-persistence.ts:1926) all key off it. No doc ratifies this coupling; non-undoable edits never dirty the project."},
+    {"object": "O01", "item": "Autosave every 60s while dirty + crash-restore prompt", "law": "none", "plan": "docs/plans/2026-03-15-phase11-export-polish-plan.md:363", "packet": null, "code": "frontend/src/renderer/project-persistence.ts:1921", "test": "frontend/src/__tests__/stores/project-persistence.test.ts:1", "status": "traced", "note": "AUTOSAVE_INTERVAL_MS=60_000 (:147); restore only offered when crash reports/autosave found at launch (App.tsx:588-594). Test coverage of the timer itself unverified."},
+    {"object": "O01", "item": "Preferences > Paths > Autosave folder", "law": "none", "plan": "docs/plans/2026-03-15-phase11-export-polish-plan.md:189", "packet": null, "code": "frontend/src/renderer/components/layout/Preferences.tsx:37", "test": null, "status": "orphan-code", "note": "Control exists (local useState only) but autosave path logic (project-persistence.ts:1931-1940) never reads it; setting is inert."},
+    {"object": "O01", "item": "Onboarding state in localStorage creatrix.onboarding.* (not in project)", "law": "none", "plan": "docs/roadmap/ONBOARDING-SPEC.md:189", "packet": null, "code": "frontend/src/renderer/stores/onboarding.ts:18", "test": "frontend/src/__tests__/components/demos/demos-drawer.test.tsx:62", "status": "traced", "note": "Cleanly separated from project state; New/Open/Save never touch it. Store-level init/launchCount logic has no dedicated test located (unverified)."},
+    {"object": "O01", "item": "Demo open loads demo project (with dirty-project draft guard)", "law": "none", "plan": "docs/roadmap/ONBOARDING-SPEC.md:105", "packet": "docs/roadmap/ONBOARDING-SPEC.md:94", "code": "frontend/src/renderer/App.tsx:4242", "test": null, "status": "no-code", "note": "onOpenDemo is a stub (records engagement only). drawer.draftToast string exists (i18n/onboarding-strings.ts:39) but no code path uses it."},
+    {"object": "O01", "item": "Demo project files as .entropic", "law": "none", "plan": "docs/roadmap/specs/entropic-spec-4-demo-trilogy.md:36", "packet": null, "code": "frontend/src/renderer/project-persistence.ts:146", "test": null, "status": "stale-plan", "note": "Only the .glitch filter exists in code; .entropic extension has no loader."},
+    {"object": "O14", "item": "Freeze/unfreeze/flatten target the active track (per-track keyed store)", "law": "none", "plan": "openspec/changes/04-freeze-pertrack/specs/freeze/spec.md:5", "packet": "openspec/changes/04-freeze-pertrack/tasks.md:8", "code": "frontend/src/renderer/App.tsx:2409", "test": "frontend/src/__tests__/epic03-freeze-pertrack.test.ts:1", "status": "traced", "note": "Landed: handlers resolve getActiveTrackId (App.tsx:2421), prefix from getActiveEffectChain (:2423), store keyed by trackId (stores/freeze.ts:14)."},
+    {"object": "O14", "item": "Freeze/unfreeze undoable", "law": "none", "plan": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:279", "packet": "openspec/changes/system-monitor-v1/packets.md:194", "code": "frontend/src/renderer/App.tsx:2444", "test": null, "status": "no-code", "note": "Planned three times (phase10 plan, PK.4, multiwindow); zero undoable() in freeze.ts or the handlers. Owner A/B decision still listed open (STATE.md:75)."},
+    {"object": "O14", "item": "Auto-invalidate frozen prefix on param edit + toast", "law": "none", "plan": "docs/phases/PHASE-10.md:22", "packet": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:73", "code": null, "test": null, "status": "no-code", "note": "grep invalidate in renderer non-test: only freeze.ts:84 (explicit unfreeze). No subscriber, no toast."},
+    {"object": "O14", "item": "Playback reads frozen cache (read_freeze)", "law": "none", "plan": "docs/phases/PHASE-10.md:103", "packet": null, "code": "frontend/src/main/zmq-relay.ts:61", "test": "backend/tests/test_freeze_manager.py:1", "status": "no-code", "note": "Backend read_freeze exists (zmq_server.py:3098) and relay allowlists it, but no renderer call site; 04-freeze-pertrack design D5 explicitly scopes consumption out. test file existence unverified (named in plan)."},
+    {"object": "O14", "item": "Frozen state persisted / reset on New/Open", "law": "none", "plan": null, "packet": null, "code": "frontend/src/renderer/project-persistence.ts:1897", "test": null, "status": "no-law", "note": "newProject()/loadProject() never reference useFreezeStore (grep project-persistence.ts: 0 hits); frozenPrefixes neither saved nor cleared. No doc decides which."},
+    {"object": "O14", "item": "EffectInstance.isFrozen flag as the per-effect freeze hook", "law": "none", "plan": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:15", "packet": null, "code": "frontend/src/shared/types.ts:380", "test": null, "status": "stale-plan", "note": "Flag is persisted (project-persistence.ts:329) and shown in InspectorEffectState.tsx:101 but never set true anywhere; real state is useFreezeStore.frozenPrefixes."},
+    {"object": "O14", "item": "Performance-track freeze FSM (separate from effect-chain freeze)", "law": "none", "plan": "docs/roadmap/ROADMAP.md:72", "packet": "docs/roadmap/EXECUTION-PLAN.md:607", "code": "frontend/src/renderer/stores/performanceFreeze.ts:239", "test": "frontend/src/__tests__/b10-performance-freeze-fsm.test.ts:1", "status": "traced", "note": "Second freeze identity keyed by perf trackId; handleFlatten dispatches to it first (App.tsx:2465)."},
+    {"object": "O14", "item": "Memory-pressure suggests/auto-freezes", "law": "none", "plan": "docs/phases/PHASE-10.md:20", "packet": null, "code": "frontend/src/renderer/stores/memoryPressure.ts:1", "test": null, "status": "no-code", "note": "memoryPressure store degrades features (pressure_status) but no code path freezes or toasts 'consider freezing' (grep freeze in memoryPressure.ts: 0)."},
+    {"object": "O15", "item": "Export uses the active track's chain; abort when no track", "law": "none", "plan": "openspec/changes/05-export-pertrack/specs/export/spec.md:5", "packet": "openspec/changes/05-export-pertrack/tasks.md:8", "code": "frontend/src/renderer/App.tsx:2800", "test": "frontend/src/__tests__/epic04-export-pertrack.test.ts:71", "status": "traced", "note": "Landed (guard App.tsx:2760-2771). Test defines its own local resolveExportChainPayload (:71) so it does not exercise handleExport - wrong layer."},
+    {"object": "O15", "item": "Render queue (jobs, startQueue, RenderQueue dialog)", "law": "none", "plan": "docs/plans/2026-03-15-phase11-export-polish-plan.md:24", "packet": null, "code": "frontend/src/renderer/components/export/RenderQueue.tsx:37", "test": null, "status": "orphan-code", "note": "Mounted (App.tsx:4369) but setShowRenderQueue(true) has no caller and useExportStore.addJob has no non-test caller; unreachable and unfed."},
+    {"object": "O15", "item": "Single-frame (current frame) export to PNG", "law": "none", "plan": "docs/roadmap/packets/user-expectations.md:123", "packet": "docs/roadmap/packets/user-expectations.md:123", "code": "frontend/src/renderer/app/menuActions.ts:70", "test": "frontend/src/__tests__/ue6-export-frame.test.ts:1", "status": "traced", "note": "menu action export-current-frame -> handleExportCurrentFrame (App.tsx:2250); backend test_export_frame.py."},
+    {"object": "O15", "item": "Multi-video-track composite export (export == preview)", "law": "none", "plan": "docs/roadmap/EXECUTION-PLAN.md:296", "packet": "docs/roadmap/EXECUTION-PLAN.md:294", "code": "frontend/src/renderer/App.tsx:3244", "test": "backend/tests/test_export_parity.py:1", "status": "stale-plan", "note": "export_start still sends a single input_path (activeAssetPath); voices/racks composite via render_composite (export.py:27) but video tracks are not layered."},
+    {"object": "O15", "item": "Export job snapshot isolation (live edits do not affect running job)", "law": "none", "plan": "docs/decisions/composite-export-design.md:1", "packet": "docs/roadmap/EXECUTION-PLAN.md:309", "code": "backend/src/engine/export.py:329", "test": null, "status": "no-test", "note": "Backend deep-copies chain/text_layers at start. Frontend does not block New/Open/Close during an export (isExporting only used as a prop, App.tsx:431,4025)."},
+    {"object": "O16", "item": "Undo store: 500/500 caps, transactions, isDirty", "law": "none", "plan": "docs/roadmap/plans/entropic-history-buffer-validation.md:9", "packet": "docs/roadmap/packets/undo-history.md:21", "code": "frontend/src/renderer/stores/undo.ts:12", "test": "frontend/src/__tests__/stores/undo.test.ts:1", "status": "traced", "note": "Linear stack: new push clears future (:81). No branches exist; exitBranch/enterBranch (project.ts:62) are rack-edit paths, not history."},
+    {"object": "O16", "item": "One undo entry per drag gesture (clip move/trim)", "law": "none", "plan": "docs/spec/patterns/undo.md:7", "packet": "docs/roadmap/packets/undo-history.md:71", "code": "frontend/src/renderer/components/timeline/Clip.tsx:524", "test": null, "status": "no-law", "note": "moveClip per pointermove, each wrapped in undoable ('Move clip' timeline.ts:1442; trim :1495,:1534). Only slip/slide use a transaction (Clip.tsx:354,397). Granularity never ratified."},
+    {"object": "O16", "item": "undo()/redo() catch throwing inverse/forward, toast, return boolean", "law": "none", "plan": "openspec/changes/history-panel-delta/proposal.md:154", "packet": "openspec/changes/history-panel-delta/packets.md:1", "code": "frontend/src/renderer/stores/undo.ts:90", "test": null, "status": "no-code", "note": "undo() calls entry.inverse() unguarded (:90), redo() entry.forward() (:109); only execute (:65) and undoable (:218) are guarded."},
+    {"object": "O16", "item": "Undo while a transaction is open is guarded", "law": "none", "plan": "docs/spec/patterns/undo.md:7", "packet": null, "code": "frontend/src/renderer/stores/undo.ts:127", "test": null, "status": "no-law", "note": "beginTransaction silently commits an open one (:128-131); undo() ignores _transaction. history-panel-delta OD-4 scopes only try/catch, not this guard."},
+    {"object": "O16", "item": "History panel (Edit > Undo History floating overlay, click-to-jump)", "law": "none", "plan": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:119", "packet": "openspec/changes/history-panel-delta/proposal.md:53", "code": "frontend/src/renderer/App.tsx:4149", "test": "frontend/src/__tests__/components/timeline/history-panel.test.ts:1", "status": "traced", "note": "Plan line anchors drifted (proposal cites App.tsx:381/4099-4116; now :455/:4149). Existing test header claims no RTL infra - stale per proposal.md:98."},
+    {"object": "O16", "item": "Cmd+Y toggle_history hotkey", "law": "none", "plan": "openspec/changes/history-panel-delta/proposal.md:31", "packet": "openspec/changes/history-panel-delta/packets.md:14", "code": null, "test": null, "status": "no-code", "note": "Deferred by T1 verdict (menu-entry-only); meta+y absent from default-shortcuts.ts. plan.md BDD and PLANNING-QUEUE still describe it as shipping."},
+    {"object": "O16", "item": "Statusbar breadcrumb, op-class icons, expandable transaction rows, N-of-500 footer", "law": "none", "plan": "openspec/changes/history-panel-delta/proposal.md:32", "packet": "openspec/changes/history-panel-delta/packets.md:47", "code": null, "test": null, "status": "no-code", "note": "All planned (SEMANTIC rows 394-401); zero code. Freeze icon/example depend on undoable freeze that does not exist."},
+    {"object": "O16", "item": "Undo overflow-to-disk / unlimited history", "law": "none", "plan": "docs/phases/PHASE-4.md:89", "packet": null, "code": "frontend/src/renderer/stores/undo.ts:12", "test": "docs/PHASE4-TEST-PLAN.md:227", "status": "stale-plan", "note": "Code hard-evicts at 500; history-panel-delta proposal.md:47 explicitly makes disk overflow a non-goal. PRD/ARCHITECTURE/PHASE-4 still say unlimited."},
+    {"object": "O16", "item": "Memory smoke for 500 closure entries", "law": "none", "plan": "docs/roadmap/packets/undo-history.md:181", "packet": "openspec/changes/history-panel-delta/proposal.md:128", "code": null, "test": null, "status": "no-code", "note": "Two packets own the same test (UH.5 vs history-panel OD-2) with different gating; neither built."}
+  ],
+  "contradictions": [
+    {
+      "id": "X-lifecycle-1",
+      "topic": "Cmd+Y history hotkey: shipped behavior scenario vs menu-entry-only verdict (same change)",
+      "objects": ["O16"],
+      "axis": "doc-doc",
+      "a": {"cite": "openspec/changes/history-panel-delta/plan.md:115", "claim": "Scenario: Cmd+Y opens and closes the history panel"},
+      "b": {"cite": "openspec/changes/history-panel-delta/uat.md:41", "claim": "ABSENCE assertion - identical pre- and post-P1 (T1 Verdicts override: P1 ships no code, no keybinding). ... press Cmd+Y at the top level"},
+      "severity": "material",
+      "known": "SEMANTIC.md:Contradictions/material 'History panel hotkey scope' (proposal.md:31 vs plan.md:49); new evidence: BDD scenario plan.md:115 and PLANNING-QUEUE.md:24 also promise Cmd+Y while uat.md:113 calls Cmd+Y a FAIL",
+      "recommendation": "T1 verdict (proposal.md:181, packets.md:14) wins; delete the Cmd+Y BDD scenario from plan.md:115-120 and the PLANNING-QUEUE.md:24 wording, or mark them deferred."
+    },
+    {
+      "id": "X-lifecycle-2",
+      "topic": "Freeze/unfreeze undoable: three plans say it is (or will be), code says no",
+      "objects": ["O14", "O16"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:279", "claim": "- [ ] Freeze/unfreeze are undoable"},
+      "b": {"cite": "frontend/src/renderer/App.tsx:2444", "claim": "const handleUnfreeze = useCallback(async () => { ... await useFreezeStore.getState().unfreezePrefix(trackId)  (no undoable wrapper)"},
+      "severity": "material",
+      "known": "STATE.md:69 and 01-FEATURE-MAP.md:102 (gap known); adds PHASE-10.md:21 'Freeze undo: can undo a freeze operation' and OD-5 (DECISIONS-PENDING.md:107)",
+      "recommendation": "Owner decides A/B in patterns/undo.md Rec 5; until then mark phase-10 undo items stale-plan and stop citing 'Freeze C1' history examples."
+    },
+    {
+      "id": "X-lifecycle-3",
+      "topic": "Freeze-undo decision status: locked default in system-monitor-v1 vs still-open owner decision",
+      "objects": ["O14", "O16"],
+      "axis": "doc-doc",
+      "a": {"cite": "openspec/changes/system-monitor-v1/packets.md:194", "claim": "### PK.4 - Frontend: History Ledger for freeze/unfreeze (OD-4, locked default (a))"},
+      "b": {"cite": "docs/spec/STATE.md:75", "claim": "Owner decisions surfaced: freeze-undo option A/B; ripple-trim wire vs retire;"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "PK.4 default wraps the same async store actions (Option A shape); undo.md Option B (derived cache, undo only the cut marker) is the alternative. One owner ruling must close both; do not build PK.4 before it."
+    },
+    {
+      "id": "X-lifecycle-4",
+      "topic": "Undoable freeze via sync undo contract: store silently no-ops when busy, so undo pops an entry that did nothing",
+      "objects": ["O14", "O16"],
+      "axis": "doc-code",
+      "a": {"cite": "openspec/changes/system-monitor-v1/packets.md:196", "claim": "wrap handleFreezeUpTo/handleUnfreeze's direct useFreezeStore.getState().freezePrefix/ unfreezePrefix calls (App.tsx:2427-2468) in undoable()"},
+      "b": {"cite": "frontend/src/renderer/stores/freeze.ts:50", "claim": "if (get().operationState !== 'idle') return"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "undo.ts:90 calls inverse() then pops regardless. PK.4/UH must specify behavior when the store refuses (queue, block undo, or surface a toast) and the async-await contract for inverse; undo.md Problem 2 notes the sync mismatch."
+    },
+    {
+      "id": "X-lifecycle-5",
+      "topic": "Frozen-prefix auto-invalidation specified but absent; freeze keyed by array index, effects are undoable/reorderable",
+      "objects": ["O14", "O06"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/phases/PHASE-10.md:22", "claim": "Freeze invalidation: editing any param in frozen prefix -> auto-unfreeze + warning toast"},
+      "b": {"cite": "frontend/src/renderer/stores/freeze.ts:76", "claim": "unfreezePrefix: async (trackId) => { ... cmd: 'invalidate_cache' ... }  (only caller is explicit user unfreeze, App.tsx:2448)"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "FreezeInfo.cutIndex (freeze.ts:7) is an array index, against undo.ts:3 convention 'Capture entity ID, never array index'. Either ratify invalidate-on-edit (key by effect ids) or document that freeze is advisory-only."
+    },
+    {
+      "id": "X-lifecycle-6",
+      "topic": "Freeze shown in UI but no render path consumes the cache",
+      "objects": ["O14"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/phases/PHASE-10.md:103", "claim": "Freeze: chain of 3 effects -> freeze -> playback reads from cache (fast)"},
+      "b": {"cite": "frontend/src/main/zmq-relay.ts:61", "claim": "'freeze_prefix', 'read_freeze', 'flatten', 'invalidate_cache', (allowlist only; no renderer sendCommand({cmd:'read_freeze'}) exists)"},
+      "severity": "material",
+      "known": "partially 04-freeze-pertrack/design.md:25 (D5 scopes consumption out) - but no doc records that user-visible 'frozen' state currently changes nothing at render",
+      "recommendation": "Spec must state whether freeze is a render accelerator or only a flatten pre-step; if the former, plan the read_freeze consumption; if the latter, drop the 'fast playback' claims."
+    },
+    {
+      "id": "X-lifecycle-7",
+      "topic": "Two sources of truth for 'frozen': EffectInstance.isFrozen vs useFreezeStore",
+      "objects": ["O14", "O06"],
+      "axis": "doc-doc",
+      "a": {"cite": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:15", "claim": "`isFrozen` flag already exists on `EffectInstance` ... currently unused. This is our hook."},
+      "b": {"cite": "openspec/changes/04-freeze-pertrack/design.md:19", "claim": "`frozenPrefixes: Record<trackId, FreezeInfo>` means freezing V1 records `frozenPrefixes['V1']` and `isFrozen('V2', i)` returns false."},
+      "severity": "material",
+      "known": null,
+      "recommendation": "Code follows the store (types.ts:380 flag never set true, yet Inspector reads it at InspectorEffectState.tsx:101 and it is persisted at project-persistence.ts:329). Retire the EffectInstance flag or derive it from the store."
+    },
+    {
+      "id": "X-lifecycle-8",
+      "topic": "Export parity: 'Full export parity ... multi-track' vs 'export does not composite video tracks'",
+      "objects": ["O15", "O03"],
+      "axis": "doc-doc",
+      "a": {"cite": "docs/roadmap/EXECUTION-PLAN.md:296", "claim": "Export runs operators + automation + sampler + multi-track through the modulation engine so export == preview (today export drops all three)."},
+      "b": {"cite": "openspec/changes/05-export-pertrack/specs/export/spec.md:28", "claim": "export processes the active source with the active track's chain (it does not composite both video tracks - that parity is a future feature)"},
+      "severity": "material",
+      "known": "SEMANTIC.md:Contradictions/cosmetic 'Export scope after PR-zero' (05-export-pertrack/proposal.md:15 vs export.py:2299); new evidence: EXECUTION-PLAN P2.3 and code single input_path at App.tsx:3244",
+      "recommendation": "State the true scope: voices/racks/frame-banks composite in export; N video tracks do not. Re-title P2.3 'export parity' as partial and give multi-video-track export its own packet or an explicit non-goal."
+    },
+    {
+      "id": "X-lifecycle-9",
+      "topic": "'Active track' includes non-video tracks: export/freeze can target Master/audio/text chain",
+      "objects": ["O15", "O14", "O04"],
+      "axis": "doc-code",
+      "a": {"cite": "openspec/changes/05-export-pertrack/design.md:6", "claim": "if `getActiveTrackId()` is null (no video track), toast \"Add a video track before exporting\" and abort"},
+      "b": {"cite": "frontend/src/renderer/stores/project.ts:679", "claim": "Resolution order: selectedTrackId (if valid) -> first video track -> null.   (valid = any track type; no type filter at :680-682)"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "Selecting the Master track makes export send master chain as chain AND again as master_chain (App.tsx:2877, :3240); runtime effect unverified. Either filter getActiveTrackId to video for export/freeze or define behavior per track type."
+    },
+    {
+      "id": "X-lifecycle-10",
+      "topic": "Demo open: spec says built via normal load path; code is a stub",
+      "objects": ["O01"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/roadmap/ONBOARDING-SPEC.md:105", "claim": "`open` loads the demo project through the normal project-load path (schema-validated"},
+      "b": {"cite": "frontend/src/renderer/App.tsx:4243", "claim": "// Future: load the demo project. For P3.5 the drawer opens + engagement is recorded."},
+      "severity": "material",
+      "known": null,
+      "recommendation": "SEMANTIC.md:376 marks onboarding 'built' and ROADMAP.md:334 'not in-app'; truth is half-built (drawer + state built, project load absent). Update status rows; keep spec as target."
+    },
+    {
+      "id": "X-lifecycle-11",
+      "topic": "Onboarding dirty-project guard (keep as draft, toast) vs the app's blocking 3-option Unsaved dialog; no 'draft' concept exists",
+      "objects": ["O01"],
+      "axis": "object-object",
+      "a": {"cite": "docs/roadmap/ONBOARDING-SPEC.md:94", "claim": "opening a demo while the current project has unsaved changes preserves the user's work as a draft first"},
+      "b": {"cite": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:118", "claim": "check `isDirty` and present a 3-option \"Unsaved Changes\" prompt (Cancel / Discard Changes / Save & Continue)"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "Pick one: route demo-open through the existing pendingNav gate (no draft), or define drafts (autosave file as draft?) and a recover path. The i18n string drawer.draftToast is currently dead (onboarding-strings.ts:39)."
+    },
+    {
+      "id": "X-lifecycle-12",
+      "topic": "Demo project file extension .entropic vs project loader accepting only .glitch",
+      "objects": ["O01"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/roadmap/specs/entropic-spec-4-demo-trilogy.md:36", "claim": "`demos/y-is-time/project.entropic` | Project file: 1 video track (still), 1 audio track (loop)"},
+      "b": {"cite": "frontend/src/renderer/project-persistence.ts:146", "claim": "const GLITCH_FILTERS = [{ name: 'Creatrix Project', extensions: ['glitch'] }]"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "Pick one extension and runtime dir (CLAUDE.md notes demos stay in ~/.entropic by design). Likely ship demos as .glitch; update spec-4 and ONBOARDING-SPEC:216."
+    },
+    {
+      "id": "X-lifecycle-13",
+      "topic": "Close-gate Save&Quit ignores saveProject() result; New/Open gate honors it",
+      "objects": ["O01"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:118", "claim": "Save & Continue gates on `saveProject()` success so an aborted save dialog keeps the prompt up."},
+      "b": {"cite": "frontend/src/renderer/app/useCloseGate.ts:7", "claim": "the Save & Quit handler does NOT check saveProject()'s return value ... so cancelling the save dialog during Save & Quit still confirms the close."},
+      "severity": "material",
+      "known": null,
+      "recommendation": "Data-loss path on a pinned characterization test (close-unsaved-gate.test.tsx). Fix to match the pendingNav gate and flip the test."
+    },
+    {
+      "id": "X-lifecycle-14",
+      "topic": "Unsaved-changes tracking is undo-derived: non-undoable project edits never dirty the project, never autosave, never prompt",
+      "objects": ["O01", "O16", "O14"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/PHASE4-TEST-PLAN.md:406", "claim": "Load file A, then load file B without saving A | File B loaded. A's changes lost (should warn if dirty)."},
+      "b": {"cite": "frontend/src/renderer/stores/project.ts:202", "claim": "addAsset: (asset) => set((state) => ({ assets: { ...state.assets, [asset.id]: asset } }))  (no undoable, no dirty; also removeAsset/relinkAsset, A/B switch :511, freeze)"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "isDirty is set only at undo.ts:81/100/119/184/247. Add an explicit markDirty for intentionally non-undoable edits (assets, relink, freeze) or decide they do not count; autosave guard project-persistence.ts:1926 inherits the choice."
+    },
+    {
+      "id": "X-lifecycle-15",
+      "topic": "Undo capacity: unlimited/disk-overflow vs hard 500 eviction",
+      "objects": ["O16"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/phases/PHASE-4.md:89", "claim": "Undo: overflow to disk at 500+ entries -> can still undo"},
+      "b": {"cite": "frontend/src/renderer/stores/undo.ts:12", "claim": "const MAX_UNDO_ENTRIES = 500  (past sliced at :78; PHASE4-TEST-PLAN.md:227 expects 'Past stack length = 500')"},
+      "severity": "cosmetic",
+      "known": null,
+      "recommendation": "Code and PHASE4-TEST-PLAN agree; PRD.md:159 / ARCHITECTURE.md:168 / PHASE-4.md:19 are stale. Mark with supersede header pointing at history-panel-delta proposal.md:47."
+    },
+    {
+      "id": "X-lifecycle-16",
+      "topic": "History-panel Freeze examples depend on undoable freeze that no history-panel packet delivers",
+      "objects": ["O16", "O14"],
+      "axis": "doc-code",
+      "a": {"cite": "openspec/changes/history-panel-delta/plan.md:128", "claim": "Given the user performs an undoable action described \"Freeze C1\""},
+      "b": {"cite": "frontend/src/renderer/App.tsx:2409", "claim": "const handleFreezeUpTo = useCallback(async (cutIndex: number) => { ... freezePrefix(...) }  (no undoable; produces no history entry)"},
+      "severity": "material",
+      "known": null,
+      "recommendation": "Declare a dependency on system-monitor-v1 PK.4 (or the owner A/B ruling) in history-panel-delta packets, or replace the example/UAT row P5-2 (uat.md:84) with an action that is actually undoable."
+    },
+    {
+      "id": "X-lifecycle-17",
+      "topic": "Memory smoke test owned twice with incompatible gating",
+      "objects": ["O16"],
+      "axis": "doc-doc",
+      "a": {"cite": "docs/roadmap/packets/undo-history.md:182", "claim": "A CI-runnable smoke test that fills the undo stack to its 500-entry cap ... asserts a quantified heap ceiling: < 50 MB heap delta"},
+      "b": {"cite": "openspec/changes/history-panel-delta/proposal.md:139", "claim": "NOT part of the default `npx --no vitest run` smoke tier - never gates PRs, mirrors backend's nightly-only convention."},
+      "severity": "material",
+      "known": null,
+      "recommendation": "One owner: pick UH.5 (node env, gating) or history-panel P6 (RUN_PERF opt-in) and delete the other; budget numbers (50 MB vs 'fixed MB budget') must match."
+    },
+    {
+      "id": "X-lifecycle-18",
+      "topic": "Pattern candidate 'persisted undo history across save/open' vs history-panel assumption of session-only entries",
+      "objects": ["O16", "O01"],
+      "axis": "pattern-plan",
+      "a": {"cite": "docs/spec/patterns/undo.md:1", "claim": "Persisted undo history across save/open. Not evidenced by any reference read in this pass; idea only."},
+      "b": {"cite": "openspec/changes/history-panel-delta/proposal.md:73", "claim": "No persistence of the undo stack exists ... Session-only ... Confirms any additive `UndoEntry` field is safe - never serialized."},
+      "severity": "cosmetic",
+      "known": null,
+      "recommendation": "Keep session-only; the candidate would invalidate closure-based UndoEntry (non-serializable) and the childDescriptions rationale. Reject unless a serializable command model is first specified."
+    },
+    {
+      "id": "X-lifecycle-19",
+      "topic": "Preferences 'Autosave folder' is specified/UAT-passed but inert",
+      "objects": ["O01"],
+      "axis": "doc-code",
+      "a": {"cite": "docs/UAT-RESULTS-2026-04-09.md:548", "claim": "Preferences > Paths | PASS - User preset folder, Autosave folder, Cache folder (all \"Not set\" with Browse buttons)"},
+      "b": {"cite": "frontend/src/renderer/project-persistence.ts:1936", "claim": "autosavePath = `${dir}/.autosave.glitch`  (path derives from projectPath/userData only; the Preferences value, a local useState at Preferences.tsx:37, is never read)"},
+      "severity": "cosmetic",
+      "known": null,
+      "recommendation": "Either wire the setting into startAutosave or remove the control; UAT PASS verified presence, not effect."
+    }
+  ],
+  "gaps": [
+    {"object": "O14", "kind": "no-code", "item": "Frozen state is neither persisted nor cleared on New/Open/backend restart", "evidence": "grep useFreezeStore|frozenPrefixes in project-persistence.ts: 0 hits; newProject() (project-persistence.ts:1897-1919) resets 9 stores but not freeze; freeze.reset() (freeze.ts:130) has no non-test caller; backend freeze_manager.reset() only in server reset (zmq_server.py:323)"},
+    {"object": "O14", "kind": "unreachable", "item": "Freeze/Unfreeze/Flatten shortcut labels and bindings", "evidence": "EffectRack.tsx:80-94 and DeviceChain.tsx:372 call shortcutRegistry.getEffectiveKey('freeze_up_to'|'unfreeze_effects'|'flatten_to_video'); default-shortcuts.ts has no such actions, so labels render blank; UAT X216-1 (UAT-CU-COMBINED-2026-07-03.md:143) expects a bound key"},
+    {"object": "O14", "kind": "double-owner", "item": "Two freeze systems share one trackId space and one Flatten entry point", "evidence": "App.tsx:2452-2474 handleFlatten takes getActiveTrackId() then checks usePerformanceFreezeStore.isFrozen(trackId) before the effect-chain freeze; stores/performanceFreeze.ts header says decoupled; selecting a perf track and choosing Freeze up to here keys frozenPrefixes by a perf trackId"},
+    {"object": "O14", "kind": "no-test", "item": "handleFreezeUpTo wiring (prefix built from active track chain) not exercised through App", "evidence": "epic03-freeze-pertrack.test.ts targets the store/selectors; tasks.md:28 itself says 'May need to assert via the freezePrefix args / a store spy'; no App-level test located"},
+    {"object": "O15", "kind": "unreachable", "item": "RenderQueue dialog and export queue store", "evidence": "grep setShowRenderQueue App.tsx -> only :429 (state) and :4371 (close); grep addJob non-test -> only the definition stores/export.ts:38; menu.ts/menuActions.ts have no render-queue entry"},
+    {"object": "O15", "kind": "no-owner", "item": "Destructive nav (New/Open/Close/Quit) while an export is running", "evidence": "isExporting (App.tsx:431) is only passed as a prop (:4025); useCloseGate.ts and menuActions.ts new/open do not consult it; backend snapshots at start (export.py:329) so the job survives, but UI progress/cancel wiring after project swap is unspecified"},
+    {"object": "O15", "kind": "no-test", "item": "Export chain-sourcing test mirrors production logic instead of calling it", "evidence": "epic04-export-pertrack.test.ts:71 defines resolveExportChainPayload locally; grep resolveExportChainPayload finds no production definition"},
+    {"object": "O16", "kind": "no-plan", "item": "Undo-during-open-transaction guard and Esc/pointercancel abort for clip move/trim", "evidence": "undo.md Problems 3/5 (undo.ts:85-102 ignores _transaction; Clip.tsx has no abort path for move/trim); history-panel-delta OD-4 covers only try/catch; UH.1-UH.5 do not cover gesture granularity"},
+    {"object": "O16", "kind": "no-law", "item": "Which actions are undoable is decided by ad-hoc undoable() call sites; UH.1 coverage matrix not produced", "evidence": "undo-history.md:25-26 lists effects.ts/freeze.ts/library.ts/midi.ts at zero; git-grep counts now: timeline.ts 63, instruments.ts 40, automation.ts 22, project.ts 11; no doc ratifies the undoable/not-undoable policy (view state, assets, A/B switch)"},
+    {"object": "O16", "kind": "no-plan", "item": "Branching history (AREAS.md O16 lists 'branches')", "evidence": "undo.ts:81 execute sets future: [] (linear truncate); history-panel-delta proposal.md:7 lists 'linear truncate-on-edit' as already-done; only branch code is rack enterBranch/exitBranch (project.ts:62-64)"},
+    {"object": "O01", "kind": "no-test", "item": "Autosave timer behavior (dirty-only, path selection, delete after save)", "evidence": "only __tests__/stores/project-persistence.test.ts references startAutosave; no dedicated autosave test file (ls __tests__ | grep -i autosave: empty)"},
+    {"object": "O01", "kind": "no-plan", "item": "Autosave leaves isDirty set and restoreAutosave dirty-state is unspecified", "evidence": "autosave interval (project-persistence.ts:1921-1950) never calls clearDirty; restoreAutosave (:1974) hydrate path vs clearDirty (:1752,:1800) only on save - whether a restored crash session counts as dirty is not documented"}
+  ],
+  "sharedResources": [
+    {
+      "kind": "undo",
+      "name": "Undo granularity and undoability across objects",
+      "claimants": [
+        {"object": "O03", "cite": "frontend/src/renderer/components/timeline/Clip.tsx:524", "meaning": "clip move: one undoable entry per pointermove ('Move clip' timeline.ts:1442)"},
+        {"object": "O03", "cite": "frontend/src/renderer/components/timeline/Clip.tsx:354", "meaning": "slip/slide: one transaction per gesture"},
+        {"object": "O14", "cite": "frontend/src/renderer/App.tsx:2444", "meaning": "freeze/unfreeze: no entry at all"},
+        {"object": "O01", "cite": "frontend/src/renderer/stores/project.ts:202", "meaning": "addAsset/removeAsset/relink: no entry, no dirty"},
+        {"object": "O16", "cite": "frontend/src/renderer/stores/undo.ts:127", "meaning": "transaction begin silently commits previous; undo ignores open transaction"}
+      ],
+      "conflict": true,
+      "note": "Three gesture contracts coexist (per-move entry, transaction, none). Needs one ratified rule: which actions are undoable and the begin/commit/abort lifecycle (patterns/undo.md Rec 1-4)."
+    },
+    {
+      "kind": "store-field",
+      "name": "useUndoStore.isDirty as the project dirty flag",
+      "claimants": [
+        {"object": "O01", "cite": "frontend/src/renderer/app/menuActions.ts:57", "meaning": "New/Open gate"},
+        {"object": "O01", "cite": "frontend/src/renderer/app/useCloseGate.ts:26", "meaning": "close gate"},
+        {"object": "O01", "cite": "frontend/src/renderer/App.tsx:686", "meaning": "title asterisk"},
+        {"object": "O01", "cite": "frontend/src/renderer/project-persistence.ts:1926", "meaning": "autosave runs only if dirty"},
+        {"object": "O16", "cite": "frontend/src/renderer/stores/undo.ts:100", "meaning": "undo() sets isDirty:true (even when returning to the saved state)"}
+      ],
+      "conflict": true,
+      "note": "Gate vs destructive actions: covers New/Open/Close only (menuActions.ts:57-63, App.tsx:4515-4525, useCloseGate.ts). Flatten, preset chain replace, demo open, delete are not gated; non-undoable edits do not trip it (X-lifecycle-14)."
+    },
+    {
+      "kind": "selection",
+      "name": "getActiveTrackId() (selected track, any type, else first video) drives freeze, export and chain display",
+      "claimants": [
+        {"object": "O14", "cite": "frontend/src/renderer/App.tsx:2421", "meaning": "freeze target"},
+        {"object": "O15", "cite": "frontend/src/renderer/App.tsx:2760", "meaning": "export source chain + no-track guard"},
+        {"object": "O14", "cite": "frontend/src/renderer/App.tsx:2452", "meaning": "flatten, then perf-freeze branch on the same id (App.tsx:2465)"}
+      ],
+      "conflict": true,
+      "note": "Selection silently retargets export/freeze; type is not filtered (project.ts:679-684). See X-lifecycle-9."
+    },
+    {
+      "kind": "store-field",
+      "name": "trackId identity across freeze, perf-freeze and export",
+      "claimants": [
+        {"object": "O14", "cite": "frontend/src/renderer/stores/freeze.ts:14", "meaning": "frozenPrefixes keyed by trackId (effect-chain freeze)"},
+        {"object": "O14", "cite": "frontend/src/renderer/stores/performanceFreeze.ts:239", "meaning": "fsm keyed by perf trackId"},
+        {"object": "O15", "cite": "frontend/src/renderer/App.tsx:2800", "meaning": "export keyed by active track chain; backend takes chain+input_path only (no track id)"}
+      ],
+      "conflict": true,
+      "note": "Export per-track and freeze per-track share the id space but not semantics: freeze is per-track with a cutIndex; export is one active track plus Master chain. Freeze state is ignored by export (no cache_id in export_start)."
+    },
+    {
+      "kind": "hotkey",
+      "name": "meta+y (Cmd+Y)",
+      "claimants": [
+        {"object": "O16", "cite": "openspec/changes/history-panel-delta/plan.md:115", "meaning": "toggle history (BDD) - deferred by T1 verdict"}
+      ],
+      "conflict": false,
+      "note": "No code binding (default-shortcuts.ts has meta+z undo :15, meta+shift+z redo :16). Cmd+Y is a conventional redo on other platforms; must be adjudicated at build/UAT per T1 verdict."
+    },
+    {
+      "kind": "hotkey",
+      "name": "freeze_up_to / unfreeze_effects / flatten_to_video action ids",
+      "claimants": [
+        {"object": "O14", "cite": "frontend/src/renderer/components/device-chain/DeviceChain.tsx:372", "meaning": "context-menu rows show registry key for freeze_up_to"},
+        {"object": "O14", "cite": "docs/UAT-CU-COMBINED-2026-07-03.md:143", "meaning": "UAT expects the same key combo in Preferences > Shortcuts"}
+      ],
+      "conflict": true,
+      "note": "Actions are queried but absent from DEFAULT_SHORTCUTS, so menu shows blank and Preferences cannot list them."
+    },
+    {
+      "kind": "ipc",
+      "name": "freeze_prefix / read_freeze / flatten / invalidate_cache / export_start / export_frame",
+      "claimants": [
+        {"object": "O14", "cite": "frontend/src/main/zmq-relay.ts:61", "meaning": "relay allowlist includes read_freeze (never sent)"},
+        {"object": "O15", "cite": "frontend/src/renderer/App.tsx:3243", "meaning": "export_start payload carries chain, mask_stack, master_chain, performance; no freeze cache id"}
+      ],
+      "conflict": true,
+      "note": "Freeze caches and export are independent paths: export re-renders the chain from source, ignoring any frozen prefix (parity trivially true but freeze is pointless for export)."
+    },
+    {
+      "kind": "surface-slot",
+      "name": "Statusbar left cluster: history breadcrumb vs existing chips; far-right reserved for system monitor",
+      "claimants": [
+        {"object": "O16", "cite": "openspec/changes/history-panel-delta/packets.md:47", "meaning": "HistoryBreadcrumbChip next to CursorToolChip"},
+        {"object": "O13", "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:22", "meaning": "Far right of the bar stays reserved for system-monitor-v1 meters"}
+      ],
+      "conflict": false,
+      "note": "No overlap as planned (breadcrumb mounts left); recorded because the far-right reservation is law and a known system-monitor contradiction exists in SEMANTIC.md."
+    },
+    {
+      "kind": "store-field",
+      "name": "Panel open state in localStorage (creatrix.historyPanel.open planned) and creatrix.onboarding.*",
+      "claimants": [
+        {"object": "O16", "cite": "openspec/changes/history-panel-delta/plan.md:51", "meaning": "showHistory rehydrated from localStorage (planned)"},
+        {"object": "O01", "cite": "frontend/src/renderer/stores/onboarding.ts:18", "meaning": "onboarding keys, viewer-local, outside project"}
+      ],
+      "conflict": false,
+      "note": "Both are viewer-local, not saved in .glitch and not reset by New Project; consistent with ONBOARDING-SPEC.md:189. Layout store ownership of panel visibility not checked (unverified)."
+    }
+  ],
+  "supersedeChains": [
+    {"topic": "Freeze/Flatten entry points re-wired per track", "chain": ["docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:116 (F-0514-16 Deferred, global effectChain)", "openspec/changes/04-freeze-pertrack/proposal.md:23 (per-track rewire, landed App.tsx:2409)"], "headerPresent": false},
+    {"topic": "Global effectChain / masterEffectChain removal", "chain": ["openspec/project.md:16 (PR-zero active initiative)", "openspec/changes/06-persistence-cleanup/proposal.md:32 (landed project-persistence.ts:745)"], "headerPresent": false},
+    {"topic": "Backend track_id threading dropped from export epic", "chain": ["openspec/project.md:51 (04 ipc-backend)", "openspec/changes/05-export-pertrack/proposal.md:3 (DROPPED)"], "headerPresent": true},
+    {"topic": "History hotkey: Cmd+Y shipping -> menu-entry-only", "chain": ["openspec/changes/history-panel-delta/proposal.md:31", "openspec/changes/history-panel-delta/proposal.md:181 (T1 Verdicts LOCKED)", "openspec/changes/history-panel-delta/packets.md:14 (P1 deferred)"], "headerPresent": true},
+    {"topic": "Undo disk overflow made an explicit non-goal", "chain": ["docs/phases/PHASE-4.md:89", "openspec/changes/history-panel-delta/proposal.md:47"], "headerPresent": false},
+    {"topic": "Export single-source (PR-zero) -> composite export for performance voices", "chain": ["openspec/changes/05-export-pertrack/proposal.md:15", "docs/decisions/composite-export-design.md:5 (decided 2026-06-12, merged P5a.4 #203)"], "headerPresent": false},
+    {"topic": "Onboarding font voice (Plex)", "chain": ["docs/roadmap/ONBOARDING-SPEC.md:14 (Plex rules)", "docs/roadmap/ONBOARDING-SPEC.md:12 (SUPERSEDED IN PART header -> RATIFIED D5)"], "headerPresent": true}
+  ],
+  "openQuestions": [
+    {"objects": ["O14", "O16"], "question": "Freeze undo: Option A (undo entry replays async freeze/unfreeze) or Option B (frozen prefix is a derived cache invalidated on chain change; only the cut marker is undoable)? PK.4 locked default (a) vs STATE.md open decision.", "cites": ["docs/spec/patterns/undo.md:7", "openspec/changes/system-monitor-v1/packets.md:194", "docs/spec/STATE.md:75"]},
+    {"objects": ["O14"], "question": "Is freeze a render accelerator (needs read_freeze consumption and invalidate-on-edit) or only a flatten pre-step? Today it changes nothing at render.", "cites": ["docs/phases/PHASE-10.md:103", "openspec/changes/04-freeze-pertrack/design.md:25", "frontend/src/main/zmq-relay.ts:61"]},
+    {"objects": ["O14", "O01"], "question": "Should frozen state persist in the project, be cleared on New/Open, and survive a sidecar restart (cache ids are backend-side)?", "cites": ["frontend/src/renderer/project-persistence.ts:1897", "backend/src/zmq_server.py:323"]},
+    {"objects": ["O15", "O14"], "question": "Should export/freeze refuse non-video active tracks (Master/audio/text), and should export honor a frozen prefix?", "cites": ["frontend/src/renderer/stores/project.ts:679", "frontend/src/renderer/App.tsx:2877"]},
+    {"objects": ["O15"], "question": "Render queue: keep (wire Export dialog 'Add to queue' + menu entry) or retire the orphan RenderQueue/useExportStore?", "cites": ["frontend/src/renderer/App.tsx:4369", "docs/plans/2026-03-15-phase11-export-polish-plan.md:24"]},
+    {"objects": ["O15"], "question": "Multi-video-track export: is it a planned feature (own packet) or a permanent non-goal now that preview composites all tracks?", "cites": ["openspec/changes/05-export-pertrack/proposal.md:33", "docs/roadmap/EXECUTION-PLAN.md:296"]},
+    {"objects": ["O01", "O16"], "question": "What counts as 'dirty'? Should non-undoable edits (assets, relink, A/B, freeze) mark the project dirty, and should undoing back to the saved state clear it?", "cites": ["frontend/src/renderer/stores/undo.ts:100", "frontend/src/renderer/stores/project.ts:202"]},
+    {"objects": ["O01"], "question": "Should every destructive action (flatten, preset chain replace, demo open, track delete, New/Open/Close during export) route through the unsaved/confirm gate, and should Save&Quit honor a cancelled save?", "cites": ["frontend/src/renderer/app/useCloseGate.ts:7", "docs/roadmap/ONBOARDING-SPEC.md:94"]},
+    {"objects": ["O01"], "question": "Onboarding vs project: is a 'draft' a separate concept from autosave? Where do demos live (.entropic vs .glitch; ~/.entropic vs ~/.creatrix)?", "cites": ["docs/roadmap/ONBOARDING-SPEC.md:94", "docs/roadmap/specs/entropic-spec-4-demo-trilogy.md:36"]},
+    {"objects": ["O16"], "question": "Gesture contract: per-pointermove entries vs begin/commit/abort transaction for clip move/trim, and Cmd+Z behavior while a transaction is open (ignore vs abort)?", "cites": ["docs/spec/patterns/undo.md:7", "frontend/src/renderer/components/timeline/Clip.tsx:524"]},
+    {"objects": ["O16"], "question": "Does 'branches' in AREAS.md O16 mean a real branching history, or only the linear stack (code is linear truncate-on-edit)?", "cites": ["docs/spec/AREAS.md:37", "frontend/src/renderer/stores/undo.ts:81"]},
+    {"objects": ["O16", "O01"], "question": "Autosave vs undo vs history: should crash-restore from autosave restore the undo stack (it cannot; closures are not serializable) and mark the project dirty?", "cites": ["frontend/src/renderer/project-persistence.ts:1974", "openspec/changes/history-panel-delta/proposal.md:73"]}
+  ]
+}
