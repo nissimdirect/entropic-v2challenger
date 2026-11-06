@@ -1,5 +1,5 @@
 {
- "generatedFrom": "7f75ebc",
+ "generatedFrom": "7680dd8",
  "docUniverse": 342,
  "counts": {
   "docs": 342,
@@ -1484,7 +1484,7 @@
      "at": "docs/spec/02-CROSSREF.md:150",
      "kind": "spec-pass",
      "superseded": false,
-     "text": "| no-owner | 14 | Panel registry; preset drop target; layout-state migration; Edit-menu role vs renderer Cmd+Z/C/V |"
+     "text": "| no-owner | 16 | Panel registry; preset drop target; layout-state migration; Edit-menu role vs renderer Cmd+Z/C/V |"
     },
     {
      "key": "meta+z",
@@ -5397,7 +5397,7 @@
      "at": "docs/spec/02-CROSSREF.md:149",
      "kind": "spec-pass",
      "superseded": false,
-     "text": "| no-plan (orphan code) | 15+ | **Text tracks (A15):** Cmd+T create, preview click places a 5 s clip, TextOverlay drag, TextPanel style, composites above video. Also the ruler vertical-drag zoom |"
+     "text": "| no-plan (orphan code) | 17 | **Text tracks (A15):** Cmd+T create, preview click places a 5 s clip, TextOverlay drag, TextPanel style, composites above video. Also the ruler vertical-drag zoom |"
     }
    ]
   },
@@ -20458,12 +20458,6 @@
     "superseded": false
    },
    {
-    "path": "docs/spec/STATE.md",
-    "kind": "spec-pass",
-    "hits": 18,
-    "superseded": false
-   },
-   {
     "path": "openspec/changes/05-export-pertrack/specs/export/spec.md",
     "kind": "openspec",
     "hits": 18,
@@ -20496,6 +20490,12 @@
    {
     "path": "docs/roadmap/layout-session/PR-INJECTIONS.md",
     "kind": "roadmap",
+    "hits": 17,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/STATE.md",
+    "kind": "spec-pass",
     "hits": 17,
     "superseded": false
    },
@@ -23528,6 +23528,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/STATE.md",
+    "kind": "spec-pass",
+    "hits": 3,
+    "superseded": false
+   },
+   {
     "path": "docs/spec/patterns/tokens-density.md",
     "kind": "spec-pass",
     "hits": 3,
@@ -24978,6 +24984,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/STATE.md",
+    "kind": "spec-pass",
+    "hits": 17,
+    "superseded": false
+   },
+   {
     "path": "openspec/DECISIONS-PENDING.md",
     "kind": "openspec",
     "hits": 17,
@@ -24986,12 +24998,6 @@
    {
     "path": "docs/roadmap/packets/phase-4.md",
     "kind": "packet",
-    "hits": 15,
-    "superseded": false
-   },
-   {
-    "path": "docs/spec/STATE.md",
-    "kind": "spec-pass",
     "hits": 15,
     "superseded": false
    },
@@ -27410,7 +27416,7 @@
    {
     "path": "docs/spec/02-CROSSREF.md",
     "kind": "spec-pass",
-    "hits": 40,
+    "hits": 39,
     "superseded": false
    },
    {
@@ -27564,12 +27570,6 @@
     "superseded": false
    },
    {
-    "path": "docs/spec/STATE.md",
-    "kind": "spec-pass",
-    "hits": 21,
-    "superseded": false
-   },
-   {
     "path": "docs/UAT-RESULTS-2026-04-09.md",
     "kind": "uat",
     "hits": 20,
@@ -27626,6 +27626,12 @@
    {
     "path": "docs/roadmap/packets/phase-tier3.md",
     "kind": "packet",
+    "hits": 17,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/STATE.md",
+    "kind": "spec-pass",
     "hits": 17,
     "superseded": false
    },
@@ -39342,7 +39348,7 @@
     "O08": 30,
     "O09": 19,
     "O10": 13,
-    "O11": 40,
+    "O11": 39,
     "O12": 9,
     "O13": 8,
     "O14": 15,
@@ -39425,13 +39431,13 @@
     "O01": 3,
     "O02": 5,
     "O03": 12,
-    "O04": 18,
+    "O04": 17,
     "O05": 13,
-    "O06": 2,
+    "O06": 3,
     "O07": 18,
-    "O08": 15,
+    "O08": 17,
     "O10": 14,
-    "O11": 21,
+    "O11": 17,
     "O12": 8,
     "O13": 2,
     "O14": 6,
@@ -39445,7 +39451,7 @@
     "R4"
    ],
    "codeAnchors": {
-    "ok": 36,
+    "ok": 34,
     "missing": 1
    },
    "storeRefs": [

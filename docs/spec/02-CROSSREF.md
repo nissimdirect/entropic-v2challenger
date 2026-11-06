@@ -3,7 +3,7 @@
 Owner instruction (2026-11-06, verbatim): *"Cross-reference all the plans, build them all the way up and all the way down and all the way across. Make sure that there's no contradictions, surface any issues."*
 
 Source tree `docs/spec-pass` (product code = origin/main 4dc01de). PLANNING ONLY — nothing here changes code or ratified law.
-**Result: the plans are NOT contradiction-free.** 138 distinct contradictions (14 blocking against law), 123 gaps, 61 shared-resource conflicts, 58 supersede chains whose older doc carries no header, 79 open questions. **Coverage: 340 of 340 docs referenced by a reader** (tooling + this pass's own docs exempt). Each is listed with cites in the generated layer; this file is the adjudicated synthesis.
+**Result: the plans are NOT contradiction-free.** 138 distinct contradictions (14 blocking against law), 123 gaps, 61 shared-resource conflicts, 58 supersede chains whose older doc carries no header, 79 open questions. **Coverage: every non-exempt doc of the 340-doc universe is referenced by ≥1 reader** (coverage oracle = 0; exempt: `.claude/commands`, `.specify/`, `docs/spec/`). Each is listed with cites in the generated layer; this file is the adjudicated synthesis.
 
 ## Method
 
@@ -29,8 +29,8 @@ Regenerate: `node docs/spec/tools/crossref.mjs && node docs/spec/tools/merge-cro
 | B7 | Right-click on a track-chain knob resets the value AND opens the Automate menu (`Knob.tsx:149-152` no `stopPropagation`; wrapper `DeviceCard.tsx:418-430`); records a default point when armed. Tests miss it (fire on wrapper). | ✔ | O05 |
 | B8 | Bare `p` arms perform mode but the armed-pad branch swallows bare keys (`App.tsx:1065-1100`) → `p` may not disarm. | reader, runtime unverified | O12 |
 | B9 | Raw `Delete` branch (`App.tsx:1148`) skips the mask delete-inside priority that Backspace follows → deletes the clip while ants show. Held tool keys auto-repeat the group cycle (no `e.repeat` guard on registry path). | ✔ Space/Delete order (`App.tsx:1138-1150`) | O08 O11 |
-| B11 | PERFORM badge renders inline `fontSize: 11` (`App.tsx:4324`) — below the D6 12px floor; inline style objects may be a blind spot of the type-floor ratchet (open). | ✔ | O12 |
 | B10 | Loop: `isLooping` (whole duration) and `loopRegion` (wraps at out point, ignores `isLooping`) are two independent mechanisms; loop brace has no drag handlers (`LoopRegion.tsx`). | ✔ brace | O09 |
+| B11 | PERFORM badge renders inline `fontSize: 11` (`App.tsx:4324`) — below the D6 12px floor; inline style objects may be a blind spot of the type-floor ratchet (open). | ✔ | O12 |
 
 ## §2 · Law vs reality — the 14 blocking contradictions
 
@@ -139,19 +139,19 @@ Confirmed wrong-resolution risks:
 
 **Proposed convention (for phase 5):** bare `D#`/`R#` are reserved for `docs/frontend` law. Everything else is qualified: `<change>/OD-2`, `<change>:PK.1`, `MI-D13`, `PRB-D4`. `coverage.mjs` (phase 3) can lint it.
 
-## §6 · Gaps (100; full list CROSSREF-SEMANTIC.md §Gaps)
+## §6 · Gaps (123; full list CROSSREF-SEMANTIC.md §Gaps)
 
 | kind | n | headline items |
 |---|---|---|
-| no-law | 19 | Load-bearing decisions with no RATIFIED row: tune-up D1 cursor tools, D3 clip/track lock, field-mapping apply-preset menu, history-panel OD-1, w15b OD-1 inspector rename, signal precedence (§3c), REAL-INVENTORY-ONLY row itself |
-| no-test | 17 | Master delete guard; `knob.test.ts:104` is a tautology; `epic04-export-pertrack` test mirrors its own helper; device-chain right-click test bypasses Knob |
-| unreachable | 15 | `RenderQueue` / `addJob`; marker drag (`moveMarker` uncalled); `rippleTrimClipOut`; chroma/luma key matte creation; slot-learned CC targets; Draw mode; take deletion; `onOpenDemo` stub; Preferences "Autosave folder" inert |
-| no-plan (orphan code) | 15+ | **Text tracks (A15):** Cmd+T create, preview click places a 5 s clip, TextOverlay drag, TextPanel style, composites above video. Also the ruler vertical-drag zoom |
-| no-owner | 14 | Panel registry; preset drop target; layout-state migration; Edit-menu role vs renderer Cmd+Z/C/V |
-| double-owner | 11 | Undo memory-smoke test (UH.5 vs history-panel OD-2); freeze-undo; monitor window |
-| no-code | 9 | multicam (memory only); LayerTap 'layer' node; mask invert/hide-ants/save-as-mask |
+| no-law | 22 | Load-bearing decisions with no RATIFIED row: tune-up D1 cursor tools, D3 clip/track lock, field-mapping apply-preset menu, history-panel OD-1, w15b OD-1 inspector rename, signal precedence (§3c), REAL-INVENTORY-ONLY row itself |
+| no-test | 23 | Master delete guard; `knob.test.ts:104` is a tautology; `epic04-export-pertrack` test mirrors its own helper; device-chain right-click test bypasses Knob |
+| unreachable | 16 | `RenderQueue` / `addJob`; marker drag (`moveMarker` uncalled); `rippleTrimClipOut`; chroma/luma key matte creation; slot-learned CC targets; Draw mode; take deletion; `onOpenDemo` stub; Preferences "Autosave folder" inert |
+| no-plan (orphan code) | 17 | **Text tracks (A15):** Cmd+T create, preview click places a 5 s clip, TextOverlay drag, TextPanel style, composites above video. Also the ruler vertical-drag zoom |
+| no-owner | 16 | Panel registry; preset drop target; layout-state migration; Edit-menu role vs renderer Cmd+Z/C/V |
+| double-owner | 12 | Undo memory-smoke test (UH.5 vs history-panel OD-2); freeze-undo; monitor window |
+| no-code | 17 | multicam (memory only); LayerTap 'layer' node; mask invert/hide-ants/save-as-mask |
 
-Trace matrix (233 rows): fully traced (law → plan → code → test) ranges from 0 of 11 (O12 performance) to 11 of 16 (O08 masks). Weakest objects are **O12, O07, O10, O14 and O17**; they should be specced with extra care in phase 4.
+Trace matrix (313 rows): the share of rows fully traced (law → plan → code → test) ranges from 2 of 15 (O12 performance) to 12 of 17 (O08 masks). Weakest by that share: **O12 (2/15), O07 (5/20), O10 (5/18), O16 (3/11), O17 (6/22)**. These get extra care in phase 4.
 
 ## §7 · Supersede headers still missing (58 chains)
 
@@ -182,7 +182,7 @@ The full list is in CROSSREF-SEMANTIC.md §Supersede chains.
 
    The identity-key rule (B1 + modulation) becomes a cross-cutting rule in the O06/O07 specs.
 2. Every §2 row and every §3 owner question enters the phase-5 decision batches with a recommendation.
-3. 68 open questions are queued in CROSSREF-SEMANTIC.md §Open questions.
+3. 79 open questions are queued in CROSSREF-SEMANTIC.md §Open questions.
 4. **Stale-ledger prevention** (third recurrence: ledger CX-53b87cec, CX-4144344e): phase-7 packets carry a CI check that every merged packet id has a ticked ledger row, or the ROADMAP/EXECUTION-PLAN status column is generated from `git log` instead of hand-edited.
 5. **Second supersede-header sweep** (§2 header rows + §7's 58 chains + §3i contract docs), docs-only, this branch — owner approval required, same terms as the ★1 sweep ("headers only").
 
