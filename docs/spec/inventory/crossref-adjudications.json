@@ -41,6 +41,18 @@
    "confirmed": 2,
    "refuted": 0,
    "policy": "Normal. Checked statically end-to-end: per-track automation lanes keyed `${effect.id}.${key}` (Track.tsx:113, instance uuid) \u2192 evaluateAutomationOverrides.ts:200 emits raw paramPath \u2192 App.tsx:1748 sends automation_overrides \u2192 backend/src/modulation/engine.py:701 matches f\"{eid}.{param_key}\" where eid = effect TYPE (ipc-serialize.ts:45) \u21d2 no match; modulateChain (App.tsx:194-218) applies pads+CC only. Code comment evaluateAutomationOverrides.ts:238-242 concedes per-track convention is untouched. NOT runtime-reproduced \u2014 live-bug candidate (gate 6: reproduce before fix)."
+  },
+  "remainder": {
+   "checked": 3,
+   "confirmed": 3,
+   "refuted": 0,
+   "policy": "Normal; UAT/red-team rows header-level only. Checked: security.py:39 MAX_FRAME_COUNT=300_000 (doc 3,000); OperatorRack mounted App.tsx:4124 (state-of-union says unmounted); zmq_server.py:658 'skip mmap \u2014 Electron uses base64' (IPC-PROTOCOL describes mmap ring buffer)."
+  },
+  "remainder2": {
+   "checked": 2,
+   "confirmed": 2,
+   "refuted": 0,
+   "policy": "Normal. Checked: App.tsx:4324 PERFORM badge inline fontSize 11 (< D6 floor); feature-flags.ts:5 F_0512 sweep retired."
   }
  },
  "items": {

@@ -1,8 +1,8 @@
 {
- "generatedFrom": "de82145",
- "docUniverse": 340,
+ "generatedFrom": "7f75ebc",
+ "docUniverse": 342,
  "counts": {
-  "docs": 340,
+  "docs": 342,
   "byKind": {
    "repo-root": 14,
    "doc": 46,
@@ -15,16 +15,16 @@
    "plan": 70,
    "roadmap": 31,
    "packet": 13,
-   "spec-pass": 19,
+   "spec-pass": 21,
    "openspec": 85
   },
-  "hotkeyClaims": 1084,
+  "hotkeyClaims": 1113,
   "distinctKeys": 102,
   "docOnlyKeys": 58,
   "codeOnlyKeys": 9,
   "idDefinitions": 745,
   "idCollisions": 108,
-  "lawRestatements": 82,
+  "lawRestatements": 84,
   "decidingDocsWithoutLaw": 17
  },
  "lawRows": [
@@ -47,31 +47,38 @@
  "lawFanIn": {
   "D1": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/patterns/selection.md",
+   "docs/spec/tools/crossref-brief.md",
    "docs/spec/tools/teardown-brief.md",
    "openspec/changes/ui-foundation/uat.md"
   ],
   "D2": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/patterns/automation-modulation.md",
    "docs/spec/patterns/timeline-edit.md",
+   "docs/spec/tools/crossref-brief.md",
    "docs/spec/tools/teardown-brief.md",
    "openspec/changes/ui-foundation/uat.md"
   ],
   "D3": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/AREAS.md",
    "docs/spec/tools/teardown-brief.md",
    "openspec/changes/system-monitor-v1/uat.md"
   ],
   "D4": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
-   "docs/roadmap/ROADMAP.md"
+   "docs/roadmap/ROADMAP.md",
+   "docs/spec/02-CROSSREF.md"
   ],
   "D4a": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
    "docs/roadmap/MASKING-INTERACTIONS.md",
    "docs/spec/01-FEATURE-MAP.md",
+   "docs/spec/02-CROSSREF.md",
    "openspec/PLANNING-QUEUE.md"
   ],
   "D5": [
@@ -81,8 +88,10 @@
    "docs/roadmap/ONBOARDING-SPEC.md",
    "docs/roadmap/packets/phase-7.md",
    "docs/roadmap/packets/ux-audit.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/STATE.md",
    "docs/spec/patterns/drag-drop.md",
+   "docs/spec/tools/crossref-brief.md",
    "docs/spec/tools/teardown-brief.md",
    "openspec/changes/ui-foundation/proposal.md"
   ],
@@ -95,6 +104,7 @@
    "docs/roadmap/ONBOARDING-SPEC.md",
    "docs/roadmap/packets/phase-7.md",
    "docs/roadmap/packets/ux-audit.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/patterns/drag-drop.md",
    "docs/spec/patterns/tokens-density.md",
    "docs/spec/tools/teardown-brief.md",
@@ -117,12 +127,15 @@
   "D9": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
    "docs/roadmap/INDEX.md",
-   "docs/spec/01-FEATURE-MAP.md"
+   "docs/spec/01-FEATURE-MAP.md",
+   "docs/spec/02-CROSSREF.md"
   ],
   "D10": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
    "docs/roadmap/packets/phase-7.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/AREAS.md",
+   "docs/spec/tools/crossref-brief.md",
    "docs/spec/tools/teardown-brief.md",
    "openspec/changes/browser-folders/step0-reconciliation.md"
   ],
@@ -132,11 +145,13 @@
    "docs/spec/patterns/selection.md"
   ],
   "D12": [
-   "docs/frontend/RATIFIED-FOUNDATIONS.md"
+   "docs/frontend/RATIFIED-FOUNDATIONS.md",
+   "docs/spec/02-CROSSREF.md"
   ],
   "D13": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
    "docs/spec/01-FEATURE-MAP.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/AREAS.md",
    "docs/spec/STATE.md",
    "docs/spec/patterns/automation-modulation.md",
@@ -144,7 +159,9 @@
   ],
   "D13.1": [
    "docs/frontend/RATIFIED-FOUNDATIONS.md",
+   "docs/spec/02-CROSSREF.md",
    "docs/spec/patterns/automation-modulation.md",
+   "docs/spec/tools/crossref-brief.md",
    "openspec/changes/w15b-grid-track-paradigm/packets.md"
   ],
   "R1": [
@@ -346,8 +363,18 @@
    "text": "| L2 | 11px floor still specified, D6 = 12px | DESIGN-SPEC body (reader: :83, :181); ux-audit.md:84 PUX.1 (reader) |"
   },
   {
+   "law": "D6",
+   "at": "docs/spec/02-CROSSREF.md:49",
+   "text": "| X-shell-10 | **D6** (amended → Scale B+1: data 12/450, app floor 12px) | ui-foundation `plan.md` / `uat.md` executable oracles still assert 11px, no header | header sweep #2 (oracles must be re-poin"
+  },
+  {
+   "law": "D6",
+   "at": "docs/spec/02-CROSSREF.md:50",
+   "text": "| X-remainder2-7 | **D6** 12px floor | live code: `App.tsx:4324` inline 11px (B11) | bug fix + ratchet check |"
+  },
+  {
    "law": "D5",
-   "at": "docs/spec/STATE.md:56",
+   "at": "docs/spec/STATE.md:57",
    "text": "- ✔ CONFIRMED blocking: `docs/roadmap/packets/ux-audit.md:341` PUX.7 IBM Plex bundling vs RATIFIED D5 (verified text)."
   },
   {
@@ -601,7 +628,7 @@
      "at": "frontend/src/renderer/utils/default-shortcuts.ts:15"
     }
    ],
-   "docCount": 37,
+   "docCount": 38,
    "claims": [
     {
      "key": "meta+z",
@@ -1454,6 +1481,14 @@
     {
      "key": "meta+z",
      "raw": "Cmd+Z",
+     "at": "docs/spec/02-CROSSREF.md:150",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| no-owner | 14 | Panel registry; preset drop target; layout-state migration; Edit-menu role vs renderer Cmd+Z/C/V |"
+    },
+    {
+     "key": "meta+z",
+     "raw": "Cmd+Z",
      "at": "docs/spec/patterns/keyboard-focus.md:62",
      "kind": "spec-pass",
      "superseded": false,
@@ -2090,7 +2125,7 @@
     {
      "key": "meta+s",
      "raw": "Cmd+S",
-     "at": "docs/spec/STATE.md:77",
+     "at": "docs/spec/STATE.md:78",
      "kind": "spec-pass",
      "superseded": false,
      "text": "- ✔ CONFIRMED: App keydown returns early for INPUT/TEXTAREA/SELECT (App.tsx:1058-1059) → Cmd+S etc. dead while a field has focus."
@@ -2129,7 +2164,7 @@
      "at": "frontend/src/main/menu.ts:124"
     }
    ],
-   "docCount": 15,
+   "docCount": 16,
    "claims": [
     {
      "key": "meta+b",
@@ -2274,6 +2309,14 @@
      "kind": "packet",
      "superseded": false,
      "text": "- Keyboard: register ⌘⇧I where existing global shortcuts live (grep `Cmd+B`/`metaKey` handler — `App.tsx` or a hotkeys util; verify at packet start). Note ⌘I = Import media already taken; ⌘⇧I is free per repo CLAUDE.md t"
+    },
+    {
+     "key": "meta+b",
+     "raw": "Cmd+B",
+     "at": "docs/spec/02-CROSSREF.md:45",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| X-devices-1 | **D10** \"ONE permanent rail\" | browser-folders `plan.md:48` keeps Cmd+B hiding the panel that contains the rail; uat P9-5 / DoD-9 test it | owner |"
     },
     {
      "key": "meta+b",
@@ -2994,7 +3037,7 @@
   {
    "key": "3",
    "code": [],
-   "docCount": 19,
+   "docCount": 20,
    "claims": [
     {
      "key": "3",
@@ -3167,6 +3210,14 @@
     {
      "key": "3",
      "raw": "3",
+     "at": "docs/spec/02-CROSSREF.md:195",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 3 | Every reader had ≥1 independent orchestrator check | `inventory/crossref-adjudications.json` has a `readers.<cluster>` row for each file in `inventory/crossref/` |"
+    },
+    {
+     "key": "3",
+     "raw": "3",
      "at": "docs/spec/patterns/automation-modulation.md:49",
      "kind": "spec-pass",
      "superseded": false,
@@ -3233,7 +3284,7 @@
   {
    "key": "4",
    "code": [],
-   "docCount": 22,
+   "docCount": 23,
    "claims": [
     {
      "key": "4",
@@ -3402,6 +3453,14 @@
      "kind": "roadmap",
      "superseded": false,
      "text": "| 4 | E1 project-fit VAE (unload model) | ~100MB-1GB depending on model |"
+    },
+    {
+     "key": "4",
+     "raw": "4",
+     "at": "docs/spec/02-CROSSREF.md:196",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 4 | Every §2 blocking row cites both sides at file:line | manual review at ★ — no row without two cites |"
     },
     {
      "key": "4",
@@ -3964,6 +4023,237 @@
      "kind": "roadmap",
      "superseded": false,
      "text": "4. Press `Cmd+E`, codec `prores_4444`, export `~/Desktop/j5-alpha.mov`."
+    }
+   ]
+  },
+  {
+   "key": "5",
+   "code": [],
+   "docCount": 21,
+   "claims": [
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md:138",
+     "kind": "uat",
+     "superseded": true,
+     "text": "| 5 | Preset save dialog | `library/PresetSaveDialog.tsx` | Save chain as named preset → appears in Presets tab |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/PHASE4-TEST-PLAN.md:123",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| 5 | Verify right clip: position = playhead, duration = original end - playhead | Correct in/out points |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/PRD.md:233",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| 5 | Basic Performance | 2-3 | 4x4 pad grid, keyboard triggers, choke groups |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/UAT-RESULTS-2026-03-16.md:466",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Test #193 | \"export is VIDEO-ONLY (no audio re-encoding) — silence is expected\" | Audio export option now exists |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:613",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Cmd+O | Open | File picker opens |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:226",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Kill Python sidecar | `app.evaluate()` to kill child process | Toast notification appears within 5s | Error handling |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:316",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Click-to-type boundary | Type \"-999\" and \"999\" | Clamps to valid range | Edge case |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:339",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Pause/resume | Play, pause at 3s, resume | Audio resumes from correct position | Happy path |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:358",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Live histogram | Apply Levels adjustment | Histogram display updates to reflect changes | Happy path |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:413",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Dump to timeline | Click \"Capture MIDI\" | Events appear as clip on timeline | Happy path |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:466",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Curve type cycle | Alt+Click node | Cycles linear/log/exp | Happy path |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:517",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Retro-Capture dump | Perform for 30s, click Capture | Last 30s appears as timeline clip | Happy path |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:963",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 5 | Window menu present (macOS only) | E2E | Minimize, Zoom, Bring All to Front |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/audits/2026-04-16-state-of-union.md:195",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| 5 | Did not mention Perf Tier 1-4 work | PR #16 optimized 7 effects 12-100× faster; PR #17 optimized 3 more (hue_shift 16×, block_crystallize 2.7×, reaction_diffusion 2.3×) = **10 effects total**. Baseline was 78% of e"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/plans/2026-03-15-ship-gate-audit-plan.md:25",
+     "kind": "plan",
+     "superseded": false,
+     "text": "| 5 | 2B — Audio Sprint | PyAV decode, PortAudio, decoupled A/V clock | [ ] |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0-AMENDED.md:32",
+     "kind": "plan",
+     "superseded": false,
+     "text": "| 5 | **Edge-curve applied + enum picker (UD-5)** | `modulation/routing.py` (apply `curve` in the contribution step: source→curve→depth/min/max; NOT `lane_reader.py` — separate system); `CurveType` +`smoothstep` (additiv"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0.md:22",
+     "kind": "plan",
+     "superseded": false,
+     "text": "| 5 | **Edge-curve wire + editor** | `backend/src/modulation/routing.py` (apply `curve` via `util/curves.py`); edge curve editor UI | MED | **curve default==linear byte-identical** (silent-change guard) · smoothstep unit"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:21",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "| 5 | **Media relink / missing-media dialog** | Project | P1 | M | Audio clips get a `missing` flag but there is no \"locate file\" UI; video clips have nothing. Moving a project folder silently breaks it. |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/roadmap/PERF-MODEL.md:53",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "| 5 | **Encode preview** — `encode_mjpeg` q95 + base64 | **4.0** | 1080p MJPEG ≈ 3 ms + base64 ≈ 1 ms |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/solutions/2026-02-28-e2e-test-pyramid.md:31",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| 5 | 14 | Export states + UX contracts (Don Norman affordances, constraints, consistency) |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/spec/02-CROSSREF.md:197",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 5 | Generated layers are reproducible | rerun both scripts; `git diff --stat docs/spec/inventory` empty |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/spec/patterns/automation-modulation.md:51",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 5 | Selecting a source shows all its routes on the destinations | Vital `modulation_manager.cpp:638-660` (`current_modulator_` set, amount sliders for that source's connections become visible), `:956-961` (`clearModula"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/spec/patterns/devices-params.md:35",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 5 | Drag resolution derived from magnitude | Tweakpane `common/number/util.ts:54-60` (`getSuitablePointerScale`: ten to the power of floor(log10(step or value)) minus 1; 0.1 if base is 0) | For unbounded numeric fields"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/spec/patterns/docking-workspaces.md:32",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 5 | Edge groups with collapse (sidebars that collapse to a strip) | dockview `dockview/edgeGroupService.ts`, `dockview/dockviewShell.ts`; docs `packages/docs/docs/core/groups/edgeGroups.mdx`, `autoHideEdgeGroups.mdx`; "
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "docs/spec/patterns/tokens-density.md:32",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 5 | Two-level naming: palette, then semantic ids | Surge `resources/data/skins/dark-mode.surge-skin/skin.xml` (palette colors such as `bggray`, `darkgray`, then semantic ids such as `lfo.waveform.background` that point"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "openspec/PLANNING-QUEUE.md:20",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| 5 | creatrix-backspin-afterimage-spec.md (backspin) | fx-backspin | READY | verdicts in proposal.md | stop-point modes ⑱; rings exist (copy_machine precedent) |"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "openspec/changes/wave0-prerouted-presets/plan.md:549",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| 5 | Edge-curve applied + enum picker (UD-5) | `modulation/routing.py` contribution step; `CurveType` + `smoothstep`; enum-picker UI; fix stale `EdgeInspector.tsx:1-15` comment | MED | curve default == linear byte-ident"
+    },
+    {
+     "key": "5",
+     "raw": "5",
+     "at": "openspec/changes/wave0-prerouted-presets/uat.md:168",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| 5 | On one device card, drag the new `_mix` knob to 60%. | Preview visibly shows a partial wet/dry blend (not full-wet, not bypassed). | Not actually rendering/exporting later to confirm this blend holds at export time"
     }
    ]
   },
@@ -4671,232 +4961,9 @@
    ]
   },
   {
-   "key": "5",
-   "code": [],
-   "docCount": 20,
-   "claims": [
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md:138",
-     "kind": "uat",
-     "superseded": true,
-     "text": "| 5 | Preset save dialog | `library/PresetSaveDialog.tsx` | Save chain as named preset → appears in Presets tab |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/PHASE4-TEST-PLAN.md:123",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| 5 | Verify right clip: position = playhead, duration = original end - playhead | Correct in/out points |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/PRD.md:233",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| 5 | Basic Performance | 2-3 | 4x4 pad grid, keyboard triggers, choke groups |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/UAT-RESULTS-2026-03-16.md:466",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Test #193 | \"export is VIDEO-ONLY (no audio re-encoding) — silence is expected\" | Audio export option now exists |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:613",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Cmd+O | Open | File picker opens |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:226",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Kill Python sidecar | `app.evaluate()` to kill child process | Toast notification appears within 5s | Error handling |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:316",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Click-to-type boundary | Type \"-999\" and \"999\" | Clamps to valid range | Edge case |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:339",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Pause/resume | Play, pause at 3s, resume | Audio resumes from correct position | Happy path |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:358",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Live histogram | Apply Levels adjustment | Histogram display updates to reflect changes | Happy path |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:413",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Dump to timeline | Click \"Capture MIDI\" | Events appear as clip on timeline | Happy path |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:466",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Curve type cycle | Alt+Click node | Cycles linear/log/exp | Happy path |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:517",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Retro-Capture dump | Perform for 30s, click Capture | Last 30s appears as timeline clip | Happy path |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:963",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 5 | Window menu present (macOS only) | E2E | Minimize, Zoom, Bring All to Front |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/audits/2026-04-16-state-of-union.md:195",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| 5 | Did not mention Perf Tier 1-4 work | PR #16 optimized 7 effects 12-100× faster; PR #17 optimized 3 more (hue_shift 16×, block_crystallize 2.7×, reaction_diffusion 2.3×) = **10 effects total**. Baseline was 78% of e"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/plans/2026-03-15-ship-gate-audit-plan.md:25",
-     "kind": "plan",
-     "superseded": false,
-     "text": "| 5 | 2B — Audio Sprint | PyAV decode, PortAudio, decoupled A/V clock | [ ] |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0-AMENDED.md:32",
-     "kind": "plan",
-     "superseded": false,
-     "text": "| 5 | **Edge-curve applied + enum picker (UD-5)** | `modulation/routing.py` (apply `curve` in the contribution step: source→curve→depth/min/max; NOT `lane_reader.py` — separate system); `CurveType` +`smoothstep` (additiv"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0.md:22",
-     "kind": "plan",
-     "superseded": false,
-     "text": "| 5 | **Edge-curve wire + editor** | `backend/src/modulation/routing.py` (apply `curve` via `util/curves.py`); edge curve editor UI | MED | **curve default==linear byte-identical** (silent-change guard) · smoothstep unit"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:21",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "| 5 | **Media relink / missing-media dialog** | Project | P1 | M | Audio clips get a `missing` flag but there is no \"locate file\" UI; video clips have nothing. Moving a project folder silently breaks it. |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/roadmap/PERF-MODEL.md:53",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "| 5 | **Encode preview** — `encode_mjpeg` q95 + base64 | **4.0** | 1080p MJPEG ≈ 3 ms + base64 ≈ 1 ms |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/solutions/2026-02-28-e2e-test-pyramid.md:31",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| 5 | 14 | Export states + UX contracts (Don Norman affordances, constraints, consistency) |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/spec/patterns/automation-modulation.md:51",
-     "kind": "spec-pass",
-     "superseded": false,
-     "text": "| 5 | Selecting a source shows all its routes on the destinations | Vital `modulation_manager.cpp:638-660` (`current_modulator_` set, amount sliders for that source's connections become visible), `:956-961` (`clearModula"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/spec/patterns/devices-params.md:35",
-     "kind": "spec-pass",
-     "superseded": false,
-     "text": "| 5 | Drag resolution derived from magnitude | Tweakpane `common/number/util.ts:54-60` (`getSuitablePointerScale`: ten to the power of floor(log10(step or value)) minus 1; 0.1 if base is 0) | For unbounded numeric fields"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/spec/patterns/docking-workspaces.md:32",
-     "kind": "spec-pass",
-     "superseded": false,
-     "text": "| 5 | Edge groups with collapse (sidebars that collapse to a strip) | dockview `dockview/edgeGroupService.ts`, `dockview/dockviewShell.ts`; docs `packages/docs/docs/core/groups/edgeGroups.mdx`, `autoHideEdgeGroups.mdx`; "
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "docs/spec/patterns/tokens-density.md:32",
-     "kind": "spec-pass",
-     "superseded": false,
-     "text": "| 5 | Two-level naming: palette, then semantic ids | Surge `resources/data/skins/dark-mode.surge-skin/skin.xml` (palette colors such as `bggray`, `darkgray`, then semantic ids such as `lfo.waveform.background` that point"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "openspec/PLANNING-QUEUE.md:20",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| 5 | creatrix-backspin-afterimage-spec.md (backspin) | fx-backspin | READY | verdicts in proposal.md | stop-point modes ⑱; rings exist (copy_machine precedent) |"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "openspec/changes/wave0-prerouted-presets/plan.md:549",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| 5 | Edge-curve applied + enum picker (UD-5) | `modulation/routing.py` contribution step; `CurveType` + `smoothstep`; enum-picker UI; fix stale `EdgeInspector.tsx:1-15` comment | MED | curve default == linear byte-ident"
-    },
-    {
-     "key": "5",
-     "raw": "5",
-     "at": "openspec/changes/wave0-prerouted-presets/uat.md:168",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| 5 | On one device card, drag the new `_mix` knob to 60%. | Preview visibly shows a partial wet/dry blend (not full-wet, not bypassed). | Not actually rendering/exporting later to confirm this blend holds at export time"
-    }
-   ]
-  },
-  {
    "key": "2",
    "code": [],
-   "docCount": 14,
+   "docCount": 15,
    "claims": [
     {
      "key": "2",
@@ -5053,6 +5120,14 @@
     {
      "key": "2",
      "raw": "2",
+     "at": "docs/spec/02-CROSSREF.md:194",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| 2 | Every reader output is schema-valid | brief's `node -e` validator on each `inventory/crossref/*.json` exits 0 |"
+    },
+    {
+     "key": "2",
+     "raw": "2",
      "at": "docs/spec/patterns/automation-modulation.md:48",
      "kind": "spec-pass",
      "superseded": false,
@@ -5097,6 +5172,232 @@
      "kind": "openspec",
      "superseded": false,
      "text": "| 2 | Drive: type a substring of a known preset's name into the new search box. | Card list narrows to name-matching presets only; screenshot before/after shows the count drop. | A search box that exists visually but doe"
+    }
+   ]
+  },
+  {
+   "key": "meta+t",
+   "code": [
+    {
+     "action": "add_text_track",
+     "label": "Add Text Track",
+     "context": "normal",
+     "at": "frontend/src/renderer/utils/default-shortcuts.ts:57"
+    },
+    {
+     "action": "menu:add-text-track",
+     "label": "File › Add Text Track",
+     "context": "menu-label",
+     "at": "frontend/src/main/menu.ts:30"
+    },
+    {
+     "action": "menu:add-text-track",
+     "label": "Timeline › Add Text Track",
+     "context": "menu-label",
+     "at": "frontend/src/main/menu.ts:85"
+    }
+   ],
+   "docCount": 13,
+   "claims": [
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "CLAUDE.md:86",
+     "kind": "repo-root",
+     "superseded": false,
+     "text": "| Cmd+T | Add text track |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:1445",
+     "kind": "doc",
+     "superseded": true,
+     "text": "| Cmd+T | add_text_track | `[IMPL]` |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/COMPONENT-TEST-MATRIX.md:234",
+     "kind": "doc",
+     "superseded": true,
+     "text": "| K10 | Cmd+T | Add Text Track | YES | PASS |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:156",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| Activate | `Cmd+T` | Click Motion | Click clip | Overlay mode | `V` |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:710",
+     "kind": "doc",
+     "superseded": false,
+     "text": "**Free Transform** (`Cmd+T`): Bounding box with 8 handles. Options Bar shows X, Y, W%, H%, Rotation, Skew (scrubby sliders). Link icon locks aspect. Since CC 2019: proportional by default, Shift = unconstrain (reversed f"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:712",
+     "kind": "doc",
+     "superseded": false,
+     "text": "**Key shortcuts:** Cmd+T (activate), Alt+drag (from center), Shift+drag outside (15° snap), Ctrl+drag corner (distort), Enter (accept), Esc (cancel)."
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UAT-RESULTS-2026-04-09.md:338",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 122a | Text track via Cmd+T | **PASS** — \"Text 1\" with purple T icon |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UAT-RESULTS-2026-04-09.md:389",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 286 | Cmd+T text track | **PASS** |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:617",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 9 | Cmd+T | Add Text Track | \"Text 1\" track appears |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UAT-UIT-GUIDE.md:394",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 122a | Add text track via menu | Click File > Add Text Track (or Cmd+T) | New text track appears in timeline | [ ] |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UAT-UIT-GUIDE.md:616",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 286 | Cmd+T | Add Text Track | Creates a new text track in the timeline | [ ] |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UAT-UIT-GUIDE.md:619",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 289 | Cmd+T in text input | Should NOT fire | When editing text clip content, Cmd+T must not create a track | [ ] |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UAT-UIT-GUIDE.md:619",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 289 | Cmd+T in text input | Should NOT fire | When editing text clip content, Cmd+T must not create a track | [ ] |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/UX-SPEC.md:310",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| New video track | Cmd+T |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:383",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 10 | New track | Cmd+T | New video track lane appears | Happy path |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:968",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 10 | Cmd+T creates text track from keyboard | E2E | Same as File > Add Text Track |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:969",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 11 | Cmd+T blocked inside text input elements | Vitest | No track created when editing text clip content |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1002",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 34 | Cmd+T at MAX_TRACKS limit → blocked gracefully | Vitest | No crash, track not created |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1003",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 35 | Rapid Cmd+T spam (10x) → reasonable number of tracks | Vitest | No runaway track creation |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1010",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 37 | Import via Cmd+I + apply effect + Cmd+T + export | E2E | Full workflow completes successfully |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/phases/PHASE-11.md:117",
+     "kind": "phase",
+     "superseded": false,
+     "text": "'new_video_track': 'Cmd+T',"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:160",
+     "kind": "plan",
+     "superseded": false,
+     "text": "- Timeline: Cmd+Shift+K (split), Delete (delete clip), Cmd+T (new track)"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/spec/01-FEATURE-MAP.md:122",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "**A15 Text tracks** — no reader found a single planning-doc feature row for it, yet it ships (Cmd+T `add_text_track`, `components/text/`). Its phase-4 spec is written from code alone (highest risk of undocumented behavio"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/spec/02-CROSSREF.md:65",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+T | add text track (code) vs \"new video track\" (UX-SPEC) vs Free Transform (Dimensional Translation PRD) | X-timeline-8 = X-tools-keys-11 |"
+    },
+    {
+     "key": "meta+t",
+     "raw": "Cmd+T",
+     "at": "docs/spec/02-CROSSREF.md:149",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| no-plan (orphan code) | 15+ | **Text tracks (A15):** Cmd+T create, preview click places a 5 s clip, TextOverlay drag, TextPanel style, composites above video. Also the ruler vertical-drag zoom |"
     }
    ]
   },
@@ -5697,216 +5998,6 @@
    ]
   },
   {
-   "key": "meta+t",
-   "code": [
-    {
-     "action": "add_text_track",
-     "label": "Add Text Track",
-     "context": "normal",
-     "at": "frontend/src/renderer/utils/default-shortcuts.ts:57"
-    },
-    {
-     "action": "menu:add-text-track",
-     "label": "File › Add Text Track",
-     "context": "menu-label",
-     "at": "frontend/src/main/menu.ts:30"
-    },
-    {
-     "action": "menu:add-text-track",
-     "label": "Timeline › Add Text Track",
-     "context": "menu-label",
-     "at": "frontend/src/main/menu.ts:85"
-    }
-   ],
-   "docCount": 12,
-   "claims": [
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "CLAUDE.md:86",
-     "kind": "repo-root",
-     "superseded": false,
-     "text": "| Cmd+T | Add text track |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:1445",
-     "kind": "doc",
-     "superseded": true,
-     "text": "| Cmd+T | add_text_track | `[IMPL]` |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/COMPONENT-TEST-MATRIX.md:234",
-     "kind": "doc",
-     "superseded": true,
-     "text": "| K10 | Cmd+T | Add Text Track | YES | PASS |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:156",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| Activate | `Cmd+T` | Click Motion | Click clip | Overlay mode | `V` |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:710",
-     "kind": "doc",
-     "superseded": false,
-     "text": "**Free Transform** (`Cmd+T`): Bounding box with 8 handles. Options Bar shows X, Y, W%, H%, Rotation, Skew (scrubby sliders). Link icon locks aspect. Since CC 2019: proportional by default, Shift = unconstrain (reversed f"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:712",
-     "kind": "doc",
-     "superseded": false,
-     "text": "**Key shortcuts:** Cmd+T (activate), Alt+drag (from center), Shift+drag outside (15° snap), Ctrl+drag corner (distort), Enter (accept), Esc (cancel)."
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UAT-RESULTS-2026-04-09.md:338",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 122a | Text track via Cmd+T | **PASS** — \"Text 1\" with purple T icon |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UAT-RESULTS-2026-04-09.md:389",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 286 | Cmd+T text track | **PASS** |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:617",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 9 | Cmd+T | Add Text Track | \"Text 1\" track appears |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UAT-UIT-GUIDE.md:394",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 122a | Add text track via menu | Click File > Add Text Track (or Cmd+T) | New text track appears in timeline | [ ] |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UAT-UIT-GUIDE.md:616",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 286 | Cmd+T | Add Text Track | Creates a new text track in the timeline | [ ] |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UAT-UIT-GUIDE.md:619",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 289 | Cmd+T in text input | Should NOT fire | When editing text clip content, Cmd+T must not create a track | [ ] |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UAT-UIT-GUIDE.md:619",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 289 | Cmd+T in text input | Should NOT fire | When editing text clip content, Cmd+T must not create a track | [ ] |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/UX-SPEC.md:310",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| New video track | Cmd+T |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:383",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 10 | New track | Cmd+T | New video track lane appears | Happy path |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:968",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 10 | Cmd+T creates text track from keyboard | E2E | Same as File > Add Text Track |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:969",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 11 | Cmd+T blocked inside text input elements | Vitest | No track created when editing text clip content |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1002",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 34 | Cmd+T at MAX_TRACKS limit → blocked gracefully | Vitest | No crash, track not created |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1003",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 35 | Rapid Cmd+T spam (10x) → reasonable number of tracks | Vitest | No runaway track creation |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1010",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 37 | Import via Cmd+I + apply effect + Cmd+T + export | E2E | Full workflow completes successfully |"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/phases/PHASE-11.md:117",
-     "kind": "phase",
-     "superseded": false,
-     "text": "'new_video_track': 'Cmd+T',"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:160",
-     "kind": "plan",
-     "superseded": false,
-     "text": "- Timeline: Cmd+Shift+K (split), Delete (delete clip), Cmd+T (new track)"
-    },
-    {
-     "key": "meta+t",
-     "raw": "Cmd+T",
-     "at": "docs/spec/01-FEATURE-MAP.md:122",
-     "kind": "spec-pass",
-     "superseded": false,
-     "text": "**A15 Text tracks** — no reader found a single planning-doc feature row for it, yet it ships (Cmd+T `add_text_track`, `components/text/`). Its phase-4 spec is written from code alone (highest risk of undocumented behavio"
-    }
-   ]
-  },
-  {
    "key": "9",
    "code": [],
    "docCount": 14,
@@ -6281,6 +6372,194 @@
    ]
   },
   {
+   "key": "meta+k",
+   "code": [
+    {
+     "action": "split_at_playhead",
+     "label": "Split at Playhead",
+     "context": "normal",
+     "at": "frontend/src/renderer/utils/default-shortcuts.ts:41"
+    },
+    {
+     "action": "menu:split-at-playhead",
+     "label": "Clip › Split at Playhead",
+     "context": "menu-label",
+     "at": "frontend/src/main/menu.ts:72"
+    }
+   ],
+   "docCount": 13,
+   "claims": [
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "CLAUDE.md:83",
+     "kind": "repo-root",
+     "superseded": false,
+     "text": "| Cmd+K | Split clip at playhead |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:671",
+     "kind": "doc",
+     "superseded": true,
+     "text": "When Cmd+K pressed"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:676",
+     "kind": "doc",
+     "superseded": true,
+     "text": "When Cmd+K pressed"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:1446",
+     "kind": "doc",
+     "superseded": true,
+     "text": "| Cmd+K | split_at_playhead | `[IMPL]` |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/COMPONENT-TEST-MATRIX.md:114",
+     "kind": "doc",
+     "superseded": true,
+     "text": "| TL10 | Split clip (Cmd+K) | Shortcut | Split at playhead | YES | PASS |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/COMPONENT-TEST-MATRIX.md:236",
+     "kind": "doc",
+     "superseded": true,
+     "text": "| K12 | Cmd+K | Split at Playhead | YES | PASS |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md:228",
+     "kind": "uat",
+     "superseded": true,
+     "text": "| Split Cmd+K spam 100x | Timeline | **Needs CU test** |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/RED-TEAM-ALL-COMPONENTS.md:258",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| Split 100 times rapidly (Cmd+K spam) | Each split creates a valid fragment, no crash | 🟡 |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md:195",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| DN4.4 | Slips audit: capture errors (Cmd+K split vs Cmd+K browser-focus conventions from other apps), description errors (two Add-Track buttons — fixed #390; M/S adjacency), mode errors (drawing a marquee while razor a"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md:195",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| DN4.4 | Slips audit: capture errors (Cmd+K split vs Cmd+K browser-focus conventions from other apps), description errors (two Add-Track buttons — fixed #390; M/S adjacency), mode errors (drawing a marquee while razor a"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-RESULTS-2026-04-09.md:123",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 140 | Split clip (Cmd+K) | **PASS** — Clip split at playhead |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-RESULTS-2026-04-09.md:392",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 289 | Cmd+K split clip | **PASS** — Clip splits at playhead |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:318",
+     "kind": "uat",
+     "superseded": false,
+     "text": "2. Press Cmd+K"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:618",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 10 | Cmd+K | Split at Playhead | Clip splits |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-UIT-GUIDE.md:1473",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 29 | Clip > Split at Playhead (Cmd+K) | Select clip, position playhead, Cmd+K | Clip splits | [ ] |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/UAT-UIT-GUIDE.md:1473",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 29 | Clip > Split at Playhead (Cmd+K) | Select clip, position playhead, Cmd+K | Clip splits | [ ] |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1096",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 104 | Clip menu: Split at Playhead (Cmd+K) | Vitest | Selected clip splits at playhead time |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/roadmap/MASKING-INTERACTIONS.md:556",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "- **Split (`Cmd+K` `split_at_playhead` `:38` / `Cmd+Shift+K` `split_clip` `:23`):** both halves get a"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/spec/02-CROSSREF.md:67",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+K / Cmd+Shift+K | split: code Cmd+K; UX-SPEC, PRD, UAT test 249 still Cmd+Shift+K | X-tools-keys-12 |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/spec/02-CROSSREF.md:67",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+K / Cmd+Shift+K | split: code Cmd+K; UX-SPEC, PRD, UAT test 249 still Cmd+Shift+K | X-tools-keys-12 |"
+    },
+    {
+     "key": "meta+k",
+     "raw": "Cmd+K",
+     "at": "docs/spec/patterns/command-palette.md:64",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "1. **Global command palette (Cmd+Shift+P or similar)** over the unified command table (Recommendation 1): fuzzy search, shortcut hints, recents, scoped to the current selection. Not in current scope or roadmap. Key choic"
+    }
+   ]
+  },
+  {
    "key": "shift+meta+a",
    "code": [
     {
@@ -6351,7 +6630,7 @@
     {
      "key": "shift+meta+a",
      "raw": "Cmd+Shift+A",
-     "at": "docs/spec/STATE.md:61",
+     "at": "docs/spec/STATE.md:62",
      "kind": "spec-pass",
      "superseded": false,
      "text": "- ✔ CONFIRMED OD-2: system-monitor avoids Cmd+Shift+A because `mask_deselect_all` holds it (actual line `default-shortcuts.ts:102`; proposal cites stale :86)."
@@ -6623,178 +6902,6 @@
      "kind": "openspec",
      "superseded": false,
      "text": "`quantizeEnabled` (Cmd+U) toggles snap by default."
-    }
-   ]
-  },
-  {
-   "key": "meta+k",
-   "code": [
-    {
-     "action": "split_at_playhead",
-     "label": "Split at Playhead",
-     "context": "normal",
-     "at": "frontend/src/renderer/utils/default-shortcuts.ts:41"
-    },
-    {
-     "action": "menu:split-at-playhead",
-     "label": "Clip › Split at Playhead",
-     "context": "menu-label",
-     "at": "frontend/src/main/menu.ts:72"
-    }
-   ],
-   "docCount": 12,
-   "claims": [
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "CLAUDE.md:83",
-     "kind": "repo-root",
-     "superseded": false,
-     "text": "| Cmd+K | Split clip at playhead |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:671",
-     "kind": "doc",
-     "superseded": true,
-     "text": "When Cmd+K pressed"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:676",
-     "kind": "doc",
-     "superseded": true,
-     "text": "When Cmd+K pressed"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/COMPONENT-ACCEPTANCE-CRITERIA.md:1446",
-     "kind": "doc",
-     "superseded": true,
-     "text": "| Cmd+K | split_at_playhead | `[IMPL]` |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/COMPONENT-TEST-MATRIX.md:114",
-     "kind": "doc",
-     "superseded": true,
-     "text": "| TL10 | Split clip (Cmd+K) | Shortcut | Split at playhead | YES | PASS |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/COMPONENT-TEST-MATRIX.md:236",
-     "kind": "doc",
-     "superseded": true,
-     "text": "| K12 | Cmd+K | Split at Playhead | YES | PASS |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md:228",
-     "kind": "uat",
-     "superseded": true,
-     "text": "| Split Cmd+K spam 100x | Timeline | **Needs CU test** |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/RED-TEAM-ALL-COMPONENTS.md:258",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| Split 100 times rapidly (Cmd+K spam) | Each split creates a valid fragment, no crash | 🟡 |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md:195",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| DN4.4 | Slips audit: capture errors (Cmd+K split vs Cmd+K browser-focus conventions from other apps), description errors (two Add-Track buttons — fixed #390; M/S adjacency), mode errors (drawing a marquee while razor a"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-COMPREHENSIVE-AUDIT-2026-07-03.md:195",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| DN4.4 | Slips audit: capture errors (Cmd+K split vs Cmd+K browser-focus conventions from other apps), description errors (two Add-Track buttons — fixed #390; M/S adjacency), mode errors (drawing a marquee while razor a"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-RESULTS-2026-04-09.md:123",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 140 | Split clip (Cmd+K) | **PASS** — Clip split at playhead |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-RESULTS-2026-04-09.md:392",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 289 | Cmd+K split clip | **PASS** — Clip splits at playhead |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:318",
-     "kind": "uat",
-     "superseded": false,
-     "text": "2. Press Cmd+K"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-TEST-PLANS-FROM-BDD.md:618",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 10 | Cmd+K | Split at Playhead | Clip splits |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-UIT-GUIDE.md:1473",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 29 | Clip > Split at Playhead (Cmd+K) | Select clip, position playhead, Cmd+K | Clip splits | [ ] |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/UAT-UIT-GUIDE.md:1473",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 29 | Clip > Split at Playhead (Cmd+K) | Select clip, position playhead, Cmd+K | Clip splits | [ ] |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:1096",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 104 | Clip menu: Split at Playhead (Cmd+K) | Vitest | Selected clip splits at playhead time |"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/roadmap/MASKING-INTERACTIONS.md:556",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "- **Split (`Cmd+K` `split_at_playhead` `:38` / `Cmd+Shift+K` `split_clip` `:23`):** both halves get a"
-    },
-    {
-     "key": "meta+k",
-     "raw": "Cmd+K",
-     "at": "docs/spec/patterns/command-palette.md:64",
-     "kind": "spec-pass",
-     "superseded": false,
-     "text": "1. **Global command palette (Cmd+Shift+P or similar)** over the unified command table (Recommendation 1): fuzzy search, shortcut hints, recents, scoped to the current selection. Not in current scope or roadmap. Key choic"
     }
    ]
   },
@@ -7286,6 +7393,149 @@
    ]
   },
   {
+   "key": "meta+y",
+   "code": [],
+   "docCount": 6,
+   "claims": [
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "docs/spec/02-CROSSREF.md:69",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+Y | history panel: plan.md:115 + PLANNING-QUEUE:24 promise it; T1 verdict + uat.md:41 say menu-only | X-lifecycle-1 = X-tools-keys-17 |"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/PLANNING-QUEUE.md:24",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| 9 | creatrix-history-panel-spec.md (delta MINUS Ledger rule) | history-panel-delta | READY | verdicts in proposal.md | Ledger rule/lint = Wave-0 Packet 0a (dedupe); this = Cmd+Y + dock + breadcrumb + row icons + memory"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/packets.md:225",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "- **UAT journey (user-facing panel):** open History panel (Cmd+Y or breadcrumb click) → perform 3"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/plan.md:115",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "Scenario: Cmd+Y opens and closes the history panel"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/plan.md:117",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "When the user presses Cmd+Y"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/plan.md:119",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "When the user presses Cmd+Y again"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/proposal.md:31",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "1. **Discoverability** — `Cmd+Y` hotkey (via `shortcutRegistry`), a dockable home for the panel,"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/proposal.md:76",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "- `frontend/src/renderer/utils/default-shortcuts.ts:1-92` — `Cmd+Y` (`meta+y`) is **unclaimed** in"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:41",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-1 | **ABSENCE assertion — identical pre- and post-P1 (T1 Verdicts override: P1 ships no code, no keybinding).** Setup: launch the app (throwaway project or Welcome screen). Drive: press **Cmd+Y** at the top level, b"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:41",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-1 | **ABSENCE assertion — identical pre- and post-P1 (T1 Verdicts override: P1 ships no code, no keybinding).** Setup: launch the app (throwaway project or Welcome screen). Drive: press **Cmd+Y** at the top level, b"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:41",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-1 | **ABSENCE assertion — identical pre- and post-P1 (T1 Verdicts override: P1 ships no code, no keybinding).** Setup: launch the app (throwaway project or Welcome screen). Drive: press **Cmd+Y** at the top level, b"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:43",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:43",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:43",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:43",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:43",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
+    },
+    {
+     "key": "meta+y",
+     "raw": "Cmd+Y",
+     "at": "openspec/changes/history-panel-delta/uat.md:113",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "Cmd+Y here is a FAIL, see P1-1). Each row shows the"
+    }
+   ]
+  },
+  {
    "key": "meta+q",
    "code": [],
    "docCount": 7,
@@ -7417,141 +7667,6 @@
      "kind": "openspec",
      "superseded": false,
      "text": "11. Close the project (project-unload, not Cmd+Q) — a session performance summary log line appears"
-    }
-   ]
-  },
-  {
-   "key": "meta+y",
-   "code": [],
-   "docCount": 5,
-   "claims": [
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/PLANNING-QUEUE.md:24",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| 9 | creatrix-history-panel-spec.md (delta MINUS Ledger rule) | history-panel-delta | READY | verdicts in proposal.md | Ledger rule/lint = Wave-0 Packet 0a (dedupe); this = Cmd+Y + dock + breadcrumb + row icons + memory"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/packets.md:225",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "- **UAT journey (user-facing panel):** open History panel (Cmd+Y or breadcrumb click) → perform 3"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/plan.md:115",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "Scenario: Cmd+Y opens and closes the history panel"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/plan.md:117",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "When the user presses Cmd+Y"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/plan.md:119",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "When the user presses Cmd+Y again"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/proposal.md:31",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "1. **Discoverability** — `Cmd+Y` hotkey (via `shortcutRegistry`), a dockable home for the panel,"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/proposal.md:76",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "- `frontend/src/renderer/utils/default-shortcuts.ts:1-92` — `Cmd+Y` (`meta+y`) is **unclaimed** in"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:41",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-1 | **ABSENCE assertion — identical pre- and post-P1 (T1 Verdicts override: P1 ships no code, no keybinding).** Setup: launch the app (throwaway project or Welcome screen). Drive: press **Cmd+Y** at the top level, b"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:41",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-1 | **ABSENCE assertion — identical pre- and post-P1 (T1 Verdicts override: P1 ships no code, no keybinding).** Setup: launch the app (throwaway project or Welcome screen). Drive: press **Cmd+Y** at the top level, b"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:41",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-1 | **ABSENCE assertion — identical pre- and post-P1 (T1 Verdicts override: P1 ships no code, no keybinding).** Setup: launch the app (throwaway project or Welcome screen). Drive: press **Cmd+Y** at the top level, b"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:43",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:43",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:43",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:43",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:43",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "| P1-3 | **Menu-entry-only assertion (T1 Verdicts override — no keybinding this packet).** Setup: launch the app (throwaway project). Drive: (a) focus a text-input field (e.g. the project/track rename field) and press **"
-    },
-    {
-     "key": "meta+y",
-     "raw": "Cmd+Y",
-     "at": "openspec/changes/history-panel-delta/uat.md:113",
-     "kind": "openspec",
-     "superseded": false,
-     "text": "Cmd+Y here is a FAIL, see P1-1). Each row shows the"
     }
    ]
   },
@@ -7696,6 +7811,125 @@
    ]
   },
   {
+   "key": "meta+c",
+   "code": [],
+   "docCount": 10,
+   "claims": [
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:296",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| UC-106 | Copy/paste keyframes | Cmd+C → scrub → Cmd+V |"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md:124",
+     "kind": "uat",
+     "superseded": true,
+     "text": "| 6 | `automation.copyRegion/pasteAtPlayhead` | Cmd+C/V for automation regions | Standard workflow |"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/UAT-CU-ADDENDUM-2026-07-03.md:271",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/UAT-CU-ADDENDUM-2026-07-03.md:271",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/UAT-CU-COMBINED-2026-07-03.md:300",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/UAT-CU-COMBINED-2026-07-03.md:300",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/UAT-UIT-GUIDE.md:911",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 417 | Copy region | Select time region on automation lane, Cmd+C | Points in region copied to automation clipboard | [ ] |"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/UX-SPEC.md:321",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| Copy | Cmd+C |"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/addendums/POST-V1-ROADMAP.md:182",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| Copy/paste keyframes | Cmd+C/V with keyframe selected | P2 |"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/phases/PHASE-11.md:125",
+     "kind": "phase",
+     "superseded": false,
+     "text": "'copy': 'Cmd+C',"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:161",
+     "kind": "plan",
+     "superseded": false,
+     "text": "- Edit: Cmd+Z/Shift+Z (undo/redo), Cmd+C/V/D (copy/paste/duplicate), Cmd+A (select all)"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/spec/02-CROSSREF.md:68",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+C/V | automation copy: docs Cmd+C/V, code Cmd+Shift+C/V; Edit-menu roles may eat Cmd+C/V (runtime open) | X-tools-keys-13 |"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/spec/02-CROSSREF.md:68",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+C/V | automation copy: docs Cmd+C/V, code Cmd+Shift+C/V; Edit-menu roles may eat Cmd+C/V (runtime open) | X-tools-keys-13 |"
+    },
+    {
+     "key": "meta+c",
+     "raw": "Cmd+C",
+     "at": "docs/spec/02-CROSSREF.md:68",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+C/V | automation copy: docs Cmd+C/V, code Cmd+Shift+C/V; Edit-menu roles may eat Cmd+C/V (runtime open) | X-tools-keys-13 |"
+    }
+   ]
+  },
+  {
    "key": "shift+meta+i",
    "code": [
     {
@@ -7705,7 +7939,7 @@
      "at": "frontend/src/renderer/utils/default-shortcuts.ts:58"
     }
    ],
-   "docCount": 6,
+   "docCount": 7,
    "claims": [
     {
      "key": "shift+meta+i",
@@ -7798,6 +8032,14 @@
     {
      "key": "shift+meta+i",
      "raw": "Cmd+Shift+I",
+     "at": "docs/spec/02-CROSSREF.md:62",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+Shift+I | Routing Canvas (shipped `default-shortcuts.ts:58`) vs mask Invert (MASKING-INTERACTIONS:377, masking.md:293) | X-tools-keys-2 = X-control-8 |"
+    },
+    {
+     "key": "shift+meta+i",
+     "raw": "Cmd+Shift+I",
      "at": "openspec/changes/wave0-prerouted-presets/uat.md:69",
      "kind": "openspec",
      "superseded": false,
@@ -7810,6 +8052,109 @@
      "kind": "openspec",
      "superseded": false,
      "text": "| 1 (build-completion detector — EXPECTED-ABSENT pre-ship) | Setup: Operator Rack, create an operator→param mapping edge, select it to open its inspector. Drive: read the inspector's field list. | **Pre-PK.5:** fields ar"
+    }
+   ]
+  },
+  {
+   "key": "shift+meta+k",
+   "code": [],
+   "docCount": 9,
+   "claims": [
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/PRD.md:76",
+     "kind": "doc",
+     "superseded": false,
+     "text": "- **Clips:** Drag, trim, split (Cmd+Shift+K), duplicate (Alt+drag)"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/UAT-RESULTS-2026-03-16.md:214",
+     "kind": "uat",
+     "superseded": false,
+     "text": "- `Cmd+Shift+K` — Split Clip (`default-shortcuts.ts:16`)"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/UAT-UIT-GUIDE.md:1024",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 249 | Cmd+Shift+K split clip | Select a clip, position playhead over it, press Cmd+Shift+K | Clip splits at playhead position | [ ] |"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/UAT-UIT-GUIDE.md:1024",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 249 | Cmd+Shift+K split clip | Select a clip, position playhead over it, press Cmd+Shift+K | Clip splits at playhead position | [ ] |"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/UX-SPEC.md:190",
+     "kind": "doc",
+     "superseded": false,
+     "text": "- **Split** — Cmd+Shift+K at playhead position"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/UX-SPEC.md:308",
+     "kind": "doc",
+     "superseded": false,
+     "text": "| Split clip | Cmd+Shift+K |"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/phases/PHASE-11.md:115",
+     "kind": "phase",
+     "superseded": false,
+     "text": "'split_clip': 'Cmd+Shift+K',"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/phases/PHASE-4.md:15",
+     "kind": "phase",
+     "superseded": false,
+     "text": "3. Clips: drag from asset panel to track, trim in/out, split (Cmd+Shift+K), move"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:160",
+     "kind": "plan",
+     "superseded": false,
+     "text": "- Timeline: Cmd+Shift+K (split), Delete (delete clip), Cmd+T (new track)"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/roadmap/MASKING-INTERACTIONS.md:556",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "- **Split (`Cmd+K` `split_at_playhead` `:38` / `Cmd+Shift+K` `split_clip` `:23`):** both halves get a"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/spec/02-CROSSREF.md:67",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+K / Cmd+Shift+K | split: code Cmd+K; UX-SPEC, PRD, UAT test 249 still Cmd+Shift+K | X-tools-keys-12 |"
+    },
+    {
+     "key": "shift+meta+k",
+     "raw": "Cmd+Shift+K",
+     "at": "docs/spec/02-CROSSREF.md:67",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+K / Cmd+Shift+K | split: code Cmd+K; UX-SPEC, PRD, UAT test 249 still Cmd+Shift+K | X-tools-keys-12 |"
     }
    ]
   },
@@ -7916,101 +8261,6 @@
    ]
   },
   {
-   "key": "meta+c",
-   "code": [],
-   "docCount": 9,
-   "claims": [
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/DIMENSIONAL-TRANSLATION-PRD.md:296",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| UC-106 | Copy/paste keyframes | Cmd+C → scrub → Cmd+V |"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/MASTER-UAT-AND-BUILD-PLAN-2026-04-10.md:124",
-     "kind": "uat",
-     "superseded": true,
-     "text": "| 6 | `automation.copyRegion/pasteAtPlayhead` | Cmd+C/V for automation regions | Standard workflow |"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/UAT-CU-ADDENDUM-2026-07-03.md:271",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/UAT-CU-ADDENDUM-2026-07-03.md:271",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/UAT-CU-COMBINED-2026-07-03.md:300",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/UAT-CU-COMBINED-2026-07-03.md:300",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| X393-1 ⚠GAP | #393 | Throwaway project. Open an Automation lane with >=2 breakpoint nodes, drag a marquee-select rectangle over both nodes (click-drag on empty lane background, not on a node) to multi-select them (both"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/UAT-UIT-GUIDE.md:911",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 417 | Copy region | Select time region on automation lane, Cmd+C | Points in region copied to automation clipboard | [ ] |"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/UX-SPEC.md:321",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| Copy | Cmd+C |"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/addendums/POST-V1-ROADMAP.md:182",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| Copy/paste keyframes | Cmd+C/V with keyframe selected | P2 |"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/phases/PHASE-11.md:125",
-     "kind": "phase",
-     "superseded": false,
-     "text": "'copy': 'Cmd+C',"
-    },
-    {
-     "key": "meta+c",
-     "raw": "Cmd+C",
-     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:161",
-     "kind": "plan",
-     "superseded": false,
-     "text": "- Edit: Cmd+Z/Shift+Z (undo/redo), Cmd+C/V/D (copy/paste/duplicate), Cmd+A (select all)"
-    }
-   ]
-  },
-  {
    "key": "alt+backspace",
    "code": [
     {
@@ -8113,89 +8363,89 @@
    ]
   },
   {
-   "key": "shift+meta+k",
+   "key": "shift+meta+t",
    "code": [],
-   "docCount": 8,
+   "docCount": 7,
    "claims": [
     {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/PRD.md:76",
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/UX-SPEC.md:311",
      "kind": "doc",
      "superseded": false,
-     "text": "- **Clips:** Drag, trim, split (Cmd+Shift+K), duplicate (Alt+drag)"
+     "text": "| New performance track | Cmd+Shift+T |"
     },
     {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/UAT-RESULTS-2026-03-16.md:214",
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:409",
      "kind": "uat",
      "superseded": false,
-     "text": "- `Cmd+Shift+K` — Split Clip (`default-shortcuts.ts:16`)"
+     "text": "| 1 | Create perf track | Cmd+Shift+T | Performance Track appears (Electric Blue) | Happy path |"
     },
     {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/UAT-UIT-GUIDE.md:1024",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 249 | Cmd+Shift+K split clip | Select a clip, position playhead over it, press Cmd+Shift+K | Clip splits at playhead position | [ ] |"
-    },
-    {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/UAT-UIT-GUIDE.md:1024",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 249 | Cmd+Shift+K split clip | Select a clip, position playhead over it, press Cmd+Shift+K | Clip splits at playhead position | [ ] |"
-    },
-    {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/UX-SPEC.md:190",
-     "kind": "doc",
-     "superseded": false,
-     "text": "- **Split** — Cmd+Shift+K at playhead position"
-    },
-    {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/UX-SPEC.md:308",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| Split clip | Cmd+Shift+K |"
-    },
-    {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/phases/PHASE-11.md:115",
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/phases/PHASE-11.md:118",
      "kind": "phase",
      "superseded": false,
-     "text": "'split_clip': 'Cmd+Shift+K',"
+     "text": "'new_perf_track': 'Cmd+Shift+T',"
     },
     {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/phases/PHASE-4.md:15",
-     "kind": "phase",
-     "superseded": false,
-     "text": "3. Clips: drag from asset panel to track, trim in/out, split (Cmd+Shift+K), move"
-    },
-    {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:160",
-     "kind": "plan",
-     "superseded": false,
-     "text": "- Timeline: Cmd+Shift+K (split), Delete (delete clip), Cmd+T (new track)"
-    },
-    {
-     "key": "shift+meta+k",
-     "raw": "Cmd+Shift+K",
-     "at": "docs/roadmap/MASKING-INTERACTIONS.md:556",
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/roadmap/EXECUTION-PLAN.md:144",
      "kind": "roadmap",
      "superseded": false,
-     "text": "- **Split (`Cmd+K` `split_at_playhead` `:38` / `Cmd+Shift+K` `split_clip` `:23`):** both halves get a"
+     "text": "- **Steps:** merge #156 first (global-sampler persistence) → CI green → rebase #167 on the result — **#167 changes `useInstrumentsStore` from one global instrument to `Record<trackId, SamplerInstrumentV1>`, a breaking ch"
+    },
+    {
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/roadmap/layout-session/INSTRUMENTS.md:75",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "events**, not footage. Created with `Cmd+Shift+T`."
+    },
+    {
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/roadmap/layout-session/INSTRUMENTS.md:260",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "- Add **Performance Track** track type (electric blue), `Cmd+Shift+T`. NOTE: `Track.type` already"
+    },
+    {
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md:16",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "- Performance Track via `Cmd+Shift+T`, electric blue, holds triggers not footage — `INSTRUMENTS.md:74`."
+    },
+    {
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md:23",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "- [ ] **Performance track creation** — extend `timeline.addTrack` to accept `'performance'`; add `Cmd+Shift+T` shortcut; \"+ Add Track\" becomes Video/MIDI menu (decision Q1=opt-1). Electric-blue styling."
+    },
+    {
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md:35",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "- [ ] `Cmd+Shift+T` (and the menu) creates a performance track, visibly distinct (electric blue), no footage clips."
+    },
+    {
+     "key": "shift+meta+t",
+     "raw": "Cmd+Shift+T",
+     "at": "docs/spec/02-CROSSREF.md:64",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+Shift+T / Cmd+Shift+M | new performance track — INSTRUMENTS.md:260 + UX-SPEC.md:311 vs multiwindow; code binds neither | X-tools-keys-4 = X-shell-8 |"
     }
    ]
   },
@@ -8275,85 +8525,6 @@
      "kind": "phase",
      "superseded": false,
      "text": "'paste': 'Cmd+V',"
-    }
-   ]
-  },
-  {
-   "key": "shift+meta+t",
-   "code": [],
-   "docCount": 6,
-   "claims": [
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/UX-SPEC.md:311",
-     "kind": "doc",
-     "superseded": false,
-     "text": "| New performance track | Cmd+Shift+T |"
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/V2-AUTOMATED-UAT-PLAN.md:409",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 1 | Create perf track | Cmd+Shift+T | Performance Track appears (Electric Blue) | Happy path |"
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/phases/PHASE-11.md:118",
-     "kind": "phase",
-     "superseded": false,
-     "text": "'new_perf_track': 'Cmd+Shift+T',"
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/roadmap/EXECUTION-PLAN.md:144",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "- **Steps:** merge #156 first (global-sampler persistence) → CI green → rebase #167 on the result — **#167 changes `useInstrumentsStore` from one global instrument to `Record<trackId, SamplerInstrumentV1>`, a breaking ch"
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/roadmap/layout-session/INSTRUMENTS.md:75",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "events**, not footage. Created with `Cmd+Shift+T`."
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/roadmap/layout-session/INSTRUMENTS.md:260",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "- Add **Performance Track** track type (electric blue), `Cmd+Shift+T`. NOTE: `Track.type` already"
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md:16",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "- Performance Track via `Cmd+Shift+T`, electric blue, holds triggers not footage — `INSTRUMENTS.md:74`."
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md:23",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "- [ ] **Performance track creation** — extend `timeline.addTrack` to accept `'performance'`; add `Cmd+Shift+T` shortcut; \"+ Add Track\" becomes Video/MIDI menu (decision Q1=opt-1). Electric-blue styling."
-    },
-    {
-     "key": "shift+meta+t",
-     "raw": "Cmd+Shift+T",
-     "at": "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md:35",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "- [ ] `Cmd+Shift+T` (and the menu) creates a performance track, visibly distinct (electric blue), no footage clips."
     }
    ]
   },
@@ -8514,6 +8685,77 @@
    ]
   },
   {
+   "key": "meta+m",
+   "code": [],
+   "docCount": 6,
+   "claims": [
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "docs/UAT-RESULTS-2026-03-16.md:131",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 145-148: Markers | CONFIRMED | Cmd+M registered, marker store |"
+    },
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "docs/UAT-RESULTS-2026-03-16.md:213",
+     "kind": "uat",
+     "superseded": false,
+     "text": "- `Cmd+M` — Add Marker (`default-shortcuts.ts:17`)"
+    },
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "docs/UAT-RESULTS-2026-04-09.md:477",
+     "kind": "uat",
+     "superseded": false,
+     "text": "| 145 | Add marker (Cmd+M) | **PASS** — Green triangle marker appears on timeline ruler |"
+    },
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "docs/roadmap/MASKING-INTERACTIONS.md:367",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "receives it; same reason F-0516-8 moved marker off `Cmd+M` (`default-shortcuts.ts:24–25`)."
+    },
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "docs/spec/02-CROSSREF.md:70",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| p / Cmd+P, m / Cmd+M | old docs Cmd+P/Cmd+M; code bare p / bare m | X-shell-7, X-tools-keys-14/15 |"
+    },
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "docs/spec/02-CROSSREF.md:70",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| p / Cmd+P, m / Cmd+M | old docs Cmd+P/Cmd+M; code bare p / bare m | X-shell-7, X-tools-keys-14/15 |"
+    },
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "docs/spec/patterns/keyboard-focus.md:47",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "7. **Reserved-key list** (cannot be rebound, cannot be reused by any binding): macOS system keys (Cmd+M minimize, Cmd+H hide, Cmd+Q quit, Cmd+Tab) per `default-shortcuts.ts` comment F-0516-8; Space = play/pause bare; Esc"
+    },
+    {
+     "key": "meta+m",
+     "raw": "Cmd+M",
+     "at": "openspec/changes/multiwindow-stage-a/uat.md:91",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| PK3-1 | Drive: open the **View** menu and read every item top to bottom. **EXPECTED-ABSENT until PK.3 ships** — pre-PK.3 (even after PK.1/PK.2 have merged), there must be NO item labeled `\"System Monitor\"` anywhere in "
+    }
+   ]
+  },
+  {
    "key": "shift+meta+f",
    "code": [
     {
@@ -8582,57 +8824,119 @@
    ]
   },
   {
-   "key": "meta+m",
-   "code": [],
-   "docCount": 5,
+   "key": "meta+l",
+   "code": [
+    {
+     "action": "copy_selection_to_loop",
+     "label": "Copy Selection to Loop",
+     "context": "normal",
+     "at": "frontend/src/renderer/utils/default-shortcuts.ts:89"
+    }
+   ],
+   "docCount": 4,
    "claims": [
     {
-     "key": "meta+m",
-     "raw": "Cmd+M",
-     "at": "docs/UAT-RESULTS-2026-03-16.md:131",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 145-148: Markers | CONFIRMED | Cmd+M registered, marker store |"
+     "key": "meta+l",
+     "raw": "Cmd+L",
+     "at": "docs/frontend/RATIFIED-FOUNDATIONS.md:21",
+     "kind": "law",
+     "superseded": true,
+     "text": "| D12 | Selection/loop grammar (W1.5b OD-2) | ✅ RATIFIED (owner, 2026-07-31 — \"2 - sounds good\") + ✅ BUILT (PK.A4, orchestrator ruling, 2026-07-31, PR #488) | Locks proposal.md OD-2's recommended default: click-drag on a"
     },
     {
-     "key": "meta+m",
-     "raw": "Cmd+M",
-     "at": "docs/UAT-RESULTS-2026-03-16.md:213",
-     "kind": "uat",
-     "superseded": false,
-     "text": "- `Cmd+M` — Add Marker (`default-shortcuts.ts:17`)"
-    },
-    {
-     "key": "meta+m",
-     "raw": "Cmd+M",
-     "at": "docs/UAT-RESULTS-2026-04-09.md:477",
-     "kind": "uat",
-     "superseded": false,
-     "text": "| 145 | Add marker (Cmd+M) | **PASS** — Green triangle marker appears on timeline ruler |"
-    },
-    {
-     "key": "meta+m",
-     "raw": "Cmd+M",
-     "at": "docs/roadmap/MASKING-INTERACTIONS.md:367",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "receives it; same reason F-0516-8 moved marker off `Cmd+M` (`default-shortcuts.ts:24–25`)."
-    },
-    {
-     "key": "meta+m",
-     "raw": "Cmd+M",
-     "at": "docs/spec/patterns/keyboard-focus.md:47",
+     "key": "meta+l",
+     "raw": "Cmd+L",
+     "at": "docs/spec/02-CROSSREF.md:44",
      "kind": "spec-pass",
      "superseded": false,
-     "text": "7. **Reserved-key list** (cannot be rebound, cannot be reused by any binding): macOS system keys (Cmd+M minimize, Cmd+H hide, Cmd+Q quit, Cmd+Tab) per `default-shortcuts.ts` comment F-0516-8; Space = play/pause bare; Esc"
+     "text": "| X-timeline-6 | **D12** Cmd+L = selection→loop | in-app help says \"Loop Toggle (Cmd+L)\" (`help-registry.ts:53`) | doc fix |"
     },
     {
-     "key": "meta+m",
-     "raw": "Cmd+M",
-     "at": "openspec/changes/multiwindow-stage-a/uat.md:91",
+     "key": "meta+l",
+     "raw": "Cmd+L",
+     "at": "docs/spec/02-CROSSREF.md:44",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| X-timeline-6 | **D12** Cmd+L = selection→loop | in-app help says \"Loop Toggle (Cmd+L)\" (`help-registry.ts:53`) | doc fix |"
+    },
+    {
+     "key": "meta+l",
+     "raw": "Cmd+L",
+     "at": "openspec/changes/w15b-grid-track-paradigm/packets.md:57",
      "kind": "openspec",
      "superseded": false,
-     "text": "| PK3-1 | Drive: open the **View** menu and read every item top to bottom. **EXPECTED-ABSENT until PK.3 ships** — pre-PK.3 (even after PK.1/PK.2 have merged), there must be NO item labeled `\"System Monitor\"` anywhere in "
+     "text": "drag when off. Esc clears. `Cmd+L` copies selectionRegion → loopRegion"
+    },
+    {
+     "key": "meta+l",
+     "raw": "Cmd+L",
+     "at": "openspec/changes/w15b-grid-track-paradigm/packets.md:64",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "- Oracle: vitest store tests (snap math at 3 divisions × 2 bpm; Esc; Cmd+L"
+    },
+    {
+     "key": "meta+l",
+     "raw": "Cmd+L",
+     "at": "openspec/changes/w15b-grid-track-paradigm/proposal.md:96",
+     "kind": "openspec",
+     "superseded": false,
+     "text": "| OD-2 | Region-selection ↔ loop interplay | drag = time-range selection; `Cmd+L` sets loop from selection (Ableton grammar); loop brace stays independently draggable | recommended default, owner may veto at UAT |"
+    }
+   ]
+  },
+  {
+   "key": "shift+meta+m",
+   "code": [],
+   "docCount": 3,
+   "claims": [
+    {
+     "key": "shift+meta+m",
+     "raw": "Cmd+Shift+M",
+     "at": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:69",
+     "kind": "plan",
+     "superseded": false,
+     "text": "**Stale-doc fixes (both branches):** A: `PRD-mix-macro`/`PRD-edge-curve-ui` \"Depends on: K1\" is stale (S2 spike resolved it) — annotate. B: moire BDD still binds matte track to Cmd+Shift+M (superseded by Ctrl+Cmd+M, deci"
+    },
+    {
+     "key": "shift+meta+m",
+     "raw": "Cmd+Shift+M",
+     "at": "docs/roadmap/MASKING-INTERACTIONS.md:399",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "| save selection as mask | inspector button `save as mask` + `Cmd+Shift+M` | **the promotion gesture**: selection becomes a persistent `mask_n` chip on the clip's mask stack; ants clear; the new chip pulses once (180ms M"
+    },
+    {
+     "key": "shift+meta+m",
+     "raw": "Cmd+Shift+M",
+     "at": "docs/roadmap/MASKING-INTERACTIONS.md:517",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "| `Cmd+Shift+M` | save selection as mask | unbound | clean ✓ |"
+    },
+    {
+     "key": "shift+meta+m",
+     "raw": "Cmd+Shift+M",
+     "at": "docs/roadmap/MASKING-INTERACTIONS.md:615",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "| deselect / invert / hide / promote | `Cmd+Shift+A` / `Cmd+Shift+I` / `Cmd+Shift+H` / `Cmd+Shift+M` |"
+    },
+    {
+     "key": "shift+meta+m",
+     "raw": "Cmd+Shift+M",
+     "at": "docs/spec/02-CROSSREF.md:63",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+Shift+M | promote-selection-to-mask vs New MIDI Track (multiwindow proposal:56) vs … ; decisions 19/32 not in repo | X-tools-keys-3 |"
+    },
+    {
+     "key": "shift+meta+m",
+     "raw": "Cmd+Shift+M",
+     "at": "docs/spec/02-CROSSREF.md:64",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+Shift+T / Cmd+Shift+M | new performance track — INSTRUMENTS.md:260 + UX-SPEC.md:311 vs multiwindow; code binds neither | X-tools-keys-4 = X-shell-8 |"
     }
    ]
   },
@@ -9019,87 +9323,87 @@
    ]
   },
   {
-   "key": "meta+l",
+   "key": "shift+m",
    "code": [
     {
-     "action": "copy_selection_to_loop",
-     "label": "Copy Selection to Loop",
+     "action": "tool_marker",
+     "label": "Tool: Mark/Loop group (cycle)",
      "context": "normal",
-     "at": "frontend/src/renderer/utils/default-shortcuts.ts:89"
+     "at": "frontend/src/renderer/utils/default-shortcuts.ts:78"
     }
    ],
    "docCount": 3,
    "claims": [
     {
-     "key": "meta+l",
-     "raw": "Cmd+L",
-     "at": "docs/frontend/RATIFIED-FOUNDATIONS.md:21",
+     "key": "shift+m",
+     "raw": "Shift+M",
+     "at": "docs/frontend/RATIFIED-FOUNDATIONS.md:13",
      "kind": "law",
      "superseded": true,
-     "text": "| D12 | Selection/loop grammar (W1.5b OD-2) | ✅ RATIFIED (owner, 2026-07-31 — \"2 - sounds good\") + ✅ BUILT (PK.A4, orchestrator ruling, 2026-07-31, PR #488) | Locks proposal.md OD-2's recommended default: click-drag on a"
+     "text": "| D4a | Grouped rail group count | 🔧 **AMENDED 2026-07-30 (orchestrator ruling, veto-by-exception open)** | The 07-15 \"8 groups\" verdict was made against the invalid 1600px mock's imagined 14+3 toolset. Real inventory ="
     },
     {
-     "key": "meta+l",
-     "raw": "Cmd+L",
-     "at": "openspec/changes/w15b-grid-track-paradigm/packets.md:57",
-     "kind": "openspec",
+     "key": "shift+m",
+     "raw": "Shift+M",
+     "at": "docs/spec/02-CROSSREF.md:47",
+     "kind": "spec-pass",
      "superseded": false,
-     "text": "drag when off. Esc clears. `Cmd+L` copies selectionRegion → loopRegion"
+     "text": "| X-tools-keys-1 | **D4a** (amended 2026-07-30: 6 groups — SELECT V · TRIM B · MASK-SHAPE Q · MASK-FREE W · KEY E · MARK/LOOP Shift+M; bare m = add_marker) | MASKING-INTERACTIONS old letters survive OUTSIDE the supersede"
     },
     {
-     "key": "meta+l",
-     "raw": "Cmd+L",
-     "at": "openspec/changes/w15b-grid-track-paradigm/packets.md:64",
+     "key": "shift+m",
+     "raw": "Shift+M",
+     "at": "openspec/changes/ui-foundation/packets.md:170",
      "kind": "openspec",
-     "superseded": false,
-     "text": "- Oracle: vitest store tests (snap math at 3 divisions × 2 bpm; Esc; Cmd+L"
+     "superseded": true,
+     "text": "**MARK/LOOP Shift+M** (marker/loop-in/loop-out — bare `m` stays `add_marker` per"
     },
     {
-     "key": "meta+l",
-     "raw": "Cmd+L",
-     "at": "openspec/changes/w15b-grid-track-paradigm/proposal.md:96",
+     "key": "shift+m",
+     "raw": "Shift+M",
+     "at": "openspec/changes/ui-foundation/packets.md:171",
      "kind": "openspec",
-     "superseded": false,
-     "text": "| OD-2 | Region-selection ↔ loop interplay | drag = time-range selection; `Cmd+L` sets loop from selection (Ableton grammar); loop brace stays independently draggable | recommended default, owner may veto at UAT |"
+     "superseded": true,
+     "text": "F-0516-8; Shift+M matches the existing tool_marker convention and its registration is"
     }
    ]
   },
   {
-   "key": "shift+meta+m",
+   "key": "meta+p",
    "code": [],
-   "docCount": 2,
+   "docCount": 3,
    "claims": [
     {
-     "key": "shift+meta+m",
-     "raw": "Cmd+Shift+M",
-     "at": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:69",
+     "key": "meta+p",
+     "raw": "Cmd+P",
+     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:164",
      "kind": "plan",
      "superseded": false,
-     "text": "**Stale-doc fixes (both branches):** A: `PRD-mix-macro`/`PRD-edge-curve-ui` \"Depends on: K1\" is stale (S2 spike resolved it) — annotate. B: moire BDD still binds matte track to Cmd+Shift+M (superseded by Ctrl+Cmd+M, deci"
+     "text": "- Perform: Cmd+P (toggle perform mode), M (add marker), I/O (loop in/out)"
     },
     {
-     "key": "shift+meta+m",
-     "raw": "Cmd+Shift+M",
-     "at": "docs/roadmap/MASKING-INTERACTIONS.md:399",
-     "kind": "roadmap",
+     "key": "meta+p",
+     "raw": "Cmd+P",
+     "at": "docs/roadmap/packets/phase-5a.md:223",
+     "kind": "packet",
      "superseded": false,
-     "text": "| save selection as mask | inspector button `save as mask` + `Cmd+Shift+M` | **the promotion gesture**: selection becomes a persistent `mask_n` chip on the clip's mask stack; ants clear; the new chip pulses once (180ms M"
+     "text": "- [ ] `frontend/src/renderer/App.tsx` `isPerformMode` refs (:188,:420,:600,:676,:2454,:2559) → selected-track-type checks; `Cmd+P` toggle becomes select/deselect-performance-track or is removed."
     },
     {
-     "key": "shift+meta+m",
-     "raw": "Cmd+Shift+M",
-     "at": "docs/roadmap/MASKING-INTERACTIONS.md:517",
-     "kind": "roadmap",
+     "key": "meta+p",
+     "raw": "Cmd+P",
+     "at": "docs/spec/02-CROSSREF.md:70",
+     "kind": "spec-pass",
      "superseded": false,
-     "text": "| `Cmd+Shift+M` | save selection as mask | unbound | clean ✓ |"
+     "text": "| p / Cmd+P, m / Cmd+M | old docs Cmd+P/Cmd+M; code bare p / bare m | X-shell-7, X-tools-keys-14/15 |"
     },
     {
-     "key": "shift+meta+m",
-     "raw": "Cmd+Shift+M",
-     "at": "docs/roadmap/MASKING-INTERACTIONS.md:615",
-     "kind": "roadmap",
+     "key": "meta+p",
+     "raw": "Cmd+P",
+     "at": "docs/spec/02-CROSSREF.md:70",
+     "kind": "spec-pass",
      "superseded": false,
-     "text": "| deselect / invert / hide / promote | `Cmd+Shift+A` / `Cmd+Shift+I` / `Cmd+Shift+H` / `Cmd+Shift+M` |"
+     "text": "| p / Cmd+P, m / Cmd+M | old docs Cmd+P/Cmd+M; code bare p / bare m | X-shell-7, X-tools-keys-14/15 |"
     }
    ]
   },
@@ -9432,44 +9736,6 @@
    ]
   },
   {
-   "key": "shift+m",
-   "code": [
-    {
-     "action": "tool_marker",
-     "label": "Tool: Mark/Loop group (cycle)",
-     "context": "normal",
-     "at": "frontend/src/renderer/utils/default-shortcuts.ts:78"
-    }
-   ],
-   "docCount": 2,
-   "claims": [
-    {
-     "key": "shift+m",
-     "raw": "Shift+M",
-     "at": "docs/frontend/RATIFIED-FOUNDATIONS.md:13",
-     "kind": "law",
-     "superseded": true,
-     "text": "| D4a | Grouped rail group count | 🔧 **AMENDED 2026-07-30 (orchestrator ruling, veto-by-exception open)** | The 07-15 \"8 groups\" verdict was made against the invalid 1600px mock's imagined 14+3 toolset. Real inventory ="
-    },
-    {
-     "key": "shift+m",
-     "raw": "Shift+M",
-     "at": "openspec/changes/ui-foundation/packets.md:170",
-     "kind": "openspec",
-     "superseded": true,
-     "text": "**MARK/LOOP Shift+M** (marker/loop-in/loop-out — bare `m` stays `add_marker` per"
-    },
-    {
-     "key": "shift+m",
-     "raw": "Shift+M",
-     "at": "openspec/changes/ui-foundation/packets.md:171",
-     "kind": "openspec",
-     "superseded": true,
-     "text": "F-0516-8; Shift+M matches the existing tool_marker convention and its registration is"
-    }
-   ]
-  },
-  {
    "key": "shift+tab",
    "code": [],
    "docCount": 3,
@@ -9528,6 +9794,44 @@
      "kind": "spec-pass",
      "superseded": false,
      "text": "7. **Reserved-key list** (cannot be rebound, cannot be reused by any binding): macOS system keys (Cmd+M minimize, Cmd+H hide, Cmd+Q quit, Cmd+Tab) per `default-shortcuts.ts` comment F-0516-8; Space = play/pause bare; Esc"
+    }
+   ]
+  },
+  {
+   "key": "shift+meta+c",
+   "code": [
+    {
+     "action": "automation_copy",
+     "label": "Copy Automation Region",
+     "context": "normal",
+     "at": "frontend/src/renderer/utils/default-shortcuts.ts:44"
+    }
+   ],
+   "docCount": 3,
+   "claims": [
+    {
+     "key": "shift+meta+c",
+     "raw": "Cmd+Shift+C",
+     "at": "docs/roadmap/MASKING-INTERACTIONS.md:503",
+     "kind": "roadmap",
+     "superseded": false,
+     "text": "| `c` | tool: key | unbound (Cmd+Shift+C is automation copy — no clash) | clean ✓ |"
+    },
+    {
+     "key": "shift+meta+c",
+     "raw": "Cmd+Shift+C",
+     "at": "docs/roadmap/packets/masking.md:543",
+     "kind": "packet",
+     "superseded": false,
+     "text": "per `MASKING-INTERACTIONS.md` §4/§8, both unbound @ 95e9b1b (NOT ⌘⇧C/⌘⇧X: `Cmd+Shift+C` is"
+    },
+    {
+     "key": "shift+meta+c",
+     "raw": "Cmd+Shift+C",
+     "at": "docs/spec/02-CROSSREF.md:68",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+C/V | automation copy: docs Cmd+C/V, code Cmd+Shift+C/V; Edit-menu roles may eat Cmd+C/V (runtime open) | X-tools-keys-13 |"
     }
    ]
   },
@@ -9803,29 +10107,6 @@
    ]
   },
   {
-   "key": "meta+p",
-   "code": [],
-   "docCount": 2,
-   "claims": [
-    {
-     "key": "meta+p",
-     "raw": "Cmd+P",
-     "at": "docs/plans/2026-03-15-phase11-export-polish-plan.md:164",
-     "kind": "plan",
-     "superseded": false,
-     "text": "- Perform: Cmd+P (toggle perform mode), M (add marker), I/O (loop in/out)"
-    },
-    {
-     "key": "meta+p",
-     "raw": "Cmd+P",
-     "at": "docs/roadmap/packets/phase-5a.md:223",
-     "kind": "packet",
-     "superseded": false,
-     "text": "- [ ] `frontend/src/renderer/App.tsx` `isPerformMode` refs (:188,:420,:600,:676,:2454,:2559) → selected-track-type checks; `Cmd+P` toggle becomes select/deselect-performance-track or is removed."
-    }
-   ]
-  },
-  {
    "key": "shift+q",
    "code": [],
    "docCount": 1,
@@ -9955,36 +10236,6 @@
    ]
   },
   {
-   "key": "shift+meta+c",
-   "code": [
-    {
-     "action": "automation_copy",
-     "label": "Copy Automation Region",
-     "context": "normal",
-     "at": "frontend/src/renderer/utils/default-shortcuts.ts:44"
-    }
-   ],
-   "docCount": 2,
-   "claims": [
-    {
-     "key": "shift+meta+c",
-     "raw": "Cmd+Shift+C",
-     "at": "docs/roadmap/MASKING-INTERACTIONS.md:503",
-     "kind": "roadmap",
-     "superseded": false,
-     "text": "| `c` | tool: key | unbound (Cmd+Shift+C is automation copy — no clash) | clean ✓ |"
-    },
-    {
-     "key": "shift+meta+c",
-     "raw": "Cmd+Shift+C",
-     "at": "docs/roadmap/packets/masking.md:543",
-     "kind": "packet",
-     "superseded": false,
-     "text": "per `MASKING-INTERACTIONS.md` §4/§8, both unbound @ 95e9b1b (NOT ⌘⇧C/⌘⇧X: `Cmd+Shift+C` is"
-    }
-   ]
-  },
-  {
    "key": "backspace",
    "code": [
     {
@@ -10034,6 +10285,36 @@
      "kind": "roadmap",
      "superseded": false,
      "text": "| wand / key sampling | `Shift+Enter` samples at frame center; hex type-in field for key target color; tolerance/softness/spill are focusable sliders (arrows adjust, type-in on Enter) |"
+    }
+   ]
+  },
+  {
+   "key": "shift+meta+p",
+   "code": [
+    {
+     "action": "toggle_popout",
+     "label": "Toggle Pop-out Preview",
+     "context": "normal",
+     "at": "frontend/src/renderer/utils/default-shortcuts.ts:92"
+    }
+   ],
+   "docCount": 2,
+   "claims": [
+    {
+     "key": "shift+meta+p",
+     "raw": "Cmd+Shift+P",
+     "at": "docs/spec/02-CROSSREF.md:66",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "| Cmd+Shift+P | dead `toggle_popout` row (advertised in `help-registry.ts:78`) vs command-palette candidate | X-shell-9 = X-tools-keys-10 |"
+    },
+    {
+     "key": "shift+meta+p",
+     "raw": "Cmd+Shift+P",
+     "at": "docs/spec/patterns/command-palette.md:64",
+     "kind": "spec-pass",
+     "superseded": false,
+     "text": "1. **Global command palette (Cmd+Shift+P or similar)** over the unified command table (Recommendation 1): fuzzy search, shortcut hints, recents, scoped to the current selection. Not in current scope or roadmap. Key choic"
     }
    ]
   },
@@ -10306,28 +10587,6 @@
    ]
   },
   {
-   "key": "shift+meta+p",
-   "code": [
-    {
-     "action": "toggle_popout",
-     "label": "Toggle Pop-out Preview",
-     "context": "normal",
-     "at": "frontend/src/renderer/utils/default-shortcuts.ts:92"
-    }
-   ],
-   "docCount": 1,
-   "claims": [
-    {
-     "key": "shift+meta+p",
-     "raw": "Cmd+Shift+P",
-     "at": "docs/spec/patterns/command-palette.md:64",
-     "kind": "spec-pass",
-     "superseded": false,
-     "text": "1. **Global command palette (Cmd+Shift+P or similar)** over the unified command table (Recommendation 1): fuzzy search, shortcut hints, recents, scoped to the current selection. Not in current scope or roadmap. Key choic"
-    }
-   ]
-  },
-  {
    "key": "alt+enter",
    "code": [],
    "docCount": 1,
@@ -10391,21 +10650,22 @@
  "docOnlyKeys": [
   "3",
   "4",
-  "meta+w",
   "5",
+  "meta+w",
   "2",
   "6",
   "7",
   "9",
   "8",
   "1",
-  "meta+q",
   "meta+y",
+  "meta+q",
   "meta+c",
   "shift+meta+k",
-  "meta+v",
   "shift+meta+t",
+  "meta+v",
   "meta+m",
+  "shift+meta+m",
   "shift+meta+h",
   "shift+f10",
   "shift+s",
@@ -10414,7 +10674,7 @@
   "shift+meta+g",
   "c",
   "g",
-  "shift+meta+m",
+  "meta+p",
   "ctrl+enter",
   "delete",
   "meta+r",
@@ -10426,7 +10686,6 @@
   "ctrl+v",
   "shift+z",
   "ctrl+z",
-  "meta+p",
   "shift+q",
   "shift+g",
   "enter",
@@ -15849,6 +16108,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 9,
+    "superseded": false
+   },
+   {
     "path": "openspec/changes/02-track-lifecycle-integrity/design.md",
     "kind": "openspec",
     "hits": 9,
@@ -16689,6 +16954,12 @@
     "kind": "doc",
     "hits": 34,
     "superseded": true
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 34,
+    "superseded": false
    },
    {
     "path": "openspec/changes/02-track-lifecycle-integrity/proposal.md",
@@ -18499,6 +18770,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 9,
+    "superseded": false
+   },
+   {
     "path": "openspec/changes/system-monitor-v1/uat.md",
     "kind": "openspec",
     "hits": 9,
@@ -19563,6 +19840,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 46,
+    "superseded": false
+   },
+   {
     "path": "docs/spec/patterns/devices-params.md",
     "kind": "spec-pass",
     "hits": 46,
@@ -20175,6 +20458,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/STATE.md",
+    "kind": "spec-pass",
+    "hits": 18,
+    "superseded": false
+   },
+   {
     "path": "openspec/changes/05-export-pertrack/specs/export/spec.md",
     "kind": "openspec",
     "hits": 18,
@@ -20207,12 +20496,6 @@
    {
     "path": "docs/roadmap/layout-session/PR-INJECTIONS.md",
     "kind": "roadmap",
-    "hits": 17,
-    "superseded": false
-   },
-   {
-    "path": "docs/spec/STATE.md",
-    "kind": "spec-pass",
     "hits": 17,
     "superseded": false
    },
@@ -21295,6 +21578,12 @@
    {
     "path": "docs/roadmap/packets/phase-8-9.md",
     "kind": "packet",
+    "hits": 16,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
     "hits": 16,
     "superseded": false
    },
@@ -22443,6 +22732,12 @@
    {
     "path": "docs/UAT-ROADMAP-COMPLETION-2026-07-04.md",
     "kind": "uat",
+    "hits": 27,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
     "hits": 27,
     "superseded": false
    },
@@ -23679,6 +23974,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 18,
+    "superseded": false
+   },
+   {
     "path": "docs/spec/STATE.md",
     "kind": "spec-pass",
     "hits": 18,
@@ -24575,6 +24876,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 30,
+    "superseded": false
+   },
+   {
     "path": "openspec/changes/ui-foundation/packets.md",
     "kind": "openspec",
     "hits": 29,
@@ -25427,6 +25734,12 @@
     "kind": "doc",
     "hits": 19,
     "superseded": true
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 19,
+    "superseded": false
    },
    {
     "path": "docs/RED-TEAM-ALL-COMPONENTS.md",
@@ -26403,6 +26716,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 13,
+    "superseded": false
+   },
+   {
     "path": "docs/spec/AREAS.md",
     "kind": "spec-pass",
     "hits": 13,
@@ -27089,6 +27408,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 40,
+    "superseded": false
+   },
+   {
     "path": "docs/UAT-UIT-GUIDE.md",
     "kind": "uat",
     "hits": 38,
@@ -27239,6 +27564,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/STATE.md",
+    "kind": "spec-pass",
+    "hits": 21,
+    "superseded": false
+   },
+   {
     "path": "docs/UAT-RESULTS-2026-04-09.md",
     "kind": "uat",
     "hits": 20,
@@ -27325,12 +27656,6 @@
    {
     "path": "docs/roadmap/layout-session/INSTRUMENTS.md",
     "kind": "roadmap",
-    "hits": 14,
-    "superseded": false
-   },
-   {
-    "path": "docs/spec/STATE.md",
-    "kind": "spec-pass",
     "hits": 14,
     "superseded": false
    },
@@ -27815,6 +28140,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/tools/crossref-brief.md",
+    "kind": "spec-pass",
+    "hits": 4,
+    "superseded": true
+   },
+   {
     "path": "openspec/changes/02-track-lifecycle-integrity/design.md",
     "kind": "openspec",
     "hits": 4,
@@ -28275,6 +28606,12 @@
    {
     "path": "docs/roadmap/plans/entropic-creatrix-MASTER-SEQUENCE-2026-06-04.md",
     "kind": "roadmap",
+    "hits": 9,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
     "hits": 9,
     "superseded": false
    },
@@ -28821,6 +29158,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 8,
+    "superseded": false
+   },
+   {
     "path": "openspec/changes/03-ui-wiring/design.md",
     "kind": "openspec",
     "hits": 8,
@@ -29263,6 +29606,12 @@
    {
     "path": "docs/roadmap/packets/phase-5a.md",
     "kind": "packet",
+    "hits": 15,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
     "hits": 15,
     "superseded": false
    },
@@ -30319,6 +30668,12 @@
     "superseded": false
    },
    {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 5,
+    "superseded": false
+   },
+   {
     "path": "docs/spec/AREAS.md",
     "kind": "spec-pass",
     "hits": 5,
@@ -30707,6 +31062,12 @@
    {
     "path": "docs/roadmap/EXECUTION-PLAN.md",
     "kind": "roadmap",
+    "hits": 16,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
     "hits": 16,
     "superseded": false
    },
@@ -31400,6 +31761,12 @@
     "path": "docs/roadmap/packets/phase-5b.md",
     "kind": "packet",
     "hits": 33,
+    "superseded": false
+   },
+   {
+    "path": "docs/spec/02-CROSSREF.md",
+    "kind": "spec-pass",
+    "hits": 32,
     "superseded": false
    },
    {
@@ -38960,6 +39327,60 @@
    ]
   },
   {
+   "path": "docs/spec/02-CROSSREF.md",
+   "kind": "spec-pass",
+   "lines": 199,
+   "superseded": false,
+   "objects": {
+    "O01": 9,
+    "O02": 34,
+    "O03": 9,
+    "O04": 46,
+    "O05": 16,
+    "O06": 27,
+    "O07": 18,
+    "O08": 30,
+    "O09": 19,
+    "O10": 13,
+    "O11": 40,
+    "O12": 9,
+    "O13": 8,
+    "O14": 15,
+    "O15": 5,
+    "O16": 16,
+    "O17": 32
+   },
+   "lawCites": [
+    "D1",
+    "D10",
+    "D12",
+    "D13",
+    "D13.1",
+    "D2",
+    "D3",
+    "D4",
+    "D4a",
+    "D5",
+    "D6",
+    "D9"
+   ],
+   "codeAnchors": {
+    "ok": 54,
+    "missing": 1
+   },
+   "storeRefs": [
+    "addJob",
+    "moveMarker",
+    "removeLane",
+    "rippleTrimClipOut",
+    "setMode"
+   ],
+   "componentRefs": [
+    "MemoryStatus",
+    "RenderQueue"
+   ]
+  },
+  {
    "path": "docs/spec/AREAS.md",
    "kind": "spec-pass",
    "lines": 52,
@@ -38998,19 +39419,19 @@
   {
    "path": "docs/spec/STATE.md",
    "kind": "spec-pass",
-   "lines": 91,
+   "lines": 93,
    "superseded": false,
    "objects": {
     "O01": 3,
     "O02": 5,
     "O03": 12,
-    "O04": 17,
+    "O04": 18,
     "O05": 13,
     "O06": 2,
     "O07": 18,
     "O08": 15,
     "O10": 14,
-    "O11": 14,
+    "O11": 21,
     "O12": 8,
     "O13": 2,
     "O14": 6,
@@ -39024,7 +39445,7 @@
     "R4"
    ],
    "codeAnchors": {
-    "ok": 33,
+    "ok": 36,
     "missing": 1
    },
    "storeRefs": [
@@ -39521,6 +39942,32 @@
    "componentRefs": [
     "ZoomScroll"
    ]
+  },
+  {
+   "path": "docs/spec/tools/crossref-brief.md",
+   "kind": "spec-pass",
+   "lines": 39,
+   "superseded": true,
+   "objects": {
+    "O02": 2,
+    "O04": 1,
+    "O08": 1,
+    "O11": 4,
+    "O16": 2
+   },
+   "lawCites": [
+    "D1",
+    "D10",
+    "D13.1",
+    "D2",
+    "D5"
+   ],
+   "codeAnchors": {
+    "ok": 0,
+    "missing": 0
+   },
+   "storeRefs": [],
+   "componentRefs": []
   },
   {
    "path": "docs/spec/tools/semantic-brief.md",

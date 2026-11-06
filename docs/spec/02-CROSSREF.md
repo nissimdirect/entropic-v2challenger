@@ -3,15 +3,16 @@
 Owner instruction (2026-11-06, verbatim): *"Cross-reference all the plans, build them all the way up and all the way down and all the way across. Make sure that there's no contradictions, surface any issues."*
 
 Source tree `docs/spec-pass` (product code = origin/main 4dc01de). PLANNING ONLY — nothing here changes code or ratified law.
-**Result: the plans are NOT contradiction-free.** 115 distinct contradictions (12 blocking against law), 100 gaps, 54 shared-resource conflicts, 41 supersede chains whose older doc carries no header. Each is listed with cites in the generated layer; this file is the adjudicated synthesis.
+**Result: the plans are NOT contradiction-free.** 138 distinct contradictions (14 blocking against law), 123 gaps, 61 shared-resource conflicts, 58 supersede chains whose older doc carries no header, 79 open questions. **Coverage: 340 of 340 docs referenced by a reader** (tooling + this pass's own docs exempt). Each is listed with cites in the generated layer; this file is the adjudicated synthesis.
 
 ## Method
 
 | layer | what | output |
 |---|---|---|
 | Mechanical (script) | `tools/crossref.mjs` over **340 docs** (every tracked .md outside code: law, openspec, roadmap, packets, plans, phases, decisions, UAT, research, spec-pass, repo root — phase 1 covered 205). Extracts: law-row cites (UP), code anchors + store/component refs (DOWN), 1084 hotkey claims over 102 keys joined to the code registry, 745 decision/packet id definitions (108 collide), 82 lines restating retired law values (ACROSS). | `inventory/crossref.json`, `inventory/CROSSREF.md` |
-| Semantic (7 readers) | one reader per object cluster: lifecycle O01/O14/O15/O16 · timeline O02/O03/O09 · devices O04/O05/O10 · control O06/O07/O13 · tools-keys O08/O11 + global hotkey map · shell O12/O17 + visual law · governance (status truth, id namespaces, authority/build order, supersede chains). Brief: `tools/crossref-brief.md`. | `inventory/crossref/*.json` → `tools/merge-crossref.mjs` → `inventory/CROSSREF-SEMANTIC.md` |
-| Adjudication | ≥2 independent orchestrator checks per reader (grep/Read), recorded in `inventory/crossref-adjudications.json`. **18 checks, 18 confirmed, 0 refuted.** Two severities raised to blocking (live D6 oracles, X-shell-10/11). | this file |
+| Semantic (9 readers) | one reader per object cluster: lifecycle O01/O14/O15/O16 · timeline O02/O03/O09 · devices O04/O05/O10 · control O06/O07/O13 · tools-keys O08/O11 + global hotkey map · shell O12/O17 + visual law · governance (status truth, id namespaces, authority/build order, supersede chains) · **remainder + remainder2** (the 75 non-exempt docs the first seven never referenced, plus 1 overlap — phases, contracts, addendums, q7 decisions, UAT plans; each gets a `docVerdicts` row). Brief: `tools/crossref-brief.md`. | `inventory/crossref/*.json` → `tools/merge-crossref.mjs` → `inventory/CROSSREF-SEMANTIC.md` |
+| Coverage oracle | `merge-crossref.mjs` lists every universe doc no reader output mentions → **0** (was 75 non-exempt after the first seven readers; two coverage readers closed it). | `CROSSREF-SEMANTIC.md` §Coverage oracle |
+| Adjudication | ≥2 independent orchestrator checks per reader (grep/Read), recorded in `inventory/crossref-adjudications.json`. **22 checks across 9 readers, 22 confirmed, 0 refuted.** Two severities raised to blocking (live D6 oracles, X-shell-10/11). | this file |
 
 Regenerate: `node docs/spec/tools/crossref.mjs && node docs/spec/tools/merge-crossref.mjs`.
 
@@ -28,9 +29,10 @@ Regenerate: `node docs/spec/tools/crossref.mjs && node docs/spec/tools/merge-cro
 | B7 | Right-click on a track-chain knob resets the value AND opens the Automate menu (`Knob.tsx:149-152` no `stopPropagation`; wrapper `DeviceCard.tsx:418-430`); records a default point when armed. Tests miss it (fire on wrapper). | ✔ | O05 |
 | B8 | Bare `p` arms perform mode but the armed-pad branch swallows bare keys (`App.tsx:1065-1100`) → `p` may not disarm. | reader, runtime unverified | O12 |
 | B9 | Raw `Delete` branch (`App.tsx:1148`) skips the mask delete-inside priority that Backspace follows → deletes the clip while ants show. Held tool keys auto-repeat the group cycle (no `e.repeat` guard on registry path). | ✔ Space/Delete order (`App.tsx:1138-1150`) | O08 O11 |
+| B11 | PERFORM badge renders inline `fontSize: 11` (`App.tsx:4324`) — below the D6 12px floor; inline style objects may be a blind spot of the type-floor ratchet (open). | ✔ | O12 |
 | B10 | Loop: `isLooping` (whole duration) and `loopRegion` (wraps at out point, ignores `isLooping`) are two independent mechanisms; loop brace has no drag handlers (`LoopRegion.tsx`). | ✔ brace | O09 |
 
-## §2 · Law vs reality — the 12 blocking contradictions
+## §2 · Law vs reality — the 14 blocking contradictions
 
 | id | law | contradiction | resolution needed |
 |---|---|---|---|
@@ -45,6 +47,8 @@ Regenerate: `node docs/spec/tools/crossref.mjs && node docs/spec/tools/merge-cro
 | X-tools-keys-1 | **D4a** (amended 2026-07-30: 6 groups — SELECT V · TRIM B · MASK-SHAPE Q · MASK-FREE W · KEY E · MARK/LOOP Shift+M; bare m = add_marker) | MASKING-INTERACTIONS old letters survive OUTSIDE the superseded §1 table (:99, :172, :500-506, :667); UAT docs use `l` (= transport_forward) for lasso | header sweep #2 |
 | X-timeline-13 | **D4/D4a** wire icons, 6 groups | B3 PRD still locks BLOCK icons + 4-group order | header sweep #2 |
 | X-shell-10 | **D6** (amended → Scale B+1: data 12/450, app floor 12px) | ui-foundation `plan.md` / `uat.md` executable oracles still assert 11px, no header | header sweep #2 (oracles must be re-pointed, not just headed) |
+| X-remainder2-7 | **D6** 12px floor | live code: `App.tsx:4324` inline 11px (B11) | bug fix + ratchet check |
+| X-remainder2-1 | **D13/D13.1** | `UAT-TEST-PLANS-FROM-BDD.md` TP-Z7 still tests R/L/T/D buttons on the automation bar; code has `automation-mode-select` (`App.tsx:3679`). Same plan also expects "Entropic" strings and asserts now-fixed keys are broken (X-remainder2-2/3) | owner: re-baseline or header that test plan |
 | X-shell-11 | **D6** | DESIGN-SPEC rows 183/184/209/219/224 + MASKING-INTERACTIONS:302 specify 11px outside the §3 header | header sweep #2 |
 
 Also law-adjacent (material): **D13** premise "lane-level painting still works" is false — `setMode` has one caller, the dropdown with no Draw option (`App.tsx:3676`); no lane pencil exists (X-control-7). **D13.1** take deletion has no UI (`removeLane` uncalled). **D3** "never the header" violated on the flag-OFF legacy header (`Track.tsx:592-618`, X-shell-6/X-timeline-10). **REAL-DIMENSIONS-ONLY** claims a mock-registry grep that does not exist; `ui-foundation-frame.html:117` still `width:1600px` (X-shell-13). **REAL-INVENTORY-ONLY** is cited as law but has no table row. **D4** row still says "8 groups" (D4a = 6).
@@ -93,6 +97,19 @@ Also law-adjacent (material): **D13** premise "lane-level painting still works" 
 
 **3h. Modulation writers.** The pattern doc says all writers write instance ids. `RoutingCanvas.tsx:346` writes the TYPE id, so it is the one writer that currently works on the wire. Dangling-target cleanup exists (`crossStoreCleanup.ts:76`) but is instance-keyed, so it never prunes canvas mappings (X-control-3/5).
 
+**3i. Contracts vs code (remainder readers).** The contract docs describe a system that was never built or has since moved:
+- `IPC-PROTOCOL`, `TECH-STACK`, `SECURITY`, `PHASE-0B` and `BUILD-BLUEPRINT` ("start here") specify an mmap shared-memory frame ring. Code sends base64 MJPEG instead (`zmq_server.py:658`).
+- The IPC command table lists `render_range` and `audio_analyze`, which don't exist, and omits about 45 live commands. The real contract is `ALLOWED_COMMANDS` (`main/zmq-relay.ts:39`) plus the dispatch at `zmq_server.py:386-591`, both test-enforced.
+- `DATA-SCHEMAS` Track still carries `opacity`/`blendMode` (removed, `shared/types.ts:115-120`) and gives 2 track types where code has 6.
+- `paramPath` has 4 incompatible forms across docs and code. This is the same root cause as B1.
+- `SECURITY` says a 3,000-frame cap (code: 300,000, `security.py:39`), a 30 s decode timeout (code: 5 s) and an optional auth token (code: mandatory).
+- The constitution says "exactly 6" preload methods and 8 stores. Code has about 40 bridge members, including renderer file write/delete, and 23 stores.
+- The 2026-04-16 "canonical" state-of-union says OperatorRack is unmounted. It is mounted at `App.tsx:4124`.
+- The addendums say tempo is off by default. Code always has `bpm` = 120.
+- Q7 decisions DEC-003/010/011/017 and EFFECT-CONTRACT were verified clean against code. Only 2 of 10 SG-8 degrade stages have runtime hooks.
+
+**Recommendation:** each contract doc gets a "superseded by code: <file>" header, and `docs/spec` regenerates the contract tables from code, since the allowlist and dispatch are already test-enforced.
+
 ## §4 · Status truth drifts (governance)
 
 ROADMAP and EXECUTION-PLAN status lags main:
@@ -129,14 +146,14 @@ Confirmed wrong-resolution risks:
 | no-law | 19 | Load-bearing decisions with no RATIFIED row: tune-up D1 cursor tools, D3 clip/track lock, field-mapping apply-preset menu, history-panel OD-1, w15b OD-1 inspector rename, signal precedence (§3c), REAL-INVENTORY-ONLY row itself |
 | no-test | 17 | Master delete guard; `knob.test.ts:104` is a tautology; `epic04-export-pertrack` test mirrors its own helper; device-chain right-click test bypasses Knob |
 | unreachable | 15 | `RenderQueue` / `addJob`; marker drag (`moveMarker` uncalled); `rippleTrimClipOut`; chroma/luma key matte creation; slot-learned CC targets; Draw mode; take deletion; `onOpenDemo` stub; Preferences "Autosave folder" inert |
-| no-plan (orphan code) | 15 | **Text tracks (A15):** Cmd+T create, preview click places a 5 s clip, TextOverlay drag, TextPanel style, composites above video. Also the ruler vertical-drag zoom |
+| no-plan (orphan code) | 15+ | **Text tracks (A15):** Cmd+T create, preview click places a 5 s clip, TextOverlay drag, TextPanel style, composites above video. Also the ruler vertical-drag zoom |
 | no-owner | 14 | Panel registry; preset drop target; layout-state migration; Edit-menu role vs renderer Cmd+Z/C/V |
 | double-owner | 11 | Undo memory-smoke test (UH.5 vs history-panel OD-2); freeze-undo; monitor window |
 | no-code | 9 | multicam (memory only); LayerTap 'layer' node; mask invert/hide-ants/save-as-mask |
 
 Trace matrix (233 rows): fully traced (law → plan → code → test) ranges from 0 of 11 (O12 performance) to 11 of 16 (O08 masks). Weakest objects are **O12, O07, O10, O14 and O17**; they should be specced with extra care in phase 4.
 
-## §7 · Supersede headers still missing (41 chains)
+## §7 · Supersede headers still missing (58 chains)
 
 Examples:
 - ui-foundation `plan`/`uat`/`design-spec`: the 13-button strip and the 11px oracles.
@@ -167,7 +184,7 @@ The full list is in CROSSREF-SEMANTIC.md §Supersede chains.
 2. Every §2 row and every §3 owner question enters the phase-5 decision batches with a recommendation.
 3. 68 open questions are queued in CROSSREF-SEMANTIC.md §Open questions.
 4. **Stale-ledger prevention** (third recurrence: ledger CX-53b87cec, CX-4144344e): phase-7 packets carry a CI check that every merged packet id has a ticked ledger row, or the ROADMAP/EXECUTION-PLAN status column is generated from `git log` instead of hand-edited.
-5. **Second supersede-header sweep** (§2 header rows + §7's 41 chains), docs-only, this branch — owner approval required, same terms as the ★1 sweep ("headers only").
+5. **Second supersede-header sweep** (§2 header rows + §7's 58 chains + §3i contract docs), docs-only, this branch — owner approval required, same terms as the ★1 sweep ("headers only").
 
 ## Done when (oracles for this document)
 

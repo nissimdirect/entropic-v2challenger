@@ -19,7 +19,7 @@ These become RATIFIED-FOUNDATIONS rows in phase 5 (process verdicts, recorded wi
 | Phase | Status | Output |
 |---|---|---|
 | 1 Inventory ★ | IN PROGRESS | `docs/spec/tools/inventory.mjs` → `docs/spec/inventory/` ; `docs/spec/01-FEATURE-MAP.md` |
-| 1b Cross-reference (owner 2026-11-06: "cross-reference all the plans … all the way up, down and across … no contradictions, surface any issues") | IN PROGRESS — mechanical `tools/crossref.mjs` (340 docs) DONE; 7 semantic readers (lifecycle, timeline, devices, control, tools-keys, shell, governance; brief `tools/crossref-brief.md`) running → `inventory/crossref/*.json` → `tools/merge-crossref.mjs` → `inventory/CROSSREF-SEMANTIC.md` → adjudicate → `docs/spec/02-CROSSREF.md` | `docs/spec/02-CROSSREF.md` |
+| 1b Cross-reference (owner 2026-11-06: "cross-reference all the plans … all the way up, down and across … no contradictions, surface any issues") | ✅ DONE 2026-11-06 — 340/340 docs covered (coverage oracle 0), 9 readers, 22/22 adjudication checks confirmed; 138 contradictions (14 blocking), 123 gaps, 61 shared conflicts, 58 unheadered supersede chains; 11 live-bug candidates (B1 automation identity key = static only). /plan-check run 02-CROSSREF-md-20261106-172042 (8 findings: 6 accepted+fixed, 2 rejected as false-positive hotkey lint — agent-marked, owner may override) | `docs/spec/02-CROSSREF.md` |
 | 2 Reference teardown | IN PROGRESS — ADOPT/READ tier DONE: 13 topic files, 161 patterns, 51 candidate additions; DEFERRED: preview-compositing, performance-midi, OBSERVE tier (REAPER/CapCut config + computer use) — budget window at 86% on 2026-11-04 | `docs/spec/patterns/` |
 | 3 Cross-cutting systems ★ | — | `docs/spec/systems/` |
 | 4 Feature specs | — | `docs/spec/features/` |
@@ -85,7 +85,7 @@ Progress metric: **X of 17 object specs · S of 10 surfaces · J of 8 journeys �
   - Unverified reader claims to check in specs: Knob right-click reset + param context menu double-fire (Knob.tsx:149, DeviceCard.tsx:418); first-vs-last-dot param path split (routing-graph-ipc.ts:117 vs routing.py:696-711).
 
 ## NEXT SESSION — resume here
-0. (2026-11-06) If 1b is not DONE: check `docs/spec/inventory/crossref/` for the 7 reader JSONs; re-launch any missing reader with `tools/crossref-brief.md` + its cluster focus; then `node docs/spec/tools/merge-crossref.mjs`, adjudicate (one independent check per reader, record in `inventory/crossref-adjudications.json`), write `02-CROSSREF.md`, /plan-check it, commit, push, report.
+0. (2026-11-06) 1b DONE — owner to review 02-CROSSREF.md §1 (bugs: fix now vs fold), §2 (14 blocking law rows), §5 id convention, §8.5 second header sweep. Old note: if 1b is not DONE: check `docs/spec/inventory/crossref/` for the 7 reader JSONs; re-launch any missing reader with `tools/crossref-brief.md` + its cluster focus; then `node docs/spec/tools/merge-crossref.mjs`, adjudicate (one independent check per reader, record in `inventory/crossref-adjudications.json`), write `02-CROSSREF.md`, /plan-check it, commit, push, report.
 1. Re-read this file, `git log --oneline -8` on docs/spec-pass, PR #500.
 2. Phase 2 remainder: patterns/preview-compositing.md, patterns/performance-midi.md (ADOPT/READ), then OBSERVE tier — REAPER on-disk config (`reaper-kb.ini`, `reaper.ini`) + CapCut, computer use only after checking ~/.claude/.locks/ for other holders.
 3. Merge all 'Candidate additions' sections → docs/spec/ADDITIONS.md (owner approval list).
