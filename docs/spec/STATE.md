@@ -85,7 +85,7 @@ Progress metric: **X of 17 object specs · S of 10 surfaces · J of 8 journeys �
   - Unverified reader claims to check in specs: Knob right-click reset + param context menu double-fire (Knob.tsx:149, DeviceCard.tsx:418); first-vs-last-dot param path split (routing-graph-ipc.ts:117 vs routing.py:696-711).
 
 ## NEXT SESSION — resume here
-0. (2026-11-06) 1b DONE — owner to review 02-CROSSREF.md §1 (bugs: fix now vs fold), §2 (14 blocking law rows), §5 id convention, §8.5 second header sweep. Old note: if 1b is not DONE: check `docs/spec/inventory/crossref/` for the 7 reader JSONs; re-launch any missing reader with `tools/crossref-brief.md` + its cluster focus; then `node docs/spec/tools/merge-crossref.mjs`, adjudicate (one independent check per reader, record in `inventory/crossref-adjudications.json`), write `02-CROSSREF.md`, /plan-check it, commit, push, report.
+0. (2026-11-06) The owner interview runs from `docs/spec/03-INTERVIEW-QUEUE.md`, which holds every open item from 02-CROSSREF (all 79 open questions, B1–B11 and the 4 pending calls). Ask round 0 first, one question per message, in the communication-standard shape (`~/.claude/docs/plan-standards/communication.md`). Record each answer in the queue's Verdicts table and commit after each round. Round 0 decides whether phases 3 and 4 move to `docs/plans/` as PRDs.
 1. Re-read this file, `git log --oneline -8` on docs/spec-pass, PR #500.
 2. Phase 2 remainder: patterns/preview-compositing.md, patterns/performance-midi.md (ADOPT/READ), then OBSERVE tier — REAPER on-disk config (`reaper-kb.ini`, `reaper.ini`) + CapCut, computer use only after checking ~/.claude/.locks/ for other holders.
 3. Merge all 'Candidate additions' sections → docs/spec/ADDITIONS.md (owner approval list).
