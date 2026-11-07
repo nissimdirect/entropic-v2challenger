@@ -502,3 +502,9 @@ renderer write and delete files?
 
 | Question | Verdict | Date |
 |---|---|---|
+| 0.1 Fill order | PRD height only: every surface gets a PRD now; no TRDs or tickets until a PRD is picked for building. | 2026-11-06 |
+| 0.2 Where the output lives | Split: docs/spec/ keeps the research; PRDs go under docs/plans/creatrix-ui-definition/. | 2026-11-06 |
+| 0.3 PRD split | One PRD per screen area (10), plus one PRD for cross-cutting rules (keys, selection, undo, drag, right-click menus). Objects become sections of the owning surface PRD; journeys become flowcharts in the PRDs they cross. Supersedes the four-lens file list in AREAS.md. | 2026-11-06 |
+| 0.4 Status tracking | Each PRD gets an Ops Board card with its status. STATE.md keeps only the resume note and the verdict record. | 2026-11-06 |
+| 0.5 Rewriting research docs | Research docs stay as they are; each finding is rewritten to the writing standard when it moves into a PRD. | 2026-11-06 |
+| 0.6 Label convention | Bare D#/R# mean only rows in docs/frontend RATIFIED-FOUNDATIONS.md / RECONCILIATIONS.md; every other label is qualified with its change (layertap-matte-v1/OD-2) and every label carries its title. A lint script enforces it in the next phase. | 2026-11-06 |
