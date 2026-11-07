@@ -508,3 +508,10 @@ renderer write and delete files?
 | 0.4 Status tracking | Each PRD gets an Ops Board card with its status. STATE.md keeps only the resume note and the verdict record. | 2026-11-06 |
 | 0.5 Rewriting research docs | Research docs stay as they are; each finding is rewritten to the writing standard when it moves into a PRD. | 2026-11-06 |
 | 0.6 Label convention | Bare D#/R# mean only rows in docs/frontend RATIFIED-FOUNDATIONS.md / RECONCILIATIONS.md; every other label is qualified with its change (layertap-matte-v1/OD-2) and every label carries its title. A lint script enforces it in the next phase. | 2026-11-06 |
+| 1.1 Save and Quit cancel loses work | Fix now: a separate bug-fix PR off main (reproduce first, then fix with a test); Cancel keeps the app open. PR #500 stays docs-only. | 2026-11-06 |
+| 1.2 Layer stacking order | Fix now (separate bug-fix PR). Every layer type (video, text, sampler, rack, frozen) stacks by its timeline row; a higher row draws on top. No D2 exception. | 2026-11-06 |
+| 1.9 Delete with a mask selection; held tool keys | Fix now (separate bug-fix PR): Delete follows the Backspace order (inside the selection first); a held tool key switches once and does not repeat. | 2026-11-06 |
+| 1.11 PERFORM badge 11px | Fix now (with the Delete fix): badge moves to 12px; Claude checks whether the font-size ratchet sees inline styles and extends it if not. | 2026-11-06 |
+| 4.4 Right-click on a parameter | One menu everywhere: right-click opens a menu (Reset, Automate, MIDI Learn, Map to Macro; items that do not apply are greyed) and never changes the value by itself. Double-click resets. Pattern: Ableton. | 2026-11-06 |
+| 1.3 Knob right-click resets | Fix now (with the Delete fix): Claude confirms the reset in the running app, then right-click stops resetting; the existing Automate menu stays. The full menu comes with the device chain PRD. | 2026-11-06 |
+| 1.4–1.8, 1.10 | Decided by their linked questions (4.2, 5.1, 5.4, 5.3, 3.6, 2.5). | 2026-11-06 |
