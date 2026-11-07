@@ -16,6 +16,8 @@ resolved inline and flagged `⚖`).
 them. Tool chips and mask names render lowercase mono (`marquee`, `mask_1`) per `DESIGN-SPEC.md:114`;
 dialog/help prose is sentence-case Plex Sans (two-voice rule).
 
+> ⚠ **SUPERSEDED IN PART (spec-pass 2026-11-04, docs/spec/01-FEATURE-MAP.md §S1):** Plex Sans is dead — RATIFIED **D5** (JetBrains Mono everywhere).
+
 ---
 
 ## §0 COMPLETE JOURNEYS (computer-use executable)
@@ -230,6 +232,8 @@ and are guarded by `isTextInputActive` (`PLAN.md` §3.7) — typing `q` in a ren
 tools.
 
 **Hotkeys (collision-audited in §8):**
+
+> ⚠ **SUPERSEDED IN PART (spec-pass 2026-11-04, docs/spec/01-FEATURE-MAP.md §S1):** the letters in this table are NOT the shipped/ratified map. RATIFIED **D4a** groups: MASK-SHAPE **Q** · MASK-FREE (lasso) **W** · KEY (wand ↔ key-picker cycle) **E** — `default-shortcuts.ts:82,97,100`, `ToolRail.tsx:56-62`. There is no `g`/`c` tool key and no standalone wand key.
 
 | key | tool | why not the Photoshop letter |
 |---|---|---|

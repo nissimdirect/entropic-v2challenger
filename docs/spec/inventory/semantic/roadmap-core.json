@@ -1,0 +1,763 @@
+{
+ "cluster": "roadmap-core",
+ "docsRead": [
+  "docs/frontend/COMPONENT-SPEC.md",
+  "docs/frontend/FRONTEND-SDLC.md",
+  "docs/frontend/LEARNING-PATH.md",
+  "docs/frontend/RATIFIED-FOUNDATIONS.md",
+  "docs/frontend/RECONCILIATIONS.md",
+  "docs/roadmap/AUTOMATION-ABLETON-SUITE.md",
+  "docs/roadmap/DESIGN-SPEC.md",
+  "docs/roadmap/EXECUTION-PLAN.md",
+  "docs/roadmap/INDEX.md",
+  "docs/roadmap/layout-session/B1-1VOICE-SAMPLER-PLAN.md",
+  "docs/roadmap/layout-session/DECISIONS.md",
+  "docs/roadmap/layout-session/INSTRUMENTS-BUILD-PLAN.md",
+  "docs/roadmap/layout-session/INSTRUMENTS.md",
+  "docs/roadmap/layout-session/PLAN.md",
+  "docs/roadmap/layout-session/PR-INJECTIONS.md",
+  "docs/roadmap/MASKING-INTERACTIONS.md",
+  "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md",
+  "docs/roadmap/MK12-SUBJECT-MATTE-PRD.md",
+  "docs/roadmap/ONBOARDING-SPEC.md",
+  "docs/roadmap/PERF-MODEL.md",
+  "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md",
+  "docs/roadmap/plans/entropic-creatrix-MASTER-SEQUENCE-2026-06-04.md",
+  "docs/roadmap/plans/entropic-history-buffer-validation.md",
+  "docs/roadmap/plans/entropic-P2-schema-fork-finding.md",
+  "docs/roadmap/plans/entropic-PR-B-plan-2026-06-05.md",
+  "docs/roadmap/plans/entropic-synth-paradigm-vision.md",
+  "docs/roadmap/ROADMAP.md",
+  "docs/roadmap/SELECTION-MASKING-SPEC.md",
+  "docs/mockups/INDEX.md"
+ ],
+ "features": [
+  {
+   "area": "A04",
+   "name": "D2 Track=Layer; row order = z-order",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:10",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/LayerPanel.tsx:55",
+   "notes": "LayerPanel mounted in App.tsx (inventory mountedIn). Composite opacity/blend lives as terminal chain effect, not Track field."
+  },
+  {
+   "area": "A05",
+   "name": "D3 right-dock selection-driven LAYER panel",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:11",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/LayerPanel.tsx:55",
+   "notes": "Mounted by App.tsx. Note DESIGN-SPEC v1.2 \u00a76 calls it right-dock above EFFECTS; file lives in components/timeline not inspector."
+  },
+  {
+   "area": "A02",
+   "name": "D4a grouped tool rail, 6 groups, cycle hotkeys",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:13",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/layout/ToolRail.tsx:56",
+   "notes": "RAIL_GROUPS has 6 groups; hotkeys default-shortcuts.ts:67-100."
+  },
+  {
+   "area": "A02",
+   "name": "D10 Rail v12 unified rail (containers top, tools bottom, drawers)",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:19",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Ratified but no INSTRUMENTS/USER LIBRARY rail container found in renderer (grep USER LIBRARY: 0 hits); R1 reconciliation OPEN (RECONCILIATIONS.md:9)."
+  },
+  {
+   "area": "A01",
+   "name": "D5 mono-only JetBrains Mono identity",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:14",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/styles/tokens.css:180",
+   "notes": "--cx-font-ui and --cx-font-mono both JetBrains Mono."
+  },
+  {
+   "area": "A01",
+   "name": "D6 type scale B+1 (16/14/13/12, floor 12px)",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:15",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/styles/tokens.css:182",
+   "notes": "Tokens exist (182-185) but .ui-ratchet-ceilings css_font_below_floor=225 sub-12px declarations remain."
+  },
+  {
+   "area": "A01",
+   "name": "D7 empty states minimal hint with AA contrast",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:16",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "EmptyState primitive claimed by COMPONENT-SPEC.md:55; contrast oracle not verified in this pass."
+  },
+  {
+   "area": "A07",
+   "name": "D8 curve ops moved to lane context menu; Flatten/Ramp disabled unless lane owns selection",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:17",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/automation/AutomationLane.tsx:227",
+   "notes": "CURVE section in lane menu; comment at :126-128 cites D8 adjudication."
+  },
+  {
+   "area": "A01",
+   "name": "D9 build order: ui-foundation before every queued feature",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:18",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Process rule; no roadmap doc encodes it (see contradictions). Code evidence of ordering not checkable."
+  },
+  {
+   "area": "A09",
+   "name": "D12 selection/loop grammar: drag = selectionRegion, Cmd+L -> loopRegion",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:21",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/MarqueeOverlay.tsx:19",
+   "notes": "Marquee writes selectionRegion; loopRegion consumed App.tsx:863."
+  },
+  {
+   "area": "A13",
+   "name": "D13 transport automation cluster in transport bar (full words)",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:22",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:3679",
+   "notes": "Superseded in detail by D13.1 dropdown; overdub-toggle testid absent from src."
+  },
+  {
+   "area": "A07",
+   "name": "D13 curve-visibility contract (auto-reveal hidden lane on record)",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:22",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:1011",
+   "notes": "Implemented in store choke point recordAutomationValue (not ParamPanel.handleKnobChange); AutomationDraw.tsx:44 reveals on draw; DeviceChain.tsx:446 on Automate."
+  },
+  {
+   "area": "A07",
+   "name": "D13.1 write-mode toggle Replace/Overdub/Add + add_lane take-per-pass",
+   "source": "docs/frontend/RATIFIED-FOUNDATIONS.md:23",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:987",
+   "notes": "add_lane creates fresh lane per pass via addModulationLane (:1001); UI App.tsx:3697 write-mode-toggle."
+  },
+  {
+   "area": "A07",
+   "name": "Automation editing suite AA.1 curved segments",
+   "source": "docs/roadmap/AUTOMATION-ABLETON-SUITE.md:17",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:869",
+   "notes": "addPoint takes curve arg."
+  },
+  {
+   "area": "A07",
+   "name": "AA.4 select+move/copy breakpoints",
+   "source": "docs/roadmap/AUTOMATION-ABLETON-SUITE.md:19",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:361",
+   "notes": "Doc row says wave-1 pending; store has selectedPoints/copySelectedPoints (:395). Doc status stale."
+  },
+  {
+   "area": "A07",
+   "name": "AA.4b transform box, AA.3a insert shape, AA.2 mod lanes, AA.3 live generators, AA.6 LED",
+   "source": "docs/roadmap/AUTOMATION-ABLETON-SUITE.md:20",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "AA.2 mod lanes partially evidenced by addModulationLane (automation.ts:1001); others not verified."
+  },
+  {
+   "area": "A14",
+   "name": "Master-Out Bus M.1 (track type master)",
+   "source": "docs/roadmap/AUTOMATION-ABLETON-SUITE.md:29",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:968",
+   "notes": "master track found/created; MasterTrack.tsx mounts AutomationDraw/MarqueeOverlay. M.2/M.3 UI automation unverified."
+  },
+  {
+   "area": "A09",
+   "name": "MK.1-MK.10 matte model, marquee/lasso/wand/key, alpha export",
+   "source": "docs/roadmap/ROADMAP.md:190",
+   "status": "built",
+   "codeEvidence": "backend/src/masking/schema.py",
+   "notes": "Backend modules present (ai_matte.py, key_kernels.py, wand.py, routing.py, stack.py)."
+  },
+  {
+   "area": "A09",
+   "name": "MK.12 AI subject matte + Split by matte",
+   "source": "docs/roadmap/MK12-SUBJECT-MATTE-PRD.md:3",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:665",
+   "notes": "splitByMatteImpl; Clip.tsx:260 'Generate AI matte (local)\u2026'; backend/src/masking/ai_matte.py. ROADMAP.md:204 row still says specced (stale)."
+  },
+  {
+   "area": "A09",
+   "name": "MK.11 mask params as lanes / matte-as-mod-source",
+   "source": "docs/roadmap/ROADMAP.md:203",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "mask_coverage grep in backend/src: no hits found; doc says specced only."
+  },
+  {
+   "area": "A09",
+   "name": "MK.CU computer-use J1-J5 regression suite",
+   "source": "docs/roadmap/ROADMAP.md:202",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Doc says NEVER RUN; later UAT docs outside slice may close it."
+  },
+  {
+   "area": "A09",
+   "name": "DESIGN-SPEC \u00a710.2 mode banner (hard dependency of MK.13)",
+   "source": "docs/roadmap/DESIGN-SPEC.md:171",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified in code this pass."
+  },
+  {
+   "area": "A17",
+   "name": "First-launch onboarding: boot line + Demos drawer",
+   "source": "docs/roadmap/ONBOARDING-SPEC.md:22",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:4240",
+   "notes": "DemosDrawer mounted (App.tsx:164,4240) and BootLine (App.tsx:165,537); onboarding store exists. ROADMAP G9 says not in-app: stale."
+  },
+  {
+   "area": "A10",
+   "name": "Instrument ladder B1-B10 (sampler, rack, frame-bank, granulator, freeze)",
+   "source": "docs/roadmap/ROADMAP.md:163",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Doc ledger says merged; not individually verified here (other clusters own instruments code)."
+  },
+  {
+   "area": "A08",
+   "name": "Operators / Kentaro cluster / routing canvas (PR-C, P4/P6)",
+   "source": "docs/roadmap/EXECUTION-PLAN.md:462",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Doc says merged; verified by other clusters."
+  },
+  {
+   "area": "A06",
+   "name": "Composite-as-terminal-effect (PR-B 3c)",
+   "source": "docs/roadmap/layout-session/PLAN.md:68",
+   "status": "built",
+   "codeEvidence": "frontend/src/shared/types.ts:754",
+   "notes": "COMPOSITE_DEFAULTS and getTrackCompositing(chain) at :768,:820."
+  },
+  {
+   "area": "A01",
+   "name": "F_CREATRIX_LAYOUT flag layout shell (PR-A)",
+   "source": "docs/roadmap/layout-session/DECISIONS.md:149",
+   "status": "superseded",
+   "codeEvidence": null,
+   "notes": "App.tsx:62 comment says flag-OFF branches retired; flag remains only in comments/css (layout.ts:66, tool-rail.css:10)."
+  },
+  {
+   "area": "A03",
+   "name": "Browser 5-tab (fx/op/composite/tool/instruments) with USER folders",
+   "source": "docs/roadmap/layout-session/PLAN.md:171",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Fate under D10 rail unclear; DECISIONS.md:32 rejected a 5th user tab."
+  },
+  {
+   "area": "A20",
+   "name": "Perf routing-budget harness PERF.1/PERF.2",
+   "source": "docs/roadmap/PERF-MODEL.md:123",
+   "status": "built",
+   "codeEvidence": "backend/tests/perf/test_routing_budget.py",
+   "notes": "Harness present; baselines in docs/perf (CLAUDE.md)."
+  },
+  {
+   "area": "A12",
+   "name": "Pop-out preview collapse, multiwindow",
+   "source": "docs/roadmap/layout-session/DECISIONS.md:20",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified in this slice."
+  },
+  {
+   "area": "A18",
+   "name": "History panel (undo) validated SUFFICIENT; gaps 2-3 outstanding",
+   "source": "docs/roadmap/plans/entropic-history-buffer-validation.md:9",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "HistoryPanel.tsx exists in components/layout; gap closure unverified."
+  },
+  {
+   "area": "A17",
+   "name": "Save As (missing-functions item #4)",
+   "source": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:18",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/app/menuActions.ts:68",
+   "notes": "case 'save-as' -> saveProjectAs(). Doc item stale."
+  },
+  {
+   "area": "A04",
+   "name": "Ripple delete (missing-functions #2)",
+   "source": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:16",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/default-shortcuts.ts:20",
+   "notes": "ripple_delete shortcut registered. Doc item stale."
+  },
+  {
+   "area": "A20",
+   "name": "Auto-update flow (missing-functions \u00a73 orphan)",
+   "source": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:179",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/layout/UpdateBanner.tsx:43",
+   "notes": "Now wired: onClick calls window.entropic.downloadUpdate. Doc \u00a73 stale."
+  },
+  {
+   "area": "A04",
+   "name": "Orphans: ZoomScroll, MacroKnob, ParamSlider",
+   "source": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:187",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/ZoomScroll.tsx:8",
+   "notes": "Inventory orphanComponents confirms all three still unmounted (also Waveform, EffectRack, EffectSearch, ParamPanel)."
+  },
+  {
+   "area": "A01",
+   "name": "Frontend framework: COMPONENT-SPEC guards, hex/ui ratchets",
+   "source": "docs/frontend/COMPONENT-SPEC.md:73",
+   "status": "built",
+   "codeEvidence": "frontend/scripts/ui-ratchets.sh:118",
+   "notes": "ui-ratchets + .ui-ratchet-ceilings present; component-spec-guard.test.ts present per git status."
+  },
+  {
+   "area": "A01",
+   "name": "Q7 Tier-5 latent features (L-axis)",
+   "source": "docs/roadmap/ROADMAP.md:183",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Hard-gated on user greenlight of parked q7 drafts."
+  },
+  {
+   "area": "A20",
+   "name": "Tier 6/7 .dna, SDK, plugin quotas",
+   "source": "docs/roadmap/ROADMAP.md:224",
+   "status": "abandoned",
+   "codeEvidence": null,
+   "notes": "Tier 7 DEMOTED to if-ever (ROADMAP \u00a72.5 item 3)."
+  }
+ ],
+ "halfBuilt": [
+  {
+   "area": "A07",
+   "item": "ParamPanel (cited by RATIFIED D13 and RECONCILIATIONS R4 as the curve-visibility site)",
+   "docSays": "docs/frontend/RATIFIED-FOUNDATIONS.md:22",
+   "codeShows": "frontend/src/renderer/App.tsx:4015",
+   "gap": "ParamPanel is an orphan (inventory mountedIn=[]; App.tsx:11 and :4015 say removed, replaced by DeviceChain). Contract lives in stores/automation.ts:1011-1018 via DeviceCard.tsx:138-155. ParamPanel.tsx:37 handleKnobChange is dead code and has no setLaneVisible call itself."
+  },
+  {
+   "area": "A02",
+   "item": "D10 Rail v12 unified rail",
+   "docSays": "docs/frontend/RATIFIED-FOUNDATIONS.md:19",
+   "codeShows": "frontend/src/renderer/components/layout/ToolRail.tsx:56",
+   "gap": "Only the Convention-1 tool strip exists; container half (INSTRUMENTS/EFFECTS/... accordion drawers) not found."
+  },
+  {
+   "area": "A01",
+   "item": "D6 type floor 12px",
+   "docSays": "docs/frontend/RATIFIED-FOUNDATIONS.md:15",
+   "codeShows": "frontend/.ui-ratchet-ceilings (css_font_below_floor=225)",
+   "gap": "Tokens landed (tokens.css:182-185) but 225 sub-floor font-size declarations remain; ratchet ceiling is a ceiling not zero."
+  },
+  {
+   "area": "A04",
+   "item": "Unmounted legacy components (ZoomScroll, MacroKnob, ParamSlider, Waveform, EffectRack, EffectSearch)",
+   "docSays": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:187",
+   "codeShows": "docs/spec/inventory/inventory.json orphanComponents",
+   "gap": "Still unmounted; MacroKnob flagged 'revive for B4 macros'."
+  }
+ ],
+ "contradictions": [
+  {
+   "topic": "Type scale / font floor (DESIGN-SPEC body vs D6)",
+   "a": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:83",
+    "claim": "**Floor: 11px.** Nothing smaller, ever."
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:15",
+    "claim": "App floor = 12px (was 11)."
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Font identity (DESIGN-SPEC \u00a73 two-voice vs D5 mono-only)",
+   "a": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:75",
+    "claim": "## 3. Typography \u2014 two voices, not one"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:14",
+    "claim": "Mono-only identity: JetBrains Mono everywhere; ... Plex two-voice plan formally dead"
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Font identity in ONBOARDING-SPEC",
+   "a": {
+    "cite": "docs/roadmap/ONBOARDING-SPEC.md:14",
+    "claim": "Dialog/UI prose: **IBM Plex Sans, sentence case**"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:14",
+    "claim": "Plex two-voice plan formally dead"
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Font identity in MASKING-INTERACTIONS",
+   "a": {
+    "cite": "docs/roadmap/MASKING-INTERACTIONS.md:17",
+    "claim": "dialog/help prose is sentence-case Plex Sans (two-voice rule)."
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:14",
+    "claim": "JetBrains Mono everywhere"
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Type scale in mockups registry",
+   "a": {
+    "cite": "docs/mockups/INDEX.md:21",
+    "claim": "3-tier JetBrains Mono type hierarchy (Scale B 15/13/12/11, locked 2026-07-10)"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:15",
+    "claim": "Supersedes \"Scale B locked 2026-07-10\"."
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "DESIGN-SPEC body still states 11px mono UI text after canon banner",
+   "a": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:181",
+    "claim": "11px mono `text-1`"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:15",
+    "claim": "App floor = 12px"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Tool hotkeys: lasso/wand/key letters (MASKING-INTERACTIONS vs D4a/code)",
+   "a": {
+    "cite": "docs/roadmap/MASKING-INTERACTIONS.md:237",
+    "claim": "| `w` | `wand` | PS parity \u2014 `w` is free |"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:13",
+    "claim": "MASK-FREE W \u00b7 KEY E"
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Tool hotkeys in code confirm ratified side",
+   "a": {
+    "cite": "docs/roadmap/MASKING-INTERACTIONS.md:238",
+    "claim": "| `g` | `lasso` ..."
+   },
+   "b": {
+    "cite": "frontend/src/renderer/utils/default-shortcuts.ts:100",
+    "claim": "{ action: 'tool_lasso', keys: 'w', ..."
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Key tool hotkey c vs e",
+   "a": {
+    "cite": "docs/roadmap/MASKING-INTERACTIONS.md:239",
+    "claim": "| `c` | `key` (chroma/color-range picker) ..."
+   },
+   "b": {
+    "cite": "frontend/src/renderer/utils/default-shortcuts.ts:82",
+    "claim": "{ action: 'tool_key', keys: 'e', ..."
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Mask-edit view key: v vs Shift+V",
+   "a": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:182",
+    "claim": "mask-edit = `b brush \u00b7 e eraser \u00b7 [ ] size \u00b7 v view`"
+   },
+   "b": {
+    "cite": "docs/roadmap/MASKING-INTERACTIONS.md:688",
+    "claim": "view cycling in mask-edit is **`Shift+V`** (not bare `v`)"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Automation mode labels: single letters OK vs full words",
+   "a": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:323",
+    "claim": "R-L-T-D automation modes, ... are correct AS TEXT; do not iconize"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:22",
+    "claim": "single letters were \"still confused as to what the buttons do\""
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Tool-rail iconography: BLOCK vs wire; 4 vs 6 groups",
+   "a": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:277",
+    "claim": "The 14-tool left rail uses the **Block** family ... group order TRNS / EDIT / MASK / MISC"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:13",
+    "claim": "Real inventory = 14 tools \u2192 **6 groups** (SELECT V \u00b7 TRIM B \u00b7 MASK-SHAPE Q ..."
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Automation strip contents: D8 vs D13/D13.1 (ratified rows disagree)",
+   "a": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:17",
+    "claim": "Strip keeps **Mode (R/L/T/D)** and **Record (Overdub/+Lane/+Trigger/+Mod)** clusters"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:23",
+    "claim": "Testids `automation-mode-{read|touch|latch}` and `overdub-toggle` are retired"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "D13 cites ParamPanel.tsx handleKnobChange as implementation site",
+   "a": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:22",
+    "claim": "(`ParamPanel.tsx` handleKnobChange; `AutomationDraw.tsx` handleMouseDown)"
+   },
+   "b": {
+    "cite": "frontend/src/renderer/App.tsx:4015",
+    "claim": "{/* Phase 13C: ParamPanel removed \u2014 replaced by inline params in DeviceChain */}"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "RECONCILIATIONS R4 treats ParamPanel as shared live file",
+   "a": {
+    "cite": "docs/frontend/RECONCILIATIONS.md:12",
+    "claim": "PK.C1: curve-visibility fix inside `handleKnobChange` only"
+   },
+   "b": {
+    "cite": "frontend/src/renderer/App.tsx:11",
+    "claim": "// Phase 13C: EffectRack + ParamPanel removed \u2014 replaced by DeviceChain"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Build-order authority: D9 vs ROADMAP/EXECUTION-PLAN/INDEX",
+   "a": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:18",
+    "claim": "Build order: ui-foundation before every queued feature change"
+   },
+   "b": {
+    "cite": "docs/roadmap/INDEX.md:7",
+    "claim": "## Authority order (when docs disagree) ... 1. user's verbatim ask 2. ROADMAP.md 3. MASTER-SEQUENCE"
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "D9 vs automation feature wave plan",
+   "a": {
+    "cite": "docs/roadmap/AUTOMATION-ABLETON-SUITE.md:37",
+    "claim": "## Wave plan - **wave-1 (running):** AA.4, M.1, B3-enable, thumbnails, add-track"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:18",
+    "claim": "ui-foundation before every queued feature change"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "ROADMAP \u00a76 next-order omits ui-foundation",
+   "a": {
+    "cite": "docs/roadmap/ROADMAP.md:354",
+    "claim": "Current execution order lives in `docs/plans/2026-07-02-month-audit-fix-plan.md` (fix waves) and ... (WS1\u2013WS5 builds)"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:18",
+    "claim": "Framework phases wrap around it, never ahead of it."
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "In-place-only browser rule vs D10 unified rail",
+   "a": {
+    "cite": "docs/roadmap/EXECUTION-PLAN.md:333",
+    "claim": "Any packet that creates a parallel browser/layout component is an automatic FAIL."
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:19",
+    "claim": "ONE permanent leftmost rail: containers top ... tools bottom ... per-icon exclusive-accordion drawer"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Browser tab model: 5 tabs vs user 'not a 5th tab'",
+   "a": {
+    "cite": "docs/roadmap/layout-session/PLAN.md:171",
+    "claim": "### 3.5 Browser \u2014 5 tabs"
+   },
+   "b": {
+    "cite": "docs/roadmap/layout-session/DECISIONS.md:32",
+    "claim": "actually an expandable user category in each tab not a 5th tab"
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "Track header opacity/blend: removed vs readout chip",
+   "a": {
+    "cite": "docs/roadmap/layout-session/DECISIONS.md:88",
+    "claim": "NO opacity slider, NO blend dropdown."
+   },
+   "b": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:289",
+    "claim": "**blend\u00b7opacity bchip** (a glanceable read; click focuses the LAYER panel)"
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "Stale status: MK.12 and onboarding shown unbuilt",
+   "a": {
+    "cite": "docs/roadmap/ROADMAP.md:204",
+    "claim": "MK.12 \u2014 ... \u274c specced"
+   },
+   "b": {
+    "cite": "frontend/src/renderer/stores/timeline.ts:665",
+    "claim": "function splitByMatteImpl("
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "Stale status: onboarding not in-app",
+   "a": {
+    "cite": "docs/roadmap/ROADMAP.md:334",
+    "claim": "Demos Drawer / first-launch ritual / D-PB paint affordance all gated on PR-A"
+   },
+   "b": {
+    "cite": "frontend/src/renderer/App.tsx:4240",
+    "claim": "<DemosDrawer"
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "DESIGN-SPEC internal contrast numbers differ",
+   "a": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:55",
+    "claim": "`--cx-text-1` | `#E7E7EC` | body+ ... (13.9:1 on s-1)"
+   },
+   "b": {
+    "cite": "docs/roadmap/DESIGN-SPEC.md:137",
+    "claim": "text-1 on surface-1 | 15.1:1 | AAA"
+   },
+   "severity": "cosmetic"
+  }
+ ],
+ "openDecisions": [
+  {
+   "area": "A02",
+   "id": "R1",
+   "cite": "docs/frontend/RECONCILIATIONS.md:9",
+   "question": "Subtool groups as press-hold flyouts (built) vs v12 tool-drawers; rail position \u2014 owner rules at W2 step-0 mock."
+  },
+  {
+   "area": "A02",
+   "id": null,
+   "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:12",
+   "question": "Wand W1/W2/W3 small-size glyph pick remains OPEN (comet variants)."
+  },
+  {
+   "area": "A01",
+   "id": null,
+   "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:15",
+   "question": "Final B+1 type values to be confirmed by eye on a REAL-DIMENSIONS mock during PK.A; verify whether done."
+  },
+  {
+   "area": "A01",
+   "id": null,
+   "cite": "docs/roadmap/ROADMAP.md:105",
+   "question": "q7-stack build greenlight (24 parked drafts) pending user."
+  },
+  {
+   "area": "A09",
+   "id": null,
+   "cite": "docs/roadmap/SELECTION-MASKING-SPEC.md:59",
+   "question": "Spec \u00a714 shows ALL DECIDED banner at :59 yet section list at :288-300 is headed open decisions; confirm which is current."
+  },
+  {
+   "area": "A12",
+   "id": null,
+   "cite": "docs/mockups/INDEX.md:18",
+   "question": "System-monitor mount point (top transport right cluster vs bottom status bar / MemoryStatus) unconfirmed."
+  },
+  {
+   "area": "A14",
+   "id": null,
+   "cite": "docs/roadmap/AUTOMATION-ABLETON-SUITE.md:34",
+   "question": "#9 DropZone product question needs user."
+  },
+  {
+   "area": "A04",
+   "id": null,
+   "cite": "docs/roadmap/MISSING-FUNCTIONS-INVENTORY.md:18",
+   "question": "Disposition of 26 missing-functions items (PD.14) is stale vs code (save-as, ripple built); re-audit needed."
+  },
+  {
+   "area": "A01",
+   "id": null,
+   "cite": "docs/roadmap/INDEX.md:7",
+   "question": "Should INDEX authority order place docs/frontend/RATIFIED-FOUNDATIONS.md above ROADMAP? Currently absent."
+  }
+ ],
+ "supersededDocs": [
+  {
+   "doc": "docs/roadmap/DESIGN-SPEC.md \u00a73 typography + \u00a79 type floor",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D5/D6",
+   "cite": "docs/roadmap/DESIGN-SPEC.md:5"
+  },
+  {
+   "doc": "docs/roadmap/DESIGN-SPEC.md \u00a75 BLOCK iconography",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D4 (wire set, PK.H1)",
+   "cite": "docs/roadmap/DESIGN-SPEC.md:311"
+  },
+  {
+   "doc": "docs/roadmap/layout-session/PLAN.md",
+   "supersededBy": "ROADMAP.md \u00a70.2/\u00a72 (all sweep PRs shipped)",
+   "cite": "docs/roadmap/INDEX.md:28"
+  },
+  {
+   "doc": "docs/roadmap/layout-session/B1-1VOICE-SAMPLER-PLAN.md UX",
+   "supersededBy": "docs/roadmap/plans/entropic-B2-performance-track-sampler-2026-06-05.md",
+   "cite": "docs/roadmap/INDEX.md:31"
+  },
+  {
+   "doc": "docs/roadmap/ROADMAP.md \u00a72 status ledger",
+   "supersededBy": "ROADMAP \u00a70.2/\u00a70.3 snapshots and packets/*.md",
+   "cite": "docs/roadmap/ROADMAP.md:125"
+  },
+  {
+   "doc": "docs/roadmap/ROADMAP.md \u00a76 suggested execution order",
+   "supersededBy": "docs/plans/2026-07-02-month-audit-fix-plan.md",
+   "cite": "docs/roadmap/ROADMAP.md:352"
+  },
+  {
+   "doc": "docs/roadmap/layout-session/DECISIONS.md #26-28 flag/migration",
+   "supersededBy": "PR-B clean-break and flag retirement (App.tsx:62)",
+   "cite": "docs/roadmap/layout-session/PLAN.md:53"
+  },
+  {
+   "doc": "docs/frontend/RATIFIED-FOUNDATIONS.md D8 automation strip contents",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D13/D13.1",
+   "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:23"
+  },
+  {
+   "doc": "docs/roadmap/plans/entropic-P2-schema-fork-finding.md",
+   "supersededBy": "resolved via PR #148",
+   "cite": "docs/roadmap/plans/entropic-P2-schema-fork-finding.md:1"
+  }
+ ]
+}

@@ -1,0 +1,1223 @@
+{
+ "cluster": "plans-legacy",
+ "docsRead": [
+  "docs/plans/2026-02-22-phase-0b-pipeline-validation-plan.md",
+  "docs/plans/2026-02-28-phase3-uat-plan.md",
+  "docs/plans/2026-03-15-phase10-freeze-library-plan.md",
+  "docs/plans/2026-03-15-phase11-export-polish-plan.md",
+  "docs/plans/2026-03-15-ship-gate-audit-plan.md",
+  "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md",
+  "docs/plans/2026-04-10-phase-next-eng-pickup.md",
+  "docs/plans/2026-05-04-cross-modal-features-plan.md",
+  "docs/plans/2026-05-06-feat-asciiphantom-plan.md",
+  "docs/plans/2026-05-06-feat-entropydomainwarp-plan.md",
+  "docs/plans/2026-05-06-feat-logisticgenerationloss-plan.md",
+  "docs/plans/2026-05-06-fix-composite-state-gap.md",
+  "docs/plans/2026-05-06-fix-preview-state-gap.md",
+  "docs/plans/2026-05-06-refactor-registry-consolidation.md",
+  "docs/plans/2026-05-14-hotkey-discoverability-plan.md",
+  "docs/plans/2026-05-14-upcoming-ux-items.md",
+  "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md",
+  "docs/plans/2026-06-17-p1b-uat-fix-plan.md",
+  "docs/plans/2026-06-audio-tracks-bake-checklist.md",
+  "docs/plans/2026-07-02-b3-layout-redesign-prd.md",
+  "docs/plans/2026-07-02-master-tuneup-plan.md",
+  "docs/plans/2026-07-02-month-audit-fix-plan.md",
+  "docs/plans/2026-07-02-tuneup-handoff.md",
+  "docs/plans/2026-07-03-aa3-live-generators-spec.md",
+  "docs/plans/2026-07-03-automation-ableton-adoption-prd.md",
+  "docs/plans/2026-07-03-automation-buildready.md",
+  "docs/plans/2026-07-03-automation-editing-gestures.md",
+  "docs/plans/2026-07-03-master-out-bus-prd.md",
+  "docs/plans/sprint-2B-1-audio-decode.md",
+  "docs/plans/sprint-2B-2-waveform.md",
+  "docs/plans/sprint-2B-3-playback.md",
+  "docs/plans/sprint-2B-4-av-sync.md",
+  "docs/plans/sprint-2B-5-audio-store.md",
+  "docs/plans/transitions-pattern.md",
+  "docs/plans/q7/PR-02-sg7-codec-timeout-plan.md",
+  "memory:project_creatrix-routing-2026-07.md",
+  "memory:project_creatrix-clip-editor-monitors.md",
+  "memory:project_creatrix-multicam-performance.md",
+  "memory:entropic-synth-paradigm.md",
+  "memory:project_creatrix-ux-challengers.md",
+  "memory:project_creatrix-frontend-framework.md"
+ ],
+ "features": [
+  {
+   "area": "A21",
+   "name": "Per-track prefix freeze backend (FreezeManager) + freeze store",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:23",
+   "status": "built",
+   "codeEvidence": "backend/src/engine/freeze.py:1",
+   "notes": "Plan status 'active' is stale; freeze store exists and App.tsx rewires handlers per-track (F-0514-16 / Epic 3) at App.tsx:2404."
+  },
+  {
+   "area": "A21",
+   "name": "Freeze up-to-here / unfreeze / flatten entry points",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:97",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:4223",
+   "notes": "Original EffectRack right-click entry orphaned in Phase 13C (mount-sweep:117); re-wired via DeviceChain onFreezeUpTo/onUnfreeze/onFlatten."
+  },
+  {
+   "area": "A21",
+   "name": "FreezeOverlay frosted-glass badge on frozen effect cards",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:91",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/components/effects/EffectRack.tsx:169",
+   "notes": "Only mounted by EffectRack, itself an orphan component (inventory orphanComponents). Live DeviceChain does not use FreezeOverlay."
+  },
+  {
+   "area": "A21",
+   "name": "Auto-freeze on RAM pressure (memory_status poll, 80%/90% thresholds)",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:116",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Memory-pressure code exists elsewhere (backend safety/pressure, memoryPressure store) but I did not verify it implements this plan's auto-freeze behavior."
+  },
+  {
+   "area": "A03",
+   "name": ".glitchpreset schema + preset save/apply (single effect and chain)",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:142",
+   "status": "built",
+   "codeEvidence": "frontend/src/shared/schemas/preset.schema.json:1",
+   "notes": "PresetBrowser (App-mounted), PresetCard, PresetSaveDialog all present; 60 factory preset files under resources/presets/factory."
+  },
+  {
+   "area": "A03",
+   "name": "Preset Browser sidebar tab with category chips, favorites, search",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:185",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/library/PresetBrowser.tsx:13",
+   "notes": "Sidebar-tab model is slated to be replaced by D10 unified rail (PRESETS container); see browser-folders openspec."
+  },
+  {
+   "area": "A03",
+   "name": "MacroKnob + chain-preset macro mappings (up to 8 macros)",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:210",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/components/library/MacroKnob.tsx:10",
+   "notes": "MacroKnob in inventory orphanComponents (mountedIn empty). pickup:249 itself says 'IMPLEMENTED, NOT RENDERED'."
+  },
+  {
+   "area": "A03",
+   "name": "Factory presets (50 single + 10 chain) and preset drag-drop/import",
+   "source": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:231",
+   "status": "built",
+   "codeEvidence": "resources/presets/factory:1",
+   "notes": "60 files present in worktree. Drag-import (10-4-9) not separately verified."
+  },
+  {
+   "area": "A16",
+   "name": "Multi-codec export, GIF, image sequence, render queue",
+   "source": "docs/plans/2026-03-15-phase11-export-polish-plan.md:24",
+   "status": "built",
+   "codeEvidence": "backend/src/engine/export.py:47",
+   "notes": "export.py imports gif_export and image_sequence; ExportDialog (App-mounted) and RenderQueue (App-mounted) exist. Plan status 'active' is stale."
+  },
+  {
+   "area": "A20",
+   "name": "Keyboard shortcut system + Shortcut editor + Preferences panel",
+   "source": "docs/plans/2026-03-15-phase11-export-polish-plan.md:143",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/layout/Preferences.tsx:25",
+   "notes": "ShortcutEditor mounted inside Preferences (ShortcutEditor.tsx:9); registry in utils/default-shortcuts.ts."
+  },
+  {
+   "area": "A17",
+   "name": "Welcome screen, About dialog, auto-update, error/loading polish",
+   "source": "docs/plans/2026-03-15-phase11-export-polish-plan.md:209",
+   "status": "built",
+   "codeEvidence": "frontend/src/main/updater.ts:2",
+   "notes": "WelcomeScreen (App.tsx-mounted), AboutDialog, UpdateBanner exist; electron-updater is a graceful dynamic import."
+  },
+  {
+   "area": "A06",
+   "name": "Ableton-style horizontal DeviceChain replacing ParamPanel + EffectRack",
+   "source": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:159",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/device-chain/DeviceChain.tsx:343",
+   "notes": "Plan checkboxes (184 of 204 unchecked) are stale; EffectRack/ParamPanel/EffectSearch are now orphan files, confirming displacement."
+  },
+  {
+   "area": "A06",
+   "name": "A/B switch per device",
+   "source": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:66",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/device-chain/DeviceCard.tsx:334",
+   "notes": "ABSwitch mounted in DeviceCard; abState persisted at project-persistence.ts:334."
+  },
+  {
+   "area": "A06",
+   "name": "Device groups (groupEffects/ungroupEffects, groups own children)",
+   "source": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:25",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/device-chain/DeviceChain.tsx:343",
+   "notes": "pickup:134 says UI UNWIRED (2026-04); DeviceChain now calls groupEffects/ungroupEffects, so that note is superseded."
+  },
+  {
+   "area": "A07",
+   "name": "Trigger lanes (performance triggers as automation)",
+   "source": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:73",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/Track.tsx:126",
+   "notes": "addTriggerLane called from Track, MasterTrack, AutomationToolbar; PerformancePanel kept as floating overlay (App.tsx:4099) per Phase 15C."
+  },
+  {
+   "area": "A12",
+   "name": "Preview pop-out window with 1s ping heartbeat",
+   "source": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:81",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/preview/PopOutPreview.tsx:20",
+   "notes": "pop-out-entry.tsx:4 mounts it; mount-sweep:34 B2 replaced frame-arrival liveness with main-process ping."
+  },
+  {
+   "area": "A13",
+   "name": "J/K/L transport, timecode, overdub chip in transport bar",
+   "source": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:116",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/default-shortcuts.ts:10",
+   "notes": "pickup:20 verified bindings. K+L frame-step explicitly deferred at plan:126 (unchecked); not verified in code."
+  },
+  {
+   "area": "A18",
+   "name": "Undo History panel as Edit-menu floating overlay",
+   "source": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:119",
+   "status": "built",
+   "codeEvidence": "frontend/src/main/menu.ts:48",
+   "notes": "HistoryPanel mounted in App.tsx. Memory routing note (item 44) confirms the panel already ships; history-panel-delta openspec is incremental."
+  },
+  {
+   "area": "A08",
+   "name": "OperatorRack + ModulationMatrix + RoutingLines mounted as floating overlay (Cmd+Shift+O)",
+   "source": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:20",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:4124",
+   "notes": "Supersedes cross-modal plan:35 claim that operators are unmounted; shortcut toggle_operators at default-shortcuts.ts:53. A8 Playwright E2E (line 27) still unchecked."
+  },
+  {
+   "area": "A17",
+   "name": "Unsaved-changes 3-option prompt on Cmd+O / Cmd+N",
+   "source": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:118",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:393",
+   "notes": "Close-gate characterization tests exist (git status lists close-unsaved-gate.test.tsx); not line-verified here."
+  },
+  {
+   "area": "A17",
+   "name": "Project load numeric/structure validation (frameRate, seed, masterVolume, sample rate, nesting caps)",
+   "source": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:30",
+   "status": "built",
+   "codeEvidence": "backend/src/project/schema.py:505",
+   "notes": "Backend _walk_structure and frontend range checks described at plan:52; not individually line-verified."
+  },
+  {
+   "area": "A20",
+   "name": "Show shortcut hints at every action site (prettyShortcut)",
+   "source": "docs/plans/2026-05-14-hotkey-discoverability-plan.md:13",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/pretty-shortcut.ts:1",
+   "notes": "Plan 'completed'. upcoming-ux:26-31 all items checked. Menu has 'Undo History' with shortcut-aware labels."
+  },
+  {
+   "area": "A04",
+   "name": "Arrangement left column width and track/preview/ruler alignment redesign",
+   "source": "docs/plans/2026-05-14-upcoming-ux-items.md:39",
+   "status": "superseded",
+   "codeEvidence": null,
+   "notes": "Parked pickup (2026-05-14). Superseded by B3 layout (D2/D3), unified headers and W1.5b grid-track paradigm; no standalone work remains."
+  },
+  {
+   "area": "A03",
+   "name": "Extend/virtualize Effects browser panel vertically",
+   "source": "docs/plans/2026-05-14-upcoming-ux-items.md:59",
+   "status": "superseded",
+   "codeEvidence": null,
+   "notes": "Replaced by D10 unified rail + browser-folders tree (single search, exclusive accordion). Not built in this worktree: no rail-drawer component found."
+  },
+  {
+   "area": "A06",
+   "name": "fx.ascii_phantom, fx.entropy_domain_warp, fx.logistic_generation_loss effects",
+   "source": "docs/plans/2026-05-06-feat-asciiphantom-plan.md:1",
+   "status": "built",
+   "codeEvidence": "backend/src/effects/registry.py:436",
+   "notes": "All three files in backend/src/effects/fx. Plan says ascii_phantom registered in frankenstein_mods; now in phase12_mods (registry.py:459) after consolidation."
+  },
+  {
+   "area": "A06",
+   "name": "Per-effect state propagation in single-frame preview render",
+   "source": "docs/plans/2026-05-06-fix-preview-state-gap.md:7",
+   "status": "built",
+   "codeEvidence": "backend/src/zmq_server.py:182",
+   "notes": "_render_states cache and _get_render_states at zmq_server.py:330."
+  },
+  {
+   "area": "A06",
+   "name": "Per-layer state propagation in composite render",
+   "source": "docs/plans/2026-05-06-fix-composite-state-gap.md:9",
+   "status": "built",
+   "codeEvidence": "backend/src/engine/compositor.py:294",
+   "notes": "layer_states arg and _get_composite_states at zmq_server.py:1154. Plan frontmatter still 'in-progress'."
+  },
+  {
+   "area": "A06",
+   "name": "Registry module-list naming guard test",
+   "source": "docs/plans/2026-05-06-refactor-registry-consolidation.md:17",
+   "status": "built",
+   "codeEvidence": "backend/tests/test_effects/test_registry.py:43",
+   "notes": "test_no_orphan_module_lists present. Plan frontmatter still 'in-progress'."
+  },
+  {
+   "area": "A08",
+   "name": "Cross-modal F1 Datamosh Step Grid (16-step intensity/corruption sequencer)",
+   "source": "docs/plans/2026-05-04-cross-modal-features-plan.md:57",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No StepGridPanel or applyStepGridModulations file in worktree. Plan status 'planned', v1.1."
+  },
+  {
+   "area": "A08",
+   "name": "Cross-modal F2 Optical Motion Angle (motion_angle/centroid outputs in video_analyzer)",
+   "source": "docs/plans/2026-05-04-cross-modal-features-plan.md:58",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "grep for motion_angle in backend/src/modulation/video_analyzer.py returns nothing."
+  },
+  {
+   "area": "A08",
+   "name": "Cross-modal F3 Live Macro Device (MacroDevice + applyMacroModulations)",
+   "source": "docs/plans/2026-05-04-cross-modal-features-plan.md:59",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No MacroDevice or applyMacroModulations file found; MacroKnob exists but is unmounted."
+  },
+  {
+   "area": "A19",
+   "name": "Cross-modal F4 Chord-to-Param Modulator (chord_parser + applyChordModulations)",
+   "source": "docs/plans/2026-05-04-cross-modal-features-plan.md:60",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No chord file found under frontend/src or backend/src."
+  },
+  {
+   "area": "A14",
+   "name": "Audio decode, waveform peaks, playback, A/V sync clock, audio store (Sprint 2B)",
+   "source": "docs/plans/sprint-2B-1-audio-decode.md:3",
+   "status": "built",
+   "codeEvidence": "backend/src/audio/decoder.py:55",
+   "notes": "All five sprint docs 'completed'. Backend audio/{decoder,waveform,player,clock}.py and frontend stores/audio.ts exist. transport/Waveform.tsx is orphaned."
+  },
+  {
+   "area": "A14",
+   "name": "Audio-tracks flag bake gate (EXPERIMENTAL_AUDIO_TRACKS, 7 days, check_bake_gate.py)",
+   "source": "docs/plans/2026-06-audio-tracks-bake-checklist.md:1",
+   "status": "half-built",
+   "codeEvidence": "scripts/check_bake_gate.py:1",
+   "notes": "Kit (launch-bake.sh, check_bake_gate.py, flag in audio-bridge.ts:37) exists; checklist line 3 says bake not yet started, so PD.2 default-on is unproven."
+  },
+  {
+   "area": "A01",
+   "name": "B3 layout: lean track headers + right-dock LAYER panel + BLOCK tool icons",
+   "source": "docs/plans/2026-07-02-b3-layout-redesign-prd.md:34",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/LayerPanel.tsx:55",
+   "notes": "PRD status 'not-yet-built' is stale: UnifiedTrackHeader.tsx:131, LayerPanel (App-mounted) and tool-icons.tsx exist. Ratified as D2/D3/D4."
+  },
+  {
+   "area": "A01",
+   "name": "F_CREATRIX_LAYOUT feature flag (ship dark, flip after CU-UAT)",
+   "source": "docs/plans/2026-07-02-b3-layout-redesign-prd.md:66",
+   "status": "superseded",
+   "codeEvidence": "frontend/src/shared/feature-flags.ts:76",
+   "notes": "Flag flipped ON by default 2026-07-03; flag-OFF branches retired (App.tsx:62). PRD 'ships dark' no longer describes behavior."
+  },
+  {
+   "area": "A02",
+   "name": "Cursor tools wired: razor, ripple-delete, marker, loop in/out, range select",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:68",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/layout/ToolRail.tsx:29",
+   "notes": "tuneup-handoff:20 lists them shipped (#339). Rail has 6 groups per D4a (ToolRail.tsx:29), not the 8 of D4."
+  },
+  {
+   "area": "A04",
+   "name": "Slip and slide clip edits",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:69",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:1727",
+   "notes": "slipClip at 1727; slideClip declared at 248. Tool wiring to 's'/'d' not line-verified."
+  },
+  {
+   "area": "A04",
+   "name": "Clip and track lock (T3)",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:70",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:135",
+   "notes": "Lock cascade helper at timeline.ts:125-143; toggle action declared at 292."
+  },
+  {
+   "area": "A04",
+   "name": "Marker rename",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:71",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:2392",
+   "notes": "MarkerFlag.tsx references renameMarker."
+  },
+  {
+   "area": "A04",
+   "name": "Cursor-tool cull and split-shortcut consolidation (T5)",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:72",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "tuneup-handoff:48 lists T5 as remaining; no evidence it landed."
+  },
+  {
+   "area": "A07",
+   "name": "Clip-transform automation lanes (clipTransform.<clipId>.<field>), per-frame eval, record from bbox",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:109",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/transformLanes.ts:43",
+   "notes": "CLIP_TRANSFORM_NAMESPACE at transformLanes.ts:43; export parity A2b (#354) per handoff:32."
+  },
+  {
+   "area": "A07",
+   "name": "Continuous-lane overdub / Add-lane write modes (A4)",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:112",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:243",
+   "notes": "Replace/overdub/add_lane write modes; matches D13.1 in RATIFIED-FOUNDATIONS."
+  },
+  {
+   "area": "A19",
+   "name": "Hardware bank mapping: bank-relative slots, focus-follows, MIDImix factory profile",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:156",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/controllerProfiles.ts:43",
+   "notes": "applyBankModulations.ts:151, BankAssignment in stores/midi.ts:11. Plan's CCMapping{cc,bankSlot} shape not found by name (grep bankSlot empty); implemented as CCBankBinding."
+  },
+  {
+   "area": "A19",
+   "name": "Launchpad and Korg nanoPAD 2 built-in controller profiles",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:192",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/utils/controllerProfiles.ts:43",
+   "notes": "Only MIDIMIX_FACTORY_PROFILE found; nanoPAD/Launchpad appear only in velocity comments (midi.ts:420). D4 LOCKED all three profiles."
+  },
+  {
+   "area": "A19",
+   "name": "MIDI velocity plumbing (H6) and bank paging (H7) + MIDI Map overlay (H-UI)",
+   "source": "docs/plans/2026-07-02-tuneup-handoff.md:40",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/midi.ts:133",
+   "notes": "bankPageLeft/Right at midi.ts:133; velocity stamped at midi.ts:420; MIDIMapOverlay.tsx exists. handoff 'remaining lanes' list is stale."
+  },
+  {
+   "area": "A09",
+   "name": "MK.11 full scope: matte params as lanes, mask_coverage modulation source",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:100",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "grep mask_coverage returns nothing in frontend or backend."
+  },
+  {
+   "area": "A09",
+   "name": "MK.12 AI subject matte (local RVM) + Split by matte",
+   "source": "docs/plans/2026-07-02-tuneup-handoff.md:25",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Handoff says shipped (#350). aiMatte store listed in AREAS.md; not verified in code by this reader."
+  },
+  {
+   "area": "A09",
+   "name": "MK.12 RVM subject/background dual-chain (figure-isolator port)",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:101",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Gated on D5 demo-first verdict (plan:195); no verdict recorded in this slice."
+  },
+  {
+   "area": "A07",
+   "name": "AA.1 curved segments: alt-drag continuous tension, alt-dblclick straighten",
+   "source": "docs/plans/2026-07-03-automation-buildready.md:22",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/automation/AutomationNode.tsx:91",
+   "notes": "Alt+drag tension at AutomationNode.tsx:91; alt-dblclick reset at :232. RDP re-fit of tension in automation-simplify.ts not verified."
+  },
+  {
+   "area": "A07",
+   "name": "AA.2 modulation lanes (kind: modulation, blendOp, + Mod)",
+   "source": "docs/plans/2026-07-03-automation-buildready.md:33",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:589",
+   "notes": "kind 'modulation' created at automation.ts:589 and persisted at :1532."
+  },
+  {
+   "area": "A07",
+   "name": "AA.3a insert-shape bake (sine/tri/saw/square/random) into lane",
+   "source": "docs/plans/2026-07-03-automation-ableton-adoption-prd.md:56",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/automation-shapes.ts:11",
+   "notes": "AUTOMATION_SHAPES at :21; generateShapePoints at :119."
+  },
+  {
+   "area": "A07",
+   "name": "AA.3-A live operator-sourced lanes (LFO) via synthetic operator + resolve_operator_lanes",
+   "source": "docs/plans/2026-07-03-aa3-live-generators-spec.md:93",
+   "status": "built",
+   "codeEvidence": "backend/src/modulation/routing.py:635",
+   "notes": "Frontend sends operator_lanes at App.tsx:1750 (preview) and :3273 (export). Spec has no status line."
+  },
+  {
+   "area": "A07",
+   "name": "AA.3-B audio-follower as lane source",
+   "source": "docs/plans/2026-07-03-aa3-live-generators-spec.md:312",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/automation/AutomationToolbar.tsx:57",
+   "notes": "LANE_GENERATOR_DEFAULTS includes audio_follower; export audio_sample_rate gap fix (spec:313) not verified."
+  },
+  {
+   "area": "A07",
+   "name": "AA.3-C spatial (y/x-domain) operator lanes",
+   "source": "docs/plans/2026-07-03-aa3-live-generators-spec.md:360",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Explicitly scoped OUT pending a field-dst spike; guarded off at send time."
+  },
+  {
+   "area": "A07",
+   "name": "AA.4 marquee select + transform box (scale/skew); AA.4b flatten/ramp",
+   "source": "docs/plans/2026-07-03-automation-editing-gestures.md:16",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:416",
+   "notes": "flattenSelectedPoints at :416, rampSelectedPoints at :423; AutomationTransformBox mounted in AutomationLane.tsx:32; D8 moved menu items to lane context menu (AutomationLane.tsx:124)."
+  },
+  {
+   "area": "A07",
+   "name": "AA.4b rest: line-draw tool, arrow-key nudge, scale-all-values",
+   "source": "docs/plans/2026-07-03-automation-editing-gestures.md:36",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "No ArrowLeft/ArrowUp handler in AutomationLane.tsx and no shiftKey line-draw in AutomationDraw.tsx found; not proven absent elsewhere."
+  },
+  {
+   "area": "A07",
+   "name": "AA.5 clip-move rebase of clip-transform lanes (live-bug fix)",
+   "source": "docs/plans/2026-07-03-automation-buildready.md:61",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:36",
+   "notes": "shiftClipTransformLaneTimes with 'moveClip bugfix' comment at timeline.ts:28-36."
+  },
+  {
+   "area": "A07",
+   "name": "AA.5 envelope pin toggle (clip-relative vs timeline-absolute) + lane lock glyph",
+   "source": "docs/plans/2026-07-03-automation-ableton-adoption-prd.md:73",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No pin field found in types or lane header. Default per lane type is an open product decision (buildready:61)."
+  },
+  {
+   "area": "A07",
+   "name": "Per-control 'is-automated' indicator (AA.6 optional)",
+   "source": "docs/plans/2026-07-03-automation-buildready.md:72",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/effects/ParamPanel.tsx:107",
+   "notes": "ParamPanel isAutomated at :107, but ParamPanel is an orphan component; DeviceCard coverage not verified."
+  },
+  {
+   "area": "A07",
+   "name": "Grid-snap on automation draw",
+   "source": "docs/plans/2026-07-03-automation-buildready.md:72",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "No evidence either way in AutomationDraw.tsx for quantize."
+  },
+  {
+   "area": "A14",
+   "name": "Master-Out bus: permanent Master track with effects + automation on summed video",
+   "source": "docs/plans/2026-07-03-master-out-bus-prd.md:39",
+   "status": "built",
+   "codeEvidence": "frontend/src/shared/types.ts:103",
+   "notes": "Track.type includes 'master'; compositor.py:295 master_chain; MasterTrackHeader/Lane mounted in Timeline.tsx:418/499. Instrument/composite reject guard (M.2) and 2+ master drop not verified."
+  },
+  {
+   "area": "A06",
+   "name": "Layer transitions content sprint: first 3 of 53 transitions",
+   "source": "docs/plans/transitions-pattern.md:12",
+   "status": "built",
+   "codeEvidence": "backend/src/effects/registry.py:452",
+   "notes": "transition_column_cascade, _reverse, row_waterfall registered. Remaining 50 (including audio-synced 47-53) not started; audio-synced batch needs a scoping decision (line 160)."
+  },
+  {
+   "area": "A16",
+   "name": "SG-7 codec timeout wrapper av_open_timeout at all av.open callsites",
+   "source": "docs/plans/q7/PR-02-sg7-codec-timeout-plan.md:57",
+   "status": "built",
+   "codeEvidence": "backend/src/video/codec_timeout.py:48",
+   "notes": "ingest.py:23, reader.py:11, writer.py:23, audio/decoder.py:55, streaming_decoder.py:57 all converted. engine/codecs.py:128,143 still call av.open on BytesIO (not in the 5-callsite scope)."
+  },
+  {
+   "area": "A21",
+   "name": "P1-B voice-layer preview guard exemption (_is_v2_compositing_shape)",
+   "source": "docs/plans/2026-06-17-p1b-uat-fix-plan.md:52",
+   "status": "built",
+   "codeEvidence": "backend/src/zmq_server.py:1258",
+   "notes": "Plan status 'completed' (shipped via #323). Guard docstring at zmq_server.py:1258-1267 describes voice-marker exemption."
+  },
+  {
+   "area": "A10",
+   "name": "Sampler loop controls UI (B3.1 loop in/out, fwd/rev/pingpong)",
+   "source": "docs/plans/2026-07-02-master-tuneup-plan.md:77",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/components/instruments/computeSamplerVoice.ts:11",
+   "notes": "Engine honors loop.enabled; SamplerDevice.tsx has no loop controls. EXECUTION-PLAN.md:586 marks B3.1 merged. Memory clip-editor:44 says loop UI never built."
+  },
+  {
+   "area": "A10",
+   "name": "Sampler clip editor: non-destructive region, FrameStrip, crop_clip",
+   "source": "memory:project_creatrix-clip-editor-monitors.md:14",
+   "status": "planned",
+   "codeEvidence": "openspec/changes/sampler-clip-editor/proposal.md:1",
+   "notes": "All 8 verdicts locked 2026-07-18; OD-1 region-start anchor confirmed 2026-07-29 (memory:37). No ClipEditor/FrameStrip/crop_clip in source. Mock only: docs/mockups/clip-editor-frame-strip.html."
+  },
+  {
+   "area": "A10",
+   "name": "Drag a timeline clip into the sampler",
+   "source": "memory:project_creatrix-clip-editor-monitors.md:45",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/components/instruments/SamplerDevice.tsx:9",
+   "notes": "SamplerDevice.tsx:9-11 documents that drag-to-load is not supported; clips are draggable={false} (Clip.tsx:705)."
+  },
+  {
+   "area": "A12",
+   "name": "Device monitors v1 (floating pad/instrument monitors, LRU-paused budget of 4)",
+   "source": "memory:project_creatrix-clip-editor-monitors.md:14",
+   "status": "planned",
+   "codeEvidence": "openspec/changes/device-monitors-v1/proposal.md:1",
+   "notes": "Locked verdicts: monitor defaults follow sub-part addressing; tap opens floating monitor; budget 4 LRU-paused MVP. Not built."
+  },
+  {
+   "area": "A12",
+   "name": "Chain tap preview ('preview to here', per-tap state isolation)",
+   "source": "memory:project_creatrix-clip-editor-monitors.md:31",
+   "status": "planned",
+   "codeEvidence": "openspec/changes/chain-tap-preview/proposal.md:1",
+   "notes": "Needs new backend handler generalizing freeze-prefix; tap schema must be specced jointly with layertap."
+  },
+  {
+   "area": "A04",
+   "name": "Visual solo bus via isVisualTrackHidden (PR #445)",
+   "source": "memory:project_creatrix-clip-editor-monitors.md:46",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:878",
+   "notes": "Function present; memory cited line 865 at an older SHA."
+  },
+  {
+   "area": "A08",
+   "name": "LayerTap video-sidechain routing (track, stage pre|post, read, shape) as mask node / FieldKind / matrix source",
+   "source": "memory:project_creatrix-routing-2026-07.md:18",
+   "status": "planned",
+   "codeEvidence": "openspec/changes/layertap-matte-v1/proposal.md:1",
+   "notes": "No LayerTap code in source (grep empty). PRD creatrix-layertap-routing-prd.md is missing from disk (STATE.md); openspec quotes are the surviving record."
+  },
+  {
+   "area": "A08",
+   "name": "Matte track as first-class track type + promote-to-matte-track freezes by default",
+   "source": "memory:project_creatrix-routing-2026-07.md:43",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Track.type union (types.ts:103) has no 'matte'. Banked decision ⑮; keybinding Ctrl+Cmd+M final (⑳→㉜ line 49)."
+  },
+  {
+   "area": "A08",
+   "name": "routing_graph generator (DAG cloud as alpha-usable generator)",
+   "source": "memory:project_creatrix-routing-2026-07.md:48",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/components/operators/OperatorTopologyGraph.tsx:380",
+   "notes": "Memory line 68 lists it design-thin; OperatorTopologyGraph is the head start; RoutingCanvas ships (㊸ line 65)."
+  },
+  {
+   "area": "A08",
+   "name": "midi_note operator (gate/velocity/pitch)",
+   "source": "memory:project_creatrix-routing-2026-07.md:50",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Decision ㉝; grep midi_note returns nothing in source. Listed as thin spot at line 80."
+  },
+  {
+   "area": "A06",
+   "name": "fx.backspin and fx.afterimage style=echo|ghost full spec",
+   "source": "memory:project_creatrix-routing-2026-07.md:46",
+   "status": "planned",
+   "codeEvidence": "backend/src/effects/fx/afterimage.py:1",
+   "notes": "afterimage.py pre-exists; backspin file absent. Openspec fx-afterimage / fx-backspin carry the new work. copy_machine.py and extrude_spin.py merged (line 61)."
+  },
+  {
+   "area": "A23",
+   "name": "util.transform (edge-kernel standalone Photoshop-style pixel transform) and transform modifiers",
+   "source": "memory:project_creatrix-routing-2026-07.md:62",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Decisions ㉛ and ㊳; no util.transform in source. openspec change util-transform exists."
+  },
+  {
+   "area": "A20",
+   "name": "System Monitor as true OS window (CPU/Memory/Caches), statusbar CPU meter",
+   "source": "memory:project_creatrix-routing-2026-07.md:49",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Decisions ㉖ ㉙; no SystemMonitor in source; _effect_timing already collected, gap is IPC exposure. openspec system-monitor-v1."
+  },
+  {
+   "area": "A12",
+   "name": "Multiwindow Stage A (performer window / monitor windows)",
+   "source": "memory:project_creatrix-routing-2026-07.md:50",
+   "status": "planned",
+   "codeEvidence": "frontend/src/main/pop-out-window.ts:1",
+   "notes": "Only pop-out window ships; no multiwindow code. openspec multiwindow-stage-a."
+  },
+  {
+   "area": "A03",
+   "name": "Browser as Ableton-style folder tree with USER LIBRARY and unified rail v12",
+   "source": "memory:project_creatrix-routing-2026-07.md:64",
+   "status": "planned",
+   "codeEvidence": "openspec/changes/browser-folders/proposal.md:1",
+   "notes": "Ratified as D10. No rail-drawer/accordion component in worktree; ToolRail.tsx implements only the D4a tool rail. Tabs decision ㉘ superseded by folders ㉞."
+  },
+  {
+   "area": "A22",
+   "name": "Moire generator / matte / field (BDD F1-F5)",
+   "source": "memory:project_creatrix-routing-2026-07.md:69",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Memory lists as specced-not-built; BDD file missing from disk. Not verified in code by this reader."
+  },
+  {
+   "area": "A01",
+   "name": "Creatrix design system v1.2 and Ableton x Photoshop B3 front-runner layout",
+   "source": "memory:project_creatrix-ux-challengers.md:27",
+   "status": "built",
+   "codeEvidence": "docs/roadmap/DESIGN-SPEC.md:177",
+   "notes": "B3 verdict ('the second' = B Darkroom, then arrangement-is-the-layers) ratified as D1-D3. DESIGN-SPEC records Plex reversal at :177."
+  },
+  {
+   "area": "A02",
+   "name": "Block icon sprite for the 14-tool rail",
+   "source": "memory:project_creatrix-ux-challengers.md:31",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/assets/tool-icons.tsx:1",
+   "notes": "Implemented as tool-icons.tsx/icon-kit.tsx React icons rather than an icons.svg sprite (b3 PRD L0:69)."
+  },
+  {
+   "area": "A08",
+   "name": "Synth-paradigm: 6-axis (T,Y,X,C,F,L) wavetable-axes modulation, universal mod buses",
+   "source": "memory:entropic-synth-paradigm.md:21",
+   "status": "planned",
+   "codeEvidence": "frontend/src/shared/axis-binding.ts:1",
+   "notes": "Round 1 closed 2026-06-03 (line 25). Partial infrastructure ships (axisBinding, axis-lanes, Granulator). Vision doc is in docs/roadmap/plans per STATE.md."
+  },
+  {
+   "area": "A10",
+   "name": "Granulator-for-video as headline instrument",
+   "source": "memory:entropic-synth-paradigm.md:15",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:4219",
+   "notes": "GranulatorDevice mounted for performance tracks hosting a granulator (App.tsx:4219)."
+  },
+  {
+   "area": "A08",
+   "name": "B4-lite Lane/ModEdge schema; C1 Y-is-Time; demo trilogy; .dna format; Q7 multi-headed L backbone",
+   "source": "memory:entropic-synth-paradigm.md:29",
+   "status": "planned",
+   "codeEvidence": "backend/src/modulation/schema.py:1",
+   "notes": "Specs 1-6 written 2026-06-03 in ~/.claude/plans (not in repo); no .dna implementation verified. Q7 benchmark verdict TIER_5_GO per month-audit:150."
+  },
+  {
+   "area": "A11",
+   "name": "Multicam: stitch sequential cam segments into one clip (programmatic-first)",
+   "source": "memory:project_creatrix-multicam-performance.md:15",
+   "status": "planned",
+   "codeEvidence": "cam-stitch/stitch.py:1",
+   "notes": "Stitch CLI exists outside the repo at ~/Development/cam-stitch (stitch.py, test_stitch.py, README) per memory:65. In-app side not started; no repo artifact."
+  },
+  {
+   "area": "A11",
+   "name": "Multicam: timecode-sync 3 streams (folder/file naming, OSD digit OCR, manual nudge)",
+   "source": "memory:project_creatrix-multicam-performance.md:34",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Sync ladder: naming -> OSD OCR (template match) -> manual nudge; audio NOT a sync source. Deferred pending sample files (memory:72)."
+  },
+  {
+   "area": "A11",
+   "name": "Multicam: switcher group, exclusive-front precedence, pads bring one cam fullscreen",
+   "source": "memory:project_creatrix-multicam-performance.md:15",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:878",
+   "notes": "Teach isVisualTrackHidden exclusive-front groups; 'group' as 7th track type + flat groupId (memory:47). Track has no groupId today."
+  },
+  {
+   "area": "A11",
+   "name": "Multicam: switch automation via cc-record, launch-quantize, crossfade knob between 2 sources",
+   "source": "memory:project_creatrix-multicam-performance.md:31",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Front = automatable int param; crossfade = complementary terminal-composite opacities; separate performance setting (memory:54)."
+  },
+  {
+   "area": "A11",
+   "name": "Multicam: fullscreen performer via extended pop-out window",
+   "source": "memory:project_creatrix-multicam-performance.md:32",
+   "status": "planned",
+   "codeEvidence": "frontend/src/main/pop-out-window.ts:1",
+   "notes": "v1 = extend base64 IPC relay pop-out and measure relay perf; depends on multiwindow Stage A."
+  },
+  {
+   "area": "A11",
+   "name": "Multicam: VFR handling, drift visualization, short-GOP proxy at stitch, glitch stitch spin-off",
+   "source": "memory:project_creatrix-multicam-performance.md:24",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "VFR = controllable param + drift visualization, never auto-fix; --proxy and --glitch deferred in cam-stitch (memory:68)."
+  },
+  {
+   "area": "A11",
+   "name": "Multicam prerequisite refactors RF-1 getActiveVideoClips, RF-2 layer-assembly out of App.tsx, RF-3 TRACK_TYPE_META",
+   "source": "memory:project_creatrix-multicam-performance.md:49",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "RF-1 low risk do first with characterization tests; RF-2 medium; RF-3 recommended DEFER. Own openspec proposal queued behind ui-foundation (D9)."
+  },
+  {
+   "area": "A01",
+   "name": "Frontend framework law: ratchets, component spec, SDLC, learning path",
+   "source": "memory:project_creatrix-frontend-framework.md:60",
+   "status": "built",
+   "codeEvidence": "frontend/scripts/ui-ratchets.sh:1",
+   "notes": "F0-F4 shipped per memory line 60 (31 PRs). docs/frontend/{COMPONENT-SPEC,FRONTEND-SDLC,LEARNING-PATH,RATIFIED-FOUNDATIONS}.md staged in this worktree."
+  },
+  {
+   "area": "A13",
+   "name": "Transport automation cluster: Read/Touch/Latch dropdown + write-mode glyph (D13/D13.1)",
+   "source": "memory:project_creatrix-frontend-framework.md:29",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/automation.ts:243",
+   "notes": "Ratified rows D13/D13.1 marked BUILT; write-mode cycle action at automation.ts:243."
+  },
+  {
+   "area": "A04",
+   "name": "w15b grid/track paradigm (unified headers, grid overlay, drag-selection)",
+   "source": "memory:project_creatrix-frontend-framework.md:21",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/UnifiedTrackHeader.tsx:131",
+   "notes": "Spec merged (#487), lanes #488/#489 merged per memory:41; D12 selection grammar BUILT."
+  },
+  {
+   "area": "A01",
+   "name": "Ship Gate Audit of phases 0A-10, 11.5 (13 CONDITIONAL, 2 PASS)",
+   "source": "docs/plans/2026-03-15-ship-gate-audit-plan.md:345",
+   "status": "superseded",
+   "codeEvidence": "frontend/src/shared/limits.ts:6",
+   "notes": "Point-in-time audit. Several top-10 items since addressed: resource limits (limits.ts:6,13,26), IPC allowlist (zmq-relay.ts:39), atomic save (file-handlers.ts:77). Others not re-verified."
+  },
+  {
+   "area": "A21",
+   "name": "Phase 0B pipeline validation (shared memory, PyAV, effect container, JSON schemas)",
+   "source": "docs/plans/2026-02-22-phase-0b-pipeline-validation-plan.md:12",
+   "status": "built",
+   "codeEvidence": "frontend/src/shared/schemas/ipc-command.schema.json:1",
+   "notes": "Frontmatter progress 137/137 (line 9). Schemas present. Plan scoped out UI beyond canvas; superseded by later phases."
+  },
+  {
+   "area": "A06",
+   "name": "Phase 3 color suite (levels, curves, HSL, color balance, histogram, auto-levels) and UAT plan",
+   "source": "docs/plans/2026-02-28-phase3-uat-plan.md:10",
+   "status": "built",
+   "codeEvidence": "backend/src/effects/util/levels.py:1",
+   "notes": "util/{levels,curves,hsl_adjust,color_balance,histogram,auto_levels}.py present. AC8 before/after toggle is manual-only (UAT plan line 159)."
+  }
+ ],
+ "halfBuilt": [
+  {
+   "area": "A21",
+   "item": "FreezeOverlay badge on frozen effects",
+   "docSays": "docs/plans/2026-04-10-phase-next-eng-pickup.md:242",
+   "codeShows": "frontend/src/renderer/components/effects/EffectRack.tsx:169",
+   "gap": "Only mount is EffectRack, an orphan component (inventory orphanComponents); live DeviceChain has no FreezeOverlay, so the frozen visual indicator is not user-visible."
+  },
+  {
+   "area": "A03",
+   "item": "MacroKnob for chain presets with macros",
+   "docSays": "docs/plans/2026-03-15-phase10-freeze-library-plan.md:214",
+   "codeShows": "frontend/src/renderer/components/library/MacroKnob.tsx:10",
+   "gap": "Component and MacroMapping persistence exist but nothing mounts MacroKnob (mountedIn empty); plan said visible in EffectRack, which is itself orphaned."
+  },
+  {
+   "area": "A06",
+   "item": "EffectRack, EffectSearch, ParamPanel, ParamSlider components",
+   "docSays": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:89",
+   "codeShows": "frontend/src/renderer/components/effects/EffectRack.tsx:28",
+   "gap": "Plan marks them Removed; files remain as unmounted orphans (dead code). ParamPanel.tsx:107 still owns the isAutomated indicator that DeviceCard may lack."
+  },
+  {
+   "area": "A10",
+   "item": "Sampler loop UI",
+   "docSays": "docs/plans/2026-07-02-master-tuneup-plan.md:77",
+   "codeShows": "frontend/src/renderer/components/instruments/computeSamplerVoice.ts:11",
+   "gap": "Loop engine implemented and reachable only via MIDI-learn; SamplerDevice.tsx has no loop controls despite EXECUTION-PLAN.md:586 marking B3.1 done."
+  },
+  {
+   "area": "A19",
+   "item": "Launchpad and nanoPAD 2 built-in controller profiles",
+   "docSays": "docs/plans/2026-07-02-master-tuneup-plan.md:192",
+   "codeShows": "frontend/src/renderer/utils/controllerProfiles.ts:43",
+   "gap": "Only the MIDImix factory profile exists; two of the three D4-locked profiles are absent."
+  },
+  {
+   "area": "A14",
+   "item": "transport/Waveform.tsx component",
+   "docSays": "docs/plans/sprint-2B-2-waveform.md:3",
+   "codeShows": "frontend/src/renderer/components/transport/Waveform.tsx:15",
+   "gap": "Waveform component listed in orphanComponents (mountedIn empty); backend peaks exist."
+  },
+  {
+   "area": "A14",
+   "item": "Audio-tracks flag default-on (PD.2) pending bake",
+   "docSays": "docs/plans/2026-06-audio-tracks-bake-checklist.md:3",
+   "codeShows": "frontend/src/renderer/audio-bridge.ts:37",
+   "gap": "Flag-gated path ships; bake not started so default-on gate is unmet."
+  },
+  {
+   "area": "A08",
+   "item": "Cross-modal plan ground-truth claim that operators are unmounted",
+   "docSays": "docs/plans/2026-05-04-cross-modal-features-plan.md:35",
+   "codeShows": "frontend/src/renderer/App.tsx:4124",
+   "gap": "OperatorRack is now mounted; cross-modal plan v3 premise (v1.1 operator remount) is already satisfied, plan otherwise unbuilt."
+  }
+ ],
+ "contradictions": [
+  {
+   "topic": "FreezeOverlay mounted vs orphaned",
+   "a": {
+    "cite": "docs/plans/2026-04-10-phase-next-eng-pickup.md:242",
+    "claim": "**Freeze overlay** — IMPLEMENTED + RENDERED + TESTED"
+   },
+   "b": {
+    "cite": "frontend/src/renderer/components/effects/EffectRack.tsx:169",
+    "claim": "<FreezeOverlay isFrozen={checkFrozen(index)} /> (inside EffectRack, which no file mounts)"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "B3 layout sign-off status",
+   "a": {
+    "cite": "docs/plans/2026-07-02-b3-layout-redesign-prd.md:7",
+    "claim": "decisions: B3 v2 layout SIGNED OFF 2026-07-02; icon direction = BLOCK (dir 2) LOCKED 2026-07-02"
+   },
+   "b": {
+    "cite": "memory:project_creatrix-ux-challengers.md:35",
+    "claim": "**AWAITING USER:** B3 v2 layout sign-off (icon = BLOCK, done)."
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Rail interaction model: accordion drawer vs vertical flyout",
+   "a": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:19",
+    "claim": "per-icon exclusive-accordion drawer (header glyph·name·count·«, « = only close)"
+   },
+   "b": {
+    "cite": "memory:project_creatrix-frontend-framework.md:23",
+    "claim": "R1 ONE RAIL (strip survives Cmd+B) · R2 VERTICAL flyout attached to rail (Photoshop)"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Master tune-up plan status vs its own resolved decisions",
+   "a": {
+    "cite": "docs/plans/2026-07-02-master-tuneup-plan.md:3",
+    "claim": "status: draft (pending user decisions D1–D5)"
+   },
+   "b": {
+    "cite": "docs/plans/2026-07-02-master-tuneup-plan.md:185",
+    "claim": "## Decisions — RESOLVED 2026-07-02 (\"demo d5 first but yes your recs for the rest are good\")"
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "UX redesign plan completion status vs unchecked build tasks",
+   "a": {
+    "cite": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:4",
+    "claim": "status: completed"
+   },
+   "b": {
+    "cite": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:183",
+    "claim": "- [ ] Create DeviceChain component — horizontal scrollable strip"
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "Phase 0B duplicate conflicting status keys",
+   "a": {
+    "cite": "docs/plans/2026-02-22-phase-0b-pipeline-validation-plan.md:3",
+    "claim": "status: active"
+   },
+   "b": {
+    "cite": "docs/plans/2026-02-22-phase-0b-pipeline-validation-plan.md:8",
+    "claim": "status: completed"
+   },
+   "severity": "cosmetic"
+  }
+ ],
+ "openDecisions": [
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:3",
+   "question": "Multicam brief had 6 open questions pending the user; their text is not recoverable (brief file creatrix-multicam-performance-brief.md is absent from ~/.claude/plans). Which of them REV2/REV3 verdicts closed is unrecorded."
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:73",
+   "question": "TRACK_TYPE_META registry: introduce before the 'group' 7th track type, or defer with debt note ('registry before 8th track type')? Verdict required at openspec proposal time; RF-3 currently recommended DEFER."
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:72",
+   "question": "Three sample cam files are needed to validate stitch on real footage and to decide OSD OCR, GOP length and VFR behavior; supply them or accept unvalidated design."
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:26",
+   "question": "Record switcher cuts as automation for re-render (flagged 'decide early'): REV2 says switches ride cc-record.ts, but export/re-render determinism of recorded switches is not explicitly closed."
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:25",
+   "question": "GOP length vs switch latency: adopt short-GOP proxy at stitch (--proxy, deferred) as the required mitigation, or accept long-GOP latency for studio performance use?"
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:25",
+   "question": "Motion-triggered recording gaps: wall-clock filler as default (original brief) versus REV2 demotion of gap machinery to start-alignment for continuous SD recording; which governs v1?"
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:54",
+   "question": "Crossfade between cams: knob/slider between 2 sources tracing an envelope, as a separate performance setting from hard-cut switching; costs 2x decode with no warm standby. Confirm scope and perf acceptance for v1."
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:32",
+   "question": "Fullscreen performer: pop-out window v1 relay perf (base64 IPC) is unmeasured; confirm acceptable frame rate or require multiwindow Stage A native approach."
+  },
+  {
+   "area": "A11",
+   "id": null,
+   "cite": "memory:project_creatrix-multicam-performance.md:58",
+   "question": "Refactor sequencing: RF-1 getActiveVideoClips and RF-2 layer-assembly extraction from App.tsx (4390 lines) must not run concurrently with parallel-session App.tsx work; confirm order relative to ui-foundation."
+  },
+  {
+   "area": "A01",
+   "id": null,
+   "cite": "docs/plans/2026-07-02-b3-layout-redesign-prd.md:116",
+   "question": "Should opacity be draggable directly in the header chip (deferred until after LAYER panel)? Interacts with D3 'deep controls never in the header'."
+  },
+  {
+   "area": "A05",
+   "id": null,
+   "cite": "docs/plans/2026-07-02-b3-layout-redesign-prd.md:117",
+   "question": "Does the LAYER panel replace or coexist with the effect-PROPERTIES panel (proposal: coexist)?"
+  },
+  {
+   "area": "A07",
+   "id": null,
+   "cite": "docs/plans/2026-07-03-automation-buildready.md:61",
+   "question": "AA.5 envelope pin default per lane type: clip-transform lanes clip-relative, track-level effect lanes timeline-absolute? Product decision needed from user."
+  },
+  {
+   "area": "A06",
+   "id": null,
+   "cite": "docs/plans/transitions-pattern.md:160",
+   "question": "Audio-synced transitions (#47-53) need an amplitude/onset value not in apply(); can the modulation/routing engine feed it through params? Scoping question for the batch owner."
+  },
+  {
+   "area": "A21",
+   "id": null,
+   "cite": "docs/plans/2026-06-17-p1b-uat-fix-plan.md:163",
+   "question": "Keep the backend voice-layer exemption as the permanent contract, or pursue future v3 terminal-composite unification of clips and instruments (needs backend compositor+export read-path slice first)?"
+  },
+  {
+   "area": "A10",
+   "id": null,
+   "cite": "docs/plans/2026-06-17-p1b-uat-fix-plan.md:166",
+   "question": "Non-rack sampler export hardcodes chain:[] (App.tsx:2729,2763) while per-pad export serializes pad.chain. Handoff:18 says adjudicated NOT-A-BUG; rationale not in this slice."
+  },
+  {
+   "area": "A09",
+   "id": null,
+   "cite": "docs/plans/2026-07-02-master-tuneup-plan.md:195",
+   "question": "MK.12 RVM subject/background dual-chain scheduling is gated on the D5 standalone demo verdict (demo at ~/Desktop/d5-rvm-demo/); verdict not recorded."
+  },
+  {
+   "area": "A08",
+   "id": null,
+   "cite": "docs/plans/2026-07-02-month-audit-fix-plan.md:150",
+   "question": "Q7 greenlight: verdict TIER_5_GO but DEGRADES_UNDER_LOAD; re-run under concurrent render load first (recommended b then a), greenlight 24 parked q7 drafts, or keep parked?"
+  },
+  {
+   "area": "A19",
+   "id": null,
+   "cite": "docs/plans/2026-07-02-tuneup-handoff.md:60",
+   "question": "MIDImix factory CC map is from the community table and not hardware-verified; user must confirm with the device plugged in."
+  },
+  {
+   "area": "A07",
+   "id": null,
+   "cite": "docs/plans/2026-07-03-aa3-live-generators-spec.md:360",
+   "question": "AA.3-C spatial operator lanes require a field-dst spike (EXPERIMENTAL_FIELD_DST) and AA.2 cross-domain compose; audio-follower lookahead needs per-operator frame offset. Both deferred."
+  },
+  {
+   "area": "A14",
+   "id": null,
+   "cite": "docs/plans/q7/PR-02-sg7-codec-timeout-plan.md:11",
+   "question": "UNK-05: expose telemetry on codec timeout events (count per session)? Deferred to PR #3+."
+  },
+  {
+   "area": "A04",
+   "id": null,
+   "cite": "docs/plans/2026-07-02-master-tuneup-plan.md:72",
+   "question": "T5: which cursor tools to cull and how to consolidate the split shortcuts (cmd+shift+k vs cmd+k / e)? Not shown resolved."
+  },
+  {
+   "area": "A10",
+   "id": null,
+   "cite": "memory:project_creatrix-clip-editor-monitors.md:40",
+   "question": "Clip editor FrameStrip mock (docs/mockups/clip-editor-frame-strip.html) is not yet vision-gated; build waits behind wave0 PK.00 then ui-foundation."
+  }
+ ],
+ "supersededDocs": [
+  {
+   "doc": "docs/plans/2026-03-15-ship-gate-audit-plan.md",
+   "supersededBy": "point-in-time audit (2026-03-15); findings addressed by later work (limits.ts, ALLOWED_COMMANDS, month-audit plan)",
+   "cite": "docs/plans/2026-03-15-ship-gate-audit-plan.md:345"
+  },
+  {
+   "doc": "docs/plans/2026-03-15-phase10-freeze-library-plan.md",
+   "supersededBy": "openspec/changes/04-freeze-pertrack and per-track freeze rewiring (App.tsx:2404); sidebar Presets tab superseded by D10",
+   "cite": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:117"
+  },
+  {
+   "doc": "docs/plans/2026-03-15-phase11-export-polish-plan.md",
+   "supersededBy": "shipped; Phase 11 deliverables present in code (export.py:47, Preferences.tsx:25); openspec/changes/05-export-pertrack for per-track export",
+   "cite": "docs/plans/2026-03-15-phase11-export-polish-plan.md:24"
+  },
+  {
+   "doc": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D2/D3 (arrangement IS the layers, right-dock LAYER panel) and B3 layout",
+   "cite": "docs/plans/2026-03-16-feat-ux-redesign-arrangement-view-plan.md:4"
+  },
+  {
+   "doc": "docs/plans/2026-04-10-phase-next-eng-pickup.md",
+   "supersededBy": "later UAT/month-audit plans; its 'UI UNWIRED' items for operator editors and device groups are now wired (App.tsx:4124, DeviceChain.tsx:343)",
+   "cite": "docs/plans/2026-04-10-phase-next-eng-pickup.md:207"
+  },
+  {
+   "doc": "docs/plans/2026-05-14-upcoming-ux-items.md",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D2/D3/D10 and w15b-grid-track-paradigm; section 1 hotkey epic completed in hotkey-discoverability-plan",
+   "cite": "docs/plans/2026-05-14-upcoming-ux-items.md:39"
+  },
+  {
+   "doc": "docs/plans/2026-05-14-hotkey-discoverability-plan.md",
+   "supersededBy": "completed (status: completed); no further action",
+   "cite": "docs/plans/2026-05-14-hotkey-discoverability-plan.md:3"
+  },
+  {
+   "doc": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md",
+   "supersededBy": "merged as PR #69; follow-ups tracked in month-audit-fix-plan",
+   "cite": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:62"
+  },
+  {
+   "doc": "docs/plans/2026-06-17-p1b-uat-fix-plan.md",
+   "supersededBy": "executed: P1-P3 via month-audit F1 #323, P4 #338, P5 #337, P6 #336",
+   "cite": "docs/plans/2026-06-17-p1b-uat-fix-plan.md:3"
+  },
+  {
+   "doc": "docs/plans/2026-07-02-master-tuneup-plan.md",
+   "supersededBy": "docs/plans/2026-07-02-month-audit-fix-plan.md owns WS0 (plan:38-44); WS1/WS4/WS5 largely shipped per 2026-07-02-tuneup-handoff.md",
+   "cite": "docs/plans/2026-07-02-master-tuneup-plan.md:38"
+  },
+  {
+   "doc": "docs/plans/2026-07-02-month-audit-fix-plan.md",
+   "supersededBy": "executed (Waves 1-3 merged 2026-07-02)",
+   "cite": "docs/plans/2026-07-02-month-audit-fix-plan.md:3"
+  },
+  {
+   "doc": "docs/plans/2026-07-02-tuneup-handoff.md",
+   "supersededBy": "handoff snapshot; in-flight and remaining lanes (H4, T2-T4, H-UI, A4, H6/H7) have since landed in code",
+   "cite": "docs/plans/2026-07-02-tuneup-handoff.md:28"
+  },
+  {
+   "doc": "docs/plans/2026-07-02-b3-layout-redesign-prd.md",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D2/D3/D4 and shipped B3 (LayerPanel.tsx:55); 'ships dark' flag stage ended 2026-07-03",
+   "cite": "docs/plans/2026-07-02-b3-layout-redesign-prd.md:7"
+  },
+  {
+   "doc": "docs/plans/2026-07-03-automation-ableton-adoption-prd.md",
+   "supersededBy": "docs/plans/2026-07-03-automation-buildready.md (audit corrected AA.1/AA.2/AA.5 premises)",
+   "cite": "docs/plans/2026-07-03-automation-buildready.md:11"
+  },
+  {
+   "doc": "docs/plans/2026-05-04-cross-modal-features-plan.md",
+   "supersededBy": "partial: operator-unmounted premise superseded by mount-and-bug-sweep A1; F1-F4 remain planned",
+   "cite": "docs/plans/2026-05-15-mount-and-bug-sweep-plan.md:20"
+  },
+  {
+   "doc": "docs/plans/2026-02-22-phase-0b-pipeline-validation-plan.md",
+   "supersededBy": "completed 137/137; superseded by later phases",
+   "cite": "docs/plans/2026-02-22-phase-0b-pipeline-validation-plan.md:9"
+  },
+  {
+   "doc": "docs/plans/2026-02-28-phase3-uat-plan.md",
+   "supersededBy": "completed phase UAT scaffolding; later UAT-RESULTS docs",
+   "cite": "docs/plans/2026-02-28-phase3-uat-plan.md:1"
+  },
+  {
+   "doc": "docs/plans/sprint-2B-1-audio-decode.md",
+   "supersededBy": "completed sprint (status: completed); same for sprint-2B-2..5",
+   "cite": "docs/plans/sprint-2B-1-audio-decode.md:3"
+  },
+  {
+   "doc": "docs/plans/2026-05-06-fix-composite-state-gap.md",
+   "supersededBy": "shipped in code (compositor.py:294); frontmatter still in-progress",
+   "cite": "docs/plans/2026-05-06-fix-composite-state-gap.md:3"
+  },
+  {
+   "doc": "docs/plans/2026-05-06-refactor-registry-consolidation.md",
+   "supersededBy": "shipped (test_registry.py:43); frontmatter still in-progress",
+   "cite": "docs/plans/2026-05-06-refactor-registry-consolidation.md:3"
+  },
+  {
+   "doc": "memory:project_creatrix-routing-2026-07.md decision 21 (browser tabs, no new sidebar icon)",
+   "supersededBy": "decision 34 (Ableton folder tree) and D10 unified rail; same file marks 21 superseded",
+   "cite": "memory:project_creatrix-routing-2026-07.md:50"
+  },
+  {
+   "doc": "memory:project_creatrix-routing-2026-07.md decision 19 (Cmd+Shift+M new matte track)",
+   "supersededBy": "decision 27 then decision 32: Ctrl+Cmd+M final (Cmd+Shift+M is New MIDI Track)",
+   "cite": "memory:project_creatrix-routing-2026-07.md:50"
+  },
+  {
+   "doc": "memory:project_creatrix-routing-2026-07.md 'NEXT SESSION ENTRY POINT'",
+   "supersededBy": "memory note itself marks it superseded 2026-07-04 (planning marathon complete; READINESS-REPORT-2026-07-04)",
+   "cite": "memory:project_creatrix-routing-2026-07.md:75"
+  }
+ ]
+}

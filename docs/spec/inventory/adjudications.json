@@ -1,0 +1,31 @@
+{
+ "readers": {
+  "roadmap-packets-specs": {"checked": 7, "confirmed": 4, "refuted": 3, "policy": "LOW TRUST: 3/7 refuted. Every status claim from this reader is re-verified in its phase-4 area spec before use."},
+  "openspec-a": {"checked": 3, "confirmed": 3, "refuted": 0, "policy": "Normal: claims usable as leads; phase-4 re-cites code."},
+  "roadmap-core": {"checked": 3, "confirmed": 3, "refuted": 0, "policy": "Normal."},
+  "openspec-b-fieldmap": {"checked": 2, "confirmed": 2, "refuted": 0, "policy": "Normal."},
+  "plans-legacy": {"checked": 2, "confirmed": 1, "refuted": 0, "policy": "Normal; one contradiction reclassified as open decision (R1)."}
+ },
+ "items": {
+  "roadmap-packets-specs/halfBuilt/0": {"verdict": "CONFIRMED", "evidence": "MacroKnob orphan (inventory orphanComponents)"},
+  "roadmap-packets-specs/halfBuilt/1": {"verdict": "REFUTED", "evidence": "InspectorTrack mounted: components/timeline/Timeline.tsx:8"},
+  "roadmap-packets-specs/halfBuilt/2": {"verdict": "REFUTED", "evidence": "lasso implemented components/preview/MaskSelectOverlay.tsx:19-25,391-436; mounted App.tsx:16"},
+  "roadmap-packets-specs/halfBuilt/3": {"verdict": "BAD-CITE", "evidence": "backend/src/instruments/frame_bank.py does not exist; unverified"},
+  "roadmap-packets-specs/halfBuilt/4": {"verdict": "CONFIRMED (by design)", "evidence": "backend/src/zmq_server.py:228-232 lane_id always 'unknown'"},
+  "roadmap-packets-specs/halfBuilt/5": {"verdict": "REFUTED", "evidence": "setClipColor exists stores/timeline.ts:291"},
+  "roadmap-packets-specs/halfBuilt/6": {"verdict": "CONFIRMED", "evidence": "backend/src/modulation/runtime_context.py:5-10 'No runtime-conditional edge kinds are implemented yet'"},
+  "roadmap-packets-specs/halfBuilt/7": {"verdict": "CONFIRMED", "evidence": "inventory orphanComponents"},
+  "roadmap-packets-specs/contradictions/0": {"verdict": "CONFIRMED", "evidence": "docs/roadmap/packets/ux-audit.md:341 PUX.7 Plex bundling vs RATIFIED D5"},
+  "openspec-a/halfBuilt/1": {"verdict": "CONFIRMED", "evidence": "browser folder actions unreferenced outside stores/browser.ts (01-FEATURE-MAP M4)"},
+  "openspec-a/contradictions/2": {"verdict": "CONFIRMED", "evidence": "openspec/changes/browser-folders/plan.md:12 'NO wells (rejected)' vs :16 'container WELLS'"},
+  "openspec-a/contradictions/5": {"verdict": "CONFIRMED (reframed)", "evidence": "proposal.md:126-135 recommends Cmd+Shift+U precisely to AVOID mask_deselect_all (default-shortcuts.ts:102); proposal's :86 cite is stale"},
+  "roadmap-core/halfBuilt/0": {"verdict": "CONFIRMED (doc-only)", "evidence": "contract live at stores/automation.ts:1012-1018 via DeviceCard.tsx:155; ParamPanel cite stale"},
+  "roadmap-core/contradictions/6": {"verdict": "CONFIRMED", "evidence": "MASKING-INTERACTIONS.md:236-239 vs default-shortcuts.ts:100 (lasso=w), ToolRail.tsx:61 + default-shortcuts.ts:82 (wand via KEY group e)"},
+  "roadmap-core/contradictions/13": {"verdict": "CONFIRMED", "evidence": "App.tsx:4015 ParamPanel removed"},
+  "openspec-b-fieldmap/halfBuilt/2": {"verdict": "CONFIRMED (LFOEditor path) — LIVE BUG", "evidence": "shared/ipc-serialize.ts:45 effect_id=type; LFOEditor.tsx:33 writes instance id; backend/src/modulation/routing.py:310-311 silent continue"},
+  "openspec-b-fieldmap/halfBuilt/5": {"verdict": "CONFIRMED", "evidence": "no undo in App.tsx:2420-2452 freeze handlers nor stores/freeze.ts → undo-granularity open decision"},
+  "plans-legacy/halfBuilt/0": {"verdict": "CONFIRMED", "evidence": "<FreezeOverlay> only at components/effects/EffectRack.tsx:169 (orphan); DeviceChain.tsx:362 handles freeze via menu"},
+  "plans-legacy/contradictions/0": {"verdict": "CONFIRMED", "evidence": "same as plans-legacy/halfBuilt/0"},
+  "plans-legacy/contradictions/2": {"verdict": "RECLASSIFIED → open decision", "evidence": "docs/frontend/RECONCILIATIONS.md R1 marks flyout-vs-drawer an explicit OPEN RULING"}
+ }
+}

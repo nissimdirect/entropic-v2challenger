@@ -1,0 +1,844 @@
+{
+ "cluster": "roadmap-packets-specs",
+ "docsRead": [
+  "docs/roadmap/packets/ux-audit.md",
+  "docs/roadmap/packets/phase-5b.md",
+  "docs/roadmap/packets/effects-quality.md",
+  "docs/roadmap/packets/phase-4.md",
+  "docs/roadmap/packets/undo-history.md",
+  "docs/roadmap/packets/phase-tier3.md",
+  "docs/roadmap/packets/phase-8-9.md",
+  "docs/roadmap/packets/phase-6.md",
+  "docs/roadmap/packets/user-expectations.md",
+  "docs/roadmap/packets/phase-7.md",
+  "docs/roadmap/packets/parallel-track.md",
+  "docs/roadmap/packets/phase-5a.md",
+  "docs/roadmap/packets/masking.md",
+  "docs/roadmap/specs/entropic-spec-1-crosswalk.md",
+  "docs/roadmap/specs/entropic-spec-7-post-pass.md",
+  "docs/roadmap/specs/entropic-spec-3-safety-gates.md",
+  "docs/roadmap/specs/masking-motion-track-spike.md",
+  "docs/roadmap/specs/entropic-spec-6-dna-format.md",
+  "docs/roadmap/specs/entropic-spec-4-demo-trilogy.md",
+  "docs/roadmap/specs/entropic-spec-2-b4lite-schema.md",
+  "docs/roadmap/specs/entropic-spec-5-l-backbone.md"
+ ],
+ "features": [
+  {
+   "area": "A20",
+   "name": "PUX.1 design-token foundation + hex-ratchet",
+   "source": "docs/roadmap/packets/ux-audit.md:75",
+   "status": "built",
+   "codeEvidence": "frontend/scripts/hex-ratchet.sh:1",
+   "notes": "hex-ratchet script exists; but PUX.1 type floor 11px conflicts with ratified D6 (floor 12px)"
+  },
+  {
+   "area": "A20",
+   "name": "PUX.2 dialog a11y (Escape, focus trap, aria-modal)",
+   "source": "docs/roadmap/packets/ux-audit.md:117",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/hooks/useModalBehavior.ts:6",
+   "notes": "Focus-trap/Escape hook exists; aria-modal in UnsavedChangesDialog.tsx:58, Preferences.tsx:140"
+  },
+  {
+   "area": "A01",
+   "name": "PUX.3 focus-visible restoration sweep",
+   "source": "docs/roadmap/packets/ux-audit.md:160",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified; CSS sweep, no grep-able single artifact"
+  },
+  {
+   "area": "A20",
+   "name": "PUX.4 slider ARIA + menu keyboard model",
+   "source": "docs/roadmap/packets/ux-audit.md:182",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified"
+  },
+  {
+   "area": "A04",
+   "name": "PUX.5 hit targets and drag signifiers",
+   "source": "docs/roadmap/packets/ux-audit.md:203",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Measurement-based oracle; not verified"
+  },
+  {
+   "area": "A01",
+   "name": "PUX.6 LIVE visual pass protocol (computer-use)",
+   "source": "docs/roadmap/packets/ux-audit.md:237",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Process packet, not code"
+  },
+  {
+   "area": "A20",
+   "name": "PUX.7 IBM Plex font bundling stub",
+   "source": "docs/roadmap/packets/ux-audit.md:340",
+   "status": "abandoned",
+   "codeEvidence": null,
+   "notes": "Plex two-voice plan formally dead per RATIFIED D5 (line 14)"
+  },
+  {
+   "area": "A06",
+   "name": "PFX.0 batch visual-render harness (contact sheets)",
+   "source": "docs/roadmap/packets/effects-quality.md:58",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified"
+  },
+  {
+   "area": "A06",
+   "name": "PFX.1 full-library effect triage",
+   "source": "docs/roadmap/packets/effects-quality.md:99",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Process/audit packet"
+  },
+  {
+   "area": "A06",
+   "name": "PFX.2 Grid Moire v2 follow-ups",
+   "source": "docs/roadmap/packets/effects-quality.md:125",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Depends on #146 merge"
+  },
+  {
+   "area": "A22",
+   "name": "PFX.3 fx.moire image-coupled interference",
+   "source": "docs/roadmap/packets/effects-quality.md:152",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified"
+  },
+  {
+   "area": "A06",
+   "name": "PFX.4 datamosh authenticity audit",
+   "source": "docs/roadmap/packets/effects-quality.md:180",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Audit packet"
+  },
+  {
+   "area": "A08",
+   "name": "PFX.5 modulation-family liveliness pass",
+   "source": "docs/roadmap/packets/effects-quality.md:215",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified"
+  },
+  {
+   "area": "A09",
+   "name": "MK.1 matte data model, budget, cache, persistence",
+   "source": "docs/roadmap/packets/masking.md:57",
+   "status": "built",
+   "codeEvidence": "backend/src/masking/schema.py:1",
+   "notes": "masking/ module (schema, stack, matte_source) exists; MatteNode created at zmq_server.py:3426"
+  },
+  {
+   "area": "A09",
+   "name": "MK.2 per-pixel alpha in composite path",
+   "source": "docs/roadmap/packets/masking.md:126",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified in compositor"
+  },
+  {
+   "area": "A09",
+   "name": "MK.3 universal mask-routing wrapper",
+   "source": "docs/roadmap/packets/masking.md:194",
+   "status": "built",
+   "codeEvidence": "backend/src/masking/routing.py:1",
+   "notes": "File exists; wiring into container not verified"
+  },
+  {
+   "area": "A09",
+   "name": "MK.4 rect/ellipse marquee on preview",
+   "source": "docs/roadmap/packets/masking.md:266",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:374",
+   "notes": "previewToolMode marquee-rect/ellipse; delete-inside at App.tsx:940"
+  },
+  {
+   "area": "A09",
+   "name": "MK.5 lasso freehand+polygon",
+   "source": "docs/roadmap/packets/masking.md:334",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:374",
+   "notes": "Tool mode enum has lasso-*; no lasso component found outside store/App"
+  },
+  {
+   "area": "A09",
+   "name": "MK.6 magic wand + color range",
+   "source": "docs/roadmap/packets/masking.md:366",
+   "status": "built",
+   "codeEvidence": "backend/src/zmq_server.py:3422",
+   "notes": "_handle_mask_wand_sample + masking/wand.py"
+  },
+  {
+   "area": "A09",
+   "name": "MK.7 matte ops UI invert/feather/grow/boolean",
+   "source": "docs/roadmap/packets/masking.md:424",
+   "status": "unclear",
+   "codeEvidence": "frontend/src/renderer/components/masking/MaskStackPanel.tsx:1",
+   "notes": "MaskStackPanel mounted App.tsx:4233; ops UI scope unverified"
+  },
+  {
+   "area": "A09",
+   "name": "MK.8 chroma/luma key mattes + spill",
+   "source": "docs/roadmap/packets/masking.md:458",
+   "status": "built",
+   "codeEvidence": "backend/src/masking/key_kernels.py:1",
+   "notes": "zmq_server.py:3645 procedural kinds chroma_key/luma_key"
+  },
+  {
+   "area": "A09",
+   "name": "MK.9 cut/copy region to new track",
+   "source": "docs/roadmap/packets/masking.md:523",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified"
+  },
+  {
+   "area": "A09",
+   "name": "MK.10 alpha decode + ProRes 4444 export round-trip",
+   "source": "docs/roadmap/packets/masking.md:573",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified"
+  },
+  {
+   "area": "A09",
+   "name": "MK.CU masking CU regression suite",
+   "source": "docs/roadmap/packets/masking.md:631",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Test/UAT packet"
+  },
+  {
+   "area": "A09",
+   "name": "MK.11 mask params as lanes + matte-as-mod-source",
+   "source": "docs/roadmap/packets/masking.md:678",
+   "status": "half-built",
+   "codeEvidence": "backend/src/modulation/routing.py:369",
+   "notes": "MatteNode params modulated in routing.py; lane/keyframed transforms unverified"
+  },
+  {
+   "area": "A09",
+   "name": "MK.12 subject/background dual-chain via RVM",
+   "source": "docs/roadmap/packets/masking.md:724",
+   "status": "built",
+   "codeEvidence": "backend/src/masking/rvm_runner.py:1",
+   "notes": "rvm_runner.py + ai_matte.py + stores/aiMatte.ts exist"
+  },
+  {
+   "area": "A09",
+   "name": "MK.13 tool-mode stack + marching ants + chips",
+   "source": "docs/roadmap/packets/masking.md:792",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Gated on PR-A tool tab; D10 rail supersedes 'tool tab' wording; no marching-ants code found"
+  },
+  {
+   "area": "A09",
+   "name": "MK.14 motion-tracked masks spike",
+   "source": "docs/roadmap/packets/masking.md:838",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Spike; see specs/masking-motion-track-spike.md"
+  },
+  {
+   "area": "A17",
+   "name": "PD.1-PD.3 audio-tracks bake kit, flag default-on, flag removal",
+   "source": "docs/roadmap/packets/parallel-track.md:18",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Time-gated by user bake windows; not verified"
+  },
+  {
+   "area": "A14",
+   "name": "PD.4 source-audio auto-extract on video clips",
+   "source": "docs/roadmap/packets/parallel-track.md:99",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No extract-audio code found by grep"
+  },
+  {
+   "area": "A09",
+   "name": "PD.5/PD.6 region-select",
+   "source": "docs/roadmap/packets/parallel-track.md:125",
+   "status": "superseded",
+   "codeEvidence": null,
+   "notes": "Doc line 127/149: SUPERSEDED by MK.4 / MK.9"
+  },
+  {
+   "area": "A14",
+   "name": "PD.7 per-track gain metering",
+   "source": "docs/roadmap/packets/parallel-track.md:169",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Not verified"
+  },
+  {
+   "area": "A01",
+   "name": "PD.8 hotkey-discoverability surfaces",
+   "source": "docs/roadmap/packets/parallel-track.md:190",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/layout/Preferences.tsx:11",
+   "notes": "Help>Keyboard Shortcuts opens Preferences Shortcuts tab (menuActions.ts:165)"
+  },
+  {
+   "area": "A17",
+   "name": "PD.10 ~/.entropic to ~/.creatrix rename migration",
+   "source": "docs/roadmap/packets/parallel-track.md:236",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Project CLAUDE.md says PD.10 migration landed; not independently verified"
+  },
+  {
+   "area": "A06",
+   "name": "PD.15 wire-or-delete internal orphans",
+   "source": "docs/roadmap/packets/parallel-track.md:385",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/components/library/MacroKnob.tsx:10",
+   "notes": "Inventory still lists orphans: EffectRack, EffectSearch, ParamPanel, ParamSlider, MacroKnob, ZoomScroll, Waveform"
+  },
+  {
+   "area": "A08",
+   "name": "P4.0 react-xyflow 32-path prototype gate",
+   "source": "docs/roadmap/packets/phase-4.md:95",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Spike; outcome not verified"
+  },
+  {
+   "area": "A08",
+   "name": "P4.1-P4.2 OperatorType extension + Kentaro Cluster 8-LFO",
+   "source": "docs/roadmap/packets/phase-4.md:193",
+   "status": "built",
+   "codeEvidence": "backend/src/modulation/kentaro_cluster.py:1",
+   "notes": "UI mounted OperatorRack.tsx:283; routing.py:151 exposes sub-LFOs"
+  },
+  {
+   "area": "A10",
+   "name": "P5a.1 trigger schema + pure voice FSM",
+   "source": "docs/roadmap/packets/phase-5a.md:55",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/instruments/voiceFSM.ts:1",
+   "notes": "voiceFSM.ts exists"
+  },
+  {
+   "area": "A10",
+   "name": "P5a.2 backend voiceId state keying + caps",
+   "source": "docs/roadmap/packets/phase-5a.md:139",
+   "status": "built",
+   "codeEvidence": "backend/src/security.py:67",
+   "notes": "voice:{voice_id} state-cache keying comment and cap in security.py"
+  },
+  {
+   "area": "A10",
+   "name": "P5a.4 deterministic export replay of performance voices",
+   "source": "docs/roadmap/packets/phase-5a.md:266",
+   "status": "built",
+   "codeEvidence": "backend/src/engine/voice_replay.py:1",
+   "notes": "voice_replay.py exists"
+  },
+  {
+   "area": "A10",
+   "name": "P5a.13-P5a.15 rack nesting (nodeId, depth caps)",
+   "source": "docs/roadmap/packets/phase-5a.md:1039",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/instruments/RackDevice.tsx:1",
+   "notes": "RackDevice + buildRackLayers + resolveRackMacros exist"
+  },
+  {
+   "area": "A21",
+   "name": "P5b.1 SG-8 backend live wiring (PressureMonitor, memory_status IPC)",
+   "source": "docs/roadmap/packets/phase-5b.md:78",
+   "status": "built",
+   "codeEvidence": "backend/src/zmq_server.py:191",
+   "notes": "PressureMonitor created :191, started :3866, memory_status cmd :567"
+  },
+  {
+   "area": "A21",
+   "name": "P5b.2 SG-8 frontend memory status surface + toasts",
+   "source": "docs/roadmap/packets/phase-5b.md:105",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/memoryPressure.ts:1",
+   "notes": "store exists; UI badge not verified"
+  },
+  {
+   "area": "A08",
+   "name": "P5b.3-P5b.5 SG-3 NaN/Inf sentinel clauses 1-3",
+   "source": "docs/roadmap/packets/phase-5b.md:127",
+   "status": "half-built",
+   "codeEvidence": "backend/src/zmq_server.py:880",
+   "notes": "Clause 1+2 present (latent_sentinel.py:217, export.py:525); lane mute UX only noted as unknown lane_id in zmq_server.py:230"
+  },
+  {
+   "area": "A08",
+   "name": "P5b.6-P5b.8 SG-5 cycle detection integrated in mod engine",
+   "source": "docs/roadmap/packets/phase-5b.md:198",
+   "status": "built",
+   "codeEvidence": "backend/src/modulation/graph_adapter.py:9",
+   "notes": "safety/cycle_detection.py break_cycles used by graph_adapter"
+  },
+  {
+   "area": "A10",
+   "name": "P5b.9-P5b.12 B6 Frame-Bank (wavetable)",
+   "source": "docs/roadmap/packets/phase-5b.md:259",
+   "status": "built",
+   "codeEvidence": "backend/src/engine/frame_bank.py:1",
+   "notes": "FrameBankDevice mounted App.tsx:4212; security.py:489 validate_frame_bank"
+  },
+  {
+   "area": "A10",
+   "name": "P5b.13-P5b.15 B7 RIFE/optical-flow interpolation service",
+   "source": "docs/roadmap/packets/phase-5b.md:337",
+   "status": "half-built",
+   "codeEvidence": "backend/src/engine/frame_bank.py:233",
+   "notes": "interp=='flow' branch exists in frame_bank; no ONNX/RIFE service found"
+  },
+  {
+   "area": "A10",
+   "name": "P5b.16-P5b.20 B8 Granulator",
+   "source": "docs/roadmap/packets/phase-5b.md:398",
+   "status": "built",
+   "codeEvidence": "backend/src/instruments/granulator_instrument.py:1",
+   "notes": "GranulatorDevice mounted App.tsx:4220; security.py:96 grain cap"
+  },
+  {
+   "area": "A08",
+   "name": "P5b.21-P5b.24 B9 tensor mod-routing, Y-as-time, routing inspector",
+   "source": "docs/roadmap/packets/phase-5b.md:481",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/operators/B9EdgeInspector.tsx:1",
+   "notes": "Mounted OperatorRack.tsx:333; accept-set security.py:719"
+  },
+  {
+   "area": "A08",
+   "name": "P6.1 CPU row-banded axis-lane evaluation",
+   "source": "docs/roadmap/packets/phase-6.md:57",
+   "status": "built",
+   "codeEvidence": "frontend/src/shared/axis-lanes.ts:3",
+   "notes": "axis-lanes + modulation/lane_reader.py"
+  },
+  {
+   "area": "A08",
+   "name": "P6.2-P6.3 field params + field sources",
+   "source": "docs/roadmap/packets/phase-6.md:98",
+   "status": "built",
+   "codeEvidence": "backend/src/modulation/field_eval.py:1",
+   "notes": "field_eval.py exists"
+  },
+  {
+   "area": "A08",
+   "name": "P6.4-P6.5 real Metal/MLX binding + codegen",
+   "source": "docs/roadmap/packets/phase-6.md:175",
+   "status": "half-built",
+   "codeEvidence": "backend/src/zmq_server.py:1955",
+   "notes": "'gpu' render_path (MLX) honored with fallback; safety/mlx_resources.py exists; codegen coverage unverified"
+  },
+  {
+   "area": "A08",
+   "name": "P6.7-P6.8 I1 probe registry + Inspector Track",
+   "source": "docs/roadmap/packets/phase-6.md:298",
+   "status": "half-built",
+   "codeEvidence": "backend/src/zmq_server.py:3950",
+   "notes": "Backend probes (MAX_PROBES 64) exist; no frontend 'inspector' track type found"
+  },
+  {
+   "area": "A08",
+   "name": "P6.9-P6.10 I2 graph-sync + Routing Canvas overlay",
+   "source": "docs/roadmap/packets/phase-6.md:373",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/routing-canvas/RoutingCanvas.tsx:435",
+   "notes": "Imported App.tsx:172, state App.tsx:428; backend inspector/graph_sync.py"
+  },
+  {
+   "area": "A08",
+   "name": "T3.1-T3.5 B4-full binding rules on lanes + painted",
+   "source": "docs/roadmap/packets/phase-tier3.md:76",
+   "status": "half-built",
+   "codeEvidence": "backend/src/modulation/runtime_context.py:8",
+   "notes": "scanOver/integrate accepted in schema; 'No runtime-conditional edge kinds implemented yet (painted/learned)'"
+  },
+  {
+   "area": "A08",
+   "name": "T3.6-T3.8 whole-audio sources, lag/sample_hold edges, matrix UI",
+   "source": "docs/roadmap/packets/phase-tier3.md:186",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No spectral_centroid/whole-audio source found"
+  },
+  {
+   "area": "A08",
+   "name": "T3.9-T3.10 macro model + MacroDevice UI",
+   "source": "docs/roadmap/packets/phase-tier3.md:251",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/components/library/MacroKnob.tsx:10",
+   "notes": "MacroKnob exists but is an orphan per inventory; no macro engine"
+  },
+  {
+   "area": "A08",
+   "name": "T3.11-T3.12 render tap registry + feedback edges",
+   "source": "docs/roadmap/packets/phase-tier3.md:294",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No tap registry found"
+  },
+  {
+   "area": "A19",
+   "name": "T3.13-T3.14 E5 Launchpad bridge",
+   "source": "docs/roadmap/packets/phase-tier3.md:340",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "Only incidental Launchpad mentions in midi.ts:421"
+  },
+  {
+   "area": "A20",
+   "name": "T3.15 SG-H2 NOFILE raise + FD telemetry",
+   "source": "docs/roadmap/packets/phase-tier3.md:389",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No RLIMIT_NOFILE found"
+  },
+  {
+   "area": "A08",
+   "name": "P7.0 Q7 REAL benchmark (user action)",
+   "source": "docs/roadmap/packets/phase-7.md:92",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Needs user; no verdict artifact checked"
+  },
+  {
+   "area": "A08",
+   "name": "P7.1-P7.4 q7 harness + L-backbone worker cherry-picks",
+   "source": "docs/roadmap/packets/phase-7.md:245",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No q7_worker in backend/src"
+  },
+  {
+   "area": "A21",
+   "name": "P7.6-P7.7c verify-only SG-8/SG-3 packets",
+   "source": "docs/roadmap/packets/phase-7.md:362",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Verification packets"
+  },
+  {
+   "area": "A20",
+   "name": "P7.8 model download UX",
+   "source": "docs/roadmap/packets/phase-7.md:476",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No downloadProgressStore in frontend/src"
+  },
+  {
+   "area": "A17",
+   "name": "P8.1-P8.6 .dna format, budget descriptor, lint",
+   "source": "docs/roadmap/packets/phase-8-9.md:23",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "backend/src/dna does not exist"
+  },
+  {
+   "area": "A17",
+   "name": "P8.7 Ed25519 .dna signing",
+   "source": "docs/roadmap/packets/phase-8-9.md:234",
+   "status": "abandoned",
+   "codeEvidence": null,
+   "notes": "Marked SUSPENDED by locked decision"
+  },
+  {
+   "area": "A03",
+   "name": "P8.9-P8.10 Patch import/export dialogs",
+   "source": "docs/roadmap/packets/phase-8-9.md:286",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No PatchImportDialog/PatchExportDialog found"
+  },
+  {
+   "area": "A20",
+   "name": "P9.* Plugin SDK / SG-9 tier",
+   "source": "docs/roadmap/packets/phase-8-9.md:490",
+   "status": "abandoned",
+   "codeEvidence": null,
+   "notes": "Entire tier SUSPENDED (IF-EVER)"
+  },
+  {
+   "area": "A04",
+   "name": "UE.1 timeline snapping + toggle",
+   "source": "docs/roadmap/packets/user-expectations.md:19",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:3496",
+   "notes": "snapEnabled in layout store, transport button App.tsx:3601"
+  },
+  {
+   "area": "A04",
+   "name": "UE.2 ripple delete + ripple trim",
+   "source": "docs/roadmap/packets/user-expectations.md:40",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:1648",
+   "notes": "rippleTrimClipOut; ripple_delete shortcut App.tsx:1017"
+  },
+  {
+   "area": "A04",
+   "name": "UE.3 marquee clip selection",
+   "source": "docs/roadmap/packets/user-expectations.md:60",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:850",
+   "notes": "MarqueeOverlay referenced"
+  },
+  {
+   "area": "A17",
+   "name": "UE.4 Save As + numbered backups",
+   "source": "docs/roadmap/packets/user-expectations.md:81",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/project-persistence.ts:1765",
+   "notes": "saveProjectAs; numbered backups unverified"
+  },
+  {
+   "area": "A17",
+   "name": "UE.5 media relink dialog",
+   "source": "docs/roadmap/packets/user-expectations.md:102",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/dialogs/RelinkDialog.tsx:1",
+   "notes": "Mounted App.tsx:4395; project-persistence.ts:2154"
+  },
+  {
+   "area": "A16",
+   "name": "UE.6 still-frame export PNG",
+   "source": "docs/roadmap/packets/user-expectations.md:123",
+   "status": "built",
+   "codeEvidence": "backend/src/zmq_server.py:976",
+   "notes": "PNG output handler; frontend 'export-frame' source App.tsx:2282"
+  },
+  {
+   "area": "A04",
+   "name": "UE.7 clip rename + clip color swatch palette",
+   "source": "docs/roadmap/packets/user-expectations.md:144",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:2169",
+   "notes": "renameClip exists; no clip color code found"
+  },
+  {
+   "area": "A18",
+   "name": "UH.1-UH.5 undo coverage for new ops, voice FSM, mod-edge, painted-field history",
+   "source": "docs/roadmap/packets/undo-history.md:38",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Audit/matrix packets; not verified"
+  },
+  {
+   "area": "A08",
+   "name": "SPEC-2 B4-lite schema (axis binding, ModEdge, validator)",
+   "source": "docs/roadmap/specs/entropic-spec-2-b4lite-schema.md:18",
+   "status": "built",
+   "codeEvidence": "backend/src/project/schema.py:359",
+   "notes": "Writer/load validators accept broadcast/sampleAt/scanOver/integrate"
+  },
+  {
+   "area": "A21",
+   "name": "SPEC-3 SG-1/3/5/8 safety gate libs",
+   "source": "docs/roadmap/specs/entropic-spec-3-safety-gates.md:23",
+   "status": "built",
+   "codeEvidence": "backend/src/safety/gpu_resources.py:12",
+   "notes": "gpu_resources, latent_sentinel, cycle_detection, pressure/ all present"
+  },
+  {
+   "area": "A01",
+   "name": "SPEC-4 demo trilogy + onboarding ritual",
+   "source": "docs/roadmap/specs/entropic-spec-4-demo-trilogy.md:182",
+   "status": "half-built",
+   "codeEvidence": "frontend/src/renderer/components/demos/DemosDrawer.tsx:221",
+   "notes": "DemosDrawer mounted App.tsx:4240; trilogy assets/painted-blur not verified"
+  },
+  {
+   "area": "A08",
+   "name": "SPEC-5 L-backbone worker + Q7 benchmark",
+   "source": "docs/roadmap/specs/entropic-spec-5-l-backbone.md:16",
+   "status": "planned",
+   "codeEvidence": "backend/src/safety/pressure/degrade_order.py:25",
+   "notes": "Only L_BACKBONE degrade enum; no worker"
+  },
+  {
+   "area": "A17",
+   "name": "SPEC-6 .dna format",
+   "source": "docs/roadmap/specs/entropic-spec-6-dna-format.md:10",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No dna module; signing parts suspended"
+  },
+  {
+   "area": "A19",
+   "name": "SPEC-7 post-pass",
+   "source": "docs/roadmap/specs/entropic-spec-7-post-pass.md:1",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "See notes; docs skimmed"
+  },
+  {
+   "area": "A09",
+   "name": "Masking motion-track spike",
+   "source": "docs/roadmap/specs/masking-motion-track-spike.md:1",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Research spike doc"
+  },
+  {
+   "area": "A08",
+   "name": "SPEC-1 vision-build crosswalk",
+   "source": "docs/roadmap/specs/entropic-spec-1-crosswalk.md:19",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Ownership matrix; reference doc"
+  }
+ ],
+ "halfBuilt": [
+  {
+   "area": "A08",
+   "item": "Macro knobs (F3 macros)",
+   "docSays": "docs/roadmap/packets/phase-tier3.md:273",
+   "codeShows": "frontend/src/renderer/components/library/MacroKnob.tsx:10",
+   "gap": "MacroKnob component is orphan (inventory); no macro engine or MacroDevice container"
+  },
+  {
+   "area": "A08",
+   "item": "Inspector Track (I1)",
+   "docSays": "docs/roadmap/packets/phase-6.md:334",
+   "codeShows": "backend/src/zmq_server.py:3950",
+   "gap": "Backend probe registry present; no frontend Track.type 'inspector' / UI found"
+  },
+  {
+   "area": "A09",
+   "item": "Lasso tools (MK.5)",
+   "docSays": "docs/roadmap/packets/masking.md:334",
+   "codeShows": "frontend/src/renderer/stores/timeline.ts:374",
+   "gap": "Tool mode enum values exist; no lasso overlay component located"
+  },
+  {
+   "area": "A10",
+   "item": "B7 RIFE flow interpolation",
+   "docSays": "docs/roadmap/packets/phase-5b.md:337",
+   "codeShows": "backend/src/engine/frame_bank.py:233",
+   "gap": "interp 'flow' branch exists; no ONNX/RIFE service or model"
+  },
+  {
+   "area": "A08",
+   "item": "SG-3 lane-mute UX (clause 3)",
+   "docSays": "docs/roadmap/packets/phase-5b.md:176",
+   "codeShows": "backend/src/zmq_server.py:230",
+   "gap": "lane_aborted.lane_id always 'unknown' per code comment; no per-lane mute"
+  },
+  {
+   "area": "A04",
+   "item": "Clip color palette (UE.7)",
+   "docSays": "docs/roadmap/packets/user-expectations.md:144",
+   "codeShows": "frontend/src/renderer/stores/timeline.ts:2169",
+   "gap": "rename implemented; no clip color field/UI found"
+  },
+  {
+   "area": "A08",
+   "item": "Painted / runtime-conditional edges",
+   "docSays": "docs/roadmap/packets/phase-tier3.md:144",
+   "codeShows": "backend/src/modulation/runtime_context.py:8",
+   "gap": "code states no runtime-conditional edge kinds implemented"
+  },
+  {
+   "area": "A06",
+   "item": "Orphan components EffectRack, EffectSearch, ParamPanel, ParamSlider, ZoomScroll, Waveform",
+   "docSays": "docs/roadmap/packets/parallel-track.md:385",
+   "codeShows": "docs/spec/inventory/inventory.json:orphanComponents",
+   "gap": "PD.15 wire-or-delete not completed"
+  }
+ ],
+ "contradictions": [
+  {
+   "topic": "Typeface (Plex vs mono-only)",
+   "a": {
+    "cite": "docs/roadmap/packets/ux-audit.md:341",
+    "claim": "IBM Plex Sans + Plex Mono font bundling and swap (DESIGN-SPEC §3)"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:14",
+    "claim": "Mono-only identity: JetBrains Mono everywhere; hierarchy via weight/size/color; Plex two-voice plan formally dead"
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Type scale floor",
+   "a": {
+    "cite": "docs/roadmap/packets/ux-audit.md:84",
+    "claim": "floor 11px (clamps the verified 23 instances of 7-9px)"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:15",
+    "claim": "App floor = 12px (was 11)"
+   },
+   "severity": "blocking"
+  },
+  {
+   "topic": "Signing mandatory vs dropped",
+   "a": {
+    "cite": "docs/roadmap/specs/entropic-spec-6-dna-format.md:28",
+    "claim": "mandatory for Tier 7 plugin marketplace per SG"
+   },
+   "b": {
+    "cite": "docs/roadmap/packets/phase-8-9.md:1",
+    "claim": "signing/SG-9 quotas dropped. P8.6/P8.7 signing packets and P9.3/P9.4 are SUSPENDED."
+   },
+   "severity": "cosmetic"
+  }
+ ],
+ "openDecisions": [
+  {
+   "area": "A09",
+   "id": null,
+   "cite": "docs/roadmap/packets/phase-8-9.md:3",
+   "question": "Is P8.6 (schema-lint packet) live or suspended? Locked decision text is internally inconsistent; packet author resolved P8.6=LIVE."
+  },
+  {
+   "area": "A08",
+   "id": null,
+   "cite": "docs/roadmap/packets/phase-7.md:8",
+   "question": "Q7 REAL benchmark verdict (TIER_5_GO) not produced; blocks all of Phase 7 and A2 build."
+  },
+  {
+   "area": "A20",
+   "id": null,
+   "cite": "docs/roadmap/packets/ux-audit.md:84",
+   "question": "PUX.1 tokens (11px floor, 12.5px body) need re-basing to ratified Scale B+1 (14/13/12 floor 12)."
+  },
+  {
+   "area": "A09",
+   "id": null,
+   "cite": "docs/roadmap/packets/masking.md:792",
+   "question": "MK.13 targets 'PR-A tool tab'; ratified D4a/D10 use unified rail with 6 tool groups. Where do mask tools surface?"
+  }
+ ],
+ "supersededDocs": [
+  {
+   "doc": "docs/roadmap/packets/parallel-track.md#PD.5",
+   "supersededBy": "docs/roadmap/packets/masking.md#MK.4",
+   "cite": "docs/roadmap/packets/parallel-track.md:127"
+  },
+  {
+   "doc": "docs/roadmap/packets/parallel-track.md#PD.6",
+   "supersededBy": "docs/roadmap/packets/masking.md#MK.9",
+   "cite": "docs/roadmap/packets/parallel-track.md:149"
+  },
+  {
+   "doc": "docs/roadmap/packets/ux-audit.md#PUX.7",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D5",
+   "cite": "docs/roadmap/packets/ux-audit.md:340"
+  },
+  {
+   "doc": "docs/roadmap/packets/phase-8-9.md#P8.7,P9.*",
+   "supersededBy": "locked decision 2026-06-11 (signing dropped, Tier 7 IF-EVER)",
+   "cite": "docs/roadmap/packets/phase-8-9.md:1"
+  }
+ ]
+}

@@ -1,0 +1,817 @@
+{
+ "cluster": "openspec-b-fieldmap",
+ "docsRead": [
+  "openspec/changes/multiwindow-stage-a/packets.md",
+  "openspec/changes/multiwindow-stage-a/plan.md",
+  "openspec/changes/multiwindow-stage-a/proposal.md",
+  "openspec/changes/multiwindow-stage-a/uat.md",
+  "openspec/changes/wave0-prerouted-presets/packets.md",
+  "openspec/changes/wave0-prerouted-presets/plan.md",
+  "openspec/changes/wave0-prerouted-presets/proposal.md",
+  "openspec/changes/wave0-prerouted-presets/uat.md",
+  "openspec/changes/history-panel-delta/packets.md",
+  "openspec/changes/history-panel-delta/plan.md",
+  "openspec/changes/history-panel-delta/proposal.md",
+  "openspec/changes/history-panel-delta/uat.md",
+  "openspec/changes/w15b-grid-track-paradigm/packets.md",
+  "openspec/changes/w15b-grid-track-paradigm/proposal.md",
+  "openspec/changes/sampler-clip-editor/packets.md",
+  "openspec/changes/sampler-clip-editor/plan.md",
+  "openspec/changes/sampler-clip-editor/proposal.md",
+  "openspec/changes/sampler-clip-editor/uat.md",
+  "openspec/changes/device-monitors-v1/packets.md",
+  "openspec/changes/device-monitors-v1/plan.md",
+  "openspec/changes/device-monitors-v1/proposal.md",
+  "openspec/changes/device-monitors-v1/uat.md",
+  "openspec/changes/chain-tap-preview/packets.md",
+  "openspec/changes/chain-tap-preview/plan.md",
+  "openspec/changes/chain-tap-preview/proposal.md",
+  "openspec/changes/chain-tap-preview/uat.md",
+  "openspec/changes/01-per-track-chain-model/design.md",
+  "openspec/changes/01-per-track-chain-model/proposal.md",
+  "openspec/changes/01-per-track-chain-model/specs/effect-chain/spec.md",
+  "openspec/changes/01-per-track-chain-model/tasks.md",
+  "openspec/changes/02-track-lifecycle-integrity/design.md",
+  "openspec/changes/02-track-lifecycle-integrity/proposal.md",
+  "openspec/changes/02-track-lifecycle-integrity/specs/track-lifecycle/spec.md",
+  "openspec/changes/02-track-lifecycle-integrity/tasks.md",
+  "openspec/changes/03-ui-wiring/design.md",
+  "openspec/changes/03-ui-wiring/proposal.md",
+  "openspec/changes/03-ui-wiring/specs/effect-chain/spec.md",
+  "openspec/changes/03-ui-wiring/tasks.md",
+  "openspec/changes/04-freeze-pertrack/design.md",
+  "openspec/changes/04-freeze-pertrack/proposal.md",
+  "openspec/changes/04-freeze-pertrack/specs/freeze/spec.md",
+  "openspec/changes/04-freeze-pertrack/tasks.md",
+  "openspec/changes/05-export-pertrack/design.md",
+  "openspec/changes/05-export-pertrack/proposal.md",
+  "openspec/changes/05-export-pertrack/specs/export/spec.md",
+  "openspec/changes/05-export-pertrack/specs/render-composite/spec.md",
+  "openspec/changes/05-export-pertrack/tasks.md",
+  "openspec/changes/06-persistence-cleanup/design.md",
+  "openspec/changes/06-persistence-cleanup/proposal.md",
+  "openspec/changes/06-persistence-cleanup/specs/persistence/spec.md",
+  "openspec/changes/06-persistence-cleanup/tasks.md",
+  "openspec/DECISIONS-PENDING.md",
+  "openspec/PLANNING-QUEUE.md",
+  "openspec/READINESS-REPORT-2026-07-04.md",
+  "openspec/project.md",
+  "docs/plans/2026-07-field-mapping/ARCHITECTURE.md",
+  "docs/plans/2026-07-field-mapping/BUILD-PLAN.md",
+  "docs/plans/2026-07-field-mapping/CATALOG.md",
+  "docs/plans/2026-07-field-mapping/CTO-BUILDABLE-IDEAS.md",
+  "docs/plans/2026-07-field-mapping/HANDOFF.md",
+  "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0-AMENDED.md",
+  "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0.md",
+  "docs/plans/2026-07-field-mapping/PRESET-ARTDIRECTOR-20.md",
+  "docs/plans/2026-07-field-mapping/PRESET-CATALOG.md",
+  "docs/plans/2026-07-field-mapping/PRESET-TOP50.md",
+  "docs/plans/2026-07-field-mapping/README.md",
+  "docs/plans/2026-07-field-mapping/REVIEW.md",
+  "docs/plans/2026-07-field-mapping/SOURCES-SPEC.md",
+  "docs/plans/2026-07-field-mapping/SPIKES.md",
+  "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-composition-morph.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-cross-modal-routeout.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-depth-utility.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-displace-destination.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-edge-curve-ui.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-entropy-luma-utilities.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-field-mixer.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-field-solver-spike.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-field-solver-substrate.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-kuwahara-npr.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-mapping-framework.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-mix-macro.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-optical-flow-utility.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-physarum.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-prerouted-presets-library.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-self-steering-distortion.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-signal-tap.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-structure-tensor-utility.md",
+  "docs/plans/2026-07-field-mapping/prd/PRD-wave0-preset-mvp.md",
+  "docs/plans/2026-07-field-mapping/prd/_TEMPLATE.md"
+ ],
+ "features": [
+  {
+   "area": "A12",
+   "name": "WindowManager + System Monitor OS window (multiwindow Stage A)",
+   "source": "openspec/changes/multiwindow-stage-a/proposal.md:107",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No WindowManager/panel-windows/monitor entry in frontend/src (only index.html + pop-out.html; preload/ has index.ts+pop-out.ts). 4 packets PK.1-4 unbuilt."
+  },
+  {
+   "area": "A12",
+   "name": "Command-forwarding contract panel:dispatch/panel:command + undoable freeze",
+   "source": "openspec/changes/multiwindow-stage-a/proposal.md:120",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "freeze.ts has no undoable()/useUndoStore (frontend/src/renderer/stores/freeze.ts:49,76), so OD-5 gap still true."
+  },
+  {
+   "area": "A12",
+   "name": "FIFO serialization of shared ZMQ REQ socket (OD-4 hardening)",
+   "source": "openspec/changes/multiwindow-stage-a/proposal.md:104",
+   "status": "superseded",
+   "codeEvidence": "frontend/src/main/zmq-relay.ts:193",
+   "notes": "Doc says no queue exists; enqueueExchange FIFO now exists (:193,:255). Hardening need already met by #431."
+  },
+  {
+   "area": "A01",
+   "name": "View > System Monitor menu entry, no accelerator (OD-3)",
+   "source": "openspec/changes/multiwindow-stage-a/proposal.md:58",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "meta+shift+a still bound to mask_deselect_all at frontend/src/renderer/utils/default-shortcuts.ts:102 (doc cites :86)."
+  },
+  {
+   "area": "A03",
+   "name": "PK.00 CI stabilization to full green",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:25",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Cannot evidence CI state from tree; READINESS-REPORT-2026-07-04.md:23 says mostly done by others (fix/zmq-export-start-test)."
+  },
+  {
+   "area": "A18",
+   "name": "PK.0a History Ledger lint over undoable() descriptions",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:26",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No ledger-lint test in frontend/src/__tests__; generic \"Add effect\" still at frontend/src/renderer/stores/project.ts:269-271."
+  },
+  {
+   "area": "A03",
+   "name": "PK.1 chainData.routes[] + presetSchemaVersion + effects.maxItems 10->24",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:18",
+   "status": "planned",
+   "codeEvidence": "frontend/src/shared/schemas/preset.schema.json:33",
+   "notes": "Schema has no routes/presetSchemaVersion (0 grep hits); effects maxItems still 10 at :33."
+  },
+  {
+   "area": "A08",
+   "name": "UD-1 instance-UUID addressing end to end (instance id on wire, backend keyed by instance)",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:18",
+   "status": "planned",
+   "codeEvidence": "frontend/src/shared/ipc-serialize.ts:45",
+   "notes": "Wire still TYPE only: SerializedEffectInstance (:26-37) has no id; routing.py effect_map keyed by effect_id (:214-218)."
+  },
+  {
+   "area": "A03",
+   "name": "Preset apply in ONE undo transaction + materialize routes and macros",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:18",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/App.tsx:3807",
+   "notes": "Apply loops addEffect per effect (:3819-3823); no routes, no macros, no transaction. beginTransaction exists in undo.ts but unused here."
+  },
+  {
+   "area": "A03",
+   "name": "PK.2 Presets Library folders/search/tags inside PresetBrowser",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:19",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/components/library/PresetBrowser.tsx:13",
+   "notes": "PresetBrowser mounted but no folder/search/tag work evidenced; all packet ledger rows unbuilt."
+  },
+  {
+   "area": "A03",
+   "name": "PK.3 seed 24 pre-routed presets + thumbnails",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:20",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "resources/presets/factory has 60 pre-existing .glitchpreset files; none evidenced as routed Wave-0 presets (schema lacks routes)."
+  },
+  {
+   "area": "A08",
+   "name": "PK.4 _mix mappable macro knob",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:21",
+   "status": "planned",
+   "codeEvidence": "backend/src/modulation/routing.py:211",
+   "notes": "Backend already injects _mix (:211-220); UI knob/target not evidenced."
+  },
+  {
+   "area": "A08",
+   "name": "PK.5 edge curve applied in resolve_routings + smoothstep enum + picker",
+   "source": "openspec/changes/wave0-prerouted-presets/proposal.md:22",
+   "status": "planned",
+   "codeEvidence": "backend/src/modulation/routing.py:309",
+   "notes": "No curve handling in routing.py (grep curve = 0 hits); smoothstep only in lane_reader.py/paramScaling.ts, not OperatorMapping enum."
+  },
+  {
+   "area": "A08",
+   "name": "P0: targetEffectId is TYPE-scoped on the wire",
+   "source": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:10",
+   "status": "built",
+   "codeEvidence": "frontend/src/shared/ipc-serialize.ts:45",
+   "notes": "Still true on this tree. Doc path says renderer/utils; real path frontend/src/shared/ipc-serialize.ts. routing-graph-ipc.ts:264 gives RoutingCanvas dest effectId=inst.effectId (TYPE)."
+  },
+  {
+   "area": "A08",
+   "name": "Live bug: LFOEditor/ModulationMatrix/KentaroCluster write instance-UUID targets (silent no-op)",
+   "source": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:16",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/operators/LFOEditor.tsx:33",
+   "notes": "Still live: ModulationMatrix.tsx:123,131 (fx.id), OperatorKentaroCluster.tsx:188,201. Doc cites :31/:121 (drifted +2)."
+  },
+  {
+   "area": "A08",
+   "name": "routing.py silent drop of unknown target (needs debug log)",
+   "source": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:23",
+   "status": "built",
+   "codeEvidence": "backend/src/modulation/routing.py:310",
+   "notes": "Bare continue at :310-311, still no log."
+  },
+  {
+   "area": "A08",
+   "name": "crossStoreCleanup.pruneEffectDependents instance-id convention mismatch",
+   "source": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:16",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/crossStoreCleanup.ts:49",
+   "notes": "Prunes by instance ids (project.ts:304 passes [id]); TYPE-scoped mappings from RoutingCanvas are not matched."
+  },
+  {
+   "area": "A08",
+   "name": "D-1..D-5 decisions (addressing, order/IA, merge gate, preset dirs, curve shape)",
+   "source": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:27",
+   "status": "superseded",
+   "codeEvidence": null,
+   "notes": "All resolved as UD-1..UD-5 in MARATHON-BRIEF-wave0-AMENDED.md:11-16."
+  },
+  {
+   "area": "A08",
+   "name": "K1 Mapping Framework (field_dst:coord, reduce, FieldProvider, preset-bundle)",
+   "source": "docs/plans/2026-07-field-mapping/prd/PRD-mapping-framework.md:1",
+   "status": "planned",
+   "codeEvidence": "backend/src/modulation/routing.py:21",
+   "notes": "No reduce in routing.py; field_dst gated by EXPERIMENTAL_FIELD_DST (:33-39); no FieldProvider class found."
+  },
+  {
+   "area": "A06",
+   "name": "Field utilities U1-U4, Displace, Kuwahara, self-steering, physarum, field mixer, morph",
+   "source": "docs/plans/2026-07-field-mapping/README.md:77",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No kuwahara/structure_tensor/depth/displace/physarum effect files under backend/src/effects/fx (only displacement.py helper, flow_distort, entropy_map)."
+  },
+  {
+   "area": "A08",
+   "name": "Signal Tap (_tap_ publishers, 7 taps)",
+   "source": "docs/plans/2026-07-field-mapping/prd/PRD-signal-tap.md:1",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No _tap_ keys in backend/src."
+  },
+  {
+   "area": "A08",
+   "name": "Field-solver spike S9 GO (0.74 ms/frame MLX)",
+   "source": "docs/plans/2026-07-field-mapping/SPIKES.md:9",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Measurement claim; no spike artifact in tree to verify."
+  },
+  {
+   "area": "A08",
+   "name": "Cross-modal route-out (field->audio), L-axis AI",
+   "source": "docs/plans/2026-07-field-mapping/BUILD-PLAN.md:56",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No code; P7 gated on unrun S10 spike."
+  },
+  {
+   "area": "A18",
+   "name": "Shipped HistoryPanel (click-jump, transactions, 500 cap)",
+   "source": "openspec/changes/history-panel-delta/proposal.md:5",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/layout/HistoryPanel.tsx:5",
+   "notes": "63 lines, mounted in App.tsx (floating overlay). Menu item at frontend/src/main/menu.ts:48."
+  },
+  {
+   "area": "A18",
+   "name": "Cmd+Y toggle_history hotkey",
+   "source": "openspec/changes/history-panel-delta/proposal.md:31",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No meta+y/toggle_history anywhere; plan.md:49 and packets.md:17 defer it per T1 verdict (menu-entry only)."
+  },
+  {
+   "area": "A18",
+   "name": "Statusbar breadcrumb chip (P2)",
+   "source": "openspec/changes/history-panel-delta/proposal.md:32",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No HistoryBreadcrumbChip in frontend/src."
+  },
+  {
+   "area": "A18",
+   "name": "Row op-class icons via description heuristic (P5)",
+   "source": "openspec/changes/history-panel-delta/proposal.md:33",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/stores/undo.ts:12",
+   "notes": "No opClass/childDescriptions in undo.ts or types."
+  },
+  {
+   "area": "A18",
+   "name": "Transaction expandable rows via childDescriptions (P4/P5)",
+   "source": "openspec/changes/history-panel-delta/proposal.md:34",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/stores/undo.ts:12",
+   "notes": "undo.ts has no childDescriptions."
+  },
+  {
+   "area": "A18",
+   "name": "undo()/redo() try/catch + boolean return + toast (OD-4)",
+   "source": "openspec/changes/history-panel-delta/proposal.md:154",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/stores/undo.ts:12",
+   "notes": "Not evidenced built; no boolean-return/childDescriptions found in file."
+  },
+  {
+   "area": "A18",
+   "name": "Interim persisted docked-look panel (P3, OD-1)",
+   "source": "openspec/changes/history-panel-delta/proposal.md:121",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "showHistory is plain useState at App.tsx:455; no localStorage persistence evidenced."
+  },
+  {
+   "area": "A18",
+   "name": "Memory-smoke perf tier RUN_PERF (P6)",
+   "source": "openspec/changes/history-panel-delta/proposal.md:128",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No frontend perf test dir."
+  },
+  {
+   "area": "A04",
+   "name": "A1 grid overlay layer + tokens",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:31",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/GridOverlay.tsx:44",
+   "notes": "Mounted in Timeline.tsx:10; --cx-grid-beat in tokens.css; ledger PR #488."
+  },
+  {
+   "area": "A04",
+   "name": "A2 LOD coarsening",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:35",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/quantize-grid.ts:54",
+   "notes": "Old gridPx<10 vanish removed."
+  },
+  {
+   "area": "A01",
+   "name": "A3 quantize granularity readout chip",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:38",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:4328",
+   "notes": "Statusbar chip."
+  },
+  {
+   "area": "A04",
+   "name": "A4 time-range selection + Cmd+L copy to loop (D12)",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:41",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/utils/default-shortcuts.ts:89",
+   "notes": "copy_selection_to_loop registered App.tsx:781."
+  },
+  {
+   "area": "A04",
+   "name": "B1 unified track header",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:58",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/components/timeline/UnifiedTrackHeader.tsx:131",
+   "notes": "Mounted in Track/AudioTrack/InspectorTrack/MasterTrack (inventory.json)."
+  },
+  {
+   "area": "A04",
+   "name": "B2 scroll selected track into view",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:62",
+   "status": "unclear",
+   "codeEvidence": null,
+   "notes": "Ledger says PR #489; not individually grep-verified."
+  },
+  {
+   "area": "A04",
+   "name": "B3 rename Inspector track (Scope) / OD-1",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:66",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/assets/icon-kit.tsx:62",
+   "notes": "Name still \"Inspector\" (timeline.ts:937); icon-kit comment says stays until OD-1 rules. packets.md/ledger have no B3 packet."
+  },
+  {
+   "area": "A13",
+   "name": "C1/C2 automation Mode + write-mode into transport (D13/D13.1)",
+   "source": "openspec/changes/w15b-grid-track-paradigm/proposal.md:84",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:3679",
+   "notes": "automation-mode-select and write-mode-toggle present (:3697); add_lane in stores/automation.ts:243."
+  },
+  {
+   "area": "A10",
+   "name": "FrameStrip shared widget (region/loop/grid/scrub)",
+   "source": "openspec/changes/sampler-clip-editor/proposal.md:17",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No FrameStrip component in frontend/src/renderer."
+  },
+  {
+   "area": "A10",
+   "name": "Visible B3.1 loop controls in SamplerDevice",
+   "source": "openspec/changes/sampler-clip-editor/proposal.md:10",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/components/instruments/SamplerDevice.tsx:1",
+   "notes": "No loop UI in SamplerDevice.tsx (grep loop = 0); engine exists in computeSamplerVoice.ts."
+  },
+  {
+   "area": "A10",
+   "name": "snapFrameNearest sibling of quantizeFrame",
+   "source": "openspec/changes/sampler-clip-editor/plan.md:34",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/utils/launch-quantize.ts:65",
+   "notes": "quantizeFrame still ceil-only (:65)."
+  },
+  {
+   "area": "A10",
+   "name": "Drag timeline clip to sampler (application/x-creatrix-clip-source)",
+   "source": "openspec/changes/sampler-clip-editor/plan.md:61",
+   "status": "planned",
+   "codeEvidence": "frontend/src/renderer/components/timeline/Clip.tsx:705",
+   "notes": "Clip still draggable={false}."
+  },
+  {
+   "area": "A10",
+   "name": "Right-click Crop bake via crop_clip",
+   "source": "openspec/changes/sampler-clip-editor/plan.md:74",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No crop_clip in backend/src."
+  },
+  {
+   "area": "A10",
+   "name": "thumbnails start_frame/end_frame range params",
+   "source": "openspec/changes/sampler-clip-editor/proposal.md:57",
+   "status": "planned",
+   "codeEvidence": "backend/src/video/ingest.py:117",
+   "notes": "generate_thumbnails(path,count) only."
+  },
+  {
+   "area": "A10",
+   "name": "FrameBank/Rack pad real thumbnails (T1)",
+   "source": "openspec/changes/sampler-clip-editor/plan.md:87",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No thumbnail refs in FrameBankDevice.tsx."
+  },
+  {
+   "area": "A12",
+   "name": "Panel registry + draggable floating layer + --cx-z-panel",
+   "source": "openspec/changes/device-monitors-v1/proposal.md:37",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No frontend/src/renderer/panels dir; no cx-z-panel token."
+  },
+  {
+   "area": "A12",
+   "name": "tap_render IPC (layer-subset and chain-prefix, isolated state)",
+   "source": "openspec/changes/device-monitors-v1/plan.md:16",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No tap_render in backend/src or relay allowlist."
+  },
+  {
+   "area": "A12",
+   "name": "MonitorPanel + 4-monitor LRU budget",
+   "source": "openspec/changes/device-monitors-v1/plan.md:47",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No MonitorPanel."
+  },
+  {
+   "area": "A06",
+   "name": "monitor_default registry field",
+   "source": "openspec/changes/device-monitors-v1/proposal.md:37",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No monitor_default in backend/frontend."
+  },
+  {
+   "area": "A12",
+   "name": "Preview to here right-click tap (chain-tap-preview)",
+   "source": "openspec/changes/chain-tap-preview/proposal.md:11",
+   "status": "planned",
+   "codeEvidence": null,
+   "notes": "No \"Preview to here\" string in renderer."
+  },
+  {
+   "area": "A04",
+   "name": "Epic 01 per-track chain model (updateTrackEffectChain, trackId actions)",
+   "source": "openspec/changes/01-per-track-chain-model/proposal.md:10",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/timeline.ts:1236",
+   "notes": "getActiveEffectChain at project.ts:707; tasks.md has 0 of 15 boxes ticked despite being built."
+  },
+  {
+   "area": "A04",
+   "name": "Epic 1.5 track lifecycle integrity (pruneEffectDependents, removeTrack/duplicateTrack)",
+   "source": "openspec/changes/02-track-lifecycle-integrity/proposal.md:31",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/crossStoreCleanup.ts:49",
+   "notes": "Guard test frontend/src/__tests__/stores/track-lifecycle.test.ts; tasks 0/11 ticked."
+  },
+  {
+   "area": "A06",
+   "name": "Epic 02 ui-wiring (active-track resolution, per-track render path)",
+   "source": "openspec/changes/03-ui-wiring/proposal.md:25",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/stores/project.ts:707",
+   "notes": "App.tsx:89 imports getActiveTrackId/getActiveEffectChain; tasks 0/24 ticked."
+  },
+  {
+   "area": "A21",
+   "name": "Epic 03 freeze per-track call sites",
+   "source": "openspec/changes/04-freeze-pertrack/proposal.md:23",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:2409",
+   "notes": "handleFreezeUpTo uses getActiveEffectChain (:2423); MASTER_TRACK_ID deleted (freeze.ts:3 comment)."
+  },
+  {
+   "area": "A16",
+   "name": "Epic 04 export uses active track chain",
+   "source": "openspec/changes/05-export-pertrack/proposal.md:24",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/App.tsx:2800",
+   "notes": "activeExportChain=getActiveEffectChain(). Doc says export is single-source; backend/src/engine/export.py:2299 now calls render_composite."
+  },
+  {
+   "area": "A17",
+   "name": "Epic 05 persistence: per-track chain hydrate, masterEffectChain removed",
+   "source": "openspec/changes/06-persistence-cleanup/proposal.md:32",
+   "status": "built",
+   "codeEvidence": "frontend/src/renderer/project-persistence.ts:1176",
+   "notes": "Comments at :745,:1022 confirm removal; tasks 0/15 ticked."
+  },
+  {
+   "area": "A01",
+   "name": "Process docs: DECISIONS-PENDING T1 verdicts, PLANNING-QUEUE, READINESS-REPORT",
+   "source": "openspec/DECISIONS-PENDING.md:1",
+   "status": "built",
+   "codeEvidence": null,
+   "notes": "Process docs; PLANNING-QUEUE lacks a row for w15b-grid-track-paradigm."
+  }
+ ],
+ "halfBuilt": [
+  {
+   "area": "A03",
+   "item": "Preset macros (chainData.macros)",
+   "docSays": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:60",
+   "codeShows": "frontend/src/renderer/App.tsx:3819",
+   "gap": "Save collects macros (PresetSaveDialog.tsx:63) but apply loop only addEffect; MacroKnob orphan (inventory orphanComponents)."
+  },
+  {
+   "area": "A03",
+   "item": "Preset modulation routes on apply",
+   "docSays": "openspec/changes/wave0-prerouted-presets/proposal.md:18",
+   "codeShows": "frontend/src/renderer/App.tsx:3807",
+   "gap": "Presets cannot carry/restore routes; apply adds N separate undo entries."
+  },
+  {
+   "area": "A08",
+   "item": "LFOEditor/ModulationMatrix/KentaroCluster mappings",
+   "docSays": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:16",
+   "codeShows": "frontend/src/renderer/components/operators/ModulationMatrix.tsx:123",
+   "gap": "UI writes instance UUID, backend keys by effect type (routing.py:214-218); mappings never apply."
+  },
+  {
+   "area": "A08",
+   "item": "Edge curve field on OperatorMapping",
+   "docSays": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:53",
+   "codeShows": "backend/src/modulation/routing.py:309",
+   "gap": "Serialized and shown, never applied in routing contribution step."
+  },
+  {
+   "area": "A04",
+   "item": "Inspector track rename (B3/OD-1)",
+   "docSays": "openspec/changes/w15b-grid-track-paradigm/proposal.md:66",
+   "codeShows": "frontend/src/renderer/assets/icon-kit.tsx:62",
+   "gap": "Requirement in proposal, absent from packets/ledger; name unchanged."
+  },
+  {
+   "area": "A21",
+   "item": "Freeze/unfreeze History Ledger rows",
+   "docSays": "openspec/changes/multiwindow-stage-a/proposal.md:86",
+   "codeShows": "frontend/src/renderer/stores/freeze.ts:49",
+   "gap": "Freeze creates no undo entry; monitor freeze button depends on it."
+  },
+  {
+   "area": "A04",
+   "item": "tasks.md checklists for epics 01-06",
+   "docSays": "openspec/changes/01-per-track-chain-model/tasks.md:1",
+   "codeShows": "frontend/src/renderer/stores/timeline.ts:1236",
+   "gap": "All 6 tasks.md have zero ticked boxes though code is built; ledgers stale."
+  }
+ ],
+ "contradictions": [
+  {
+   "topic": "ZMQ relay request serialization",
+   "a": {
+    "cite": "openspec/changes/multiwindow-stage-a/proposal.md:104",
+    "claim": "no queue/mutex found anywhere in `frontend/src/main`"
+   },
+   "b": {
+    "cite": "frontend/src/main/zmq-relay.ts:193",
+    "claim": "function enqueueExchange<T>(fn: () => Promise<T>): Promise<T> {"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "History panel hotkey scope",
+   "a": {
+    "cite": "openspec/changes/history-panel-delta/proposal.md:31",
+    "claim": "`Cmd+Y` hotkey (via `shortcutRegistry`), a dockable home for the panel,"
+   },
+   "b": {
+    "cite": "openspec/changes/history-panel-delta/plan.md:49",
+    "claim": "NO CHANGE this change - T1 Verdicts global override (menu-entry-only now, accelerator picked at build/UAT): do not add a keybinding"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Epic map vs on-disk changes",
+   "a": {
+    "cite": "openspec/project.md:51",
+    "claim": "| 04 | ipc-backend | thread track_id through render IPC for scoping/logging; IPC round-trip test |"
+   },
+   "b": {
+    "cite": "openspec/changes/05-export-pertrack/proposal.md:3",
+    "claim": "\"ipc-backend track_id scoping\" - that part is DROPPED"
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "Wave-0 rider dependency on K1",
+   "a": {
+    "cite": "docs/plans/2026-07-field-mapping/prd/PRD-mix-macro.md:1",
+    "claim": "_Depends on:_ Mapping Framework (K1) - mostly exposes existing"
+   },
+   "b": {
+    "cite": "openspec/changes/wave0-prerouted-presets/proposal.md:16",
+    "claim": "plus two riders (`_mix` macro, edge-curve) that are cheap and share file surface with Packet 1"
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "Route addressing in HANDOFF",
+   "a": {
+    "cite": "docs/plans/2026-07-field-mapping/HANDOFF.md:60",
+    "claim": "apply reassigns fresh UUIDs (`App.tsx:3772`), so bundled routes referencing `target_effect_id` must be **remapped old->new**"
+   },
+   "b": {
+    "cite": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:18",
+    "claim": "UUID-scoped routes are broken *even without apply*."
+   },
+   "severity": "material"
+  },
+  {
+   "topic": "PR-zero status in project.md",
+   "a": {
+    "cite": "openspec/project.md:16",
+    "claim": "## Active initiative - PR-zero: per-track effect chains (F-0514-16)"
+   },
+   "b": {
+    "cite": "frontend/src/renderer/project-persistence.ts:745",
+    "claim": "Epic 05 D2: masterEffectChain removed - per-track chains are now serialized"
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "Export scope after PR-zero",
+   "a": {
+    "cite": "openspec/changes/05-export-pertrack/proposal.md:15",
+    "claim": "It does **NOT** composite multiple video tracks. Export is single-video-source + text overlays."
+   },
+   "b": {
+    "cite": "backend/src/engine/export.py:2299",
+    "claim": "out, new_states = render_composite("
+   },
+   "severity": "cosmetic"
+  },
+  {
+   "topic": "Transport automation control",
+   "a": {
+    "cite": "openspec/changes/w15b-grid-track-paradigm/proposal.md:84",
+    "claim": "R/L/T/D segmented control + Overdub toggle move into the transport bar"
+   },
+   "b": {
+    "cite": "docs/frontend/RATIFIED-FOUNDATIONS.md:30",
+    "claim": "the Read/Touch/Latch segmented control is replaced with ONE dropdown"
+   },
+   "severity": "cosmetic"
+  }
+ ],
+ "openDecisions": [
+  {
+   "area": "A12",
+   "id": "OD-1",
+   "cite": "openspec/changes/device-monitors-v1/proposal.md:30",
+   "question": "Who owns the panel registry: device-monitors-v1 vs system-monitor-v1 (supersede-check before P1)?"
+  },
+  {
+   "area": "A12",
+   "id": null,
+   "cite": "openspec/changes/device-monitors-v1/packets.md:5",
+   "question": "Joint tap-request schema with layertap-matte-v1 section 9 still required before tap_render P2."
+  },
+  {
+   "area": "A10",
+   "id": "OD-1",
+   "cite": "openspec/changes/sampler-clip-editor/proposal.md:35",
+   "question": "Grid anchor semantics (region IN vs also frame 0 tick row); resolve at mock review."
+  },
+  {
+   "area": "A10",
+   "id": "OD-2",
+   "cite": "openspec/changes/sampler-clip-editor/proposal.md:41",
+   "question": "Crop bake: new crop_clip command vs reuse freeze/bake."
+  },
+  {
+   "area": "A04",
+   "id": "OD-1",
+   "cite": "openspec/changes/w15b-grid-track-paradigm/proposal.md:95",
+   "question": "Rename Inspector track to Scope/Monitor/Meter (awaiting owner); no B3 packet."
+  },
+  {
+   "area": "A18",
+   "id": null,
+   "cite": "openspec/changes/history-panel-delta/plan.md:72",
+   "question": "Final Cmd+Y accelerator for history panel deferred to build/UAT."
+  },
+  {
+   "area": "A01",
+   "id": "OD-3",
+   "cite": "openspec/changes/multiwindow-stage-a/proposal.md:52",
+   "question": "System Monitor accelerator (Cmd+Shift+A collides with mask_deselect_all) deferred."
+  },
+  {
+   "area": "A12",
+   "id": "OD-2",
+   "cite": "openspec/changes/multiwindow-stage-a/proposal.md:31",
+   "question": "Stub vs real get_perf_stats panel content for Stage A."
+  },
+  {
+   "area": "A12",
+   "id": "OD-5",
+   "cite": "openspec/changes/multiwindow-stage-a/proposal.md:84",
+   "question": "Whether monitor ships a freeze button (needs undoable freeze)."
+  },
+  {
+   "area": "A12",
+   "id": "OD-1",
+   "cite": "openspec/changes/chain-tap-preview/proposal.md:18",
+   "question": "Tap follows device (id-anchored) vs pins index."
+  },
+  {
+   "area": "A08",
+   "id": null,
+   "cite": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:76",
+   "question": "FieldProvider never instantiated; K1 must wire it into render path before field caching."
+  },
+  {
+   "area": "A08",
+   "id": null,
+   "cite": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:84",
+   "question": "Preset schema vs tracks: additive track-bundle extension or chain-tier-only scope."
+  },
+  {
+   "area": "A03",
+   "id": null,
+   "cite": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:38",
+   "question": "Browser IA: Presets as top-level vs folder tree (UD-2 says folder tree wins; browser-folders not in slice)."
+  }
+ ],
+ "supersededDocs": [
+  {
+   "doc": "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0.md",
+   "supersededBy": "docs/plans/2026-07-field-mapping/MARATHON-BRIEF-wave0-AMENDED.md",
+   "cite": "openspec/changes/wave0-prerouted-presets/proposal.md:4"
+  },
+  {
+   "doc": "docs/plans/2026-07-field-mapping/HANDOFF.md",
+   "supersededBy": "UNIFICATION-2026-07-03.md (UD-1, UD-3)",
+   "cite": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:97"
+  },
+  {
+   "doc": "openspec/changes/w15b-grid-track-paradigm/proposal.md",
+   "supersededBy": "docs/frontend/RATIFIED-FOUNDATIONS.md D13/D13.1 (C1 section only)",
+   "cite": "openspec/changes/w15b-grid-track-paradigm/packets.md:185"
+  },
+  {
+   "doc": "openspec/project.md",
+   "supersededBy": "built state in tree (PR-zero complete, epic numbering differs)",
+   "cite": "openspec/project.md:16"
+  },
+  {
+   "doc": "docs/plans/2026-07-field-mapping/BUILD-PLAN.md",
+   "supersededBy": "MARATHON-BRIEF-wave0-AMENDED.md packet order 00>0a>1>4>5",
+   "cite": "docs/plans/2026-07-field-mapping/UNIFICATION-2026-07-03.md:65"
+  }
+ ]
+}

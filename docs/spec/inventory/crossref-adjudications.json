@@ -1,0 +1,98 @@
+{
+ "readers": {
+  "lifecycle": {
+   "checked": 2,
+   "confirmed": 2,
+   "refuted": 0,
+   "policy": "Normal. Checked: Save&Quit ignores saveProject() result (self-documented app/useCloseGate.ts:8-11 + characterization test); read_freeze only in relay allowlist (main/zmq-relay.ts:61), no renderer caller."
+  },
+  "devices": {
+   "checked": 2,
+   "confirmed": 2,
+   "refuted": 0,
+   "policy": "Normal. Checked: Knob.tsx:149-152 handleContextMenu resets with no stopPropagation (bubbles to DeviceCard wrapper); browser-folders plan.md:48 says rail 'PERMANENT and never collapses' yet Cmd+B 'hide/show the whole sidebar panel that now contains the rail' \u2014 real tension with D10 \u2192 owner decision."
+  },
+  "governance": {
+   "checked": 3,
+   "confirmed": 3,
+   "refuted": 0,
+   "policy": "Normal. Checked: CLAUDE.md:43 '8 Zustand stores' vs 23; F_CREATRIX_LAYOUT exists (path is frontend/src/shared/feature-flags.ts:87, reader omitted 'shared/'); MK.12 merged c120a81 #350."
+  },
+  "shell": {
+   "checked": 2,
+   "confirmed": 2,
+   "refuted": 0,
+   "policy": "Normal. Note: reader down-rated two law contradictions (X-shell-10/11) below 'blocking' against the brief \u2014 orchestrator restores blocking for any LIVE (unheadered, executable) D6 oracle."
+  },
+  "timeline": {
+   "checked": 3,
+   "confirmed": 3,
+   "refuted": 0,
+   "policy": "Normal. Checked: layers concat video\u2192text\u2192sampler\u2192rack (App.tsx:1674-1678) + compositor takes list bottom-to-top (backend/src/engine/compositor.py:301) \u21d2 text always above video regardless of row (D2 violation); LoopRegion.tsx has no pointer handlers; help-registry.ts:53 'Loop Toggle (Cmd+L)'."
+  },
+  "tools-keys": {
+   "checked": 3,
+   "confirmed": 3,
+   "refuted": 0,
+   "policy": "Normal. Checked: Space unconditional play/pause (App.tsx:1138-1141); routing_canvas = meta+shift+i (default-shortcuts.ts:58) vs doc invert-selection; MaskSelectOverlay.tsx:494-497 no-modifier op = 'add' (no replace)."
+  },
+  "control": {
+   "checked": 2,
+   "confirmed": 2,
+   "refuted": 0,
+   "policy": "Normal. Checked statically end-to-end: per-track automation lanes keyed `${effect.id}.${key}` (Track.tsx:113, instance uuid) \u2192 evaluateAutomationOverrides.ts:200 emits raw paramPath \u2192 App.tsx:1748 sends automation_overrides \u2192 backend/src/modulation/engine.py:701 matches f\"{eid}.{param_key}\" where eid = effect TYPE (ipc-serialize.ts:45) \u21d2 no match; modulateChain (App.tsx:194-218) applies pads+CC only. Code comment evaluateAutomationOverrides.ts:238-242 concedes per-track convention is untouched. NOT runtime-reproduced \u2014 live-bug candidate (gate 6: reproduce before fix)."
+  },
+  "remainder": {
+   "checked": 3,
+   "confirmed": 3,
+   "refuted": 0,
+   "policy": "Normal; UAT/red-team rows header-level only. Checked: security.py:39 MAX_FRAME_COUNT=300_000 (doc 3,000); OperatorRack mounted App.tsx:4124 (state-of-union says unmounted); zmq_server.py:658 'skip mmap \u2014 Electron uses base64' (IPC-PROTOCOL describes mmap ring buffer)."
+  },
+  "remainder2": {
+   "checked": 2,
+   "confirmed": 2,
+   "refuted": 0,
+   "policy": "Normal. Checked: App.tsx:4324 PERFORM badge inline fontSize 11 (< D6 floor); feature-flags.ts:5 F_0512 sweep retired."
+  }
+ },
+ "items": {
+  "X-devices-1": {
+   "verdict": "confirmed",
+   "note": "plan.md:48 self-tension vs D10 permanent rail; owner rules"
+  },
+  "X-shell-5": {
+   "verdict": "confirmed",
+   "note": "LayerPanel mounted App.tsx:3774 inside .app__sidebar.cx-left-col (App.tsx:3709; creatrix-shell.css:50 grid = left-col | handle | right) \u2014 D3 says right-dock"
+  },
+  "X-shell-7": {
+   "verdict": "confirmed-partial",
+   "note": "toggle_perform = bare 'p' (default-shortcuts.ts:52); swallow-by-pad-handler not runtime-checked"
+  },
+  "X-timeline-3": {
+   "verdict": "confirmed",
+   "note": "D2: type-grouped layer concat overrides row order"
+  },
+  "X-timeline-5": {
+   "verdict": "confirmed",
+   "note": "LoopRegion has no pointer handlers"
+  },
+  "X-timeline-6": {
+   "verdict": "confirmed",
+   "note": "help-registry.ts:53 stale Cmd+L label"
+  },
+  "AUTO-KEY": {
+   "verdict": "confirmed-static",
+   "note": "per-track effect-param automation likely a render no-op; needs runtime repro"
+  },
+  "X-shell-10": {
+   "verdict": "confirmed",
+   "severity": "blocking",
+   "note": "live, unheadered contradiction with D6 law \u2192 blocking per brief rule 3"
+  },
+  "X-shell-11": {
+   "verdict": "confirmed",
+   "severity": "blocking",
+   "note": "live, unheadered contradiction with D6 law \u2192 blocking per brief rule 3"
+  }
+ }
+}
